@@ -17,7 +17,8 @@ type ProductForm = {
     stock: string
     category: string
     imageUrl: string
-    discount: string // Nuevo campo
+    discount: string
+    isFeatured: boolean// Nuevo campo
 }
 
 const initialState: ProductForm = {
@@ -27,7 +28,8 @@ const initialState: ProductForm = {
     stock: "",
     category: "",
     imageUrl: "",
-    discount: "0" // Valor por defecto
+    discount: "0" 
+    isFeatured: false// Valor por defecto
 }
 
 export default function ProductsClient({ initialProducts }: { initialProducts: any[] }) {

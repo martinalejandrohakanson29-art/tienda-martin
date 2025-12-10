@@ -54,13 +54,29 @@ export default async function Home() {
                   />
                 </div>
                 <CardContent className="p-4">
-                  <h3 className="font-semibold text-lg truncate">{product.title}</h3>
-                  <p className="text-gray-500 text-sm truncate">{product.category}</p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-xl font-bold">${Number(product.price).toFixed(2)}</span>
-                    <Button size="sm" variant="secondary">Ver</Button>
-                  </div>
-                </CardContent>
+  <h3 className="font-semibold text-lg truncate">{product.title}</h3>
+  <p className="text-gray-500 text-sm truncate">{product.category}</p>
+  <div className="mt-2 flex items-center justify-between">
+    <div className="flex flex-col">
+        {product.discount > 0 && (
+            <span className="text-xs text-gray-400 line-through">
+                ${Number(product.price).toFixed(2)}
+            </span>
+        )}
+        <span className="text-xl font-bold text-gray-900">
+            ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
+        </span>
+    </div>
+    {product.discount > 0 && (
+        <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-full">
+            {product.discount}% OFF
+        </span>
+    )}
+    {!product.discount && (
+        <Button size="sm" variant="secondary">Ver</Button>
+    )}
+  </div>
+</CardContent>
               </Card>
             </Link>
           ))}

@@ -14,11 +14,12 @@ export default function CarouselClient({ initialItems }: { initialItems: any[] }
     const [loading, setLoading] = useState(false)
     const [imageUrl, setImageUrl] = useState("")
 
-    // 👇 LA MISMA FUNCIÓN MÁGICA DE DRIVE
+    // 👇 FUNCIÓN CORREGIDA
     const transformImageLink = (url: string) => {
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
+                // CORRECCIÓN: Agregué el '$' y usé el servidor 'lh3' que es el mejor para imágenes
                 return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
             }
         }
@@ -50,7 +51,6 @@ export default function CarouselClient({ initialItems }: { initialItems: any[] }
         <div className="space-y-8">
             <h2 className="text-3xl font-bold">Gestionar Carrusel</h2>
 
-            {/* Formulario simple para agregar */}
             <Card>
                 <CardHeader>
                     <CardTitle>Agregar Nuevo Banner</CardTitle>
@@ -73,7 +73,6 @@ export default function CarouselClient({ initialItems }: { initialItems: any[] }
                 </CardContent>
             </Card>
 
-            {/* Lista de Banners */}
             <div className="grid gap-6">
                 {initialItems.map((item, index) => (
                     <Card key={item.id} className="overflow-hidden">

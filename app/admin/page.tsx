@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { getProducts } from "@/app/actions/products"
-
+export const dynamic = "force-dynamic";
 export default async function AdminDashboard() {
     const products = await getProducts()
 
@@ -20,3 +20,4 @@ export default async function AdminDashboard() {
         </div>
     )
 }
+

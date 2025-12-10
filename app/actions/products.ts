@@ -10,20 +10,43 @@ export async function getProducts() {
     })
 }
 
+// 👇 NUEVA FUNCIÓN: Solo trae los destacados para la Home
+export async function getFeaturedProducts() {
+    return await prisma.product.findMany({
+        where: { isFeatured: true },
+        orderBy: { createdAt: "desc" },
+    })
+}
+
 export async function getProduct(id: string) {
     return await prisma.product.findUnique({
         where: { id },
     })
 }
 
+// Función auxiliar para verificar el límite de 8
+async function checkFeaturedLimit() {
+    const count = await prisma.product.count({
+        where: { isFeatured: true }
+    })
+    if (count >= 8) {
+        throw new Error("¡Ya tienes 8 productos destacados! Quita uno antes de agregar otro.")
+    }
+}
+
 export async function createProduct(data: Omit<Product, "id" | "createdAt" | "updatedAt">) {
-    // Ensure price is a Decimal or compatible
+    // Si intentan crear uno ya destacado, verificamos el límite
+    if (data.isFeatured) {
+        await checkFeaturedLimit()
+    }
+
     const product = await prisma.product.create({
         data: {
             ...data,
             price: data.price,
         },
     })
+    
     revalidatePath("/admin/products")
     revalidatePath("/shop")
     revalidatePath("/")
@@ -31,10 +54,20 @@ export async function createProduct(data: Omit<Product, "id" | "createdAt" | "up
 }
 
 export async function updateProduct(id: string, data: Partial<Omit<Product, "id" | "createdAt" | "updatedAt">>) {
+    // Si se está activando el destacado (true), verificamos el límite
+    // Pero primero revisamos si el producto YA era destacado para no contar doble
+    if (data.isFeatured) {
+        const currentProduct = await prisma.product.findUnique({ where: { id } })
+        if (currentProduct && !currentProduct.isFeatured) {
+            await checkFeaturedLimit()
+        }
+    }
+
     const product = await prisma.product.update({
         where: { id },
         data,
     })
+    
     revalidatePath("/admin/products")
     revalidatePath("/shop")
     revalidatePath("/")

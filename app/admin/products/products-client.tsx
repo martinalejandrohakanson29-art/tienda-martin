@@ -8,9 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Plus, Trash, Pencil } from "lucide-react"
-import { createProduct, deleteProduct } from "@/app/actions/products"
+// 👇 Importamos updateProduct también
+import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
-// Definimos un tipo simple para el formulario
 type ProductForm = {
     title: string
     description: string
@@ -34,25 +34,52 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
     const [isOpen, setIsOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState<ProductForm>(initialState)
+    // 👇 Nuevo estado para saber qué producto estamos editando (null = creando uno nuevo)
+    const [editingId, setEditingId] = useState<string | null>(null)
 
-    const handleCreate = async (e: React.FormEvent) => {
+    // Función unificada para Crear o Editar
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         try {
-            // Convertimos los strings a números para la base de datos
-            await createProduct({
+            const productData = {
                 ...formData,
-                price: parseFloat(formData.price) as any, // "any" para evitar conflictos de tipo Decimal
+                price: parseFloat(formData.price) as any,
                 stock: parseInt(formData.stock)
-            })
+            }
+
+            if (editingId) {
+                // Estamos EDITANDO
+                await updateProduct(editingId, productData)
+            } else {
+                // Estamos CREANDO
+                await createProduct(productData)
+            }
+
+            // Limpieza al terminar
             setIsOpen(false)
             setFormData(initialState)
-            router.refresh() // Recarga la lista
+            setEditingId(null) // Reseteamos el modo edición
+            router.refresh()
         } catch (error) {
-            alert("Error al crear el producto")
+            alert("Error al guardar el producto")
         } finally {
             setLoading(false)
         }
+    }
+
+    // 👇 Nueva función para preparar la edición
+    const handleEdit = (product: any) => {
+        setEditingId(product.id) // Marcamos este ID
+        setFormData({
+            title: product.title,
+            description: product.description,
+            price: product.price.toString(),
+            stock: product.stock.toString(),
+            category: product.category,
+            imageUrl: product.imageUrl
+        })
+        setIsOpen(true) // Abrimos el modal
     }
 
     const handleDelete = async (id: string) => {
@@ -61,21 +88,31 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         router.refresh()
     }
 
+    // Resetear el formulario si abren el modal para crear uno nuevo manualmente
+    const handleOpenChange = (open: boolean) => {
+        setIsOpen(open)
+        if (!open) {
+            setFormData(initialState)
+            setEditingId(null)
+        }
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-bold">Mis Productos</h2>
-                <Dialog open={isOpen} onOpenChange={setIsOpen}>
+                <Dialog open={isOpen} onOpenChange={handleOpenChange}>
                     <DialogTrigger asChild>
-                        <Button>
+                        <Button onClick={() => { setEditingId(null); setFormData(initialState); }}>
                             <Plus className="mr-2 h-4 w-4" /> Nuevo Producto
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
-                            <DialogTitle>Crear Producto</DialogTitle>
+                            {/* Título dinámico según lo que estemos haciendo */}
+                            <DialogTitle>{editingId ? "Editar Producto" : "Crear Producto"}</DialogTitle>
                         </DialogHeader>
-                        <form onSubmit={handleCreate} className="space-y-4 mt-4">
+                        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                             <div className="space-y-2">
                                 <Label>Título</Label>
                                 <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej: Camiseta Negra" />
@@ -103,7 +140,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="https://..." />
                             </div>
                             <Button type="submit" className="w-full" disabled={loading}>
-                                {loading ? "Guardando..." : "Guardar Producto"}
+                                {loading ? "Guardando..." : (editingId ? "Actualizar Producto" : "Guardar Producto")}
                             </Button>
                         </form>
                     </DialogContent>
@@ -131,6 +168,11 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                             <p className="text-xs text-gray-400 mt-2">Stock: {product.stock} | Cat: {product.category}</p>
                         </CardContent>
                         <CardFooter className="flex justify-end space-x-2">
+                            {/* 👇 Botón de Editar */}
+                            <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>
+                                <Pencil className="h-4 w-4" />
+                            </Button>
+                            {/* 👇 Botón de Eliminar */}
                             <Button variant="destructive" size="sm" onClick={() => handleDelete(product.id)}>
                                 <Trash className="h-4 w-4" />
                             </Button>

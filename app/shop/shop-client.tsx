@@ -44,6 +44,12 @@ export default function ShopClient({ products, categories }: { products: Product
                         <Link key={product.id} href={`/products/${product.id}`}>
                             <Card className="h-full hover:shadow-lg transition-shadow border-0 shadow-sm">
                                 <div className="aspect-square relative overflow-hidden rounded-t-lg bg-gray-100">
+                                    {/* 👇 ETIQUETA VERDE */}
+                                    {product.discount > 0 && (
+                                        <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 shadow-sm">
+                                            {product.discount}% OFF
+                                        </span>
+                                    )}
                                     <img
                                         src={product.imageUrl}
                                         alt={product.title}
@@ -51,29 +57,24 @@ export default function ShopClient({ products, categories }: { products: Product
                                         referrerPolicy="no-referrer"
                                     />
                                 </div>
-                               <CardContent className="p-4">
-    <h3 className="font-semibold text-lg truncate">{product.title}</h3>
-    <p className="text-gray-500 text-sm truncate">{product.category}</p>
-    <div className="mt-2 flex items-center justify-between">
-        <div className="flex flex-col">
-            {product.discount > 0 && (
-                <span className="text-xs text-gray-400 line-through">
-                    ${Number(product.price).toFixed(2)}
-                </span>
-            )}
-            <span className="text-xl font-bold">
-                ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
-            </span>
-        </div>
-        {product.discount > 0 ? (
-             <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-full">
-                -{product.discount}%
-            </span>
-        ) : (
-            <Button size="sm" variant="secondary">Ver</Button>
-        )}
-    </div>
-</CardContent>
+                                <CardContent className="p-4">
+                                    <h3 className="font-semibold text-lg truncate">{product.title}</h3>
+                                    <p className="text-gray-500 text-sm truncate">{product.category}</p>
+                                    <div className="mt-2 flex items-center justify-between">
+                                        <div className="flex flex-col">
+                                            {product.discount > 0 && (
+                                                <span className="text-xs text-gray-400 line-through">
+                                                    ${Number(product.price).toFixed(2)}
+                                                </span>
+                                            )}
+                                            <span className={`text-xl font-bold ${product.discount > 0 ? 'text-green-700' : ''}`}>
+                                                ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
+                                            </span>
+                                        </div>
+                                        {/* 👇 BOTÓN SIEMPRE VISIBLE */}
+                                        <Button size="sm" variant="secondary">Ver</Button>
+                                    </div>
+                                </CardContent>
                             </Card>
                         </Link>
                     ))}
@@ -85,4 +86,3 @@ export default function ShopClient({ products, categories }: { products: Product
         </div>
     )
 }
-

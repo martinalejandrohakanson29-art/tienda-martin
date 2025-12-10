@@ -2,28 +2,25 @@ import { getProduct } from "@/app/actions/products"
 import { notFound } from "next/navigation"
 import AddToCart from "./add-to-cart"
 
-// Forzamos que sea dinámico para ver siempre el precio actualizado
 export const dynamic = "force-dynamic"
 
 export default async function ProductPage({ params }: { params: { id: string } }) {
     const product = await getProduct(params.id)
 
-    // Si el producto no existe en la BD, mostramos error 404 oficial
     if (!product) return notFound()
 
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
-                {/* Imagen del Producto */}
                 <div className="aspect-square relative overflow-hidden rounded-2xl bg-gray-50 border shadow-sm">
                     <img
                         src={product.imageUrl}
                         alt={product.title}
                         className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
                     />
                 </div>
 
-                {/* Información del Producto */}
                 <div className="space-y-6">
                     <div>
                         <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{product.title}</h1>

@@ -15,7 +15,6 @@ export default function ShopClient({ products, categories }: { products: Product
 
     return (
         <div className="flex flex-col md:flex-row gap-8">
-            {/* Sidebar Filters */}
             <aside className="w-full md:w-64 space-y-4">
                 <h3 className="font-semibold text-lg">Categorías</h3>
                 <div className="flex flex-wrap gap-2 md:flex-col">
@@ -39,7 +38,6 @@ export default function ShopClient({ products, categories }: { products: Product
                 </div>
             </aside>
 
-            {/* Product Grid */}
             <div className="flex-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                     {filteredProducts.map((product) => (
@@ -50,6 +48,7 @@ export default function ShopClient({ products, categories }: { products: Product
                                         src={product.imageUrl}
                                         alt={product.title}
                                         className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                                        referrerPolicy="no-referrer"
                                     />
                                 </div>
                                 <CardContent className="p-4">

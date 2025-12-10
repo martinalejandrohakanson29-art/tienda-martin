@@ -17,6 +17,7 @@ type ProductForm = {
     stock: string
     category: string
     imageUrl: string
+    discount: string // Nuevo campo
 }
 
 const initialState: ProductForm = {
@@ -25,7 +26,8 @@ const initialState: ProductForm = {
     price: "",
     stock: "",
     category: "",
-    imageUrl: ""
+    imageUrl: "",
+    discount: "0" // Valor por defecto
 }
 
 export default function ProductsClient({ initialProducts }: { initialProducts: any[] }) {
@@ -35,13 +37,11 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
     const [formData, setFormData] = useState<ProductForm>(initialState)
     const [editingId, setEditingId] = useState<string | null>(null)
 
-    // 👇 LA FUNCIÓN MÁGICA: Convierte tu enlace de Drive al formato que sí funciona
+    // Función mágica para enlaces de Drive
     const transformImageLink = (url: string) => {
-        // Si es un enlace de Google Drive
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
-                // Usamos el formato lh3 que es el más rápido y estable para tiendas
                 return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
             }
         }
@@ -52,14 +52,14 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         e.preventDefault()
         setLoading(true)
         try {
-            // Transformamos el link antes de enviar a la base de datos
             const finalImageUrl = transformImageLink(formData.imageUrl)
 
             const productData = {
                 ...formData,
                 imageUrl: finalImageUrl,
                 price: parseFloat(formData.price) as any,
-                stock: parseInt(formData.stock)
+                stock: parseInt(formData.stock),
+                discount: parseInt(formData.discount || "0") // Guardamos el descuento
             }
 
             if (editingId) {
@@ -87,7 +87,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             price: product.price.toString(),
             stock: product.stock.toString(),
             category: product.category,
-            imageUrl: product.imageUrl
+            imageUrl: product.imageUrl,
+            discount: (product.discount || 0).toString() // Cargamos el descuento existente
         })
         setIsOpen(true)
     }
@@ -129,14 +130,19 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 <Label>Descripción</Label>
                                 <Input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Detalles..." />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* Fila de Precios y Stock */}
+                            <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                     <Label>Precio ($)</Label>
-                                    <Input required type="number" step="0.01" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder="0.00" />
+                                    <Input required type="number" step="0.01" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Descuento (%)</Label>
+                                    <Input type="number" value={formData.discount} onChange={e => setFormData({...formData, discount: e.target.value})} placeholder="0" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Stock</Label>
-                                    <Input required type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} placeholder="10" />
+                                    <Input required type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} />
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -144,8 +150,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 <Input required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} placeholder="Ej: Ropa" />
                             </div>
                             <div className="space-y-2">
-                                <Label>URL de Imagen (Drive)</Label>
-                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="Pega el enlace de compartir tal cual" />
+                                <Label>URL de Imagen</Label>
+                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="Pegar enlace aquí" />
                             </div>
                             <Button type="submit" className="w-full" disabled={loading}>
                                 {loading ? "Guardando..." : (editingId ? "Actualizar" : "Guardar")}
@@ -159,21 +165,34 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 {initialProducts.map((product) => (
                     <Card key={product.id}>
                         <div className="aspect-square relative overflow-hidden rounded-t-xl bg-gray-100">
-                            {/* 👇 IMPORTANTE: referrerPolicy para que Google no bloquee la imagen */}
+                            {/* Etiqueta de oferta en el admin también */}
+                            {product.discount > 0 && (
+                                <span className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full z-10">
+                                    {product.discount}% OFF
+                                </span>
+                            )}
                             <img 
                                 src={product.imageUrl} 
                                 alt={product.title} 
                                 className="w-full h-full object-cover"
                                 referrerPolicy="no-referrer"
-                                onError={(e) => {
-                                    (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x400?text=Error+Carga"
-                                }}
+                                onError={(e) => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x400?text=Error" }}
                             />
                         </div>
                         <CardHeader>
                             <CardTitle className="flex justify-between items-start text-lg">
                                 <span className="truncate">{product.title}</span>
-                                <span className="font-bold">${Number(product.price).toFixed(2)}</span>
+                                <div className="flex flex-col items-end">
+                                    {/* Mostrar precio tachado si hay descuento */}
+                                    {product.discount > 0 && (
+                                        <span className="text-xs text-gray-400 line-through">
+                                            ${Number(product.price).toFixed(2)}
+                                        </span>
+                                    )}
+                                    <span className={product.discount > 0 ? "text-red-600 font-bold" : "font-bold"}>
+                                        ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
+                                    </span>
+                                </div>
                             </CardTitle>
                         </CardHeader>
                         <CardContent>

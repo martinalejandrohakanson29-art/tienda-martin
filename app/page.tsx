@@ -4,7 +4,9 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-export const dynamic = "force-dynamic";
+
+export const dynamic = "force-dynamic"
+
 export default async function Home() {
   const carouselItems = await getCarouselItems()
   const products = await getProducts()
@@ -24,6 +26,7 @@ export default async function Home() {
                       src={item.imageUrl}
                       alt="Banner"
                       className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer" 
                     />
                   </div>
                 </CarouselItem>
@@ -47,6 +50,7 @@ export default async function Home() {
                     src={product.imageUrl}
                     alt={product.title}
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    referrerPolicy="no-referrer"
                   />
                 </div>
                 <CardContent className="p-4">

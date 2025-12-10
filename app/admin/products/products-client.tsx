@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Plus, Trash, Pencil } from "lucide-react"
-// 👇 Importamos updateProduct también
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
 type ProductForm = {
@@ -34,32 +33,44 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
     const [isOpen, setIsOpen] = useState(false)
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState<ProductForm>(initialState)
-    // 👇 Nuevo estado para saber qué producto estamos editando (null = creando uno nuevo)
     const [editingId, setEditingId] = useState<string | null>(null)
 
-    // Función unificada para Crear o Editar
+    // 👇 LA FUNCIÓN MÁGICA: Convierte tu enlace de Drive al formato que sí funciona
+    const transformImageLink = (url: string) => {
+        // Si es un enlace de Google Drive
+        if (url.includes("drive.google.com") && url.includes("/d/")) {
+            const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
+            if (idMatch && idMatch[1]) {
+                // Usamos el formato lh3 que es el más rápido y estable para tiendas
+                return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
+            }
+        }
+        return url
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
         try {
+            // Transformamos el link antes de enviar a la base de datos
+            const finalImageUrl = transformImageLink(formData.imageUrl)
+
             const productData = {
                 ...formData,
+                imageUrl: finalImageUrl,
                 price: parseFloat(formData.price) as any,
                 stock: parseInt(formData.stock)
             }
 
             if (editingId) {
-                // Estamos EDITANDO
                 await updateProduct(editingId, productData)
             } else {
-                // Estamos CREANDO
                 await createProduct(productData)
             }
 
-            // Limpieza al terminar
             setIsOpen(false)
             setFormData(initialState)
-            setEditingId(null) // Reseteamos el modo edición
+            setEditingId(null)
             router.refresh()
         } catch (error) {
             alert("Error al guardar el producto")
@@ -68,9 +79,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         }
     }
 
-    // 👇 Nueva función para preparar la edición
     const handleEdit = (product: any) => {
-        setEditingId(product.id) // Marcamos este ID
+        setEditingId(product.id)
         setFormData({
             title: product.title,
             description: product.description,
@@ -79,7 +89,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             category: product.category,
             imageUrl: product.imageUrl
         })
-        setIsOpen(true) // Abrimos el modal
+        setIsOpen(true)
     }
 
     const handleDelete = async (id: string) => {
@@ -88,7 +98,6 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         router.refresh()
     }
 
-    // Resetear el formulario si abren el modal para crear uno nuevo manualmente
     const handleOpenChange = (open: boolean) => {
         setIsOpen(open)
         if (!open) {
@@ -109,17 +118,16 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
-                            {/* Título dinámico según lo que estemos haciendo */}
                             <DialogTitle>{editingId ? "Editar Producto" : "Crear Producto"}</DialogTitle>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                             <div className="space-y-2">
                                 <Label>Título</Label>
-                                <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej: Camiseta Negra" />
+                                <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej: Camiseta" />
                             </div>
                             <div className="space-y-2">
                                 <Label>Descripción</Label>
-                                <Input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Breve descripción..." />
+                                <Input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Detalles..." />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
@@ -136,11 +144,11 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 <Input required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} placeholder="Ej: Ropa" />
                             </div>
                             <div className="space-y-2">
-                                <Label>URL de Imagen</Label>
-                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="https://..." />
+                                <Label>URL de Imagen (Drive)</Label>
+                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="Pega el enlace de compartir tal cual" />
                             </div>
                             <Button type="submit" className="w-full" disabled={loading}>
-                                {loading ? "Guardando..." : (editingId ? "Actualizar Producto" : "Guardar Producto")}
+                                {loading ? "Guardando..." : (editingId ? "Actualizar" : "Guardar")}
                             </Button>
                         </form>
                     </DialogContent>
@@ -151,10 +159,15 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 {initialProducts.map((product) => (
                     <Card key={product.id}>
                         <div className="aspect-square relative overflow-hidden rounded-t-xl bg-gray-100">
+                            {/* 👇 IMPORTANTE: referrerPolicy para que Google no bloquee la imagen */}
                             <img 
                                 src={product.imageUrl} 
                                 alt={product.title} 
                                 className="w-full h-full object-cover"
+                                referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                    (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x400?text=Error+Carga"
+                                }}
                             />
                         </div>
                         <CardHeader>
@@ -168,22 +181,15 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                             <p className="text-xs text-gray-400 mt-2">Stock: {product.stock} | Cat: {product.category}</p>
                         </CardContent>
                         <CardFooter className="flex justify-end space-x-2">
-                            {/* 👇 Botón de Editar */}
                             <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>
                                 <Pencil className="h-4 w-4" />
                             </Button>
-                            {/* 👇 Botón de Eliminar */}
                             <Button variant="destructive" size="sm" onClick={() => handleDelete(product.id)}>
                                 <Trash className="h-4 w-4" />
                             </Button>
                         </CardFooter>
                     </Card>
                 ))}
-                {initialProducts.length === 0 && (
-                    <div className="col-span-full text-center py-10 text-gray-500">
-                        No tienes productos. ¡Crea el primero!
-                    </div>
-                )}
             </div>
         </div>
     )

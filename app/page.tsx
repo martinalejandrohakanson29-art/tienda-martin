@@ -1,5 +1,6 @@
 import { getCarouselItems } from "@/app/actions/carousel"
-import { getProducts } from "@/app/actions/products"
+// 👇 Importamos la nueva función específica
+import { getFeaturedProducts } from "@/app/actions/products" 
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
@@ -9,8 +10,9 @@ export const dynamic = "force-dynamic"
 
 export default async function Home() {
   const carouselItems = await getCarouselItems()
-  const products = await getProducts()
-  const featuredProducts = products.slice(0, 8)
+  
+  // 👇 CAMBIO CLAVE: Usamos la función que filtra por el tilde
+  const featuredProducts = await getFeaturedProducts()
 
   return (
     <div className="space-y-12 pb-8">
@@ -46,7 +48,7 @@ export default async function Home() {
             <Link key={product.id} href={`/products/${product.id}`}>
               <Card className="h-full hover:shadow-lg transition-shadow border-0 shadow-sm cursor-pointer group">
                 <div className="aspect-square relative overflow-hidden rounded-t-lg bg-gray-100">
-                  {/* 👇 ETIQUETA VERDE SOBRE LA FOTO */}
+                  {/* Etiqueta Verde de Oferta */}
                   {product.discount > 0 && (
                     <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 shadow-sm">
                       {product.discount}% OFF
@@ -64,18 +66,15 @@ export default async function Home() {
                   <p className="text-gray-500 text-sm truncate">{product.category}</p>
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex flex-col">
-                        {/* Precio anterior tachado */}
                         {product.discount > 0 && (
                             <span className="text-xs text-gray-400 line-through">
                                 ${Number(product.price).toFixed(2)}
                             </span>
                         )}
-                        {/* Precio actual en verde si hay oferta */}
                         <span className={`text-xl font-bold ${product.discount > 0 ? 'text-green-700' : 'text-gray-900'}`}>
                             ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
                         </span>
                     </div>
-                    {/* 👇 EL BOTÓN SIEMPRE VISIBLE */}
                     <Button size="sm" variant="secondary">Ver</Button>
                   </div>
                 </CardContent>
@@ -83,6 +82,12 @@ export default async function Home() {
             </Link>
           ))}
         </div>
+        
+        {/* Mensaje si no hay destacados */}
+        {featuredProducts.length === 0 && (
+            <p className="text-center text-gray-500 my-8">Aún no hay productos destacados.</p>
+        )}
+
         <div className="mt-12 text-center">
           <Link href="/shop">
             <Button size="lg" className="px-8">Ver Todos los Productos</Button>

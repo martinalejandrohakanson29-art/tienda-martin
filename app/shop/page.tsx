@@ -1,6 +1,6 @@
 import { getProducts } from "@/app/actions/products"
 import ShopClient from "./shop-client"
-
+export const dynamic = "force-dynamic";
 export default async function ShopPage() {
     const products = await getProducts()
     const categories = Array.from(new Set(products.map((p) => p.category)))
@@ -12,3 +12,4 @@ export default async function ShopPage() {
         </div>
     )
 }
+

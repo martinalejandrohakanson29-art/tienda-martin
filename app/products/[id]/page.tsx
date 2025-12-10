@@ -12,8 +12,13 @@ export default async function ProductPage({ params }: { params: { id: string } }
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
-                {/* Imagen del Producto */}
                 <div className="aspect-square relative overflow-hidden rounded-2xl bg-gray-50 border shadow-sm">
+                    {/* Etiqueta Verde en la foto grande también */}
+                    {product.discount > 0 && (
+                        <span className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-md z-10">
+                            {product.discount}% OFF
+                        </span>
+                    )}
                     <img
                         src={product.imageUrl}
                         alt={product.title}
@@ -22,24 +27,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
                     />
                 </div>
 
-                {/* Información del Producto */}
                 <div className="space-y-6">
                     <div>
                         <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{product.title}</h1>
-                        <div className="flex items-center gap-2 mt-2">
-                            <p className="text-lg text-gray-500 badge badge-secondary">{product.category}</p>
-                            {/* 👇 Etiqueta de Oferta */}
-                            {product.discount > 0 && (
-                                <span className="bg-red-600 text-white px-3 py-1 rounded-full text-sm font-bold">
-                                    OFERTA {product.discount}% OFF
-                                </span>
-                            )}
-                        </div>
+                        <p className="text-lg text-gray-500 mt-2 badge badge-secondary">{product.category}</p>
                     </div>
                     
-                    {/* 👇 Sección de Precios con lógica de Descuento */}
                     <div className="flex items-end gap-3">
-                        <span className="text-4xl font-bold text-gray-900">
+                        <span className={`text-4xl font-bold ${product.discount > 0 ? 'text-green-700' : 'text-gray-900'}`}>
                             ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
                         </span>
                         {product.discount > 0 && (

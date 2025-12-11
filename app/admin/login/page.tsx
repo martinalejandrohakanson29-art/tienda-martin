@@ -33,8 +33,10 @@ export default function LoginPage() {
                 setError("Credenciales inválidas. Intenta de nuevo.")
                 setLoading(false)
             } else {
-                router.push("/admin")
-                router.refresh()
+                // 👇 AQUÍ ESTÁ EL CAMBIO MÁGICO
+                // En lugar de usar el router de Next.js, forzamos una navegación nativa.
+                // Esto "limpia" la pantalla y asegura que el admin cargue perfecto.
+                window.location.href = "/admin"
             }
         } catch (err) {
             setError("Ocurrió un error. Intenta más tarde.")

@@ -36,8 +36,8 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
                     // Para video, usamos el modo 'preview' que permite embed
                     return `https://drive.google.com/file/d/${id}/preview`
                 } else {
-                    // Para imagen, corrección: agregamos el '$' antes de {id}
-                    return `http://googleusercontent.com/profile/picture/${id}`
+                    // 👇 CORRECCIÓN CLAVE: Usamos el servidor lh3 y la sintaxis correcta ${id}
+                    return `https://lh3.googleusercontent.com/d/${id}`
                 }
             }
         }

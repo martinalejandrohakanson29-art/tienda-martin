@@ -4,17 +4,15 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { Product } from "@prisma/client"
 
-// Función normal para el Admin (trae todos)
 export async function getProducts() {
     return await prisma.product.findMany({
         orderBy: { createdAt: "desc" },
     })
 }
 
-// 👇 NUEVA FUNCIÓN: Solo trae los "Destacados" (para la Home)
 export async function getFeaturedProducts() {
     return await prisma.product.findMany({
-        where: { isFeatured: true }, // El filtro clave
+        where: { isFeatured: true },
         orderBy: { createdAt: "desc" },
     })
 }
@@ -25,7 +23,18 @@ export async function getProduct(id: string) {
     })
 }
 
-// Función auxiliar para limitar a 8
+// 👇 NUEVA FUNCIÓN: Suma 1 visita al producto
+export async function incrementProductView(id: string) {
+    await prisma.product.update({
+        where: { id },
+        data: {
+            views: { increment: 1 }
+        }
+    })
+}
+
+// ... (El resto de funciones createProduct, updateProduct, etc. déjalas igual)
+// Solo asegúrate de incluir la función incrementProductView
 async function checkFeaturedLimit() {
     const count = await prisma.product.count({
         where: { isFeatured: true }
@@ -35,7 +44,7 @@ async function checkFeaturedLimit() {
     }
 }
 
-export async function createProduct(data: Omit<Product, "id" | "createdAt" | "updatedAt">) {
+export async function createProduct(data: Omit<Product, "id" | "createdAt" | "updatedAt" | "views">) { // Agregamos views a Omit
     if (data.isFeatured) {
         await checkFeaturedLimit()
     }
@@ -54,10 +63,8 @@ export async function createProduct(data: Omit<Product, "id" | "createdAt" | "up
 }
 
 export async function updateProduct(id: string, data: Partial<Omit<Product, "id" | "createdAt" | "updatedAt">>) {
-    // Si se activa el destacado, verificamos límite
     if (data.isFeatured) {
         const currentProduct = await prisma.product.findUnique({ where: { id } })
-        // Solo verificamos si antes NO era destacado
         if (currentProduct && !currentProduct.isFeatured) {
             await checkFeaturedLimit()
         }

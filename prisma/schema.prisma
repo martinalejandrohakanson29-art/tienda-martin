@@ -43,7 +43,8 @@ model Config {
 
 model CarouselItem {
   id        String   @id @default(cuid())
-  imageUrl  String
+  mediaUrl  String   // 👈 Antes se llamaba imageUrl
+  mediaType String   @default("image") // 👈 Nuevo campo: 'image' o 'video'
   order     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -3,8 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
-// 👇 1. IMPORTAR EL COMPONENTE
-import AnnouncementBar from "@/components/announcement-bar"; 
+import AnnouncementBar from "@/components/announcement-bar"; // 👈 Asegúrate de tener esto
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -18,7 +17,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Revolucion motos", 
+  title: "Revolucion motos",
   description: "Tu tienda de confianza para repuestos y accesorios",
   icons: {
     icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"
@@ -37,10 +36,13 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
-        {/* 👇 2. COLOCARLO AQUÍ, ARRIBA DEL HEADER */}
-        <AnnouncementBar />
+        {/* 👇 CAMBIO CLAVE: Agrupamos ambos en un contenedor Sticky */}
+        {/* z-50 asegura que esté por encima de todo el contenido */}
+        <div className="sticky top-0 z-50 w-full flex flex-col">
+            <AnnouncementBar />
+            <Header />
+        </div>
         
-        <Header /> 
         <main className="flex-1">
           {children}
         </main>

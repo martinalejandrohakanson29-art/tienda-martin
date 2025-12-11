@@ -40,7 +40,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
     const [formData, setFormData] = useState<ProductForm>(initialState)
     const [editingId, setEditingId] = useState<string | null>(null)
 
-    // Función para corregir enlaces de Drive
+    // 👇 FUNCIÓN CORREGIDA: Sintaxis ${} y servidor lh3
     const transformImageLink = (url: string) => {
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)

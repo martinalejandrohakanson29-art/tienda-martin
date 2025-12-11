@@ -2,7 +2,6 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
-import { CarouselItem } from "@prisma/client"
 
 export async function getCarouselItems() {
     return await prisma.carouselItem.findMany({
@@ -10,7 +9,8 @@ export async function getCarouselItems() {
     })
 }
 
-export async function createCarouselItem(data: { imageUrl: string; order?: number }) {
+// 👇 Actualizado para recibir URL y TIPO
+export async function createCarouselItem(data: { mediaUrl: string; mediaType: string; order?: number }) {
     const item = await prisma.carouselItem.create({
         data,
     })

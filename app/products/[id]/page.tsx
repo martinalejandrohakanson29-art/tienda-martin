@@ -1,4 +1,4 @@
-import { getProduct } from "@/app/actions/products"
+import { getProduct, incrementProductView } from "@/app/actions/products" // 👈 Importamos la nueva función
 import { notFound } from "next/navigation"
 import AddToCart from "./add-to-cart"
 
@@ -9,11 +9,14 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
     if (!product) return notFound()
 
+    // 👇 MAGIA: Registramos la visita en segundo plano
+    // No usamos 'await' para no hacer esperar al usuario, que se cargue la página rápido
+    incrementProductView(product.id).catch(console.error)
+
     return (
         <div className="container mx-auto px-4 py-12">
             <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
                 <div className="aspect-square relative overflow-hidden rounded-2xl bg-gray-50 border shadow-sm">
-                    {/* Etiqueta Verde en la foto grande también */}
                     {product.discount > 0 && (
                         <span className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-md z-10">
                             {product.discount}% OFF

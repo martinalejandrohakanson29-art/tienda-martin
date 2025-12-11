@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Settings } from "lucide-react"
+import { Settings, Package } from "lucide-react" // Me aseguro de importar Package por si acaso
 import { Button } from "@/components/ui/button"
 import CartSheet from "./cart-sheet"
 import { getConfig } from "@/app/actions/config"
@@ -8,23 +8,23 @@ export default async function Header() {
   const config = await getConfig()
 
   return (
-    // 👇 CAMBIO: Volvemos a bg-white (Fondo Blanco) y borde suave
+    // 👇 CAMBIO 1: Aumentamos la altura del header a h-20 (80px) para dar espacio al logo
     <header className="sticky top-0 z-50 w-full border-b bg-white shadow-sm">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+      <div className="container mx-auto flex h-20 items-center justify-between px-4">
         
         {/* LOGO O NOMBRE */}
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 h-full py-2"> 
           {config?.logoUrl ? (
-            // Si hay logo, mostramos la imagen
+            // 👇 CAMBIO 2: Aumentamos la imagen a h-16 (64px) o h-full para aprovechar el espacio
+            // 'object-contain' asegura que se vea entero sin cortarse
             <img 
                 src={config.logoUrl} 
                 alt={config?.companyName || "Logo"} 
-                className="h-12 w-auto object-contain" 
+                className="h-full w-auto max-h-16 object-contain" 
                 referrerPolicy="no-referrer"
             />
           ) : (
-            // Si no, el texto en color oscuro (Negro)
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 truncate">
               {config?.companyName || "Mi Tienda"}
             </h1>
           )}
@@ -49,7 +49,6 @@ export default async function Header() {
 
         {/* CARRITO */}
         <div className="flex items-center gap-4">
-          {/* En móvil también mostramos el link de admin solo como icono si se necesita, o lo dejamos oculto */}
           <Link href="/admin" className="md:hidden text-gray-500">
             <Settings className="h-5 w-5" />
           </Link>

@@ -1,5 +1,5 @@
 import { getCarouselItems } from "@/app/actions/carousel"
-import { getFeaturedProducts, getProducts } from "@/app/actions/products" // 👈 Importamos getProducts
+import { getFeaturedProducts, getProducts } from "@/app/actions/products" 
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
@@ -11,37 +11,50 @@ export const dynamic = "force-dynamic"
 export default async function Home() {
   const carouselItems = await getCarouselItems()
   const featuredProducts = await getFeaturedProducts()
-  
-  // 👇 Obtenemos TODOS los productos para el buscador inteligente
   const allProducts = await getProducts()
 
   return (
     <div className="space-y-12 pb-8">
-      {/* Carrusel */}
+      {/* Carrusel Multimedia */}
       {carouselItems.length > 0 && (
         <div className="w-full relative group">
           <Carousel className="w-full" opts={{ loop: true }}>
             <CarouselContent>
               {carouselItems.map((item) => (
-                <CarouselItem key={item.id}>
-                  <div className="relative w-full h-[200px] md:h-[400px] lg:h-[500px]">
-                    <img
-                      src={item.imageUrl}
-                      alt="Banner"
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
+                <CarouselItem key={item.id} className="pl-0"> 
+                  <div className="relative w-full h-[250px] md:h-[450px] lg:h-[600px] bg-black">
+                    {item.mediaType === "video" ? (
+                      <iframe
+                        src={`${item.mediaUrl}`}
+                        className="w-full h-full object-cover"
+                        allow="autoplay; encrypted-media"
+                        title="Video Banner"
+                        style={{ border: 0 }}
+                      />
+                    ) : (
+                      <img
+                        src={item.mediaUrl}
+                        alt="Banner"
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
                   </div>
                 </CarouselItem>
               ))}
             </CarouselContent>
-            <CarouselPrevious className="left-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white" />
-            <CarouselNext className="right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white" />
+            {/* Flechas de navegación (ocultas si hay solo 1 item) */}
+            {carouselItems.length > 1 && (
+                <>
+                    <CarouselPrevious className="left-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
+                    <CarouselNext className="right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
+                </>
+            )}
           </Carousel>
         </div>
       )}
 
-      {/* 👇 Pasamos los productos al buscador */}
+      {/* Buscador */}
       <div className="container mx-auto px-4 -mt-8 relative z-10">
         <HomeSearch products={JSON.parse(JSON.stringify(allProducts))} />
       </div>

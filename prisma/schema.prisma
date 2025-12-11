@@ -38,7 +38,7 @@ model Config {
   locationUrl    String   @default("")
   paymentMethods String   @default("Efectivo,Transferencia,Tarjeta") 
   
-  // 👇 NUEVOS CAMPOS (Asegúrate de tenerlos)
+  // 👇 AGREGA ESTAS DOS LÍNEAS:
   carouselHeightDesktop String   @default("600px")
   carouselHeightMobile  String   @default("250px")
 

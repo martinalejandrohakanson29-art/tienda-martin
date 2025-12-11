@@ -48,6 +48,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
+                // 👇 Usamos el mismo formato robusto lh3
                 return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
             }
         }

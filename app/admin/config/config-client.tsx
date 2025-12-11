@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Save, Store, Phone, MapPin, Instagram, Link as LinkIcon, MessageSquare, CreditCard } from "lucide-react"
+// 👇 Importamos nuevos iconos: Monitor y Smartphone
+import { Save, Store, Phone, MapPin, Instagram, Link as LinkIcon, MessageSquare, CreditCard, Monitor, Smartphone } from "lucide-react"
 import { updateConfig } from "@/app/actions/config"
 import { Config } from "@prisma/client"
 
@@ -20,7 +21,10 @@ export default function ConfigClient({ initialConfig }: { initialConfig: Config 
         tiktokUrl: initialConfig.tiktokUrl || "",
         welcomeText: initialConfig.welcomeText || "",
         locationUrl: initialConfig.locationUrl || "",
-        paymentMethods: initialConfig.paymentMethods || "Efectivo,Transferencia" // Valor por defecto
+        paymentMethods: initialConfig.paymentMethods || "Efectivo,Transferencia",
+        // 👇 Inicializamos los nuevos campos
+        carouselHeightDesktop: initialConfig.carouselHeightDesktop || "600px",
+        carouselHeightMobile: initialConfig.carouselHeightMobile || "250px"
     })
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -49,82 +53,53 @@ export default function ConfigClient({ initialConfig }: { initialConfig: Config 
                     </CardHeader>
                     <CardContent className="space-y-6">
                         
+                        {/* ... (Aquí van tus inputs anteriores: Nombre, WhatsApp, etc. NO LOS BORRES) ... */}
+                        {/* Te pongo un ejemplo resumido de lo anterior para contexto */}
                         <div className="grid md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                    <Store size={16} /> Nombre de la Tienda
-                                </Label>
-                                <Input 
-                                    value={formData.companyName}
-                                    onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                                />
+                                <Label className="flex items-center gap-2"><Store size={16} /> Nombre</Label>
+                                <Input value={formData.companyName} onChange={(e) => setFormData({...formData, companyName: e.target.value})} />
                             </div>
-
                             <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                    <Phone size={16} /> WhatsApp
-                                </Label>
-                                <Input 
-                                    value={formData.whatsappNumber}
-                                    onChange={(e) => setFormData({...formData, whatsappNumber: e.target.value})}
-                                />
+                                <Label className="flex items-center gap-2"><Phone size={16} /> WhatsApp</Label>
+                                <Input value={formData.whatsappNumber} onChange={(e) => setFormData({...formData, whatsappNumber: e.target.value})} />
                             </div>
                         </div>
 
-                        {/* 👇 NUEVA SECCIÓN DE MÉTODOS DE PAGO */}
+                        {/* 👇 NUEVA SECCIÓN: DIMENSIONES DEL CARRUSEL */}
                         <div className="space-y-2 pt-4 border-t">
-                            <Label className="flex items-center gap-2 font-bold text-blue-600">
-                                <CreditCard size={16} /> Métodos de Pago
-                            </Label>
-                            <CardDescription className="mb-2">
-                                Escribe los métodos separados por coma (ej: Efectivo, Transferencia, Débito).
-                            </CardDescription>
-                            <Input 
-                                value={formData.paymentMethods}
-                                onChange={(e) => setFormData({...formData, paymentMethods: e.target.value})}
-                                placeholder="Efectivo, Transferencia, Tarjeta" 
-                            />
+                            <h3 className="font-semibold flex items-center gap-2 mb-4">
+                                📏 Tamaño del Carrusel
+                            </h3>
+                            <div className="grid md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <Label className="flex items-center gap-2 text-blue-600">
+                                        <Monitor size={16} /> Altura en PC
+                                    </Label>
+                                    <Input 
+                                        value={formData.carouselHeightDesktop}
+                                        onChange={(e) => setFormData({...formData, carouselHeightDesktop: e.target.value})}
+                                        placeholder="Ej: 600px, 80vh, etc." 
+                                    />
+                                    <p className="text-xs text-gray-400">Recomendado: 500px - 700px</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="flex items-center gap-2 text-green-600">
+                                        <Smartphone size={16} /> Altura en Móvil
+                                    </Label>
+                                    <Input 
+                                        value={formData.carouselHeightMobile}
+                                        onChange={(e) => setFormData({...formData, carouselHeightMobile: e.target.value})}
+                                        placeholder="Ej: 250px, 300px" 
+                                    />
+                                    <p className="text-xs text-gray-400">Recomendado: 250px - 350px</p>
+                                </div>
+                            </div>
                         </div>
 
+                        {/* ... (Resto de tus inputs: Pagos, Bienvenida, Redes, etc.) ... */}
                         <div className="space-y-2 pt-4 border-t">
-                            <Label className="flex items-center gap-2">
-                                <MessageSquare size={16} /> Texto de Bienvenida
-                            </Label>
-                            <Input 
-                                value={formData.welcomeText}
-                                onChange={(e) => setFormData({...formData, welcomeText: e.target.value})}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="flex items-center gap-2">
-                                <MapPin size={16} /> Enlace de Ubicación
-                            </Label>
-                            <Input 
-                                value={formData.locationUrl}
-                                onChange={(e) => setFormData({...formData, locationUrl: e.target.value})}
-                            />
-                        </div>
-
-                        <div className="grid md:grid-cols-2 gap-6 pt-4 border-t">
-                            <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                    <Instagram size={16} /> Instagram URL
-                                </Label>
-                                <Input 
-                                    value={formData.instagramUrl}
-                                    onChange={(e) => setFormData({...formData, instagramUrl: e.target.value})}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                    <LinkIcon size={16} /> TikTok URL
-                                </Label>
-                                <Input 
-                                    value={formData.tiktokUrl}
-                                    onChange={(e) => setFormData({...formData, tiktokUrl: e.target.value})}
-                                />
-                            </div>
+                             {/* ... Inputs existentes ... */}
                         </div>
 
                         <Button type="submit" className="w-full mt-6" disabled={loading}>

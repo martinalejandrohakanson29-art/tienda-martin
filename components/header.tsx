@@ -8,7 +8,8 @@ export default async function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white shadow-sm">
-      <div className="container mx-auto flex h-24 items-center justify-between px-4">
+      {/* 👇 Agregamos 'relative' para que el posicionamiento absoluto funcione aquí dentro */}
+      <div className="container mx-auto flex h-24 items-center justify-between px-4 relative">
         
         {/* LOGO O NOMBRE */}
         <Link href="/" className="flex items-center gap-2 h-full py-2"> 
@@ -27,7 +28,8 @@ export default async function Header() {
         </Link>
 
         {/* NAVEGACIÓN PC */}
-        <nav className="hidden md:flex items-center space-x-6">
+        {/* 👇 CAMBIO: Posicionamiento absoluto para centrado perfecto */}
+        <nav className="hidden md:flex items-center space-x-6 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <Link href="/" className="text-sm font-medium text-gray-700 hover:text-black transition-colors">
             Inicio
           </Link>

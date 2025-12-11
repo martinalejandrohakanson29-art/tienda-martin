@@ -22,7 +22,8 @@ model Product {
   category    String
   imageUrl    String
   discount    Int      @default(0)
-  isFeatured  Boolean  @default(false) // 👈 NUEVO CAMPO
+  isFeatured  Boolean  @default(false)
+  views       Int      @default(0) // 👈 NUEVO CAMPO: Contador de visitas
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

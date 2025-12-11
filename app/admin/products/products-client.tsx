@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Trash, Pencil, Star } from "lucide-react"
+import { Plus, Trash, Pencil, Star, Eye } from "lucide-react" // 👈 Importamos Eye
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
 type ProductForm = {
@@ -39,7 +39,6 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
     const [formData, setFormData] = useState<ProductForm>(initialState)
     const [editingId, setEditingId] = useState<string | null>(null)
 
-    // 👇 TRUCO: Extraemos categorías únicas para sugerirlas en el formulario
     const uniqueCategories = useMemo(() => {
         const categories = initialProducts.map(p => p.category)
         return Array.from(new Set(categories))
@@ -155,12 +154,11 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 </div>
                             </div>
 
-                            {/* 👇 INPUT MEJORADO CON SUGERENCIAS */}
                             <div className="space-y-2">
                                 <Label>Categoría</Label>
                                 <Input 
                                     required 
-                                    list="categories-list" // Conecta con el datalist
+                                    list="categories-list"
                                     value={formData.category} 
                                     onChange={e => setFormData({...formData, category: e.target.value})} 
                                     placeholder="Selecciona o escribe una nueva..." 
@@ -237,7 +235,16 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                         </CardHeader>
                         <CardContent>
                             <p className="text-sm text-gray-500 truncate">{product.description}</p>
-                            <p className="text-xs text-gray-400 mt-2">Stock: {product.stock} | Cat: {product.category}</p>
+                            
+                            {/* 👇 AQUÍ MOSTRAMOS LAS VISITAS */}
+                            <div className="flex justify-between items-center mt-3">
+                                <p className="text-xs text-gray-400">Stock: {product.stock} | Cat: {product.category}</p>
+                                <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-full">
+                                    <Eye size={14} className="mr-1" />
+                                    {product.views || 0} visitas
+                                </div>
+                            </div>
+
                         </CardContent>
                         <CardFooter className="flex justify-end space-x-2">
                             <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>

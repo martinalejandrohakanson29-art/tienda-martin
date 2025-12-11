@@ -12,6 +12,6 @@ export default async function AdminCarouselPage() {
     const itemsJson = JSON.parse(JSON.stringify(items))
     const configJson = JSON.parse(JSON.stringify(config))
     
-    // 👇 Pasamos la config al cliente
+    // 👇 Pasamos AMBOS datos al cliente
     return <CarouselClient initialItems={itemsJson} initialConfig={configJson} />
 }

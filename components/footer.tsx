@@ -7,7 +7,6 @@ export default async function Footer() {
 
     return (
         <footer className="bg-gray-900 text-white py-12 mt-12 overflow-hidden relative">
-            {/* El overflow-hidden ayuda a cortar cualquier "fuga" visual que cause líneas raras */}
             
             <div className="container mx-auto px-4 grid md:grid-cols-3 gap-8 relative z-10">
                 {/* Columna 1: Info */}
@@ -16,7 +15,7 @@ export default async function Footer() {
                     <p className="text-gray-400 mb-4">{config?.welcomeText}</p>
                 </div>
 
-                {/* Columna 2: Contacto (WhatsApp + Instagram) */}
+                {/* Columna 2: Contacto (WhatsApp + Instagram + TikTok) */}
                 <div className="flex flex-col items-start">
                     <h3 className="text-xl font-bold mb-4">Contacto</h3>
                     
@@ -29,7 +28,6 @@ export default async function Footer() {
                             className="flex items-center gap-3 text-gray-400 hover:text-white transition-all group mb-4 w-full"
                             title="Enviar mensaje por WhatsApp"
                         >
-                            {/* Círculo blanco para el logo */}
                             <div className="bg-white p-1.5 rounded-full group-hover:scale-110 transition-transform shadow-md shrink-0">
                                 <img 
                                     src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" 
@@ -41,16 +39,15 @@ export default async function Footer() {
                         </a>
                     ) : null}
 
-                    {/* Botón Instagram (NUEVO DISEÑO) */}
+                    {/* Botón Instagram */}
                     {config?.instagramUrl && (
                         <a 
                             href={config.instagramUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="flex items-center gap-3 text-gray-400 hover:text-white transition-all group w-full"
+                            className="flex items-center gap-3 text-gray-400 hover:text-white transition-all group mb-4 w-full"
                             title="Ver Instagram"
                         >
-                            {/* Círculo blanco para el logo (Mismo tamaño que WP) */}
                             <div className="bg-white p-1.5 rounded-full group-hover:scale-110 transition-transform shadow-md shrink-0">
                                 <img 
                                     src="https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg" 
@@ -59,6 +56,26 @@ export default async function Footer() {
                                 />
                             </div>
                             <span className="text-lg group-hover:font-medium transition-colors">revolucionmotoscba</span>
+                        </a>
+                    )}
+
+                    {/* 👇 NUEVO: Botón TikTok */}
+                    {config?.tiktokUrl && (
+                        <a 
+                            href={config.tiktokUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 text-gray-400 hover:text-white transition-all group w-full"
+                            title="Ver TikTok"
+                        >
+                            <div className="bg-white p-1.5 rounded-full group-hover:scale-110 transition-transform shadow-md shrink-0">
+                                <img 
+                                    src="https://upload.wikimedia.org/wikipedia/commons/3/34/Ionicons_logo-tiktok.svg" 
+                                    alt="TikTok" 
+                                    className="w-6 h-6" 
+                                />
+                            </div>
+                            <span className="text-lg group-hover:font-medium transition-colors">Síguenos en TikTok</span>
                         </a>
                     )}
                 </div>
@@ -97,7 +114,7 @@ export default async function Footer() {
                 </div>
             </div>
             
-            {/* Barra Inferior (Staff) - Zócalo Limpio */}
+            {/* Barra Inferior (Staff) */}
             <div className="border-t border-gray-800 mt-12 pt-8">
                 <div className="container mx-auto px-4 flex flex-col md:flex-row justify-between items-center text-gray-600 text-sm gap-4">
                     <p>&copy; {new Date().getFullYear()} {config?.companyName}. Todos los derechos reservados.</p>

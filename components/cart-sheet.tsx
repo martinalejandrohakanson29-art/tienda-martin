@@ -12,14 +12,13 @@ import { useCart } from "@/hooks/use-cart"
 export default function CartSheet() {
     const { cart, removeFromCart, mounted } = useCart()
     const [customerName, setCustomerName] = useState("")
-    const [paymentMethod, setPaymentMethod] = useState("") // Estado para el pago
+    const [paymentMethod, setPaymentMethod] = useState("")
     const [whatsappNumber, setWhatsappNumber] = useState("")
     const [availablePaymentMethods, setAvailablePaymentMethods] = useState<string[]>([])
 
     useEffect(() => {
         getConfig().then(config => {
             if (config?.whatsappNumber) setWhatsappNumber(config.whatsappNumber)
-            // Convertimos la lista de texto (Efectivo,Transferencia) en un array
             if (config?.paymentMethods) {
                 setAvailablePaymentMethods(config.paymentMethods.split(",").map(m => m.trim()))
             }
@@ -58,76 +57,111 @@ export default function CartSheet() {
                     )}
                 </Button>
             </SheetTrigger>
-            <SheetContent className="flex flex-col h-full">
-                <SheetHeader>
-                    <SheetTitle>Tu Carrito</SheetTitle>
+            {/* 👇 CAMBIO 1: Quitamos el flex layout para que todo fluya junto y tenga scroll */}
+            <SheetContent className="h-full overflow-y-auto w-full sm:max-w-md">
+                <SheetHeader className="mb-6">
+                    <SheetTitle className="text-2xl">Tu Carrito</SheetTitle>
                 </SheetHeader>
                 
-                <div className="flex-1 overflow-y-auto mt-4 pr-2">
-                    {cart.length === 0 ? (
-                        <p className="text-center text-gray-500 mt-10">El carrito está vacío</p>
-                    ) : (
-                        <div className="space-y-4">
-                            {cart.map((item) => (
-                                <div key={item.product.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
-                                    <div className="flex-1">
-                                        <p className="font-medium truncate pr-2">{item.product.title}</p>
-                                        <p className="text-sm text-gray-500">
-                                            ${Number(item.product.price)} x {item.quantity}
-                                        </p>
+                <div className="space-y-8"> {/* Contenedor principal con espaciado */}
+                    
+                    {/* SECCIÓN LISTA DE PRODUCTOS */}
+                    <div>
+                        {cart.length === 0 ? (
+                            <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                                <ShoppingCart className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+                                <p className="text-gray-500 font-medium">Tu carrito está vacío.</p>
+                                <p className="text-sm text-gray-400 mt-1">¡Agrega algo para empezar!</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                {cart.map((item) => (
+                                    // 👇 CAMBIO 2: Estructura con imagen
+                                    <div key={item.product.id} className="flex items-start gap-4 pb-6 border-b last:border-0">
+                                        {/* Miniatura de Imagen */}
+                                        <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-100">
+                                            <img
+                                                src={item.product.imageUrl}
+                                                alt={item.product.title}
+                                                className="h-full w-full object-cover object-center"
+                                                referrerPolicy="no-referrer"
+                                            />
+                                        </div>
+
+                                        {/* Detalles del Producto */}
+                                        <div className="flex flex-1 flex-col">
+                                            <div className="flex justify-between text-base font-medium text-gray-900">
+                                                <h3 className="truncate pr-2">{item.product.title}</h3>
+                                                <p className="ml-4 shrink-0">
+                                                    ${(Number(item.product.price) * item.quantity).toFixed(2)}
+                                                </p>
+                                            </div>
+                                            <p className="mt-1 text-sm text-gray-500">{item.product.category}</p>
+                                            
+                                            <div className="flex items-end justify-between text-sm mt-2">
+                                                <p className="text-gray-500">Cant: <span className="font-semibold text-gray-900">{item.quantity}</span></p>
+
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    onClick={() => removeFromCart(item.product.id)} 
+                                                    className="text-red-500 hover:text-red-700 -mr-2 p-2 h-auto"
+                                                >
+                                                    Eliminar
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <Button variant="ghost" size="sm" onClick={() => removeFromCart(item.product.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                                        <Trash size={16} />
-                                    </Button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* SECCIÓN RESUMEN Y FORMULARIO (Solo se muestra si hay ítems) */}
+                    {cart.length > 0 && (
+                        <div className="border-t border-gray-200 pt-6 space-y-6 bg-gray-50 -mx-6 px-6 pb-6 mt-4">
+                            <div className="flex justify-betweentext-base font-medium text-gray-900">
+                                <span className="text-lg">Subtotal</span>
+                                <span className="text-xl font-bold">${total.toFixed(2)}</span>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-500">El envío y los impuestos se calculan al confirmar.</p>
+
+                            <div className="space-y-4 pt-4">
+                                <h4 className="font-medium flex items-center gap-2"><CreditCard size={18}/> Datos para el Pedido</h4>
+                                <div>
+                                    <Label htmlFor="name">Tu Nombre Completo</Label>
+                                    <Input
+                                        id="name"
+                                        value={customerName}
+                                        onChange={(e) => setCustomerName(e.target.value)}
+                                        placeholder="Ej: Juan Pérez"
+                                        className="mt-1 bg-white"
+                                    />
                                 </div>
-                            ))}
+
+                                <div>
+                                    <Label htmlFor="payment">Forma de Pago Preferida</Label>
+                                    <select 
+                                        id="payment"
+                                        value={paymentMethod}
+                                        onChange={(e) => setPaymentMethod(e.target.value)}
+                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 mt-1"
+                                    >
+                                        <option value="" disabled>Selecciona una opción...</option>
+                                        {availablePaymentMethods.map(method => (
+                                            <option key={method} value={method}>{method}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <Button className="w-full bg-green-600 hover:bg-green-700 h-12 text-lg font-bold shadow-md mt-6" onClick={handleCheckout}>
+                                Finalizar Pedido por WhatsApp
+                            </Button>
+                            <p className="text-xs text-center text-gray-500 mt-2">Serás redirigido a WhatsApp para enviar el detalle.</p>
                         </div>
                     )}
                 </div>
-
-                {cart.length > 0 && (
-                    <div className="border-t pt-4 mt-auto space-y-4 bg-white">
-                        <div className="flex justify-between font-bold text-xl">
-                            <span>Total:</span>
-                            <span>${total.toFixed(2)}</span>
-                        </div>
-
-                        <div className="space-y-3">
-                            <div>
-                                <Label htmlFor="name">Tu Nombre</Label>
-                                <Input
-                                    id="name"
-                                    value={customerName}
-                                    onChange={(e) => setCustomerName(e.target.value)}
-                                    placeholder="Juan Pérez"
-                                    className="mt-1"
-                                />
-                            </div>
-
-                            {/* 👇 SELECTOR DE PAGO */}
-                            <div>
-                                <Label htmlFor="payment" className="flex items-center gap-2">
-                                    <CreditCard size={14} /> Forma de Pago
-                                </Label>
-                                <select 
-                                    id="payment"
-                                    value={paymentMethod}
-                                    onChange={(e) => setPaymentMethod(e.target.value)}
-                                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 mt-1"
-                                >
-                                    <option value="" disabled>Selecciona una opción...</option>
-                                    {availablePaymentMethods.map(method => (
-                                        <option key={method} value={method}>{method}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <Button className="w-full bg-green-600 hover:bg-green-700 h-12 text-lg" onClick={handleCheckout}>
-                            Confirmar Pedido en WhatsApp
-                        </Button>
-                    </div>
-                )}
             </SheetContent>
         </Sheet>
     )

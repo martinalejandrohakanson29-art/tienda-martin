@@ -36,8 +36,12 @@ model Config {
   tiktokUrl      String   @default("")
   welcomeText    String   @default("Bienvenido a nuestra tienda")
   locationUrl    String   @default("")
-  // 👇 NUEVO CAMPO: Guardaremos las opciones separadas por coma
   paymentMethods String   @default("Efectivo,Transferencia,Tarjeta") 
+  
+  // 👇 NUEVOS CAMPOS PARA EL CARRUSEL
+  carouselHeightDesktop String   @default("600px")
+  carouselHeightMobile  String   @default("250px")
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

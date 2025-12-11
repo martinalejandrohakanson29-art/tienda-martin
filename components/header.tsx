@@ -10,7 +10,7 @@ export default async function Header() {
   return (
     // 👇 CAMBIO 1: Aumentamos la altura del header a h-20 (80px) para dar espacio al logo
     <header className="sticky top-0 z-50 w-full border-b bg-white shadow-sm">
-      <div className="container mx-auto flex h-20 items-center justify-between px-4">
+      <div className="container mx-auto flex h-30 items-center justify-between px-4">
         
         {/* LOGO O NOMBRE */}
         <Link href="/" className="flex items-center gap-2 h-full py-2"> 
@@ -59,3 +59,4 @@ export default async function Header() {
     </header>
   )
 }
+

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Save, Store, Phone, MapPin, Instagram, Link as LinkIcon, MessageSquare } from "lucide-react"
+import { Save, Store, Phone, MapPin, Instagram, Link as LinkIcon, MessageSquare, CreditCard } from "lucide-react"
 import { updateConfig } from "@/app/actions/config"
 import { Config } from "@prisma/client"
 
@@ -19,7 +19,8 @@ export default function ConfigClient({ initialConfig }: { initialConfig: Config 
         instagramUrl: initialConfig.instagramUrl || "",
         tiktokUrl: initialConfig.tiktokUrl || "",
         welcomeText: initialConfig.welcomeText || "",
-        locationUrl: initialConfig.locationUrl || ""
+        locationUrl: initialConfig.locationUrl || "",
+        paymentMethods: initialConfig.paymentMethods || "Efectivo,Transferencia" // Valor por defecto
     })
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -44,7 +45,7 @@ export default function ConfigClient({ initialConfig }: { initialConfig: Config 
                 <Card>
                     <CardHeader>
                         <CardTitle>Información General</CardTitle>
-                        <CardDescription>Estos datos se mostrarán en el encabezado y pie de página.</CardDescription>
+                        <CardDescription>Estos datos se mostrarán en la tienda.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
                         
@@ -56,42 +57,52 @@ export default function ConfigClient({ initialConfig }: { initialConfig: Config 
                                 <Input 
                                     value={formData.companyName}
                                     onChange={(e) => setFormData({...formData, companyName: e.target.value})}
-                                    placeholder="Ej: Tienda Revolución" 
                                 />
                             </div>
 
                             <div className="space-y-2">
                                 <Label className="flex items-center gap-2">
-                                    <Phone size={16} /> WhatsApp (con código de país)
+                                    <Phone size={16} /> WhatsApp
                                 </Label>
                                 <Input 
                                     value={formData.whatsappNumber}
                                     onChange={(e) => setFormData({...formData, whatsappNumber: e.target.value})}
-                                    placeholder="Ej: 5493511234567" 
                                 />
-                                <p className="text-xs text-gray-500">Importante: Solo números, sin espacios ni símbolos (+).</p>
                             </div>
                         </div>
 
-                        <div className="space-y-2">
+                        {/* 👇 NUEVA SECCIÓN DE MÉTODOS DE PAGO */}
+                        <div className="space-y-2 pt-4 border-t">
+                            <Label className="flex items-center gap-2 font-bold text-blue-600">
+                                <CreditCard size={16} /> Métodos de Pago
+                            </Label>
+                            <CardDescription className="mb-2">
+                                Escribe los métodos separados por coma (ej: Efectivo, Transferencia, Débito).
+                            </CardDescription>
+                            <Input 
+                                value={formData.paymentMethods}
+                                onChange={(e) => setFormData({...formData, paymentMethods: e.target.value})}
+                                placeholder="Efectivo, Transferencia, Tarjeta" 
+                            />
+                        </div>
+
+                        <div className="space-y-2 pt-4 border-t">
                             <Label className="flex items-center gap-2">
-                                <MessageSquare size={16} /> Texto de Bienvenida / Slogan
+                                <MessageSquare size={16} /> Texto de Bienvenida
                             </Label>
                             <Input 
                                 value={formData.welcomeText}
                                 onChange={(e) => setFormData({...formData, welcomeText: e.target.value})}
-                                placeholder="Ej: La mejor ropa deportiva de Córdoba" 
                             />
                         </div>
 
                         <div className="space-y-2">
                             <Label className="flex items-center gap-2">
-                                <MapPin size={16} /> Enlace de Google Maps
+                                <MapPin size={16} /> Enlace de Ubicación
                             </Label>
                             <Input 
                                 value={formData.locationUrl}
                                 onChange={(e) => setFormData({...formData, locationUrl: e.target.value})}
-                                placeholder="https://maps.app.goo.gl/..." 
                             />
                         </div>
 
@@ -103,7 +114,6 @@ export default function ConfigClient({ initialConfig }: { initialConfig: Config 
                                 <Input 
                                     value={formData.instagramUrl}
                                     onChange={(e) => setFormData({...formData, instagramUrl: e.target.value})}
-                                    placeholder="https://instagram.com/tu_usuario" 
                                 />
                             </div>
                             <div className="space-y-2">
@@ -113,7 +123,6 @@ export default function ConfigClient({ initialConfig }: { initialConfig: Config 
                                 <Input 
                                     value={formData.tiktokUrl}
                                     onChange={(e) => setFormData({...formData, tiktokUrl: e.target.value})}
-                                    placeholder="https://tiktok.com/@tu_usuario" 
                                 />
                             </div>
                         </div>

@@ -10,9 +10,12 @@ export async function getCarouselItems() {
 }
 
 // 👇 Actualizado para recibir URL y TIPO
-export async function createCarouselItem(data: { mediaUrl: string; mediaType: string; order?: number }) {
+export async function createCarouselItem(data: { mediaUrl: string; mediaUrlMobile?: string; mediaType: string; order?: number }) {
     const item = await prisma.carouselItem.create({
-        data,
+        data: {
+            ...data,
+            mediaUrlMobile: data.mediaUrlMobile || "" // Aseguramos que no sea null
+        },
     })
     revalidatePath("/")
     revalidatePath("/admin")
@@ -37,3 +40,4 @@ export async function updateCarouselOrder(items: { id: string; order: number }[]
     revalidatePath("/")
     revalidatePath("/admin")
 }
+

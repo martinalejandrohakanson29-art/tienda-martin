@@ -33,6 +33,7 @@ model Config {
   companyName    String   @default("Mi Tienda")
   logoUrl        String   @default("") 
   logoHeight     String   @default("80px")
+  announcementText String @default("")
   whatsappNumber String   @default("")
   instagramUrl   String   @default("")
   tiktokUrl      String   @default("")

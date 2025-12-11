@@ -20,7 +20,7 @@ export default async function Home() {
   return (
     <div className="space-y-12 pb-8">
       
-      {/* Estilos dinámicos para altura */}
+      {/* Estilos dinámicos */}
       <style>{`
         .dynamic-carousel-height {
           height: ${config?.carouselHeightMobile || '250px'};
@@ -39,18 +39,37 @@ export default async function Home() {
               {carouselItems.map((item) => (
                 <CarouselItem key={item.id} className="pl-0"> 
                   <div className="relative w-full dynamic-carousel-height bg-black">
+                    
+                    {/* ——————— LÓGICA DE VIDEO ——————— */}
                     {item.mediaType === "video" ? (
-                      // Video: Se usa el mismo para ambos (difícil tener 2 videos sincronizados)
-                      <iframe
-                        src={`${item.mediaUrl}`}
-                        className="w-full h-full object-cover"
-                        allow="autoplay; encrypted-media"
-                        title="Video Banner"
-                        style={{ border: 0 }}
-                      />
-                    ) : (
                       <>
-                        {/* 🖥️ IMAGEN PARA PC (Visible solo en md o superior) */}
+                        {/* 🖥️ Video PC (Visible en md+) */}
+                        <div className="hidden md:block w-full h-full">
+                            <iframe
+                                src={`${item.mediaUrl}`}
+                                className="w-full h-full object-cover"
+                                allow="autoplay; encrypted-media"
+                                title="Video PC"
+                                style={{ border: 0 }}
+                            />
+                        </div>
+
+                        {/* 📱 Video Móvil (Visible hasta md) */}
+                        <div className="block md:hidden w-full h-full">
+                            <iframe
+                                // Si no hay video móvil, usa el de PC como respaldo
+                                src={`${item.mediaUrlMobile || item.mediaUrl}`}
+                                className="w-full h-full object-cover"
+                                allow="autoplay; encrypted-media"
+                                title="Video Móvil"
+                                style={{ border: 0 }}
+                            />
+                        </div>
+                      </>
+                    ) : (
+                    /* ——————— LÓGICA DE IMAGEN ——————— */
+                      <>
+                        {/* 🖥️ Imagen PC */}
                         <img
                           src={item.mediaUrl}
                           alt="Banner PC"
@@ -58,8 +77,7 @@ export default async function Home() {
                           referrerPolicy="no-referrer"
                         />
 
-                        {/* 📱 IMAGEN PARA MÓVIL (Visible solo hasta md) */}
-                        {/* Si no hay imagen móvil específica, usa la de PC como respaldo */}
+                        {/* 📱 Imagen Móvil */}
                         <img
                           src={item.mediaUrlMobile || item.mediaUrl}
                           alt="Banner Móvil"
@@ -68,6 +86,7 @@ export default async function Home() {
                         />
                       </>
                     )}
+
                   </div>
                 </CarouselItem>
               ))}
@@ -82,11 +101,12 @@ export default async function Home() {
         </div>
       )}
 
-      {/* Resto de la página sigue igual... */}
+      {/* Resto de la página... */}
       <div className={`container mx-auto px-4 relative z-10 ${hasCarousel ? "-mt-8" : "mt-8 md:mt-12"}`}>
         <HomeSearch products={JSON.parse(JSON.stringify(allProducts))} />
       </div>
       
+      {/* ... Featured products ... */}
       <div className="container mx-auto px-4 pt-4">
         <h2 className="text-3xl font-bold mb-8 text-center">Productos Destacados</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">

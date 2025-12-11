@@ -13,10 +13,13 @@ export default async function Home() {
   const featuredProducts = await getFeaturedProducts()
   const allProducts = await getProducts()
 
+  // 👇 Detectamos si hay carrusel para ajustar el margen
+  const hasCarousel = carouselItems.length > 0
+
   return (
     <div className="space-y-12 pb-8">
       {/* Carrusel Multimedia */}
-      {carouselItems.length > 0 && (
+      {hasCarousel && (
         <div className="w-full relative group">
           <Carousel className="w-full" opts={{ loop: true }}>
             <CarouselContent>
@@ -43,7 +46,6 @@ export default async function Home() {
                 </CarouselItem>
               ))}
             </CarouselContent>
-            {/* Flechas de navegación (ocultas si hay solo 1 item) */}
             {carouselItems.length > 1 && (
                 <>
                     <CarouselPrevious className="left-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
@@ -54,8 +56,11 @@ export default async function Home() {
         </div>
       )}
 
-      {/* Buscador */}
-      <div className="container mx-auto px-4 -mt-8 relative z-10">
+      {/* 👇 BUSCADOR INTELIGENTE:
+          - Si hay carrusel: sube un poco (-mt-8) para solaparse.
+          - Si NO hay carrusel: baja un poco (mt-8) para separarse del techo.
+      */}
+      <div className={`container mx-auto px-4 relative z-10 ${hasCarousel ? "-mt-8" : "mt-8 md:mt-12"}`}>
         <HomeSearch products={JSON.parse(JSON.stringify(allProducts))} />
       </div>
 

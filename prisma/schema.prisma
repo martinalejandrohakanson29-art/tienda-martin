@@ -47,10 +47,11 @@ model Config {
 }
 
 model CarouselItem {
-  id        String   @id @default(cuid())
-  mediaUrl  String   @default("") // 👈 AGREGAMOS ESTO (El default arregla el crash)
-  mediaType String   @default("image")
-  order     Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String   @id @default(cuid())
+  mediaUrl       String   @default("") // URL para PC
+  mediaUrlMobile String   @default("") // 👈 NUEVO: URL para Celular
+  mediaType      String   @default("image")
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

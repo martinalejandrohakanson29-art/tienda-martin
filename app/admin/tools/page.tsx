@@ -11,7 +11,7 @@ export default function ToolsPage() {
             title: "Preparación Envíos Full",
             description: "Sistema para etiquetado y gestión de paquetes de MercadoLibre.",
             icon: <Truck className="h-8 w-8 text-blue-500" />,
-            href: "https://tu-otro-proyecto-en-railway.app", // 🔗 Pon aquí el link real de tu otro proyecto
+            href: "https://guia-pedidos-ml-production.up.railway.app/", // 🔗 Pon aquí el link real de tu otro proyecto
             external: true, // Marca si abre en otra pestaña
             color: "border-l-4 border-l-blue-500"
         },

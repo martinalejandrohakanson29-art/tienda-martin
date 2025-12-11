@@ -6,28 +6,34 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Trash, Plus, Image as ImageIcon, Video, MonitorPlay } from "lucide-react"
+import { Trash, Plus, Image as ImageIcon, Video, MonitorPlay, Save, Smartphone, Monitor } from "lucide-react"
 import { createCarouselItem, deleteCarouselItem } from "@/app/actions/carousel"
+import { updateConfig } from "@/app/actions/config" // 👈 Importamos updateConfig
 
-export default function CarouselClient({ initialItems }: { initialItems: any[] }) {
+// 👇 Recibimos también initialConfig
+export default function CarouselClient({ initialItems, initialConfig }: { initialItems: any[], initialConfig: any }) {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
+    
+    // Estados para nuevo item
     const [mediaUrl, setMediaUrl] = useState("")
-    const [mediaType, setMediaType] = useState("image") // 'image' | 'video'
+    const [mediaType, setMediaType] = useState("image")
 
-    // 👇 FUNCIÓN INTELIGENTE PARA DRIVE
+    // 👇 Estado para la configuración de tamaños
+    const [configData, setConfigData] = useState({
+        carouselHeightDesktop: initialConfig.carouselHeightDesktop || "600px",
+        carouselHeightMobile: initialConfig.carouselHeightMobile || "250px"
+    })
+    const [configLoading, setConfigLoading] = useState(false)
+
+    // ... (Tu función transformDriveLink sigue aquí igual) ...
     const transformDriveLink = (url: string, type: string) => {
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
                 const id = idMatch[1]
-                if (type === "video") {
-                    // Para video, usamos el modo 'preview' que permite embed
-                    return `https://drive.google.com/file/d/${id}/preview`
-                } else {
-                    // Para imagen, usamos el servidor lh3 optimizado
-                    return `https://lh3.googleusercontent.com/d/${id}`
-                }
+                if (type === "video") return `https://drive.google.com/file/d/${id}/preview`
+                return `https://lh3.googleusercontent.com/d/${id}`
             }
         }
         return url
@@ -42,7 +48,7 @@ export default function CarouselClient({ initialItems }: { initialItems: any[] }
             setMediaUrl("")
             router.refresh()
         } catch (error) {
-            alert("Error al agregar el banner")
+            alert("Error al agregar")
         } finally {
             setLoading(false)
         }
@@ -54,18 +60,70 @@ export default function CarouselClient({ initialItems }: { initialItems: any[] }
         router.refresh()
     }
 
+    // 👇 Función para guardar solo los tamaños
+    const handleSaveConfig = async () => {
+        setConfigLoading(true)
+        try {
+            await updateConfig(configData)
+            alert("¡Tamaños actualizados!")
+            router.refresh()
+        } catch (error) {
+            alert("Error al guardar tamaños")
+        } finally {
+            setConfigLoading(false)
+        }
+    }
+
     return (
         <div className="space-y-8">
             <h2 className="text-3xl font-bold">Gestionar Carrusel Multimedia</h2>
 
+            {/* 👇 NUEVA TARJETA: CONFIGURACIÓN DE TAMAÑOS */}
+            <Card className="border-blue-100 bg-blue-50/50">
+                <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                        📏 Configuración de Dimensiones
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid md:grid-cols-2 gap-6 items-end">
+                        <div className="space-y-2">
+                            <Label className="flex items-center gap-2 text-blue-700">
+                                <Monitor size={16} /> Altura en PC
+                            </Label>
+                            <Input 
+                                value={configData.carouselHeightDesktop}
+                                onChange={(e) => setConfigData({...configData, carouselHeightDesktop: e.target.value})}
+                                placeholder="Ej: 600px" 
+                                className="bg-white"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="flex items-center gap-2 text-green-700">
+                                <Smartphone size={16} /> Altura en Móvil
+                            </Label>
+                            <Input 
+                                value={configData.carouselHeightMobile}
+                                onChange={(e) => setConfigData({...configData, carouselHeightMobile: e.target.value})}
+                                placeholder="Ej: 250px" 
+                                className="bg-white"
+                            />
+                        </div>
+                        <Button onClick={handleSaveConfig} disabled={configLoading} variant="secondary" className="w-full">
+                            <Save className="mr-2 h-4 w-4" /> Guardar Tamaños
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* 👇 TARJETA ORIGINAL: AGREGAR CONTENIDO */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Agregar Nuevo Contenido</CardTitle>
+                    <CardTitle>Agregar Nuevo Banner</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleCreate} className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
-                            {/* Selector de Tipo */}
                             <div 
                                 onClick={() => setMediaType("image")}
                                 className={`cursor-pointer p-4 border rounded-lg flex flex-col items-center gap-2 transition-all ${mediaType === "image" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 hover:bg-gray-50"}`}
@@ -100,6 +158,7 @@ export default function CarouselClient({ initialItems }: { initialItems: any[] }
                 </CardContent>
             </Card>
 
+            {/* LISTA DE ITEMS (Igual que antes) */}
             <div className="grid gap-6">
                 {initialItems.map((item, index) => (
                     <Card key={item.id} className="overflow-hidden">
@@ -111,7 +170,6 @@ export default function CarouselClient({ initialItems }: { initialItems: any[] }
                                         className="w-full h-full object-cover pointer-events-none" 
                                         title="Video preview"
                                     />
-                                    {/* Capa transparente para que el click no se lo lleve el iframe al editar */}
                                     <div className="absolute inset-0 bg-transparent flex items-center justify-center">
                                         <MonitorPlay className="w-12 h-12 text-white drop-shadow-md opacity-80" />
                                     </div>

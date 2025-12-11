@@ -3,6 +3,8 @@ import localFont from "next/font/local";
 import "./globals.css";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
+// 👇 1. IMPORTAR EL COMPONENTE
+import AnnouncementBar from "@/components/announcement-bar"; 
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -15,12 +17,10 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
-// 👇 AQUÍ ESTÁ EL CAMBIO DE IDENTIDAD
 export const metadata: Metadata = {
-  title: "Revolucion motos", // 1. Nombre de la pestaña
+  title: "Revolucion motos", 
   description: "Tu tienda de confianza para repuestos y accesorios",
   icons: {
-    // 2. El truco del cohete: Usamos un emoji como imagen SVG
     icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"
   }
 };
@@ -37,6 +37,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
+        {/* 👇 2. COLOCARLO AQUÍ, ARRIBA DEL HEADER */}
+        <AnnouncementBar />
+        
         <Header /> 
         <main className="flex-1">
           {children}

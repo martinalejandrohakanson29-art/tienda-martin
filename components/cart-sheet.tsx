@@ -124,7 +124,7 @@ export default function CartSheet() {
                                 <span className="text-lg">Subtotal</span>
                                 <span className="text-xl font-bold">${total.toFixed(2)}</span>
                             </div>
-                           // <p className="mt-1 text-sm text-gray-500">El envío y los impuestos se calculan al confirmar.</p>
+                          
 
                             <div className="space-y-4 pt-4">
                                 <h4 className="font-medium flex items-center gap-2"><CreditCard size={18}/> Datos para el Pedido</h4>
@@ -166,4 +166,5 @@ export default function CartSheet() {
         </Sheet>
     )
 }
+
 

@@ -26,6 +26,11 @@ export const authOptions: NextAuthOptions = {
     pages: {
         signIn: "/admin/login",
     },
+    // 👇 NUEVA CONFIGURACIÓN DE SEGURIDAD
+    session: {
+        strategy: "jwt",
+        maxAge: 4 * 60 * 60, // 4 horas (en segundos)
+    },
     callbacks: {
         async session({ session, token }) {
             return session

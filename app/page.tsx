@@ -1,8 +1,7 @@
 import { getCarouselItems } from "@/app/actions/carousel"
 import { getFeaturedProducts, getProducts } from "@/app/actions/products" 
-import { getConfig } from "@/app/actions/config" // 👈 Importar
+import { getConfig } from "@/app/actions/config"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
-// ... otros imports ...
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -14,14 +13,14 @@ export default async function Home() {
   const carouselItems = await getCarouselItems()
   const featuredProducts = await getFeaturedProducts()
   const allProducts = await getProducts()
-  const config = await getConfig() // 👈 Obtener config
+  const config = await getConfig()
 
   const hasCarousel = carouselItems.length > 0
 
   return (
     <div className="space-y-12 pb-8">
       
-      {/* 👇 ESTILO DINÁMICO: Esto aplica tus medidas configuradas */}
+      {/* Estilos dinámicos para altura */}
       <style>{`
         .dynamic-carousel-height {
           height: ${config?.carouselHeightMobile || '250px'};
@@ -39,9 +38,9 @@ export default async function Home() {
             <CarouselContent>
               {carouselItems.map((item) => (
                 <CarouselItem key={item.id} className="pl-0"> 
-                  {/* 👇 Usamos la clase dinámica en lugar de h-[...] fijos */}
                   <div className="relative w-full dynamic-carousel-height bg-black">
                     {item.mediaType === "video" ? (
+                      // Video: Se usa el mismo para ambos (difícil tener 2 videos sincronizados)
                       <iframe
                         src={`${item.mediaUrl}`}
                         className="w-full h-full object-cover"
@@ -50,19 +49,30 @@ export default async function Home() {
                         style={{ border: 0 }}
                       />
                     ) : (
-                      <img
-                        src={item.mediaUrl}
-                        alt="Banner"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
+                      <>
+                        {/* 🖥️ IMAGEN PARA PC (Visible solo en md o superior) */}
+                        <img
+                          src={item.mediaUrl}
+                          alt="Banner PC"
+                          className="hidden md:block w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+
+                        {/* 📱 IMAGEN PARA MÓVIL (Visible solo hasta md) */}
+                        {/* Si no hay imagen móvil específica, usa la de PC como respaldo */}
+                        <img
+                          src={item.mediaUrlMobile || item.mediaUrl}
+                          alt="Banner Móvil"
+                          className="block md:hidden w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </>
                     )}
                   </div>
                 </CarouselItem>
               ))}
             </CarouselContent>
-            {/* ... Flechas del carrusel ... */}
-             {carouselItems.length > 1 && (
+            {carouselItems.length > 1 && (
                 <>
                     <CarouselPrevious className="left-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
                     <CarouselNext className="right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
@@ -72,15 +82,13 @@ export default async function Home() {
         </div>
       )}
 
-      {/* ... Resto del código (HomeSearch, Productos Destacados, etc.) ... */}
+      {/* Resto de la página sigue igual... */}
       <div className={`container mx-auto px-4 relative z-10 ${hasCarousel ? "-mt-8" : "mt-8 md:mt-12"}`}>
         <HomeSearch products={JSON.parse(JSON.stringify(allProducts))} />
       </div>
       
-      {/* Featured Products */}
       <div className="container mx-auto px-4 pt-4">
-        {/* ... (código existente) ... */}
-         <h2 className="text-3xl font-bold mb-8 text-center">Productos Destacados</h2>
+        <h2 className="text-3xl font-bold mb-8 text-center">Productos Destacados</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {featuredProducts.map((product) => (
             <Link key={product.id} href={`/products/${product.id}`}>

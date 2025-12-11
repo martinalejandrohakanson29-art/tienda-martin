@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-// 👇 IMPORTANTE: Importamos los componentes reales
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 
@@ -16,12 +15,16 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+// 👇 AQUÍ ESTÁ EL CAMBIO DE IDENTIDAD
 export const metadata: Metadata = {
-  title: "Mi Tienda",
-  description: "Tienda online creada con Next.js",
+  title: "Revolucion motos", // 1. Nombre de la pestaña
+  description: "Tu tienda de confianza para repuestos y accesorios",
+  icons: {
+    // 2. El truco del cohete: Usamos un emoji como imagen SVG
+    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>"
+  }
 };
 
-// 👇 Esto evita el error de conexión a la BD durante el build
 export const dynamic = "force-dynamic";
 
 export default function RootLayout({

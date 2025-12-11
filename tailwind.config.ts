@@ -55,7 +55,29 @@ const config: Config = {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
-  		}
+  		},
+        // 👇 AQUI COMIENZA LO NUEVO PARA LA ANIMACIÓN
+        keyframes: {
+            "accordion-down": {
+                from: { height: "0" },
+                to: { height: "var(--radix-accordion-content-height)" },
+            },
+            "accordion-up": {
+                from: { height: "var(--radix-accordion-content-height)" },
+                to: { height: "0" },
+            },
+            // Animación de desplazamiento lateral
+            marquee: {
+                '0%': { transform: 'translateX(100%)' },
+                '100%': { transform: 'translateX(-100%)' },
+            }
+        },
+        animation: {
+            "accordion-down": "accordion-down 0.2s ease-out",
+            "accordion-up": "accordion-up 0.2s ease-out",
+            // Configuración: 30 segundos, velocidad constante, repetición infinita
+            marquee: 'marquee 30s linear infinite', 
+        },
   	}
   },
   plugins: [require("tailwindcss-animate")],

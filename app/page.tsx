@@ -1,17 +1,15 @@
 import { getCarouselItems } from "@/app/actions/carousel"
-// 👇 Importamos la nueva función específica
 import { getFeaturedProducts } from "@/app/actions/products" 
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import HomeSearch from "@/components/home-search" // 👈 Importamos el nuevo componente
 
 export const dynamic = "force-dynamic"
 
 export default async function Home() {
   const carouselItems = await getCarouselItems()
-  
-  // 👇 CAMBIO CLAVE: Usamos la función que filtra por el tilde
   const featuredProducts = await getFeaturedProducts()
 
   return (
@@ -40,15 +38,19 @@ export default async function Home() {
         </div>
       )}
 
+      {/* 👇 AQUÍ ESTÁ EL BUSCADOR NUEVO (Superpuesto un poco para estilo) */}
+      <div className="container mx-auto px-4 -mt-8 relative z-10">
+        <HomeSearch />
+      </div>
+
       {/* Featured Products */}
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-4 pt-4">
         <h2 className="text-3xl font-bold mb-8 text-center">Productos Destacados</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {featuredProducts.map((product) => (
             <Link key={product.id} href={`/products/${product.id}`}>
               <Card className="h-full hover:shadow-lg transition-shadow border-0 shadow-sm cursor-pointer group">
                 <div className="aspect-square relative overflow-hidden rounded-t-lg bg-gray-100">
-                  {/* Etiqueta Verde de Oferta */}
                   {product.discount > 0 && (
                     <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 shadow-sm">
                       {product.discount}% OFF
@@ -83,7 +85,6 @@ export default async function Home() {
           ))}
         </div>
         
-        {/* Mensaje si no hay destacados */}
         {featuredProducts.length === 0 && (
             <p className="text-center text-gray-500 my-8">Aún no hay productos destacados.</p>
         )}

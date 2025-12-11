@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { LayoutDashboard, Package, Settings, Image as ImageIcon } from "lucide-react"
+import { LayoutDashboard, Package, Settings, Image as ImageIcon, Wrench } from "lucide-react" // 👈 Importamos Wrench
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import SignOutButton from "@/components/sign-out-button"
@@ -30,6 +30,13 @@ export default async function AdminLayout({
                         <ImageIcon size={20} />
                         <span>Carrusel</span>
                     </Link>
+                    
+                    {/* 👇 NUEVA SECCIÓN HERRAMIENTAS */}
+                    <Link href="/admin/tools" className="flex items-center space-x-2 p-2 hover:bg-gray-800 rounded text-blue-300 font-medium">
+                        <Wrench size={20} />
+                        <span>Herramientas</span>
+                    </Link>
+
                     <Link href="/admin/config" className="flex items-center space-x-2 p-2 hover:bg-gray-800 rounded">
                         <Settings size={20} />
                         <span>Configuración</span>

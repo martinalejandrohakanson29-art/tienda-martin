@@ -1,16 +1,19 @@
 import { getCarouselItems } from "@/app/actions/carousel"
-import { getFeaturedProducts } from "@/app/actions/products" 
+import { getFeaturedProducts, getProducts } from "@/app/actions/products" // 👈 Importamos getProducts
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import HomeSearch from "@/components/home-search" // 👈 Importamos el nuevo componente
+import HomeSearch from "@/components/home-search"
 
 export const dynamic = "force-dynamic"
 
 export default async function Home() {
   const carouselItems = await getCarouselItems()
   const featuredProducts = await getFeaturedProducts()
+  
+  // 👇 Obtenemos TODOS los productos para el buscador inteligente
+  const allProducts = await getProducts()
 
   return (
     <div className="space-y-12 pb-8">
@@ -38,9 +41,9 @@ export default async function Home() {
         </div>
       )}
 
-      {/* 👇 AQUÍ ESTÁ EL BUSCADOR NUEVO (Superpuesto un poco para estilo) */}
+      {/* 👇 Pasamos los productos al buscador */}
       <div className="container mx-auto px-4 -mt-8 relative z-10">
-        <HomeSearch />
+        <HomeSearch products={JSON.parse(JSON.stringify(allProducts))} />
       </div>
 
       {/* Featured Products */}

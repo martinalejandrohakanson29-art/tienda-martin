@@ -1,5 +1,6 @@
 import { getConfig } from "@/app/actions/config"
-import { Instagram, MapPin } from "lucide-react"
+import { Instagram, MapPin, Lock } from "lucide-react" // 👈 Agregamos el icono Lock
+import Link from "next/link" // 👈 Importamos Link
 
 export default async function Footer() {
     const config = await getConfig()
@@ -30,6 +31,16 @@ export default async function Footer() {
                             Ver en Mapa
                         </a>
                     )}
+                </div>
+            </div>
+            
+            {/* 👇 BARRA INFERIOR CON ACCESO ADMIN */}
+            <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-600 text-sm">
+                <div className="container mx-auto px-4 flex justify-between items-center">
+                    <p>&copy; {new Date().getFullYear()} {config?.companyName}. Todos los derechos reservados.</p>
+                    <Link href="/admin" className="flex items-center hover:text-gray-400 transition-colors">
+                        <Lock size={14} className="mr-1" /> Acceso Staff
+                    </Link>
                 </div>
             </div>
         </footer>

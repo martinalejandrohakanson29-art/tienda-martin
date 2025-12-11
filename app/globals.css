@@ -73,6 +73,13 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    /* 👇 CAMBIO MÁGICO:
+       1. Quitamos 'bg-background' (que era blanco plano).
+       2. Agregamos un gradiente radial suave.
+       from-slate-50: Un blanco casi gris (arriba/centro).
+       to-gray-200: Un gris muy suave (en las esquinas/fondo).
+       min-h-screen: Asegura que el color cubra toda la pantalla siempre.
+    */
+    @apply bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-50 via-gray-100 to-gray-200 text-foreground min-h-screen;
   }
 }

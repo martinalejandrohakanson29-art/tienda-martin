@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Plus, Trash, Pencil, Star } from "lucide-react"
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
-// Definimos la estructura del formulario con todos los campos nuevos
 type ProductForm = {
     title: string
     description: string
@@ -40,7 +39,12 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
     const [formData, setFormData] = useState<ProductForm>(initialState)
     const [editingId, setEditingId] = useState<string | null>(null)
 
-    // 👇 FUNCIÓN CORREGIDA: Sintaxis ${} y servidor lh3
+    // 👇 TRUCO: Extraemos categorías únicas para sugerirlas en el formulario
+    const uniqueCategories = useMemo(() => {
+        const categories = initialProducts.map(p => p.category)
+        return Array.from(new Set(categories))
+    }, [initialProducts])
+
     const transformImageLink = (url: string) => {
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
@@ -77,7 +81,6 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             setEditingId(null)
             router.refresh()
         } catch (error: any) {
-            // Mostramos el error si excede los 8 destacados
             alert(error.message || "Error al guardar el producto")
         } finally {
             setLoading(false)
@@ -152,16 +155,28 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 </div>
                             </div>
 
+                            {/* 👇 INPUT MEJORADO CON SUGERENCIAS */}
                             <div className="space-y-2">
                                 <Label>Categoría</Label>
-                                <Input required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} placeholder="Ej: Ropa" />
+                                <Input 
+                                    required 
+                                    list="categories-list" // Conecta con el datalist
+                                    value={formData.category} 
+                                    onChange={e => setFormData({...formData, category: e.target.value})} 
+                                    placeholder="Selecciona o escribe una nueva..." 
+                                />
+                                <datalist id="categories-list">
+                                    {uniqueCategories.map(cat => (
+                                        <option key={cat} value={cat} />
+                                    ))}
+                                </datalist>
                             </div>
+
                             <div className="space-y-2">
                                 <Label>URL de Imagen</Label>
                                 <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="Enlace de Drive" />
                             </div>
 
-                            {/* Checkbox de Destacado */}
                             <div className="flex items-center space-x-2 py-2 border-t pt-4">
                                 <input
                                     type="checkbox"
@@ -187,13 +202,11 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 {initialProducts.map((product) => (
                     <Card key={product.id} className={product.isFeatured ? "border-2 border-blue-500 shadow-md" : ""}>
                         <div className="aspect-square relative overflow-hidden rounded-t-xl bg-gray-100">
-                            {/* Etiqueta de Descuento */}
                             {product.discount > 0 && (
                                 <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10">
                                     {product.discount}% OFF
                                 </span>
                             )}
-                            {/* Etiqueta de Destacado */}
                             {product.isFeatured && (
                                 <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 flex items-center gap-1">
                                     <Star size={10} fill="white" /> Destacado

@@ -1,32 +1,45 @@
 "use client"
 
 import { Product } from "@prisma/client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Search, X } from "lucide-react"
+import { useSearchParams } from "next/navigation"
 
 export default function ShopClient({ products, categories }: { products: Product[], categories: string[] }) {
+    const searchParams = useSearchParams()
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-    const [searchQuery, setSearchQuery] = useState("")
+    const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
 
-    // 👇 LÓGICA FILTRADO MEJORADA: Categoría + Buscador
+    // 👇 AQUÍ ESTÁ LA MAGIA MEJORADA
     const filteredProducts = products.filter((product) => {
+        // 1. Filtro por Categoría
         const matchesCategory = selectedCategory ? product.category === selectedCategory : true
-        const matchesSearch = product.title.toLowerCase().includes(searchQuery.toLowerCase())
+
+        // 2. Filtro por Buscador Inteligente (Desordenado)
+        if (!searchQuery) return matchesCategory; // Si no hay búsqueda, solo importa la categoría
+
+        // Dividimos lo que escribió el usuario en palabras (ej: "dakar carburador" -> ["dakar", "carburador"])
+        const searchTerms = searchQuery.toLowerCase().split(" ").filter(term => term.length > 0)
+        const title = product.title.toLowerCase()
+
+        // Verificamos que TODAS las palabras escritas aparezcan en el título, sin importar el orden
+        const matchesSearch = searchTerms.every(term => title.includes(term))
+
         return matchesCategory && matchesSearch
     })
 
     return (
         <div className="flex flex-col gap-8">
             
-            {/* 👆 BARRA DE BÚSQUEDA (NUEVA) */}
+            {/* BARRA DE BÚSQUEDA */}
             <div className="relative max-w-md w-full mx-auto md:mx-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input 
-                    placeholder="Buscar productos..." 
+                    placeholder="Buscar productos (ej: carburador 110)..." 
                     className="pl-10"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -108,7 +121,7 @@ export default function ShopClient({ products, categories }: { products: Product
                     </div>
                     {filteredProducts.length === 0 && (
                         <div className="text-center py-12">
-                            <p className="text-gray-500 text-lg">No encontramos productos con esa búsqueda.</p>
+                            <p className="text-gray-500 text-lg">No encontramos productos que coincidan.</p>
                             <Button variant="link" onClick={() => { setSearchQuery(""); setSelectedCategory(null) }}>
                                 Limpiar filtros
                             </Button>

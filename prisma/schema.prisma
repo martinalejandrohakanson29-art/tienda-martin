@@ -35,6 +35,8 @@ model Config {
   tiktokUrl      String   @default("")
   welcomeText    String   @default("Bienvenido a nuestra tienda")
   locationUrl    String   @default("")
+  // 👇 NUEVO CAMPO: Guardaremos las opciones separadas por coma
+  paymentMethods String   @default("Efectivo,Transferencia,Tarjeta") 
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

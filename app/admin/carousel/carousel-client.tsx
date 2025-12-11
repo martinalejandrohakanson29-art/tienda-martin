@@ -14,12 +14,11 @@ export default function CarouselClient({ initialItems }: { initialItems: any[] }
     const [loading, setLoading] = useState(false)
     const [imageUrl, setImageUrl] = useState("")
 
-    // 👇 FUNCIÓN CORREGIDA
+    // 👇 FUNCIÓN CORREGIDA: Ahora usa la sintaxis correcta ${...} y el servidor lh3
     const transformImageLink = (url: string) => {
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
-                // CORRECCIÓN: Agregué el '$' y usé el servidor 'lh3' que es el mejor para imágenes
                 return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
             }
         }

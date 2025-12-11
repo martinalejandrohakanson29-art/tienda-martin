@@ -14,19 +14,19 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
     const router = useRouter()
     const [loading, setLoading] = useState(false)
     
-    // Estados para el nuevo item
+    // Estados para nuevo item
     const [mediaUrl, setMediaUrl] = useState("")
-    const [mediaUrlMobile, setMediaUrlMobile] = useState("") // 👈 Nuevo estado
-    const [mediaType, setMediaType] = useState("image")
+    const [mediaUrlMobile, setMediaUrlMobile] = useState("")
+    const [mediaType, setMediaType] = useState("image") // 'image' | 'video'
 
-    // Estados de configuración de medidas
+    // Configuración de medidas
     const [configData, setConfigData] = useState({
         carouselHeightDesktop: initialConfig?.carouselHeightDesktop || "600px",
-        carouselHeightMobile: initialConfig?.carouselHeightMobile || "250px",
+        carouselHeightMobile: initialConfig?.carouselHeightMobile || "250px"
     })
     const [configLoading, setConfigLoading] = useState(false)
 
-    // 👇 Transformador de enlaces (Versión arreglada)
+    // Función inteligente para Drive
     const transformDriveLink = (url: string, type: string) => {
         if (!url) return ""
         if (url.includes("drive.google.com") && url.includes("/d/")) {
@@ -34,8 +34,8 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
             if (idMatch && idMatch[1]) {
                 const id = idMatch[1]
                 if (type === "video") return `https://drive.google.com/file/d/${id}/preview`
-                // Usamos lh3.googleusercontent.com que es más rápido y estable para imágenes
-                return `https://lh3.googleusercontent.com/d/${id}`
+                // Asegúrate de que esta línea tenga el $ antes de {id}
+                return `https://lh3.googleusercontent.com/d/$${id}`
             }
         }
         return url
@@ -46,12 +46,11 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
         setLoading(true)
         try {
             const finalUrl = transformDriveLink(mediaUrl, mediaType)
-            // Transformamos también la de móvil si existe
-            const finalUrlMobile = mediaUrlMobile ? transformDriveLink(mediaUrlMobile, mediaType) : ""
+            const finalUrlMobile = transformDriveLink(mediaUrlMobile, mediaType)
 
             await createCarouselItem({ 
                 mediaUrl: finalUrl, 
-                mediaUrlMobile: finalUrlMobile, // 👈 Enviamos la móvil
+                mediaUrlMobile: finalUrlMobile, 
                 mediaType 
             })
             
@@ -88,7 +87,7 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
         <div className="space-y-8">
             <h2 className="text-3xl font-bold">Gestionar Carrusel</h2>
 
-            {/* CONFIGURACIÓN DE MEDIDAS (Igual que antes) */}
+            {/* PANEL DE MEDIDAS (Igual que antes) */}
             <Card className="border-blue-100 bg-blue-50/50">
                 <CardHeader><CardTitle className="text-lg">📏 Configuración de Medidas</CardTitle></CardHeader>
                 <CardContent>
@@ -106,7 +105,7 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
                 </CardContent>
             </Card>
 
-            {/* FORMULARIO DE CARGA */}
+            {/* PANEL DE CARGA */}
             <Card>
                 <CardHeader><CardTitle>Agregar Nuevo Banner</CardTitle></CardHeader>
                 <CardContent>
@@ -124,17 +123,15 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
                         <div className="grid md:grid-cols-2 gap-4">
                             {/* Input PC */}
                             <div className="space-y-2">
-                                <Label className="flex items-center gap-2 text-blue-600"><Monitor size={14}/> Link para PC (Horizontal)</Label>
-                                <Input required value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)} placeholder="Drive link foto ancha..." />
+                                <Label className="flex items-center gap-2 text-blue-600"><Monitor size={14}/> Link PC ({mediaType === 'image' ? 'Horizontal' : 'Video 16:9'})</Label>
+                                <Input required value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)} placeholder={mediaType === 'image' ? "Drive link foto..." : "Drive link video..."} />
                             </div>
 
-                            {/* Input Móvil (Solo si es imagen) */}
-                            {mediaType === "image" && (
-                                <div className="space-y-2">
-                                    <Label className="flex items-center gap-2 text-green-600"><Smartphone size={14}/> Link para Celular (Vertical)</Label>
-                                    <Input value={mediaUrlMobile} onChange={(e) => setMediaUrlMobile(e.target.value)} placeholder="Drive link foto vertical (Opcional)..." />
-                                </div>
-                            )}
+                            {/* Input Móvil (AHORA VISIBLE PARA AMBOS) */}
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2 text-green-600"><Smartphone size={14}/> Link Móvil ({mediaType === 'image' ? 'Vertical' : 'Video 9:16'})</Label>
+                                <Input value={mediaUrlMobile} onChange={(e) => setMediaUrlMobile(e.target.value)} placeholder="(Opcional) Usa la de PC si lo dejas vacío" />
+                            </div>
                         </div>
 
                         <Button type="submit" disabled={loading} className="w-full"><Plus className="mr-2 h-4 w-4" /> Agregar Banner</Button>
@@ -142,31 +139,44 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
                 </CardContent>
             </Card>
 
-            {/* LISTA DE ITEMS */}
+            {/* LISTADO (Igual que antes) */}
             <div className="grid gap-6">
                 {initialItems.map((item, index) => (
                     <Card key={item.id} className="overflow-hidden">
                         <div className="flex flex-col md:flex-row h-[200px]">
-                            {/* Vista PC */}
-                            <div className="flex-1 relative bg-gray-100 border-r border-white/20">
+                            {/* Previsualización PC */}
+                            <div className="flex-1 relative bg-gray-100 border-r border-white/20 group">
                                 <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-1 rounded z-10">Vista PC</div>
                                 {item.mediaType === "video" ? (
-                                    <iframe src={item.mediaUrl} className="w-full h-full object-cover pointer-events-none" />
+                                    <>
+                                        <iframe src={item.mediaUrl} className="w-full h-full object-cover pointer-events-none" />
+                                        <div className="absolute inset-0 bg-transparent flex items-center justify-center"><MonitorPlay className="w-10 h-10 text-white opacity-80"/></div>
+                                    </>
                                 ) : (
                                     <img src={item.mediaUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                 )}
                             </div>
                             
-                            {/* Vista Móvil (si existe) */}
-                            {item.mediaUrlMobile && item.mediaType === "image" && (
-                                <div className="w-1/3 relative bg-gray-200 border-l border-white/20">
+                            {/* Previsualización Móvil */}
+                            {item.mediaUrlMobile && (
+                                <div className="w-1/3 relative bg-gray-200 border-l border-white/20 group">
                                     <div className="absolute top-2 left-2 bg-green-600 text-white text-xs px-2 py-1 rounded z-10">Vista Móvil</div>
-                                    <img src={item.mediaUrlMobile} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    {item.mediaType === "video" ? (
+                                        <>
+                                            <iframe src={item.mediaUrlMobile} className="w-full h-full object-cover pointer-events-none" />
+                                            <div className="absolute inset-0 bg-transparent flex items-center justify-center"><MonitorPlay className="w-8 h-8 text-white opacity-80"/></div>
+                                        </>
+                                    ) : (
+                                        <img src={item.mediaUrlMobile} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                    )}
                                 </div>
                             )}
                         </div>
                         <CardFooter className="flex justify-between p-4 bg-gray-50">
-                            <span className="font-bold">Banner #{index + 1}</span>
+                            <span className="font-bold flex items-center gap-2">
+                                {item.mediaType === 'video' ? <Video size={16}/> : <ImageIcon size={16}/>}
+                                Banner #{index + 1}
+                            </span>
                             <Button variant="destructive" size="sm" onClick={() => handleDelete(item.id)}><Trash className="h-4 w-4" /> Eliminar</Button>
                         </CardFooter>
                     </Card>

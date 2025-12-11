@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Settings, Package } from "lucide-react" // Me aseguro de importar Package por si acaso
+import { Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import CartSheet from "./cart-sheet"
 import { getConfig } from "@/app/actions/config"
@@ -8,19 +8,18 @@ export default async function Header() {
   const config = await getConfig()
 
   return (
-    // 👇 CAMBIO 1: Aumentamos la altura del header a h-20 (80px) para dar espacio al logo
+    // 👇 CAMBIO 1: Aumentamos la barra a h-24 (aprox 96px) para que sea bien alta
     <header className="sticky top-0 z-50 w-full border-b bg-white shadow-sm">
-      <div className="container mx-auto flex h-30 items-center justify-between px-4">
+      <div className="container mx-auto flex h-24 items-center justify-between px-4">
         
         {/* LOGO O NOMBRE */}
+        {/* 👇 CAMBIO 2: Quitamos 'max-h-16'. Ahora la imagen usará el 100% de la altura disponible */}
         <Link href="/" className="flex items-center gap-2 h-full py-2"> 
           {config?.logoUrl ? (
-            // 👇 CAMBIO 2: Aumentamos la imagen a h-16 (64px) o h-full para aprovechar el espacio
-            // 'object-contain' asegura que se vea entero sin cortarse
             <img 
                 src={config.logoUrl} 
                 alt={config?.companyName || "Logo"} 
-                className="h-full w-auto max-h-16 object-contain" 
+                className="h-full w-auto object-contain" 
                 referrerPolicy="no-referrer"
             />
           ) : (
@@ -38,7 +37,7 @@ export default async function Header() {
           <Link href="/shop" className="text-sm font-medium text-gray-700 hover:text-black transition-colors">
             Tienda
           </Link>
-          {/* Botón Admin discreto */}
+          {/* Botón Admin */}
           <Link href="/admin">
              <Button variant="ghost" size="sm" className="text-gray-500 hover:text-black hover:bg-gray-100 gap-2">
                 <Settings className="h-4 w-4" />
@@ -59,4 +58,3 @@ export default async function Header() {
     </header>
   )
 }
-

@@ -1,36 +1,39 @@
 "use client"
 
 import { Product } from "@prisma/client"
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
-import { Search, X } from "lucide-react"
+import { Search, X, ShoppingCart, Eye } from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import { useCart } from "@/hooks/use-cart" // 👈 Importamos el hook del carrito
 
 export default function ShopClient({ products, categories }: { products: Product[], categories: string[] }) {
     const searchParams = useSearchParams()
+    const { addToCart } = useCart() // 👈 Usamos la función de agregar
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
 
-    // 👇 AQUÍ ESTÁ LA MAGIA MEJORADA
+    // Lógica de búsqueda inteligente
     const filteredProducts = products.filter((product) => {
-        // 1. Filtro por Categoría
         const matchesCategory = selectedCategory ? product.category === selectedCategory : true
+        if (!searchQuery) return matchesCategory;
 
-        // 2. Filtro por Buscador Inteligente (Desordenado)
-        if (!searchQuery) return matchesCategory; // Si no hay búsqueda, solo importa la categoría
-
-        // Dividimos lo que escribió el usuario en palabras (ej: "dakar carburador" -> ["dakar", "carburador"])
         const searchTerms = searchQuery.toLowerCase().split(" ").filter(term => term.length > 0)
         const title = product.title.toLowerCase()
-
-        // Verificamos que TODAS las palabras escritas aparezcan en el título, sin importar el orden
         const matchesSearch = searchTerms.every(term => title.includes(term))
 
         return matchesCategory && matchesSearch
     })
+
+    // Función para agregar sin entrar al producto (evita la navegación del Link)
+    const handleQuickAdd = (e: React.MouseEvent, product: Product) => {
+        e.preventDefault() // Evita que se abra la página del producto
+        e.stopPropagation()
+        addToCart(product)
+    }
 
     return (
         <div className="flex flex-col gap-8">
@@ -84,7 +87,7 @@ export default function ShopClient({ products, categories }: { products: Product
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredProducts.map((product) => (
                             <Link key={product.id} href={`/products/${product.id}`}>
-                                <Card className="h-full hover:shadow-lg transition-shadow border-0 shadow-sm group">
+                                <Card className="h-full hover:shadow-lg transition-shadow border-0 shadow-sm group flex flex-col">
                                     <div className="aspect-square relative overflow-hidden rounded-t-lg bg-gray-100">
                                         {product.discount > 0 && (
                                             <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 shadow-sm">
@@ -98,10 +101,11 @@ export default function ShopClient({ products, categories }: { products: Product
                                             referrerPolicy="no-referrer"
                                         />
                                     </div>
-                                    <CardContent className="p-4">
-                                        <h3 className="font-semibold text-lg truncate">{product.title}</h3>
-                                        <p className="text-gray-500 text-sm truncate">{product.category}</p>
-                                        <div className="mt-2 flex items-center justify-between">
+                                    <CardContent className="p-4 flex flex-col flex-1">
+                                        <h3 className="font-semibold text-lg truncate mb-1">{product.title}</h3>
+                                        <p className="text-gray-500 text-sm truncate mb-3">{product.category}</p>
+                                        
+                                        <div className="mt-auto flex items-end justify-between">
                                             <div className="flex flex-col">
                                                 {product.discount > 0 && (
                                                     <span className="text-xs text-gray-400 line-through">
@@ -112,7 +116,21 @@ export default function ShopClient({ products, categories }: { products: Product
                                                     ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
                                                 </span>
                                             </div>
-                                            <Button size="sm" variant="secondary">Ver</Button>
+                                            
+                                            {/* 👇 BOTONES DE ACCIÓN */}
+                                            <div className="flex gap-2">
+                                                <Button size="icon" variant="outline" title="Ver detalles">
+                                                    <Eye className="h-4 w-4" />
+                                                </Button>
+                                                <Button 
+                                                    size="icon" 
+                                                    onClick={(e) => handleQuickAdd(e, product)}
+                                                    className="bg-primary hover:bg-primary/90"
+                                                    title="Agregar al carrito"
+                                                >
+                                                    <ShoppingCart className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         </div>
                                     </CardContent>
                                 </Card>

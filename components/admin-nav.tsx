@@ -4,7 +4,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { LayoutDashboard, Package, Settings, Image as ImageIcon, Wrench, LogOut } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { SignOutButton } from "@/components/sign-out-button" // Asegúrate de tener este o usa un botón simple
+// 👇 CORRECCIÓN: Quitamos las llaves { } porque es una exportación por defecto
+import SignOutButton from "@/components/sign-out-button" 
 
 const routes = [
     {
@@ -71,11 +72,10 @@ export function AdminNav({ className }: { className?: string }) {
             
             {/* Botón de Salir al final */}
             <div className="px-3 py-4 border-t border-slate-800">
-                 {/* Si tienes un componente SignOutButton úsalo, si no, puedes poner un link simple */}
-                 <Link href="/" className="flex items-center p-3 text-zinc-400 hover:text-white hover:bg-white/10 rounded-lg transition">
-                    <LogOut className="h-5 w-5 mr-3 text-red-500" />
-                    Volver a Tienda
-                 </Link>
+                 {/* Usamos el componente que importamos */}
+                 <div className="px-3">
+                    <SignOutButton />
+                 </div>
             </div>
         </div>
     )

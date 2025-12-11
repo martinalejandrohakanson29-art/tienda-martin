@@ -14,11 +14,33 @@ export default async function Footer() {
                     <p className="text-gray-400 mb-4">{config?.welcomeText}</p>
                 </div>
 
-                {/* Columna 2: Contacto */}
+                {/* Columna 2: Contacto (RENOVADA CON WHATSAPP) */}
                 <div>
                     <h3 className="text-xl font-bold mb-4">Contacto</h3>
-                    <p className="text-gray-400">WhatsApp: {config?.whatsappNumber}</p>
-                    <div className="flex space-x-4 mt-4">
+                    
+                    {config?.whatsappNumber ? (
+                        <a 
+                            href={`https://wa.me/${config.whatsappNumber}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-3 text-gray-400 hover:text-green-400 transition-all group mb-4"
+                            title="Enviar mensaje por WhatsApp"
+                        >
+                            {/* Logo oficial de WhatsApp */}
+                            <div className="bg-white p-1.5 rounded-full group-hover:scale-110 transition-transform">
+                                <img 
+                                    src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" 
+                                    alt="WhatsApp" 
+                                    className="w-6 h-6" 
+                                />
+                            </div>
+                            <span className="text-lg group-hover:font-medium">{config.whatsappNumber}</span>
+                        </a>
+                    ) : (
+                        <p className="text-gray-500 italic mb-4">No configurado</p>
+                    )}
+
+                    <div className="flex space-x-4 mt-2">
                         {config?.instagramUrl && (
                             <a href={config.instagramUrl} target="_blank" rel="noopener noreferrer" className="hover:text-gray-300 transition-colors">
                                 <Instagram className="h-6 w-6" />
@@ -27,20 +49,18 @@ export default async function Footer() {
                     </div>
                 </div>
 
-                {/* Columna 3: Ubicación (RENOVADA CON GPS) */}
+                {/* Columna 3: Ubicación (CON GPS) */}
                 <div>
                     <h3 className="text-xl font-bold mb-4">Ubicación</h3>
                     {config?.locationUrl ? (
                         <div className="flex flex-col items-start">
-                            <p className="text-gray-400 mb-3 text-sm">Haz clic para ver cómo llegar:</p>
                             <a 
                                 href={config.locationUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
-                                className="group relative bg-white p-2 rounded-xl border-2 border-transparent hover:border-green-500 transition-all duration-300 shadow-lg hover:shadow-green-900/20 hover:scale-105"
+                                className="group relative bg-white p-2 rounded-xl border-2 border-transparent hover:border-blue-500 transition-all duration-300 shadow-lg hover:shadow-blue-900/20 hover:scale-105 mb-2"
                                 title="Abrir en Google Maps"
                             >
-                                {/* Imagen de Google Maps */}
                                 <img 
                                     src="https://upload.wikimedia.org/wikipedia/commons/a/aa/Google_Maps_icon_%282020%29.svg" 
                                     alt="Google Maps" 
@@ -51,10 +71,10 @@ export default async function Footer() {
                                 href={config.locationUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
-                                className="flex items-center text-sm text-gray-500 mt-2 hover:text-green-400 transition-colors"
+                                className="flex items-center text-sm text-gray-500 hover:text-blue-400 transition-colors"
                             >
                                 <MapPin size={14} className="mr-1" />
-                                Abrir mapa
+                                Ver cómo llegar
                             </a>
                         </div>
                     ) : (

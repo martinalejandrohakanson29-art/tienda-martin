@@ -1,55 +1,74 @@
 import Link from "next/link"
-import CartSheet from "./cart-sheet"
+import { ShoppingCart, Menu, Search } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import CartSheet from "@/components/cart-sheet"
 import { getConfig } from "@/app/actions/config"
+import { getUniqueCategories } from "@/app/actions/products" // 👈 Importamos la acción
+import CategoryMenu from "@/components/category-menu" // 👈 Importamos el menú
 
 export default async function Header() {
   const config = await getConfig()
-  
-  // 👇 CAMBIO 1: Cambiamos el default a "60px" (antes era 80px)
-  // NOTA: Si en tu Admin > Configuración pusiste un valor manual (ej: 100px), 
-  // tendrás que bajarlo ahí también.
-  const logoHeight = config?.logoHeight || "60px"
+  const categories = await getUniqueCategories() // 👈 Obtenemos las categorías
 
   return (
-    // 👇 CAMBIO 2: Quitamos 'sticky top-0' (ya lo maneja el layout).
-    // Cambiamos 'rounded-b-[2rem]' por 'rounded-b-xl' (menos curva, más moderno).
-    <header className="w-full rounded-b-xl bg-white/90 backdrop-blur-md shadow-sm transition-all duration-300 border-b border-slate-100">
-      
-      {/* 👇 CAMBIO 3: Redujimos px-6 a px-4, py-3 a py-2, y min-h a 60px */}
-      <div className="container mx-auto flex items-center justify-between px-4 py-2 min-h-[60px]">
+    <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="container mx-auto px-4 h-20 flex items-center justify-between">
         
-        {/* LOGO */}
-        <Link href="/" className="flex items-center gap-2 hover:scale-105 transition-transform duration-300"> 
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 mr-6">
           {config?.logoUrl ? (
             <img 
                 src={config.logoUrl} 
-                alt={config?.companyName || "Logo"} 
-                style={{ height: logoHeight }}
-                className="w-auto object-contain drop-shadow-sm" 
-                referrerPolicy="no-referrer"
+                alt={config.companyName} 
+                className="object-contain"
+                style={{ height: config.logoHeight || '40px' }} 
             />
           ) : (
-            // Texto un poco más chico (text-xl en vez de text-2xl)
-            <h1 className="text-xl md:text-2xl font-extrabold text-slate-800 tracking-tight">
-              {config?.companyName || "Mi Tienda"}
-            </h1>
+            <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+                {config?.companyName || "Tienda"}
+            </span>
           )}
         </Link>
 
-        {/* MENÚ CENTRAL */}
-        {/* Ajustamos padding interno para que entre en el header más angosto */}
-        <nav className="hidden md:flex items-center gap-1 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-slate-100/50 px-2 py-1 rounded-full border border-white/50 shadow-inner">
-          <Link href="/" className="px-5 py-1.5 rounded-full text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-sm transition-all duration-200">
-            INICIO
-          </Link>
-          <Link href="/shop" className="px-5 py-1.5 rounded-full text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-white hover:shadow-sm transition-all duration-200">
-            TIENDA
-          </Link>
+        {/* Navegación PC */}
+        <nav className="hidden md:flex items-center gap-6 flex-1">
+          <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">Inicio</Link>
+          <Link href="/shop" className="text-sm font-medium hover:text-primary transition-colors">Tienda</Link>
+          
+          {/* 👇 AQUÍ ESTÁ EL NUEVO MENÚ */}
+          <CategoryMenu categories={categories} />
         </nav>
 
-        {/* CARRITO */}
-        <div className="flex items-center gap-4">
-          <CartSheet />
+        {/* Acciones Derecha (Carrito) */}
+        <div className="flex items-center gap-2">
+            <CartSheet />
+
+            {/* Menú Móvil */}
+            <Sheet>
+                <SheetTrigger asChild>
+                    <Button variant="ghost" size="icon" className="md:hidden">
+                        <Menu className="h-5 w-5" />
+                    </Button>
+                </SheetTrigger>
+                <SheetContent side="left">
+                    <div className="flex flex-col gap-4 mt-8">
+                        <Link href="/" className="text-lg font-bold">Inicio</Link>
+                        <Link href="/shop" className="text-lg font-bold">Tienda Completa</Link>
+                        
+                        <div className="py-2 border-t border-b">
+                            <p className="text-sm text-gray-500 mb-2 uppercase font-bold">Categorías</p>
+                            <div className="flex flex-col gap-2 pl-2">
+                                {categories.map(cat => (
+                                    <Link key={cat} href={`/shop?category=${encodeURIComponent(cat)}`} className="text-base">
+                                        • {cat}
+                                    </Link>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </SheetContent>
+            </Sheet>
         </div>
       </div>
     </header>

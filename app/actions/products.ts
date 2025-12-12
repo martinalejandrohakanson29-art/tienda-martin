@@ -85,7 +85,23 @@ export async function deleteProduct(id: string) {
     await prisma.product.delete({
         where: { id },
     })
+    
     revalidatePath("/admin/products")
     revalidatePath("/shop")
     revalidatePath("/")
+}
+
+export async function getUniqueCategories() {
+  try {
+    const products = await prisma.product.findMany({
+      where: { stock: { gt: 0 } }, // Solo categorías con stock
+      select: { category: true }
+    })
+    
+    // Eliminamos duplicados usando Set
+    const uniqueCategories = Array.from(new Set(products.map(p => p.category)))
+    return uniqueCategories.sort() // Ordenadas alfabéticamente
+  } catch (error) {
+    return []
+  }
 }

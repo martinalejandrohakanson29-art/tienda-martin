@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Trash, Pencil, Star, Eye } from "lucide-react" // 👈 Importamos Eye
+import { Plus, Trash, Pencil, Star, Eye, ShoppingBag } from "lucide-react" // 👈 Importamos ícono ShoppingBag
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
 type ProductForm = {
@@ -19,6 +19,7 @@ type ProductForm = {
     imageUrl: string
     discount: string
     isFeatured: boolean
+    mercadolibreUrl: string // 👈 NUEVO CAMPO EN EL TIPO
 }
 
 const initialState: ProductForm = {
@@ -29,7 +30,8 @@ const initialState: ProductForm = {
     category: "",
     imageUrl: "",
     discount: "0",
-    isFeatured: false
+    isFeatured: false,
+    mercadolibreUrl: "" // 👈 INICIALIZACIÓN VACÍA
 }
 
 export default function ProductsClient({ initialProducts }: { initialProducts: any[] }) {
@@ -48,7 +50,6 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
-                // 👇 Usamos el mismo formato robusto lh3
                 return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
             }
         }
@@ -68,6 +69,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 stock: parseInt(formData.stock),
                 discount: parseInt(formData.discount || "0"),
                 isFeatured: formData.isFeatured
+                // mercadolibreUrl ya viaja dentro de ...formData
             }
 
             if (editingId) {
@@ -97,7 +99,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             category: product.category,
             imageUrl: product.imageUrl,
             discount: (product.discount || 0).toString(),
-            isFeatured: product.isFeatured || false
+            isFeatured: product.isFeatured || false,
+            mercadolibreUrl: product.mercadolibreUrl || "" // 👈 CARGAMOS EL DATO EXISTENTE
         })
         setIsOpen(true)
     }
@@ -126,15 +129,25 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                             <Plus className="mr-2 h-4 w-4" /> Nuevo Producto
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{editingId ? "Editar Producto" : "Crear Producto"}</DialogTitle>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                            <div className="space-y-2">
-                                <Label>Título</Label>
-                                <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej: Camiseta" />
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Título</Label>
+                                    <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej: Camiseta" />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Categoría</Label>
+                                    <Input required list="categories-list" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} placeholder="Selecciona..." />
+                                    <datalist id="categories-list">
+                                        {uniqueCategories.map(cat => <option key={cat} value={cat} />)}
+                                    </datalist>
+                                </div>
                             </div>
+
                             <div className="space-y-2">
                                 <Label>Descripción</Label>
                                 <Input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Detalles..." />
@@ -156,24 +169,21 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                             </div>
 
                             <div className="space-y-2">
-                                <Label>Categoría</Label>
-                                <Input 
-                                    required 
-                                    list="categories-list"
-                                    value={formData.category} 
-                                    onChange={e => setFormData({...formData, category: e.target.value})} 
-                                    placeholder="Selecciona o escribe una nueva..." 
-                                />
-                                <datalist id="categories-list">
-                                    {uniqueCategories.map(cat => (
-                                        <option key={cat} value={cat} />
-                                    ))}
-                                </datalist>
+                                <Label>URL Imagen (Drive)</Label>
+                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="Link de Google Drive..." />
                             </div>
 
+                            {/* 👇 INPUT NUEVO PARA LINK DE MERCADOLIBRE */}
                             <div className="space-y-2">
-                                <Label>URL de Imagen</Label>
-                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="Enlace de Drive" />
+                                <Label className="flex items-center gap-2 text-yellow-600 font-semibold">
+                                    <ShoppingBag size={16} /> Link MercadoLibre (Opcional)
+                                </Label>
+                                <Input 
+                                    value={formData.mercadolibreUrl} 
+                                    onChange={e => setFormData({...formData, mercadolibreUrl: e.target.value})} 
+                                    placeholder="https://articulo.mercadolibre.com.ar/..." 
+                                    className="border-yellow-200 focus-visible:ring-yellow-400 bg-yellow-50/30"
+                                />
                             </div>
 
                             <div className="flex items-center space-x-2 py-2 border-t pt-4">
@@ -184,9 +194,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                     checked={formData.isFeatured}
                                     onChange={(e) => setFormData({...formData, isFeatured: e.target.checked})}
                                 />
-                                <Label htmlFor="featured" className="cursor-pointer font-bold text-blue-600">
-                                    ¡Destacar en Portada! (Máx. 8)
-                                </Label>
+                                <Label htmlFor="featured" className="cursor-pointer font-bold text-blue-600">Destacar en Portada (Máx. 8)</Label>
                             </div>
 
                             <Button type="submit" className="w-full" disabled={loading}>
@@ -201,14 +209,22 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 {initialProducts.map((product) => (
                     <Card key={product.id} className={product.isFeatured ? "border-2 border-blue-500 shadow-md" : ""}>
                         <div className="aspect-square relative overflow-hidden rounded-t-xl bg-gray-100">
+                            {/* BADGE DE DESCUENTO */}
                             {product.discount > 0 && (
                                 <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10">
                                     {product.discount}% OFF
                                 </span>
                             )}
+                            {/* BADGE DE DESTACADO */}
                             {product.isFeatured && (
                                 <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 flex items-center gap-1">
                                     <Star size={10} fill="white" /> Destacado
+                                </span>
+                            )}
+                            {/* 👇 BADGE DE MERCADOLIBRE (VISUAL) */}
+                            {product.mercadolibreUrl && (
+                                <span className="absolute bottom-2 right-2 bg-yellow-400 text-black text-[10px] font-bold px-2 py-1 rounded-full z-10 shadow-sm flex items-center gap-1">
+                                    <ShoppingBag size={10} /> ML
                                 </span>
                             )}
                             <img 
@@ -237,7 +253,6 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                         <CardContent>
                             <p className="text-sm text-gray-500 truncate">{product.description}</p>
                             
-                            {/* 👇 AQUÍ MOSTRAMOS LAS VISITAS */}
                             <div className="flex justify-between items-center mt-3">
                                 <p className="text-xs text-gray-400">Stock: {product.stock} | Cat: {product.category}</p>
                                 <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-full">

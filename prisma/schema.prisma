@@ -23,37 +23,34 @@ model Product {
   imageUrl        String
   discount        Int      @default(0)
   isFeatured      Boolean  @default(false)
-  mercadolibreUrl String   @default("") // 👈 NUEVO CAMPO AGREGADO
+  mercadolibreUrl String   @default("") // 👈 NUEVO CAMPO: Link a MercadoLibre
   views           Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
 
 model Config {
-  id             String   @id @default(cuid())
-  companyName    String   @default("Mi Tienda")
-  logoUrl        String   @default("") 
-  logoHeight     String   @default("80px")
-  announcementText String @default("")
-  whatsappNumber String   @default("")
-  instagramUrl   String   @default("")
-  tiktokUrl      String   @default("")
-  welcomeText    String   @default("Bienvenido a nuestra tienda")
-  locationUrl    String   @default("")
-  paymentMethods String   @default("Efectivo,Transferencia,Tarjeta") 
-  
-  // 👇 AGREGA ESTAS DOS LÍNEAS:
+  id                    String   @id @default(cuid())
+  companyName           String   @default("Mi Tienda")
+  logoUrl               String   @default("") 
+  logoHeight            String   @default("80px")
+  announcementText      String   @default("")
+  whatsappNumber        String   @default("")
+  instagramUrl          String   @default("")
+  tiktokUrl             String   @default("")
+  welcomeText           String   @default("Bienvenido a nuestra tienda")
+  locationUrl           String   @default("")
+  paymentMethods        String   @default("Efectivo,Transferencia,Tarjeta") 
   carouselHeightDesktop String   @default("600px")
   carouselHeightMobile  String   @default("250px")
-
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model CarouselItem {
   id             String   @id @default(cuid())
-  mediaUrl       String   @default("") // URL para PC
-  mediaUrlMobile String   @default("") // 👈 NUEVO: URL para Celular
+  mediaUrl       String   @default("")
+  mediaUrlMobile String   @default("")
   mediaType      String   @default("image")
   order          Int      @default(0)
   createdAt      DateTime @default(now())

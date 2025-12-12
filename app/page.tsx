@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import HomeSearch from "@/components/home-search"
+import QuickAddButton from "@/components/quick-add-button" // 👈 Importamos el nuevo botón
 
 export const dynamic = "force-dynamic"
 
@@ -39,11 +40,8 @@ export default async function Home() {
               {carouselItems.map((item) => (
                 <CarouselItem key={item.id} className="pl-0"> 
                   <div className="relative w-full dynamic-carousel-height bg-black">
-                    
-                    {/* ——————— LÓGICA DE VIDEO ——————— */}
                     {item.mediaType === "video" ? (
                       <>
-                        {/* 🖥️ Video PC (Visible en md+) */}
                         <div className="hidden md:block w-full h-full">
                             <iframe
                                 src={`${item.mediaUrl}`}
@@ -53,11 +51,8 @@ export default async function Home() {
                                 style={{ border: 0 }}
                             />
                         </div>
-
-                        {/* 📱 Video Móvil (Visible hasta md) */}
                         <div className="block md:hidden w-full h-full">
                             <iframe
-                                // Si no hay video móvil, usa el de PC como respaldo
                                 src={`${item.mediaUrlMobile || item.mediaUrl}`}
                                 className="w-full h-full object-cover"
                                 allow="autoplay; encrypted-media"
@@ -67,17 +62,13 @@ export default async function Home() {
                         </div>
                       </>
                     ) : (
-                    /* ——————— LÓGICA DE IMAGEN ——————— */
                       <>
-                        {/* 🖥️ Imagen PC */}
                         <img
                           src={item.mediaUrl}
                           alt="Banner PC"
                           className="hidden md:block w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
-
-                        {/* 📱 Imagen Móvil */}
                         <img
                           src={item.mediaUrlMobile || item.mediaUrl}
                           alt="Banner Móvil"
@@ -86,7 +77,6 @@ export default async function Home() {
                         />
                       </>
                     )}
-
                   </div>
                 </CarouselItem>
               ))}
@@ -101,18 +91,16 @@ export default async function Home() {
         </div>
       )}
 
-      {/* Resto de la página... */}
       <div className={`container mx-auto px-4 relative z-10 ${hasCarousel ? "-mt-8" : "mt-8 md:mt-12"}`}>
         <HomeSearch products={JSON.parse(JSON.stringify(allProducts))} />
       </div>
       
-      {/* ... Featured products ... */}
       <div className="container mx-auto px-4 pt-4">
         <h2 className="text-3xl font-bold mb-8 text-center">Productos Destacados</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {featuredProducts.map((product) => (
             <Link key={product.id} href={`/products/${product.id}`}>
-              <Card className="h-full hover:shadow-lg transition-shadow border-0 shadow-sm cursor-pointer group">
+              <Card className="h-full hover:shadow-lg transition-shadow border-0 shadow-sm cursor-pointer group flex flex-col">
                 <div className="aspect-square relative overflow-hidden rounded-t-lg bg-gray-100">
                   {product.discount > 0 && (
                     <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 shadow-sm">
@@ -126,10 +114,11 @@ export default async function Home() {
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <CardContent className="p-4">
+                <CardContent className="p-4 flex flex-col flex-1">
                   <h3 className="font-semibold text-lg truncate">{product.title}</h3>
-                  <p className="text-gray-500 text-sm truncate">{product.category}</p>
-                  <div className="mt-2 flex items-center justify-between">
+                  <p className="text-gray-500 text-sm truncate mb-3">{product.category}</p>
+                  
+                  <div className="mt-auto flex items-end justify-between">
                     <div className="flex flex-col">
                         {product.discount > 0 && (
                             <span className="text-xs text-gray-400 line-through">
@@ -140,7 +129,12 @@ export default async function Home() {
                             ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
                         </span>
                     </div>
-                    <Button size="sm" variant="secondary">Ver</Button>
+                    
+                    {/* 👇 AQUÍ AGREGAMOS EL BOTÓN RÁPIDO */}
+                    <div className="flex gap-2">
+                        <Button size="sm" variant="outline" className="h-8 px-3 text-xs">Ver</Button>
+                        <QuickAddButton product={product} />
+                    </div>
                   </div>
                 </CardContent>
               </Card>

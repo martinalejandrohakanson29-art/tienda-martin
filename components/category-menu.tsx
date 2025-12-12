@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import Link from "next/link"
 import { ChevronDown, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
@@ -12,7 +11,6 @@ export default function CategoryMenu({ categories }: { categories: string[] }) {
 
     const handleSelect = (category: string) => {
         setOpen(false)
-        // Navegamos a la tienda con el filtro aplicado
         router.push(`/shop?category=${encodeURIComponent(category)}`)
     }
 
@@ -20,19 +18,18 @@ export default function CategoryMenu({ categories }: { categories: string[] }) {
         <div className="relative z-50">
             <Button 
                 variant="ghost" 
-                className="font-extrabold text-lg uppercase tracking-wide flex items-center gap-2 hover:bg-transparent hover:text-blue-600 transition-colors px-0 md:px-4"
+                // 👇 CAMBIO: Tamaños responsive (text-xs en móvil, text-lg en PC)
+                className="font-bold md:font-extrabold text-xs md:text-lg uppercase tracking-wide flex items-center gap-1 md:gap-2 hover:bg-transparent hover:text-blue-600 transition-colors px-1 md:px-4 h-auto py-1 md:py-2"
                 onClick={() => setOpen(!open)}
             >
-                <Layers className="h-5 w-5" />
-                Categorías <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+                {/* 👇 CAMBIO: Ícono más chico en móvil */}
+                <Layers className="h-4 w-4 md:h-5 md:w-5" />
+                Categorías <ChevronDown className={`h-3 w-3 md:h-4 md:w-4 transition-transform ${open ? "rotate-180" : ""}`} />
             </Button>
 
             {open && (
                 <>
-                    {/* Fondo transparente para cerrar al hacer clic afuera */}
                     <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-                    
-                    {/* El Menú Desplegable */}
                     <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
                         <div className="py-2">
                             {categories.length === 0 ? (

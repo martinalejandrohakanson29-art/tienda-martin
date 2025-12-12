@@ -14,18 +14,19 @@ model User {
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  price       Decimal
-  stock       Int
-  category    String
-  imageUrl    String
-  discount    Int      @default(0)
-  isFeatured  Boolean  @default(false)
-  views       Int      @default(0) // 👈 NUEVO CAMPO: Contador de visitas
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  price           Decimal
+  stock           Int
+  category        String
+  imageUrl        String
+  discount        Int      @default(0)
+  isFeatured      Boolean  @default(false)
+  mercadolibreUrl String   @default("") // 👈 NUEVO CAMPO AGREGADO
+  views           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Config {

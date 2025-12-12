@@ -2,7 +2,7 @@
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { ShoppingCart, CreditCard, Loader2, Send } from "lucide-react"
+import { ShoppingCart, CreditCard, Loader2, Send, ShoppingBag, ExternalLink, AlertCircle } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,7 +28,7 @@ export default function CartSheet() {
 
     if (!mounted) return null
 
-    // Helper para calcular precio real
+    // Helpers de precio y detección
     const getFinalPrice = (price: any, discount: number | null) => {
         const numPrice = Number(price)
         const numDiscount = discount || 0
@@ -40,23 +40,28 @@ export default function CartSheet() {
         return sum + unitPrice * item.quantity
     }, 0)
 
-    // 👇 AQUÍ ESTÁ EL FILTRO DE PRECISIÓN
+    // Detectores de método
     const isMercadoPagoOption = (method: string) => {
         const normalized = method.toLowerCase()
-        // Buscamos frases exactas para evitar confundir con "MercadoLibre"
-        return normalized.includes("link de pago") || 
-               normalized.includes("mercado pago") || 
-               normalized.includes("mercadopago")
+        return normalized.includes("link") || normalized.includes("mercado pago") || normalized.includes("mercadopago")
     }
 
+    const isMercadoLibreOption = (method: string) => {
+        return method.toLowerCase().includes("mercadolibre") || method.toLowerCase().includes("ml")
+    }
+
+    const isML = isMercadoLibreOption(paymentMethod)
+    const isMP = isMercadoPagoOption(paymentMethod) && !isML
+
+    // Manejador para WhatsApp y MP (MercadoLibre ya no usa esto)
     const handleCheckout = async () => {
         if (!customerName) return alert("Por favor ingresa tu nombre")
         if (!paymentMethod) return alert("Por favor selecciona una forma de pago")
 
         setLoading(true)
 
-        // Si es la opción específica de Link de Pago...
-        if (isMercadoPagoOption(paymentMethod)) {
+        // Opción A: Mercado Pago (API)
+        if (isMP) {
             try {
                 const response = await fetch("/api/checkout", {
                     method: "POST",
@@ -64,34 +69,27 @@ export default function CartSheet() {
                     body: JSON.stringify({ items: cart }),
                 })
                 const data = await response.json()
-                if (data.url) {
-                    window.location.href = data.url // Nos vamos a Mercado Pago
-                } else {
-                    alert("Error al generar el link. Intenta nuevamente.")
-                }
+                if (data.url) window.location.href = data.url
+                else alert("Error al generar el link.")
             } catch (error) {
-                console.error(error)
-                alert("Error de conexión con el servidor.")
+                alert("Error de conexión.")
             } finally {
                 setLoading(false)
             }
-
-        } else {
-            // Si es cualquier OTRA cosa (incluyendo MercadoLibre por ahora, Efectivo, etc.) -> WhatsApp
-            const message = `Hola! Quiero confirmar el siguiente pedido:%0A%0A${cart.map(item => {
-                const unitPrice = getFinalPrice(item.product.price, item.product.discount)
-                const subtotal = unitPrice * item.quantity
-                return `- ${item.product.title} x${item.quantity}: $${subtotal.toFixed(2)}`
-            }).join("%0A")}%0A%0ATotal: $${total.toFixed(2)}%0A%0AMis datos:%0A- Nombre: ${customerName}%0A- Forma de pago: ${paymentMethod}`
-
-            const link = `https://wa.me/${whatsappNumber}?text=${message}`
-            window.open(link, "_blank")
-            setLoading(false)
+            return
         }
-    }
 
-    // Usamos el mismo filtro para cambiar el color y texto del botón
-    const isOnlineSelection = isMercadoPagoOption(paymentMethod)
+        // Opción B: WhatsApp (Default)
+        const message = `Hola! Quiero confirmar el siguiente pedido:%0A%0A${cart.map(item => {
+            const unitPrice = getFinalPrice(item.product.price, item.product.discount)
+            const subtotal = unitPrice * item.quantity
+            return `- ${item.product.title} x${item.quantity}: $${subtotal.toFixed(2)}`
+        }).join("%0A")}%0A%0ATotal: $${total.toFixed(2)}%0A%0AMis datos:%0A- Nombre: ${customerName}%0A- Forma de pago: ${paymentMethod}`
+
+        const link = `https://wa.me/${whatsappNumber}?text=${message}`
+        window.open(link, "_blank")
+        setLoading(false)
+    }
 
     return (
         <Sheet>
@@ -105,125 +103,126 @@ export default function CartSheet() {
                     )}
                 </Button>
             </SheetTrigger>
-            <SheetContent className="h-full overflow-y-auto w-full sm:max-w-md">
+            <SheetContent className="h-full overflow-y-auto w-full sm:max-w-md flex flex-col">
                 <SheetHeader className="mb-6">
                     <SheetTitle className="text-2xl">Tu Carrito</SheetTitle>
                 </SheetHeader>
                 
-                <div className="space-y-8">
-                    {/* LISTA DE PRODUCTOS (Sin cambios) */}
-                    <div>
-                        {cart.length === 0 ? (
-                            <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                                <ShoppingCart className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-                                <p className="text-gray-500 font-medium">Tu carrito está vacío.</p>
+                {/* 1. LISTADO DE PRODUCTOS */}
+                <div className="flex-1 space-y-6 overflow-y-auto min-h-0">
+                    {cart.length === 0 ? (
+                        <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                            <ShoppingCart className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+                            <p className="text-gray-500 font-medium">Tu carrito está vacío.</p>
+                        </div>
+                    ) : (
+                        cart.map((item) => {
+                            const finalUnitPrice = getFinalPrice(item.product.price, item.product.discount)
+                            const itemSubtotal = finalUnitPrice * item.quantity
+                            return (
+                                <div key={item.product.id} className="flex items-start gap-4 pb-4 border-b last:border-0">
+                                    <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-100 relative">
+                                        {(item.product.discount || 0) > 0 && (
+                                            <span className="absolute top-0 right-0 bg-green-600 text-white text-[10px] font-bold px-1 py-0.5 rounded-bl-md z-10">
+                                                -{item.product.discount}%
+                                            </span>
+                                        )}
+                                        <img src={item.product.imageUrl} alt={item.product.title} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                                    </div>
+                                    <div className="flex flex-1 flex-col">
+                                        <div className="flex justify-between text-sm font-medium text-gray-900">
+                                            <h3 className="truncate pr-2 max-w-[120px]">{item.product.title}</h3>
+                                            <p>${itemSubtotal.toFixed(2)}</p>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs mt-2">
+                                            <p className="text-gray-500">Cant: {item.quantity}</p>
+                                            <Button variant="ghost" size="sm" onClick={() => removeFromCart(item.product.id)} className="text-red-500 h-6 px-2">Borrar</Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )
+                        })
+                    )}
+                </div>
+
+                {/* 2. ZONA DE PAGO (Fixed at bottom) */}
+                {cart.length > 0 && (
+                    <div className="border-t border-gray-200 pt-6 space-y-4 bg-gray-50 -mx-6 px-6 pb-6 mt-auto">
+                        <div className="flex justify-between text-base font-medium text-gray-900">
+                            <span>Total a Pagar</span>
+                            <span className="text-xl font-bold text-green-700">${total.toFixed(2)}</span>
+                        </div>
+
+                        {/* A. SELECTOR DE PAGO (Primero) */}
+                        <div>
+                            <Label htmlFor="payment" className="text-xs uppercase text-gray-500 font-bold">1. Elige cómo pagar</Label>
+                            <select 
+                                id="payment" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary mt-1"
+                            >
+                                <option value="" disabled>Selecciona una opción...</option>
+                                {availablePaymentMethods.map(method => (
+                                    <option key={method} value={method}>{method}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* B. LÓGICA SEGÚN SELECCIÓN */}
+                        {isML ? (
+                            // ———— VISTA MERCADOLIBRE (LINKS DIRECTOS) ————
+                            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
+                                <div className="flex items-start gap-2 text-yellow-800 bg-yellow-50 p-3 rounded border border-yellow-200 text-sm">
+                                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                    <p>Aquí tienes los links directos a nuestras publicaciones:</p>
+                                </div>
+                                <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
+                                    {cart.map((item, index) => {
+                                        const mlLink = (item.product as any).mercadolibreUrl;
+                                        return (
+                                            <div key={index} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 shadow-sm">
+                                                <span className="text-xs font-medium truncate flex-1 pr-2">{item.product.title}</span>
+                                                {mlLink ? (
+                                                    <a 
+                                                        href={mlLink} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer"
+                                                        className="bg-yellow-400 hover:bg-yellow-500 text-black text-xs font-bold px-3 py-1.5 rounded flex items-center gap-1 transition-colors shrink-0"
+                                                    >
+                                                        Ver en ML <ExternalLink size={10} />
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-[10px] text-gray-400 italic px-2">Sin Link</span>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
                             </div>
                         ) : (
-                            <div className="space-y-6">
-                                {cart.map((item) => {
-                                    const finalUnitPrice = getFinalPrice(item.product.price, item.product.discount)
-                                    const itemSubtotal = finalUnitPrice * item.quantity
+                            // ———— VISTA STANDARD (NOMBRE + BOTÓN) ————
+                            <div className="space-y-4 animate-in fade-in">
+                                <div>
+                                    <Label htmlFor="name" className="text-xs uppercase text-gray-500 font-bold">2. Tus Datos</Label>
+                                    <Input id="name" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Tu nombre completo" className="mt-1 bg-white"/>
+                                </div>
 
-                                    return (
-                                        <div key={item.product.id} className="flex items-start gap-4 pb-6 border-b last:border-0">
-                                            <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-200 bg-gray-100 relative">
-                                                {(item.product.discount || 0) > 0 && (
-                                                    <span className="absolute top-0 right-0 bg-green-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-bl-md z-10">
-                                                        -{item.product.discount}%
-                                                    </span>
-                                                )}
-                                                <img
-                                                    src={item.product.imageUrl}
-                                                    alt={item.product.title}
-                                                    className="h-full w-full object-cover object-center"
-                                                    referrerPolicy="no-referrer"
-                                                />
-                                            </div>
-                                            <div className="flex flex-1 flex-col">
-                                                <div className="flex justify-between text-base font-medium text-gray-900">
-                                                    <h3 className="truncate pr-2">{item.product.title}</h3>
-                                                    <div className="text-right">
-                                                        <p>${itemSubtotal.toFixed(2)}</p>
-                                                    </div>
-                                                </div>
-                                                <p className="mt-1 text-sm text-gray-500">{item.product.category}</p>
-                                                <div className="flex items-end justify-between text-sm mt-2">
-                                                    <p className="text-gray-500">Cant: <span className="font-semibold text-gray-900">{item.quantity}</span></p>
-                                                    <Button 
-                                                        variant="ghost" size="sm" 
-                                                        onClick={() => removeFromCart(item.product.id)} 
-                                                        className="text-red-500 hover:text-red-700 -mr-2 p-2 h-auto"
-                                                    >
-                                                        Eliminar
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
+                                <Button 
+                                    className={`w-full h-12 text-lg font-bold shadow-md ${isMP ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`} 
+                                    onClick={handleCheckout}
+                                    disabled={loading}
+                                >
+                                    {loading ? (
+                                        <> <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Procesando... </>
+                                    ) : isMP ? (
+                                        <> Pagar ahora <CreditCard className="ml-2 h-5 w-5" /> </>
+                                    ) : (
+                                        <> Enviar Pedido <Send className="ml-2 h-5 w-5" /> </>
+                                    )}
+                                </Button>
                             </div>
                         )}
                     </div>
-
-                    {/* CHECKOUT */}
-                    {cart.length > 0 && (
-                        <div className="border-t border-gray-200 pt-6 space-y-6 bg-gray-50 -mx-6 px-6 pb-6 mt-4">
-                            <div className="flex justify-between text-base font-medium text-gray-900">
-                                <span className="text-lg">Total a Pagar</span>
-                                <span className="text-xl font-bold text-green-700">${total.toFixed(2)}</span>
-                            </div>
-                          
-                            <div className="space-y-4 pt-4">
-                                <h4 className="font-medium flex items-center gap-2"><CreditCard size={18}/> Datos para el Pedido</h4>
-                                <div>
-                                    <Label htmlFor="name">Tu Nombre Completo</Label>
-                                    <Input
-                                        id="name"
-                                        value={customerName}
-                                        onChange={(e) => setCustomerName(e.target.value)}
-                                        placeholder="Ej: Juan Pérez"
-                                        className="mt-1 bg-white"
-                                    />
-                                </div>
-
-                                <div>
-                                    <Label htmlFor="payment">Forma de Pago</Label>
-                                    <select 
-                                        id="payment"
-                                        value={paymentMethod}
-                                        onChange={(e) => setPaymentMethod(e.target.value)}
-                                        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-white px-3 py-2 text-sm shadow-sm focus:ring-2 focus:ring-primary mt-1"
-                                    >
-                                        <option value="" disabled>Selecciona una opción...</option>
-                                        {availablePaymentMethods.map(method => (
-                                            <option key={method} value={method}>{method}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <Button 
-                                className={`w-full h-12 text-lg font-bold shadow-md mt-6 ${isOnlineSelection ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`} 
-                                onClick={handleCheckout}
-                                disabled={loading}
-                            >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Procesando...
-                                    </>
-                                ) : isOnlineSelection ? (
-                                    <>
-                                        Pagar ahora <CreditCard className="ml-2 h-5 w-5" />
-                                    </>
-                                ) : (
-                                    <>
-                                        Enviar Pedido <Send className="ml-2 h-5 w-5" />
-                                    </>
-                                )}
-                            </Button>
-                        </div>
-                    )}
-                </div>
+                )}
             </SheetContent>
         </Sheet>
     )

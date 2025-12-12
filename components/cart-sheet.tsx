@@ -40,21 +40,23 @@ export default function CartSheet() {
         return sum + unitPrice * item.quantity
     }, 0)
 
-    // 👇 AQUÍ ESTÁ LA LÓGICA HÍBRIDA
+    // 👇 AQUÍ ESTÁ EL FILTRO DE PRECISIÓN
+    const isMercadoPagoOption = (method: string) => {
+        const normalized = method.toLowerCase()
+        // Buscamos frases exactas para evitar confundir con "MercadoLibre"
+        return normalized.includes("link de pago") || 
+               normalized.includes("mercado pago") || 
+               normalized.includes("mercadopago")
+    }
+
     const handleCheckout = async () => {
         if (!customerName) return alert("Por favor ingresa tu nombre")
         if (!paymentMethod) return alert("Por favor selecciona una forma de pago")
 
         setLoading(true)
 
-        // Detectamos si el usuario eligió pagar online
-        // Buscamos palabras clave como "link", "mercado", "mp", "tarjeta"
-        const isOnlinePayment = ["link", "mercado", "mp", "tarjeta", "qr"].some(keyword => 
-            paymentMethod.toLowerCase().includes(keyword)
-        )
-
-        if (isOnlinePayment) {
-            // ———— CAMINO A: MERCADO PAGO ————
+        // Si es la opción específica de Link de Pago...
+        if (isMercadoPagoOption(paymentMethod)) {
             try {
                 const response = await fetch("/api/checkout", {
                     method: "POST",
@@ -63,7 +65,7 @@ export default function CartSheet() {
                 })
                 const data = await response.json()
                 if (data.url) {
-                    window.location.href = data.url // Redirigir a MP
+                    window.location.href = data.url // Nos vamos a Mercado Pago
                 } else {
                     alert("Error al generar el link. Intenta nuevamente.")
                 }
@@ -75,7 +77,7 @@ export default function CartSheet() {
             }
 
         } else {
-            // ———— CAMINO B: WHATSAPP (Efectivo/Transferencia) ————
+            // Si es cualquier OTRA cosa (incluyendo MercadoLibre por ahora, Efectivo, etc.) -> WhatsApp
             const message = `Hola! Quiero confirmar el siguiente pedido:%0A%0A${cart.map(item => {
                 const unitPrice = getFinalPrice(item.product.price, item.product.discount)
                 const subtotal = unitPrice * item.quantity
@@ -84,14 +86,12 @@ export default function CartSheet() {
 
             const link = `https://wa.me/${whatsappNumber}?text=${message}`
             window.open(link, "_blank")
-            setLoading(false) // Terminamos aquí
+            setLoading(false)
         }
     }
 
-    // Texto dinámico del botón según la selección
-    const isOnlineSelection = ["link", "mercado", "mp", "tarjeta"].some(k => 
-        paymentMethod.toLowerCase().includes(k)
-    )
+    // Usamos el mismo filtro para cambiar el color y texto del botón
+    const isOnlineSelection = isMercadoPagoOption(paymentMethod)
 
     return (
         <Sheet>
@@ -111,7 +111,7 @@ export default function CartSheet() {
                 </SheetHeader>
                 
                 <div className="space-y-8">
-                    {/* LISTA DE PRODUCTOS */}
+                    {/* LISTA DE PRODUCTOS (Sin cambios) */}
                     <div>
                         {cart.length === 0 ? (
                             <div className="text-center py-12 border-2 border-dashed rounded-lg">

@@ -2,7 +2,7 @@
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { ShoppingCart, CreditCard, Loader2, Send, ShoppingBag, ExternalLink, AlertCircle } from "lucide-react"
+import { ShoppingCart, CreditCard, Loader2, Send, ShoppingBag, ExternalLink } from "lucide-react" // 👈 Quitamos AlertCircle
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,7 +28,6 @@ export default function CartSheet() {
 
     if (!mounted) return null
 
-    // Helpers de precio y detección
     const getFinalPrice = (price: any, discount: number | null) => {
         const numPrice = Number(price)
         const numDiscount = discount || 0
@@ -40,7 +39,6 @@ export default function CartSheet() {
         return sum + unitPrice * item.quantity
     }, 0)
 
-    // Detectores de método
     const isMercadoPagoOption = (method: string) => {
         const normalized = method.toLowerCase()
         return normalized.includes("link") || normalized.includes("mercado pago") || normalized.includes("mercadopago")
@@ -53,14 +51,12 @@ export default function CartSheet() {
     const isML = isMercadoLibreOption(paymentMethod)
     const isMP = isMercadoPagoOption(paymentMethod) && !isML
 
-    // Manejador para WhatsApp y MP (MercadoLibre ya no usa esto)
     const handleCheckout = async () => {
         if (!customerName) return alert("Por favor ingresa tu nombre")
         if (!paymentMethod) return alert("Por favor selecciona una forma de pago")
 
         setLoading(true)
 
-        // Opción A: Mercado Pago (API)
         if (isMP) {
             try {
                 const response = await fetch("/api/checkout", {
@@ -79,7 +75,6 @@ export default function CartSheet() {
             return
         }
 
-        // Opción B: WhatsApp (Default)
         const message = `Hola! Quiero confirmar el siguiente pedido:%0A%0A${cart.map(item => {
             const unitPrice = getFinalPrice(item.product.price, item.product.discount)
             const subtotal = unitPrice * item.quantity
@@ -131,7 +126,8 @@ export default function CartSheet() {
                                     </div>
                                     <div className="flex flex-1 flex-col">
                                         <div className="flex justify-between text-sm font-medium text-gray-900">
-                                            <h3 className="truncate pr-2 max-w-[120px]">{item.product.title}</h3>
+                                            {/* 👇 CAMBIO: Quitamos 'truncate max-w' para que se vea todo el texto */}
+                                            <h3 className="pr-2 leading-tight">{item.product.title}</h3>
                                             <p>${itemSubtotal.toFixed(2)}</p>
                                         </div>
                                         <div className="flex items-center justify-between text-xs mt-2">
@@ -145,7 +141,7 @@ export default function CartSheet() {
                     )}
                 </div>
 
-                {/* 2. ZONA DE PAGO (Fixed at bottom) */}
+                {/* 2. ZONA DE PAGO */}
                 {cart.length > 0 && (
                     <div className="border-t border-gray-200 pt-6 space-y-4 bg-gray-50 -mx-6 px-6 pb-6 mt-auto">
                         <div className="flex justify-between text-base font-medium text-gray-900">
@@ -153,7 +149,7 @@ export default function CartSheet() {
                             <span className="text-xl font-bold text-green-700">${total.toFixed(2)}</span>
                         </div>
 
-                        {/* A. SELECTOR DE PAGO (Primero) */}
+                        {/* A. SELECTOR DE PAGO */}
                         <div>
                             <Label htmlFor="payment" className="text-xs uppercase text-gray-500 font-bold">1. Elige cómo pagar</Label>
                             <select 
@@ -167,20 +163,20 @@ export default function CartSheet() {
                             </select>
                         </div>
 
-                        {/* B. LÓGICA SEGÚN SELECCIÓN */}
+                        {/* B. LÓGICA */}
                         {isML ? (
-                            // ———— VISTA MERCADOLIBRE (LINKS DIRECTOS) ————
                             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                                <div className="flex items-start gap-2 text-yellow-800 bg-yellow-50 p-3 rounded border border-yellow-200 text-sm">
-                                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                                    <p>Aquí tienes los links directos a nuestras publicaciones:</p>
+                                {/* 👇 CAMBIO: Sin icono de alerta */}
+                                <div className="text-yellow-800 bg-yellow-50 p-3 rounded border border-yellow-200 text-sm font-medium text-center">
+                                    Aquí tienes los links directos a nuestras publicaciones:
                                 </div>
                                 <div className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
                                     {cart.map((item, index) => {
                                         const mlLink = (item.product as any).mercadolibreUrl;
                                         return (
                                             <div key={index} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 shadow-sm">
-                                                <span className="text-xs font-medium truncate flex-1 pr-2">{item.product.title}</span>
+                                                {/* 👇 CAMBIO: Texto completo aquí también */}
+                                                <span className="text-xs font-medium flex-1 pr-2 leading-tight">{item.product.title}</span>
                                                 {mlLink ? (
                                                     <a 
                                                         href={mlLink} 
@@ -199,7 +195,6 @@ export default function CartSheet() {
                                 </div>
                             </div>
                         ) : (
-                            // ———— VISTA STANDARD (NOMBRE + BOTÓN) ————
                             <div className="space-y-4 animate-in fade-in">
                                 <div>
                                     <Label htmlFor="name" className="text-xs uppercase text-gray-500 font-bold">2. Tus Datos</Label>

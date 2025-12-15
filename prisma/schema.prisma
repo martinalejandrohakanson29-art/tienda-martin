@@ -56,3 +56,16 @@ model CarouselItem {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+model ShipmentAudit {
+  id        String   @id @default(cuid())
+  itemId    String   // El MLA (ej: MLA12345678)
+  envioId   String   // El Nro de Envío (ej: 5422872)
+  status    String   // "APROBADO" o "RECHAZADO"
+  reason    String?  // Motivo (opcional)
+  auditor   String?  // Usuario que aprobó
+  createdAt DateTime @default(now())
+  
+  // Hacemos que la combinación MLA + Envio sea única (para no auditar 2 veces lo mismo en el mismo envío)
+  @@unique([itemId, envioId])
+}

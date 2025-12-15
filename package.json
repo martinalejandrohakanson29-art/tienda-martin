@@ -6,7 +6,7 @@
     "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "next build",
-    "start": "npx prisma db push --accept-data-loss && next start", 
+    "start": "npx prisma db push --accept-data-loss && next start",
     "lint": "next lint"
   },
   "dependencies": {
@@ -25,12 +25,16 @@
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "googleapis": "^126.0.1",
+    "axios": "^1.6.2",
+    "papaparse": "^5.4.1"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/papaparse": "^5.3.14",
     "eslint": "^8",
     "eslint-config-next": "14.2.33",
     "postcss": "^8",

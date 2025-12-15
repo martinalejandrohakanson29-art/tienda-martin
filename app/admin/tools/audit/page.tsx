@@ -1,1 +1,144 @@
+"use client"
 
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Check, X, RefreshCw, Loader2, Truck, AlertTriangle } from "lucide-react"
+import { getAuditPendingItems, auditItem } from "@/app/actions/audit"
+
+export default function AuditPage() {
+    const [items, setItems] = useState<any[]>([])
+    const [loading, setLoading] = useState(true)
+    const [envioId, setEnvioId] = useState("...")
+    const [error, setError] = useState("")
+    const [processing, setProcessing] = useState<string | null>(null)
+
+    const loadData = async () => {
+        setLoading(true)
+        setError("")
+        const res = await getAuditPendingItems()
+        
+        if (res.error) {
+            setError(res.error)
+            setItems([])
+        } else {
+            setItems(res.data || [])
+            setEnvioId(res.envioId || "S/D")
+        }
+        setLoading(false)
+    }
+
+    useEffect(() => {
+        loadData()
+    }, [])
+
+    const handleVote = async (item: any, status: 'APROBADO' | 'RECHAZADO') => {
+        setProcessing(item.itemId)
+        
+        const res = await auditItem(item.itemId, status, item.envioId)
+        
+        if (res.success) {
+            // Animación visual: lo sacamos de la lista
+            setItems(prev => prev.filter(i => i.itemId !== item.itemId))
+        } else {
+            alert("Error al guardar: " + res.error)
+        }
+        setProcessing(null)
+    }
+
+    return (
+        <div className="max-w-5xl mx-auto space-y-6">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-xl border shadow-sm">
+                <div>
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <Truck className="text-blue-600" /> Auditoría de Envíos
+                    </h1>
+                    <p className="text-gray-500">Revisa las fotos cargadas por los operarios</p>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                    <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 text-center">
+                        <span className="text-xs font-bold text-blue-400 uppercase block">Envío Actual</span>
+                        <span className="text-xl font-mono font-bold text-blue-700">#{envioId}</span>
+                    </div>
+                    <Button variant="outline" size="icon" onClick={loadData} disabled={loading}>
+                        <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+                    </Button>
+                </div>
+            </div>
+
+            {/* Mensajes de Estado */}
+            {error && (
+                <div className="bg-red-50 text-red-600 p-4 rounded-lg flex items-center gap-2 border border-red-100">
+                    <AlertTriangle className="h-5 w-5" /> {error}
+                </div>
+            )}
+
+            {/* Lista de Pendientes */}
+            {loading ? (
+                <div className="py-20 text-center text-gray-500">
+                    <Loader2 className="h-10 w-10 animate-spin mx-auto mb-3 text-blue-500" />
+                    <p>Buscando fotos en Drive...</p>
+                </div>
+            ) : items.length === 0 && !error ? (
+                <div className="py-20 text-center bg-green-50 rounded-xl border border-green-100">
+                    <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Check className="h-8 w-8 text-green-600" />
+                    </div>
+                    <h2 className="text-xl font-bold text-green-800">¡Todo Aprobado!</h2>
+                    <p className="text-green-600 mt-1">No hay fotos pendientes para este envío.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {items.map((item) => (
+                        <Card key={item.itemId} className="overflow-hidden flex flex-col group hover:shadow-lg transition-all border-0 shadow-md ring-1 ring-gray-200">
+                            {/* IMAGEN GRANDE */}
+                            <div className="relative aspect-video bg-gray-100 overflow-hidden cursor-pointer" onClick={() => window.open(item.imageUrl, '_blank')}>
+                                <img 
+                                    src={item.imageUrl} 
+                                    alt={item.title} 
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                />
+                                <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded backdrop-blur-md">
+                                    Click para zoom
+                                </div>
+                            </div>
+
+                            <CardContent className="p-5 flex-1 flex flex-col">
+                                <div className="mb-4">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <h3 className="font-bold text-gray-900 leading-tight text-lg">{item.title}</h3>
+                                        <span className="shrink-0 bg-gray-100 text-gray-500 text-[10px] font-mono px-1.5 py-0.5 rounded">
+                                            {item.itemId}
+                                        </span>
+                                    </div>
+                                    <p className="text-sm text-gray-500">{item.sku}</p>
+                                </div>
+
+                                <div className="mt-auto grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
+                                    <Button 
+                                        variant="outline" 
+                                        className="border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700 h-12"
+                                        onClick={() => handleVote(item, 'RECHAZADO')}
+                                        disabled={!!processing}
+                                    >
+                                        <X className="mr-2 h-5 w-5" /> Rechazar
+                                    </Button>
+                                    <Button 
+                                        className="bg-green-600 hover:bg-green-700 text-white h-12 shadow-md hover:shadow-lg transition-all"
+                                        onClick={() => handleVote(item, 'APROBADO')}
+                                        disabled={!!processing}
+                                    >
+                                        {processing === item.itemId ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-5 w-5" />}
+                                        Aprobar
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+                  }

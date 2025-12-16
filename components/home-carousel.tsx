@@ -3,12 +3,15 @@
 import * as React from "react"
 import Autoplay from "embla-carousel-autoplay"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
-import { MonitorPlay } from "lucide-react"
 
 export default function HomeCarousel({ items, config }: { items: any[], config: any }) {
-  // Configuración del plugin: delay de 2000ms (2 segundos)
+  // CORRECCIÓN: Usamos la configuración nativa del plugin para el mouse
   const plugin = React.useRef(
-    Autoplay({ delay: 2000, stopOnInteraction: true })
+    Autoplay({ 
+        delay: 2000, 
+        stopOnInteraction: false, // Sigue rodando después de que lo tocas
+        stopOnMouseEnter: true    // Se detiene solo si pones el mouse encima
+    })
   )
 
   if (items.length === 0) return null
@@ -27,12 +30,11 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
         }
       `}</style>
 
+      {/* Eliminamos los eventos manuales onMouse... que causaban el error */}
       <Carousel
         plugins={[plugin.current]}
         className="w-full"
         opts={{ loop: true }}
-        onMouseEnter={plugin.current.stop}
-        onMouseLeave={plugin.current.reset}
       >
         <CarouselContent>
           {items.map((item) => (
@@ -90,4 +92,4 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
       </Carousel>
     </div>
   )
-        }
+}

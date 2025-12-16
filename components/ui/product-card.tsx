@@ -4,6 +4,7 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import QuickAddButton from "@/components/quick-add-button"
+import { formatPrice } from "@/lib/utils" // 👈 Importamos nuestra nueva función
 
 export default function ProductCard({ product }: { product: any }) {
     // Calculamos el precio final para mostrarlo
@@ -36,11 +37,11 @@ export default function ProductCard({ product }: { product: any }) {
                         <div className="flex flex-col">
                             {product.discount > 0 && (
                                 <span className="text-xs text-gray-400 line-through">
-                                    ${Number(product.price).toFixed(2)}
+                                    {formatPrice(product.price)} {/* 👈 Precio original formateado */}
                                 </span>
                             )}
                             <span className={`text-xl font-bold ${product.discount > 0 ? 'text-green-700' : 'text-gray-900'}`}>
-                                ${finalPrice.toFixed(2)}
+                                {formatPrice(finalPrice)} {/* 👈 Precio final formateado */}
                             </span>
                         </div>
 

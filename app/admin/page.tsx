@@ -1,13 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getProducts } from "@/app/actions/products"
-import { Eye, Package, Trophy, Truck, ExternalLink, ArrowRight } from "lucide-react"
+import { Eye, Package, Trophy, Store, ArrowRight } from "lucide-react" // Cambié Truck por Store
 import Link from "next/link"
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-    // 1. Mantenemos la lógica de métricas que ya tenías
     const products = await getProducts()
     const totalProducts = products.length
     const totalViews = products.reduce((acc, curr) => acc + (curr.views || 0), 0)
@@ -21,41 +20,38 @@ export default async function AdminDashboard() {
                 <p className="text-gray-500">Bienvenido a tu centro de control.</p>
             </div>
 
-            {/* SECCIÓN 1: OPERACIONES (Lo prioritario) */}
+            {/* SECCIÓN 1: OPERACIONES */}
             <div>
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                     🚀 Accesos Rápidos
                 </h2>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     
-                    {/* 👇 LA TARJETA QUE PEDISTE: ENVÍOS FULL */}
-                    <Card className="border-l-4 border-l-blue-600 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-blue-50/50">
+                    {/* 👇 CAMBIO REALIZADO AQUÍ: Tarjeta de Mercado Libre */}
+                    <Card className="border-l-4 border-l-yellow-400 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-yellow-50/50">
                         <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-blue-800 text-xl">
-                                <Truck className="h-6 w-6" />
-                                Envíos Full ML
+                            <CardTitle className="flex items-center gap-2 text-yellow-800 text-xl">
+                                <Store className="h-6 w-6" />
+                                Gestionar Mercadolibre
                             </CardTitle>
-                            <CardDescription className="text-blue-600/80 font-medium">
-                                Sistema de Fotos y Etiquetado
+                            <CardDescription className="text-yellow-700/80 font-medium">
+                                Planificación, envíos y gestión
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-sm text-gray-600 mb-6">
-                                Accede a la herramienta para escanear productos y subir evidencia a Drive.
+                                Accede al panel de herramientas para envíos Full y planificación.
                             </p>
-                            <Link 
-                                href="https://guia-pedidos-ml-production.up.railway.app/" 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                            >
-                                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-sm h-12 text-lg">
-                                    Abrir Sistema <ExternalLink size={18} />
+                            {/* Ahora apunta a tu nueva página interna */}
+                            <Link href="/admin/mercadolibre">
+                                <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-white gap-2 shadow-sm h-12 text-lg">
+                                    Entrar al Panel <ArrowRight size={18} />
                                 </Button>
                             </Link>
                         </CardContent>
                     </Card>
 
-                    {/* Tarjeta de Acceso a Productos (Para no perderla de vista) */}
+                    {/* Tarjeta de Acceso a Productos */}
                     <Card className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-gray-300">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-gray-700">
@@ -78,11 +74,10 @@ export default async function AdminDashboard() {
                 </div>
             </div>
 
-            {/* SECCIÓN 2: MÉTRICAS (Información secundaria) */}
+            {/* SECCIÓN 2: MÉTRICAS */}
             <div className="pt-4 border-t">
                 <h2 className="text-xl font-semibold mb-4 text-gray-600">Resumen de la Tienda</h2>
                 <div className="grid gap-4 md:grid-cols-3">
-                    {/* Tarjeta Total Productos */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">Inventario Total</CardTitle>
@@ -94,7 +89,6 @@ export default async function AdminDashboard() {
                         </CardContent>
                     </Card>
 
-                    {/* Tarjeta Total Visitas */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">Interés Generado</CardTitle>
@@ -106,7 +100,6 @@ export default async function AdminDashboard() {
                         </CardContent>
                     </Card>
 
-                    {/* Tarjeta Producto Estrella */}
                     <Card className="border-l-4 border-l-yellow-400 bg-yellow-50/30">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-yellow-700">Más Popular</CardTitle>
@@ -132,4 +125,3 @@ export default async function AdminDashboard() {
         </div>
     )
 }
-

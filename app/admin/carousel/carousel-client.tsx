@@ -36,7 +36,7 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
                 const id = idMatch[1]
                 if (type === "video") return `https://drive.google.com/file/d/${id}/preview`
                 // 👇 ESTA ES LA LÍNEA CLAVE CORREGIDA
-                return `https://drive.google.com/uc?export=view&id=${id}`
+               return `https://lh3.googleusercontent.com/d/${id}`
             }
         }
         return url

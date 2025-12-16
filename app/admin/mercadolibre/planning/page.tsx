@@ -1,15 +1,11 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-// BORRADA LA LÍNEA DEL IMPORT DE TABLE QUE DABA ERROR
 import { ArrowLeft, RefreshCw, FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
+import PlanningTable from "./planning-table"; // 👈 Importamos nuestro nuevo componente
 
-// 1. URL de tu hoja (versión CSV para poder leer los datos)
+// URL y Configuración
 const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql-kdfGt_kQReLGEzFGaqVcex55VydptBQhV2EI0DTLhXFvzxukPbtZ6YCiprd8D7HKF80sWL/pub?gid=0&single=true&output=csv";
-
-// 👇 CONFIGURACIÓN: Aquí eliges qué columnas ver (A=0, B=1, C=2, etc.)
-// Por ejemplo: [0, 1, 2, 9] mostraría solo las columnas A, B, C y J.
-const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 9, 10]; 
+const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; 
 
 async function getSheetData() {
   try {
@@ -22,7 +18,6 @@ async function getSheetData() {
 
     return rows
       .filter(row => row.length > 1)
-      // 👇 MAGIA: En lugar de cortar (slice), mapeamos solo las columnas que elegiste arriba
       .map(row => COLUMNAS_ELEGIDAS.map(index => row[index] || "")); 
       
   } catch (error) {
@@ -31,17 +26,15 @@ async function getSheetData() {
   }
 }
 
-
-
 export default async function PlanningPage() {
   const data = await getSheetData();
-  const headers = data[0] || []; 
-  const body = data.slice(1);    
+  const headers = data[0] || [];
+  const body = data.slice(1);
 
   return (
     <div className="space-y-6">
       
-      {/* Header de navegación */}
+      {/* Header (Igual que antes) */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/admin/mercadolibre">
@@ -66,51 +59,9 @@ export default async function PlanningPage() {
         </div>
       </div>
 
-      {/* Tabla de Datos */}
-      <Card>
-        <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-gray-600">Datos Importados de Sheets</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <div className="rounded-md border overflow-x-auto">
-                {/* Tabla HTML estándar */}
-                <table className="w-full text-sm text-left">
-                    <thead className="bg-gray-100 text-gray-700 uppercase font-medium border-b">
-                        <tr>
-                            {headers.map((header, i) => (
-                                <th key={i} className="px-4 py-3 whitespace-nowrap">
-                                    {header || `Columna ${i+1}`}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        {body.length > 0 ? (
-                            body.map((row, rowIndex) => (
-                                <tr key={rowIndex} className="hover:bg-gray-50/50 transition-colors">
-                                    {row.map((cell, cellIndex) => (
-                                        <td key={cellIndex} className="px-4 py-3 max-w-[200px] truncate" title={cell}>
-                                            {cell}
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))
-                        ) : (
-                            <tr>
-                                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
-                                    No se encontraron datos o la hoja está vacía.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-            
-            <div className="mt-4 text-xs text-gray-400 text-center">
-                Mostrando columnas A - J desde Google Sheets
-            </div>
-        </CardContent>
-      </Card>
+      {/* 👇 AQUÍ ESTÁ EL CAMBIO: Usamos el componente interactivo */}
+      <PlanningTable headers={headers} body={body} />
+
     </div>
   );
-        }
+}

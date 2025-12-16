@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Maximize2, Minimize2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Input } from "@/components/ui/input"; // 👈 Necesitamos este componente
+import { Maximize2, Minimize2, ArrowUpDown, ArrowUp, ArrowDown, Save } from "lucide-react";
 
 interface PlanningTableProps {
   headers: string[];
@@ -14,7 +15,10 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   const [expandText, setExpandText] = useState(false);
   const [columnWidths, setColumnWidths] = useState<{ [key: number]: number }>({});
   
-  // 1. Estado para el ordenamiento
+  // 1. Estado para guardar los datos que ingreses a mano
+  // Usamos un objeto donde la clave es el índice original de la fila
+  const [inputValues, setInputValues] = useState<{ [rowIndex: number]: string }>({});
+
   const [sortConfig, setSortConfig] = useState<{ index: number | null; direction: "asc" | "desc" }>({
     index: null,
     direction: "asc",
@@ -22,10 +26,10 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
-  // Lógica de Redimensionado (Igual que antes)
+  // --- Lógica de Redimensionado (Igual que antes) ---
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // 👈 IMPORTANTE: Evita que el click ordene la columna mientras redimensionas
+    e.stopPropagation();
     const currentWidth = columnWidths[index] || 150;
     resizingRef.current = { index, startX: e.clientX, startWidth: currentWidth };
     document.addEventListener("mousemove", handleMouseMove);
@@ -45,7 +49,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     document.removeEventListener("mouseup", handleMouseUp);
   };
 
-  // 2. Lógica de Ordenamiento
+  // --- Lógica de Ordenamiento ---
   const handleSort = (index: number) => {
     setSortConfig((current) => ({
       index,
@@ -53,24 +57,32 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     }));
   };
 
-  // Función auxiliar para detectar si un valor es número (ignora signos $ o comas simples)
   const parseValue = (value: string) => {
-    const cleanValue = value.replace(/[$.]/g, "").replace(",", "."); // Intenta limpiar formato moneda
+    const cleanValue = value.replace(/[$.]/g, "").replace(",", ".");
     const num = parseFloat(cleanValue);
     return isNaN(num) ? value.toLowerCase() : num;
   };
 
-  // Creamos una copia ordenada de los datos
-  const sortedBody = [...body].sort((a, b) => {
+  // ⚠️ TRUCO CLAVE: Mapeamos las filas a objetos con su índice original
+  // Esto permite que al ordenar, sepamos cuál era la fila original para buscar su input
+  const rowsWithIndex = body.map((row, index) => ({ row, originalIndex: index }));
+
+  const sortedRows = rowsWithIndex.sort((a, b) => {
     if (sortConfig.index === null) return 0;
-
-    const valA = parseValue(a[sortConfig.index]);
-    const valB = parseValue(b[sortConfig.index]);
-
+    const valA = parseValue(a.row[sortConfig.index]);
+    const valB = parseValue(b.row[sortConfig.index]);
     if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
     if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
     return 0;
   });
+
+  // Función para manejar cuando escribes en los inputs
+  const handleInputChange = (originalIndex: number, value: string) => {
+    setInputValues(prev => ({
+        ...prev,
+        [originalIndex]: value
+    }));
+  };
 
   return (
     <Card>
@@ -78,14 +90,22 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         <CardTitle className="text-lg text-gray-600">
             Datos Importados ({body.length} filas)
         </CardTitle>
-        <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setExpandText(!expandText)}
-            className="gap-2 text-xs"
-        >
-            {expandText ? <><Minimize2 className="h-3 w-3" /> Compacta</> : <><Maximize2 className="h-3 w-3" /> Ver Todo</>}
-        </Button>
+        <div className="flex gap-2">
+            {/* Botón visual (aún no hace nada, es para la próxima etapa) */}
+            <Button size="sm" className="bg-green-600 hover:bg-green-700 gap-2">
+                <Save className="h-4 w-4" />
+                Procesar con n8n
+            </Button>
+            
+            <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setExpandText(!expandText)}
+                className="gap-2 text-xs"
+            >
+                {expandText ? <><Minimize2 className="h-3 w-3" /> Compacta</> : <><Maximize2 className="h-3 w-3" /> Ver Todo</>}
+            </Button>
+        </div>
       </CardHeader>
       
       <CardContent>
@@ -97,41 +117,38 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                             <th 
                                 key={i} 
                                 className="px-4 py-3 border-r relative overflow-hidden select-none hover:bg-gray-200 cursor-pointer transition-colors"
-                                style={{ width: columnWidths[i] || 150, minWidth: columnWidths[i] || 150 }}
-                                onClick={() => handleSort(i)} // 👈 Click en el título ordena
+                                style={{ width: columnWidths[i] || 150 }}
+                                onClick={() => handleSort(i)}
                             >
                                 <div className="flex items-center justify-between gap-2 h-full">
                                     <span className="truncate flex items-center gap-2">
                                         {header || `Col ${i+1}`}
-                                        {/* Indicador de orden visual */}
-                                        {sortConfig.index === i ? (
-                                            sortConfig.direction === "asc" ? 
-                                                <ArrowUp className="h-3 w-3 text-blue-600" /> : 
-                                                <ArrowDown className="h-3 w-3 text-blue-600" />
-                                        ) : (
-                                            <ArrowUpDown className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-50" />
+                                        {sortConfig.index === i && (
+                                            sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />
                                         )}
                                     </span>
-                                    
-                                    {/* Agarrador para redimensionar */}
                                     <div 
                                         className="w-4 h-full absolute right-0 top-0 cursor-col-resize flex items-center justify-center hover:bg-blue-100/50 transition-colors group z-10"
                                         onMouseDown={(e) => startResizing(i, e)}
-                                        onClick={(e) => e.stopPropagation()} // Evita que el click llegue al sort
+                                        onClick={(e) => e.stopPropagation()}
                                     >
                                         <div className="w-1 h-4 bg-gray-300 rounded group-hover:bg-blue-500" />
                                     </div>
                                 </div>
                             </th>
                         ))}
+                        {/* 👇 COLUMNA EXTRA PARA INPUTS MANUALES */}
+                        <th className="px-4 py-3 w-[150px] bg-blue-50 border-l border-blue-100 text-blue-800">
+                            Notas / Acción
+                        </th>
                     </tr>
                 </thead>
                 <tbody className="divide-y">
-                    {/* Renderizamos sortedBody en lugar de body */}
-                    {sortedBody.length > 0 ? (
-                        sortedBody.map((row, rowIndex) => (
-                            <tr key={rowIndex} className="hover:bg-gray-50/50 transition-colors">
-                                {row.map((cell, cellIndex) => (
+                    {sortedRows.length > 0 ? (
+                        sortedRows.map((item) => (
+                            // Usamos item.originalIndex como key para que React no se pierda al ordenar
+                            <tr key={item.originalIndex} className="hover:bg-gray-50/50 transition-colors group">
+                                {item.row.map((cell, cellIndex) => (
                                     <td 
                                         key={cellIndex} 
                                         className={`px-4 py-3 border-r overflow-hidden ${
@@ -142,11 +159,20 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                                         {cell}
                                     </td>
                                 ))}
+                                {/* 👇 CELDA DEL INPUT */}
+                                <td className="px-2 py-2 border-l bg-blue-50/30">
+                                    <Input 
+                                        placeholder="Escribir..." 
+                                        className="h-8 bg-white"
+                                        value={inputValues[item.originalIndex] || ""}
+                                        onChange={(e) => handleInputChange(item.originalIndex, e.target.value)}
+                                    />
+                                </td>
                             </tr>
                         ))
                     ) : (
                         <tr>
-                            <td colSpan={headers.length} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={headers.length + 1} className="px-4 py-8 text-center text-gray-500">
                                 Sin datos
                             </td>
                         </tr>
@@ -154,11 +180,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                 </tbody>
             </table>
         </div>
-        <div className="mt-4 text-xs text-gray-400 text-center flex justify-center gap-4">
-            <span>Click en títulos para ordenar.</span>
-            <span>Arrastra bordes para redimensionar.</span>
-        </div>
-      </CardContent>
+    </CardContent>
     </Card>
   );
 }

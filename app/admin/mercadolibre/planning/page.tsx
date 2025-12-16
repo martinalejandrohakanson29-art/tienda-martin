@@ -7,7 +7,10 @@ import Link from "next/link";
 // 1. URL de tu hoja (versión CSV para poder leer los datos)
 const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql-kdfGt_kQReLGEzFGaqVcex55VydptBQhV2EI0DTLhXFvzxukPbtZ6YCiprd8D7HKF80sWL/pub?gid=0&single=true&output=csv";
 
-// 2. Función para obtener y parsear los datos (Server Side)
+// 👇 CONFIGURACIÓN: Aquí eliges qué columnas ver (A=0, B=1, C=2, etc.)
+// Por ejemplo: [0, 1, 2, 9] mostraría solo las columnas A, B, C y J.
+const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 9]; 
+
 async function getSheetData() {
   try {
     const res = await fetch(SHEETS_CSV_URL, { cache: "no-store" });
@@ -18,14 +21,17 @@ async function getSheetData() {
     });
 
     return rows
-      .filter(row => row.length > 1) 
-      .map(row => row.slice(0, 10)); 
+      .filter(row => row.length > 1)
+      // 👇 MAGIA: En lugar de cortar (slice), mapeamos solo las columnas que elegiste arriba
+      .map(row => COLUMNAS_ELEGIDAS.map(index => row[index] || "")); 
       
   } catch (error) {
     console.error("Error al leer Sheets:", error);
     return [];
   }
 }
+
+
 
 export default async function PlanningPage() {
   const data = await getSheetData();

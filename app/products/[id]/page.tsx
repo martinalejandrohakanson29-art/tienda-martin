@@ -1,6 +1,7 @@
-import { getProduct, incrementProductView } from "@/app/actions/products" // 👈 Importamos la nueva función
+import { getProduct, incrementProductView } from "@/app/actions/products"
 import { notFound } from "next/navigation"
 import AddToCart from "./add-to-cart"
+import { formatPrice } from "@/lib/utils" // 👈 Importamos la función
 
 export const dynamic = "force-dynamic"
 
@@ -10,8 +11,10 @@ export default async function ProductPage({ params }: { params: { id: string } }
     if (!product) return notFound()
 
     // 👇 MAGIA: Registramos la visita en segundo plano
-    // No usamos 'await' para no hacer esperar al usuario, que se cargue la página rápido
     incrementProductView(product.id).catch(console.error)
+
+    // Calculamos el precio final aquí para tener el código más limpio
+    const finalPrice = Number(product.price) * (1 - (product.discount || 0) / 100)
 
     return (
         <div className="container mx-auto px-4 py-12">
@@ -38,11 +41,11 @@ export default async function ProductPage({ params }: { params: { id: string } }
                     
                     <div className="flex items-end gap-3">
                         <span className={`text-4xl font-bold ${product.discount > 0 ? 'text-green-700' : 'text-gray-900'}`}>
-                            ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
+                            {formatPrice(finalPrice)} {/* 👈 Precio con descuento formateado */}
                         </span>
                         {product.discount > 0 && (
                             <span className="text-xl text-gray-400 line-through mb-1">
-                                ${Number(product.price).toFixed(2)}
+                                {formatPrice(product.price)} {/* 👈 Precio original formateado */}
                             </span>
                         )}
                     </div>

@@ -1,7 +1,7 @@
 import { getProduct, incrementProductView } from "@/app/actions/products"
 import { notFound } from "next/navigation"
 import AddToCart from "./add-to-cart"
-import { formatPrice } from "@/lib/utils" // 👈 Importamos la función
+import { formatPrice } from "@/lib/utils"
 
 export const dynamic = "force-dynamic"
 
@@ -10,10 +10,10 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
     if (!product) return notFound()
 
-    // 👇 MAGIA: Registramos la visita en segundo plano
+    // Registramos la visita en segundo plano
     incrementProductView(product.id).catch(console.error)
 
-    // Calculamos el precio final aquí para tener el código más limpio
+    // Calculamos el precio final
     const finalPrice = Number(product.price) * (1 - (product.discount || 0) / 100)
 
     return (
@@ -41,11 +41,11 @@ export default async function ProductPage({ params }: { params: { id: string } }
                     
                     <div className="flex items-end gap-3">
                         <span className={`text-4xl font-bold ${product.discount > 0 ? 'text-green-700' : 'text-gray-900'}`}>
-                            {formatPrice(finalPrice)} {/* 👈 Precio con descuento formateado */}
+                            {formatPrice(finalPrice)} {/* 👈 Este ya es un número, así que funciona bien */}
                         </span>
                         {product.discount > 0 && (
                             <span className="text-xl text-gray-400 line-through mb-1">
-                                {formatPrice(product.price)} {/* 👈 Precio original formateado */}
+                                {formatPrice(Number(product.price))} {/* 👈 CORREGIDO: Envolvemos en Number() */}
                             </span>
                         )}
                     </div>

@@ -1,12 +1,12 @@
 import { getCarouselItems } from "@/app/actions/carousel"
 import { getFeaturedProducts, getProducts } from "@/app/actions/products" 
 import { getConfig } from "@/app/actions/config"
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import HomeSearch from "@/components/home-search"
-import QuickAddButton from "@/components/quick-add-button" // 👈 Importamos el nuevo botón
+import QuickAddButton from "@/components/quick-add-button"
+import HomeCarousel from "@/components/home-carousel" // 👈 Importamos el nuevo componente
 
 export const dynamic = "force-dynamic"
 
@@ -16,79 +16,18 @@ export default async function Home() {
   const allProducts = await getProducts()
   const config = await getConfig()
 
+  // Serializamos los datos para evitar errores de fechas
+  const carouselItemsJson = JSON.parse(JSON.stringify(carouselItems))
+  const configJson = JSON.parse(JSON.stringify(config))
+
   const hasCarousel = carouselItems.length > 0
 
   return (
     <div className="space-y-12 pb-8">
       
-      {/* Estilos dinámicos */}
-      <style>{`
-        .dynamic-carousel-height {
-          height: ${config?.carouselHeightMobile || '250px'};
-        }
-        @media (min-width: 768px) {
-          .dynamic-carousel-height {
-            height: ${config?.carouselHeightDesktop || '600px'};
-          }
-        }
-      `}</style>
-
+      {/* 👇 AQUÍ USAMOS EL NUEVO CARRUSEL CON MOVIMIENTO */}
       {hasCarousel && (
-        <div className="w-full relative group">
-          <Carousel className="w-full" opts={{ loop: true }}>
-            <CarouselContent>
-              {carouselItems.map((item) => (
-                <CarouselItem key={item.id} className="pl-0"> 
-                  <div className="relative w-full dynamic-carousel-height bg-black">
-                    {item.mediaType === "video" ? (
-                      <>
-                        <div className="hidden md:block w-full h-full">
-                            <iframe
-                                src={`${item.mediaUrl}`}
-                                className="w-full h-full object-cover"
-                                allow="autoplay; encrypted-media"
-                                title="Video PC"
-                                style={{ border: 0 }}
-                            />
-                        </div>
-                        <div className="block md:hidden w-full h-full">
-                            <iframe
-                                src={`${item.mediaUrlMobile || item.mediaUrl}`}
-                                className="w-full h-full object-cover"
-                                allow="autoplay; encrypted-media"
-                                title="Video Móvil"
-                                style={{ border: 0 }}
-                            />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <img
-                          src={item.mediaUrl}
-                          alt="Banner PC"
-                          className="hidden md:block w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                        <img
-                          src={item.mediaUrlMobile || item.mediaUrl}
-                          alt="Banner Móvil"
-                          className="block md:hidden w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      </>
-                    )}
-                  </div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-            {carouselItems.length > 1 && (
-                <>
-                    <CarouselPrevious className="left-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
-                    <CarouselNext className="right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
-                </>
-            )}
-          </Carousel>
-        </div>
+        <HomeCarousel items={carouselItemsJson} config={configJson} />
       )}
 
       <div className={`container mx-auto px-4 relative z-10 ${hasCarousel ? "-mt-8" : "mt-8 md:mt-12"}`}>
@@ -130,7 +69,6 @@ export default async function Home() {
                         </span>
                     </div>
                     
-                    {/* 👇 AQUÍ AGREGAMOS EL BOTÓN RÁPIDO */}
                     <div className="flex gap-2">
                         <Button size="sm" variant="outline" className="h-8 px-3 text-xs">Ver</Button>
                         <QuickAddButton product={product} />

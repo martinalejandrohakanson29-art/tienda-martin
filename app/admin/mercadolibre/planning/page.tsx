@@ -1,1 +1,115 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // Asegúrate de tener estos componentes o usa HTML simple si no
+import { ArrowLeft, RefreshCw, FileSpreadsheet } from "lucide-react";
+import Link from "next/link";
 
+// 1. URL de tu hoja (versión CSV para poder leer los datos)
+const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql-kdfGt_kQReLGEzFGaqVcex55VydptBQhV2EI0DTLhXFvzxukPbtZ6YCiprd8D7HKF80sWL/pub?gid=0&single=true&output=csv";
+
+// 2. Función para obtener y parsear los datos (Server Side)
+async function getSheetData() {
+  try {
+    const res = await fetch(SHEETS_CSV_URL, { cache: "no-store" }); // no-store para que siempre traiga datos frescos
+    const text = await res.text();
+    
+    // Parseo simple de CSV a Array
+    const rows = text.split("\n").map(row => {
+        // Esto maneja comas dentro de comillas básicamente, o split simple si es muy básico
+        // Para este paso inicial usaremos split simple, luego podemos mejorar si hay comas en los textos
+        return row.split(",").map(cell => cell.replace(/^"|"$/g, '').trim()); 
+    });
+
+    // Filtramos filas vacías y tomamos hasta la columna J (índice 9)
+    return rows
+      .filter(row => row.length > 1) // Ignorar filas totalmente vacías
+      .map(row => row.slice(0, 10)); // Cortar hasta columna J (A=0 ... J=9)
+      
+  } catch (error) {
+    console.error("Error al leer Sheets:", error);
+    return [];
+  }
+}
+
+export default async function PlanningPage() {
+  const data = await getSheetData();
+  const headers = data[0] || []; // La primera fila son los títulos
+  const body = data.slice(1);    // El resto son datos
+
+  return (
+    <div className="space-y-6">
+      
+      {/* Header de navegación */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/admin/mercadolibre">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Atrás
+            </Button>
+          </Link>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-800">Planificación de Pedido</h1>
+        </div>
+        <div className="flex gap-2">
+            <Link href={SHEETS_CSV_URL.replace("output=csv", "html")} target="_blank">
+                <Button variant="outline" size="sm" className="gap-2">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Ver Original
+                </Button>
+            </Link>
+            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+                <RefreshCw className="h-4 w-4" />
+                Actualizar Datos
+            </Button>
+        </div>
+      </div>
+
+      {/* Tabla de Datos */}
+      <Card>
+        <CardHeader className="pb-2">
+            <CardTitle className="text-lg text-gray-600">Datos Importados de Sheets</CardTitle>
+        </CardHeader>
+        <CardContent>
+            <div className="rounded-md border overflow-x-auto">
+                {/* Usamos una tabla HTML estándar con clases de Tailwind si no tienes los componentes UI de Table instalados, 
+                    pero asumo que sí por la estructura de tu proyecto */}
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-100 text-gray-700 uppercase font-medium border-b">
+                        <tr>
+                            {headers.map((header, i) => (
+                                <th key={i} className="px-4 py-3 whitespace-nowrap">
+                                    {header || `Columna ${i+1}`}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                        {body.length > 0 ? (
+                            body.map((row, rowIndex) => (
+                                <tr key={rowIndex} className="hover:bg-gray-50/50 transition-colors">
+                                    {row.map((cell, cellIndex) => (
+                                        <td key={cellIndex} className="px-4 py-3 max-w-[200px] truncate" title={cell}>
+                                            {cell}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))
+                        ) : (
+                            <tr>
+                                <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                                    No se encontraron datos o la hoja está vacía.
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div className="mt-4 text-xs text-gray-400 text-center">
+                Mostrando columnas A - J desde Google Sheets
+            </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+                                              }

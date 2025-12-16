@@ -9,7 +9,7 @@ const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql
 
 // 👇 CONFIGURACIÓN: Aquí eliges qué columnas ver (A=0, B=1, C=2, etc.)
 // Por ejemplo: [0, 1, 2, 9] mostraría solo las columnas A, B, C y J.
-const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 9]; 
+const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 9, 10]; 
 
 async function getSheetData() {
   try {

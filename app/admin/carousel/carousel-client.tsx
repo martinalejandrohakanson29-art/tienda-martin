@@ -26,7 +26,7 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
     })
     const [configLoading, setConfigLoading] = useState(false)
 
-    // Función inteligente para Drive
+   // Función inteligente para Drive
     const transformDriveLink = (url: string, type: string) => {
         if (!url) return ""
         if (url.includes("drive.google.com") && url.includes("/d/")) {
@@ -34,8 +34,12 @@ export default function CarouselClient({ initialItems, initialConfig }: { initia
             if (idMatch && idMatch[1]) {
                 const id = idMatch[1]
                 if (type === "video") return `https://drive.google.com/file/d/${id}/preview`
-                // Asegúrate de que esta línea tenga el $ antes de {id}
-                return `https://lh3.googleusercontent.com/d/$${id}`
+                
+                // 👇 CORRECCIÓN APLICADA:
+                // 1. Agregamos https para seguridad.
+                // 2. Usamos el formato 'uc?export=view' que es más compatible para imágenes.
+                // 3. Corregimos la sintaxis ${id}
+                return `https://drive.google.com/uc?export=view&id=${id}`
             }
         }
         return url

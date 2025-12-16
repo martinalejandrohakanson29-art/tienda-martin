@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Trash, Pencil, Star, Eye, ShoppingBag } from "lucide-react" // 👈 Importamos ícono ShoppingBag
+import { Plus, Trash, Pencil, Star, Eye, ShoppingBag, Video, Image as ImageIcon } from "lucide-react" 
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
+// Actualizamos el tipo de datos
 type ProductForm = {
     title: string
     description: string
@@ -17,9 +18,12 @@ type ProductForm = {
     stock: string
     category: string
     imageUrl: string
+    imageUrl2: string // Nuevo
+    imageUrl3: string // Nuevo
+    videoUrl: string  // Nuevo
     discount: string
     isFeatured: boolean
-    mercadolibreUrl: string // 👈 NUEVO CAMPO EN EL TIPO
+    mercadolibreUrl: string
 }
 
 const initialState: ProductForm = {
@@ -29,9 +33,12 @@ const initialState: ProductForm = {
     stock: "",
     category: "",
     imageUrl: "",
+    imageUrl2: "", // Nuevo
+    imageUrl3: "", // Nuevo
+    videoUrl: "",  // Nuevo
     discount: "0",
     isFeatured: false,
-    mercadolibreUrl: "" // 👈 INICIALIZACIÓN VACÍA
+    mercadolibreUrl: ""
 }
 
 export default function ProductsClient({ initialProducts }: { initialProducts: any[] }) {
@@ -46,11 +53,13 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         return Array.from(new Set(categories))
     }, [initialProducts])
 
+    // Función auxiliar para links de Drive
     const transformImageLink = (url: string) => {
+        if (!url) return ""
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
-                return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
+                return `https://lh3.googleusercontent.com/d/${idMatch[1]}` // Ajuste para visualizar
             }
         }
         return url
@@ -60,16 +69,20 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         e.preventDefault()
         setLoading(true)
         try {
+            // Transformamos todas las imágenes por si son de Drive
             const finalImageUrl = transformImageLink(formData.imageUrl)
+            const finalImageUrl2 = transformImageLink(formData.imageUrl2)
+            const finalImageUrl3 = transformImageLink(formData.imageUrl3)
 
             const productData = {
                 ...formData,
                 imageUrl: finalImageUrl,
+                imageUrl2: finalImageUrl2,
+                imageUrl3: finalImageUrl3,
                 price: parseFloat(formData.price) as any,
                 stock: parseInt(formData.stock),
                 discount: parseInt(formData.discount || "0"),
                 isFeatured: formData.isFeatured
-                // mercadolibreUrl ya viaja dentro de ...formData
             }
 
             if (editingId) {
@@ -98,9 +111,12 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             stock: product.stock.toString(),
             category: product.category,
             imageUrl: product.imageUrl,
+            imageUrl2: product.imageUrl2 || "", // Cargar datos existentes
+            imageUrl3: product.imageUrl3 || "",
+            videoUrl: product.videoUrl || "",
             discount: (product.discount || 0).toString(),
             isFeatured: product.isFeatured || false,
-            mercadolibreUrl: product.mercadolibreUrl || "" // 👈 CARGAMOS EL DATO EXISTENTE
+            mercadolibreUrl: product.mercadolibreUrl || ""
         })
         setIsOpen(true)
     }
@@ -136,7 +152,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Título</Label>
+                                    <Label>Título (Se pasará a MAYÚSCULAS)</Label>
                                     <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej: Camiseta" />
                                 </div>
                                 <div className="space-y-2">
@@ -168,12 +184,20 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label>URL Imagen (Drive)</Label>
-                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="Link de Google Drive..." />
+                            {/* SECCIÓN DE IMÁGENES */}
+                            <div className="space-y-3 p-3 bg-gray-50 rounded-lg border">
+                                <Label className="flex items-center gap-2"><ImageIcon size={16}/> Fotos del Producto</Label>
+                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="URL Foto Principal (Obligatoria)" />
+                                <Input value={formData.imageUrl2} onChange={e => setFormData({...formData, imageUrl2: e.target.value})} placeholder="URL Foto 2 (Opcional)" />
+                                <Input value={formData.imageUrl3} onChange={e => setFormData({...formData, imageUrl3: e.target.value})} placeholder="URL Foto 3 (Opcional)" />
                             </div>
 
-                            {/* 👇 INPUT NUEVO PARA LINK DE MERCADOLIBRE */}
+                            {/* SECCIÓN DE VIDEO */}
+                            <div className="space-y-2">
+                                <Label className="flex items-center gap-2"><Video size={16}/> Video (Youtube o Drive)</Label>
+                                <Input value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} placeholder="https://youtube.com/watch?v=..." />
+                            </div>
+
                             <div className="space-y-2">
                                 <Label className="flex items-center gap-2 text-yellow-600 font-semibold">
                                     <ShoppingBag size={16} /> Link MercadoLibre (Opcional)
@@ -205,26 +229,19 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 </Dialog>
             </div>
 
+            {/* LISTA DE PRODUCTOS - SIN CAMBIOS VISUALES MAYORES */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {initialProducts.map((product) => (
                     <Card key={product.id} className={product.isFeatured ? "border-2 border-blue-500 shadow-md" : ""}>
                         <div className="aspect-square relative overflow-hidden rounded-t-xl bg-gray-100">
-                            {/* BADGE DE DESCUENTO */}
                             {product.discount > 0 && (
                                 <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10">
                                     {product.discount}% OFF
                                 </span>
                             )}
-                            {/* BADGE DE DESTACADO */}
                             {product.isFeatured && (
                                 <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 flex items-center gap-1">
                                     <Star size={10} fill="white" /> Destacado
-                                </span>
-                            )}
-                            {/* 👇 BADGE DE MERCADOLIBRE (VISUAL) */}
-                            {product.mercadolibreUrl && (
-                                <span className="absolute bottom-2 right-2 bg-yellow-400 text-black text-[10px] font-bold px-2 py-1 rounded-full z-10 shadow-sm flex items-center gap-1">
-                                    <ShoppingBag size={10} /> ML
                                 </span>
                             )}
                             <img 
@@ -239,29 +256,12 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                             <CardTitle className="flex justify-between items-start text-lg">
                                 <span className="truncate">{product.title}</span>
                                 <div className="flex flex-col items-end">
-                                    {product.discount > 0 && (
-                                        <span className="text-xs text-gray-400 line-through">
-                                            ${Number(product.price).toFixed(2)}
-                                        </span>
-                                    )}
                                     <span className={product.discount > 0 ? "text-green-600 font-bold" : "font-bold"}>
                                         ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
                                     </span>
                                 </div>
                             </CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <p className="text-sm text-gray-500 truncate">{product.description}</p>
-                            
-                            <div className="flex justify-between items-center mt-3">
-                                <p className="text-xs text-gray-400">Stock: {product.stock} | Cat: {product.category}</p>
-                                <div className="flex items-center text-blue-600 text-xs font-bold bg-blue-50 px-2 py-1 rounded-full">
-                                    <Eye size={14} className="mr-1" />
-                                    {product.views || 0} visitas
-                                </div>
-                            </div>
-
-                        </CardContent>
                         <CardFooter className="flex justify-end space-x-2">
                             <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>
                                 <Pencil className="h-4 w-4" />

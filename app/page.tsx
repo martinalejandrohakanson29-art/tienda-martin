@@ -6,7 +6,8 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import HomeSearch from "@/components/home-search"
 import QuickAddButton from "@/components/quick-add-button"
-import HomeCarousel from "@/components/home-carousel" // 👈 Importamos el nuevo componente
+import HomeCarousel from "@/components/home-carousel"
+import { formatPrice } from "@/lib/utils" // 👈 1. Importamos la función de formato
 
 export const dynamic = "force-dynamic"
 
@@ -25,7 +26,6 @@ export default async function Home() {
   return (
     <div className="space-y-12 pb-8">
       
-      {/* 👇 AQUÍ USAMOS EL NUEVO CARRUSEL CON MOVIMIENTO */}
       {hasCarousel && (
         <HomeCarousel items={carouselItemsJson} config={configJson} />
       )}
@@ -61,11 +61,13 @@ export default async function Home() {
                     <div className="flex flex-col">
                         {product.discount > 0 && (
                             <span className="text-xs text-gray-400 line-through">
-                                ${Number(product.price).toFixed(2)}
+                                {/* 👇 2. Corregimos precio original */}
+                                {formatPrice(Number(product.price))}
                             </span>
                         )}
                         <span className={`text-xl font-bold ${product.discount > 0 ? 'text-green-700' : 'text-gray-900'}`}>
-                            ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
+                            {/* 👇 3. Corregimos precio final con descuento */}
+                            {formatPrice(Number(product.price) * (1 - (product.discount || 0) / 100))}
                         </span>
                     </div>
                     

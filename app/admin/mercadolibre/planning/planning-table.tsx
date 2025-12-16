@@ -94,7 +94,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             {/* Botón visual (aún no hace nada, es para la próxima etapa) */}
             <Button size="sm" className="bg-green-600 hover:bg-green-700 gap-2">
                 <Save className="h-4 w-4" />
-                Procesar con n8n
+                Generar Envio
             </Button>
             
             <Button 
@@ -139,7 +139,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                         ))}
                         {/* 👇 COLUMNA EXTRA PARA INPUTS MANUALES */}
                         <th className="px-4 py-3 w-[150px] bg-blue-50 border-l border-blue-100 text-blue-800">
-                            Notas / Acción
+                            CAntidad a enviar
                         </th>
                     </tr>
                 </thead>

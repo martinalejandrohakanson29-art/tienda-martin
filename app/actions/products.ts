@@ -23,7 +23,6 @@ export async function getProduct(id: string) {
     })
 }
 
-// 👇 NUEVA FUNCIÓN: Suma 1 visita al producto
 export async function incrementProductView(id: string) {
     await prisma.product.update({
         where: { id },
@@ -33,8 +32,6 @@ export async function incrementProductView(id: string) {
     })
 }
 
-// ... (El resto de funciones createProduct, updateProduct, etc. déjalas igual)
-// Solo asegúrate de incluir la función incrementProductView
 async function checkFeaturedLimit() {
     const count = await prisma.product.count({
         where: { isFeatured: true }
@@ -44,16 +41,20 @@ async function checkFeaturedLimit() {
     }
 }
 
-export async function createProduct(data: Omit<Product, "id" | "createdAt" | "updatedAt" | "views">) { // Agregamos views a Omit
+export async function createProduct(data: Omit<Product, "id" | "createdAt" | "updatedAt" | "views">) {
     if (data.isFeatured) {
         await checkFeaturedLimit()
     }
 
+    // 👇 TRANSFORMACIÓN A MAYÚSCULAS AQUÍ
+    const dataToSave = {
+        ...data,
+        title: data.title.toUpperCase(), // Forzamos mayúsculas
+        price: data.price,
+    }
+
     const product = await prisma.product.create({
-        data: {
-            ...data,
-            price: data.price,
-        },
+        data: dataToSave,
     })
     
     revalidatePath("/admin/products")
@@ -70,9 +71,15 @@ export async function updateProduct(id: string, data: Partial<Omit<Product, "id"
         }
     }
 
+    // 👇 TRANSFORMACIÓN A MAYÚSCULAS AQUÍ TAMBIÉN
+    const dataToUpdate = { ...data }
+    if (dataToUpdate.title) {
+        dataToUpdate.title = dataToUpdate.title.toUpperCase()
+    }
+
     const product = await prisma.product.update({
         where: { id },
-        data,
+        data: dataToUpdate,
     })
     
     revalidatePath("/admin/products")
@@ -94,13 +101,12 @@ export async function deleteProduct(id: string) {
 export async function getUniqueCategories() {
   try {
     const products = await prisma.product.findMany({
-      where: { stock: { gt: 0 } }, // Solo categorías con stock
+      where: { stock: { gt: 0 } },
       select: { category: true }
     })
     
-    // Eliminamos duplicados usando Set
     const uniqueCategories = Array.from(new Set(products.map(p => p.category)))
-    return uniqueCategories.sort() // Ordenadas alfabéticamente
+    return uniqueCategories.sort()
   } catch (error) {
     return []
   }

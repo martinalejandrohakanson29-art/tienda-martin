@@ -15,7 +15,7 @@ const CopyableCell = ({ text, className = "" }: { text: string | number, classNa
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    if (!text) return;
+    if (text === null || text === undefined) return;
     try {
       await navigator.clipboard.writeText(text.toString());
       setCopied(true);
@@ -58,7 +58,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     direction: "asc",
   });
   
-  // Estado para el Resumen
+  // Estado para el Resumen (Datos completos enviados)
   const [summaryData, setSummaryData] = useState<any[] | null>(null);
 
   const [isPending, startTransition] = useTransition(); 
@@ -72,7 +72,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     return isNaN(num) ? 0 : num;
   };
 
-  // --- Resize & Sort Logic (Igual que antes) ---
+  // --- Resize & Sort Logic ---
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -134,6 +134,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     if (!confirm("¿Estás seguro de enviar la planificación?")) return;
 
     startTransition(async () => {
+      // 1. Construimos los objetos asegurando que existan las claves necesarias
       const itemsToSend = body.map((row, index) => {
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
@@ -143,12 +144,13 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           seller_sku: row[1],
           title: row[2],
           current_stock: row[3],   
-          column_9_info: row[5], 
-          column_10_info: row[6],
-          quantity_to_send: suggestionQty,
-          note: note
+          column_9_info: row[5] || "", 
+          column_10_info: row[6] || "",
+          quantity_to_send: suggestionQty, // IMPORTANTE: Clave necesaria para el filtro
+          note: note                       // IMPORTANTE: Clave necesaria para el filtro
         };
       })
+      // 2. Filtramos: Enviamos si hay sugerencia (>0) O si hay una nota escrita
       .filter(item => item.quantity_to_send > 0 || item.note.trim() !== "");
 
       if (itemsToSend.length === 0) {
@@ -159,7 +161,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
       const result = await sendPlanningToN8N(itemsToSend);
 
       if (result.success) {
-        // En lugar de alert, mostramos el resumen
+        // Guardamos TODOS los enviados para el resumen
         setSummaryData(itemsToSend);
       } else {
         alert("❌ Error: " + result.message);
@@ -169,16 +171,22 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   // --- VISTA DE RESUMEN (MODAL) ---
   if (summaryData) {
+    // 👇 AQUI FILTRAMOS: Solo mostramos en el resumen los que tienen notas
+    const visibleSummary = summaryData.filter(item => item.note && item.note.trim() !== "");
+
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
         <Card className="w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <CardHeader className="bg-green-50 border-b flex flex-row items-center justify-between py-4">
             <div>
               <CardTitle className="text-xl text-green-800 flex items-center gap-2">
-                <Check className="h-6 w-6" /> Pedido Procesado Exitosamente
+                <Check className="h-6 w-6" /> Pedido Procesado
               </CardTitle>
               <p className="text-sm text-green-600 mt-1">
-                Se enviaron {summaryData.length} ítems. Haz clic en los datos para copiarlos.
+                Se enviaron <b>{summaryData.length}</b> ítems en total. 
+                {visibleSummary.length > 0 
+                  ? ` Mostrando ${visibleSummary.length} con notas manuales.`
+                  : " Ninguno tiene nota manual."}
               </p>
             </div>
             <Button onClick={() => setSummaryData(null)} size="sm" variant="outline" className="border-green-200 hover:bg-green-100 text-green-800">
@@ -198,31 +206,37 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {summaryData.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-2 py-2">
-                      <CopyableCell text={item.sku} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <CopyableCell text={item.seller_sku} />
-                    </td>
-                    <td className="px-2 py-2">
-                      <CopyableCell text={item.title} className="max-w-[300px]" />
-                    </td>
-                    <td className="px-2 py-2">
-                       <div className="flex justify-center">
-                          <CopyableCell text={item.quantity_to_send} className="font-bold bg-blue-50 text-blue-700 justify-center w-16" />
-                       </div>
-                    </td>
-                    <td className="px-2 py-2">
-                      {item.note ? (
+                {visibleSummary.length > 0 ? (
+                  visibleSummary.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-2 py-2">
+                        <CopyableCell text={item.sku} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <CopyableCell text={item.seller_sku} />
+                      </td>
+                      <td className="px-2 py-2">
+                        <CopyableCell text={item.title} className="max-w-[300px]" />
+                      </td>
+                      <td className="px-2 py-2">
+                        <div className="flex justify-center">
+                            <CopyableCell text={item.quantity_to_send} className="font-bold bg-blue-50 text-blue-700 justify-center w-16" />
+                        </div>
+                      </td>
+                      <td className="px-2 py-2">
+                        {/* La nota siempre existirá aquí por el filtro, pero por seguridad: */}
                         <CopyableCell text={item.note} className="bg-yellow-50 text-yellow-800 italic" />
-                      ) : (
-                        <span className="text-gray-300 text-xs pl-2">-</span>
-                      )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-gray-400">
+                        No hay ítems con notas para mostrar. <br/>
+                        (Los ítems automáticos se enviaron correctamente)
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </CardContent>

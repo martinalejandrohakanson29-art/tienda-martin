@@ -1,55 +1,128 @@
 "use client"
 
-import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import QuickAddButton from "@/components/quick-add-button"
+import { ShoppingCart } from "lucide-react"
+import Link from "next/link"
+import useCart from "@/hooks/use-cart"
+import { toast } from "sonner"
 import { formatPrice } from "@/lib/utils"
+// 👇 Importamos los componentes del carrusel
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel"
 
-export default function ProductCard({ product }: { product: any }) {
-    // Calculamos el precio final para mostrarlo
-    const finalPrice = product.discount > 0
-        ? Number(product.price) * (1 - product.discount / 100)
-        : Number(product.price)
+interface ProductCardProps {
+    product: any
+}
+
+export default function ProductCard({ product }: ProductCardProps) {
+    const cart = useCart()
+
+    // Agregar al carrito sin entrar al producto
+    const onAddToCart = (e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        cart.addItem(product)
+        toast.success("Producto agregado al carrito")
+    }
+
+    // 👇 Función mágica: Evita que al clickear la flecha entremos al producto
+    const preventLinkAction = (e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+    }
+
+    const finalPrice = Number(product.price) * (1 - (product.discount || 0) / 100)
+    
+    // Juntamos todas las imágenes disponibles
+    const images = [product.imageUrl, product.imageUrl2, product.imageUrl3].filter(img => img && img.trim() !== "")
 
     return (
         <Link href={`/products/${product.id}`} className="block h-full">
-            <Card className="h-full hover:shadow-lg transition-shadow border-0 shadow-sm cursor-pointer group flex flex-col">
-                <div className="aspect-square relative overflow-hidden rounded-t-lg bg-gray-100">
-                    {/* Badge de Descuento */}
+            <Card className="h-full hover:shadow-lg transition-shadow duration-300 cursor-pointer group overflow-hidden border-0 bg-white shadow-sm ring-1 ring-gray-100">
+                
+                {/* ZONA DE IMAGEN / CARRUSEL */}
+                <div className="aspect-square relative overflow-hidden bg-gray-100">
                     {product.discount > 0 && (
-                        <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 shadow-sm">
-                            {product.discount}% OFF
+                         <span className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm">
+                            -{product.discount}%
                         </span>
                     )}
-                    <img
-                        src={product.imageUrl}
-                        alt={product.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        referrerPolicy="no-referrer"
-                    />
+                    
+                    {/* SI HAY MÁS DE 1 IMAGEN -> MOSTRAMOS CARRUSEL */}
+                    {images.length > 1 ? (
+                        <Carousel className="w-full h-full" opts={{ loop: true }}>
+                             <CarouselContent>
+                                {images.map((img, index) => (
+                                    <CarouselItem key={index} className="pl-0"> 
+                                        <div className="aspect-square relative w-full h-full">
+                                            <img 
+                                                src={img} 
+                                                alt={product.title} 
+                                                className="w-full h-full object-cover"
+                                                loading="lazy"
+                                            />
+                                        </div>
+                                    </CarouselItem>
+                                ))}
+                             </CarouselContent>
+                             
+                             {/* Flechas: Solo visibles al pasar el mouse (group-hover) y posicionadas dentro */}
+                             <div 
+                                onClick={preventLinkAction} 
+                                className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"
+                             >
+                                <CarouselPrevious className="h-8 w-8 relative static translate-y-0 bg-white/80 hover:bg-white" />
+                             </div>
+                             
+                             <div 
+                                onClick={preventLinkAction} 
+                                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"
+                             >
+                                <CarouselNext className="h-8 w-8 relative static translate-y-0 bg-white/80 hover:bg-white" />
+                             </div>
+                        </Carousel>
+                    ) : (
+                        // SI SOLO HAY 1 IMAGEN -> MOSTRAMOS LA IMAGEN NORMAL
+                        <img 
+                            src={images[0] || product.imageUrl} 
+                            alt={product.title} 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            loading="lazy"
+                        />
+                    )}
+
+                     {/* BOTÓN RÁPIDO DE AÑADIR (Aparece abajo al hacer hover) */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 hidden md:block z-30">
+                        <Button 
+                            className="w-full bg-white text-black hover:bg-gray-100 shadow-lg" 
+                            size="sm" 
+                            onClick={onAddToCart}
+                        >
+                            <ShoppingCart size={16} className="mr-2" /> Agregar
+                        </Button>
+                    </div>
                 </div>
-                <CardContent className="p-4 flex flex-col flex-1">
-                    <h3 className="font-semibold text-lg truncate">{product.title}</h3>
-                    <p className="text-gray-500 text-sm truncate mb-3">{product.category}</p>
-
-                    <div className="mt-auto flex items-end justify-between">
-                        <div className="flex flex-col">
-                            {product.discount > 0 && (
-                                <span className="text-xs text-gray-400 line-through">
-                                    {formatPrice(Number(product.price))} {/* 👈 CORREGIDO: Envolvemos en Number() */}
-                                </span>
-                            )}
-                            <span className={`text-xl font-bold ${product.discount > 0 ? 'text-green-700' : 'text-gray-900'}`}>
-                                {formatPrice(finalPrice)}
+                
+                {/* INFO DEL PRODUCTO */}
+                <CardContent className="p-3">
+                    <h3 className="font-medium text-sm text-gray-800 line-clamp-2 min-h-[2.5rem] leading-tight group-hover:text-blue-600 transition-colors">
+                        {product.title}
+                    </h3>
+                    <div className="flex items-baseline gap-2 mt-2">
+                        <span className="font-bold text-lg text-gray-900">
+                            {formatPrice(finalPrice)}
+                        </span>
+                        {product.discount > 0 && (
+                            <span className="text-xs text-gray-400 line-through">
+                                {formatPrice(Number(product.price))}
                             </span>
-                        </div>
-
-                        <div className="flex gap-2">
-                            <Button size="sm" variant="outline" className="h-8 px-3 text-xs">Ver</Button>
-                            {/* Reusamos el botón rápido que creamos antes */}
-                            <QuickAddButton product={product} />
-                        </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>

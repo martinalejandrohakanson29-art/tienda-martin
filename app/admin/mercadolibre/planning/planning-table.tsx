@@ -134,7 +134,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     if (!confirm("¿Estás seguro de enviar la planificación?")) return;
 
     startTransition(async () => {
-      // 1. Construimos los objetos
+      // 1. Construimos los objetos a enviar
       const itemsToSend = body.map((row, index) => {
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
@@ -143,10 +143,20 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           sku: row[0],
           seller_sku: row[1],
           title: row[2],
-          current_stock: row[3],   
+          
+          // 👇 AQUÍ ESTÁ LA CORRECCIÓN CLAVE:
+          // Enviamos row[3] como 'current_stock' Y TAMBIÉN como 'sales_last_month' 
+          // para asegurar que recibas el dato de la columna 4 (índice 3) en tu webhook.
+          current_stock: row[3],
+          sales_last_month: row[3], 
+          
+          // Columnas extras (índices 5 y 6 visuales)
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
+          
+          // Columna de cantidad sugerida (índice 4 visual / row[4])
           quantity_to_send: suggestionQty, 
+          
           note: note                       
         };
       })
@@ -173,7 +183,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     // 1. Filtramos solo los que tienen notas
     const visibleSummary = summaryData.filter(item => item.note && item.note.trim() !== "");
     
-    // 2. Calculamos la suma total de las notas (Asumiendo que son números)
+    // 2. Calculamos la suma total de las NOTAS (unidades cargadas manualmente)
     const totalUnits = visibleSummary.reduce((sum, item) => sum + cleanNumber(item.note), 0);
 
     return (
@@ -184,7 +194,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
               <CardTitle className="text-xl text-green-800 flex items-center gap-2">
                 <Check className="h-6 w-6" /> Pedido Procesado
               </CardTitle>
-              {/* 👇 TEXTO CON LA SUMA TOTAL DE UNIDADES */}
               <p className="text-sm text-green-600 mt-1">
                 Se cargaron un total de <b>{totalUnits}</b> unidades para enviar
               </p>
@@ -196,7 +205,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           
           <CardContent className="flex-1 overflow-auto p-0 bg-white">
             <table className="w-full text-sm text-left">
-              {/* 👇 ENCABEZADOS: Solo 0, 1, 2 y Notas */}
+              {/* 👇 ENCABEZADOS DE RESUMEN: Solo SKU, Variante, Título y Nota */}
               <thead className="bg-gray-50 text-gray-500 uppercase font-medium sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 w-[150px]">SKU (0)</th>

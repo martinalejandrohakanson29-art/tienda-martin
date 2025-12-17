@@ -1,42 +1,31 @@
 import Link from "next/link"
-import { Menu, LayoutDashboard } from "lucide-react" // 👈 Agregamos el ícono del Dashboard
+import { Menu, LayoutDashboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import CartSheet from "@/components/cart-sheet"
 import { getConfig } from "@/app/actions/config"
 import { getUniqueCategories } from "@/app/actions/products"
 import CategoryMenu from "@/components/category-menu"
-// 👇 Importaciones necesarias para la seguridad
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
+// 👇 1. Importamos nuestro nuevo componente
+import HeaderLogo from "@/components/header-logo"
 
 export default async function Header() {
   const config = await getConfig()
   const categories = await getUniqueCategories()
   
-  // 👇 Verificamos si hay alguien logueado
   const session = await getServerSession(authOptions)
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
       <div className="container mx-auto px-4 h-20 flex items-center justify-between">
         
-        {/* GRUPO IZQUIERDA: Logo + Categorías (Móvil) */}
+        {/* GRUPO IZQUIERDA: Logo Inteligente + Categorías */}
         <div className="flex items-center gap-2 md:gap-6">
-            <Link href="/" className="flex items-center gap-2">
-            {config?.logoUrl ? (
-                <img 
-                    src={config.logoUrl} 
-                    alt={config.companyName} 
-                    className="object-contain"
-                    style={{ height: config.logoHeight || '40px' }} 
-                />
-            ) : (
-                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
-                    {config?.companyName || "Tienda"}
-                </span>
-            )}
-            </Link>
+            
+            {/* 👇 2. Usamos el componente que decide qué mostrar */}
+            <HeaderLogo config={JSON.parse(JSON.stringify(config))} />
 
             {/* Visible solo en móvil (md:hidden) */}
             <div className="md:hidden border-l pl-2 ml-1 border-gray-300">
@@ -50,13 +39,13 @@ export default async function Header() {
           <Link href="/shop" className="text-sm font-medium hover:text-primary transition-colors">Tienda</Link>
           <CategoryMenu categories={categories} />
 
-          {/* 👇 BOTÓN DASHBOARD (Solo visible si estás logueado) */}
+          {/* BOTÓN DASHBOARD (Solo visible si estás logueado) */}
           {session && (
             <Link 
                 href="/admin" 
                 className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-full hover:bg-slate-700 transition-all font-bold text-sm shadow-md ml-4 animate-in fade-in zoom-in"
             >
-                <LayoutDashboard size={16} className="text-yellow-400" /> {/* Ícono amarillo para destacar */}
+                <LayoutDashboard size={16} className="text-yellow-400" />
                 Dashboard
             </Link>
           )}
@@ -77,7 +66,6 @@ export default async function Header() {
                         <Link href="/" className="text-lg font-bold">Inicio</Link>
                         <Link href="/shop" className="text-lg font-bold">Tienda Completa</Link>
                         
-                        {/* 👇 BOTÓN DASHBOARD MÓVIL (Solo si logueado) */}
                         {session && (
                             <>
                                 <div className="h-px bg-gray-200 my-2"></div>

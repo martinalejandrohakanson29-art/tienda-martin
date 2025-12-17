@@ -60,7 +60,7 @@ export default async function Home() {
                 <div className="flex items-center gap-2 mb-6">
                     <Store className="text-indigo-600" />
                     <h3 className="text-xl md:text-2xl font-bold text-slate-800">
-                        Últimos Ingresos
+                        TAMBIEN TE PUEDE INTERESAR
                     </h3>
                     <span className="text-[10px] uppercase font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full ml-2">
                         Novedades

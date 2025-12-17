@@ -3,7 +3,7 @@
 export async function sendPlanningToN8N(data: any[]) {
   // CONFIGURACIÓN: Aquí pondrás la URL que te dé n8n cuando crees el nodo "Webhook"
   // Por ahora puedes dejar este placeholder o probar con una URL de prueba (ej. webhook.site)
-  const N8N_WEBHOOK_URL = process.env.N8N_PLANNING_WEBHOOK || "https://n8n-on-render-production-52f0.up.railway.app/webhook/9d62433e-5fb1-4954-af7b-8a5dbaea7e4a";
+  const N8N_WEBHOOK_URL = process.env.N8N_PLANNING_WEBHOOK || "https://n8n-on-render-production-52f0.up.railway.app/webhook-test/9d62433e-5fb1-4954-af7b-8a5dbaea7e4a";
 
   const payload = {
     timestamp: new Date().toISOString(),

@@ -28,6 +28,7 @@ model Product {
   
   discount        Int      @default(0)
   isFeatured      Boolean  @default(false)
+  showOnHome      Boolean   @default(false) // 👈 NUEVO: Para la lista de abajo (Chico)
   mercadolibreUrl String   @default("") 
   views           Int      @default(0)
   createdAt       DateTime @default(now())

@@ -124,7 +124,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           column_9_info: row[5], 
           column_10_info: row[6],
            current_1: row[7],
-           current_variable: row[8],  
+           current_variable1: row[8],  
           
 
           quantity_to_send: suggestionQty,

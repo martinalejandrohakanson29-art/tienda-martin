@@ -96,30 +96,37 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     setInputValues(prev => ({ ...prev, [originalIndex]: value }));
   };
 
-  // 👇 PROCESAMIENTO CORREGIDO
+ // 👇 3. LÓGICA DE PROCESADO ACTUALIZADA
   const handleProcess = () => {
     if (!confirm("¿Estás seguro de enviar la planificación a n8n para generar el pedido?")) return;
 
     startTransition(async () => {
       const itemsToSend = body.map((row, index) => {
         
-        // MAPEO CORREGIDO SEGÚN TUS COLUMNAS ELEGIDAS [0, 1, 2, 3, 8, 9, 10]
-        // row[0] = Col 0 (MLA ID)
-        // row[1] = Col 1 (SKU Vendedor / Variante) -> Antes lo mandabas como Title
-        // row[2] = Col 2 (Título Real) -> Antes lo mandabas como Stock
-        // row[3] = Col 3 (Stock o Ventas)
-        // row[4] = Col 8 (Sugerido / Cantidad a Enviar)
+        // MAPEO DE COLUMNAS (Basado en COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 8, 9, 10])
+        // row[0] = Col 0 (ID)
+        // row[1] = Col 1 (SKU / Variante)
+        // row[2] = Col 2 (Título)
+        // row[3] = Col 3 (Stock actual)
+        // row[4] = Col 8 (Cantidad a enviar / Sugerido)
+        // row[5] = Col 9 (Dato Extra 1 - ¿Ventas?)
+        // row[6] = Col 10 (Dato Extra 2)
 
-        // Limpiamos el valor de la columna 8 para asegurar que sea un número válido
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
 
         return {
-          sku: row[0],             // MLA ID
-          seller_sku: row[1],      // Agregado: El código GRVV...
-          title: row[2],           // Título correcto (Col 2)
-          current_stock: row[3],   // Stock (Col 3)
-          quantity_to_send: suggestionQty, // Cantidad limpia (Col 8)
+          sku: row[0],
+          seller_sku: row[1],
+          title: row[2],
+          current_stock: row[3],   
+          
+          // 👇 AQUÍ AGREGAMOS LOS DATOS FALTANTES
+          // (Cámbiale el nombre a la clave 'sales_info' o 'cost' según lo que sea esa columna)
+          column_9_info: row[5], 
+          column_10_info: row[6],
+
+          quantity_to_send: suggestionQty,
           note: note
         };
       })

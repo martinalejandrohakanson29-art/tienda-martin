@@ -46,8 +46,10 @@ export default function ProductCard({ product }: ProductCardProps) {
                 {/* ZONA DE IMAGEN / CARRUSEL */}
                 <div className="aspect-square relative overflow-hidden bg-gray-100">
                     {product.discount > 0 && (
-                         // 👇 CAMBIO: Usamos bg-green-600 para que sea verde
-                         <span className="absolute top-2 right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm">
+                         // 👇 CAMBIOS AQUÍ:
+                         // 1. "text-xs" (antes text-[10px]) -> Letra más grande
+                         // 2. "px-3 py-1" (antes px-2 py-0.5) -> Cartel más grande
+                         <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full z-10 shadow-sm">
                             -{product.discount}%
                         </span>
                     )}

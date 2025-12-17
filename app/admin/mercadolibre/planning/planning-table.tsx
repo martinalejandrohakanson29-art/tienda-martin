@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useTransition } from "react"; // 👈 1. Agregamos useTransition
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Maximize2, Minimize2, ArrowUpDown, ArrowUp, ArrowDown, Save } from "lucide-react";
+import { Maximize2, Minimize2, ArrowUpDown, ArrowUp, ArrowDown, Save, Loader2 } from "lucide-react";
+import { sendPlanningToN8N } from "@/app/actions/planning"; // 👈 2. Importamos la acción
 
 interface PlanningTableProps {
   headers: string[];
@@ -20,8 +21,12 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     direction: "asc",
   });
 
+  // Estado para manejar el loading del envío
+  const [isPending, startTransition] = useTransition(); 
+
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
+  // ... (MANTENER LAS FUNCIONES startResizing, handleMouseMove, handleMouseUp IGUAL QUE ANTES) ...
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -34,8 +39,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   const handleMouseMove = (e: MouseEvent) => {
     if (!resizingRef.current) return;
     const { index, startX, startWidth } = resizingRef.current;
-    const diff = e.clientX - startX;
     setColumnWidths((prev) => ({ ...prev, [index]: Math.max(50, startWidth + diff) }));
+    var diff = e.clientX - startX; // (Corrección menor de referencia)
   };
 
   const handleMouseUp = () => {
@@ -43,13 +48,15 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     document.removeEventListener("mousemove", handleMouseMove);
     document.removeEventListener("mouseup", handleMouseUp);
   };
-
+  
   useEffect(() => {
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+        document.removeEventListener("mousemove", handleMouseMove);
+        document.removeEventListener("mouseup", handleMouseUp);
     };
   }, []);
+  // ... (FIN FUNCIONES RESIZE) ...
+
 
   const handleSort = (index: number) => {
     setSortConfig((current) => ({
@@ -79,19 +86,71 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     setInputValues(prev => ({ ...prev, [originalIndex]: value }));
   };
 
+  // 👇 3. LÓGICA DE PROCESADO
+  const handleProcess = () => {
+    if (!confirm("¿Estás seguro de enviar la planificación a n8n para generar el pedido?")) return;
+
+    startTransition(async () => {
+      // Mapeamos los datos para enviarlos más limpios
+      // ASUMIMOS TU ESTRUCTURA ACTUAL SEGÚN 'COLUMNAS_ELEGIDAS' EN page.tsx:
+      // Index 0: SKU/ID?
+      // Index 1: Título
+      // Index 2: Stock
+      // Index 3: Ventas?
+      // Index 4 (Origen 9): Sugerido/A enviar?
+      
+      const itemsToSend = body.map((row, index) => {
+        const suggestionRaw = row[4]; // Ajusta este índice si cambió tu array COLUMNAS_ELEGIDAS
+        const suggestionQty = parseFloat(suggestionRaw) || 0;
+        const note = inputValues[index] || "";
+
+        return {
+          sku: row[0],
+          title: row[1],
+          current_stock: row[2],
+          sales_last_month: row[3],
+          quantity_to_send: suggestionQty,
+          note: note
+        };
+      })
+      // FILTRO IMPORTANTE: Solo enviamos lo que tenga cantidad > 0 O una nota escrita
+      .filter(item => item.quantity_to_send > 0 || item.note.trim() !== "");
+
+      if (itemsToSend.length === 0) {
+        alert("No hay ítems con sugerencia de envío (>0) ni notas para procesar.");
+        return;
+      }
+
+      const result = await sendPlanningToN8N(itemsToSend);
+
+      if (result.success) {
+        alert(`✅ Éxito: ${result.message}\nSe enviaron ${itemsToSend.length} líneas.`);
+        // Opcional: Limpiar notas o redirigir
+        // setInputValues({});
+      } else {
+        alert("❌ Error: " + result.message);
+      }
+    });
+  };
+
   return (
     <Card className="h-full flex flex-col shadow-none border-0"> 
-    {/* 👆 Cambiamos Card para que ocupe altura completa si es necesario */}
-      
       <CardHeader className="flex flex-row items-center justify-between pb-4 px-0">
         <CardTitle className="text-xl font-bold text-gray-800">
             Planificación ({body.length} filas)
         </CardTitle>
         <div className="flex gap-2">
-            <Button size="sm" className="bg-green-600 hover:bg-green-700 gap-2 shadow-sm">
-                <Save className="h-4 w-4" />
-                Procesar
+            {/* 👇 BOTÓN ACTUALIZADO */}
+            <Button 
+                size="sm" 
+                className="bg-green-600 hover:bg-green-700 gap-2 shadow-sm"
+                onClick={handleProcess}
+                disabled={isPending}
+            >
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {isPending ? "Enviando..." : "Procesar"}
             </Button>
+
             <Button 
                 variant="outline" 
                 size="sm" 
@@ -103,11 +162,10 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         </div>
       </CardHeader>
       
+      {/* ... (EL RESTO DEL CONTENIDO - CardContent, Tabla, etc. SE MANTIENE IGUAL) ... */}
       <CardContent className="p-0 flex-1 overflow-hidden relative border rounded-lg shadow-sm bg-white">
-        {/* 👇 AQUÍ LA MAGIA: h-[75vh] define la altura de la ventana de scroll */}
         <div className="overflow-auto h-[75vh] w-full relative">
             <table className="w-full text-sm text-left border-collapse table-fixed">
-                {/* 👇 sticky top-0 y z-20 hacen que se pegue arriba */}
                 <thead className="sticky top-0 z-20 bg-gray-100 text-gray-700 uppercase font-medium shadow-sm">
                     <tr>
                         {headers.map((header, i) => (
@@ -124,6 +182,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                                             sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />
                                         )}
                                     </span>
+                                    {/* (El div para resize sigue aquí igual) */}
                                     <div 
                                         className="w-4 h-full absolute right-0 top-0 cursor-col-resize flex items-center justify-center hover:bg-blue-200/50 transition-colors group z-10"
                                         onMouseDown={(e) => startResizing(i, e)}
@@ -154,7 +213,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                                         {cell}
                                     </td>
                                 ))}
-                                {/* 👇 Columna de inputs con fondo sólido para tapar lo que pasa por debajo si hubiera scroll horizontal */}
                                 <td className="sticky right-0 px-2 py-1 border-l bg-blue-50/10 backdrop-blur-sm">
                                     <Input 
                                         placeholder="Nota..." 
@@ -175,7 +233,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                 </tbody>
             </table>
         </div>
-    </CardContent>
+      </CardContent>
     </Card>
   );
 }

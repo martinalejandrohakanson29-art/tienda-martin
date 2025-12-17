@@ -5,7 +5,7 @@ import PlanningTable from "./planning-table"; // 👈 Importamos nuestro nuevo c
 
 // URL y Configuración
 const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql-kdfGt_kQReLGEzFGaqVcex55VydptBQhV2EI0DTLhXFvzxukPbtZ6YCiprd8D7HKF80sWL/pub?gid=0&single=true&output=csv";
-const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 9, 10]; 
+const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 8, 9, 10]; 
 
 async function getSheetData() {
   try {

@@ -2,12 +2,14 @@
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { ShoppingCart, CreditCard, Loader2, Send, ShoppingBag, ExternalLink } from "lucide-react" // 👈 Quitamos AlertCircle
+import { ShoppingCart, CreditCard, Loader2, Send, ShoppingBag, ExternalLink } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getConfig } from "@/app/actions/config"
 import { useCart } from "@/hooks/use-cart"
+// 👇 1. IMPORTANTE: Importamos la función de formato
+import { formatPrice } from "@/lib/utils"
 
 export default function CartSheet() {
     const { cart, removeFromCart, mounted } = useCart()
@@ -59,6 +61,7 @@ export default function CartSheet() {
 
         if (isMP) {
             try {
+                // MercadoPago usa los datos crudos (números), eso está bien, no formateamos aquí.
                 const response = await fetch("/api/checkout", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -75,11 +78,13 @@ export default function CartSheet() {
             return
         }
 
+        // 👇 2. CORRECCIÓN DEL MENSAJE DE WHATSAPP
         const message = `Hola! Quiero confirmar el siguiente pedido:%0A%0A${cart.map(item => {
             const unitPrice = getFinalPrice(item.product.price, item.product.discount)
             const subtotal = unitPrice * item.quantity
-            return `- ${item.product.title} x${item.quantity}: $${subtotal.toFixed(2)}`
-        }).join("%0A")}%0A%0ATotal: $${total.toFixed(2)}%0A%0AMis datos:%0A- Nombre: ${customerName}%0A- Forma de pago: ${paymentMethod}`
+            // Usamos formatPrice aquí (y quitamos el signo $ manual y el toFixed)
+            return `- ${item.product.title} x${item.quantity}: ${formatPrice(subtotal)}`
+        }).join("%0A")}%0A%0ATotal: ${formatPrice(total)}%0A%0AMis datos:%0A- Nombre: ${customerName}%0A- Forma de pago: ${paymentMethod}`
 
         const link = `https://wa.me/${whatsappNumber}?text=${message}`
         window.open(link, "_blank")
@@ -126,9 +131,9 @@ export default function CartSheet() {
                                     </div>
                                     <div className="flex flex-1 flex-col">
                                         <div className="flex justify-between text-sm font-medium text-gray-900">
-                                            {/* 👇 CAMBIO: Quitamos 'truncate max-w' para que se vea todo el texto */}
                                             <h3 className="pr-2 leading-tight">{item.product.title}</h3>
-                                            <p>${itemSubtotal.toFixed(2)}</p>
+                                            {/* 👇 3. CORRECCIÓN VISUAL DE PRECIO POR ITEM */}
+                                            <p>{formatPrice(itemSubtotal)}</p>
                                         </div>
                                         <div className="flex items-center justify-between text-xs mt-2">
                                             <p className="text-gray-500">Cant: {item.quantity}</p>
@@ -146,7 +151,8 @@ export default function CartSheet() {
                     <div className="border-t border-gray-200 pt-6 space-y-4 bg-gray-50 -mx-6 px-6 pb-6 mt-auto">
                         <div className="flex justify-between text-base font-medium text-gray-900">
                             <span>Total a Pagar</span>
-                            <span className="text-xl font-bold text-green-700">${total.toFixed(2)}</span>
+                            {/* 👇 4. CORRECCIÓN VISUAL DEL TOTAL FINAL */}
+                            <span className="text-xl font-bold text-green-700">{formatPrice(total)}</span>
                         </div>
 
                         {/* A. SELECTOR DE PAGO */}
@@ -166,7 +172,6 @@ export default function CartSheet() {
                         {/* B. LÓGICA */}
                         {isML ? (
                             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                                {/* 👇 CAMBIO: Sin icono de alerta */}
                                 <div className="text-yellow-800 bg-yellow-50 p-3 rounded border border-yellow-200 text-sm font-medium text-center">
                                     Aquí tienes los links directos a nuestras publicaciones:
                                 </div>
@@ -175,7 +180,6 @@ export default function CartSheet() {
                                         const mlLink = (item.product as any).mercadolibreUrl;
                                         return (
                                             <div key={index} className="flex items-center justify-between bg-white p-2 rounded border border-gray-200 shadow-sm">
-                                                {/* 👇 CAMBIO: Texto completo aquí también */}
                                                 <span className="text-xs font-medium flex-1 pr-2 leading-tight">{item.product.title}</span>
                                                 {mlLink ? (
                                                     <a 

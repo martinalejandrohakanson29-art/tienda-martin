@@ -141,26 +141,24 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
         return {
           sku: row[0],
-          seller_sku: row[1],
+          
+          // 👇 AQUÍ AGREGAMOS LA COLUMNA SOLICITADA
+          variation_label: row[1], // Mapeamos la col 1 como Label de Variación
+          seller_sku: row[1],      // Mantenemos también seller_sku por compatibilidad
+          
           title: row[2],
           
-          // 👇 AQUÍ ESTÁ LA CORRECCIÓN CLAVE:
-          // Enviamos row[3] como 'current_stock' Y TAMBIÉN como 'sales_last_month' 
-          // para asegurar que recibas el dato de la columna 4 (índice 3) en tu webhook.
           current_stock: row[3],
-          sales_last_month: row[3], 
+          sales_last_month: row[3], // Aseguramos que se envíe con ambos nombres
           
-          // Columnas extras (índices 5 y 6 visuales)
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
           
-          // Columna de cantidad sugerida (índice 4 visual / row[4])
           quantity_to_send: suggestionQty, 
-          
           note: note                       
         };
       })
-      // 2. Filtramos: Enviamos si hay sugerencia (>0) O si hay una nota escrita
+      // 2. Filtramos
       .filter(item => item.quantity_to_send > 0 || item.note.trim() !== "");
 
       if (itemsToSend.length === 0) {
@@ -180,10 +178,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   // --- VISTA DE RESUMEN (MODAL) ---
   if (summaryData) {
-    // 1. Filtramos solo los que tienen notas
     const visibleSummary = summaryData.filter(item => item.note && item.note.trim() !== "");
-    
-    // 2. Calculamos la suma total de las NOTAS (unidades cargadas manualmente)
     const totalUnits = visibleSummary.reduce((sum, item) => sum + cleanNumber(item.note), 0);
 
     return (
@@ -205,7 +200,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           
           <CardContent className="flex-1 overflow-auto p-0 bg-white">
             <table className="w-full text-sm text-left">
-              {/* 👇 ENCABEZADOS DE RESUMEN: Solo SKU, Variante, Título y Nota */}
               <thead className="bg-gray-50 text-gray-500 uppercase font-medium sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 w-[150px]">SKU (0)</th>
@@ -222,7 +216,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                         <CopyableCell text={item.sku} />
                       </td>
                       <td className="px-2 py-2">
-                        <CopyableCell text={item.seller_sku} />
+                        {/* Mostramos variation_label/seller_sku aquí */}
+                        <CopyableCell text={item.variation_label} /> 
                       </td>
                       <td className="px-2 py-2">
                         <CopyableCell text={item.title} className="max-w-[300px]" />
@@ -256,7 +251,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     );
   }
 
-  // --- VISTA NORMAL (TABLA PRINCIPAL) ---
+  // --- VISTA NORMAL ---
   return (
     <Card className="h-full flex flex-col shadow-none border-0"> 
       <CardHeader className="flex flex-row items-center justify-between pb-4 px-0">

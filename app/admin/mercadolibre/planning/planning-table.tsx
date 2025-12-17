@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, useTransition } from "react"; // 👈 1. Agregamos useTransition
+import { useState, useRef, useEffect, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Maximize2, Minimize2, ArrowUpDown, ArrowUp, ArrowDown, Save, Loader2 } from "lucide-react";
-import { sendPlanningToN8N } from "@/app/actions/planning"; // 👈 2. Importamos la acción
+import { sendPlanningToN8N } from "@/app/actions/planning";
 
 interface PlanningTableProps {
   headers: string[];
@@ -21,12 +21,22 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     direction: "asc",
   });
 
-  // Estado para manejar el loading del envío
   const [isPending, startTransition] = useTransition(); 
-
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
-  // ... (MANTENER LAS FUNCIONES startResizing, handleMouseMove, handleMouseUp IGUAL QUE ANTES) ...
+  // --- Helpers de Limpieza ---
+  // Función para limpiar números (sacar $, puntos de mil, y cambiar coma por punto)
+  const cleanNumber = (value: string) => {
+    if (!value) return 0;
+    // Elimina todo lo que no sea número, coma, punto o guion
+    const cleanValue = value.replace(/[^\d.,-]/g, "")
+                            .replace(/[.]/g, "") // Elimina puntos de miles (ej: 1.000 -> 1000)
+                            .replace(",", ".");  // Cambia coma decimal por punto (ej: 50,5 -> 50.5)
+    const num = parseFloat(cleanValue);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // --- Resize Logic ---
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -39,8 +49,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   const handleMouseMove = (e: MouseEvent) => {
     if (!resizingRef.current) return;
     const { index, startX, startWidth } = resizingRef.current;
+    const diff = e.clientX - startX;
     setColumnWidths((prev) => ({ ...prev, [index]: Math.max(50, startWidth + diff) }));
-    var diff = e.clientX - startX; // (Corrección menor de referencia)
   };
 
   const handleMouseUp = () => {
@@ -55,9 +65,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         document.removeEventListener("mouseup", handleMouseUp);
     };
   }, []);
-  // ... (FIN FUNCIONES RESIZE) ...
 
-
+  // --- Sort Logic ---
   const handleSort = (index: number) => {
     setSortConfig((current) => ({
       index,
@@ -65,18 +74,19 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     }));
   };
 
-  const parseValue = (value: string) => {
-    const cleanValue = value.replace(/[$.]/g, "").replace(",", ".");
-    const num = parseFloat(cleanValue);
-    return isNaN(num) ? value.toLowerCase() : num;
-  };
-
   const rowsWithIndex = body.map((row, index) => ({ row, originalIndex: index }));
 
   const sortedRows = rowsWithIndex.sort((a, b) => {
     if (sortConfig.index === null) return 0;
-    const valA = parseValue(a.row[sortConfig.index]);
-    const valB = parseValue(b.row[sortConfig.index]);
+    // Usamos cleanNumber para ordenar correctamente
+    const valA = cleanNumber(a.row[sortConfig.index]);
+    const valB = cleanNumber(b.row[sortConfig.index]);
+    
+    // Si ambos son 0 (o no eran números válidos), comparamos como texto
+    if (valA === 0 && valB === 0) {
+        return a.row[sortConfig.index].localeCompare(b.row[sortConfig.index]) * (sortConfig.direction === "asc" ? 1 : -1);
+    }
+
     if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
     if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
     return 0;
@@ -86,35 +96,35 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     setInputValues(prev => ({ ...prev, [originalIndex]: value }));
   };
 
-  // 👇 3. LÓGICA DE PROCESADO
+  // 👇 PROCESAMIENTO CORREGIDO
   const handleProcess = () => {
     if (!confirm("¿Estás seguro de enviar la planificación a n8n para generar el pedido?")) return;
 
     startTransition(async () => {
-      // Mapeamos los datos para enviarlos más limpios
-      // ASUMIMOS TU ESTRUCTURA ACTUAL SEGÚN 'COLUMNAS_ELEGIDAS' EN page.tsx:
-      // Index 0: SKU/ID?
-      // Index 1: Título
-      // Index 2: Stock
-      // Index 3: Ventas?
-      // Index 4 (Origen 9): Sugerido/A enviar?
-      
       const itemsToSend = body.map((row, index) => {
-        const suggestionRaw = row[4]; // Ajusta este índice si cambió tu array COLUMNAS_ELEGIDAS
-        const suggestionQty = parseFloat(suggestionRaw) || 0;
+        
+        // MAPEO CORREGIDO SEGÚN TUS COLUMNAS ELEGIDAS [0, 1, 2, 3, 8, 9, 10]
+        // row[0] = Col 0 (MLA ID)
+        // row[1] = Col 1 (SKU Vendedor / Variante) -> Antes lo mandabas como Title
+        // row[2] = Col 2 (Título Real) -> Antes lo mandabas como Stock
+        // row[3] = Col 3 (Stock o Ventas)
+        // row[4] = Col 8 (Sugerido / Cantidad a Enviar)
+
+        // Limpiamos el valor de la columna 8 para asegurar que sea un número válido
+        const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
 
         return {
-          sku: row[0],
-          title: row[1],
-          current_stock: row[2],
-          sales_last_month: row[3],
-          quantity_to_send: suggestionQty,
+          sku: row[0],             // MLA ID
+          seller_sku: row[1],      // Agregado: El código GRVV...
+          title: row[2],           // Título correcto (Col 2)
+          current_stock: row[3],   // Stock (Col 3)
+          quantity_to_send: suggestionQty, // Cantidad limpia (Col 8)
           note: note
         };
       })
-      // FILTRO IMPORTANTE: Solo enviamos lo que tenga cantidad > 0 O una nota escrita
-      .filter(item => item.note.trim() !== "");
+      // Filtro: Enviamos si hay sugerencia (>0) O si hay una nota escrita
+      .filter(item => item.quantity_to_send > 0 || item.note.trim() !== "");
 
       if (itemsToSend.length === 0) {
         alert("No hay ítems con sugerencia de envío (>0) ni notas para procesar.");
@@ -125,8 +135,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
       if (result.success) {
         alert(`✅ Éxito: ${result.message}\nSe enviaron ${itemsToSend.length} líneas.`);
-        // Opcional: Limpiar notas o redirigir
-        // setInputValues({});
       } else {
         alert("❌ Error: " + result.message);
       }
@@ -140,7 +148,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             Planificación ({body.length} filas)
         </CardTitle>
         <div className="flex gap-2">
-            {/* 👇 BOTÓN ACTUALIZADO */}
             <Button 
                 size="sm" 
                 className="bg-green-600 hover:bg-green-700 gap-2 shadow-sm"
@@ -162,7 +169,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         </div>
       </CardHeader>
       
-      {/* ... (EL RESTO DEL CONTENIDO - CardContent, Tabla, etc. SE MANTIENE IGUAL) ... */}
       <CardContent className="p-0 flex-1 overflow-hidden relative border rounded-lg shadow-sm bg-white">
         <div className="overflow-auto h-[75vh] w-full relative">
             <table className="w-full text-sm text-left border-collapse table-fixed">
@@ -182,7 +188,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                                             sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />
                                         )}
                                     </span>
-                                    {/* (El div para resize sigue aquí igual) */}
                                     <div 
                                         className="w-4 h-full absolute right-0 top-0 cursor-col-resize flex items-center justify-center hover:bg-blue-200/50 transition-colors group z-10"
                                         onMouseDown={(e) => startResizing(i, e)}

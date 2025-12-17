@@ -139,15 +139,14 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         const note = inputValues[index] || "";
 
         return {
-         sku: row[0],
+          sku: row[0],
           seller_sku: row[1],
           title: row[2],
           current_stock: row[3],   
-          current_variable: row[4],
           column_9_info: row[5], 
           column_10_info: row[6],
-           current_1: row[7],
-           current_variable1: row[8],
+          quantity_to_send: suggestionQty,
+          note: note
         };
       })
       .filter(item => item.quantity_to_send > 0 || item.note.trim() !== "");

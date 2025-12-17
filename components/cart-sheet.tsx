@@ -2,13 +2,12 @@
 
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { ShoppingCart, CreditCard, Loader2, Send, ShoppingBag, ExternalLink } from "lucide-react"
+import { ShoppingCart, CreditCard, Loader2, Send, ExternalLink } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { getConfig } from "@/app/actions/config"
 import { useCart } from "@/hooks/use-cart"
-// 👇 1. IMPORTANTE: Importamos la función de formato
 import { formatPrice } from "@/lib/utils"
 
 export default function CartSheet() {
@@ -61,7 +60,6 @@ export default function CartSheet() {
 
         if (isMP) {
             try {
-                // MercadoPago usa los datos crudos (números), eso está bien, no formateamos aquí.
                 const response = await fetch("/api/checkout", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -78,11 +76,9 @@ export default function CartSheet() {
             return
         }
 
-        // 👇 2. CORRECCIÓN DEL MENSAJE DE WHATSAPP
         const message = `Hola! Quiero confirmar el siguiente pedido:%0A%0A${cart.map(item => {
             const unitPrice = getFinalPrice(item.product.price, item.product.discount)
             const subtotal = unitPrice * item.quantity
-            // Usamos formatPrice aquí (y quitamos el signo $ manual y el toFixed)
             return `- ${item.product.title} x${item.quantity}: ${formatPrice(subtotal)}`
         }).join("%0A")}%0A%0ATotal: ${formatPrice(total)}%0A%0AMis datos:%0A- Nombre: ${customerName}%0A- Forma de pago: ${paymentMethod}`
 
@@ -94,10 +90,17 @@ export default function CartSheet() {
     return (
         <Sheet>
             <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="relative">
-                    <ShoppingCart size={20} />
+                {/* 👇 CAMBIO 1: Botón mucho más grande (h-14/16) y borde más grueso */}
+                <Button 
+                    variant="outline" 
+                    className="relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 border-gray-300 hover:border-blue-600 hover:bg-blue-50 transition-all shadow-sm"
+                >
+                    {/* 👇 CAMBIO 2: Ícono Gigante (size={32}) */}
+                    <ShoppingCart size={32} className="text-gray-700" />
+                    
                     {cart.length > 0 && (
-                        <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">
+                        /* 👇 CAMBIO 3: Badge más grande y mejor posicionado */
+                        <span className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-6 h-6 md:w-7 md:h-7 flex items-center justify-center text-xs md:text-sm font-bold border-2 border-white shadow-sm animate-in zoom-in">
                             {cart.reduce((acc, item) => acc + item.quantity, 0)}
                         </span>
                     )}
@@ -108,7 +111,7 @@ export default function CartSheet() {
                     <SheetTitle className="text-2xl">Tu Carrito</SheetTitle>
                 </SheetHeader>
                 
-                {/* 1. LISTADO DE PRODUCTOS */}
+                {/* LISTADO DE PRODUCTOS */}
                 <div className="flex-1 space-y-6 overflow-y-auto min-h-0">
                     {cart.length === 0 ? (
                         <div className="text-center py-12 border-2 border-dashed rounded-lg">
@@ -132,8 +135,8 @@ export default function CartSheet() {
                                     <div className="flex flex-1 flex-col">
                                         <div className="flex justify-between text-sm font-medium text-gray-900">
                                             <h3 className="pr-2 leading-tight">{item.product.title}</h3>
-                                            {/* 👇 3. CORRECCIÓN VISUAL DE PRECIO POR ITEM */}
-                                            <p>{formatPrice(itemSubtotal)}</p>
+                                            {/* PRECIO VISUAL VERDE */}
+                                            <p className="font-bold text-green-700">{formatPrice(itemSubtotal)}</p>
                                         </div>
                                         <div className="flex items-center justify-between text-xs mt-2">
                                             <p className="text-gray-500">Cant: {item.quantity}</p>
@@ -146,16 +149,14 @@ export default function CartSheet() {
                     )}
                 </div>
 
-                {/* 2. ZONA DE PAGO */}
+                {/* ZONA DE PAGO */}
                 {cart.length > 0 && (
                     <div className="border-t border-gray-200 pt-6 space-y-4 bg-gray-50 -mx-6 px-6 pb-6 mt-auto">
                         <div className="flex justify-between text-base font-medium text-gray-900">
                             <span>Total a Pagar</span>
-                            {/* 👇 4. CORRECCIÓN VISUAL DEL TOTAL FINAL */}
                             <span className="text-xl font-bold text-green-700">{formatPrice(total)}</span>
                         </div>
 
-                        {/* A. SELECTOR DE PAGO */}
                         <div>
                             <Label htmlFor="payment" className="text-xs uppercase text-gray-500 font-bold">1. Elige cómo pagar</Label>
                             <select 
@@ -169,7 +170,6 @@ export default function CartSheet() {
                             </select>
                         </div>
 
-                        {/* B. LÓGICA */}
                         {isML ? (
                             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
                                 <div className="text-yellow-800 bg-yellow-50 p-3 rounded border border-yellow-200 text-sm font-medium text-center">

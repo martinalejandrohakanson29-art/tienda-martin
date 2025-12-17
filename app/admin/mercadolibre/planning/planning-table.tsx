@@ -143,7 +143,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         return {
           sku: row[0],
           
-          variation_label: row[7], // Columna 1
           seller_sku: row[1],      // Columna 1
           
           title: row[2],
@@ -155,7 +154,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
-          
+           variation_label: row[7],
           // CAMBIO CLAVE: La cantidad a enviar es lo que pusiste en la NOTA
           quantity_to_send: noteQty, 
           

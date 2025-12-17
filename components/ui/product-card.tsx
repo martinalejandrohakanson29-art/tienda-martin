@@ -46,7 +46,8 @@ export default function ProductCard({ product }: ProductCardProps) {
                 {/* ZONA DE IMAGEN / CARRUSEL */}
                 <div className="aspect-square relative overflow-hidden bg-gray-100">
                     {product.discount > 0 && (
-                         <span className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm">
+                         // 👇 CAMBIO: Usamos bg-green-600 para que sea verde
+                         <span className="absolute top-2 right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10 shadow-sm">
                             -{product.discount}%
                         </span>
                     )}

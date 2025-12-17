@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Trash, Pencil, Star, Eye, ShoppingBag, Video, Image as ImageIcon } from "lucide-react" 
+import { Plus, Trash, Pencil, Star, ShoppingBag, Video, Image as ImageIcon, Store } from "lucide-react" 
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
 // Actualizamos el tipo de datos
@@ -18,11 +18,12 @@ type ProductForm = {
     stock: string
     category: string
     imageUrl: string
-    imageUrl2: string // Nuevo
-    imageUrl3: string // Nuevo
-    videoUrl: string  // Nuevo
+    imageUrl2: string
+    imageUrl3: string
+    videoUrl: string
     discount: string
     isFeatured: boolean
+    showOnHome: boolean // 👈 NUEVO CAMPO
     mercadolibreUrl: string
 }
 
@@ -33,11 +34,12 @@ const initialState: ProductForm = {
     stock: "",
     category: "",
     imageUrl: "",
-    imageUrl2: "", // Nuevo
-    imageUrl3: "", // Nuevo
-    videoUrl: "",  // Nuevo
+    imageUrl2: "",
+    imageUrl3: "",
+    videoUrl: "",
     discount: "0",
     isFeatured: false,
+    showOnHome: false, // 👈 Inicializamos en false
     mercadolibreUrl: ""
 }
 
@@ -59,7 +61,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
-                return `https://lh3.googleusercontent.com/d/${idMatch[1]}` // Ajuste para visualizar
+                return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
             }
         }
         return url
@@ -69,7 +71,6 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         e.preventDefault()
         setLoading(true)
         try {
-            // Transformamos todas las imágenes por si son de Drive
             const finalImageUrl = transformImageLink(formData.imageUrl)
             const finalImageUrl2 = transformImageLink(formData.imageUrl2)
             const finalImageUrl3 = transformImageLink(formData.imageUrl3)
@@ -82,7 +83,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 price: parseFloat(formData.price) as any,
                 stock: parseInt(formData.stock),
                 discount: parseInt(formData.discount || "0"),
-                isFeatured: formData.isFeatured
+                isFeatured: formData.isFeatured,
+                showOnHome: formData.showOnHome // 👈 Enviamos el dato
             }
 
             if (editingId) {
@@ -111,11 +113,12 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             stock: product.stock.toString(),
             category: product.category,
             imageUrl: product.imageUrl,
-            imageUrl2: product.imageUrl2 || "", // Cargar datos existentes
+            imageUrl2: product.imageUrl2 || "",
             imageUrl3: product.imageUrl3 || "",
             videoUrl: product.videoUrl || "",
             discount: (product.discount || 0).toString(),
             isFeatured: product.isFeatured || false,
+            showOnHome: product.showOnHome || false, // 👈 Cargamos el dato existente
             mercadolibreUrl: product.mercadolibreUrl || ""
         })
         setIsOpen(true)
@@ -150,6 +153,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                             <DialogTitle>{editingId ? "Editar Producto" : "Crear Producto"}</DialogTitle>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+                            
+                            {/* TÍTULO Y CATEGORÍA */}
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label>Título (Se pasará a MAYÚSCULAS)</Label>
@@ -169,6 +174,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 <Input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Detalles..." />
                             </div>
                             
+                            {/* PRECIOS Y STOCK */}
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                     <Label>Precio ($)</Label>
@@ -198,6 +204,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 <Input value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} placeholder="https://youtube.com/watch?v=..." />
                             </div>
 
+                            {/* MERCADOLIBRE */}
                             <div className="space-y-2">
                                 <Label className="flex items-center gap-2 text-yellow-600 font-semibold">
                                     <ShoppingBag size={16} /> Link MercadoLibre (Opcional)
@@ -210,15 +217,41 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 />
                             </div>
 
-                            <div className="flex items-center space-x-2 py-2 border-t pt-4">
-                                <input
-                                    type="checkbox"
-                                    id="featured"
-                                    className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
-                                    checked={formData.isFeatured}
-                                    onChange={(e) => setFormData({...formData, isFeatured: e.target.checked})}
-                                />
-                                <Label htmlFor="featured" className="cursor-pointer font-bold text-blue-600">Destacar en Portada (Máx. 8)</Label>
+                            {/* 👇 ZONA DE VISIBILIDAD (AQUÍ ESTÁ EL CAMBIO IMPORTANTE) */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                                {/* Destacado Principal */}
+                                <div className="flex items-center space-x-3 border p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        id="featured"
+                                        className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        checked={formData.isFeatured}
+                                        onChange={(e) => setFormData({...formData, isFeatured: e.target.checked})}
+                                    />
+                                    <div className="flex flex-col cursor-pointer" onClick={() => setFormData({...formData, isFeatured: !formData.isFeatured})}>
+                                        <Label className="cursor-pointer font-bold text-blue-600 flex items-center gap-1">
+                                            <Star size={14} className="fill-blue-600"/> Destacado Principal
+                                        </Label>
+                                        <span className="text-xs text-gray-500">Aparece grande arriba (Máx 8)</span>
+                                    </div>
+                                </div>
+
+                                {/* Nuevo: Vidriera Home */}
+                                <div className="flex items-center space-x-3 border p-3 rounded-lg hover:bg-gray-50 transition-colors bg-blue-50/30 border-blue-100">
+                                    <input
+                                        type="checkbox"
+                                        id="showOnHome"
+                                        className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        checked={formData.showOnHome}
+                                        onChange={(e) => setFormData({...formData, showOnHome: e.target.checked})}
+                                    />
+                                    <div className="flex flex-col cursor-pointer" onClick={() => setFormData({...formData, showOnHome: !formData.showOnHome})}>
+                                        <Label className="cursor-pointer font-bold text-indigo-600 flex items-center gap-1">
+                                            <Store size={14} /> Vidriera / Novedades
+                                        </Label>
+                                        <span className="text-xs text-gray-500">Lista compacta abajo (Máx 10)</span>
+                                    </div>
+                                </div>
                             </div>
 
                             <Button type="submit" className="w-full" disabled={loading}>
@@ -229,21 +262,30 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 </Dialog>
             </div>
 
-            {/* LISTA DE PRODUCTOS - SIN CAMBIOS VISUALES MAYORES */}
+            {/* LISTA DE PRODUCTOS (GRID) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {initialProducts.map((product) => (
-                    <Card key={product.id} className={product.isFeatured ? "border-2 border-blue-500 shadow-md" : ""}>
+                    <Card key={product.id} className={`${product.isFeatured ? "border-2 border-blue-500 shadow-md" : ""} ${product.showOnHome ? "border-indigo-200 bg-indigo-50/20" : ""}`}>
                         <div className="aspect-square relative overflow-hidden rounded-t-xl bg-gray-100">
                             {product.discount > 0 && (
                                 <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10">
                                     {product.discount}% OFF
                                 </span>
                             )}
-                            {product.isFeatured && (
-                                <span className="absolute top-2 left-2 bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10 flex items-center gap-1">
-                                    <Star size={10} fill="white" /> Destacado
-                                </span>
-                            )}
+                            {/* Badges de estado */}
+                            <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                                {product.isFeatured && (
+                                    <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                                        <Star size={10} fill="white" /> Destacado
+                                    </span>
+                                )}
+                                {product.showOnHome && (
+                                    <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                                        <Store size={10} /> Vidriera
+                                    </span>
+                                )}
+                            </div>
+                            
                             <img 
                                 src={product.imageUrl} 
                                 alt={product.title} 

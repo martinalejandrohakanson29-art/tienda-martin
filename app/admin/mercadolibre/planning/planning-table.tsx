@@ -134,7 +134,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     if (!confirm("¿Estás seguro de enviar la planificación?")) return;
 
     startTransition(async () => {
-      // 1. Construimos los objetos asegurando que existan las claves necesarias
+      // 1. Construimos los objetos
       const itemsToSend = body.map((row, index) => {
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
@@ -146,8 +146,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           current_stock: row[3],   
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
-          quantity_to_send: suggestionQty, // Clave necesaria para el filtro
-          note: note                       // Clave necesaria para el filtro
+          quantity_to_send: suggestionQty, 
+          note: note                       
         };
       })
       // 2. Filtramos: Enviamos si hay sugerencia (>0) O si hay una nota escrita
@@ -161,7 +161,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
       const result = await sendPlanningToN8N(itemsToSend);
 
       if (result.success) {
-        // Guardamos TODOS los enviados para el resumen
         setSummaryData(itemsToSend);
       } else {
         alert("❌ Error: " + result.message);
@@ -171,8 +170,11 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   // --- VISTA DE RESUMEN (MODAL) ---
   if (summaryData) {
-    // 👇 AQUI FILTRAMOS: Solo mostramos en el resumen los que tienen notas
+    // 1. Filtramos solo los que tienen notas
     const visibleSummary = summaryData.filter(item => item.note && item.note.trim() !== "");
+    
+    // 2. Calculamos la suma total de las notas (Asumiendo que son números)
+    const totalUnits = visibleSummary.reduce((sum, item) => sum + cleanNumber(item.note), 0);
 
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -182,9 +184,9 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
               <CardTitle className="text-xl text-green-800 flex items-center gap-2">
                 <Check className="h-6 w-6" /> Pedido Procesado
               </CardTitle>
-              {/* 👇 TEXTO MODIFICADO SEGÚN TU PEDIDO */}
+              {/* 👇 TEXTO CON LA SUMA TOTAL DE UNIDADES */}
               <p className="text-sm text-green-600 mt-1">
-                Se cargaron un total de <b>{visibleSummary.length}</b> unidades para enviar
+                Se cargaron un total de <b>{totalUnits}</b> unidades para enviar
               </p>
             </div>
             <Button onClick={() => setSummaryData(null)} size="sm" variant="outline" className="border-green-200 hover:bg-green-100 text-green-800">
@@ -194,12 +196,12 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           
           <CardContent className="flex-1 overflow-auto p-0 bg-white">
             <table className="w-full text-sm text-left">
+              {/* 👇 ENCABEZADOS: Solo 0, 1, 2 y Notas */}
               <thead className="bg-gray-50 text-gray-500 uppercase font-medium sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 w-[150px]">SKU (0)</th>
                   <th className="px-4 py-3 w-[150px]">Variante (1)</th>
                   <th className="px-4 py-3">Título (2)</th>
-                  <th className="px-4 py-3 w-[100px] text-center">Cant.</th>
                   <th className="px-4 py-3 w-[200px]">Nota</th>
                 </tr>
               </thead>
@@ -217,21 +219,14 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                         <CopyableCell text={item.title} className="max-w-[300px]" />
                       </td>
                       <td className="px-2 py-2">
-                        <div className="flex justify-center">
-                            <CopyableCell text={item.quantity_to_send} className="font-bold bg-blue-50 text-blue-700 justify-center w-16" />
-                        </div>
-                      </td>
-                      <td className="px-2 py-2">
-                        {/* La nota siempre existirá aquí por el filtro */}
-                        <CopyableCell text={item.note} className="bg-yellow-50 text-yellow-800 italic" />
+                        <CopyableCell text={item.note} className="bg-yellow-50 text-yellow-800 font-bold" />
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="py-10 text-center text-gray-400">
-                        No hay ítems con notas para mostrar. <br/>
-                        (Los ítems automáticos se enviaron correctamente)
+                    <td colSpan={4} className="py-10 text-center text-gray-400">
+                        No hay ítems con notas para mostrar.
                     </td>
                   </tr>
                 )}

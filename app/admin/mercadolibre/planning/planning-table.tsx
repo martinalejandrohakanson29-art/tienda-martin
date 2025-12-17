@@ -4,8 +4,45 @@ import { useState, useRef, useEffect, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Maximize2, Minimize2, ArrowUpDown, ArrowUp, ArrowDown, Save, Loader2 } from "lucide-react";
+import { 
+  Maximize2, Minimize2, ArrowUp, ArrowDown, Save, Loader2, 
+  Check, Copy, XCircle 
+} from "lucide-react";
 import { sendPlanningToN8N } from "@/app/actions/planning";
+
+// --- COMPONENTE DE CELDA COPIABLE ---
+const CopyableCell = ({ text, className = "" }: { text: string | number, className?: string }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text.toString());
+      setCopied(true);
+    } catch (err) {
+      console.error("Error al copiar", err);
+    }
+  };
+
+  return (
+    <div 
+      onClick={handleCopy}
+      className={`relative group cursor-pointer flex items-center justify-between gap-2 p-2 rounded hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100 ${copied ? "bg-green-50/50" : ""} ${className}`}
+      title="Click para copiar"
+    >
+      <span className={`truncate ${copied ? "text-green-700 font-medium" : "text-gray-700"}`}>
+        {text}
+      </span>
+      <div className="flex-shrink-0">
+        {copied ? (
+          <Check className="h-4 w-4 text-green-600 animate-in zoom-in duration-300" />
+        ) : (
+          <Copy className="h-3 w-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+        )}
+      </div>
+    </div>
+  );
+};
 
 interface PlanningTableProps {
   headers: string[];
@@ -20,23 +57,22 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     index: null,
     direction: "asc",
   });
+  
+  // Estado para el Resumen
+  const [summaryData, setSummaryData] = useState<any[] | null>(null);
 
   const [isPending, startTransition] = useTransition(); 
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
-  // --- Helpers de Limpieza ---
-  // Función para limpiar números (sacar $, puntos de mil, y cambiar coma por punto)
+  // --- Helpers ---
   const cleanNumber = (value: string) => {
     if (!value) return 0;
-    // Elimina todo lo que no sea número, coma, punto o guion
-    const cleanValue = value.replace(/[^\d.,-]/g, "")
-                            .replace(/[.]/g, "") // Elimina puntos de miles (ej: 1.000 -> 1000)
-                            .replace(",", ".");  // Cambia coma decimal por punto (ej: 50,5 -> 50.5)
+    const cleanValue = value.replace(/[^\d.,-]/g, "").replace(/[.]/g, "").replace(",", ".");
     const num = parseFloat(cleanValue);
     return isNaN(num) ? 0 : num;
   };
 
-  // --- Resize Logic ---
+  // --- Resize & Sort Logic (Igual que antes) ---
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -66,7 +102,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     };
   }, []);
 
-  // --- Sort Logic ---
   const handleSort = (index: number) => {
     setSortConfig((current) => ({
       index,
@@ -78,11 +113,9 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   const sortedRows = rowsWithIndex.sort((a, b) => {
     if (sortConfig.index === null) return 0;
-    // Usamos cleanNumber para ordenar correctamente
     const valA = cleanNumber(a.row[sortConfig.index]);
     const valB = cleanNumber(b.row[sortConfig.index]);
     
-    // Si ambos son 0 (o no eran números válidos), comparamos como texto
     if (valA === 0 && valB === 0) {
         return a.row[sortConfig.index].localeCompare(b.row[sortConfig.index]) * (sortConfig.direction === "asc" ? 1 : -1);
     }
@@ -96,27 +129,17 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     setInputValues(prev => ({ ...prev, [originalIndex]: value }));
   };
 
- // 👇 3. LÓGICA DE PROCESADO ACTUALIZADA
+  // --- PROCESAMIENTO ---
   const handleProcess = () => {
-    if (!confirm("¿Estás seguro de enviar la planificación a n8n para generar el pedido?")) return;
+    if (!confirm("¿Estás seguro de enviar la planificación?")) return;
 
     startTransition(async () => {
       const itemsToSend = body.map((row, index) => {
-        
-        // MAPEO DE COLUMNAS (Basado en COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 8, 9, 10])
-        // row[0] = Col 0 (ID)
-        // row[1] = Col 1 (SKU / Variante)
-        // row[2] = Col 2 (Título)
-        // row[3] = Col 3 (Stock actual)
-        // row[4] = Col 8 (Cantidad a enviar / Sugerido)
-        // row[5] = Col 9 (Dato Extra 1 - ¿Ventas?)
-        // row[6] = Col 10 (Dato Extra 2)
-
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
 
         return {
-          sku: row[0],
+         sku: row[0],
           seller_sku: row[1],
           title: row[2],
           current_stock: row[3],   
@@ -124,31 +147,101 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           column_9_info: row[5], 
           column_10_info: row[6],
            current_1: row[7],
-           current_variable1: row[8],  
-          
-
-          quantity_to_send: suggestionQty,
-          note: note
+           current_variable1: row[8],
         };
       })
-      // Filtro: Enviamos si hay sugerencia (>0) O si hay una nota escrita
       .filter(item => item.quantity_to_send > 0 || item.note.trim() !== "");
 
       if (itemsToSend.length === 0) {
-        alert("No hay ítems con sugerencia de envío (>0) ni notas para procesar.");
+        alert("No hay ítems con sugerencia (>0) ni notas.");
         return;
       }
 
       const result = await sendPlanningToN8N(itemsToSend);
 
       if (result.success) {
-        alert(`✅ Éxito: ${result.message}\nSe enviaron ${itemsToSend.length} líneas.`);
+        // En lugar de alert, mostramos el resumen
+        setSummaryData(itemsToSend);
       } else {
         alert("❌ Error: " + result.message);
       }
     });
   };
 
+  // --- VISTA DE RESUMEN (MODAL) ---
+  if (summaryData) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <Card className="w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <CardHeader className="bg-green-50 border-b flex flex-row items-center justify-between py-4">
+            <div>
+              <CardTitle className="text-xl text-green-800 flex items-center gap-2">
+                <Check className="h-6 w-6" /> Pedido Procesado Exitosamente
+              </CardTitle>
+              <p className="text-sm text-green-600 mt-1">
+                Se enviaron {summaryData.length} ítems. Haz clic en los datos para copiarlos.
+              </p>
+            </div>
+            <Button onClick={() => setSummaryData(null)} size="sm" variant="outline" className="border-green-200 hover:bg-green-100 text-green-800">
+              <XCircle className="h-4 w-4 mr-2" /> Cerrar
+            </Button>
+          </CardHeader>
+          
+          <CardContent className="flex-1 overflow-auto p-0 bg-white">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-50 text-gray-500 uppercase font-medium sticky top-0 z-10 shadow-sm">
+                <tr>
+                  <th className="px-4 py-3 w-[150px]">SKU (0)</th>
+                  <th className="px-4 py-3 w-[150px]">Variante (1)</th>
+                  <th className="px-4 py-3">Título (2)</th>
+                  <th className="px-4 py-3 w-[100px] text-center">Cant.</th>
+                  <th className="px-4 py-3 w-[200px]">Nota</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {summaryData.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-2 py-2">
+                      <CopyableCell text={item.sku} />
+                    </td>
+                    <td className="px-2 py-2">
+                      <CopyableCell text={item.seller_sku} />
+                    </td>
+                    <td className="px-2 py-2">
+                      <CopyableCell text={item.title} className="max-w-[300px]" />
+                    </td>
+                    <td className="px-2 py-2">
+                       <div className="flex justify-center">
+                          <CopyableCell text={item.quantity_to_send} className="font-bold bg-blue-50 text-blue-700 justify-center w-16" />
+                       </div>
+                    </td>
+                    <td className="px-2 py-2">
+                      {item.note ? (
+                        <CopyableCell text={item.note} className="bg-yellow-50 text-yellow-800 italic" />
+                      ) : (
+                        <span className="text-gray-300 text-xs pl-2">-</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+
+          <div className="p-4 border-t bg-gray-50 flex justify-end">
+            <Button 
+              className="bg-green-600 hover:bg-green-700 w-32" 
+              onClick={() => setSummaryData(null)}
+            >
+              Aceptar
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  // --- VISTA NORMAL (TABLA PRINCIPAL) ---
   return (
     <Card className="h-full flex flex-col shadow-none border-0"> 
       <CardHeader className="flex flex-row items-center justify-between pb-4 px-0">

@@ -143,7 +143,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         return {
           sku: row[0],
           
-          variation_label: row[1], // Columna 1
+          variation_label: row[7], // Columna 1
           seller_sku: row[1],      // Columna 1
           
           title: row[2],

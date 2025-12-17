@@ -29,7 +29,8 @@
     "googleapis": "^126.0.1",
     "axios": "^1.6.2",
     "papaparse": "^5.4.1",
-    "embla-carousel-autoplay": "^8.5.1"
+    "embla-carousel-autoplay": "^8.5.1",
+    "sonner": "^1.5.0"
   },
   "devDependencies": {
     "@types/node": "^20",

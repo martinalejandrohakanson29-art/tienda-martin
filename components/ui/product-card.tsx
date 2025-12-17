@@ -4,10 +4,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ShoppingCart } from "lucide-react"
 import Link from "next/link"
-import useCart from "@/hooks/use-cart"
+// 👇 CORRECCIÓN: Usamos llaves { } para importar porque no es un export default
+import { useCart } from "@/hooks/use-cart"
 import { toast } from "sonner"
 import { formatPrice } from "@/lib/utils"
-// 👇 Importamos los componentes del carrusel
 import {
   Carousel,
   CarouselContent,
@@ -21,17 +21,17 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-    const cart = useCart()
+    // 👇 CORRECCIÓN: Extraemos la función correcta 'addToCart'
+    const { addToCart } = useCart()
 
-    // Agregar al carrito sin entrar al producto
     const onAddToCart = (e: React.MouseEvent) => {
         e.preventDefault()
         e.stopPropagation()
-        cart.addItem(product)
+        // 👇 CORRECCIÓN: Usamos el nombre correcto de la función
+        addToCart(product)
         toast.success("Producto agregado al carrito")
     }
 
-    // 👇 Función mágica: Evita que al clickear la flecha entremos al producto
     const preventLinkAction = (e: React.MouseEvent) => {
         e.preventDefault()
         e.stopPropagation()
@@ -39,7 +39,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
     const finalPrice = Number(product.price) * (1 - (product.discount || 0) / 100)
     
-    // Juntamos todas las imágenes disponibles
+    // Filtramos imágenes vacías
     const images = [product.imageUrl, product.imageUrl2, product.imageUrl3].filter(img => img && img.trim() !== "")
 
     return (
@@ -54,7 +54,6 @@ export default function ProductCard({ product }: ProductCardProps) {
                         </span>
                     )}
                     
-                    {/* SI HAY MÁS DE 1 IMAGEN -> MOSTRAMOS CARRUSEL */}
                     {images.length > 1 ? (
                         <Carousel className="w-full h-full" opts={{ loop: true }}>
                              <CarouselContent>
@@ -72,7 +71,6 @@ export default function ProductCard({ product }: ProductCardProps) {
                                 ))}
                              </CarouselContent>
                              
-                             {/* Flechas: Solo visibles al pasar el mouse (group-hover) y posicionadas dentro */}
                              <div 
                                 onClick={preventLinkAction} 
                                 className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"
@@ -88,7 +86,6 @@ export default function ProductCard({ product }: ProductCardProps) {
                              </div>
                         </Carousel>
                     ) : (
-                        // SI SOLO HAY 1 IMAGEN -> MOSTRAMOS LA IMAGEN NORMAL
                         <img 
                             src={images[0] || product.imageUrl} 
                             alt={product.title} 
@@ -97,7 +94,6 @@ export default function ProductCard({ product }: ProductCardProps) {
                         />
                     )}
 
-                     {/* BOTÓN RÁPIDO DE AÑADIR (Aparece abajo al hacer hover) */}
                     <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 hidden md:block z-30">
                         <Button 
                             className="w-full bg-white text-black hover:bg-gray-100 shadow-lg" 
@@ -109,7 +105,6 @@ export default function ProductCard({ product }: ProductCardProps) {
                     </div>
                 </div>
                 
-                {/* INFO DEL PRODUCTO */}
                 <CardContent className="p-3">
                     <h3 className="font-medium text-sm text-gray-800 line-clamp-2 min-h-[2.5rem] leading-tight group-hover:text-blue-600 transition-colors">
                         {product.title}

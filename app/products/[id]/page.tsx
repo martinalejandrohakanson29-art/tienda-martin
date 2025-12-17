@@ -12,22 +12,14 @@ import {
 
 export const dynamic = "force-dynamic"
 
-// Función para arreglar links de video
 function getVideoEmbedUrl(url: string) {
     if (!url) return null;
-    // Si es YouTube watch -> embed
-    if (url.includes("youtube.com/watch?v=")) {
-        return url.replace("watch?v=", "embed/");
-    }
-    // Si es YouTube short -> embed
+    if (url.includes("youtube.com/watch?v=")) return url.replace("watch?v=", "embed/");
     if (url.includes("youtu.be/")) {
         const id = url.split("youtu.be/")[1];
         return `https://www.youtube.com/embed/${id}`;
     }
-    // Si es Drive -> preview
-    if (url.includes("drive.google.com") && url.includes("/view")) {
-        return url.replace("/view", "/preview");
-    }
+    if (url.includes("drive.google.com") && url.includes("/view")) return url.replace("/view", "/preview");
     return url;
 }
 
@@ -38,10 +30,9 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
     incrementProductView(product.id).catch(console.error)
     const finalPrice = Number(product.price) * (1 - (product.discount || 0) / 100)
+    const hasDiscount = (product.discount || 0) > 0
 
-    // Agrupamos todas las imágenes válidas en un array
     const images = [product.imageUrl, product.imageUrl2, product.imageUrl3].filter(img => img && img.trim() !== "")
-
     const videoEmbedUrl = getVideoEmbedUrl(product.videoUrl || "")
 
     return (
@@ -50,7 +41,8 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 
                 {/* SECCIÓN DE IMÁGENES / CARRUSEL */}
                 <div className="relative rounded-2xl bg-gray-50 border shadow-sm overflow-hidden">
-                    {product.discount > 0 && (
+                    {/* 👇 CAMBIO: Badge Verde */}
+                    {hasDiscount && (
                         <span className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-md z-10">
                             {product.discount}% OFF
                         </span>
@@ -62,28 +54,17 @@ export default async function ProductPage({ params }: { params: { id: string } }
                                 {images.map((img, index) => (
                                     <CarouselItem key={index}>
                                         <div className="aspect-square relative">
-                                            <img
-                                                src={img}
-                                                alt={`${product.title} - foto ${index + 1}`}
-                                                className="w-full h-full object-cover"
-                                                referrerPolicy="no-referrer"
-                                            />
+                                            <img src={img} alt={`${product.title} - foto ${index + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                         </div>
                                     </CarouselItem>
                                 ))}
                             </CarouselContent>
-                            {/* Flechas de navegación */}
                             <CarouselPrevious className="left-2 opacity-70 hover:opacity-100" />
                             <CarouselNext className="right-2 opacity-70 hover:opacity-100" />
                         </Carousel>
                     ) : (
                         <div className="aspect-square relative">
-                            <img
-                                src={images[0]}
-                                alt={product.title}
-                                className="w-full h-full object-cover"
-                                referrerPolicy="no-referrer"
-                            />
+                            <img src={images[0]} alt={product.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                         </div>
                     )}
                 </div>
@@ -96,10 +77,11 @@ export default async function ProductPage({ params }: { params: { id: string } }
                     </div>
                     
                     <div className="flex items-end gap-3">
-                        <span className={`text-4xl font-bold ${product.discount > 0 ? 'text-green-700' : 'text-gray-900'}`}>
+                        {/* 👇 CAMBIO: Precio Verde si hay descuento */}
+                        <span className={`text-4xl font-bold ${hasDiscount ? 'text-green-700' : 'text-gray-900'}`}>
                             {formatPrice(finalPrice)}
                         </span>
-                        {product.discount > 0 && (
+                        {hasDiscount && (
                             <span className="text-xl text-gray-400 line-through mb-1">
                                 {formatPrice(Number(product.price))}
                             </span>
@@ -115,17 +97,11 @@ export default async function ProductPage({ params }: { params: { id: string } }
                         <p className="text-sm text-gray-400 mt-4">Stock disponible: {product.stock} unidades</p>
                     </div>
 
-                    {/* SECCIÓN DE VIDEO */}
                     {videoEmbedUrl && (
                         <div className="mt-8 pt-6 border-t">
                             <h3 className="text-lg font-bold mb-3">Video del Producto</h3>
                             <div className="aspect-video w-full rounded-xl overflow-hidden shadow-sm border bg-black">
-                                <iframe 
-                                    src={videoEmbedUrl} 
-                                    className="w-full h-full" 
-                                    allowFullScreen 
-                                    title="Video del producto"
-                                />
+                                <iframe src={videoEmbedUrl} className="w-full h-full" allowFullScreen title="Video del producto" />
                             </div>
                         </div>
                     )}

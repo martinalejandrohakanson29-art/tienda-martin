@@ -1,11 +1,16 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, RefreshCw, FileSpreadsheet } from "lucide-react";
 import Link from "next/link";
-import PlanningTable from "./planning-table"; // 👈 Importamos nuestro nuevo componente
+import PlanningTable from "./planning-table"; 
 
 // URL y Configuración
 const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql-kdfGt_kQReLGEzFGaqVcex55VydptBQhV2EI0DTLhXFvzxukPbtZ6YCiprd8D7HKF80sWL/pub?gid=0&single=true&output=csv";
-const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 8, 9, 10]; 
+
+// 👇 CAMBIO IMPORTANTE AQUÍ:
+// Agrega al final el número de la columna de variación.
+// Si es la columna E, pon un 4. Si es la F, pon un 5. Si es la G, pon un 6.
+// Al ponerlo al final, este dato caerá automáticamente en la posición row[7] que configuramos antes.
+const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 8, 9, 10]; // <--- ¡Reemplaza el 4 por el índice correcto!
 
 async function getSheetData() {
   try {
@@ -34,7 +39,7 @@ export default async function PlanningPage() {
   return (
     <div className="space-y-6">
       
-      {/* Header (Igual que antes) */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/admin/mercadolibre">
@@ -59,7 +64,7 @@ export default async function PlanningPage() {
         </div>
       </div>
 
-      {/* 👇 AQUÍ ESTÁ EL CAMBIO: Usamos el componente interactivo */}
+      {/* Componente interactivo */}
       <PlanningTable headers={headers} body={body} />
 
     </div>

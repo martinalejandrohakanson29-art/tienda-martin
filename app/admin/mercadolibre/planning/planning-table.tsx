@@ -142,26 +142,26 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
         return {
           sku: row[0],
-          
-          seller_sku: row[1],      // Columna 1
-          
+          seller_sku: row[1],
           title: row[2],
           
-          // Mapeamos la Columna 4 (row[3]) con varios nombres para asegurar que la encuentres
           current_stock: row[3],
-          sales_last_month: row[3], 
+          sales_last_month: row[3], // Se usa row[3] según tu lógica actual
           column_4_info: row[3],
           
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
-           variation_label: row[7],
-          // CAMBIO CLAVE: La cantidad a enviar es lo que pusiste en la NOTA
+          
+          // --- CORRECCIÓN AQUÍ: Agregamos variation_label ---
+          variation_label: row[7] || "", 
+
+          // La cantidad a enviar es lo que pusiste en la NOTA
           quantity_to_send: noteQty, 
           
           // Enviamos el sugerido original por si acaso
           suggested_quantity: suggestionQty, 
 
-          note: note                       
+          note: note                        
         };
       })
       // 2. Filtramos: Solo enviamos si hay una cantidad válida en la nota ( > 0 )
@@ -209,7 +209,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
               <thead className="bg-gray-50 text-gray-500 uppercase font-medium sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 w-[150px]">SKU (0)</th>
-                  <th className="px-4 py-3 w-[150px]">Variante (1)</th>
+                  <th className="px-4 py-3 w-[150px]">Variante</th>
                   <th className="px-4 py-3">Título (2)</th>
                   <th className="px-4 py-3 w-[200px]">Nota (Cant.)</th>
                 </tr>

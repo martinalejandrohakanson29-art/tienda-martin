@@ -1,130 +1,156 @@
 "use client"
 
-import { Card, CardContent } from "@/components/ui/card"
+import { Product } from "@prisma/client"
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ShoppingCart } from "lucide-react"
-import Link from "next/link"
-import { useCart } from "@/hooks/use-cart"
-import { toast } from "sonner"
+import { ShoppingCart, Eye, ChevronLeft, ChevronRight } from "lucide-react"
 import { formatPrice } from "@/lib/utils"
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel"
+import { useCart } from "@/hooks/use-cart"
+import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 
 interface ProductCardProps {
-    product: any
+    product: Product
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-    const { addToCart } = useCart()
+    const cart = useCart()
+    const router = useRouter()
+    const [currentImageIndex, setCurrentImageIndex] = useState(0)
+    const [isHovered, setIsHovered] = useState(false)
+
+    // Preparamos las imágenes disponibles
+    const images = [
+        product.imageUrl,
+        product.imageUrl2,
+        product.imageUrl3
+    ].filter(Boolean) as string[] // Filtramos las que no existen
+
+    // Pre-carga de imágenes para evitar parpadeos
+    useEffect(() => {
+        images.forEach((src) => {
+            const img = new Image()
+            img.src = src
+        })
+    }, [images])
+
+    const nextImage = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        setCurrentImageIndex((prev) => (prev + 1) % images.length)
+    }
+
+    const prevImage = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length)
+    }
+
+    const goToProduct = () => {
+        router.push(`/products/${product.id}`)
+    }
 
     const onAddToCart = (e: React.MouseEvent) => {
-        e.preventDefault()
         e.stopPropagation()
-        addToCart(product)
-        toast.success("Producto agregado al carrito")
+        cart.addToCart(product)
     }
 
-    const preventLinkAction = (e: React.MouseEvent) => {
-        e.preventDefault()
-        e.stopPropagation()
-    }
-
+    // Calculamos precio final
     const finalPrice = Number(product.price) * (1 - (product.discount || 0) / 100)
-    
-    // Filtramos imágenes vacías
-    const images = [product.imageUrl, product.imageUrl2, product.imageUrl3].filter(img => img && img.trim() !== "")
 
     return (
-        <Link href={`/products/${product.id}`} className="block h-full">
-            <Card className="h-full hover:shadow-lg transition-shadow duration-300 cursor-pointer group overflow-hidden border-0 bg-white shadow-sm ring-1 ring-gray-100">
+        <Card 
+            onClick={goToProduct}
+            className="group relative overflow-hidden border-gray-100 hover:shadow-xl transition-all duration-300 cursor-pointer h-full flex flex-col"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            {/* 1. SECCIÓN DE IMAGEN (Con Carrusel) */}
+            <div className="aspect-square relative overflow-hidden bg-gray-100">
+                {/* Badge de Descuento */}
+                {(product.discount || 0) > 0 && (
+                    <span className="absolute top-2 right-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full z-10 shadow-sm">
+                        -{product.discount}%
+                    </span>
+                )}
                 
-                {/* ZONA DE IMAGEN / CARRUSEL */}
-                <div className="aspect-square relative overflow-hidden bg-gray-100">
-                    {product.discount > 0 && (
-                         // 👇 CAMBIOS AQUÍ:
-                         // 1. "text-xs" (antes text-[10px]) -> Letra más grande
-                         // 2. "px-3 py-1" (antes px-2 py-0.5) -> Cartel más grande
-                         <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded-full z-10 shadow-sm">
-                            -{product.discount}%
-                        </span>
-                    )}
-                    
-                    {images.length > 1 ? (
-                        <Carousel className="w-full h-full" opts={{ loop: true }}>
-                             <CarouselContent>
-                                {images.map((img, index) => (
-                                    <CarouselItem key={index} className="pl-0"> 
-                                        <div className="aspect-square relative w-full h-full">
-                                            <img 
-                                                src={img} 
-                                                alt={product.title} 
-                                                className="w-full h-full object-cover"
-                                                loading="lazy"
-                                            />
-                                        </div>
-                                    </CarouselItem>
-                                ))}
-                             </CarouselContent>
-                             
-                             {/* FLECHA IZQUIERDA - SIEMPRE VISIBLE */}
-                             <div 
-                                onClick={preventLinkAction} 
-                                className="absolute left-2 top-1/2 -translate-y-1/2 z-20" 
-                             >
-                                <CarouselPrevious className="h-8 w-8 relative static translate-y-0 bg-white/90 hover:bg-white text-black border shadow-md" />
-                             </div>
-                             
-                             {/* FLECHA DERECHA - SIEMPRE VISIBLE */}
-                             <div 
-                                onClick={preventLinkAction} 
-                                className="absolute right-2 top-1/2 -translate-y-1/2 z-20"
-                             >
-                                <CarouselNext className="h-8 w-8 relative static translate-y-0 bg-white/90 hover:bg-white text-black border shadow-md" />
-                             </div>
-                        </Carousel>
-                    ) : (
-                        // SI SOLO HAY 1 IMAGEN
-                        <img 
-                            src={images[0] || product.imageUrl} 
-                            alt={product.title} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            loading="lazy"
-                        />
-                    )}
+                {/* Imagen Actual */}
+                <img 
+                    src={images[currentImageIndex]} 
+                    alt={product.title} 
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x400?text=Sin+Imagen" }}
+                />
 
-                    {/* BOTÓN AGREGAR */}
-                    <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 hidden md:block z-30">
-                        <Button 
-                            className="w-full bg-white text-black hover:bg-gray-100 shadow-lg" 
-                            size="sm" 
-                            onClick={onAddToCart}
+                {/* Flechas de Navegación (Solo si hay más de 1 imagen y hacemos hover) */}
+                {images.length > 1 && isHovered && (
+                    <>
+                        <button 
+                            onClick={prevImage}
+                            className="absolute left-1 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-1 shadow-md transition-all z-20"
                         >
-                            <ShoppingCart size={16} className="mr-2" /> Agregar
-                        </Button>
-                    </div>
-                </div>
-                
-                <CardContent className="p-3">
-                    <h3 className="font-medium text-sm text-gray-800 line-clamp-2 min-h-[2.5rem] leading-tight group-hover:text-blue-600 transition-colors">
+                            <ChevronLeft size={16} />
+                        </button>
+                        <button 
+                            onClick={nextImage}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-1 shadow-md transition-all z-20"
+                        >
+                            <ChevronRight size={16} />
+                        </button>
+                        {/* Indicador de puntitos */}
+                        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 z-20">
+                            {images.map((_, idx) => (
+                                <div 
+                                    key={idx} 
+                                    className={`h-1.5 w-1.5 rounded-full shadow-sm ${idx === currentImageIndex ? 'bg-blue-600' : 'bg-white/70'}`}
+                                />
+                            ))}
+                        </div>
+                    </>
+                )}
+
+                {/* Overlay Oscuro al hacer hover (opcional, para resaltar botones) */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300" />
+            </div>
+
+            {/* 2. SECCIÓN DE INFORMACIÓN */}
+            <CardContent className="p-3 flex-1 flex flex-col">
+                <div className="mb-2">
+                    <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
+                        {product.category}
+                    </p>
+                    
+                    {/* 👇 CAMBIO CLAVE AQUÍ: Título Mejorado */}
+                    {/* line-clamp-2: Permite 2 líneas y luego pone '...' */}
+                    {/* h-10: Altura fija para que todas las tarjetas midan lo mismo aunque el título sea corto */}
+                    <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 h-9 mt-1" title={product.title}>
                         {product.title}
                     </h3>
-                    <div className="flex items-baseline gap-2 mt-2">
-                        <span className="font-bold text-lg text-gray-900">
-                            {formatPrice(finalPrice)}
-                        </span>
-                        {product.discount > 0 && (
-                            <span className="text-xs text-gray-400 line-through">
+                </div>
+
+                <div className="mt-auto pt-2 flex items-end justify-between border-t border-gray-50">
+                    <div className="flex flex-col">
+                        {(product.discount || 0) > 0 && (
+                            <span className="text-[10px] text-gray-400 line-through">
                                 {formatPrice(Number(product.price))}
                             </span>
                         )}
+                        <span className="text-lg font-extrabold text-gray-900">
+                            {formatPrice(finalPrice)}
+                        </span>
                     </div>
-                </CardContent>
-            </Card>
-        </Link>
+                </div>
+            </CardContent>
+
+            {/* 3. BOTÓN DE ACCIÓN (Aparece en PC al hover, visible en móvil) */}
+            <CardFooter className="p-3 pt-0">
+                <Button 
+                    className="w-full bg-slate-900 hover:bg-blue-600 text-white transition-colors shadow-sm" 
+                    size="sm"
+                    onClick={onAddToCart}
+                >
+                    <ShoppingCart size={16} className="mr-2" /> Agregar
+                </Button>
+            </CardFooter>
+        </Card>
     )
 }

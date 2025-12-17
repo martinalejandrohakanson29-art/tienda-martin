@@ -138,31 +138,38 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
       const itemsToSend = body.map((row, index) => {
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
+        const noteQty = cleanNumber(note); // Convertimos la nota en número
 
         return {
           sku: row[0],
           
-          // 👇 AQUÍ AGREGAMOS LA COLUMNA SOLICITADA
-          variation_label: row[1], // Mapeamos la col 1 como Label de Variación
-          seller_sku: row[1],      // Mantenemos también seller_sku por compatibilidad
+          variation_label: row[1], // Columna 1
+          seller_sku: row[1],      // Columna 1
           
           title: row[2],
           
+          // Mapeamos la Columna 4 (row[3]) con varios nombres para asegurar que la encuentres
           current_stock: row[3],
-          sales_last_month: row[3], // Aseguramos que se envíe con ambos nombres
+          sales_last_month: row[3], 
+          column_4_info: row[3],
           
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
           
-          quantity_to_send: suggestionQty, 
+          // CAMBIO CLAVE: La cantidad a enviar es lo que pusiste en la NOTA
+          quantity_to_send: noteQty, 
+          
+          // Enviamos el sugerido original por si acaso
+          suggested_quantity: suggestionQty, 
+
           note: note                       
         };
       })
-      // 2. Filtramos
-      .filter(item => item.quantity_to_send > 0 || item.note.trim() !== "");
+      // 2. Filtramos: Solo enviamos si hay una cantidad válida en la nota ( > 0 )
+      .filter(item => item.quantity_to_send > 0);
 
       if (itemsToSend.length === 0) {
-        alert("No hay ítems con sugerencia (>0) ni notas.");
+        alert("No hay ítems con notas/cantidades cargadas (>0) para procesar.");
         return;
       }
 
@@ -178,8 +185,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   // --- VISTA DE RESUMEN (MODAL) ---
   if (summaryData) {
-    const visibleSummary = summaryData.filter(item => item.note && item.note.trim() !== "");
-    const totalUnits = visibleSummary.reduce((sum, item) => sum + cleanNumber(item.note), 0);
+    // Como ya filtramos antes, summaryData solo tiene los ítems correctos
+    const totalUnits = summaryData.reduce((sum, item) => sum + item.quantity_to_send, 0);
 
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -205,32 +212,31 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                   <th className="px-4 py-3 w-[150px]">SKU (0)</th>
                   <th className="px-4 py-3 w-[150px]">Variante (1)</th>
                   <th className="px-4 py-3">Título (2)</th>
-                  <th className="px-4 py-3 w-[200px]">Nota</th>
+                  <th className="px-4 py-3 w-[200px]">Nota (Cant.)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {visibleSummary.length > 0 ? (
-                  visibleSummary.map((item, idx) => (
+                {summaryData.length > 0 ? (
+                  summaryData.map((item, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors">
                       <td className="px-2 py-2">
                         <CopyableCell text={item.sku} />
                       </td>
                       <td className="px-2 py-2">
-                        {/* Mostramos variation_label/seller_sku aquí */}
                         <CopyableCell text={item.variation_label} /> 
                       </td>
                       <td className="px-2 py-2">
                         <CopyableCell text={item.title} className="max-w-[300px]" />
                       </td>
                       <td className="px-2 py-2">
-                        <CopyableCell text={item.note} className="bg-yellow-50 text-yellow-800 font-bold" />
+                        <CopyableCell text={item.quantity_to_send} className="bg-yellow-50 text-yellow-800 font-bold" />
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
                     <td colSpan={4} className="py-10 text-center text-gray-400">
-                        No hay ítems con notas para mostrar.
+                        No hay ítems para mostrar.
                     </td>
                   </tr>
                 )}

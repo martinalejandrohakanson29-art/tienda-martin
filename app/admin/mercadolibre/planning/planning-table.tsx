@@ -120,7 +120,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           seller_sku: row[1],
           title: row[2],
           current_stock: row[3],   
-          
+          current_variable: row[8],  
           // 👇 AQUÍ AGREGAMOS LOS DATOS FALTANTES
           // (Cámbiale el nombre a la clave 'sales_info' o 'cost' según lo que sea esa columna)
           column_9_info: row[5], 

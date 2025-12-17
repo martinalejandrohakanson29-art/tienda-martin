@@ -114,7 +114,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         };
       })
       // FILTRO IMPORTANTE: Solo enviamos lo que tenga cantidad > 0 O una nota escrita
-      .filter(item => item.quantity_to_send > 0 || item.note.trim() !== "");
+      .filter(item => item.note.trim() !== "");
 
       if (itemsToSend.length === 0) {
         alert("No hay ítems con sugerencia de envío (>0) ni notas para procesar.");

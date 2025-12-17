@@ -4,7 +4,6 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { ShoppingCart } from "lucide-react"
 import Link from "next/link"
-// 👇 CORRECCIÓN: Usamos llaves { } para importar porque no es un export default
 import { useCart } from "@/hooks/use-cart"
 import { toast } from "sonner"
 import { formatPrice } from "@/lib/utils"
@@ -21,13 +20,11 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-    // 👇 CORRECCIÓN: Extraemos la función correcta 'addToCart'
     const { addToCart } = useCart()
 
     const onAddToCart = (e: React.MouseEvent) => {
         e.preventDefault()
         e.stopPropagation()
-        // 👇 CORRECCIÓN: Usamos el nombre correcto de la función
         addToCart(product)
         toast.success("Producto agregado al carrito")
     }
@@ -71,21 +68,24 @@ export default function ProductCard({ product }: ProductCardProps) {
                                 ))}
                              </CarouselContent>
                              
+                             {/* FLECHA IZQUIERDA - SIEMPRE VISIBLE */}
                              <div 
                                 onClick={preventLinkAction} 
-                                className="absolute left-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"
+                                className="absolute left-2 top-1/2 -translate-y-1/2 z-20" 
                              >
-                                <CarouselPrevious className="h-8 w-8 relative static translate-y-0 bg-white/80 hover:bg-white" />
+                                <CarouselPrevious className="h-8 w-8 relative static translate-y-0 bg-white/90 hover:bg-white text-black border shadow-md" />
                              </div>
                              
+                             {/* FLECHA DERECHA - SIEMPRE VISIBLE */}
                              <div 
                                 onClick={preventLinkAction} 
-                                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 z-20"
                              >
-                                <CarouselNext className="h-8 w-8 relative static translate-y-0 bg-white/80 hover:bg-white" />
+                                <CarouselNext className="h-8 w-8 relative static translate-y-0 bg-white/90 hover:bg-white text-black border shadow-md" />
                              </div>
                         </Carousel>
                     ) : (
+                        // SI SOLO HAY 1 IMAGEN
                         <img 
                             src={images[0] || product.imageUrl} 
                             alt={product.title} 
@@ -94,6 +94,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                         />
                     )}
 
+                    {/* BOTÓN AGREGAR */}
                     <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 hidden md:block z-30">
                         <Button 
                             className="w-full bg-white text-black hover:bg-gray-100 shadow-lg" 

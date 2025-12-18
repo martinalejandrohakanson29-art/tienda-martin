@@ -5,8 +5,9 @@ import axios from "axios"
 import Papa from "papaparse"
 import { prisma } from "@/lib/prisma"
 
-// --- CONFIGURACIÓN ---
-const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1q0qWmIcRAybrxQcYRhJd5s-A1xiEe_VenWEA84Xptso/export?format=csv&gid=1839169689'
+// --- CONFIGURACIÓN ACTUALIZADA ---
+// 👇 Cambiamos el GID al final para apuntar a la hoja de "Agregados" (1236582105)
+const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1q0qWmIcRAybrxQcYRhJd5s-A1xiEe_VenWEA84Xptso/export?format=csv&gid=1236582105'
 const DRIVE_PARENT_FOLDER_ID = '1v-E638QF0AaPr7zywfH2luZvnHXtJujp' 
 
 const getDriveClient = () => {
@@ -20,17 +21,16 @@ const getDriveClient = () => {
 }
 
 const getPublicThumbnailLink = (fileId: string) => {
-    return `https://lh3.googleusercontent.com/d/${fileId}=s1000?authuser=0`
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000` // 👈 Ajuste menor para asegurar que la imagen cargue bien
 }
 
-// NUEVA: Listar carpetas de envíos disponibles (Carpetas dentro de la carpeta maestra)
 export async function getShipmentFolders() {
     try {
         const drive = getDriveClient()
         const res = await drive.files.list({
             q: `'${DRIVE_PARENT_FOLDER_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name, createdTime)',
-            orderBy: 'createdTime desc', // Los más recientes primero
+            orderBy: 'createdTime desc',
             pageSize: 20
         })
         return { success: true, folders: res.data.files || [] }
@@ -40,17 +40,13 @@ export async function getShipmentFolders() {
     }
 }
 
-// MODIFICADA: Ahora recibe un envioId (Nombre de la carpeta)
 export async function getAuditPendingItems(selectedEnvioName?: string) {
     try {
         const drive = getDriveClient()
         let envioFolderId = ""
         let envioId = selectedEnvioName || ""
 
-        // 1. Si NO nos pasan ID, tratamos de adivinarlo del Sheet (Comportamiento antiguo o fallback)
-        // O si nos pasan ID, buscamos su Folder ID real en Drive
-        
-        // Buscamos la carpeta específica del envío
+        // 1. Buscar carpeta del envío
         let query = `'${DRIVE_PARENT_FOLDER_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`
         if (selectedEnvioName) {
             query += ` and name = '${selectedEnvioName}'`
@@ -59,7 +55,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const envioFolderRes = await drive.files.list({
             q: query,
             fields: 'files(id, name)',
-            pageSize: 1 // Si no especificamos, agarramos el primero (el más reciente o el que coincida)
+            pageSize: 1
         })
 
         if (!envioFolderRes.data.files?.length) {
@@ -68,38 +64,44 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
 
         const folderObj = envioFolderRes.data.files[0]
         envioFolderId = folderObj.id!
-        envioId = folderObj.name! // Aseguramos tener el nombre real
+        envioId = folderObj.name! 
 
-        // 2. Traer datos del Sheet (Opcional: solo para sacar Títulos y SKUs bonitos)
+        // 2. Traer datos del Sheet (CON AGREGADOS)
         let sheetMap = new Map()
         try {
+            console.log("Descargando CSV...")
             const response = await axios.get(GOOGLE_SHEET_CSV_URL)
             const parsed = Papa.parse(response.data, { header: true, skipEmptyLines: true })
             const sheetData = parsed.data as any[]
             
-            // Mapeamos MLA -> Datos
             sheetData.forEach(row => {
+                // Buscamos columnas flexibles por si cambian el nombre exacto
                 const keys = Object.keys(row)
-                const itemId = row['ITEM ID'] || row[keys[0]]
+                const itemId = row['ITEM ID'] || row['MLA'] || row[keys[0]] // Intenta buscar ITEM ID o usa la primera columna
+                
                 if (itemId) {
-                    sheetMap.set(itemId, {
-                        title: row['Nombre'] || row['Titulo'] || row[keys[1]],
-                        sku: row['SKU'] || row[keys[2]]
+                    sheetMap.set(itemId.trim(), {
+                        title: row['Nombre'] || row['Titulo'] || row['TITLE'] || '',
+                        sku: row['SKU'] || '',
+                        // 👇 ACÁ CAPTURAMOS LOS AGREGADOS
+                        // Busca una columna que se llame 'Agregados', 'Extras' o 'Notas'
+                        agregados: row['Agregados'] || row['Agregado'] || row['Notas'] || row['Observaciones'] || '' 
                     })
                 }
             })
+            console.log(`Sheet procesado. ${sheetMap.size} items en memoria.`)
         } catch (e) {
-            console.warn("No se pudo leer el Sheet, se mostrarán nombres crudos.", e)
+            console.warn("Error leyendo Sheet:", e)
         }
 
-        // 3. Buscar qué ya aprobamos en la Base de Datos para este envío
+        // 3. Filtrar auditados (Base de Datos)
         const auditedItems = await prisma.shipmentAudit.findMany({
             where: { envioId: envioId },
             select: { itemId: true }
         })
         const auditedSet = new Set(auditedItems.map(i => i.itemId))
 
-        // 4. Listar lo que hay REALMENTE en Drive (La verdad absoluta del contenido)
+        // 4. Listar carpetas REALES en Drive
         const mlaFoldersRes = await drive.files.list({
             q: `'${envioFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name)',
@@ -109,16 +111,12 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const mlaFolders = mlaFoldersRes.data.files || []
         const pendingItems = []
 
-        // 5. Iterar carpetas de Drive y armar la lista
         for (const folder of mlaFolders) {
-            // El nombre de la carpeta suele ser "MLA123" o "MLA123 - Titulo"
             const folderName = folder.name || ""
-            const mlaId = folderName.split(' ')[0].trim() // Extraemos el ID
+            const mlaId = folderName.split(' ')[0].trim() 
 
-            // A. ¿Ya lo auditamos?
             if (auditedSet.has(mlaId)) continue
 
-            // B. Buscar foto dentro
             const filesRes = await drive.files.list({
                 q: `'${folder.id}' in parents and mimeType contains 'image/' and trashed=false`,
                 fields: 'files(id)',
@@ -127,14 +125,13 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
 
             if (filesRes.data.files?.length) {
                 const file = filesRes.data.files[0]
-                
-                // C. Intentar enriquecer con datos del Sheet
-                const meta = sheetMap.get(mlaId) || {}
+                const meta = sheetMap.get(mlaId) || {} // Cruzamos datos
 
                 pendingItems.push({
                     itemId: mlaId,
-                    title: meta.title || folderName, // Si no hay Sheet, usamos el nombre de la carpeta
+                    title: meta.title || folderName,
                     sku: meta.sku || 'S/D',
+                    agregados: meta.agregados || null, // 👈 Pasamos el dato al front
                     imageUrl: getPublicThumbnailLink(file.id!),
                     envioId: envioId
                 })
@@ -150,6 +147,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
 }
 
 export async function auditItem(itemId: string, status: string, envioId: string, reason?: string) {
+    // ... (El resto queda igual) ...
     try {
         await prisma.shipmentAudit.create({
             data: { itemId, envioId, status, reason, auditor: "Admin" }

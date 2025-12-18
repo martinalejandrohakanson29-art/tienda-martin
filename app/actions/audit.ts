@@ -5,8 +5,7 @@ import axios from "axios"
 import Papa from "papaparse"
 import { prisma } from "@/lib/prisma"
 
-// --- CONFIGURACIÓN CORREGIDA ---
-// 1. Usamos la URL de EXPORTACIÓN con el ID y GID correctos.
+// --- CONFIGURACIÓN ---
 const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1q0qWmIcRAybrxQcYRhJd5s-A1xiEe_VenWEA84Xptso/export?format=csv&gid=1236582105'
 const DRIVE_PARENT_FOLDER_ID = '1v-E638QF0AaPr7zywfH2luZvnHXtJujp' 
 
@@ -66,7 +65,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         envioFolderId = folderObj.id!
         envioId = folderObj.name! 
 
-        // 2. Traer datos del Sheet (LÓGICA NUEVA)
+        // 2. Traer datos del Sheet
         let sheetMap = new Map()
         try {
             console.log("Descargando CSV desde:", GOOGLE_SHEET_CSV_URL)
@@ -75,39 +74,37 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
             const sheetData = parsed.data as any[]
             
             sheetData.forEach(row => {
-                // A. MATCHEAR POR "ITEM ID" (Columna A)
                 const itemId = row['ITEM ID']
-                
                 if (itemId) {
-                    // B. CONCATENAR LOS 4 AGREGADOS
-                    // Filtramos los que estén vacíos y los unimos con un " + "
+                    // Lista de Agregados
                     const listaAgregados = [
                         row['AGREGADO 1'],
                         row['AGREGADO 2'],
                         row['AGREGADO 3'],
                         row['AGREGADO 4']
-                    ].filter(texto => texto && texto.trim() !== "").join(" + ")
+                    ].filter(texto => texto && texto.trim() !== "")
 
                     sheetMap.set(itemId.trim(), {
                         title: row['Nombre'] || row['Titulo'] || 'Producto sin nombre',
                         sku: row['SKU'] || '',
-                        agregados: listaAgregados || null // Si queda vacío, pasamos null
+                        agregados: listaAgregados, // Array de strings
+                        referenceImage: row['URL FOTO'] || '' // Foto del Excel (Columna R)
                     })
                 }
             })
-            console.log(`Sheet procesado correctamente. ${sheetMap.size} items indexados.`)
         } catch (e) {
             console.warn("Error leyendo Sheet:", e)
         }
 
-        // 3. Filtrar lo que ya auditamos
+        // 3. Obtener estados de auditoría (Map: itemId -> status)
         const auditedItems = await prisma.shipmentAudit.findMany({
             where: { envioId: envioId },
-            select: { itemId: true }
+            select: { itemId: true, status: true }
         })
-        const auditedSet = new Set(auditedItems.map(i => i.itemId))
+        const statusMap = new Map()
+        auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status))
 
-        // 4. Listar carpetas REALES en Drive (La verdad del operario)
+        // 4. Listar carpetas REALES en Drive
         const mlaFoldersRes = await drive.files.list({
             q: `'${envioFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name)',
@@ -115,15 +112,16 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         })
 
         const mlaFolders = mlaFoldersRes.data.files || []
-        const pendingItems = []
+        const allItems = []
+
+        // Ordenamos alfabéticamente por nombre de carpeta
+        mlaFolders.sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""))
 
         for (const folder of mlaFolders) {
             const folderName = folder.name || ""
-            // Extraemos el ID (asumiendo formato "MLA12345 - Titulo")
             const mlaId = folderName.split(' ')[0].trim() 
 
-            if (auditedSet.has(mlaId)) continue
-
+            // Buscar foto dentro de la carpeta (Evidencia)
             const filesRes = await drive.files.list({
                 q: `'${folder.id}' in parents and mimeType contains 'image/' and trashed=false`,
                 fields: 'files(id)',
@@ -132,20 +130,26 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
 
             if (filesRes.data.files?.length) {
                 const file = filesRes.data.files[0]
-                const meta = sheetMap.get(mlaId) || {} // Cruzamos datos con el Sheet
+                const meta = sheetMap.get(mlaId) || {} 
 
-                pendingItems.push({
+                // Determinamos estado
+                let currentStatus = statusMap.get(mlaId) || 'PENDIENTE'
+
+                allItems.push({
                     itemId: mlaId,
+                    driveName: folderName, // Nombre exacto de Drive
                     title: meta.title || folderName,
                     sku: meta.sku || 'S/D',
-                    agregados: meta.agregados || null, // Aquí viaja la cadena "Mate + Bombilla + Yerba"
-                    imageUrl: getPublicThumbnailLink(file.id!),
+                    agregados: meta.agregados || [], // Array
+                    referenceImageUrl: meta.referenceImage || null, // Foto ML
+                    evidenceImageUrl: getPublicThumbnailLink(file.id!), // Foto Drive
+                    status: currentStatus,
                     envioId: envioId
                 })
             }
         }
 
-        return { success: true, data: pendingItems, envioId }
+        return { success: true, data: allItems, envioId }
 
     } catch (error: any) {
         console.error("Error Audit:", error)
@@ -153,7 +157,6 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
     }
 }
 
-// ... (La función auditItem queda igual)
 export async function auditItem(itemId: string, status: string, envioId: string, reason?: string) {
     try {
         await prisma.shipmentAudit.create({

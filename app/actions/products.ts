@@ -4,137 +4,106 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { Product } from "@prisma/client"
 
-// 1. Obtener todos los productos (ordenados por fecha)
+// 1. Obtener todos (ordenados por TU orden personalizado, y luego por fecha)
 export async function getProducts() {
     return await prisma.product.findMany({
-        orderBy: { createdAt: "desc" },
+        orderBy: [
+            { order: "asc" },      // Primero por orden (1, 2, 3...)
+            { createdAt: "desc" }  // Luego por fecha
+        ],
     })
 }
 
-// 2. Obtener solo los DESTACADOS (Grandes) - Límite 8
+// 2. Destacados (Grandes)
 export async function getFeaturedProducts() {
     return await prisma.product.findMany({
         where: { isFeatured: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: [
+            { order: "asc" },      // 👇 Respetamos tu orden manual
+            { createdAt: "desc" }
+        ],
     })
 }
 
-// 3. 👇 NUEVO: Obtener VIDRIERA / ÚLTIMOS INGRESOS (Chicos) - Límite 10
+// 3. Vidriera (Chicos)
 export async function getHomeShowcaseProducts() {
     return await prisma.product.findMany({
         where: { showOnHome: true },
-        take: 10, // Traemos máximo 10
-        orderBy: { updatedAt: "desc" }, // Ordenamos por "recién actualizado/creado"
+        take: 10,
+        orderBy: [
+            { order: "asc" },      // 👇 Respetamos tu orden manual
+            { updatedAt: "desc" }
+        ],
     })
 }
 
 export async function getProduct(id: string) {
-    return await prisma.product.findUnique({
-        where: { id },
-    })
+    return await prisma.product.findUnique({ where: { id } })
 }
 
 export async function incrementProductView(id: string) {
     await prisma.product.update({
         where: { id },
-        data: {
-            views: { increment: 1 }
-        }
+        data: { views: { increment: 1 } }
     })
 }
 
 // --- VALIDACIONES ---
 
 async function checkFeaturedLimit() {
-    const count = await prisma.product.count({
-        where: { isFeatured: true }
-    })
-    if (count >= 8) {
-        throw new Error("¡Límite alcanzado! Ya tienes 8 destacados. Quita uno antes de agregar otro.")
-    }
+    const count = await prisma.product.count({ where: { isFeatured: true } })
+    if (count >= 8) throw new Error("¡Límite alcanzado! Ya tienes 8 destacados.")
 }
 
-// 👇 NUEVA VALIDACIÓN: Límite para la vidriera
 async function checkShowcaseLimit() {
-    const count = await prisma.product.count({
-        where: { showOnHome: true }
-    })
-    if (count >= 10) {
-        throw new Error("¡Límite de Vidriera alcanzado! Ya tienes 10 productos en 'Últimos Ingresos'. Desmarca alguno antiguo.")
-    }
+    const count = await prisma.product.count({ where: { showOnHome: true } })
+    if (count >= 10) throw new Error("¡Límite de Vidriera alcanzado! Ya tienes 10 productos.")
 }
 
 // --- CREAR / EDITAR / BORRAR ---
 
 export async function createProduct(data: Omit<Product, "id" | "createdAt" | "updatedAt" | "views">) {
-    // Validamos límites antes de guardar
-    if (data.isFeatured) {
-        await checkFeaturedLimit()
-    }
-    if (data.showOnHome) {
-        await checkShowcaseLimit()
-    }
+    if (data.isFeatured) await checkFeaturedLimit()
+    if (data.showOnHome) await checkShowcaseLimit()
 
-    // Transformamos título a mayúsculas
     const dataToSave = {
         ...data,
         title: data.title.toUpperCase(),
-        price: data.price,
+        // Si no viene orden, lo dejamos en 0 o lo manejamos como venga
     }
 
-    const product = await prisma.product.create({
-        data: dataToSave,
-    })
+    const product = await prisma.product.create({ data: dataToSave })
     
-    revalidatePath("/admin/products")
-    revalidatePath("/shop")
-    revalidatePath("/")
+    revalidatePaths()
     return product
 }
 
 export async function updateProduct(id: string, data: Partial<Omit<Product, "id" | "createdAt" | "updatedAt">>) {
-    // Validamos límites si se está activando alguno de los switches
+    // Validaciones de límites...
     if (data.isFeatured) {
-        const currentProduct = await prisma.product.findUnique({ where: { id } })
-        // Solo verificamos si ANTES no era destacado y AHORA sí lo es
-        if (currentProduct && !currentProduct.isFeatured) {
-            await checkFeaturedLimit()
-        }
+        const current = await prisma.product.findUnique({ where: { id } })
+        if (current && !current.isFeatured) await checkFeaturedLimit()
     }
-
     if (data.showOnHome) {
-        const currentProduct = await prisma.product.findUnique({ where: { id } })
-        // Solo verificamos si ANTES no estaba en vidriera y AHORA sí
-        if (currentProduct && !currentProduct.showOnHome) {
-            await checkShowcaseLimit()
-        }
+        const current = await prisma.product.findUnique({ where: { id } })
+        if (current && !current.showOnHome) await checkShowcaseLimit()
     }
 
-    // Transformamos a mayúsculas si viene el título
     const dataToUpdate = { ...data }
-    if (dataToUpdate.title) {
-        dataToUpdate.title = dataToUpdate.title.toUpperCase()
-    }
+    if (dataToUpdate.title) dataToUpdate.title = dataToUpdate.title.toUpperCase()
 
     const product = await prisma.product.update({
         where: { id },
         data: dataToUpdate,
     })
     
-    revalidatePath("/admin/products")
-    revalidatePath("/shop")
-    revalidatePath("/")
+    revalidatePaths()
     return product
 }
 
 export async function deleteProduct(id: string) {
-    await prisma.product.delete({
-        where: { id },
-    })
-    
-    revalidatePath("/admin/products")
-    revalidatePath("/shop")
-    revalidatePath("/")
+    await prisma.product.delete({ where: { id } })
+    revalidatePaths()
 }
 
 export async function getUniqueCategories() {
@@ -143,10 +112,14 @@ export async function getUniqueCategories() {
       where: { stock: { gt: 0 } },
       select: { category: true }
     })
-    
-    const uniqueCategories = Array.from(new Set(products.map(p => p.category)))
-    return uniqueCategories.sort()
+    return Array.from(new Set(products.map(p => p.category))).sort()
   } catch (error) {
     return []
   }
+}
+
+function revalidatePaths() {
+    revalidatePath("/admin/products")
+    revalidatePath("/shop")
+    revalidatePath("/")
 }

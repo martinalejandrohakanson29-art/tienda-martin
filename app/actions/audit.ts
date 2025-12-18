@@ -74,7 +74,9 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
             const sheetData = parsed.data as any[]
             
             sheetData.forEach(row => {
+                // Matcheamos por ITEM ID (Columna A)
                 const itemId = row['ITEM ID']
+                
                 if (itemId) {
                     // Lista de Agregados
                     const listaAgregados = [
@@ -84,11 +86,16 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
                         row['AGREGADO 4']
                     ].filter(texto => texto && texto.trim() !== "")
 
+                    // 👇 AQUÍ ESTÁ EL CAMBIO CLAVE DE LOS NOMBRES
                     sheetMap.set(itemId.trim(), {
-                        title: row['Nombre'] || row['Titulo'] || 'Producto sin nombre',
-                        sku: row['SKU'] || '',
-                        agregados: listaAgregados, // Array de strings
-                        referenceImage: row['URL FOTO'] || '' // Foto del Excel (Columna R)
+                        // Buscamos 'NOMBRE' (Tu columna C)
+                        title: row['NOMBRE'] || row['Nombre'] || 'Producto sin nombre',
+                        
+                        // Buscamos 'ID INVENTORY' (Tu columna B)
+                        sku: row['ID INVENTORY'] || row['SKU'] || 'S/D',
+                        
+                        agregados: listaAgregados, 
+                        referenceImage: row['URL FOTO'] || '' 
                     })
                 }
             })
@@ -114,7 +121,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const mlaFolders = mlaFoldersRes.data.files || []
         const allItems = []
 
-        // Ordenamos alfabéticamente por nombre de carpeta
+        // Ordenamos alfabéticamente
         mlaFolders.sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""))
 
         for (const folder of mlaFolders) {
@@ -132,17 +139,16 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
                 const file = filesRes.data.files[0]
                 const meta = sheetMap.get(mlaId) || {} 
 
-                // Determinamos estado
                 let currentStatus = statusMap.get(mlaId) || 'PENDIENTE'
 
                 allItems.push({
                     itemId: mlaId,
-                    driveName: folderName, // Nombre exacto de Drive
-                    title: meta.title || folderName,
+                    driveName: folderName, 
+                    title: meta.title || folderName, // Si falla el Sheet, usa el nombre de la carpeta
                     sku: meta.sku || 'S/D',
-                    agregados: meta.agregados || [], // Array
-                    referenceImageUrl: meta.referenceImage || null, // Foto ML
-                    evidenceImageUrl: getPublicThumbnailLink(file.id!), // Foto Drive
+                    agregados: meta.agregados || [], 
+                    referenceImageUrl: meta.referenceImage || null,
+                    evidenceImageUrl: getPublicThumbnailLink(file.id!), 
                     status: currentStatus,
                     envioId: envioId
                 })

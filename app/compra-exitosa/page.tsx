@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -8,27 +8,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Send, CheckCircle2, ShoppingBag, AlertCircle } from "lucide-react"; // Agregué el ícono de alerta
+import { Send, CheckCircle2, ShoppingBag, AlertCircle } from "lucide-react";
 
-import useCart from "@/hooks/use-cart";
+// 👇 FIX 1: Importación con llaves { }
+import { useCart } from "@/hooks/use-cart";
 
-export default function CompraExitosaPage() {
+// Componente interno que usa useSearchParams
+function CompraExitosaContent() {
   const searchParams = useSearchParams();
-  const cart = useCart();
+  // 👇 FIX 2: Desestructuramos para obtener el array 'cart'
+  const { cart } = useCart();
   
   const paymentId = searchParams.get("payment_id") || "No disponible";
   
   const [productNames, setProductNames] = useState("");
-  // Estado para manejar el error de validación
   const [error, setError] = useState("");
 
+  // 👇 FIX 3: Usamos 'cart' directamente como array (sin .items)
   useEffect(() => {
-    if (cart.items.length > 0) {
-      const names = cart.items.map((item) => item.product.title).join(", ");
+    if (cart.length > 0) {
+      const names = cart.map((item) => item.product.title).join(", ");
       setProductNames(names);
-      // cart.removeAll(); 
+      // cart.removeAll(); // Si decides activarlo en el futuro
     }
-  }, [cart.items]);
+  }, [cart]);
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -44,24 +47,19 @@ export default function CompraExitosaPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    // Si el usuario empieza a escribir, borramos el error para que no moleste
     if (error) setError("");
   };
 
   const handleWhatsApp = () => {
     const { nombre, dni, domicilio, ciudad, provincia, telefono, email, cp, referencias } = formData;
 
-    // --- 1. VALIDACIÓN ---
-    // Verificamos que los campos obligatorios no estén vacíos.
-    // Nota: "Referencias" no está en esta lista, así que es opcional.
-    // "Domicilio" incluye calle y altura.
+    // Validación
     if (!nombre || !dni || !domicilio || !ciudad || !provincia || !telefono || !email || !cp) {
       setError("Por favor completa todos los campos obligatorios para poder coordinar el envío.");
-      return; // ⛔️ Cortamos la ejecución aquí si falta algo
+      return;
     }
 
-    // --- 2. ENVÍO ---
-    // Si pasa la validación, armamos el mensaje
+    // Armado del mensaje
     const message = `Hola! Realicé la compra del producto: ${productNames || "Varios productos"}
     
 Por MercadoPago, ID de pago: ${paymentId}
@@ -78,7 +76,7 @@ Por MercadoPago, ID de pago: ${paymentId}
 *CODIGO POSTAL:* ${cp}
 *REFERENCIAS DE LA CASA:* ${referencias}`;
 
-    // RECUERDA: CAMBIA ESTE NÚMERO POR EL TUYO
+    // ⚠️ RECUERDA: CAMBIA ESTE NÚMERO POR EL TUYO
     const phoneNumber = "5493512404003"; 
     
     const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
@@ -86,8 +84,7 @@ Por MercadoPago, ID de pago: ${paymentId}
   };
 
   return (
-    <div className="container mx-auto py-10 px-4 flex justify-center items-start min-h-screen bg-slate-50">
-      <Card className="w-full max-w-2xl shadow-lg">
+    <Card className="w-full max-w-2xl shadow-lg">
         <CardHeader className="text-center border-b bg-white rounded-t-lg pb-8">
           <div className="mx-auto mb-4 bg-green-100 text-green-600 rounded-full p-3 w-fit">
             <CheckCircle2 size={48} />
@@ -150,7 +147,6 @@ Por MercadoPago, ID de pago: ${paymentId}
             />
           </div>
 
-          {/* Mensaje de Error Visual */}
           {error && (
             <div className="bg-red-50 text-red-600 p-3 rounded-md flex items-center gap-2 text-sm border border-red-200">
               <AlertCircle className="w-4 h-4" />
@@ -176,7 +172,17 @@ Por MercadoPago, ID de pago: ${paymentId}
           </div>
 
         </CardContent>
-      </Card>
+    </Card>
+  );
+}
+
+// Componente principal envuelto en Suspense
+export default function CompraExitosaPage() {
+  return (
+    <div className="container mx-auto py-10 px-4 flex justify-center items-start min-h-screen bg-slate-50">
+      <Suspense fallback={<div>Cargando...</div>}>
+        <CompraExitosaContent />
+      </Suspense>
     </div>
   );
 }

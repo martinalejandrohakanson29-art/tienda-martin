@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label"; // Asegúrate de tener este componente, si no usa <label> normal
+import { Label } from "@/components/ui/label"; 
 import { 
   Maximize2, Minimize2, ArrowUp, ArrowDown, Save, Loader2, 
   Check, Copy, XCircle, Truck 
@@ -55,7 +55,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   const [columnWidths, setColumnWidths] = useState<{ [key: number]: number }>({});
   const [inputValues, setInputValues] = useState<{ [rowIndex: number]: string }>({});
   
-  // 🆕 NUEVO ESTADO: ID del Envío
+  // Estado para el ID del Envío
   const [shipmentId, setShipmentId] = useState("");
 
   const [sortConfig, setSortConfig] = useState<{ index: number | null; direction: "asc" | "desc" }>({
@@ -134,10 +134,9 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   // --- PROCESAMIENTO ---
   const handleProcess = () => {
-    // 🛑 VALIDACIÓN: Si no hay ID de envío, no dejamos continuar
+    // 🛑 VALIDACIÓN
     if (!shipmentId || shipmentId.trim() === "") {
         alert("⚠️ ATENCIÓN:\n\nDebes ingresar el Número de Envío Full (#) antes de procesar.");
-        // Hacemos foco en el input (opcional, pero visualmente útil si tuviéramos ref)
         return;
     }
 
@@ -151,9 +150,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         const noteQty = cleanNumber(note); 
 
         return {
-          // 🆕 AGREGAMOS EL DATO AL PAYLOAD
           shipment_id: shipmentId.trim(),
-
           sku: row[0],
           seller_sku: row[1],
           title: row[2],
@@ -168,7 +165,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           note: note                        
         };
       })
-      // 2. Filtramos: Solo enviamos si hay una cantidad válida en la nota ( > 0 )
+      // 2. Filtramos: Solo enviamos si hay una cantidad válida
       .filter(item => item.quantity_to_send > 0);
 
       if (itemsToSend.length === 0) {
@@ -251,7 +248,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   // --- VISTA NORMAL ---
   return (
     <Card className="h-full flex flex-col shadow-none border-0"> 
-      <CardHeader className="flex flex-col gap-4 pb-4 px-0">
+      <CardHeader className="flex flex-col gap-2 pb-4 px-0">
         
         {/* TITULO Y BOTONES PRINCIPALES */}
         <div className="flex flex-row items-center justify-between">
@@ -259,7 +256,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                 Planificación ({body.length} filas)
             </CardTitle>
             <div className="flex gap-2">
-                {/* BOTÓN PROCESAR (DESHABILITADO VISUALMENTE SI FALTA ID) */}
+                {/* BOTÓN PROCESAR */}
                 <Button 
                     size="sm" 
                     className={`${!shipmentId ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} gap-2 shadow-sm transition-colors`}
@@ -278,27 +275,30 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             </div>
         </div>
 
-        {/* 🆕 SECCIÓN DE INPUT LLAMATIVO PARA EL ENVÍO */}
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-2">
-            <div className="bg-yellow-100 p-2 rounded-full">
-                <Truck className="h-6 w-6 text-yellow-700" />
-            </div>
-            <div className="flex flex-col gap-1 flex-1">
-                <Label htmlFor="shipmentInput" className="text-yellow-800 font-bold uppercase text-xs tracking-wide">
-                    Número de Envío Full (Requerido)
-                </Label>
+        {/* 👇 NUEVA SECCIÓN DE INPUT:
+            Compacto, centrado, limpio. 
+        */}
+        <div className="flex justify-center w-full py-2">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4 flex flex-col items-center gap-2 shadow-sm w-auto min-w-[280px]">
+                
+                <div className="flex items-center gap-2 text-yellow-800/90">
+                    <Truck className="h-4 w-4" />
+                    <Label htmlFor="shipmentInput" className="font-bold uppercase text-[10px] tracking-wider cursor-pointer">
+                        Número de Envío Full (Req.)
+                    </Label>
+                </div>
+
                 <Input 
                     id="shipmentInput"
                     value={shipmentId}
                     onChange={(e) => setShipmentId(e.target.value)}
-                    placeholder="Ej: 12345678"
-                    className="border-yellow-300 focus:border-yellow-500 focus:ring-yellow-200 text-lg font-bold text-gray-800 bg-white h-11"
+                    placeholder="#123456"
+                    className="border-yellow-300 focus:border-yellow-500 focus:ring-yellow-200 text-center text-lg font-bold text-gray-800 bg-white h-9 w-40 shadow-inner"
+                    maxLength={15}
                 />
             </div>
-            <div className="text-xs text-yellow-700 max-w-[200px] hidden md:block leading-tight">
-                Ingresa el ID que te dio MercadoLibre para poder procesar el pedido.
-            </div>
         </div>
+        {/* FIN SECCIÓN INPUT */}
 
       </CardHeader>
       

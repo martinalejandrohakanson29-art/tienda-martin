@@ -4,13 +4,13 @@ import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea" // 👈 Importamos el nuevo componente
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Trash, Pencil, Star, ShoppingBag, Video, Image as ImageIcon, Store } from "lucide-react" 
+import { Plus, Trash, Pencil, Star, ShoppingBag, Video, Image as ImageIcon, Store, ArrowUpDown } from "lucide-react" 
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
-// Actualizamos el tipo de datos
 type ProductForm = {
     title: string
     description: string
@@ -23,8 +23,9 @@ type ProductForm = {
     videoUrl: string
     discount: string
     isFeatured: boolean
-    showOnHome: boolean // 👈 NUEVO CAMPO
+    showOnHome: boolean
     mercadolibreUrl: string
+    order: string // 👈 Nuevo campo en el formulario (lo manejamos como string para el input)
 }
 
 const initialState: ProductForm = {
@@ -39,8 +40,9 @@ const initialState: ProductForm = {
     videoUrl: "",
     discount: "0",
     isFeatured: false,
-    showOnHome: false, // 👈 Inicializamos en false
-    mercadolibreUrl: ""
+    showOnHome: false,
+    mercadolibreUrl: "",
+    order: "0" // 👈 Valor por defecto
 }
 
 export default function ProductsClient({ initialProducts }: { initialProducts: any[] }) {
@@ -61,7 +63,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
-                return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
+                return `https://lh3.googleusercontent.com/d/${idMatch[1]}` // Corrección en URL de drive
             }
         }
         return url
@@ -84,7 +86,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 stock: parseInt(formData.stock),
                 discount: parseInt(formData.discount || "0"),
                 isFeatured: formData.isFeatured,
-                showOnHome: formData.showOnHome // 👈 Enviamos el dato
+                showOnHome: formData.showOnHome,
+                order: parseInt(formData.order || "0") // 👈 Guardamos el orden como número
             }
 
             if (editingId) {
@@ -118,8 +121,9 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             videoUrl: product.videoUrl || "",
             discount: (product.discount || 0).toString(),
             isFeatured: product.isFeatured || false,
-            showOnHome: product.showOnHome || false, // 👈 Cargamos el dato existente
-            mercadolibreUrl: product.mercadolibreUrl || ""
+            showOnHome: product.showOnHome || false,
+            mercadolibreUrl: product.mercadolibreUrl || "",
+            order: (product.order || 0).toString() // 👈 Cargamos el orden existente
         })
         setIsOpen(true)
     }
@@ -169,9 +173,16 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 </div>
                             </div>
 
+                            {/* 👇 DESCRIPCIÓN AHORA USA TEXTAREA */}
                             <div className="space-y-2">
                                 <Label>Descripción</Label>
-                                <Input required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Detalles..." />
+                                <Textarea 
+                                    required 
+                                    value={formData.description} 
+                                    onChange={e => setFormData({...formData, description: e.target.value})} 
+                                    placeholder="Detalles... (Puedes usar Enter para saltos de línea)" 
+                                    className="min-h-[100px]"
+                                />
                             </div>
                             
                             {/* PRECIOS Y STOCK */}
@@ -188,6 +199,23 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                     <Label>Stock</Label>
                                     <Input required type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} />
                                 </div>
+                            </div>
+
+                            {/* 👇 NUEVO CAMPO: ORDEN / PRIORIDAD */}
+                            <div className="bg-slate-100 p-3 rounded-md flex items-center gap-4 border border-slate-200">
+                                <ArrowUpDown className="text-slate-500" />
+                                <div className="flex-1">
+                                    <Label className="font-bold text-slate-700">Orden / Prioridad</Label>
+                                    <p className="text-xs text-slate-500">
+                                        Número más bajo sale primero (Ej: 1 sale antes que 10).
+                                    </p>
+                                </div>
+                                <Input 
+                                    type="number" 
+                                    value={formData.order} 
+                                    onChange={e => setFormData({...formData, order: e.target.value})} 
+                                    className="w-24 text-center font-bold"
+                                />
                             </div>
 
                             {/* SECCIÓN DE IMÁGENES */}
@@ -217,7 +245,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 />
                             </div>
 
-                            {/* 👇 ZONA DE VISIBILIDAD (AQUÍ ESTÁ EL CAMBIO IMPORTANTE) */}
+                            {/* ZONA DE VISIBILIDAD */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
                                 {/* Destacado Principal */}
                                 <div className="flex items-center space-x-3 border p-3 rounded-lg hover:bg-gray-50 transition-colors">
@@ -267,11 +295,6 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 {initialProducts.map((product) => (
                     <Card key={product.id} className={`${product.isFeatured ? "border-2 border-blue-500 shadow-md" : ""} ${product.showOnHome ? "border-indigo-200 bg-indigo-50/20" : ""}`}>
                         <div className="aspect-square relative overflow-hidden rounded-t-xl bg-gray-100">
-                            {product.discount > 0 && (
-                                <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10">
-                                    {product.discount}% OFF
-                                </span>
-                            )}
                             {/* Badges de estado */}
                             <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
                                 {product.isFeatured && (
@@ -284,7 +307,17 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                         <Store size={10} /> Vidriera
                                     </span>
                                 )}
+                                {/* Badge de ORDEN */}
+                                <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm opacity-80">
+                                    <ArrowUpDown size={10} /> #{product.order || 0}
+                                </span>
                             </div>
+                            
+                            {product.discount > 0 && (
+                                <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10">
+                                    {product.discount}% OFF
+                                </span>
+                            )}
                             
                             <img 
                                 src={product.imageUrl} 

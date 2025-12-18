@@ -17,6 +17,7 @@ model Product {
   id              String   @id @default(cuid())
   title           String
   description     String
+  order           Int      @default(0)
   price           Decimal
   stock           Int
   category        String

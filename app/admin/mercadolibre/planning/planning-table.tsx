@@ -136,32 +136,26 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     startTransition(async () => {
       // 1. Construimos los objetos a enviar
       const itemsToSend = body.map((row, index) => {
-        // row[4] corresponde a la columna 8.
-        // Si la columna 8 es texto (Variation Label), suggestionQty será 0.
+        // row[4] corresponde a la columna 8 (Variation Label) según tu configuración actual
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
         const noteQty = cleanNumber(note); // Convertimos la nota en número
 
         return {
           sku: row[0],
-          seller_sku: row[1],
+          seller_sku: row[1], // <-- Este es tu INVENTORY ID (Columna 1)
           title: row[2],
           
           current_stock: row[3],
-          sales_last_month: row[3], // Se usa row[3] según tu lógica actual
+          sales_last_month: row[3], 
           column_4_info: row[3],
           
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
           
-          // --- CORRECCIÓN AQUÍ ---
-          // Usamos row[4] porque es el índice donde cae la columna 8 en el array filtrado.
           variation_label: row[4] || "", 
 
-          // La cantidad a enviar es lo que pusiste en la NOTA
           quantity_to_send: noteQty, 
-          
-          // Enviamos el sugerido original por si acaso
           suggested_quantity: suggestionQty, 
 
           note: note                        
@@ -187,12 +181,11 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   // --- VISTA DE RESUMEN (MODAL) ---
   if (summaryData) {
-    // Como ya filtramos antes, summaryData solo tiene los ítems correctos
     const totalUnits = summaryData.reduce((sum, item) => sum + item.quantity_to_send, 0);
 
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <Card className="w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <Card className="w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <CardHeader className="bg-green-50 border-b flex flex-row items-center justify-between py-4">
             <div>
               <CardTitle className="text-xl text-green-800 flex items-center gap-2">
@@ -212,9 +205,10 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
               <thead className="bg-gray-50 text-gray-500 uppercase font-medium sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 w-[150px]">ITEM ID</th>
+                  <th className="px-4 py-3 w-[150px]">INVENTORY ID</th> {/* NUEVA COLUMNA */}
                   <th className="px-4 py-3 w-[150px]">VARIANTE</th>
                   <th className="px-4 py-3">Título</th>
-                  <th className="px-4 py-3 w-[200px]">CANTIDAD (Cant.)</th>
+                  <th className="px-4 py-3 w-[120px]">CANTIDAD</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -223,6 +217,10 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                     <tr key={idx} className="hover:bg-gray-50 transition-colors">
                       <td className="px-2 py-2">
                         <CopyableCell text={item.sku} />
+                      </td>
+                      {/* NUEVA CELDA: INVENTORY ID (seller_sku) */}
+                      <td className="px-2 py-2">
+                        <CopyableCell text={item.seller_sku} />
                       </td>
                       <td className="px-2 py-2">
                         <CopyableCell text={item.variation_label} /> 
@@ -237,7 +235,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={4} className="py-10 text-center text-gray-400">
+                    <td colSpan={5} className="py-10 text-center text-gray-400">
                         No hay ítems para mostrar.
                     </td>
                   </tr>

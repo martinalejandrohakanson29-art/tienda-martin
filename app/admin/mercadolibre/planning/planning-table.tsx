@@ -132,7 +132,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     setInputValues(prev => ({ ...prev, [originalIndex]: value }));
   };
 
-  // --- PROCESAMIENTO ---
+ // ... dentro de planning-table.tsx ...
+
   const handleProcess = () => {
     // 🛑 VALIDACIÓN
     if (!shipmentId || shipmentId.trim() === "") {
@@ -158,8 +159,11 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           sales_last_month: row[3],
           column_4_info: row[3],
           column_9_info: row[5] || "", 
-          column_10_info: row[6] || "",
-          variation_label: row[7] || "", 
+          column_10_info: row[6] || "", // (Opcional) Puedes dejarlo o ajustarlo si columna 10 era otro dato
+          
+          // 👇 AQUÍ ESTABA EL ERROR: Cambiamos row[7] por row[6]
+          variation_label: row[6] || "", 
+          
           quantity_to_send: noteQty, 
           suggested_quantity: suggestionQty, 
           note: note                        

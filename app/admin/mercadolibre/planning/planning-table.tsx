@@ -211,10 +211,10 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-500 uppercase font-medium sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-4 py-3 w-[150px]">SKU (0)</th>
-                  <th className="px-4 py-3 w-[150px]">Variante</th>
-                  <th className="px-4 py-3">Título (2)</th>
-                  <th className="px-4 py-3 w-[200px]">Nota (Cant.)</th>
+                  <th className="px-4 py-3 w-[150px]">ITEM ID</th>
+                  <th className="px-4 py-3 w-[150px]">VARIANTE</th>
+                  <th className="px-4 py-3">Título</th>
+                  <th className="px-4 py-3 w-[200px]">CANTIDAD (Cant.)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

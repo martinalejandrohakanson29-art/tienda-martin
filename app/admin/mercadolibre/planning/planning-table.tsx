@@ -136,6 +136,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     startTransition(async () => {
       // 1. Construimos los objetos a enviar
       const itemsToSend = body.map((row, index) => {
+        // row[4] corresponde a la columna 8.
+        // Si la columna 8 es texto (Variation Label), suggestionQty será 0.
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
         const noteQty = cleanNumber(note); // Convertimos la nota en número
@@ -152,8 +154,9 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
           
-          // --- CORRECCIÓN AQUÍ: Agregamos variation_label ---
-          variation_label: row[7] || "", 
+          // --- CORRECCIÓN AQUÍ ---
+          // Usamos row[4] porque es el índice donde cae la columna 8 en el array filtrado.
+          variation_label: row[4] || "", 
 
           // La cantidad a enviar es lo que pusiste en la NOTA
           quantity_to_send: noteQty, 

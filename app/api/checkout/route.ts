@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       body: {
         items: [
             {
-                id: "carrito-combo", // 👈 ESTA ES LA LÍNEA QUE FALTABA (FIX)
+                id: "carrito-combo",
                 title: bundledTitle, 
                 quantity: 1,
                 unit_price: Number(totalAmount.toFixed(2)),
@@ -45,11 +45,15 @@ export async function POST(req: Request) {
                 picture_url: items[0]?.product.imageUrl || "",
             }
         ],
-        // Configuración de redirección al finalizar el pago
+        // 👇 AQUÍ ES DONDE CAMBIAMOS LA REDIRECCIÓN
         back_urls: {
-          success: `${process.env.NEXT_PUBLIC_BASE_URL}/shop?status=success`,
-          failure: `${process.env.NEXT_PUBLIC_BASE_URL}/shop?status=failure`,
-          pending: `${process.env.NEXT_PUBLIC_BASE_URL}/shop?status=pending`,
+          // 1. Ponemos tu dominio real
+          // 2. Apuntamos a la nueva página "/compra-exitosa"
+          success: "https://www.revolucionmotos.com.ar/compra-exitosa",
+          
+          // Si falla o queda pendiente, podemos dejarlos en el shop o llevarlos a otra página específica
+          failure: "https://www.revolucionmotos.com.ar/shop?status=failure",
+          pending: "https://www.revolucionmotos.com.ar/shop?status=pending",
         },
         auto_return: "approved",
       },

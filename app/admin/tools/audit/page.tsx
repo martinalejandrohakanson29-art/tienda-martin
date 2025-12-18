@@ -164,52 +164,76 @@ export default function AuditPage() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {items.map((item) => (
-                        <Card key={item.itemId} className="overflow-hidden flex flex-col group hover:shadow-lg transition-all border-0 shadow-md ring-1 ring-gray-200">
-                            {/* IMAGEN GRANDE */}
-                            <div className="relative aspect-video bg-gray-100 overflow-hidden cursor-pointer" onClick={() => window.open(item.imageUrl, '_blank')}>
-                                <img 
-                                    src={item.imageUrl} 
-                                    alt={item.title} 
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                                />
-                                <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded backdrop-blur-md">
-                                    Click para zoom
-                                </div>
-                            </div>
+               {items.map((item) => (
+    <Card key={item.itemId} className="overflow-hidden flex flex-col group hover:shadow-lg transition-all border-0 shadow-md ring-1 ring-gray-200">
+        {/* IMAGEN GRANDE */}
+        <div className="relative aspect-video bg-gray-100 overflow-hidden cursor-pointer" onClick={() => window.open(item.imageUrl, '_blank')}>
+            <img 
+                src={item.imageUrl} 
+                alt={item.title} 
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+            />
+            {/* Etiqueta de Agregados sobre la foto si existen */}
+            {item.agregados && (
+                <div className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded shadow-sm flex items-center gap-1">
+                    ⚠️ CON AGREGADOS
+                </div>
+            )}
+        </div>
 
-                            <CardContent className="p-5 flex-1 flex flex-col">
-                                <div className="mb-4">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <h3 className="font-bold text-gray-900 leading-tight text-lg line-clamp-2">{item.title}</h3>
-                                        <span className="shrink-0 bg-gray-100 text-gray-500 text-[10px] font-mono px-1.5 py-0.5 rounded ml-2">
-                                            {item.itemId}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm text-gray-500 font-mono">{item.sku}</p>
-                                </div>
+        <CardContent className="p-5 flex-1 flex flex-col">
+            <div className="mb-4">
+                <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-bold text-gray-900 leading-tight text-lg line-clamp-2">{item.title}</h3>
+                </div>
+                
+                <div className="flex items-center gap-2 mb-3">
+                    <span className="bg-gray-100 text-gray-600 text-[10px] font-mono px-2 py-1 rounded border border-gray-200">
+                        {item.itemId}
+                    </span>
+                    <span className="text-sm text-gray-500 font-mono border-l pl-2">
+                        {item.sku}
+                    </span>
+                </div>
 
-                                <div className="mt-auto grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
-                                    <Button 
-                                        variant="outline" 
-                                        className="border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700 h-12"
-                                        onClick={() => handleVote(item, 'RECHAZADO')}
-                                        disabled={!!processing}
-                                    >
-                                        <X className="mr-2 h-5 w-5" /> Rechazar
-                                    </Button>
-                                    <Button 
-                                        className="bg-green-600 hover:bg-green-700 text-white h-12 shadow-md hover:shadow-lg transition-all"
-                                        onClick={() => handleVote(item, 'APROBADO')}
-                                        disabled={!!processing}
-                                    >
-                                        {processing === item.itemId ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-5 w-5" />}
-                                        Aprobar
-                                    </Button>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                {/* 👇 SECCIÓN NUEVA: AGREGADOS / INFO DEL SHEET */}
+                {item.agregados ? (
+                    <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg text-sm text-blue-800">
+                        <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-1">
+                            Debe Incluir:
+                        </span>
+                        <p className="font-medium">
+                           {item.agregados}
+                        </p>
+                    </div>
+                ) : (
+                    <div className="bg-gray-50 border border-gray-100 p-3 rounded-lg text-sm text-gray-400 italic">
+                        Sin agregados declarados.
+                    </div>
+                )}
+            </div>
+
+            <div className="mt-auto grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
+                <Button 
+                    variant="outline" 
+                    className="border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700 h-12"
+                    onClick={() => handleVote(item, 'RECHAZADO')}
+                    disabled={!!processing}
+                >
+                    <X className="mr-2 h-5 w-5" /> Rechazar
+                </Button>
+                <Button 
+                    className="bg-green-600 hover:bg-green-700 text-white h-12 shadow-md hover:shadow-lg transition-all"
+                    onClick={() => handleVote(item, 'APROBADO')}
+                    disabled={!!processing}
+                >
+                    {processing === item.itemId ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-5 w-5" />}
+                    Aprobar
+                </Button>
+            </div>
+        </CardContent>
+    </Card>
+))}
                 </div>
             )}
         </div>

@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PackageCheck, FileSpreadsheet, ExternalLink, ArrowLeft, ArrowRight } from "lucide-react";
+import { PackageCheck, FileSpreadsheet, ExternalLink, ArrowLeft, ArrowRight, Truck } from "lucide-react";
 import Link from "next/link";
 
 export default function MercadoLibreDashboard() {
@@ -44,7 +44,27 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* TARJETA 2: Planificación (AHORA HABILITADA) */}
+        {/* TARJETA 2: Control / Auditoría (NUEVA) */}
+        <Card className="hover:shadow-md transition-all border-l-4 border-l-blue-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-700">
+              <Truck className="h-6 w-6" />
+              Control envios Full
+            </CardTitle>
+            <CardDescription>
+              Auditoría y revisión de fotos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/tools/audit">
+              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-sm">
+                Ir a Control <ArrowRight size={16} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 3: Planificación */}
         <Card className="hover:shadow-md transition-all border-l-4 border-l-green-600">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-green-700">

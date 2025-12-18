@@ -1,48 +1,185 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Send, CheckCircle2, ShoppingBag } from "lucide-react";
 
 export default function CompraExitosaPage() {
+  // Estado para guardar los datos del formulario
+  const [formData, setFormData] = useState({
+    nombre: "",
+    dni: "",
+    domicilio: "",
+    ciudad: "",
+    provincia: "",
+    telefono: "",
+    email: "",
+    cp: "",
+    referencias: ""
+  });
+
+  // Función que actualiza el estado cuando escriben en los inputs
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  // Función que arma el mensaje y abre WhatsApp
+  const handleWhatsApp = () => {
+    const { nombre, dni, domicilio, ciudad, provincia, telefono, email, cp, referencias } = formData;
+
+    // Construimos el mensaje con el formato exacto que pediste
+    const message = `*DATOS PARA ENVIO*
+
+*NOMBRE COMPLETO:* ${nombre}
+*DNI:* ${dni}
+*DOMICILIO:* ${domicilio}
+*CIUDAD:* ${ciudad}
+*PROVINCIA:* ${provincia}
+*TELEFONO:* ${telefono}
+*E-MAIL:* ${email}
+*CODIGO POSTAL:* ${cp}
+*REFERENCIAS DE LA CASA:* ${referencias}`;
+
+    // 👇 IMPORTANTE: CAMBIA ESTE NÚMERO POR EL TUYO (formato internacional sin +)
+    // Ejemplo: 5493512345678
+    const phoneNumber = "5493512404003"; 
+    
+    // Creamos el link y lo abrimos
+    const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+  };
+
   return (
-    <div className="container mx-auto py-10 px-4 flex justify-center">
-      <Card className="w-full max-w-md text-center">
-        <CardHeader>
-          <div className="mx-auto mb-4 bg-green-100 text-green-600 rounded-full p-3 w-fit">
-            {/* Ícono de Check simple */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
+    <div className="container mx-auto py-10 px-4 flex justify-center items-start min-h-screen bg-slate-50">
+      <Card className="w-full max-w-2xl shadow-lg">
+        <CardHeader className="text-center border-b bg-white rounded-t-lg pb-8">
+          <div className="mx-auto mb-4 bg-green-100 text-green-600 rounded-full p-3 w-fit animate-in zoom-in duration-500">
+            <CheckCircle2 size={48} />
           </div>
-          <CardTitle className="text-2xl font-bold text-green-700">¡Gracias por tu compra!</CardTitle>
+          <CardTitle className="text-3xl font-bold text-green-700">¡Pago Exitoso!</CardTitle>
+          <CardDescription className="text-lg mt-2">
+            Muchas gracias por tu compra. Para coordinar el envío, por favor completa tus datos.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <p className="text-muted-foreground">
-            El pago se procesó correctamente. Ahora necesitamos unos datos extra para coordinar el envío.
-          </p>
+        
+        <CardContent className="space-y-6 pt-8 bg-white rounded-b-lg">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Nombre Completo */}
+            <div className="space-y-2">
+              <Label htmlFor="nombre">Nombre Completo</Label>
+              <Input 
+                id="nombre" name="nombre" 
+                placeholder="Juan Pérez" 
+                value={formData.nombre} onChange={handleChange} 
+              />
+            </div>
 
-          {/* Aquí podrías poner un formulario real o un link a WhatsApp */}
-          <div className="bg-slate-50 p-4 rounded-md text-left text-sm space-y-2 border">
-            <p><strong>Siguientes pasos:</strong></p>
-            <ul className="list-disc list-inside text-muted-foreground">
-              <li>Revisa tu correo para ver el comprobante.</li>
-              <li>Contáctanos para confirmar la dirección de entrega.</li>
-            </ul>
+            {/* DNI */}
+            <div className="space-y-2">
+              <Label htmlFor="dni">DNI</Label>
+              <Input 
+                id="dni" name="dni" 
+                placeholder="12345678" 
+                value={formData.dni} onChange={handleChange} 
+              />
+            </div>
+
+            {/* Teléfono */}
+            <div className="space-y-2">
+              <Label htmlFor="telefono">Teléfono</Label>
+              <Input 
+                id="telefono" name="telefono" type="tel"
+                placeholder="351..." 
+                value={formData.telefono} onChange={handleChange} 
+              />
+            </div>
+
+            {/* Email */}
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input 
+                id="email" name="email" type="email"
+                placeholder="juan@ejemplo.com" 
+                value={formData.email} onChange={handleChange} 
+              />
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <Button asChild className="w-full bg-green-600 hover:bg-green-700">
-              <Link href="https://wa.me/549XXXXXXXXXX?text=Hola,%20hice%20una%20compra%20y%20quiero%20coordinar%20el%20envío">
-                Coordinar Envío por WhatsApp
-              </Link>
-            </Button>
-            
-            <Button variant="outline" asChild className="w-full">
-              <Link href="/shop">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             {/* Domicilio */}
+             <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="domicilio">Domicilio (Calle y Número)</Label>
+              <Input 
+                id="domicilio" name="domicilio" 
+                placeholder="Av. Colón 1234" 
+                value={formData.domicilio} onChange={handleChange} 
+              />
+            </div>
+
+            {/* Ciudad */}
+            <div className="space-y-2">
+              <Label htmlFor="ciudad">Ciudad</Label>
+              <Input 
+                id="ciudad" name="ciudad" 
+                value={formData.ciudad} onChange={handleChange} 
+              />
+            </div>
+
+            {/* Provincia */}
+            <div className="space-y-2">
+              <Label htmlFor="provincia">Provincia</Label>
+              <Input 
+                id="provincia" name="provincia" 
+                value={formData.provincia} onChange={handleChange} 
+              />
+            </div>
+
+            {/* Código Postal */}
+            <div className="space-y-2">
+              <Label htmlFor="cp">Código Postal</Label>
+              <Input 
+                id="cp" name="cp" 
+                value={formData.cp} onChange={handleChange} 
+              />
+            </div>
+          </div>
+
+          {/* Referencias */}
+          <div className="space-y-2">
+            <Label htmlFor="referencias">Referencias de la casa</Label>
+            <Textarea 
+              id="referencias" name="referencias" 
+              placeholder="Ej: Casa de rejas negras, esquina, portón gris..." 
+              value={formData.referencias} onChange={handleChange} 
+              className="min-h-[100px]"
+            />
+          </div>
+
+          {/* Botón Principal - WhatsApp */}
+          <Button 
+            onClick={handleWhatsApp}
+            className="w-full bg-green-600 hover:bg-green-700 text-lg py-6 mt-4 gap-2 shadow-md hover:shadow-lg transition-all"
+          >
+            <Send className="w-5 h-5" />
+            Enviar Datos por WhatsApp
+          </Button>
+
+          {/* Botón Secundario - Volver */}
+          <div className="pt-4 border-t flex justify-center">
+            <Button variant="ghost" asChild className="text-muted-foreground">
+              <Link href="/shop" className="gap-2">
+                <ShoppingBag className="w-4 h-4" />
                 Volver a la tienda
               </Link>
             </Button>
           </div>
+
         </CardContent>
       </Card>
     </div>

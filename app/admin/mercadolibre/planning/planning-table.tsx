@@ -4,9 +4,10 @@ import { useState, useRef, useEffect, useTransition } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label"; // Asegúrate de tener este componente, si no usa <label> normal
 import { 
   Maximize2, Minimize2, ArrowUp, ArrowDown, Save, Loader2, 
-  Check, Copy, XCircle 
+  Check, Copy, XCircle, Truck 
 } from "lucide-react";
 import { sendPlanningToN8N } from "@/app/actions/planning";
 
@@ -53,14 +54,16 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   const [expandText, setExpandText] = useState(false);
   const [columnWidths, setColumnWidths] = useState<{ [key: number]: number }>({});
   const [inputValues, setInputValues] = useState<{ [rowIndex: number]: string }>({});
+  
+  // 🆕 NUEVO ESTADO: ID del Envío
+  const [shipmentId, setShipmentId] = useState("");
+
   const [sortConfig, setSortConfig] = useState<{ index: number | null; direction: "asc" | "desc" }>({
     index: null,
     direction: "asc",
   });
   
-  // Estado para el Resumen (Datos completos enviados)
   const [summaryData, setSummaryData] = useState<any[] | null>(null);
-
   const [isPending, startTransition] = useTransition(); 
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
@@ -131,33 +134,37 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   // --- PROCESAMIENTO ---
   const handleProcess = () => {
-    if (!confirm("¿Estás seguro de enviar la planificación?")) return;
+    // 🛑 VALIDACIÓN: Si no hay ID de envío, no dejamos continuar
+    if (!shipmentId || shipmentId.trim() === "") {
+        alert("⚠️ ATENCIÓN:\n\nDebes ingresar el Número de Envío Full (#) antes de procesar.");
+        // Hacemos foco en el input (opcional, pero visualmente útil si tuviéramos ref)
+        return;
+    }
+
+    if (!confirm(`¿Estás seguro de enviar la planificación para el envío #${shipmentId}?`)) return;
 
     startTransition(async () => {
       // 1. Construimos los objetos a enviar
       const itemsToSend = body.map((row, index) => {
-        // row[4] corresponde a la columna 8 (Variation Label) según tu configuración actual
         const suggestionQty = cleanNumber(row[4]); 
         const note = inputValues[index] || "";
-        const noteQty = cleanNumber(note); // Convertimos la nota en número
+        const noteQty = cleanNumber(note); 
 
         return {
+          // 🆕 AGREGAMOS EL DATO AL PAYLOAD
+          shipment_id: shipmentId.trim(),
+
           sku: row[0],
-          seller_sku: row[1], // <-- Este es tu INVENTORY ID (Columna 1)
+          seller_sku: row[1],
           title: row[2],
-          
           current_stock: row[3],
-          sales_last_month: row[3], 
+          sales_last_month: row[3],
           column_4_info: row[3],
-          
           column_9_info: row[5] || "", 
           column_10_info: row[6] || "",
-          
-          variation_label: row[4] || "", 
-
+          variation_label: row[7] || "", 
           quantity_to_send: noteQty, 
           suggested_quantity: suggestionQty, 
-
           note: note                        
         };
       })
@@ -185,15 +192,16 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <Card className="w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <Card className="w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <CardHeader className="bg-green-50 border-b flex flex-row items-center justify-between py-4">
             <div>
               <CardTitle className="text-xl text-green-800 flex items-center gap-2">
                 <Check className="h-6 w-6" /> Pedido Procesado
               </CardTitle>
-              <p className="text-sm text-green-600 mt-1">
-                Se cargaron un total de <b>{totalUnits}</b> unidades para enviar
-              </p>
+              <div className="flex gap-4 mt-2 text-sm text-green-700">
+                  <p>Envío: <b>#{shipmentId}</b></p>
+                  <p>Unidades: <b>{totalUnits}</b></p>
+              </div>
             </div>
             <Button onClick={() => setSummaryData(null)} size="sm" variant="outline" className="border-green-200 hover:bg-green-100 text-green-800">
               <XCircle className="h-4 w-4 mr-2" /> Cerrar
@@ -204,41 +212,24 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-500 uppercase font-medium sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-4 py-3 w-[150px]">ITEM ID</th>
-                  <th className="px-4 py-3 w-[150px]">INVENTORY ID</th> {/* NUEVA COLUMNA */}
-                  <th className="px-4 py-3 w-[150px]">VARIANTE</th>
+                  <th className="px-4 py-3 w-[150px]">SKU</th>
+                  <th className="px-4 py-3 w-[150px]">Variante</th>
                   <th className="px-4 py-3">Título</th>
-                  <th className="px-4 py-3 w-[120px]">CANTIDAD</th>
+                  <th className="px-4 py-3 w-[100px] text-right">Cant.</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {summaryData.length > 0 ? (
                   summaryData.map((item, idx) => (
                     <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-2 py-2">
-                        <CopyableCell text={item.sku} />
-                      </td>
-                      {/* NUEVA CELDA: INVENTORY ID (seller_sku) */}
-                      <td className="px-2 py-2">
-                        <CopyableCell text={item.seller_sku} />
-                      </td>
-                      <td className="px-2 py-2">
-                        <CopyableCell text={item.variation_label} /> 
-                      </td>
-                      <td className="px-2 py-2">
-                        <CopyableCell text={item.title} className="max-w-[300px]" />
-                      </td>
-                      <td className="px-2 py-2">
-                        <CopyableCell text={item.quantity_to_send} className="bg-yellow-50 text-yellow-800 font-bold" />
-                      </td>
+                      <td className="px-2 py-2"><CopyableCell text={item.sku} /></td>
+                      <td className="px-2 py-2"><CopyableCell text={item.variation_label} /></td>
+                      <td className="px-2 py-2"><CopyableCell text={item.title} className="max-w-[300px]" /></td>
+                      <td className="px-4 py-2 text-right font-bold text-green-700">{item.quantity_to_send}</td>
                     </tr>
                   ))
                 ) : (
-                  <tr>
-                    <td colSpan={5} className="py-10 text-center text-gray-400">
-                        No hay ítems para mostrar.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={4} className="py-10 text-center text-gray-400">Error: No data</td></tr>
                 )}
               </tbody>
             </table>
@@ -260,34 +251,59 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   // --- VISTA NORMAL ---
   return (
     <Card className="h-full flex flex-col shadow-none border-0"> 
-      <CardHeader className="flex flex-row items-center justify-between pb-4 px-0">
-        <CardTitle className="text-xl font-bold text-gray-800">
-            Planificación ({body.length} filas)
-        </CardTitle>
-        <div className="flex gap-2">
-            <Button 
-                size="sm" 
-                className="bg-green-600 hover:bg-green-700 gap-2 shadow-sm"
-                onClick={handleProcess}
-                disabled={isPending}
-            >
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {isPending ? "Enviando..." : "Procesar"}
-            </Button>
+      <CardHeader className="flex flex-col gap-4 pb-4 px-0">
+        
+        {/* TITULO Y BOTONES PRINCIPALES */}
+        <div className="flex flex-row items-center justify-between">
+            <CardTitle className="text-xl font-bold text-gray-800">
+                Planificación ({body.length} filas)
+            </CardTitle>
+            <div className="flex gap-2">
+                {/* BOTÓN PROCESAR (DESHABILITADO VISUALMENTE SI FALTA ID) */}
+                <Button 
+                    size="sm" 
+                    className={`${!shipmentId ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} gap-2 shadow-sm transition-colors`}
+                    onClick={handleProcess}
+                    disabled={isPending}
+                >
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    {isPending ? "Enviando..." : "Procesar"}
+                </Button>
 
-            <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setExpandText(!expandText)}
-                className="gap-2 text-xs"
-            >
-                {expandText ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-            </Button>
+                <Button 
+                    variant="outline" size="sm" onClick={() => setExpandText(!expandText)} className="gap-2 text-xs"
+                >
+                    {expandText ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                </Button>
+            </div>
         </div>
+
+        {/* 🆕 SECCIÓN DE INPUT LLAMATIVO PARA EL ENVÍO */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-top-2">
+            <div className="bg-yellow-100 p-2 rounded-full">
+                <Truck className="h-6 w-6 text-yellow-700" />
+            </div>
+            <div className="flex flex-col gap-1 flex-1">
+                <Label htmlFor="shipmentInput" className="text-yellow-800 font-bold uppercase text-xs tracking-wide">
+                    Número de Envío Full (Requerido)
+                </Label>
+                <Input 
+                    id="shipmentInput"
+                    value={shipmentId}
+                    onChange={(e) => setShipmentId(e.target.value)}
+                    placeholder="Ej: 12345678"
+                    className="border-yellow-300 focus:border-yellow-500 focus:ring-yellow-200 text-lg font-bold text-gray-800 bg-white h-11"
+                />
+            </div>
+            <div className="text-xs text-yellow-700 max-w-[200px] hidden md:block leading-tight">
+                Ingresa el ID que te dio MercadoLibre para poder procesar el pedido.
+            </div>
+        </div>
+
       </CardHeader>
       
       <CardContent className="p-0 flex-1 overflow-hidden relative border rounded-lg shadow-sm bg-white">
-        <div className="overflow-auto h-[75vh] w-full relative">
+        <div className="overflow-auto h-[65vh] w-full relative">
             <table className="w-full text-sm text-left border-collapse table-fixed">
                 <thead className="sticky top-0 z-20 bg-gray-100 text-gray-700 uppercase font-medium shadow-sm">
                     <tr>

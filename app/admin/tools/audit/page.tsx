@@ -3,10 +3,9 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Check, X, RefreshCw, Loader2, Truck, AlertTriangle, FolderOpen, ArrowLeft, ChevronRight, Eye } from "lucide-react"
+import { Check, X, RefreshCw, Loader2, Truck, AlertTriangle, FolderOpen, ArrowLeft, ChevronRight, Eye, Maximize2 } from "lucide-react"
 import { getAuditPendingItems, auditItem, getShipmentFolders } from "@/app/actions/audit"
 
-// Definimos el tipo para mayor claridad
 type AuditItem = {
     itemId: string
     driveName: string
@@ -30,6 +29,9 @@ export default function AuditPage() {
     const [items, setItems] = useState<AuditItem[]>([])
     const [selectedItem, setSelectedItem] = useState<AuditItem | null>(null)
     
+    // Estado para el ZOOM de imagen
+    const [expandedImage, setExpandedImage] = useState<string | null>(null)
+
     // Estados de carga / info
     const [loading, setLoading] = useState(true)
     const [envioId, setEnvioId] = useState("")
@@ -85,12 +87,9 @@ export default function AuditPage() {
         const res = await auditItem(selectedItem.itemId, status, selectedItem.envioId)
         
         if (res.success) {
-            // Actualizamos la lista localmente
             setItems(prev => prev.map(i => 
                 i.itemId === selectedItem.itemId ? { ...i, status: status } : i
             ))
-            
-            // Volvemos a la lista automáticamente
             setView('ITEM_LIST')
             setSelectedItem(null)
         } else {
@@ -99,8 +98,33 @@ export default function AuditPage() {
         setProcessing(null)
     }
 
+    // --- COMPONENTE MODAL DE ZOOM ---
+    const ImageZoomModal = () => {
+        if (!expandedImage) return null
+        return (
+            <div 
+                className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 cursor-zoom-out animate-in fade-in duration-200"
+                onClick={() => setExpandedImage(null)}
+            >
+                 {/* Botón cerrar flotante */}
+                 <button className="absolute top-4 right-4 text-white/70 hover:text-white p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
+                    <X className="h-8 w-8" />
+                </button>
+
+                <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+                    <img 
+                        src={expandedImage} 
+                        alt="Zoom" 
+                        className="w-auto h-auto max-w-screen max-h-[90vh] object-contain rounded shadow-2xl ring-1 ring-white/20"
+                    />
+                </div>
+            </div>
+        )
+    }
+
     // --- RENDERIZADO: VISTA 1 (SELECCIÓN DE CARPETA) ---
     if (view === 'FOLDERS') {
+        // ... (Este bloque queda igual que antes) ...
         return (
             <div className="max-w-4xl mx-auto space-y-6">
                  <div className="flex items-center gap-3 mb-6">
@@ -149,14 +173,13 @@ export default function AuditPage() {
 
     // --- RENDERIZADO: VISTA 2 (LISTA DE ITEMS) ---
     if (view === 'ITEM_LIST') {
-        // Contadores
+        // ... (Este bloque queda igual que antes) ...
         const total = items.length
         const aprobados = items.filter(i => i.status === 'APROBADO').length
         const pendientes = items.filter(i => i.status === 'PENDIENTE').length
 
         return (
             <div className="max-w-3xl mx-auto space-y-6">
-                {/* Header de la Lista */}
                 <div className="bg-white p-4 rounded-xl border shadow-sm sticky top-4 z-10 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Button variant="ghost" size="icon" onClick={() => setView('FOLDERS')}>
@@ -198,7 +221,6 @@ export default function AuditPage() {
                                     ${item.status === 'PENDIENTE' ? 'border-l-4 border-l-gray-300' : ''}
                                 `}
                             >
-                                {/* Foto Referencia (Pequeña) */}
                                 <div className="h-16 w-16 bg-gray-100 rounded overflow-hidden shrink-0 border">
                                     {item.referenceImageUrl ? (
                                         <img src={item.referenceImageUrl} alt="Ref" className="h-full w-full object-contain" />
@@ -207,7 +229,6 @@ export default function AuditPage() {
                                     )}
                                 </div>
 
-                                {/* Texto */}
                                 <div className="flex-1 min-w-0">
                                     <h3 className="font-bold text-gray-800 text-sm truncate">{item.driveName}</h3>
                                     <p className="text-xs text-gray-500 truncate">{item.title}</p>
@@ -218,7 +239,6 @@ export default function AuditPage() {
                                     )}
                                 </div>
 
-                                {/* Icono Estado */}
                                 <div className="shrink-0 pr-2">
                                     {item.status === 'APROBADO' && <Check className="h-6 w-6 text-green-500" />}
                                     {item.status === 'RECHAZADO' && <X className="h-6 w-6 text-red-500" />}
@@ -235,107 +255,117 @@ export default function AuditPage() {
     // --- RENDERIZADO: VISTA 3 (DETALLE DE AUDITORÍA) ---
     if (view === 'ITEM_DETAIL' && selectedItem) {
         return (
-            <div className="max-w-5xl mx-auto space-y-6">
-                {/* Header Navegación */}
-                <div className="flex items-center gap-4 mb-4">
-                    <Button variant="outline" onClick={() => setView('ITEM_LIST')}>
-                        <ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista
-                    </Button>
-                    <h2 className="text-xl font-bold truncate">{selectedItem.driveName}</h2>
-                </div>
+            <>
+                {/* Renderizamos el modal de zoom si está activo */}
+                <ImageZoomModal />
 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* COLUMNA IZQUIERDA: EVIDENCIA (FOTO OPERARIO) */}
-                    <div className="space-y-4">
-                        <div className="bg-white p-1 border rounded-xl shadow-sm overflow-hidden">
-                             <div className="relative aspect-square bg-gray-100">
-                                <img 
-                                    src={selectedItem.evidenceImageUrl} 
-                                    alt="Evidencia" 
-                                    className="w-full h-full object-contain"
-                                />
-                                <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
-                                    FOTO DEL PAQUETE
-                                </div>
-                             </div>
-                        </div>
-                        
-                        {/* Botonera de Acción */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <Button 
-                                variant="outline" 
-                                className="h-14 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-lg"
-                                onClick={() => handleVote('RECHAZADO')}
-                                disabled={!!processing}
-                            >
-                                <X className="mr-2 h-6 w-6" /> Rechazar
-                            </Button>
-                            <Button 
-                                className="h-14 bg-green-600 hover:bg-green-700 text-white shadow-lg text-lg"
-                                onClick={() => handleVote('APROBADO')}
-                                disabled={!!processing}
-                            >
-                                {processing ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-6 w-6" />}
-                                APROBAR
-                            </Button>
-                        </div>
+                <div className="max-w-5xl mx-auto space-y-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <Button variant="outline" onClick={() => setView('ITEM_LIST')}>
+                            <ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista
+                        </Button>
+                        <h2 className="text-xl font-bold truncate">{selectedItem.driveName}</h2>
                     </div>
 
-                    {/* COLUMNA DERECHA: DATOS Y REFERENCIA */}
-                    <div className="space-y-6">
-                        {/* Datos del Sheet */}
-                        <Card>
-                            <CardContent className="p-6 space-y-4">
-                                <div>
-                                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Producto Detectado</h3>
-                                    <p className="text-lg font-medium text-gray-900 leading-tight">{selectedItem.title}</p>
-                                    <p className="text-sm font-mono text-gray-500 mt-1">SKU: {selectedItem.sku}</p>
-                                </div>
-
-                                <div className="pt-4 border-t border-gray-100">
-                                    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Agregados Requeridos</h3>
-                                    {selectedItem.agregados.length > 0 ? (
-                                        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-                                            <ul className="space-y-2">
-                                                {selectedItem.agregados.map((agregado, index) => (
-                                                    <li key={index} className="flex items-start gap-2 text-blue-900 font-medium">
-                                                        <span className="text-blue-400 mt-1">•</span>
-                                                        {agregado}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    ) : (
-                                        <p className="text-gray-400 italic text-sm">Este producto no lleva agregados.</p>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Foto de Referencia (Si existe) */}
-                        {selectedItem.referenceImageUrl && (
-                            <Card className="overflow-hidden border-dashed border-2 bg-gray-50/50">
-                                <CardContent className="p-4 flex items-center gap-4">
-                                    <div className="h-24 w-24 bg-white rounded border p-1 shrink-0">
-                                        <img 
-                                            src={selectedItem.referenceImageUrl} 
-                                            alt="Referencia" 
-                                            className="w-full h-full object-contain" 
-                                        />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* COLUMNA IZQUIERDA: EVIDENCIA (FOTO OPERARIO) */}
+                        <div className="space-y-4">
+                            <div 
+                                className="bg-white p-1 border rounded-xl shadow-sm overflow-hidden cursor-zoom-in group relative"
+                                onClick={() => setExpandedImage(selectedItem.evidenceImageUrl)} // Activar Zoom
+                            >
+                                 <div className="relative aspect-square bg-gray-100">
+                                    <img 
+                                        src={selectedItem.evidenceImageUrl} 
+                                        alt="Evidencia" 
+                                        className="w-full h-full object-contain"
+                                    />
+                                    <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+                                        FOTO DEL PAQUETE <Maximize2 className="h-3 w-3 opacity-70" />
                                     </div>
+                                     {/* Overlay hover effect */}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+                                 </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <Button 
+                                    variant="outline" 
+                                    className="h-14 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-lg"
+                                    onClick={() => handleVote('RECHAZADO')}
+                                    disabled={!!processing}
+                                >
+                                    <X className="mr-2 h-6 w-6" /> Rechazar
+                                </Button>
+                                <Button 
+                                    className="h-14 bg-green-600 hover:bg-green-700 text-white shadow-lg text-lg"
+                                    onClick={() => handleVote('APROBADO')}
+                                    disabled={!!processing}
+                                >
+                                    {processing ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-6 w-6" />}
+                                    APROBAR
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* COLUMNA DERECHA: DATOS Y REFERENCIA */}
+                        <div className="space-y-6">
+                            <Card>
+                                <CardContent className="p-6 space-y-4">
                                     <div>
-                                        <h4 className="font-bold text-gray-700">Imagen de Referencia</h4>
-                                        <p className="text-xs text-gray-500 mt-1">Así se ve la publicación en Mercado Libre.</p>
-                                        <Button variant="link" size="sm" className="h-auto p-0 text-blue-500 mt-1" onClick={() => window.open(selectedItem.referenceImageUrl!, '_blank')}>
-                                            Ver original <Eye className="ml-1 h-3 w-3" />
-                                        </Button>
+                                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Producto Detectado</h3>
+                                        <p className="text-lg font-medium text-gray-900 leading-tight">{selectedItem.title}</p>
+                                        <p className="text-sm font-mono text-gray-500 mt-1">SKU: {selectedItem.sku}</p>
+                                    </div>
+
+                                    <div className="pt-4 border-t border-gray-100">
+                                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Agregados Requeridos</h3>
+                                        {selectedItem.agregados.length > 0 ? (
+                                            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                                                <ul className="space-y-2">
+                                                    {selectedItem.agregados.map((agregado, index) => (
+                                                        <li key={index} className="flex items-start gap-2 text-blue-900 font-medium">
+                                                            <span className="text-blue-400 mt-1">•</span>
+                                                            {agregado}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        ) : (
+                                            <p className="text-gray-400 italic text-sm">Este producto no lleva agregados.</p>
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
-                        )}
+
+                            {/* Foto de Referencia (Si existe) */}
+                            {selectedItem.referenceImageUrl && (
+                                <Card className="overflow-hidden border-dashed border-2 bg-gray-50/50 hover:bg-gray-100 transition-colors">
+                                    <CardContent 
+                                        className="p-4 flex items-center gap-4 cursor-zoom-in"
+                                        onClick={() => setExpandedImage(selectedItem.referenceImageUrl)} // Activar Zoom
+                                    >
+                                        <div className="h-24 w-24 bg-white rounded border p-1 shrink-0 relative group">
+                                            <img 
+                                                src={selectedItem.referenceImageUrl} 
+                                                alt="Referencia" 
+                                                className="w-full h-full object-contain" 
+                                            />
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 rounded transition-colors" />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-gray-700 flex items-center gap-2">
+                                                Imagen de Referencia <Maximize2 className="h-3 w-3 text-gray-400" />
+                                            </h4>
+                                            <p className="text-xs text-gray-500 mt-1 mb-2">Click para comparar con el original.</p>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
+                        </div>
                     </div>
                 </div>
-            </div>
+            </>
         )
     }
 

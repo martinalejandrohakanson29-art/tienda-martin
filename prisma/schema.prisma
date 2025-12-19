@@ -75,3 +75,25 @@ model ShipmentAudit {
   
   @@unique([itemId, envioId])
 }
+
+// 👇 NUEVOS MODELOS PARA EL HISTORIAL DE ENVÍOS
+model Shipment {
+  id        String         @id @default(cuid())
+  name      String         @unique // Aquí guardaremos el nombre de la carpeta (Ej: "Envio_2023-12-20_1530")
+  createdAt DateTime       @default(now())
+  
+  items     ShipmentItem[]
+}
+
+model ShipmentItem {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  
+  itemId      String   // El ID de MercadoLibre (MLA...)
+  title       String
+  sku         String?
+  quantity    Int      // 👈 EL DATO DE ORO: La cantidad planificada
+  
+  @@index([shipmentId])
+}

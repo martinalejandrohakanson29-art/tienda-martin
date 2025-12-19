@@ -66,36 +66,44 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         envioId = folderObj.name! 
 
         // 2. Traer datos del Sheet
-        let sheetMap = new Map()
+       let sheetMap = new Map()
         try {
             console.log("Descargando CSV desde:", GOOGLE_SHEET_CSV_URL)
             const response = await axios.get(GOOGLE_SHEET_CSV_URL)
-            const parsed = Papa.parse(response.data, { header: true, skipEmptyLines: true })
+            
+            // CAMBIO 1: header: false para leer por posiciones, no por nombres
+            const parsed = Papa.parse(response.data, { header: false, skipEmptyLines: true })
             const sheetData = parsed.data as any[]
             
-            sheetData.forEach(row => {
-                // Matcheamos por ITEM ID (Columna A)
-                const itemId = row['ITEM ID']
+            sheetData.forEach((row, index) => {
+                // Saltamos la fila 0 si contiene los títulos (opcional, pero recomendado)
+                if (index === 0) return 
+
+                // CAMBIO 2: Usamos índices numéricos
+                const itemId = row[0] // Columna A (ITEM ID)
                 
                 if (itemId) {
-                    // Lista de Agregados
+                    // Lista de Agregados 
+                    // OJO: Asumo que están en columnas D, E, F, G (índices 3, 4, 5, 6).
+                    // Si están en otro lado, ajusta estos números.
                     const listaAgregados = [
-                        row['AGREGADO 1'],
-                        row['AGREGADO 2'],
-                        row['AGREGADO 3'],
-                        row['AGREGADO 4']
+                        row[3], // Columna D
+                        row[4], // Columna E
+                        row[5], // Columna F
+                        row[6]  // Columna G
                     ].filter(texto => texto && texto.trim() !== "")
 
-                    // 👇 AQUÍ ESTÁ EL CAMBIO CLAVE DE LOS NOMBRES
                     sheetMap.set(itemId.trim(), {
-                        // Buscamos 'NOMBRE' (Tu columna C)
-                        title: row['NOMBRE'] || row['Nombre'] || 'Producto sin nombre',
+                        // Columna C (Nombre) -> Índice 2
+                        title: row[2] || 'Producto sin nombre',
                         
-                        // Buscamos 'ID INVENTORY' (Tu columna B)
-                        sku: row['ID INVENTORY'] || row['SKU'] || 'S/D',
+                        // Columna B (SKU/Inventory) -> Índice 1
+                        sku: row[1] || 'S/D',
                         
                         agregados: listaAgregados, 
-                        referenceImage: row['URL FOTO'] || '' 
+
+                        // CAMBIO CLAVE: Columna R -> Índice 17
+                        referenceImage: row[17] || '' 
                     })
                 }
             })

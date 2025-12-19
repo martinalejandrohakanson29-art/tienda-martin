@@ -14,6 +14,7 @@ type AuditItem = {
     agregados: string[]
     referenceImageUrl: string | null
     evidenceImageUrl: string
+    evidenceImages: string[] // <--- AGREGAR ESTO
     status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'
     envioId: string
 }
@@ -28,6 +29,9 @@ export default function AuditPage() {
     const [shipmentFolders, setShipmentFolders] = useState<any[]>([])
     const [items, setItems] = useState<AuditItem[]>([])
     const [selectedItem, setSelectedItem] = useState<AuditItem | null>(null)
+    const [selectedItem, setSelectedItem] = useState<AuditItem | null>(null)
+    // Estado para controlar qué foto se ve en grande en el detalle
+    const [activeEvidenceImage, setActiveEvidenceImage] = useState<string | null>(null)
     
     // Estado para el ZOOM de imagen
     const [expandedImage, setExpandedImage] = useState<string | null>(null)
@@ -74,8 +78,10 @@ export default function AuditPage() {
     }
 
     // 3. Abrir detalle de un item
-    const openItemDetail = (item: AuditItem) => {
+  const openItemDetail = (item: AuditItem) => {
         setSelectedItem(item)
+        // Por defecto mostramos la primera foto al abrir
+        setActiveEvidenceImage(item.evidenceImages?.[0] || item.evidenceImageUrl)
         setView('ITEM_DETAIL')
     }
 
@@ -268,27 +274,51 @@ export default function AuditPage() {
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* COLUMNA IZQUIERDA: EVIDENCIA (FOTO OPERARIO) */}
+                       {/* COLUMNA IZQUIERDA: EVIDENCIA CON GALERÍA */}
                         <div className="space-y-4">
+                            {/* IMAGEN PRINCIPAL GRANDE */}
                             <div 
-                                className="bg-white p-1 border rounded-xl shadow-sm overflow-hidden cursor-zoom-in group relative"
-                                onClick={() => setExpandedImage(selectedItem.evidenceImageUrl)} // Activar Zoom
+                                className="bg-white p-1 border rounded-xl shadow-sm overflow-hidden cursor-zoom-in group relative h-[500px]"
+                                onClick={() => setExpandedImage(activeEvidenceImage)} // Zoom a la foto activa
                             >
-                                 <div className="relative aspect-square bg-gray-100">
-                                    <img 
-                                        src={selectedItem.evidenceImageUrl} 
-                                        alt="Evidencia" 
-                                        className="w-full h-full object-contain"
-                                    />
+                                 <div className="relative w-full h-full bg-gray-100 flex items-center justify-center">
+                                    {activeEvidenceImage ? (
+                                        <img 
+                                            src={activeEvidenceImage} 
+                                            alt="Evidencia Principal" 
+                                            className="w-full h-full object-contain"
+                                        />
+                                    ) : (
+                                        <div className="text-gray-400">Sin imagen</div>
+                                    )}
+                                    
                                     <div className="absolute top-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
-                                        FOTO DEL PAQUETE <Maximize2 className="h-3 w-3 opacity-70" />
+                                        FOTO {selectedItem.evidenceImages.indexOf(activeEvidenceImage!) + 1} de {selectedItem.evidenceImages.length}
+                                        <Maximize2 className="h-3 w-3 opacity-70 ml-1" />
                                     </div>
-                                     {/* Overlay hover effect */}
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
                                  </div>
                             </div>
+
+                            {/* GALERÍA DE MINIATURAS (Solo si hay más de 1 foto) */}
+                            {selectedItem.evidenceImages.length > 1 && (
+                                <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-hide">
+                                    {selectedItem.evidenceImages.map((img, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setActiveEvidenceImage(img)}
+                                            className={`
+                                                relative h-20 w-20 shrink-0 rounded-lg overflow-hidden border-2 transition-all
+                                                ${activeEvidenceImage === img ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200 opacity-70 hover:opacity-100'}
+                                            `}
+                                        >
+                                            <img src={img} alt={`Foto ${idx}`} className="h-full w-full object-cover" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             
-                            <div className="grid grid-cols-2 gap-4">
+                            {/* BOTONES DE ACCIÓN (Aprobar/Rechazar) - Sin cambios */}
+                            <div className="grid grid-cols-2 gap-4 mt-2">
                                 <Button 
                                     variant="outline" 
                                     className="h-14 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-lg"

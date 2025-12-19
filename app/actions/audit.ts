@@ -76,33 +76,30 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
             const sheetData = parsed.data as any[]
             
             sheetData.forEach((row, index) => {
-                // Saltamos la fila 0 si contiene los títulos (opcional, pero recomendado)
+                // Saltamos la fila 0 (encabezados)
                 if (index === 0) return 
 
-                // CAMBIO 2: Usamos índices numéricos
                 const itemId = row[0] // Columna A (ITEM ID)
                 
                 if (itemId) {
-                    // Lista de Agregados 
-                    // OJO: Asumo que están en columnas D, E, F, G (índices 3, 4, 5, 6).
-                    // Si están en otro lado, ajusta estos números.
+                    // CORRECCIÓN AQUÍ: Columnas N, O, P, Q (13, 14, 15, 16)
                     const listaAgregados = [
-                        row[3], // Columna D
-                        row[4], // Columna E
-                        row[5], // Columna F
-                        row[6]  // Columna G
-                    ].filter(texto => texto && texto.trim() !== "")
+                        row[13], // Columna N
+                        row[14], // Columna O
+                        row[15], // Columna P
+                        row[16]  // Columna Q
+                    ].filter(texto => texto && texto.trim() !== "" && texto !== "TRUE" && texto !== "FALSE")
 
                     sheetMap.set(itemId.trim(), {
                         // Columna C (Nombre) -> Índice 2
                         title: row[2] || 'Producto sin nombre',
                         
-                        // Columna B (SKU/Inventory) -> Índice 1
+                        // Columna B (SKU) -> Índice 1
                         sku: row[1] || 'S/D',
                         
                         agregados: listaAgregados, 
-
-                        // CAMBIO CLAVE: Columna R -> Índice 17
+                        
+                        // Columna R (Foto Referencia) -> Índice 17
                         referenceImage: row[17] || '' 
                     })
                 }

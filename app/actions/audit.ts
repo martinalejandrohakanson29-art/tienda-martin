@@ -5,6 +5,9 @@ import axios from "axios"
 import Papa from "papaparse"
 import { prisma } from "@/lib/prisma"
 
+// ... (Mantén las constantes y las funciones getDriveClient y getPublicThumbnailLink igual que antes)
+// REEMPLAZA SOLO LA FUNCIÓN getAuditPendingItems POR ESTA VERSIÓN MEJORADA:
+
 // --- CONFIGURACIÓN ---
 const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1q0qWmIcRAybrxQcYRhJd5s-A1xiEe_VenWEA84Xptso/export?format=csv&gid=1236582105'
 const DRIVE_PARENT_FOLDER_ID = '1v-E638QF0AaPr7zywfH2luZvnHXtJujp' 
@@ -22,6 +25,8 @@ const getDriveClient = () => {
 const getPublicThumbnailLink = (fileId: string) => {
     return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
 }
+
+// 👇👇👇 AQUÍ EMPIEZAN LOS CAMBIOS IMPORTANTES 👇👇👇
 
 export async function getShipmentFolders() {
     try {
@@ -65,47 +70,49 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         envioFolderId = folderObj.id!
         envioId = folderObj.name! 
 
-        // 2. Traer datos del Sheet
+        // =================================================================
+        // 🔥 NUEVO: RECUPERAR CANTIDADES DESDE LA BASE DE DATOS LOCAL 🔥
+        // =================================================================
+        const dbShipment = await prisma.shipment.findUnique({
+            where: { name: envioId },
+            include: { items: true }
+        })
+
+        // Creamos un mapa para acceder rápido a la cantidad por itemId (MLA...)
+        const quantityMap = new Map<string, number>()
+        if (dbShipment) {
+            dbShipment.items.forEach(item => {
+                quantityMap.set(item.itemId, item.quantity)
+            })
+        }
+        // =================================================================
+
+
+        // 2. Traer datos del Sheet (CSV) - Metadatos extra como SKU o Título si faltan
         let sheetMap = new Map()
         try {
-            console.log("Descargando CSV desde:", GOOGLE_SHEET_CSV_URL)
+            // console.log("Descargando CSV...") -> Comentamos para limpiar logs
             const response = await axios.get(GOOGLE_SHEET_CSV_URL)
-            
-            // Leemos por posiciones (header: false)
             const parsed = Papa.parse(response.data, { header: false, skipEmptyLines: true })
             const sheetData = parsed.data as any[]
             
             sheetData.forEach((row, index) => {
-                // Saltamos la fila 0 (encabezados)
                 if (index === 0) return 
-
-                const itemId = row[0] // Columna A (ITEM ID)
-                
+                const itemId = row[0]
                 if (itemId) {
-                    // Columnas N, O, P, Q (13, 14, 15, 16)
-                    const listaAgregados = [
-                        row[13], // Columna N
-                        row[14], // Columna O
-                        row[15], // Columna P
-                        row[16]  // Columna Q
-                    ].filter(texto => texto && texto.trim() !== "" && texto !== "TRUE" && texto !== "FALSE")
+                    const listaAgregados = [row[13], row[14], row[15], row[16]]
+                        .filter(texto => texto && texto.trim() !== "" && texto !== "TRUE" && texto !== "FALSE")
 
                     sheetMap.set(itemId.trim(), {
-                        // Columna C (Nombre) -> Índice 2
                         title: row[2] || 'Producto sin nombre',
-                        
-                        // Columna B (SKU) -> Índice 1
                         sku: row[1] || 'S/D',
-                        
                         agregados: listaAgregados, 
-                        
-                        // Columna R (Foto Referencia) -> Índice 17
                         referenceImage: row[17] || '' 
                     })
                 }
             })
         } catch (e) {
-            console.warn("Error leyendo Sheet:", e)
+            console.warn("Error leyendo Sheet, usaremos datos de BD o Drive:", e)
         }
 
         // 3. Obtener estados de auditoría (Map: itemId -> status)
@@ -116,7 +123,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const statusMap = new Map()
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status))
 
-        // 4. Listar carpetas REALES en Drive
+        // 4. Listar carpetas REALES en Drive (Los productos)
         const mlaFoldersRes = await drive.files.list({
             q: `'${envioFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name)',
@@ -126,43 +133,39 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const mlaFolders = mlaFoldersRes.data.files || []
         const allItems = []
 
-        // Ordenamos alfabéticamente
         mlaFolders.sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""))
 
         for (const folder of mlaFolders) {
             const folderName = folder.name || ""
             const mlaId = folderName.split(' ')[0].trim() 
 
-            // --- CAMBIO PRINCIPAL AQUÍ ---
-            // Buscar TODAS las fotos dentro de la carpeta (hasta 20)
             const filesRes = await drive.files.list({
                 q: `'${folder.id}' in parents and mimeType contains 'image/' and trashed=false`,
                 fields: 'files(id)',
-                pageSize: 20 // <--- Aumentado de 1 a 20
+                pageSize: 20 
             })
 
             if (filesRes.data.files?.length) {
                 const meta = sheetMap.get(mlaId) || {} 
-
-                // Creamos un array con todas las URLs de las fotos encontradas
                 const allImages = filesRes.data.files.map(f => getPublicThumbnailLink(f.id!))
-
                 let currentStatus = statusMap.get(mlaId) || 'PENDIENTE'
+
+                // 👇 AQUÍ USAMOS LA CANTIDAD RECUPERADA
+                const cantidadReal = quantityMap.get(mlaId) || 0
 
                 allItems.push({
                     itemId: mlaId,
                     driveName: folderName, 
                     title: meta.title || folderName, 
                     sku: meta.sku || 'S/D',
+                    
+                    // NUEVO CAMPO CANTIDAD
+                    quantity: cantidadReal, 
+
                     agregados: meta.agregados || [], 
                     referenceImageUrl: meta.referenceImage || null,
-                    
-                    // Mantenemos la primera imagen como principal por compatibilidad
                     evidenceImageUrl: allImages[0],
-                    
-                    // NUEVO CAMPO: Array con todas las imágenes
                     evidenceImages: allImages,
-                    
                     status: currentStatus,
                     envioId: envioId
                 })

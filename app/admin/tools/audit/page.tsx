@@ -14,7 +14,7 @@ type AuditItem = {
     agregados: string[]
     referenceImageUrl: string | null
     evidenceImageUrl: string
-    evidenceImages: string[] // <--- AGREGAR ESTO
+    evidenceImages: string[] 
     status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'
     envioId: string
 }
@@ -28,8 +28,10 @@ export default function AuditPage() {
     // Datos
     const [shipmentFolders, setShipmentFolders] = useState<any[]>([])
     const [items, setItems] = useState<AuditItem[]>([])
+    
+    // --- CORRECCIÓN: Una sola declaración de selectedItem ---
     const [selectedItem, setSelectedItem] = useState<AuditItem | null>(null)
-    const [selectedItem, setSelectedItem] = useState<AuditItem | null>(null)
+    
     // Estado para controlar qué foto se ve en grande en el detalle
     const [activeEvidenceImage, setActiveEvidenceImage] = useState<string | null>(null)
     
@@ -78,7 +80,7 @@ export default function AuditPage() {
     }
 
     // 3. Abrir detalle de un item
-  const openItemDetail = (item: AuditItem) => {
+    const openItemDetail = (item: AuditItem) => {
         setSelectedItem(item)
         // Por defecto mostramos la primera foto al abrir
         setActiveEvidenceImage(item.evidenceImages?.[0] || item.evidenceImageUrl)
@@ -130,7 +132,6 @@ export default function AuditPage() {
 
     // --- RENDERIZADO: VISTA 1 (SELECCIÓN DE CARPETA) ---
     if (view === 'FOLDERS') {
-        // ... (Este bloque queda igual que antes) ...
         return (
             <div className="max-w-4xl mx-auto space-y-6">
                  <div className="flex items-center gap-3 mb-6">
@@ -179,7 +180,6 @@ export default function AuditPage() {
 
     // --- RENDERIZADO: VISTA 2 (LISTA DE ITEMS) ---
     if (view === 'ITEM_LIST') {
-        // ... (Este bloque queda igual que antes) ...
         const total = items.length
         const aprobados = items.filter(i => i.status === 'APROBADO').length
         const pendientes = items.filter(i => i.status === 'PENDIENTE').length
@@ -262,7 +262,6 @@ export default function AuditPage() {
     if (view === 'ITEM_DETAIL' && selectedItem) {
         return (
             <>
-                {/* Renderizamos el modal de zoom si está activo */}
                 <ImageZoomModal />
 
                 <div className="max-w-5xl mx-auto space-y-6">
@@ -279,7 +278,7 @@ export default function AuditPage() {
                             {/* IMAGEN PRINCIPAL GRANDE */}
                             <div 
                                 className="bg-white p-1 border rounded-xl shadow-sm overflow-hidden cursor-zoom-in group relative h-[500px]"
-                                onClick={() => setExpandedImage(activeEvidenceImage)} // Zoom a la foto activa
+                                onClick={() => setExpandedImage(activeEvidenceImage)}
                             >
                                  <div className="relative w-full h-full bg-gray-100 flex items-center justify-center">
                                     {activeEvidenceImage ? (
@@ -299,7 +298,7 @@ export default function AuditPage() {
                                  </div>
                             </div>
 
-                            {/* GALERÍA DE MINIATURAS (Solo si hay más de 1 foto) */}
+                            {/* GALERÍA DE MINIATURAS */}
                             {selectedItem.evidenceImages.length > 1 && (
                                 <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-hide">
                                     {selectedItem.evidenceImages.map((img, idx) => (
@@ -317,7 +316,6 @@ export default function AuditPage() {
                                 </div>
                             )}
                             
-                            {/* BOTONES DE ACCIÓN (Aprobar/Rechazar) - Sin cambios */}
                             <div className="grid grid-cols-2 gap-4 mt-2">
                                 <Button 
                                     variant="outline" 
@@ -368,12 +366,11 @@ export default function AuditPage() {
                                 </CardContent>
                             </Card>
 
-                            {/* Foto de Referencia (Si existe) */}
                             {selectedItem.referenceImageUrl && (
                                 <Card className="overflow-hidden border-dashed border-2 bg-gray-50/50 hover:bg-gray-100 transition-colors">
                                     <CardContent 
                                         className="p-4 flex items-center gap-4 cursor-zoom-in"
-                                        onClick={() => setExpandedImage(selectedItem.referenceImageUrl)} // Activar Zoom
+                                        onClick={() => setExpandedImage(selectedItem.referenceImageUrl)} 
                                     >
                                         <div className="h-24 w-24 bg-white rounded border p-1 shrink-0 relative group">
                                             <img 

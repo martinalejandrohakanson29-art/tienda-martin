@@ -152,16 +152,14 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
         return {
           shipment_id: shipmentId.trim(),
-          sku: row[0],
-          seller_sku: row[1],
+          sku: row[0],        // Esto es el MLA ID
+          seller_sku: row[1], // Esto es tu SKU interno
           title: row[2],
           current_stock: row[3],
           sales_last_month: row[3],
           column_4_info: row[3],
           column_9_info: row[5] || "", 
-          column_10_info: row[6] || "", // (Opcional) Puedes dejarlo o ajustarlo si columna 10 era otro dato
-          
-          // 👇 AQUÍ ESTABA EL ERROR: Cambiamos row[7] por row[6]
+          column_10_info: row[6] || "", 
           variation_label: row[6] || "", 
           
           quantity_to_send: noteQty, 
@@ -177,7 +175,8 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         return;
       }
 
-      const result = await sendPlanningToN8N(itemsToSend);
+      // 👇 CAMBIO AQUÍ: Pasamos el shipmentId como segundo parámetro
+      const result = await sendPlanningToN8N(itemsToSend, shipmentId.trim());
 
       if (result.success) {
         setSummaryData(itemsToSend);

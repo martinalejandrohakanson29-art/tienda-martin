@@ -66,12 +66,12 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         envioId = folderObj.name! 
 
         // 2. Traer datos del Sheet
-       let sheetMap = new Map()
+        let sheetMap = new Map()
         try {
             console.log("Descargando CSV desde:", GOOGLE_SHEET_CSV_URL)
             const response = await axios.get(GOOGLE_SHEET_CSV_URL)
             
-            // CAMBIO 1: header: false para leer por posiciones, no por nombres
+            // Leemos por posiciones (header: false)
             const parsed = Papa.parse(response.data, { header: false, skipEmptyLines: true })
             const sheetData = parsed.data as any[]
             
@@ -82,7 +82,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
                 const itemId = row[0] // Columna A (ITEM ID)
                 
                 if (itemId) {
-                    // CORRECCIÓN AQUÍ: Columnas N, O, P, Q (13, 14, 15, 16)
+                    // Columnas N, O, P, Q (13, 14, 15, 16)
                     const listaAgregados = [
                         row[13], // Columna N
                         row[14], // Columna O
@@ -133,27 +133,36 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
             const folderName = folder.name || ""
             const mlaId = folderName.split(' ')[0].trim() 
 
-            // Buscar foto dentro de la carpeta (Evidencia)
+            // --- CAMBIO PRINCIPAL AQUÍ ---
+            // Buscar TODAS las fotos dentro de la carpeta (hasta 20)
             const filesRes = await drive.files.list({
                 q: `'${folder.id}' in parents and mimeType contains 'image/' and trashed=false`,
                 fields: 'files(id)',
-                pageSize: 1
+                pageSize: 20 // <--- Aumentado de 1 a 20
             })
 
             if (filesRes.data.files?.length) {
-                const file = filesRes.data.files[0]
                 const meta = sheetMap.get(mlaId) || {} 
+
+                // Creamos un array con todas las URLs de las fotos encontradas
+                const allImages = filesRes.data.files.map(f => getPublicThumbnailLink(f.id!))
 
                 let currentStatus = statusMap.get(mlaId) || 'PENDIENTE'
 
                 allItems.push({
                     itemId: mlaId,
                     driveName: folderName, 
-                    title: meta.title || folderName, // Si falla el Sheet, usa el nombre de la carpeta
+                    title: meta.title || folderName, 
                     sku: meta.sku || 'S/D',
                     agregados: meta.agregados || [], 
                     referenceImageUrl: meta.referenceImage || null,
-                    evidenceImageUrl: getPublicThumbnailLink(file.id!), 
+                    
+                    // Mantenemos la primera imagen como principal por compatibilidad
+                    evidenceImageUrl: allImages[0],
+                    
+                    // NUEVO CAMPO: Array con todas las imágenes
+                    evidenceImages: allImages,
+                    
                     status: currentStatus,
                     envioId: envioId
                 })

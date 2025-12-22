@@ -237,15 +237,17 @@ export default function AuditPage() {
                                     )}
                                 </div>
 
-                                <div className="flex-1 min-w-0">
-                                    <h3 className="font-bold text-gray-800 text-sm truncate">{item.driveName}</h3>
-                                    <p className="text-xs text-gray-500 truncate">{item.title}</p>
-                                    {item.agregados.length > 0 && (
-                                        <span className="inline-block bg-blue-50 text-blue-700 text-[10px] px-1.5 rounded mt-1">
-                                            +{item.agregados.length} agregados
-                                        </span>
-                                    )}
-                                </div>
+                               <div className="flex-1 min-w-0">
+    <div className="flex items-center gap-2">
+        <h3 className="font-bold text-gray-800 text-sm truncate">{item.driveName}</h3>
+        {/* Badge de cantidad */}
+        <span className="bg-gray-100 text-gray-700 text-[10px] px-1.5 py-0.5 rounded-full border font-bold">
+            x{item.quantity}
+        </span>
+    </div>
+    <p className="text-xs text-gray-500 truncate">{item.title}</p>
+    {/* ... resto del código */}
+</div>
 
                                 <div className="shrink-0 pr-2">
                                     {item.status === 'APROBADO' && <Check className="h-6 w-6 text-green-500" />}
@@ -342,11 +344,18 @@ export default function AuditPage() {
                         <div className="space-y-6">
                             <Card>
                                 <CardContent className="p-6 space-y-4">
-                                    <div>
-                                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Producto Detectado</h3>
-                                        <p className="text-lg font-medium text-gray-900 leading-tight">{selectedItem.title}</p>
-                                        <p className="text-sm font-mono text-gray-500 mt-1">SKU: {selectedItem.sku}</p>
-                                    </div>
+                                 <div>
+    <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-1">Producto Detectado</h3>
+    <div className="flex justify-between items-start">
+        <p className="text-lg font-medium text-gray-900 leading-tight flex-1">{selectedItem.title}</p>
+        {/* Cantidad resaltada */}
+        <div className="ml-4 text-center bg-orange-50 border border-orange-200 rounded-lg p-2 min-w-[80px]">
+            <span className="block text-[10px] text-orange-600 font-bold uppercase">Cantidad</span>
+            <span className="text-2xl font-black text-orange-700">{selectedItem.quantity}</span>
+        </div>
+    </div>
+    <p className="text-sm font-mono text-gray-500 mt-1">SKU: {selectedItem.sku}</p>
+</div>
 
                                     <div className="pt-4 border-t border-gray-100">
                                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Agregados Requeridos</h3>

@@ -6,11 +6,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Check, X, RefreshCw, Loader2, Truck, AlertTriangle, FolderOpen, ArrowLeft, ChevronRight, Eye, Maximize2 } from "lucide-react"
 import { getAuditPendingItems, auditItem, getShipmentFolders } from "@/app/actions/audit"
 
+
 type AuditItem = {
     itemId: string
     driveName: string
     title: string
     sku: string
+    quantity: number; // <--- Agregamos esta línea
     agregados: string[]
     referenceImageUrl: string | null
     evidenceImageUrl: string

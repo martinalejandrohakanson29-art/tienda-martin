@@ -22,7 +22,7 @@ model Product {
   stock           Int
   category        String
   imageUrl        String
-  // 👇 NUEVOS CAMPOS AGREGADOS
+  freeShipping    Boolean  @default(false) // 👈 AGREGAR ESTA LÍNEA
   imageUrl2       String   @default("")
   imageUrl3       String   @default("")
   videoUrl        String   @default("")

@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Trash, Pencil, Star, ShoppingBag, Video, Image as ImageIcon, Store, ArrowUpDown, Truck } from "lucide-react" 
+import { Plus, Trash, Pencil, Star, ShoppingBag, Video, Image as ImageIcon, Store, ArrowUpDown, Truck, X } from "lucide-react" 
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
 type ProductForm = {
@@ -42,7 +42,7 @@ const initialState: ProductForm = {
     discount: "0",
     isFeatured: false,
     showOnHome: false,
-    freeShipping: true, // 👈 AHORA ES TRUE POR DEFECTO
+    freeShipping: true, // Por defecto marcado
     mercadolibreUrl: "",
     order: "0" 
 }
@@ -64,7 +64,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
-                return `https://lh3.googleusercontent.com/u/0/d/${idMatch[1]}=w1000`
+                return `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w1000`
             }
         }
         return url
@@ -76,6 +76,9 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         try {
             const productData = {
                 ...formData,
+                imageUrl: transformImageLink(formData.imageUrl),
+                imageUrl2: transformImageLink(formData.imageUrl2),
+                imageUrl3: transformImageLink(formData.imageUrl3),
                 price: parseFloat(formData.price) as any,
                 stock: parseInt(formData.stock),
                 discount: parseInt(formData.discount || "0"),
@@ -102,17 +105,27 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
     const handleEdit = (product: any) => {
         setEditingId(product.id)
         setFormData({
-            ...product,
+            title: product.title,
+            description: product.description,
             price: product.price.toString(),
             stock: product.stock.toString(),
+            category: product.category,
+            imageUrl: product.imageUrl,
+            imageUrl2: product.imageUrl2 || "",
+            imageUrl3: product.imageUrl3 || "",
+            videoUrl: product.videoUrl || "",
             discount: (product.discount || 0).toString(),
+            isFeatured: product.isFeatured || false,
+            showOnHome: product.showOnHome || false,
+            freeShipping: product.freeShipping ?? true,
+            mercadolibreUrl: product.mercadolibreUrl || "",
             order: (product.order || 0).toString()
         })
         setIsOpen(true)
     }
 
     const handleDelete = async (id: string) => {
-        if (!confirm("¿Eliminar producto?")) return
+        if (!confirm("¿Eliminar este producto permanentemente?")) return
         await deleteProduct(id)
         router.refresh()
     }
@@ -127,28 +140,83 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                             <Plus className="mr-2 h-4 w-4" /> Nuevo Producto
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-                        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                            {/* ... (campos de título, precio, etc igual que antes) ... */}
+                    <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>{editingId ? "Editar Producto" : "Crear Producto"}</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleSubmit} className="space-y-6 mt-4 pb-10">
+                            
                             <div className="grid md:grid-cols-2 gap-4">
-                                <div className="space-y-2"><Label>Título</Label><Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} /></div>
-                                <div className="space-y-2"><Label>Categoría</Label><Input required value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} /></div>
+                                <div className="space-y-2">
+                                    <Label>Título</Label>
+                                    <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Categoría</Label>
+                                    <Input required list="categories-list" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} />
+                                    <datalist id="categories-list">
+                                        {uniqueCategories.map(cat => <option key={cat} value={cat} />)}
+                                    </datalist>
+                                </div>
                             </div>
-                            <div className="space-y-2"><Label>Descripción</Label><Textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} /></div>
+
+                            <div className="space-y-2">
+                                <Label>Descripción</Label>
+                                <Textarea required value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="min-h-[100px]" />
+                            </div>
+                            
                             <div className="grid grid-cols-3 gap-4">
-                                <div className="space-y-2"><Label>Precio</Label><Input required type="number" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} /></div>
+                                <div className="space-y-2"><Label>Precio ($)</Label><Input required type="number" step="0.01" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} /></div>
                                 <div className="space-y-2"><Label>Desc %</Label><Input type="number" value={formData.discount} onChange={e => setFormData({...formData, discount: e.target.value})} /></div>
                                 <div className="space-y-2"><Label>Stock</Label><Input required type="number" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} /></div>
                             </div>
 
-                            <div className="bg-slate-100 p-3 rounded-lg border flex items-center space-x-3">
-                                <input type="checkbox" className="h-5 w-5 accent-red-600" checked={formData.freeShipping} onChange={(e) => setFormData({...formData, freeShipping: e.target.checked})} />
-                                <Label className="font-bold text-red-600 flex items-center gap-1 cursor-pointer" onClick={() => setFormData({...formData, freeShipping: !formData.freeShipping})}>
-                                    <Truck size={16} /> ENVÍO GRATIS ACTIVADO
-                                </Label>
+                            <div className="bg-slate-50 p-4 rounded-lg border space-y-4">
+                                <Label className="flex items-center gap-2"><ImageIcon size={18}/> Fotos y Video</Label>
+                                
+                                <div className="space-y-2">
+                                    <Label className="text-xs text-gray-500">Foto Principal (Obligatoria)</Label>
+                                    <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="URL de Drive..." />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs text-gray-500">Foto 2 (Opcional)</Label>
+                                        <div className="flex gap-2">
+                                            <Input value={formData.imageUrl2} onChange={e => setFormData({...formData, imageUrl2: e.target.value})} />
+                                            {formData.imageUrl2 && <Button type="button" variant="ghost" size="icon" onClick={() => setFormData({...formData, imageUrl2: ""})}><X className="h-4 w-4 text-red-500" /></Button>}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs text-gray-500">Foto 3 (Opcional)</Label>
+                                        <div className="flex gap-2">
+                                            <Input value={formData.imageUrl3} onChange={e => setFormData({...formData, imageUrl3: e.target.value})} />
+                                            {formData.imageUrl3 && <Button type="button" variant="ghost" size="icon" onClick={() => setFormData({...formData, imageUrl3: ""})}><X className="h-4 w-4 text-red-500" /></Button>}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-xs text-gray-500 flex items-center gap-2"><Video size={14}/> Video (Youtube o Drive)</Label>
+                                    <div className="flex gap-2">
+                                        <Input value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} placeholder="URL del video..." />
+                                        {formData.videoUrl && <Button type="button" variant="ghost" size="icon" onClick={() => setFormData({...formData, videoUrl: ""})}><X className="h-4 w-4 text-red-500" /></Button>}
+                                    </div>
+                                </div>
                             </div>
 
-                            <Button type="submit" className="w-full" disabled={loading}>{loading ? "Guardando..." : "Guardar"}</Button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                                <div className="bg-red-50 p-3 rounded-lg border border-red-100 flex items-center space-x-3 col-span-full">
+                                    <input type="checkbox" className="h-5 w-5 accent-red-600 cursor-pointer" checked={formData.freeShipping} onChange={(e) => setFormData({...formData, freeShipping: e.target.checked})} />
+                                    <Label className="font-bold text-red-700 flex items-center gap-2 cursor-pointer" onClick={() => setFormData({...formData, freeShipping: !formData.freeShipping})}>
+                                        <Truck size={20} /> PRODUCTO CON ENVÍO GRATIS
+                                    </Label>
+                                </div>
+                                <div className="flex items-center space-x-3 border p-3 rounded-lg"><input type="checkbox" checked={formData.isFeatured} onChange={e => setFormData({...formData, isFeatured: e.target.checked})} /><Label>Destacado Principal</Label></div>
+                                <div className="flex items-center space-x-3 border p-3 rounded-lg"><input type="checkbox" checked={formData.showOnHome} onChange={e => setFormData({...formData, showOnHome: e.target.checked})} /><Label>Vidriera / Novedades</Label></div>
+                            </div>
+
+                            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6" disabled={loading}>{loading ? "Guardando..." : "Guardar Cambios"}</Button>
                         </form>
                     </DialogContent>
                 </Dialog>
@@ -156,25 +224,19 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {initialProducts.map((product) => (
-                    <Card key={product.id} className="relative overflow-hidden">
-                        <div className="aspect-square bg-gray-100 relative">
-                             {product.freeShipping && (
-                                <span className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 z-20">
-                                    <Truck size={10} /> Envío Gratis
-                                </span>
-                            )}
-                            {product.discount > 0 && (
-                                <span className="absolute top-2 right-2 bg-green-600 text-white text-xl font-black px-4 py-2 rounded-full z-20 shadow-lg">
-                                    {product.discount}% OFF
-                                </span>
-                            )}
+                    <Card key={product.id} className={`${product.freeShipping ? "border-red-200" : ""}`}>
+                        <div className="aspect-square relative overflow-hidden bg-gray-100 rounded-t-lg">
+                            <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+                                {product.freeShipping && <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"><Truck size={10} /> Envío Gratis</span>}
+                                {product.isFeatured && <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"><Star size={10} fill="white" /> Destacado</span>}
+                            </div>
                             <img src={product.imageUrl} className="w-full h-full object-cover" />
                         </div>
-                        <CardFooter className="p-4 flex justify-between">
-                            <span className="font-bold truncate mr-2">{product.title}</span>
-                            <div className="flex gap-2">
-                                <Button size="sm" variant="outline" onClick={() => handleEdit(product)}><Pencil size={14}/></Button>
-                                <Button size="sm" variant="destructive" onClick={() => handleDelete(product.id)}><Trash size={14}/></Button>
+                        <CardFooter className="p-4 flex justify-between items-center">
+                            <span className="font-bold truncate text-sm">{product.title}</span>
+                            <div className="flex gap-1">
+                                <Button variant="outline" size="icon" onClick={() => handleEdit(product)}><Pencil className="h-4 w-4" /></Button>
+                                <Button variant="destructive" size="icon" onClick={() => handleDelete(product.id)}><Trash className="h-4 w-4" /></Button>
                             </div>
                         </CardFooter>
                     </Card>

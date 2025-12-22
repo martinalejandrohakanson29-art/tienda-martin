@@ -3,7 +3,7 @@
 import { Product } from "@prisma/client"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ShoppingCart, ChevronLeft, ChevronRight } from "lucide-react"
+import { ShoppingCart, ChevronLeft, ChevronRight, Truck } from "lucide-react"
 import { formatPrice } from "@/lib/utils"
 import { useCart } from "@/hooks/use-cart"
 import { useRouter } from "next/navigation"
@@ -62,9 +62,10 @@ export default function ProductCard({ product }: ProductCardProps) {
             onMouseLeave={() => setIsHovered(false)}
         >
             <div className="aspect-square relative overflow-hidden bg-gray-100">
-                {/* 👇 CAMBIO 1: Badge Verde */}
+                
+                {/* 👇 BADGE DE DESCUENTO DUPLICADO (X2 de tamaño) */}
                 {hasDiscount && (
-                    <span className="absolute top-2 right-2 bg-green-600 text-white text-[10px] font-bold px-2 py-1 rounded-full z-10 shadow-sm">
+                    <span className="absolute top-3 right-3 bg-green-600 text-white text-[20px] font-black px-4 py-2 rounded-full z-10 shadow-md">
                         -{product.discount}%
                     </span>
                 )}
@@ -85,14 +86,8 @@ export default function ProductCard({ product }: ProductCardProps) {
                         <button onClick={nextImage} className="absolute right-1 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-1 shadow-md transition-all z-20">
                             <ChevronRight size={16} />
                         </button>
-                        <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 z-20">
-                            {images.map((_, idx) => (
-                                <div key={idx} className={`h-1.5 w-1.5 rounded-full shadow-sm ${idx === currentImageIndex ? 'bg-blue-600' : 'bg-white/70'}`} />
-                            ))}
-                        </div>
                     </>
                 )}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300" />
             </div>
 
             <CardContent className="p-3 flex-1 flex flex-col">
@@ -100,23 +95,30 @@ export default function ProductCard({ product }: ProductCardProps) {
                     <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
                         {product.category}
                     </p>
-                    <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 h-9 mt-1" title={product.title}>
+                    <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 h-9 mt-1">
                         {product.title}
                     </h3>
                 </div>
 
-                <div className="mt-auto pt-2 flex items-end justify-between border-t border-gray-50">
+                <div className="mt-auto pt-2 flex items-center gap-3 border-t border-gray-50">
                     <div className="flex flex-col">
                         {hasDiscount && (
                             <span className="text-[10px] text-gray-400 line-through">
                                 {formatPrice(Number(product.price))}
                             </span>
                         )}
-                        {/* 👇 CAMBIO 2: Precio Verde si hay descuento o normal si no */}
                         <span className={`text-lg font-extrabold ${hasDiscount ? 'text-green-700' : 'text-gray-900'}`}>
                             {formatPrice(finalPrice)}
                         </span>
                     </div>
+
+                    {/* 👇 CARTEL DE ENVÍO GRATIS EN ROJO (Sólo si está marcado) */}
+                    {(product as any).freeShipping && (
+                        <div className="flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded border border-red-100 animate-pulse">
+                            <Truck size={12} />
+                            <span className="text-[10px] font-black uppercase">ENVÍO GRATIS</span>
+                        </div>
+                    )}
                 </div>
             </CardContent>
 

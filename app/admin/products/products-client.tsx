@@ -4,11 +4,11 @@ import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea" // 👈 Importamos el nuevo componente
+import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Card, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Plus, Trash, Pencil, Star, ShoppingBag, Video, Image as ImageIcon, Store, ArrowUpDown } from "lucide-react" 
+import { Plus, Trash, Pencil, Star, ShoppingBag, Video, Image as ImageIcon, Store, ArrowUpDown, Truck } from "lucide-react" 
 import { createProduct, deleteProduct, updateProduct } from "@/app/actions/products"
 
 type ProductForm = {
@@ -24,8 +24,9 @@ type ProductForm = {
     discount: string
     isFeatured: boolean
     showOnHome: boolean
+    freeShipping: boolean // 👈 Nuevo campo
     mercadolibreUrl: string
-    order: string // 👈 Nuevo campo en el formulario (lo manejamos como string para el input)
+    order: string 
 }
 
 const initialState: ProductForm = {
@@ -41,8 +42,9 @@ const initialState: ProductForm = {
     discount: "0",
     isFeatured: false,
     showOnHome: false,
+    freeShipping: false, // 👈 Valor inicial
     mercadolibreUrl: "",
-    order: "0" // 👈 Valor por defecto
+    order: "0" 
 }
 
 export default function ProductsClient({ initialProducts }: { initialProducts: any[] }) {
@@ -57,13 +59,12 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
         return Array.from(new Set(categories))
     }, [initialProducts])
 
-    // Función auxiliar para links de Drive
     const transformImageLink = (url: string) => {
         if (!url) return ""
         if (url.includes("drive.google.com") && url.includes("/d/")) {
             const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
             if (idMatch && idMatch[1]) {
-                return `https://lh3.googleusercontent.com/d/${idMatch[1]}` // Corrección en URL de drive
+                return `https://lh3.googleusercontent.com/u/0/d/${idMatch[1]}=w1000`
             }
         }
         return url
@@ -87,7 +88,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 discount: parseInt(formData.discount || "0"),
                 isFeatured: formData.isFeatured,
                 showOnHome: formData.showOnHome,
-                order: parseInt(formData.order || "0") // 👈 Guardamos el orden como número
+                freeShipping: formData.freeShipping,
+                order: parseInt(formData.order || "0")
             }
 
             if (editingId) {
@@ -122,8 +124,9 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             discount: (product.discount || 0).toString(),
             isFeatured: product.isFeatured || false,
             showOnHome: product.showOnHome || false,
+            freeShipping: product.freeShipping || false,
             mercadolibreUrl: product.mercadolibreUrl || "",
-            order: (product.order || 0).toString() // 👈 Cargamos el orden existente
+            order: (product.order || 0).toString()
         })
         setIsOpen(true)
     }
@@ -158,10 +161,9 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                             
-                            {/* TÍTULO Y CATEGORÍA */}
                             <div className="grid md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <Label>Título (Se pasará a MAYÚSCULAS)</Label>
+                                    <Label>Título</Label>
                                     <Input required value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Ej: Camiseta" />
                                 </div>
                                 <div className="space-y-2">
@@ -173,19 +175,16 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 </div>
                             </div>
 
-                            {/* 👇 DESCRIPCIÓN AHORA USA TEXTAREA */}
                             <div className="space-y-2">
                                 <Label>Descripción</Label>
                                 <Textarea 
                                     required 
                                     value={formData.description} 
                                     onChange={e => setFormData({...formData, description: e.target.value})} 
-                                    placeholder="Detalles... (Puedes usar Enter para saltos de línea)" 
                                     className="min-h-[100px]"
                                 />
                             </div>
                             
-                            {/* PRECIOS Y STOCK */}
                             <div className="grid grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                     <Label>Precio ($)</Label>
@@ -193,7 +192,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Desc. (%)</Label>
-                                    <Input type="number" value={formData.discount} onChange={e => setFormData({...formData, discount: e.target.value})} placeholder="0" />
+                                    <Input type="number" value={formData.discount} onChange={e => setFormData({...formData, discount: e.target.value})} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Stock</Label>
@@ -201,14 +200,11 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 </div>
                             </div>
 
-                            {/* 👇 NUEVO CAMPO: ORDEN / PRIORIDAD */}
                             <div className="bg-slate-100 p-3 rounded-md flex items-center gap-4 border border-slate-200">
                                 <ArrowUpDown className="text-slate-500" />
                                 <div className="flex-1">
                                     <Label className="font-bold text-slate-700">Orden / Prioridad</Label>
-                                    <p className="text-xs text-slate-500">
-                                        Número más bajo sale primero (Ej: 1 sale antes que 10).
-                                    </p>
+                                    <p className="text-xs text-slate-500">Número más bajo sale primero.</p>
                                 </div>
                                 <Input 
                                     type="number" 
@@ -218,66 +214,68 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 />
                             </div>
 
-                            {/* SECCIÓN DE IMÁGENES */}
                             <div className="space-y-3 p-3 bg-gray-50 rounded-lg border">
-                                <Label className="flex items-center gap-2"><ImageIcon size={16}/> Fotos del Producto</Label>
-                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="URL Foto Principal (Obligatoria)" />
-                                <Input value={formData.imageUrl2} onChange={e => setFormData({...formData, imageUrl2: e.target.value})} placeholder="URL Foto 2 (Opcional)" />
-                                <Input value={formData.imageUrl3} onChange={e => setFormData({...formData, imageUrl3: e.target.value})} placeholder="URL Foto 3 (Opcional)" />
+                                <Label className="flex items-center gap-2"><ImageIcon size={16}/> Fotos</Label>
+                                <Input required value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="URL Foto Principal" />
+                                <Input value={formData.imageUrl2} onChange={e => setFormData({...formData, imageUrl2: e.target.value})} placeholder="Foto 2" />
+                                <Input value={formData.imageUrl3} onChange={e => setFormData({...formData, imageUrl3: e.target.value})} placeholder="Foto 3" />
                             </div>
 
-                            {/* SECCIÓN DE VIDEO */}
                             <div className="space-y-2">
-                                <Label className="flex items-center gap-2"><Video size={16}/> Video (Youtube o Drive)</Label>
-                                <Input value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} placeholder="https://youtube.com/watch?v=..." />
+                                <Label className="flex items-center gap-2"><Video size={16}/> Video</Label>
+                                <Input value={formData.videoUrl} onChange={e => setFormData({...formData, videoUrl: e.target.value})} placeholder="URL Youtube/Drive" />
                             </div>
 
-                            {/* MERCADOLIBRE */}
                             <div className="space-y-2">
                                 <Label className="flex items-center gap-2 text-yellow-600 font-semibold">
-                                    <ShoppingBag size={16} /> Link MercadoLibre (Opcional)
+                                    <ShoppingBag size={16} /> Link MercadoLibre
                                 </Label>
                                 <Input 
                                     value={formData.mercadolibreUrl} 
                                     onChange={e => setFormData({...formData, mercadolibreUrl: e.target.value})} 
-                                    placeholder="https://articulo.mercadolibre.com.ar/..." 
-                                    className="border-yellow-200 focus-visible:ring-yellow-400 bg-yellow-50/30"
+                                    className="border-yellow-200"
                                 />
                             </div>
 
-                            {/* ZONA DE VISIBILIDAD */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-                                {/* Destacado Principal */}
                                 <div className="flex items-center space-x-3 border p-3 rounded-lg hover:bg-gray-50 transition-colors">
                                     <input
                                         type="checkbox"
-                                        id="featured"
-                                        className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        className="h-5 w-5 rounded cursor-pointer"
                                         checked={formData.isFeatured}
                                         onChange={(e) => setFormData({...formData, isFeatured: e.target.checked})}
                                     />
-                                    <div className="flex flex-col cursor-pointer" onClick={() => setFormData({...formData, isFeatured: !formData.isFeatured})}>
-                                        <Label className="cursor-pointer font-bold text-blue-600 flex items-center gap-1">
-                                            <Star size={14} className="fill-blue-600"/> Destacado Principal
-                                        </Label>
-                                        <span className="text-xs text-gray-500">Aparece grande arriba (Máx 8)</span>
-                                    </div>
+                                    <Label className="cursor-pointer font-bold text-blue-600 flex items-center gap-1">
+                                        <Star size={14} className="fill-blue-600"/> Destacado Principal
+                                    </Label>
                                 </div>
 
-                                {/* Nuevo: Vidriera Home */}
                                 <div className="flex items-center space-x-3 border p-3 rounded-lg hover:bg-gray-50 transition-colors bg-blue-50/30 border-blue-100">
                                     <input
                                         type="checkbox"
-                                        id="showOnHome"
-                                        className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                                        className="h-5 w-5 rounded cursor-pointer"
                                         checked={formData.showOnHome}
                                         onChange={(e) => setFormData({...formData, showOnHome: e.target.checked})}
                                     />
-                                    <div className="flex flex-col cursor-pointer" onClick={() => setFormData({...formData, showOnHome: !formData.showOnHome})}>
-                                        <Label className="cursor-pointer font-bold text-indigo-600 flex items-center gap-1">
-                                            <Store size={14} /> Vidriera / Novedades
+                                    <Label className="cursor-pointer font-bold text-indigo-600 flex items-center gap-1">
+                                        <Store size={14} /> Vidriera / Novedades
+                                    </Label>
+                                </div>
+
+                                {/* 👇 NUEVO BOTÓN: ENVÍO GRATIS */}
+                                <div className="flex items-center space-x-3 border p-3 rounded-lg hover:bg-gray-50 transition-colors bg-red-50/30 border-red-100 col-span-full">
+                                    <input
+                                        type="checkbox"
+                                        id="freeShipping"
+                                        className="h-5 w-5 rounded cursor-pointer accent-red-600"
+                                        checked={formData.freeShipping}
+                                        onChange={(e) => setFormData({...formData, freeShipping: e.target.checked})}
+                                    />
+                                    <div className="flex flex-col cursor-pointer" onClick={() => setFormData({...formData, freeShipping: !formData.freeShipping})}>
+                                        <Label className="cursor-pointer font-bold text-red-600 flex items-center gap-1">
+                                            <Truck size={14} /> TIENE ENVÍO GRATIS
                                         </Label>
-                                        <span className="text-xs text-gray-500">Lista compacta abajo (Máx 10)</span>
+                                        <span className="text-[10px] text-gray-500 uppercase">Activa el cartel rojo en la tienda</span>
                                     </div>
                                 </div>
                             </div>
@@ -290,31 +288,25 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                 </Dialog>
             </div>
 
-            {/* LISTA DE PRODUCTOS (GRID) */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {initialProducts.map((product) => (
-                    <Card key={product.id} className={`${product.isFeatured ? "border-2 border-blue-500 shadow-md" : ""} ${product.showOnHome ? "border-indigo-200 bg-indigo-50/20" : ""}`}>
+                    <Card key={product.id} className={`${product.isFeatured ? "border-2 border-blue-500 shadow-md" : ""}`}>
                         <div className="aspect-square relative overflow-hidden rounded-t-xl bg-gray-100">
-                            {/* Badges de estado */}
                             <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
                                 {product.isFeatured && (
-                                    <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                                    <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
                                         <Star size={10} fill="white" /> Destacado
                                     </span>
                                 )}
-                                {product.showOnHome && (
-                                    <span className="bg-indigo-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                                        <Store size={10} /> Vidriera
+                                {product.freeShipping && (
+                                    <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                                        <Truck size={10} /> Envío Gratis
                                     </span>
                                 )}
-                                {/* Badge de ORDEN */}
-                                <span className="bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm opacity-80">
-                                    <ArrowUpDown size={10} /> #{product.order || 0}
-                                </span>
                             </div>
                             
                             {product.discount > 0 && (
-                                <span className="absolute top-2 right-2 bg-green-600 text-white text-xs font-bold px-2 py-1 rounded-full z-10">
+                                <span className="absolute top-2 right-2 bg-green-600 text-white text-xl font-black px-4 py-2 rounded-full z-10 shadow-lg">
                                     {product.discount}% OFF
                                 </span>
                             )}
@@ -324,17 +316,14 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 alt={product.title} 
                                 className="w-full h-full object-cover"
                                 referrerPolicy="no-referrer"
-                                onError={(e) => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x400?text=Error" }}
                             />
                         </div>
                         <CardHeader>
                             <CardTitle className="flex justify-between items-start text-lg">
                                 <span className="truncate">{product.title}</span>
-                                <div className="flex flex-col items-end">
-                                    <span className={product.discount > 0 ? "text-green-600 font-bold" : "font-bold"}>
-                                        ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
-                                    </span>
-                                </div>
+                                <span className="font-bold">
+                                    ${(Number(product.price) * (1 - (product.discount || 0) / 100)).toFixed(2)}
+                                </span>
                             </CardTitle>
                         </CardHeader>
                         <CardFooter className="flex justify-end space-x-2">

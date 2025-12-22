@@ -112,13 +112,15 @@ export default function ProductCard({ product }: ProductCardProps) {
                         </span>
                     </div>
 
-                    {/* 👇 CARTEL DE ENVÍO GRATIS EN ROJO (Sólo si está marcado) */}
-                    {(product as any).freeShipping && (
-                        <div className="flex items-center gap-1 bg-red-50 text-red-600 px-2 py-1 rounded border border-red-100 animate-pulse">
-                            <Truck size={12} />
-                            <span className="text-[10px] font-black uppercase">ENVÍO GRATIS</span>
-                        </div>
-                    )}
+                   {/* 👇 CARTEL DE ENVÍO GRATIS MÁS GRANDE Y LLAMATIVO */}
+{product.freeShipping && (
+    <div className="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 animate-pulse shadow-sm">
+        <Truck size={18} className="stroke-[2.5px]" />
+        <span className="text-[12px] font-black uppercase tracking-tight">
+            ¡ENVÍO GRATIS!
+        </span>
+    </div>
+)}
                 </div>
             </CardContent>
 

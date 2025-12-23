@@ -115,9 +115,6 @@ export default function AuditPage() {
                         {shipmentFolders.map((folder) => {
                             const stats = folder.stats || { aprobados: 0, rechazados: 0, total: 0 };
                             
-                            // LÓGICA ESTRICTA:
-                            // Solo es OK si hay aprobados Y no hay NADA pendiente ni rechazado.
-                            // Nota: Asumimos que stats.total es el total detectado en Drive.
                             const tieneRechazados = stats.rechazados > 0;
                             const faltanAprobar = stats.total - (stats.aprobados + stats.rechazados);
                             const estaTodoOk = stats.total > 0 && faltanAprobar === 0 && !tieneRechazados;
@@ -158,7 +155,7 @@ export default function AuditPage() {
                                                     <div className="flex flex-col">
                                                         <span>ESTADO: REQUIERE ACCIÓN</span>
                                                         <span className="text-xs opacity-80">
-                                                            {faltanAprobar > 0 && `• Faltan ${faltanAprobar} por aprobar `}
+                                                            {faltanAprobar > 0 && `• Faltan ${faltanAprobar} por procesar `}
                                                             {tieneRechazados && `• Hay ${stats.rechazados} rechazado${stats.rechazados > 1 ? 's' : ''}`}
                                                         </span>
                                                     </div>
@@ -233,10 +230,10 @@ export default function AuditPage() {
                                 }`}
                             >
                                 <div className="h-16 w-16 bg-gray-100 rounded overflow-hidden shrink-0 border">
-                                    {item.referenceImageUrl ? (
-                                        <img src={item.referenceImageUrl} alt="Ref" className="h-full w-full object-contain" />
+                                    {item.evidenceImageUrl ? (
+                                        <img src={item.evidenceImageUrl} alt="Ref" className="h-full w-full object-cover" />
                                     ) : (
-                                        <div className="h-full w-full flex items-center justify-center text-gray-300 text-[10px]">SIN REF</div>
+                                        <div className="h-full w-full flex items-center justify-center text-gray-300 text-[10px]">SIN FOTO</div>
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">

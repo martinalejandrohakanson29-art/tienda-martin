@@ -66,6 +66,8 @@ export async function getShipmentFolders() {
     }
 }
 
+// app/actions/audit.ts
+
 export async function getAuditPendingItems(selectedEnvioName?: string) {
     try {
         const drive = getDriveClient()
@@ -74,7 +76,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const query = `'${DRIVE_PARENT_FOLDER_ID}' in parents and name = '${envioId}' and trashed=false`
         const envioFolderRes = await drive.files.list({ q: query, fields: 'files(id, name)', pageSize: 1 })
 
-        if (!envioFolderRes.data.files?.length) return { error: "No se encontró la carpeta" }
+        if (!envioFolderRes.data.files?.length) return { success: false, error: "No se encontró la carpeta" }
 
         const envioFolderId = envioFolderRes.data.files[0].id!
 
@@ -83,14 +85,16 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
             include: { items: true }
         })
 
-        const quantityMap = new Map()
+        // 1. Le decimos a TypeScript que este mapa guarda números
+        const quantityMap = new Map<string, number>()
         dbShipment?.items.forEach(item => quantityMap.set(item.itemId, item.quantity))
 
+        // 2. Le decimos a TypeScript que este mapa guarda textos
         const auditedItems = await prisma.shipmentAudit.findMany({
             where: { envioId: envioId },
             select: { itemId: true, status: true }
         })
-        const statusMap = new Map()
+        const statusMap = new Map<string, string>()
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status))
 
         const mlaFoldersRes = await drive.files.list({
@@ -106,24 +110,26 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
             
             if (imgs.data.files?.length) {
                 const evidence = imgs.data.files.map(img => getPublicThumbnailLink(img.id!))
+                
+                // 3. Aseguramos que driveName y title NUNCA sean null usando || ""
                 allItems.push({
                     itemId: mlaId,
-                    driveName: f.name,
-                    title: f.name,
+                    driveName: f.name || "Sin nombre", 
+                    title: f.name || "Sin nombre",
                     sku: "S/D",
                     quantity: quantityMap.get(mlaId) || 0,
                     agregados: [],
                     referenceImageUrl: null,
                     evidenceImageUrl: evidence[0],
                     evidenceImages: evidence,
-                    status: statusMap.get(mlaId) || 'PENDIENTE',
+                    status: (statusMap.get(mlaId) || 'PENDIENTE') as 'PENDIENTE' | 'APROBADO' | 'RECHAZADO',
                     envioId: envioId
                 })
             }
         }
         return { success: true, data: allItems, envioId }
     } catch (error: any) {
-        return { error: error.message }
+        return { success: false, error: error.message }
     }
 }
 

@@ -1,11 +1,8 @@
 "use server"
 
 import { google } from "googleapis"
-import axios from "axios"
-import Papa from "papaparse"
 import { prisma } from "@/lib/prisma"
 
-const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/1q0qWmIcRAybrxQcYRhJd5s-A1xiEe_VenWEA84Xptso/export?format=csv&gid=1236582105'
 const DRIVE_PARENT_FOLDER_ID = '1v-E638QF0AaPr7zywfH2luZvnHXtJujp' 
 
 const getDriveClient = () => {
@@ -66,13 +63,12 @@ export async function getShipmentFolders() {
     }
 }
 
-// app/actions/audit.ts
-
 export async function getAuditPendingItems(selectedEnvioName?: string) {
     try {
         const drive = getDriveClient()
         let envioId = selectedEnvioName || ""
 
+        // Buscar la carpeta del envío en Drive
         const query = `'${DRIVE_PARENT_FOLDER_ID}' in parents and name = '${envioId}' and trashed=false`
         const envioFolderRes = await drive.files.list({ q: query, fields: 'files(id, name)', pageSize: 1 })
 
@@ -80,16 +76,19 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
 
         const envioFolderId = envioFolderRes.data.files[0].id!
 
+        // Obtener la planificación de la base de datos para cruzar datos
         const dbShipment = await prisma.shipment.findUnique({
             where: { name: envioId },
             include: { items: true }
         })
 
-        // 1. Le decimos a TypeScript que este mapa guarda números
-        const quantityMap = new Map<string, number>()
-        dbShipment?.items.forEach(item => quantityMap.set(item.itemId, item.quantity))
+        // Crear un mapa de los items de la DB para acceso rápido por itemId (MLA...)
+        const dbItemsMap = new Map()
+        dbShipment?.items.forEach(item => {
+            dbItemsMap.set(item.itemId, item)
+        })
 
-        // 2. Le decimos a TypeScript que este mapa guarda textos
+        // Obtener auditorías ya realizadas
         const auditedItems = await prisma.shipmentAudit.findMany({
             where: { envioId: envioId },
             select: { itemId: true, status: true }
@@ -97,6 +96,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const statusMap = new Map<string, string>()
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status))
 
+        // Listar subcarpetas de productos (las que tienen las fotos)
         const mlaFoldersRes = await drive.files.list({
             q: `'${envioFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name)',
@@ -106,19 +106,24 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const allItems = []
         for (const f of mlaFoldersRes.data.files || []) {
             const mlaId = (f.name || "").split(' ')[0].trim()
-            const imgs = await drive.files.list({ q: `'${f.id}' in parents and mimeType contains 'image/'`, fields: 'files(id)' })
+            
+            // Buscar imágenes dentro de la carpeta del producto
+            const imgs = await drive.files.list({ 
+                q: `'${f.id}' in parents and mimeType contains 'image/' and trashed=false`, 
+                fields: 'files(id)' 
+            })
             
             if (imgs.data.files?.length) {
                 const evidence = imgs.data.files.map(img => getPublicThumbnailLink(img.id!))
+                const dbInfo = dbItemsMap.get(mlaId)
                 
-                // 3. Aseguramos que driveName y title NUNCA sean null usando || ""
                 allItems.push({
                     itemId: mlaId,
                     driveName: f.name || "Sin nombre", 
-                    title: f.name || "Sin nombre",
-                    sku: "S/D",
-                    quantity: quantityMap.get(mlaId) || 0,
-                    agregados: [],
+                    title: dbInfo?.title || f.name || "Sin nombre",
+                    sku: dbInfo?.sku || "Sin SKU", // 👈 Ahora trae el SKU real de la DB
+                    quantity: dbInfo?.quantity || 0,
+                    agregados: [], // Aquí podrías parsear notas adicionales si las guardas en algún campo
                     referenceImageUrl: null,
                     evidenceImageUrl: evidence[0],
                     evidenceImages: evidence,
@@ -129,6 +134,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         }
         return { success: true, data: allItems, envioId }
     } catch (error: any) {
+        console.error("Error items:", error)
         return { success: false, error: error.message }
     }
 }

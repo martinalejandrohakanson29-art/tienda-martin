@@ -28,6 +28,8 @@ const getPublicThumbnailLink = (fileId: string) => {
 
 // 👇👇👇 AQUÍ EMPIEZAN LOS CAMBIOS IMPORTANTES 👇👇👇
 
+// app/actions/audit.ts
+
 export async function getShipmentFolders() {
     try {
         const drive = getDriveClient()
@@ -37,7 +39,29 @@ export async function getShipmentFolders() {
             orderBy: 'createdTime desc',
             pageSize: 20
         })
-        return { success: true, folders: res.data.files || [] }
+
+        const folders = res.data.files || []
+
+        // Buscamos los estados de auditoría en la DB para estas carpetas
+        const folderStats = await Promise.all(folders.map(async (folder) => {
+            const audits = await prisma.shipmentAudit.findMany({
+                where: { envioId: folder.name },
+                select: { status: true }
+            });
+
+            return {
+                ...folder,
+                stats: {
+                    total: audits.length,
+                    aprobados: audits.filter(a => a.status === 'APROBADO').length,
+                    rechazados: audits.filter(a => a.status === 'RECHAZADO').length,
+                    // Si no hay rechazos y todo lo auditado está OK, pero quizás faltan ítems,
+                    // lo manejaremos visualmente en el cliente.
+                }
+            };
+        }));
+
+        return { success: true, folders: folderStats }
     } catch (error: any) {
         console.error("Error fetching folders:", error)
         return { success: false, error: error.message }

@@ -69,11 +69,11 @@ model ShipmentItem {
   shipmentId  String
   shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   
-  itemId      String   
+  itemId      String   // El ID de MercadoLibre (MLA...)
   title       String
   sku         String?
-  quantity    Int      
-  agregados   String?  // 👈 AGREGAR ESTA LÍNEA (Guardaremos los 4 agregados como un texto separado por comas)
+  quantity    Int      // La cantidad planificada
+  agregados   String?  // 👈 Asegúrate de que esta línea esté aquí
   
   @@index([shipmentId])
 }
@@ -87,15 +87,4 @@ model Shipment {
   items     ShipmentItem[]
 }
 
-model ShipmentItem {
-  id          String   @id @default(cuid())
-  shipmentId  String
-  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  
-  itemId      String   // El ID de MercadoLibre (MLA...)
-  title       String
-  sku         String?
-  quantity    Int      // 👈 EL DATO DE ORO: La cantidad planificada
-  
-  @@index([shipmentId])
-}
+

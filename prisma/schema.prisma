@@ -22,15 +22,14 @@ model Product {
   stock           Int
   category        String
   imageUrl        String
-  freeShipping    Boolean  @default(true) // 👈 AGREGAR ESTA LÍNEA
+  freeShipping    Boolean  @default(true)
   imageUrl2       String   @default("")
   imageUrl3       String   @default("")
   videoUrl        String   @default("")
-  
   discount        Int      @default(0)
   isFeatured      Boolean  @default(false)
-  showOnHome      Boolean   @default(false) // 👈 NUEVO: Para la lista de abajo (Chico)
-  mercadolibreUrl String   @default("") 
+  showOnHome      Boolean  @default(false)
+  mercadolibreUrl String   @default("")
   views           Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -39,7 +38,7 @@ model Product {
 model Config {
   id                    String   @id @default(cuid())
   companyName           String   @default("Mi Tienda")
-  logoUrl               String   @default("") 
+  logoUrl               String   @default("")
   logoHeight            String   @default("80px")
   announcementText      String   @default("")
   whatsappNumber        String   @default("")
@@ -47,7 +46,7 @@ model Config {
   tiktokUrl             String   @default("")
   welcomeText           String   @default("Bienvenido a nuestra tienda")
   locationUrl           String   @default("")
-  paymentMethods        String   @default("Efectivo,Transferencia,Tarjeta") 
+  paymentMethods        String   @default("Efectivo,Transferencia,Tarjeta")
   carouselHeightDesktop String   @default("600px")
   carouselHeightMobile  String   @default("250px")
   createdAt             DateTime @default(now())
@@ -64,27 +63,37 @@ model CarouselItem {
   updatedAt      DateTime @updatedAt
 }
 
+// --- MODELOS DE AUDITORÍA Y ENVÍOS ---
+
+model Shipment {
+  id        String         @id @default(cuid())
+  name      String         @unique // Nombre de la carpeta de Drive / Envio
+  createdAt DateTime       @default(now())
+  items     ShipmentItem[]
+}
+
 model ShipmentItem {
-  id          String   @id @default(cuid())
-  shipmentId  String
-  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   
-  itemId      String   // El ID de MercadoLibre (MLA...)
-  title       String
-  sku         String?
-  quantity    Int      // La cantidad planificada
-  agregados   String?  // 👈 Asegúrate de que esta línea esté aquí
+  itemId     String   // ID de Mercado Libre (MLA...)
+  title      String
+  sku        String?
+  quantity   Int      // Cantidad planificada
+  agregados  String?  // Columnas N, O, P, Q de la planilla
   
   @@index([shipmentId])
 }
 
-// 👇 NUEVOS MODELOS PARA EL HISTORIAL DE ENVÍOS
-model Shipment {
-  id        String         @id @default(cuid())
-  name      String         @unique // Aquí guardaremos el nombre de la carpeta (Ej: "Envio_2023-12-20_1530")
-  createdAt DateTime       @default(now())
+model ShipmentAudit {
+  id        String   @id @default(cuid())
+  itemId    String   
+  envioId   String   
+  status    String   // APROBADO / RECHAZADO / PENDIENTE
+  reason    String?
+  auditor   String?  
+  createdAt DateTime @default(now())
   
-  items     ShipmentItem[]
+  @@unique([itemId, envioId])
 }
-
-

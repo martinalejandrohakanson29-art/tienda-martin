@@ -23,61 +23,34 @@ type AuditItem = {
     envioId: string
 }
 
-type ViewState = 'FOLDERS' | 'ITEM_LIST' | 'ITEM_DETAIL'
-
 export default function AuditPage() {
-    // Estados de Vista
-    const [view, setView] = useState<ViewState>('FOLDERS')
-    
-    // Datos
+    const [view, setView] = useState<'FOLDERS' | 'ITEM_LIST' | 'ITEM_DETAIL'>('FOLDERS')
     const [shipmentFolders, setShipmentFolders] = useState<any[]>([])
     const [items, setItems] = useState<AuditItem[]>([])
     const [selectedItem, setSelectedItem] = useState<AuditItem | null>(null)
-    
-    // UI States
     const [activeEvidenceImage, setActiveEvidenceImage] = useState<string | null>(null)
     const [expandedImage, setExpandedImage] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [envioId, setEnvioId] = useState("")
-    const [error, setError] = useState("")
     const [processing, setProcessing] = useState<string | null>(null)
 
-    // 1. Cargar carpetas al montar
-    useEffect(() => {
-        loadFolders()
-    }, [])
+    useEffect(() => { loadFolders() }, [])
 
     const loadFolders = async () => {
         setLoading(true)
         setView('FOLDERS')
         const res = await getShipmentFolders()
-        if (res.success) {
-            setShipmentFolders(res.folders || [])
-        } else {
-            setError(res.error || "Error cargando carpetas")
-        }
+        if (res.success) setShipmentFolders(res.folders || [])
         setLoading(false)
     }
 
-    // 2. Seleccionar envío y cargar lista de items
-    const selectShipment = async (idName: string) => {
-        setEnvioId(idName)
+    const selectShipment = async (name: string) => {
+        setEnvioId(name)
         setView('ITEM_LIST')
         setLoading(true)
-        setItems([])
-        const res = await getAuditPendingItems(idName)
-        if (res.success) {
-            setItems(res.data || [])
-        } else {
-            setError(res.error || "Error cargando items")
-        }
+        const res = await getAuditPendingItems(name)
+        if (res.success) setItems(res.data || [])
         setLoading(false)
-    }
-
-    const openItemDetail = (item: AuditItem) => {
-        setSelectedItem(item)
-        setActiveEvidenceImage(item.evidenceImages?.[0] || item.evidenceImageUrl)
-        setView('ITEM_DETAIL')
     }
 
     const handleVote = async (status: 'APROBADO' | 'RECHAZADO') => {
@@ -88,114 +61,63 @@ export default function AuditPage() {
             setItems(prev => prev.map(i => i.itemId === selectedItem.itemId ? { ...i, status } : i))
             setView('ITEM_LIST')
             setSelectedItem(null)
-        } else {
-            alert("Error: " + res.error)
         }
         setProcessing(null)
     }
 
-    // --- COMPONENTE MODAL DE ZOOM ---
     const ImageZoomModal = () => {
         if (!expandedImage) return null
         return (
-            <div 
-                className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
-                onClick={() => setExpandedImage(null)}
-            >
-                <button className="absolute top-4 right-4 text-white/70 hover:text-white p-2 bg-white/10 rounded-full">
-                    <X className="h-8 w-8" />
-                </button>
-                <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
-                    <img 
-                        src={expandedImage} 
-                        alt="Zoom" 
-                        className="w-auto h-auto max-w-screen max-h-[90vh] object-contain rounded shadow-2xl ring-1 ring-white/20"
-                    />
-                </div>
+            <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setExpandedImage(null)}>
+                <button className="absolute top-4 right-4 text-white/70"><X className="h-8 w-8" /></button>
+                <img src={expandedImage} alt="Zoom" className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" />
             </div>
         )
     }
 
-    // --- VISTA 1: CARPETAS (SELECCIÓN DE ENVÍO) ---
     if (view === 'FOLDERS') {
         return (
-            <div className="max-w-5xl mx-auto space-y-6">
-                 <div className="flex items-center gap-3 mb-6">
+            <div className="max-w-5xl mx-auto space-y-6 p-4">
+                <div className="flex items-center gap-3 mb-6">
                     <div className="p-3 bg-blue-100 text-blue-700 rounded-lg"><FolderOpen className="h-6 w-6" /></div>
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Auditoría de Envíos</h1>
-                        <p className="text-gray-500 text-sm">Estado general de revisión por carpeta</p>
+                        <h1 className="text-2xl font-bold">Auditoría de Envíos</h1>
+                        <p className="text-gray-500">Estado de revisión de imágenes</p>
                     </div>
                     <Button variant="outline" className="ml-auto" onClick={loadFolders} disabled={loading}>
-                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                        <RefreshCw className={loading ? 'animate-spin' : ''} />
                     </Button>
                 </div>
-
-                {loading ? (
-                    <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-blue-500" /></div>
-                ) : (
+                {loading ? <Loader2 className="animate-spin mx-auto h-12 w-12 text-blue-500" /> : (
                     <div className="grid gap-6 md:grid-cols-2">
                         {shipmentFolders.map((folder) => {
-                            const stats = folder.stats || { aprobados: 0, rechazados: 0, total: 0 };
-                            const tieneRechazados = stats.rechazados > 0;
-                            const faltanAprobar = stats.total - (stats.aprobados + stats.rechazados);
-                            const estaTodoOk = stats.total > 0 && faltanAprobar === 0 && !tieneRechazados;
+                            const stats = folder.stats
+                            const tieneRechazados = stats.rechazados > 0
+                            const faltanAprobar = stats.total - (stats.aprobados + stats.rechazados)
+                            const ok = stats.total > 0 && faltanAprobar === 0 && !tieneRechazados
 
                             return (
-                                <Card 
-                                    key={folder.id} 
-                                    className={`cursor-pointer hover:shadow-lg transition-all border-t-8 ${
-                                        estaTodoOk ? 'border-t-green-500 bg-green-50/20' : 
-                                        tieneRechazados ? 'border-t-red-500 bg-red-50/20' : 
-                                        'border-t-orange-400 bg-orange-50/20'
-                                    }`}
-                                    onClick={() => selectShipment(folder.name)}
-                                >
+                                <Card key={folder.id} onClick={() => selectShipment(folder.name)} className={`cursor-pointer border-t-8 transition-all hover:shadow-lg ${ok ? 'border-t-green-500 bg-green-50/20' : tieneRechazados ? 'border-t-red-500 bg-red-50/20' : 'border-t-orange-400 bg-orange-50/20'}`}>
                                     <CardContent className="p-6">
-                                        <div className="flex items-start justify-between mb-4">
-                                            <div className="space-y-1">
-                                                <h3 className="font-black text-xl text-gray-800 leading-tight">{folder.name}</h3>
-                                                <p className="text-[10px] text-gray-400 font-mono">ID: {folder.id}</p>
-                                            </div>
-                                            {estaTodoOk ? (
-                                                <CheckCircle2 className="h-10 w-10 text-green-600" />
-                                            ) : tieneRechazados ? (
-                                                <BellRing className="h-10 w-10 text-red-600 animate-bounce" />
-                                            ) : (
-                                                <AlertCircle className="h-10 w-10 text-orange-500" />
+                                        <div className="flex justify-between items-start mb-4">
+                                            <h3 className="font-bold text-xl">{folder.name}</h3>
+                                            {ok ? <CheckCircle2 className="text-green-600 h-8 w-8" /> : tieneRechazados ? <BellRing className="text-red-600 h-8 w-8 animate-bounce" /> : <AlertCircle className="text-orange-500 h-8 w-8" />}
+                                        </div>
+                                        <div className={`p-2 rounded font-bold text-sm mb-4 ${ok ? 'bg-green-100 text-green-700' : tieneRechazados ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                                            {ok ? "COMPLETO Y OK" : (
+                                                <div className="flex flex-col">
+                                                    <span>REQUIERE ACCIÓN</span>
+                                                    <span className="text-xs opacity-80">
+                                                        {faltanAprobar > 0 && `• Faltan ${faltanAprobar} por procesar `}
+                                                        {tieneRechazados && `• Hay ${stats.rechazados} con error`}
+                                                    </span>
+                                                </div>
                                             )}
                                         </div>
-
-                                        <div className="space-y-3">
-                                            <div className={`text-sm font-bold px-3 py-2 rounded-md ${
-                                                estaTodoOk ? 'bg-green-100 text-green-700' : 
-                                                tieneRechazados ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                                            }`}>
-                                                {estaTodoOk ? "ESTADO: COMPLETO Y OK" : (
-                                                    <div className="flex flex-col">
-                                                        <span>REQUIERE REVISIÓN</span>
-                                                        <span className="text-xs opacity-80 font-normal">
-                                                            {faltanAprobar > 0 && `• Faltan ${faltanAprobar} por procesar `}
-                                                            {tieneRechazados && `• Hay ${stats.rechazados} con error`}
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-3 gap-2 text-center">
-                                                <div className="bg-white/50 border rounded-lg p-2">
-                                                    <p className="text-[9px] text-gray-400 uppercase font-black">Total</p>
-                                                    <p className="text-lg font-bold">{stats.total}</p>
-                                                </div>
-                                                <div className="bg-white/50 border rounded-lg p-2">
-                                                    <p className="text-[9px] text-green-500 uppercase font-black">Ok</p>
-                                                    <p className="text-lg font-bold text-green-600">{stats.aprobados}</p>
-                                                </div>
-                                                <div className="bg-white/50 border rounded-lg p-2">
-                                                    <p className="text-[9px] text-red-500 uppercase font-black">Mal</p>
-                                                    <p className="text-lg font-bold text-red-600">{stats.rechazados}</p>
-                                                </div>
-                                            </div>
+                                        <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black uppercase">
+                                            <div className="bg-white border rounded p-2">Total: {stats.total}</div>
+                                            <div className="bg-white border rounded p-2 text-green-600">Ok: {stats.aprobados}</div>
+                                            <div className="bg-white border rounded p-2 text-red-600">Mal: {stats.rechazados}</div>
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -207,169 +129,70 @@ export default function AuditPage() {
         )
     }
 
-    // --- VISTA 2: LISTA DE PRODUCTOS ---
     if (view === 'ITEM_LIST') {
-        const total = items.length
-        const aprobados = items.filter(i => i.status === 'APROBADO').length
-        const rechazados = items.filter(i => i.status === 'RECHAZADO').length
-        const pendientes = items.filter(i => i.status === 'PENDIENTE').length
-
         return (
-            <div className="max-w-3xl mx-auto space-y-6">
-                <div className="bg-white p-4 rounded-xl border shadow-sm sticky top-4 z-10 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                        <Button variant="ghost" size="icon" onClick={() => setView('FOLDERS')}>
-                            <ArrowLeft className="h-5 w-5" />
-                        </Button>
-                        <div>
-                            <h2 className="font-bold text-lg">{envioId}</h2>
-                            <div className="flex gap-3 text-[10px] font-mono mt-1 font-bold">
-                                <span className="text-gray-500">T: {total}</span>
-                                <span className="text-green-600">OK: {aprobados}</span>
-                                <span className="text-red-600">X: {rechazados}</span>
-                                <span className="text-orange-500">P: {pendientes}</span>
+            <div className="max-w-3xl mx-auto p-4 space-y-4 font-sans">
+                <Button variant="ghost" onClick={() => setView('FOLDERS')} className="mb-2"><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
+                {loading ? <Loader2 className="animate-spin mx-auto h-10 w-10 text-blue-500" /> : items.map(item => (
+                    <Card key={item.itemId} onClick={() => { setSelectedItem(item); setActiveEvidenceImage(item.evidenceImages[0]); setView('ITEM_DETAIL') }} className={`cursor-pointer border-l-4 hover:shadow-md transition-all ${item.status === 'APROBADO' ? 'border-l-green-500' : item.status === 'RECHAZADO' ? 'border-l-red-500' : 'border-l-gray-300'}`}>
+                        <CardContent className="p-4 flex items-center gap-4">
+                            <img src={item.evidenceImageUrl} className="h-16 w-16 object-cover rounded border" alt="Thumbnail" />
+                            <div className="flex-1 min-w-0">
+                                <p className="font-bold truncate text-sm">{item.driveName}</p>
+                                <p className="text-[10px] text-gray-500">Cantidad: {item.quantity}</p>
                             </div>
-                        </div>
-                    </div>
-                    <Button variant="outline" size="sm" onClick={() => selectShipment(envioId)} disabled={loading}>
-                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                    </Button>
-                </div>
-
-                {loading ? (
-                     <div className="py-20 text-center"><Loader2 className="h-10 w-10 animate-spin mx-auto text-blue-500" /></div>
-                ) : (
-                    <div className="space-y-3">
-                        {items.map((item) => (
-                            <div 
-                                key={item.itemId}
-                                onClick={() => openItemDetail(item)}
-                                className={`bg-white border rounded-lg p-3 flex items-center gap-4 cursor-pointer hover:shadow-md transition-all border-l-4 ${
-                                    item.status === 'APROBADO' ? 'border-l-green-500' : 
-                                    item.status === 'RECHAZADO' ? 'border-l-red-500' : 'border-l-gray-300'
-                                }`}
-                            >
-                                <div className="h-16 w-16 bg-gray-100 rounded overflow-hidden shrink-0 border relative">
-                                    {item.evidenceImageUrl ? (
-                                        <img src={item.evidenceImageUrl} alt="Evidencia" className="h-full w-full object-cover" />
-                                    ) : (
-                                        <div className="h-full w-full flex items-center justify-center text-gray-300 text-[10px]">SIN FOTO</div>
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <h3 className="font-bold text-gray-800 text-sm truncate">{item.driveName}</h3>
-                                        <span className="bg-gray-100 text-[10px] px-1.5 py-0.5 rounded-full border font-black text-gray-600">x{item.quantity}</span>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500 truncate">{item.title}</p>
-                                </div>
-                                <div className="shrink-0 pr-2">
-                                    {item.status === 'APROBADO' && <Check className="h-6 w-6 text-green-500" />}
-                                    {item.status === 'RECHAZADO' && <X className="h-6 w-6 text-red-500" />}
-                                    {item.status === 'PENDIENTE' && <div className="h-3 w-3 rounded-full bg-gray-300" />}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                            {item.status === 'APROBADO' ? <Check className="text-green-500" /> : item.status === 'RECHAZADO' ? <X className="text-red-500" /> : <div className="h-3 w-3 bg-gray-300 rounded-full" />}
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
         )
     }
 
-    // --- VISTA 3: DETALLE DE AUDITORÍA ---
     if (view === 'ITEM_DETAIL' && selectedItem) {
         return (
-            <>
+            <div className="max-w-5xl mx-auto p-4 space-y-6">
                 <ImageZoomModal />
-                <div className="max-w-5xl mx-auto space-y-6">
-                    <div className="flex items-center gap-4 mb-4">
-                        <Button variant="outline" onClick={() => setView('ITEM_LIST')}><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-                        <h2 className="text-xl font-bold truncate text-gray-800">{selectedItem.driveName}</h2>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* COLUMNA IZQUIERDA: GALERÍA */}
-                        <div className="space-y-4">
-                            <div className="bg-white p-1 border rounded-2xl shadow-sm overflow-hidden cursor-zoom-in relative h-[500px]" onClick={() => setExpandedImage(activeEvidenceImage)}>
-                                {activeEvidenceImage ? (
-                                    <img src={activeEvidenceImage} alt="Evidencia" className="w-full h-full object-contain" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">Sin imagen</div>
-                                )}
-                                <div className="absolute top-3 left-3 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold">
-                                    FOTO {selectedItem.evidenceImages.indexOf(activeEvidenceImage!) + 1} / {selectedItem.evidenceImages.length}
-                                    <Maximize2 className="h-3 w-3" />
-                                </div>
-                            </div>
-                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                                {selectedItem.evidenceImages.map((img, idx) => (
-                                    <button key={idx} onClick={() => setActiveEvidenceImage(img)} className={`h-20 w-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${activeEvidenceImage === img ? 'border-blue-500 ring-2 ring-blue-100 scale-95' : 'border-transparent opacity-60'}`}>
-                                        <img src={img} alt="Thumb" className="h-full w-full object-cover" />
-                                    </button>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 pt-2">
-                                <Button variant="outline" className="h-16 border-red-200 text-red-600 text-lg font-bold hover:bg-red-50" onClick={() => handleVote('RECHAZADO')} disabled={!!processing}>
-                                    <X className="mr-2 h-6 w-6" /> RECHAZAR
-                                </Button>
-                                <Button className="h-16 bg-green-600 hover:bg-green-700 text-white shadow-xl text-lg font-bold" onClick={() => handleVote('APROBADO')} disabled={!!processing}>
-                                    {processing ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-6 w-6" />} APROBAR
-                                </Button>
+                <Button variant="outline" onClick={() => setView('ITEM_LIST')}><ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista</Button>
+                <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                        <div className="aspect-square bg-white border rounded-2xl overflow-hidden cursor-zoom-in relative group" onClick={() => setExpandedImage(activeEvidenceImage)}>
+                            <img src={activeEvidenceImage!} className="w-full h-full object-contain" alt="Evidencia" />
+                            <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold">
+                                FOTO {selectedItem.evidenceImages.indexOf(activeEvidenceImage!) + 1} / {selectedItem.evidenceImages.length}
+                                <Maximize2 className="h-3 w-3" />
                             </div>
                         </div>
-
-                        {/* COLUMNA DERECHA: INFO */}
-                        <div className="space-y-6">
-                            <Card className="rounded-2xl overflow-hidden border-none shadow-sm bg-white">
-                                <CardContent className="p-6 space-y-6">
-                                    <div>
-                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Producto Detectado</h3>
-                                        <div className="flex justify-between items-start gap-4">
-                                            <p className="text-xl font-bold text-gray-900 leading-tight flex-1">{selectedItem.title}</p>
-                                            <div className="bg-orange-50 border border-orange-200 rounded-2xl p-3 min-w-[100px] text-center shadow-sm">
-                                                <span className="block text-[10px] text-orange-600 font-black uppercase mb-1">Unidades</span>
-                                                <span className="text-3xl font-black text-orange-700">{selectedItem.quantity}</span>
-                                            </div>
-                                        </div>
-                                        <p className="text-xs font-mono text-gray-400 mt-2 bg-gray-50 p-2 rounded w-fit">SKU: {selectedItem.sku}</p>
-                                    </div>
-                                    
-                                    <div className="pt-6 border-t border-gray-100">
-                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Agregados Requeridos</h3>
-                                        {selectedItem.agregados.length > 0 ? (
-                                            <div className="bg-blue-50/50 border border-blue-100 rounded-xl p-4">
-                                                <ul className="space-y-3">
-                                                    {selectedItem.agregados.map((a, i) => (
-                                                        <li key={i} className="flex items-start gap-3 text-blue-900 font-bold text-sm">
-                                                            <div className="h-2 w-2 rounded-full bg-blue-400 mt-1.5 shrink-0" /> {a}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        ) : <p className="text-gray-400 italic text-sm bg-gray-50 p-4 rounded-xl text-center">Este producto no lleva agregados.</p>}
-                                    </div>
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            {selectedItem.evidenceImages.map((img, i) => (
+                                <img key={i} src={img} onClick={() => setActiveEvidenceImage(img)} className={`h-20 w-20 object-cover rounded-xl cursor-pointer border-2 transition-all ${activeEvidenceImage === img ? 'border-blue-500 scale-95' : 'border-transparent opacity-60'}`} alt="Thumbnail" />
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Button variant="outline" className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50" onClick={() => handleVote('RECHAZADO')} disabled={!!processing}><X className="mr-2 h-6 w-6" /> RECHAZAR</Button>
+                            <Button className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700" onClick={() => handleVote('APROBADO')} disabled={!!processing}>{processing ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-6 w-6" />} APROBAR</Button>
+                        </div>
+                    </div>
+                    <div className="space-y-6">
+                        <Card className="rounded-2xl shadow-sm"><CardContent className="p-6">
+                            <h2 className="text-xl font-bold mb-4">{selectedItem.title}</h2>
+                            <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl text-center">
+                                <p className="text-[10px] text-orange-600 font-black uppercase mb-1">Unidades Requeridas</p>
+                                <p className="text-4xl font-black text-orange-700">{selectedItem.quantity}</p>
+                            </div>
+                        </CardContent></Card>
+                        {selectedItem.referenceImageUrl && (
+                            <Card className="overflow-hidden border-dashed border-2 bg-gray-50/50 cursor-zoom-in rounded-2xl" onClick={() => setExpandedImage(selectedItem.referenceImageUrl)}>
+                                <CardContent className="p-4 flex items-center gap-4">
+                                    <div className="h-24 w-24 bg-white rounded-lg border p-1 shrink-0"><img src={selectedItem.referenceImageUrl} alt="Ref" className="w-full h-full object-contain" /></div>
+                                    <div><h4 className="font-bold text-gray-700 text-sm">Imagen de Referencia</h4><p className="text-xs text-gray-500">Haz clic para comparar.</p></div>
                                 </CardContent>
                             </Card>
-
-                            {selectedItem.referenceImageUrl && (
-                                <Card className="overflow-hidden border-dashed border-2 border-gray-200 bg-gray-50/50 cursor-zoom-in hover:bg-gray-100 transition-colors rounded-2xl" onClick={() => setExpandedImage(selectedItem.referenceImageUrl)}>
-                                    <CardContent className="p-4 flex items-center gap-4">
-                                        <div className="h-24 w-24 bg-white rounded-xl border p-1 shrink-0 shadow-sm">
-                                            <img src={selectedItem.referenceImageUrl} alt="Ref" className="w-full h-full object-contain" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-black text-gray-700 text-sm">Imagen de Referencia</h4>
-                                            <p className="text-xs text-gray-500 mt-1">Click para comparar con el original.</p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </div>
-            </>
+            </div>
         )
     }
-
     return null
 }

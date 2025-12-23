@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { 
-    Check, X, RefreshCw, Loader2, Truck, FolderOpen, 
-    ArrowLeft, ChevronRight, Maximize2, BellRing, CheckCircle2, AlertCircle 
+    Check, X, RefreshCw, Loader2, FolderOpen, 
+    ArrowLeft, Maximize2, BellRing, CheckCircle2, AlertCircle 
 } from "lucide-react"
 import { getAuditPendingItems, auditItem, getShipmentFolders } from "@/app/actions/audit"
 
@@ -15,11 +15,11 @@ type AuditItem = {
     title: string
     sku: string
     quantity: number
-    agregados: any[] // Cambiado de never[] a any[]
+    agregados: string[]
     referenceImageUrl: string | null
     evidenceImageUrl: string
     evidenceImages: string[] 
-    status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | string // Aceptamos string también
+    status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | string
     envioId: string
 }
 
@@ -139,7 +139,7 @@ export default function AuditPage() {
                             <img src={item.evidenceImageUrl} className="h-16 w-16 object-cover rounded border" alt="Thumbnail" />
                             <div className="flex-1 min-w-0">
                                 <p className="font-bold truncate text-sm">{item.driveName}</p>
-                                <p className="text-[10px] text-gray-500">Cantidad: {item.quantity}</p>
+                                <p className="text-[10px] text-gray-500">SKU: {item.sku} | Cant: {item.quantity}</p>
                             </div>
                             {item.status === 'APROBADO' ? <Check className="text-green-500" /> : item.status === 'RECHAZADO' ? <X className="text-red-500" /> : <div className="h-3 w-3 bg-gray-300 rounded-full" />}
                         </CardContent>
@@ -174,18 +174,47 @@ export default function AuditPage() {
                         </div>
                     </div>
                     <div className="space-y-6">
-                        <Card className="rounded-2xl shadow-sm"><CardContent className="p-6">
-                            <h2 className="text-xl font-bold mb-4">{selectedItem.title}</h2>
-                            <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl text-center">
-                                <p className="text-[10px] text-orange-600 font-black uppercase mb-1">Unidades Requeridas</p>
-                                <p className="text-4xl font-black text-orange-700">{selectedItem.quantity}</p>
-                            </div>
-                        </CardContent></Card>
+                        <Card className="rounded-2xl shadow-sm">
+                            <CardContent className="p-6 space-y-6">
+                                <div>
+                                    <h2 className="text-xl font-bold mb-1">{selectedItem.title}</h2>
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        SKU: {selectedItem.sku}
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl text-center">
+                                        <p className="text-[10px] text-orange-600 font-black uppercase mb-1">Unidades</p>
+                                        <p className="text-4xl font-black text-orange-700">{selectedItem.quantity}</p>
+                                    </div>
+                                    
+                                    <div className="bg-purple-50 border border-purple-200 p-4 rounded-xl">
+                                        <p className="text-[10px] text-purple-600 font-black uppercase mb-1">Agregados</p>
+                                        <div className="text-sm font-medium text-purple-900">
+                                            {selectedItem.agregados && selectedItem.agregados.length > 0 ? (
+                                                <ul className="list-disc list-inside">
+                                                    {selectedItem.agregados.map((a, i) => <li key={i}>{a}</li>)}
+                                                </ul>
+                                            ) : (
+                                                <p className="italic opacity-60">Sin agregados adicionales</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        
                         {selectedItem.referenceImageUrl && (
                             <Card className="overflow-hidden border-dashed border-2 bg-gray-50/50 cursor-zoom-in rounded-2xl" onClick={() => setExpandedImage(selectedItem.referenceImageUrl)}>
                                 <CardContent className="p-4 flex items-center gap-4">
-                                    <div className="h-24 w-24 bg-white rounded-lg border p-1 shrink-0"><img src={selectedItem.referenceImageUrl} alt="Ref" className="w-full h-full object-contain" /></div>
-                                    <div><h4 className="font-bold text-gray-700 text-sm">Imagen de Referencia</h4><p className="text-xs text-gray-500">Haz clic para comparar.</p></div>
+                                    <div className="h-24 w-24 bg-white rounded-lg border p-1 shrink-0">
+                                        <img src={selectedItem.referenceImageUrl} alt="Ref" className="w-full h-full object-contain" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-gray-700 text-sm">Imagen de Referencia</h4>
+                                        <p className="text-xs text-gray-500">Haz clic para comparar con el producto original.</p>
+                                    </div>
                                 </CardContent>
                             </Card>
                         )}

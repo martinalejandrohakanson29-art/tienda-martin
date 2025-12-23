@@ -15,11 +15,11 @@ type AuditItem = {
     title: string
     sku: string
     quantity: number
-    agregados: string[]
+    agregados: any[] // Cambiado de never[] a any[]
     referenceImageUrl: string | null
     evidenceImageUrl: string
     evidenceImages: string[] 
-    status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO'
+    status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | string // Aceptamos string también
     envioId: string
 }
 

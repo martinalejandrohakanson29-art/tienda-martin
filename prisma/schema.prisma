@@ -64,16 +64,18 @@ model CarouselItem {
   updatedAt      DateTime @updatedAt
 }
 
-model ShipmentAudit {
-  id        String   @id @default(cuid())
-  itemId    String   
-  envioId   String   
-  status    String   
-  reason    String?
-  auditor   String?  
-  createdAt DateTime @default(now())
+model ShipmentItem {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   
-  @@unique([itemId, envioId])
+  itemId      String   
+  title       String
+  sku         String?
+  quantity    Int      
+  agregados   String?  // 👈 AGREGAR ESTA LÍNEA (Guardaremos los 4 agregados como un texto separado por comas)
+  
+  @@index([shipmentId])
 }
 
 // 👇 NUEVOS MODELOS PARA EL HISTORIAL DE ENVÍOS

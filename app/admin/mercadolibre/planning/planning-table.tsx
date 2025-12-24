@@ -7,11 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label"; 
 import { 
   Maximize2, Minimize2, ArrowUp, ArrowDown, Save, Loader2, 
-  Check, Copy, XCircle, Truck 
+  Check, Copy, XCircle, Truck, Hash 
 } from "lucide-react";
 import { sendPlanningToN8N } from "@/app/actions/planning";
 
-// --- COMPONENTE DE CELDA COPIABLE ---
 const CopyableCell = ({ text, className = "" }: { text: string | number, className?: string }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
@@ -51,25 +50,24 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     return isNaN(num) ? 0 : num;
   };
 
-  // 👇 CONFIGURACIÓN DE VISIBILIDAD (A=0, B=1, C=2, D=3, I=8, J=9, K=10, L=11)
+  // 👇 1. CÁLCULO DE SUMA TOTAL EN TIEMPO REAL
+  const totalQuantity = useMemo(() => {
+    return Object.values(inputValues).reduce((acc, val) => acc + cleanNumber(val), 0);
+  }, [inputValues]);
+
   const VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11];
 
-  // 👇 LOGICA DE CALCULO PARA LA COLUMNA L (D - K)
-  // Generamos un "body" enriquecido donde la columna L se calcula sola.
   const displayBody = useMemo(() => {
     return body.map(row => {
       const newRow = [...row];
-      const valD = cleanNumber(row[3]);  // Columna D
-      const valK = cleanNumber(row[10]); // Columna K
-      
-      // Calculamos la resta y la guardamos en el índice 11 (Columna L)
+      const valD = cleanNumber(row[3]);
+      const valK = cleanNumber(row[10]);
       newRow[11] = (valD - valK).toString();
-      
       return newRow;
     });
   }, [body]);
 
-  // --- Resize & Sort Logic ---
+  // --- Lógica de Resize y Sort (igual que antes) ---
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     const currentWidth = columnWidths[index] || 150;
@@ -97,37 +95,30 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     }));
   };
 
-  // Usamos displayBody para el ordenamiento y visualización
   const sortedRows = useMemo(() => {
     const rowsWithIndex = displayBody.map((row, index) => ({ row, originalIndex: index }));
-    
     return rowsWithIndex.sort((a, b) => {
       if (sortConfig.index === null) return 0;
       const valA = cleanNumber(a.row[sortConfig.index]);
       const valB = cleanNumber(b.row[sortConfig.index]);
-      
-      if (valA === 0 && valB === 0) {
-          return a.row[sortConfig.index].localeCompare(b.row[sortConfig.index]) * (sortConfig.direction === "asc" ? 1 : -1);
-      }
-
+      if (valA === 0 && valB === 0) return a.row[sortConfig.index].localeCompare(b.row[sortConfig.index]) * (sortConfig.direction === "asc" ? 1 : -1);
       return (valA - valB) * (sortConfig.direction === "asc" ? 1 : -1);
     });
   }, [displayBody, sortConfig]);
 
   const handleProcess = () => {
     if (!shipmentId.trim()) return alert("⚠️ Ingresa el Número de Envío.");
-    if (!confirm(`¿Procesar envío #${shipmentId}?`)) return;
+    if (!confirm(`¿Procesar envío #${shipmentId} con un total de ${totalQuantity} unidades?`)) return;
 
     startTransition(async () => {
       const itemsToSend = displayBody.map((row, index) => {
         const noteQty = cleanNumber(inputValues[index] || "");
         return {
           shipment_id: shipmentId.trim(),
-          sku: row[0], // MLA
-          seller_sku: row[1], // SKU interno
+          sku: row[0],
+          seller_sku: row[1],
           title: row[2],
           quantity_to_send: noteQty,
-          // CAPTURA INVISIBLE DE N, O, P, Q
           agregado1: row[13] || "",
           agregado2: row[14] || "",
           agregado3: row[15] || "",
@@ -143,14 +134,27 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     });
   };
 
+  // --- MODAL DE RESUMEN CORREGIDO ---
   if (summaryData) {
+    const totalUnitsSummary = summaryData.reduce((sum, item) => sum + item.quantity_to_send, 0);
+
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <Card className="w-full max-w-4xl h-[85vh] flex flex-col bg-white">
+        <Card className="w-full max-w-4xl h-[85vh] flex flex-col bg-white shadow-2xl">
           <CardHeader className="bg-green-50 border-b py-4">
-            <CardTitle className="text-xl text-green-800 flex items-center gap-2">
-              <Check className="h-6 w-6" /> Pedido Procesado (Envío #{shipmentId})
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl text-green-800 flex items-center gap-2">
+                  <Check className="h-6 w-6" /> Pedido Procesado
+                </CardTitle>
+                <p className="text-sm text-green-700 font-medium">Envío: #{shipmentId}</p>
+              </div>
+              {/* 👇 2. TOTAL EN LA PANTALLA DE RESUMEN */}
+              <div className="bg-green-600 text-white px-4 py-2 rounded-lg text-center shadow-md">
+                  <p className="text-[10px] uppercase font-bold opacity-80">Total Unidades</p>
+                  <p className="text-2xl font-black">{totalUnitsSummary}</p>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto p-0">
             <table className="w-full text-sm text-left">
@@ -164,7 +168,9 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
               </tbody>
             </table>
           </CardContent>
-          <div className="p-4 border-t flex justify-end"><Button className="bg-green-600" onClick={() => setSummaryData(null)}>Aceptar</Button></div>
+          <div className="p-4 border-t flex justify-end">
+            <Button className="bg-green-600 hover:bg-green-700" onClick={() => setSummaryData(null)}>Aceptar</Button>
+          </div>
         </Card>
       </div>
     );
@@ -175,16 +181,32 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
       <CardHeader className="flex flex-col gap-2 pb-4 px-0">
         <div className="flex flex-row items-center justify-between">
             <CardTitle className="text-xl font-bold">Planificación ({body.length} filas)</CardTitle>
-            <div className="flex gap-2">
-                <Button size="sm" className={`${!shipmentId ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} gap-2`} onClick={handleProcess} disabled={isPending}>
-                    {isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />}
-                    Procesar
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setExpandText(!expandText)}>
-                    {expandText ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-                </Button>
+            
+            <div className="flex items-center gap-4">
+                {/* 👇 3. TOTAL EN TIEMPO REAL EN LA CABECERA */}
+                {totalQuantity > 0 && (
+                  <div className="hidden md:flex flex-col items-end px-3 py-1 bg-blue-50 border border-blue-100 rounded-md">
+                    <span className="text-[9px] uppercase font-bold text-blue-600">Total a enviar</span>
+                    <span className="text-lg font-black text-blue-800 flex items-center gap-1">
+                      <Hash className="h-3 w-3" />
+                      {totalQuantity}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                    <Button size="sm" className={`${!shipmentId ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} gap-2`} onClick={handleProcess} disabled={isPending}>
+                        {isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />}
+                        Procesar
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setExpandText(!expandText)}>
+                        {expandText ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+                    </Button>
+                </div>
             </div>
         </div>
+        
+        {/* Input de Shipment ID */}
         <div className="flex justify-center w-full py-2">
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4 flex flex-col items-center gap-1 shadow-sm">
                 <div className="flex items-center gap-2 text-yellow-800/90 text-[10px] font-bold uppercase"><Truck className="h-3 w-3" /> Número de Envío Full (Req.)</div>
@@ -193,6 +215,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         </div>
       </CardHeader>
       
+      {/* Contenido de la Tabla */}
       <CardContent className="p-0 flex-1 overflow-hidden border rounded-lg bg-white">
         <div className="overflow-auto h-[65vh] w-full">
             <table className="w-full text-sm text-left border-collapse table-fixed">
@@ -200,10 +223,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                     <tr>
                         {headers.map((header, i) => {
                             if (!VISIBLE_INDICES.includes(i)) return null;
-                            
-                            // 👇 OPCIONAL: Cambiamos el nombre del encabezado si es la columna L
                             const displayHeader = i === 11 ? "Sugerido (D-K)" : (header || `Col ${i+1}`);
-                            
                             return (
                                 <th key={i} className="px-4 py-3 border-r border-b relative select-none cursor-pointer hover:bg-gray-200" style={{ width: columnWidths[i] || 150 }} onClick={() => handleSort(i)}>
                                     <div className="flex items-center justify-between gap-1">

@@ -10,7 +10,7 @@ const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql
 // Agrega al final el número de la columna de variación.
 // Si es la columna E, pon un 4. Si es la F, pon un 5. Si es la G, pon un 6.
 // Al ponerlo al final, este dato caerá automáticamente en la posición row[7] que configuramos antes.
-const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 9, 10, 13, 14, 15, 16, 8]; // <--- ¡Reemplaza el 4 por el índice correcto!
+const COLUMNAS_ELEGIDAS = [0, 1, 2, 3, 9, 8]; // <--- ¡Reemplaza el 4 por el índice correcto!
 
 async function getSheetData() {
   try {

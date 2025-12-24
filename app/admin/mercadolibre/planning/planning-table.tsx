@@ -31,26 +31,31 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
   // 👇 FUNCIÓN PARA EJECUTAR TODO EL PROCESO
+ // app/admin/mercadolibre/planning/planning-table.tsx
+
   const handleStartProcess = async () => {
     setIsProcessingWorkflow(true);
     
-    // 1. Llamar al Webhook de n8n
-    const workflowRes = await runN8nSalesWorkflow();
-    
-    if (workflowRes.success) {
-        // 2. Si n8n terminó bien, traer los datos de la planilla
-        const dataRes = await fetchSheetData();
-        if (dataRes.success) {
-            setHeaders(dataRes.headers);
-            setBody(dataRes.body);
-        } else {
-            alert("⚠️ Workflow OK, pero error al leer la planilla: " + dataRes.message);
-        }
-    } else {
-        alert("❌ Error al ejecutar n8n: " + workflowRes.message);
+    try {
+      const workflowRes = await runN8nSalesWorkflow();
+      
+      if (workflowRes.success) {
+          const dataRes = await fetchSheetData();
+          if (dataRes.success) {
+              // 👇 USAMOS || [] PARA ASEGURAR QUE NUNCA SEA UNDEFINED
+              setHeaders(dataRes.headers || []);
+              setBody(dataRes.body || []);
+          } else {
+              alert("⚠️ Workflow OK, pero error al leer la planilla: " + dataRes.message);
+          }
+      } else {
+          alert("❌ Error al ejecutar n8n: " + workflowRes.message);
+      }
+    } catch (err) {
+      alert("❌ Error inesperado en el proceso.");
+    } finally {
+      setIsProcessingWorkflow(false);
     }
-    
-    setIsProcessingWorkflow(false);
   };
 
   // --- Lógica de Negocio (L = D - K, Totales, Ordenamiento) ---

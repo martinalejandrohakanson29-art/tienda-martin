@@ -67,6 +67,9 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   const [isPending, startTransition] = useTransition(); 
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
+  // 👇 DEFINIMOS LAS COLUMNAS A OCULTAR (N, O, P, Q corresponden a los índices 13, 14, 15, 16)
+  const HIDDEN_COLUMNS = [13, 14, 15, 16];
+
   // --- Helpers ---
   const cleanNumber = (value: string) => {
     if (!value) return 0;
@@ -132,10 +135,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     setInputValues(prev => ({ ...prev, [originalIndex]: value }));
   };
 
- // ... dentro de planning-table.tsx ...
-
   const handleProcess = () => {
-    // 🛑 VALIDACIÓN
     if (!shipmentId || shipmentId.trim() === "") {
         alert("⚠️ ATENCIÓN:\n\nDebes ingresar el Número de Envío Full (#) antes de procesar.");
         return;
@@ -164,10 +164,16 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           
           quantity_to_send: noteQty, 
           suggested_quantity: suggestionQty, 
-          note: note                        
+          note: note,
+
+          // 👇 CAPTURAMOS LOS AGREGADOS (aunque estén ocultos en la tabla)
+          agregado1: row[13] || "", // Columna N
+          agregado2: row[14] || "", // Columna O
+          agregado3: row[15] || "", // Columna P
+          agregado4: row[16] || ""  // Columna Q
         };
       })
-      // 2. Filtramos: Solo enviamos si hay una cantidad válida
+      // 2. Filtramos: Solo enviamos si hay una cantidad cargada
       .filter(item => item.quantity_to_send > 0);
 
       if (itemsToSend.length === 0) {
@@ -175,7 +181,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         return;
       }
 
-      // 👇 CAMBIO AQUÍ: Pasamos el shipmentId como segundo parámetro
       const result = await sendPlanningToN8N(itemsToSend, shipmentId.trim());
 
       if (result.success) {
@@ -253,13 +258,11 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     <Card className="h-full flex flex-col shadow-none border-0"> 
       <CardHeader className="flex flex-col gap-2 pb-4 px-0">
         
-        {/* TITULO Y BOTONES PRINCIPALES */}
         <div className="flex flex-row items-center justify-between">
             <CardTitle className="text-xl font-bold text-gray-800">
                 Planificación ({body.length} filas)
             </CardTitle>
             <div className="flex gap-2">
-                {/* BOTÓN PROCESAR */}
                 <Button 
                     size="sm" 
                     className={`${!shipmentId ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'} gap-2 shadow-sm transition-colors`}
@@ -278,9 +281,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             </div>
         </div>
 
-        {/* 👇 NUEVA SECCIÓN DE INPUT:
-            Compacto, centrado, limpio. 
-        */}
         <div className="flex justify-center w-full py-2">
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4 flex flex-col items-center gap-2 shadow-sm w-auto min-w-[280px]">
                 
@@ -301,7 +301,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                 />
             </div>
         </div>
-        {/* FIN SECCIÓN INPUT */}
 
       </CardHeader>
       
@@ -310,30 +309,34 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             <table className="w-full text-sm text-left border-collapse table-fixed">
                 <thead className="sticky top-0 z-20 bg-gray-100 text-gray-700 uppercase font-medium shadow-sm">
                     <tr>
-                        {headers.map((header, i) => (
-                            <th 
-                                key={i} 
-                                className="px-4 py-3 border-r border-b relative select-none hover:bg-gray-200 cursor-pointer transition-colors bg-gray-100"
-                                style={{ width: columnWidths[i] || 150 }}
-                                onClick={() => handleSort(i)}
-                            >
-                                <div className="flex items-center justify-between gap-2 h-full">
-                                    <span className="truncate flex items-center gap-2 font-bold text-xs">
-                                        {header || `Col ${i+1}`}
-                                        {sortConfig.index === i && (
-                                            sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />
-                                        )}
-                                    </span>
-                                    <div 
-                                        className="w-4 h-full absolute right-0 top-0 cursor-col-resize flex items-center justify-center hover:bg-blue-200/50 transition-colors group z-10"
-                                        onMouseDown={(e) => startResizing(i, e)}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <div className="w-[2px] h-4 bg-gray-300 rounded group-hover:bg-blue-500" />
+                        {headers.map((header, i) => {
+                            // 👇 FILTRO: Si la columna está en la lista de ocultas, no la dibujamos
+                            if (HIDDEN_COLUMNS.includes(i)) return null;
+                            return (
+                                <th 
+                                    key={i} 
+                                    className="px-4 py-3 border-r border-b relative select-none hover:bg-gray-200 cursor-pointer transition-colors bg-gray-100"
+                                    style={{ width: columnWidths[i] || 150 }}
+                                    onClick={() => handleSort(i)}
+                                >
+                                    <div className="flex items-center justify-between gap-2 h-full">
+                                        <span className="truncate flex items-center gap-2 font-bold text-xs">
+                                            {header || `Col ${i+1}`}
+                                            {sortConfig.index === i && (
+                                                sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />
+                                            )}
+                                        </span>
+                                        <div 
+                                            className="w-4 h-full absolute right-0 top-0 cursor-col-resize flex items-center justify-center hover:bg-blue-200/50 transition-colors group z-10"
+                                            onMouseDown={(e) => startResizing(i, e)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <div className="w-[2px] h-4 bg-gray-300 rounded group-hover:bg-blue-500" />
+                                        </div>
                                     </div>
-                                </div>
-                            </th>
-                        ))}
+                                </th>
+                            );
+                        })}
                         <th className="sticky right-0 top-0 z-30 px-4 py-3 w-[180px] bg-blue-50 border-l border-b border-blue-100 text-blue-800 shadow-sm font-bold text-xs">
                             Notas / Acción
                         </th>
@@ -343,17 +346,21 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                     {sortedRows.length > 0 ? (
                         sortedRows.map((item) => (
                             <tr key={item.originalIndex} className="hover:bg-blue-50/30 transition-colors group bg-white">
-                                {item.row.map((cell, cellIndex) => (
-                                    <td 
-                                        key={cellIndex} 
-                                        className={`px-4 py-2 border-r border-gray-100 text-gray-600 ${
-                                            expandText ? "whitespace-normal break-words" : "whitespace-nowrap truncate"
-                                        }`}
-                                        title={cell}
-                                    >
-                                        {cell}
-                                    </td>
-                                ))}
+                                {item.row.map((cell, cellIndex) => {
+                                    // 👇 FILTRO: Si la columna está en la lista de ocultas, no la dibujamos
+                                    if (HIDDEN_COLUMNS.includes(cellIndex)) return null;
+                                    return (
+                                        <td 
+                                            key={cellIndex} 
+                                            className={`px-4 py-2 border-r border-gray-100 text-gray-600 ${
+                                                expandText ? "whitespace-normal break-words" : "whitespace-nowrap truncate"
+                                            }`}
+                                            title={cell}
+                                        >
+                                            {cell}
+                                        </td>
+                                    );
+                                })}
                                 <td className="sticky right-0 px-2 py-1 border-l bg-blue-50/10 backdrop-blur-sm">
                                     <Input 
                                         placeholder="Nota..." 

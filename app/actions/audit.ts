@@ -68,7 +68,7 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
         const drive = getDriveClient()
         let envioId = selectedEnvioName || ""
 
-        // Buscar la carpeta del envío en Drive
+        // 1. Buscar la carpeta del envío
         const query = `'${DRIVE_PARENT_FOLDER_ID}' in parents and name = '${envioId}' and trashed=false`
         const envioFolderRes = await drive.files.list({ q: query, fields: 'files(id, name)', pageSize: 1 })
 
@@ -76,63 +76,74 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
 
         const envioFolderId = envioFolderRes.data.files[0].id!
 
-        // Obtener la planificación de la base de datos para cruzar datos
-        const dbShipment = await prisma.shipment.findUnique({
-            where: { name: envioId },
-            include: { items: true }
-        })
+        // 2. Traer datos de la DB y Auditorías en paralelo (Optimización de DB)
+        const [dbShipment, auditedItems] = await Promise.all([
+            prisma.shipment.findUnique({
+                where: { name: envioId },
+                include: { items: true }
+            }),
+            prisma.shipmentAudit.findMany({
+                where: { envioId: envioId },
+                select: { itemId: true, status: true }
+            })
+        ])
 
-        // Crear un mapa de los items de la DB para acceso rápido por itemId (MLA...)
         const dbItemsMap = new Map()
         dbShipment?.items.forEach(item => {
             dbItemsMap.set(item.itemId, item)
         })
 
-        // Obtener auditorías ya realizadas
-        const auditedItems = await prisma.shipmentAudit.findMany({
-            where: { envioId: envioId },
-            select: { itemId: true, status: true }
-        })
         const statusMap = new Map<string, string>()
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status))
 
-        // Listar subcarpetas de productos (las que tienen las fotos)
+        // 3. Listar subcarpetas (MLAs)
         const mlaFoldersRes = await drive.files.list({
             q: `'${envioFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             fields: 'files(id, name)',
             pageSize: 500
         })
 
-        const allItems = []
-        for (const f of mlaFoldersRes.data.files || []) {
+        const mlaFolders = mlaFoldersRes.data.files || []
+
+        // 👇 LA MAGIA ESTÁ AQUÍ: Usamos Promise.all para disparar todas las búsquedas de fotos a la vez
+        const allItems = await Promise.all(mlaFolders.map(async (f) => {
             const mlaId = (f.name || "").split(' ')[0].trim()
             
-            // Buscar imágenes dentro de la carpeta del producto
+            // Buscamos imágenes dentro de esta carpeta específica
             const imgs = await drive.files.list({ 
                 q: `'${f.id}' in parents and mimeType contains 'image/' and trashed=false`, 
                 fields: 'files(id)' 
             })
             
-            if (imgs.data.files?.length) {
+            if (imgs.data.files && imgs.data.files.length > 0) {
                 const evidence = imgs.data.files.map(img => getPublicThumbnailLink(img.id!))
                 const dbInfo = dbItemsMap.get(mlaId)
                 
-                allItems.push({
+                return {
                     itemId: mlaId,
                     driveName: f.name || "Sin nombre", 
                     title: dbInfo?.title || f.name || "Sin nombre",
-                    sku: dbInfo?.sku || "Sin SKU", // 👈 Ahora trae el SKU real de la DB
+                    sku: dbInfo?.sku || "Sin SKU",
                     quantity: dbInfo?.quantity || 0,
-                    agregados: [], // Aquí podrías parsear notas adicionales si las guardas en algún campo
+                    // 👇 Recuperamos los AGREGADOS que guardamos en la planificación
+                    agregados: dbInfo?.agregados ? dbInfo.agregados.split(", ") : [],
                     referenceImageUrl: null,
                     evidenceImageUrl: evidence[0],
                     evidenceImages: evidence,
                     status: (statusMap.get(mlaId) || 'PENDIENTE') as 'PENDIENTE' | 'APROBADO' | 'RECHAZADO',
                     envioId: envioId
-                })
+                }
             }
+            return null // Si no tiene fotos, retornamos null
+        }))
+
+        // Filtramos los nulos (carpetas sin fotos) y retornamos
+        return { 
+            success: true, 
+            data: allItems.filter(item => item !== null), 
+            envioId 
         }
-        return { success: true, data: allItems, envioId }
+
     } catch (error: any) {
         console.error("Error items:", error)
         return { success: false, error: error.message }

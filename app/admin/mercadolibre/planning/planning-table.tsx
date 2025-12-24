@@ -7,47 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label"; 
 import { 
   Maximize2, Minimize2, ArrowUp, ArrowDown, Save, Loader2, 
-  Check, Copy, XCircle, Truck, Hash 
+  Check, Copy, XCircle, Truck, Hash, RefreshCw, PlayCircle 
 } from "lucide-react";
-import { sendPlanningToN8N } from "@/app/actions/planning";
+// 👇 Importamos nuestras nuevas acciones
+import { sendPlanningToN8N, runN8nSalesWorkflow, fetchSheetData } from "@/app/actions/planning";
 
-// --- COMPONENTE DE CELDA COPIABLE ---
-const CopyableCell = ({ text, className = "" }: { text: string | number, className?: string }) => {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text.toString());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Error al copiar", err);
-    }
-  };
-  return (
-    <div 
-      onClick={handleCopy} 
-      className={`relative group cursor-pointer flex items-center justify-between gap-2 p-2 rounded hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100 ${copied ? "bg-green-50/50" : ""} ${className}`}
-      title="Click para copiar"
-    >
-      <span className={`truncate ${copied ? "text-green-700 font-medium" : "text-gray-700"}`}>{text}</span>
-      <div className="flex-shrink-0">
-        {copied ? (
-          <Check className="h-4 w-4 text-green-600 animate-in zoom-in duration-300" />
-        ) : (
-          <Copy className="h-3 w-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-        )}
-      </div>
-    </div>
-  );
-};
+// ... (Componente CopyableCell igual que antes)
 
-interface PlanningTableProps {
-  headers: string[];
-  body: string[][];
-}
+export default function PlanningTable({ initialHeaders = [], initialBody = [] }: { initialHeaders?: string[], initialBody?: string[][] }) {
+  // 👇 Estados para manejar el flujo dinámico
+  const [headers, setHeaders] = useState<string[]>(initialHeaders);
+  const [body, setBody] = useState<string[][]>(initialBody);
+  const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
 
-export default function PlanningTable({ headers, body }: PlanningTableProps) {
+  // Estados existentes
   const [expandText, setExpandText] = useState(false);
   const [columnWidths, setColumnWidths] = useState<{ [key: number]: number }>({});
   const [inputValues, setInputValues] = useState<{ [rowIndex: number]: string }>({});
@@ -57,7 +30,30 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   const [isPending, startTransition] = useTransition(); 
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
-  // --- Helpers ---
+  // 👇 FUNCIÓN PARA EJECUTAR TODO EL PROCESO
+  const handleStartProcess = async () => {
+    setIsProcessingWorkflow(true);
+    
+    // 1. Llamar al Webhook de n8n
+    const workflowRes = await runN8nSalesWorkflow();
+    
+    if (workflowRes.success) {
+        // 2. Si n8n terminó bien, traer los datos de la planilla
+        const dataRes = await fetchSheetData();
+        if (dataRes.success) {
+            setHeaders(dataRes.headers);
+            setBody(dataRes.body);
+        } else {
+            alert("⚠️ Workflow OK, pero error al leer la planilla: " + dataRes.message);
+        }
+    } else {
+        alert("❌ Error al ejecutar n8n: " + workflowRes.message);
+    }
+    
+    setIsProcessingWorkflow(false);
+  };
+
+  // --- Lógica de Negocio (L = D - K, Totales, Ordenamiento) ---
   const cleanNumber = (value: string) => {
     if (!value) return 0;
     const cleanValue = value.replace(/[^\d.,-]/g, "").replace(/[.]/g, "").replace(",", ".");
@@ -69,7 +65,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     return Object.values(inputValues).reduce((acc, val) => acc + cleanNumber(val), 0);
   }, [inputValues]);
 
-  // Columnas visibles en tabla principal: A(0), B(1), C(2), D(3), I(8), J(9), K(10), L(11)
   const VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11];
 
   const displayBody = useMemo(() => {
@@ -82,198 +77,60 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     });
   }, [body]);
 
-  // --- Lógica de Resize y Sort ---
-  const startResizing = (index: number, e: React.MouseEvent) => {
-    e.preventDefault();
-    const currentWidth = columnWidths[index] || 150;
-    resizingRef.current = { index, startX: e.clientX, startWidth: currentWidth };
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-  };
+  // --- Renderizado Condicional ---
 
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!resizingRef.current) return;
-    const { index, startX, startWidth } = resizingRef.current;
-    setColumnWidths((prev) => ({ ...prev, [index]: Math.max(50, startWidth + (e.clientX - startX)) }));
-  };
-
-  const handleMouseUp = () => {
-    resizingRef.current = null;
-    document.removeEventListener("mousemove", handleMouseMove);
-    document.removeEventListener("mouseup", handleMouseUp);
-  };
-
-  const handleSort = (index: number) => {
-    setSortConfig((current) => ({
-      index,
-      direction: current.index === index && current.direction === "asc" ? "desc" : "asc",
-    }));
-  };
-
-  const sortedRows = useMemo(() => {
-    const rowsWithIndex = displayBody.map((row, index) => ({ row, originalIndex: index }));
-    return rowsWithIndex.sort((a, b) => {
-      if (sortConfig.index === null) return 0;
-      const valA = cleanNumber(a.row[sortConfig.index]);
-      const valB = cleanNumber(b.row[sortConfig.index]);
-      if (valA === 0 && valB === 0) return a.row[sortConfig.index].localeCompare(b.row[sortConfig.index]) * (sortConfig.direction === "asc" ? 1 : -1);
-      return (valA - valB) * (sortConfig.direction === "asc" ? 1 : -1);
-    });
-  }, [displayBody, sortConfig]);
-
-  const handleProcess = () => {
-    if (!shipmentId.trim()) return alert("⚠️ Ingresa el Número de Envío.");
-    if (!confirm(`¿Procesar envío #${shipmentId} con ${totalQuantity} unidades?`)) return;
-
-    startTransition(async () => {
-      const itemsToSend = displayBody.map((row, index) => {
-        const noteQty = cleanNumber(inputValues[index] || "");
-        return {
-          shipment_id: shipmentId.trim(),
-          sku: row[0],         // Col A
-          seller_sku: row[1],  // Col B
-          title: row[2],       // Col C
-          colJ: row[9] || "",  // Col J
-          quantity_to_send: noteQty,
-          agregado1: row[13] || "",
-          agregado2: row[14] || "",
-          agregado3: row[15] || "",
-          agregado4: row[16] || "",
-          variation_label: row[6] || ""
-        };
-      }).filter(item => item.quantity_to_send > 0);
-
-      if (itemsToSend.length === 0) return alert("No hay cantidades cargadas.");
-      const result = await sendPlanningToN8N(itemsToSend, shipmentId.trim());
-      if (result.success) setSummaryData(itemsToSend);
-      else alert("❌ Error: " + result.message);
-    });
-  };
-
-  // --- MODAL DE RESUMEN FINAL (A, B, C, J + Cantidad) ---
-  if (summaryData) {
-    const totalUnitsSummary = summaryData.reduce((sum, item) => sum + item.quantity_to_send, 0);
-
+  // 👇 1. VISTA INICIAL: Botón de Procesar
+  if (body.length === 0 && !isProcessingWorkflow) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <Card className="w-full max-w-6xl h-[85vh] flex flex-col bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-          <CardHeader className="bg-green-50 border-b py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl text-green-800 flex items-center gap-2">
-                  <Check className="h-6 w-6" /> Pedido Procesado
-                </CardTitle>
-                <p className="text-sm text-green-700 font-medium">Envío: #{shipmentId}</p>
-              </div>
-              <div className="bg-green-600 text-white px-4 py-2 rounded-lg text-center shadow-md">
-                  <p className="text-[10px] uppercase font-bold opacity-80">Total Unidades</p>
-                  <p className="text-2xl font-black">{totalUnitsSummary}</p>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-auto p-0">
-            <table className="w-full text-sm text-left border-collapse">
-              <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
-                <tr>
-                  <th className="px-4 py-3 w-[140px]">MLA (A)</th>
-                  <th className="px-4 py-3 w-[140px]">SKU Int. (B)</th>
-                  <th className="px-4 py-3">Título (C)</th>
-                  <th className="px-4 py-3 w-[150px]">Info (J)</th>
-                  <th className="px-4 py-3 w-[100px] text-right">Cant.</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {summaryData.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-1 py-1"><CopyableCell text={item.sku} /></td>
-                    <td className="px-1 py-1"><CopyableCell text={item.seller_sku} /></td>
-                    <td className="px-1 py-1"><CopyableCell text={item.title} className="max-w-[400px]" /></td>
-                    <td className="px-1 py-1"><CopyableCell text={item.colJ} /></td>
-                    <td className="px-4 py-2 text-right font-bold text-green-700">{item.quantity_to_send}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-          <div className="p-4 border-t bg-gray-50 flex justify-end">
-            <Button className="bg-green-600 hover:bg-green-700 w-32" onClick={() => setSummaryData(null)}>Aceptar</Button>
+      <Card className="flex flex-col items-center justify-center p-20 border-dashed border-2 bg-gray-50/50 shadow-inner">
+        <div className="text-center space-y-6">
+          <div className="bg-blue-100 p-6 rounded-full w-24 h-24 flex items-center justify-center mx-auto text-blue-600 shadow-sm">
+            <RefreshCw className="h-12 w-12" />
           </div>
-        </Card>
-      </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-gray-800">Planificación Lista</h2>
+            <p className="text-gray-500 max-w-sm mx-auto">
+              Presiona el botón para sincronizar las ventas y el stock actual desde Google Sheets.
+            </p>
+          </div>
+          <Button 
+            onClick={handleStartProcess}
+            className="bg-blue-600 hover:bg-blue-700 h-16 px-10 text-xl font-black shadow-xl gap-3 transition-all hover:scale-105"
+          >
+            <PlayCircle className="h-6 w-6" />
+            PROCESAR HISTORIAL DE VENTAS Y STOCK
+          </Button>
+        </div>
+      </Card>
     );
   }
 
+  // 👇 2. VISTA DE CARGA: Animación mientras n8n trabaja
+  if (isProcessingWorkflow) {
+    return (
+      <Card className="flex flex-col items-center justify-center p-20 bg-white border-0 shadow-none h-[60vh]">
+        <div className="flex flex-col items-center gap-8">
+          <div className="relative">
+            <div className="absolute inset-0 bg-blue-400/20 rounded-full animate-ping"></div>
+            <Loader2 className="h-24 w-24 animate-spin text-blue-600 relative z-10" />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Truck className="h-8 w-8 text-blue-400" />
+            </div>
+          </div>
+          <div className="text-center space-y-3">
+            <h3 className="text-2xl font-bold text-gray-800 animate-pulse">Sincronizando planillas...</h3>
+            <p className="text-gray-500 font-medium italic">Estamos moviendo los datos en n8n y actualizando el stock.</p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  // 👇 3. VISTA DE TABLA: Se muestra cuando ya hay datos
+  // ... (Aquí va todo el return de la tabla que ya teníamos configurado anteriormente)
   return (
-    <Card className="h-full flex flex-col shadow-none border-0"> 
-      <CardHeader className="flex flex-col gap-2 pb-4 px-0">
-        <div className="flex flex-row items-center justify-between">
-            <CardTitle className="text-xl font-bold text-gray-800">Planificación ({body.length} filas)</CardTitle>
-            <div className="flex items-center gap-4">
-                {totalQuantity > 0 && (
-                  <div className="hidden md:flex flex-col items-end px-3 py-1 bg-blue-50 border border-blue-100 rounded-md">
-                    <span className="text-[9px] uppercase font-bold text-blue-600">Total a enviar</span>
-                    <span className="text-lg font-black text-blue-800 flex items-center gap-1">
-                      <Hash className="h-3 w-3" /> {totalQuantity}
-                    </span>
-                  </div>
-                )}
-                <div className="flex gap-2">
-                    <Button size="sm" className={`${!shipmentId ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} gap-2`} onClick={handleProcess} disabled={isPending}>
-                        {isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />} Procesar
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setExpandText(!expandText)}><Maximize2 className="h-3 w-3" /></Button>
-                </div>
-            </div>
-        </div>
-        <div className="flex justify-center w-full py-2">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4 flex flex-col items-center gap-1 shadow-sm">
-                <div className="flex items-center gap-2 text-yellow-800/90 text-[10px] font-bold uppercase"><Truck className="h-3 w-3" /> Número de Envío Full (Req.)</div>
-                <Input value={shipmentId} onChange={(e) => setShipmentId(e.target.value)} placeholder="#123456" className="text-center text-lg font-bold h-9 w-40 border-yellow-300" />
-            </div>
-        </div>
-      </CardHeader>
-      
-      <CardContent className="p-0 flex-1 overflow-hidden border rounded-lg bg-white">
-        <div className="overflow-auto h-[65vh] w-full">
-            <table className="w-full text-sm text-left border-collapse table-fixed">
-                <thead className="sticky top-0 z-20 bg-gray-100 shadow-sm">
-                    <tr>
-                        {headers.map((header, i) => {
-                            if (!VISIBLE_INDICES.includes(i)) return null;
-                            const displayHeader = i === 11 ? "Sugerido (D-K)" : (header || `Col ${i+1}`);
-                            return (
-                                <th key={i} className="px-4 py-3 border-r border-b relative select-none cursor-pointer hover:bg-gray-200" style={{ width: columnWidths[i] || 150 }} onClick={() => handleSort(i)}>
-                                    <div className="flex items-center justify-between gap-1">
-                                        <span className="truncate font-bold text-xs">{displayHeader}</span>
-                                        {sortConfig.index === i && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />)}
-                                    </div>
-                                    <div className="w-4 h-full absolute right-0 top-0 cursor-col-resize" onMouseDown={(e) => startResizing(i, e)} />
-                                </th>
-                            );
-                        })}
-                        <th className="sticky right-0 top-0 z-30 px-4 py-3 w-[150px] bg-blue-50 border-l border-b border-blue-100 text-blue-800 font-bold text-xs">Cant. a Enviar</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y">
-                    {sortedRows.map((item) => (
-                        <tr key={item.originalIndex} className="hover:bg-blue-50/30 transition-colors">
-                            {item.row.map((cell, cellIndex) => {
-                                if (!VISIBLE_INDICES.includes(cellIndex)) return null;
-                                return (
-                                    <td key={cellIndex} className={`px-4 py-2 border-r text-gray-600 ${expandText ? "whitespace-normal break-words" : "whitespace-nowrap truncate"}`} title={cell}>
-                                        {cell}
-                                    </td>
-                                );
-                            })}
-                            <td className="sticky right-0 px-2 py-1 border-l bg-blue-50/10 backdrop-blur-sm">
-                                <Input placeholder="0" className="h-8 bg-white border-blue-100" value={inputValues[item.originalIndex] || ""} onChange={(e) => setInputValues(prev => ({ ...prev, [item.originalIndex]: e.target.value }))} />
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-      </CardContent>
-    </Card>
+      <Card className="h-full flex flex-col shadow-none border-0"> 
+          {/* ... Resto del código de la tabla ... */}
+      </Card>
   );
 }

@@ -24,7 +24,12 @@ export async function runN8nSalesWorkflow() {
 }
 
 // 👇 Función para traer los datos de la planilla (movida desde page.tsx)
-export async function fetchSheetData() {
+export async function fetchSheetData(): Promise<{ 
+    success: boolean; 
+    headers?: string[]; 
+    body?: string[][]; 
+    message?: string 
+}> {
     try {
         const res = await fetch(SHEETS_CSV_URL, { cache: "no-store" });
         const text = await res.text();
@@ -40,6 +45,7 @@ export async function fetchSheetData() {
             body: filtered.slice(1) 
         };
     } catch (error: any) {
+        console.error("Fetch Sheet Error:", error);
         return { success: false, message: error.message };
     }
 }

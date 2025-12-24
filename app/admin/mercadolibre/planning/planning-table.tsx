@@ -11,18 +11,33 @@ import {
 } from "lucide-react";
 import { sendPlanningToN8N } from "@/app/actions/planning";
 
+// --- COMPONENTE DE CELDA COPIABLE ---
 const CopyableCell = ({ text, className = "" }: { text: string | number, className?: string }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     if (!text) return;
-    await navigator.clipboard.writeText(text.toString());
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(text.toString());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Error al copiar", err);
+    }
   };
   return (
-    <div onClick={handleCopy} className={`relative group cursor-pointer flex items-center justify-between gap-2 p-2 rounded hover:bg-blue-50 transition-all ${copied ? "bg-green-50" : ""} ${className}`}>
+    <div 
+      onClick={handleCopy} 
+      className={`relative group cursor-pointer flex items-center justify-between gap-2 p-2 rounded hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100 ${copied ? "bg-green-50/50" : ""} ${className}`}
+      title="Click para copiar"
+    >
       <span className={`truncate ${copied ? "text-green-700 font-medium" : "text-gray-700"}`}>{text}</span>
-      {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-3 w-3 text-gray-300 opacity-0 group-hover:opacity-100" />}
+      <div className="flex-shrink-0">
+        {copied ? (
+          <Check className="h-4 w-4 text-green-600 animate-in zoom-in duration-300" />
+        ) : (
+          <Copy className="h-3 w-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+        )}
+      </div>
     </div>
   );
 };
@@ -50,11 +65,11 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     return isNaN(num) ? 0 : num;
   };
 
-  // 👇 1. CÁLCULO DE SUMA TOTAL EN TIEMPO REAL
   const totalQuantity = useMemo(() => {
     return Object.values(inputValues).reduce((acc, val) => acc + cleanNumber(val), 0);
   }, [inputValues]);
 
+  // A(0), B(1), C(2), D(3), I(8), J(9), K(10), L(11)
   const VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11];
 
   const displayBody = useMemo(() => {
@@ -67,7 +82,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     });
   }, [body]);
 
-  // --- Lógica de Resize y Sort (igual que antes) ---
+  // --- Lógica de Tabla (Resize, Sort) ---
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     const currentWidth = columnWidths[index] || 150;
@@ -108,16 +123,17 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
 
   const handleProcess = () => {
     if (!shipmentId.trim()) return alert("⚠️ Ingresa el Número de Envío.");
-    if (!confirm(`¿Procesar envío #${shipmentId} con un total de ${totalQuantity} unidades?`)) return;
+    if (!confirm(`¿Procesar envío #${shipmentId} con ${totalQuantity} unidades?`)) return;
 
     startTransition(async () => {
       const itemsToSend = displayBody.map((row, index) => {
         const noteQty = cleanNumber(inputValues[index] || "");
         return {
           shipment_id: shipmentId.trim(),
-          sku: row[0],
+          sku: row[0], // MLA
           seller_sku: row[1],
           title: row[2],
+          colJ: row[9] || "", // 👇 CAPTURAMOS LA COLUMNA J
           quantity_to_send: noteQty,
           agregado1: row[13] || "",
           agregado2: row[14] || "",
@@ -134,13 +150,13 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     });
   };
 
-  // --- MODAL DE RESUMEN CORREGIDO ---
+  // --- MODAL DE RESUMEN CON COPIADO Y COLUMNA J ---
   if (summaryData) {
     const totalUnitsSummary = summaryData.reduce((sum, item) => sum + item.quantity_to_send, 0);
 
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <Card className="w-full max-w-4xl h-[85vh] flex flex-col bg-white shadow-2xl">
+        <Card className="w-full max-w-5xl h-[85vh] flex flex-col bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <CardHeader className="bg-green-50 border-b py-4">
             <div className="flex items-center justify-between">
               <div>
@@ -149,7 +165,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                 </CardTitle>
                 <p className="text-sm text-green-700 font-medium">Envío: #{shipmentId}</p>
               </div>
-              {/* 👇 2. TOTAL EN LA PANTALLA DE RESUMEN */}
               <div className="bg-green-600 text-white px-4 py-2 rounded-lg text-center shadow-md">
                   <p className="text-[10px] uppercase font-bold opacity-80">Total Unidades</p>
                   <p className="text-2xl font-black">{totalUnitsSummary}</p>
@@ -157,19 +172,29 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             </div>
           </CardHeader>
           <CardContent className="flex-1 overflow-auto p-0">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 sticky top-0">
-                <tr><th className="px-4 py-3">SKU</th><th className="px-4 py-3">Título</th><th className="px-4 py-3 text-right">Cant.</th></tr>
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
+                <tr>
+                  <th className="px-4 py-3 w-[140px]">SKU (MLA)</th>
+                  <th className="px-4 py-3 w-[150px]">Info (Col J)</th>
+                  <th className="px-4 py-3">Título</th>
+                  <th className="px-4 py-3 w-[100px] text-right">Cant.</th>
+                </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-gray-100">
                 {summaryData.map((item, idx) => (
-                  <tr key={idx}><td className="px-4 py-2">{item.sku}</td><td className="px-4 py-2">{item.title}</td><td className="px-4 py-2 text-right font-bold text-green-700">{item.quantity_to_send}</td></tr>
+                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-1 py-1"><CopyableCell text={item.sku} /></td>
+                    <td className="px-1 py-1"><CopyableCell text={item.colJ} /></td>
+                    <td className="px-1 py-1"><CopyableCell text={item.title} className="max-w-[400px]" /></td>
+                    <td className="px-4 py-2 text-right font-bold text-green-700">{item.quantity_to_send}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
           </CardContent>
-          <div className="p-4 border-t flex justify-end">
-            <Button className="bg-green-600 hover:bg-green-700" onClick={() => setSummaryData(null)}>Aceptar</Button>
+          <div className="p-4 border-t bg-gray-50 flex justify-end">
+            <Button className="bg-green-600 hover:bg-green-700 w-32" onClick={() => setSummaryData(null)}>Aceptar</Button>
           </div>
         </Card>
       </div>
@@ -181,32 +206,23 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
       <CardHeader className="flex flex-col gap-2 pb-4 px-0">
         <div className="flex flex-row items-center justify-between">
             <CardTitle className="text-xl font-bold">Planificación ({body.length} filas)</CardTitle>
-            
             <div className="flex items-center gap-4">
-                {/* 👇 3. TOTAL EN TIEMPO REAL EN LA CABECERA */}
                 {totalQuantity > 0 && (
                   <div className="hidden md:flex flex-col items-end px-3 py-1 bg-blue-50 border border-blue-100 rounded-md">
                     <span className="text-[9px] uppercase font-bold text-blue-600">Total a enviar</span>
                     <span className="text-lg font-black text-blue-800 flex items-center gap-1">
-                      <Hash className="h-3 w-3" />
-                      {totalQuantity}
+                      <Hash className="h-3 w-3" /> {totalQuantity}
                     </span>
                   </div>
                 )}
-
                 <div className="flex gap-2">
                     <Button size="sm" className={`${!shipmentId ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} gap-2`} onClick={handleProcess} disabled={isPending}>
-                        {isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />}
-                        Procesar
+                        {isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Save className="h-4 w-4" />} Procesar
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => setExpandText(!expandText)}>
-                        {expandText ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
-                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setExpandText(!expandText)}><Maximize2 className="h-3 w-3" /></Button>
                 </div>
             </div>
         </div>
-        
-        {/* Input de Shipment ID */}
         <div className="flex justify-center w-full py-2">
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4 flex flex-col items-center gap-1 shadow-sm">
                 <div className="flex items-center gap-2 text-yellow-800/90 text-[10px] font-bold uppercase"><Truck className="h-3 w-3" /> Número de Envío Full (Req.)</div>
@@ -215,7 +231,6 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         </div>
       </CardHeader>
       
-      {/* Contenido de la Tabla */}
       <CardContent className="p-0 flex-1 overflow-hidden border rounded-lg bg-white">
         <div className="overflow-auto h-[65vh] w-full">
             <table className="w-full text-sm text-left border-collapse table-fixed">
@@ -230,11 +245,11 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                                         <span className="truncate font-bold text-xs">{displayHeader}</span>
                                         {sortConfig.index === i && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />)}
                                     </div>
-                                    <div className="w-4 h-full absolute right-0 top-0 cursor-col-resize" onMouseDown={(e) => startResizing(i, e)} onClick={(e) => e.stopPropagation()} />
+                                    <div className="w-4 h-full absolute right-0 top-0 cursor-col-resize" onMouseDown={(e) => startResizing(i, e)} />
                                 </th>
                             );
                         })}
-                        <th className="sticky right-0 top-0 z-30 px-4 py-3 w-[180px] bg-blue-50 border-l border-b border-blue-100 text-blue-800 font-bold text-xs">Cant. a Enviar</th>
+                        <th className="sticky right-0 top-0 z-30 px-4 py-3 w-[150px] bg-blue-50 border-l border-b border-blue-100 text-blue-800 font-bold text-xs">Cant. a Enviar</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -249,7 +264,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                                 );
                             })}
                             <td className="sticky right-0 px-2 py-1 border-l bg-blue-50/10 backdrop-blur-sm">
-                                <Input placeholder="0" className="h-8 bg-white border-blue-100 focus:border-blue-400" value={inputValues[item.originalIndex] || ""} onChange={(e) => setInputValues(prev => ({ ...prev, [item.originalIndex]: e.target.value }))} />
+                                <Input placeholder="0" className="h-8 bg-white border-blue-100" value={inputValues[item.originalIndex] || ""} onChange={(e) => setInputValues(prev => ({ ...prev, [item.originalIndex]: e.target.value }))} />
                             </td>
                         </tr>
                     ))}

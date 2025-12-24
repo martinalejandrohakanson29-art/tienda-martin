@@ -69,7 +69,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     return Object.values(inputValues).reduce((acc, val) => acc + cleanNumber(val), 0);
   }, [inputValues]);
 
-  // A(0), B(1), C(2), D(3), I(8), J(9), K(10), L(11)
+  // Columnas visibles en tabla principal: A(0), B(1), C(2), D(3), I(8), J(9), K(10), L(11)
   const VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11];
 
   const displayBody = useMemo(() => {
@@ -82,7 +82,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     });
   }, [body]);
 
-  // --- Lógica de Tabla (Resize, Sort) ---
+  // --- Lógica de Resize y Sort ---
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     const currentWidth = columnWidths[index] || 150;
@@ -130,10 +130,10 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
         const noteQty = cleanNumber(inputValues[index] || "");
         return {
           shipment_id: shipmentId.trim(),
-          sku: row[0], // MLA
-          seller_sku: row[1],
-          title: row[2],
-          colJ: row[9] || "", // 👇 CAPTURAMOS LA COLUMNA J
+          sku: row[0],         // Col A
+          seller_sku: row[1],  // Col B
+          title: row[2],       // Col C
+          colJ: row[9] || "",  // Col J
           quantity_to_send: noteQty,
           agregado1: row[13] || "",
           agregado2: row[14] || "",
@@ -150,13 +150,13 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     });
   };
 
-  // --- MODAL DE RESUMEN CON COPIADO Y COLUMNA J ---
+  // --- MODAL DE RESUMEN FINAL (A, B, C, J + Cantidad) ---
   if (summaryData) {
     const totalUnitsSummary = summaryData.reduce((sum, item) => sum + item.quantity_to_send, 0);
 
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <Card className="w-full max-w-5xl h-[85vh] flex flex-col bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <Card className="w-full max-w-6xl h-[85vh] flex flex-col bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <CardHeader className="bg-green-50 border-b py-4">
             <div className="flex items-center justify-between">
               <div>
@@ -175,9 +175,10 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
             <table className="w-full text-sm text-left border-collapse">
               <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-4 py-3 w-[140px]">SKU (MLA)</th>
-                  <th className="px-4 py-3 w-[150px]">Info (Col J)</th>
-                  <th className="px-4 py-3">Título</th>
+                  <th className="px-4 py-3 w-[140px]">MLA (A)</th>
+                  <th className="px-4 py-3 w-[140px]">SKU Int. (B)</th>
+                  <th className="px-4 py-3">Título (C)</th>
+                  <th className="px-4 py-3 w-[150px]">Info (J)</th>
                   <th className="px-4 py-3 w-[100px] text-right">Cant.</th>
                 </tr>
               </thead>
@@ -185,8 +186,9 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                 {summaryData.map((item, idx) => (
                   <tr key={idx} className="hover:bg-gray-50 transition-colors">
                     <td className="px-1 py-1"><CopyableCell text={item.sku} /></td>
-                    <td className="px-1 py-1"><CopyableCell text={item.colJ} /></td>
+                    <td className="px-1 py-1"><CopyableCell text={item.seller_sku} /></td>
                     <td className="px-1 py-1"><CopyableCell text={item.title} className="max-w-[400px]" /></td>
+                    <td className="px-1 py-1"><CopyableCell text={item.colJ} /></td>
                     <td className="px-4 py-2 text-right font-bold text-green-700">{item.quantity_to_send}</td>
                   </tr>
                 ))}
@@ -205,7 +207,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     <Card className="h-full flex flex-col shadow-none border-0"> 
       <CardHeader className="flex flex-col gap-2 pb-4 px-0">
         <div className="flex flex-row items-center justify-between">
-            <CardTitle className="text-xl font-bold">Planificación ({body.length} filas)</CardTitle>
+            <CardTitle className="text-xl font-bold text-gray-800">Planificación ({body.length} filas)</CardTitle>
             <div className="flex items-center gap-4">
                 {totalQuantity > 0 && (
                   <div className="hidden md:flex flex-col items-end px-3 py-1 bg-blue-50 border border-blue-100 rounded-md">

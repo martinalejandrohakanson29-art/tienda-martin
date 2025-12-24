@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useState, useRef, useEffect, useTransition, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { sendPlanningToN8N } from "@/app/actions/planning";
 
+// --- COMPONENTE DE CELDA COPIABLE ---
 const CopyableCell = ({ text, className = "" }: { text: string | number, className?: string }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
@@ -42,9 +43,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
   const [isPending, startTransition] = useTransition(); 
   const resizingRef = useRef<{ index: number; startX: number; startWidth: number } | null>(null);
 
-  // 👇 CONFIGURACIÓN DE VISIBILIDAD (A=0, B=1, C=2, D=3, I=8, J=9, K=10, L=11)
-  const VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11];
-
+  // --- Helpers ---
   const cleanNumber = (value: string) => {
     if (!value) return 0;
     const cleanValue = value.replace(/[^\d.,-]/g, "").replace(/[.]/g, "").replace(",", ".");
@@ -52,6 +51,25 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     return isNaN(num) ? 0 : num;
   };
 
+  // 👇 CONFIGURACIÓN DE VISIBILIDAD (A=0, B=1, C=2, D=3, I=8, J=9, K=10, L=11)
+  const VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11];
+
+  // 👇 LOGICA DE CALCULO PARA LA COLUMNA L (D - K)
+  // Generamos un "body" enriquecido donde la columna L se calcula sola.
+  const displayBody = useMemo(() => {
+    return body.map(row => {
+      const newRow = [...row];
+      const valD = cleanNumber(row[3]);  // Columna D
+      const valK = cleanNumber(row[10]); // Columna K
+      
+      // Calculamos la resta y la guardamos en el índice 11 (Columna L)
+      newRow[11] = (valD - valK).toString();
+      
+      return newRow;
+    });
+  }, [body]);
+
+  // --- Resize & Sort Logic ---
   const startResizing = (index: number, e: React.MouseEvent) => {
     e.preventDefault();
     const currentWidth = columnWidths[index] || 150;
@@ -79,20 +97,29 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
     }));
   };
 
-  const sortedRows = [...body.map((row, index) => ({ row, originalIndex: index }))].sort((a, b) => {
-    if (sortConfig.index === null) return 0;
-    const valA = cleanNumber(a.row[sortConfig.index]);
-    const valB = cleanNumber(b.row[sortConfig.index]);
-    if (valA === 0 && valB === 0) return a.row[sortConfig.index].localeCompare(b.row[sortConfig.index]) * (sortConfig.direction === "asc" ? 1 : -1);
-    return (valA - valB) * (sortConfig.direction === "asc" ? 1 : -1);
-  });
+  // Usamos displayBody para el ordenamiento y visualización
+  const sortedRows = useMemo(() => {
+    const rowsWithIndex = displayBody.map((row, index) => ({ row, originalIndex: index }));
+    
+    return rowsWithIndex.sort((a, b) => {
+      if (sortConfig.index === null) return 0;
+      const valA = cleanNumber(a.row[sortConfig.index]);
+      const valB = cleanNumber(b.row[sortConfig.index]);
+      
+      if (valA === 0 && valB === 0) {
+          return a.row[sortConfig.index].localeCompare(b.row[sortConfig.index]) * (sortConfig.direction === "asc" ? 1 : -1);
+      }
+
+      return (valA - valB) * (sortConfig.direction === "asc" ? 1 : -1);
+    });
+  }, [displayBody, sortConfig]);
 
   const handleProcess = () => {
     if (!shipmentId.trim()) return alert("⚠️ Ingresa el Número de Envío.");
     if (!confirm(`¿Procesar envío #${shipmentId}?`)) return;
 
     startTransition(async () => {
-      const itemsToSend = body.map((row, index) => {
+      const itemsToSend = displayBody.map((row, index) => {
         const noteQty = cleanNumber(inputValues[index] || "");
         return {
           shipment_id: shipmentId.trim(),
@@ -100,7 +127,7 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
           seller_sku: row[1], // SKU interno
           title: row[2],
           quantity_to_send: noteQty,
-          // 👇 CAPTURA INVISIBLE DE N, O, P, Q (Índices 13, 14, 15, 16)
+          // CAPTURA INVISIBLE DE N, O, P, Q
           agregado1: row[13] || "",
           agregado2: row[14] || "",
           agregado3: row[15] || "",
@@ -173,10 +200,14 @@ export default function PlanningTable({ headers, body }: PlanningTableProps) {
                     <tr>
                         {headers.map((header, i) => {
                             if (!VISIBLE_INDICES.includes(i)) return null;
+                            
+                            // 👇 OPCIONAL: Cambiamos el nombre del encabezado si es la columna L
+                            const displayHeader = i === 11 ? "Sugerido (D-K)" : (header || `Col ${i+1}`);
+                            
                             return (
                                 <th key={i} className="px-4 py-3 border-r border-b relative select-none cursor-pointer hover:bg-gray-200" style={{ width: columnWidths[i] || 150 }} onClick={() => handleSort(i)}>
                                     <div className="flex items-center justify-between gap-1">
-                                        <span className="truncate font-bold text-xs">{header || `Col ${i+1}`}</span>
+                                        <span className="truncate font-bold text-xs">{displayHeader}</span>
                                         {sortConfig.index === i && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />)}
                                     </div>
                                     <div className="w-4 h-full absolute right-0 top-0 cursor-col-resize" onMouseDown={(e) => startResizing(i, e)} onClick={(e) => e.stopPropagation()} />

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getProducts } from "@/app/actions/products"
-import { Eye, Package, Trophy, Store, ArrowRight } from "lucide-react" // Cambié Truck por Store
+import { Eye, Package, Trophy, Store, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,11 @@ export default async function AdminDashboard() {
     const products = await getProducts()
     const totalProducts = products.length
     const totalViews = products.reduce((acc, curr) => acc + (curr.views || 0), 0)
-    const mostViewedProduct = [...products].sort((a, b) => (b.views || 0) - (a.views || 0))[0]
+    
+    // 👇 CAMBIO 1: Ahora obtenemos los 5 más vistos en lugar de solo 1
+    const topProducts = [...products]
+        .sort((a, b) => (b.views || 0) - (a.views || 0))
+        .slice(0, 5)
 
     return (
         <div className="space-y-8">
@@ -27,7 +31,7 @@ export default async function AdminDashboard() {
                 </h2>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     
-                    {/* 👇 CAMBIO REALIZADO AQUÍ: Tarjeta de Mercado Libre */}
+                    {/* Tarjeta de Mercado Libre */}
                     <Card className="border-l-4 border-l-yellow-400 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-yellow-50/50">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-yellow-800 text-xl">
@@ -42,7 +46,6 @@ export default async function AdminDashboard() {
                             <p className="text-sm text-gray-600 mb-6">
                                 Accede al panel de herramientas para envíos Full y planificación.
                             </p>
-                            {/* Ahora apunta a tu nueva página interna */}
                             <Link href="/admin/mercadolibre">
                                 <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-white gap-2 shadow-sm h-12 text-lg">
                                     Entrar al Panel <ArrowRight size={18} />
@@ -77,7 +80,7 @@ export default async function AdminDashboard() {
             {/* SECCIÓN 2: MÉTRICAS */}
             <div className="pt-4 border-t">
                 <h2 className="text-xl font-semibold mb-4 text-gray-600">Resumen de la Tienda</h2>
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-3 items-start">
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-gray-500">Inventario Total</CardTitle>
@@ -100,21 +103,28 @@ export default async function AdminDashboard() {
                         </CardContent>
                     </Card>
 
+                    {/* 👇 CAMBIO 2: Ranking de los 5 más populares */}
                     <Card className="border-l-4 border-l-yellow-400 bg-yellow-50/30">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium text-yellow-700">Más Popular</CardTitle>
+                            <CardTitle className="text-sm font-medium text-yellow-700">Top 5 Más Vistos</CardTitle>
                             <Trophy className="h-4 w-4 text-yellow-500" />
                         </CardHeader>
-                        <CardContent>
-                            {mostViewedProduct ? (
-                                <>
-                                    <div className="text-lg font-bold truncate text-gray-800" title={mostViewedProduct.title}>
-                                        {mostViewedProduct.title}
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Con <span className="font-bold text-gray-900">{mostViewedProduct.views}</span> visitas
-                                    </p>
-                                </>
+                        <CardContent className="pt-2">
+                            {topProducts.length > 0 ? (
+                                <div className="space-y-3">
+                                    {topProducts.map((product, index) => (
+                                        <div key={product.id} className="flex flex-col border-b border-yellow-100 last:border-0 pb-2 last:pb-0">
+                                            <div className="flex justify-between items-start gap-2">
+                                                <span className="text-sm font-bold text-gray-800 line-clamp-1">
+                                                    {index + 1}. {product.title}
+                                                </span>
+                                                <span className="text-xs font-black text-yellow-600 whitespace-nowrap">
+                                                    {product.views} vistas
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             ) : (
                                 <p className="text-sm text-gray-400">Aún no hay datos</p>
                             )}

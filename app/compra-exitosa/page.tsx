@@ -9,27 +9,23 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Send, CheckCircle2, ShoppingBag, AlertCircle } from "lucide-react";
-
-// 👇 FIX 1: Importación con llaves { }
 import { useCart } from "@/hooks/use-cart";
 
-// Componente interno que usa useSearchParams
 function CompraExitosaContent() {
   const searchParams = useSearchParams();
-  // 👇 FIX 2: Desestructuramos para obtener el array 'cart'
-  const { cart } = useCart();
+  // Extraemos cart y clearCart del hook
+  const { cart, clearCart } = useCart();
   
   const paymentId = searchParams.get("payment_id") || "No disponible";
   
   const [productNames, setProductNames] = useState("");
   const [error, setError] = useState("");
 
-  // 👇 FIX 3: Usamos 'cart' directamente como array (sin .items)
+  // Guardamos los nombres de los productos antes de que el carrito se limpie
   useEffect(() => {
-    if (cart.length > 0) {
-      const names = cart.map((item) => item.product.title).join(", ");
+    if (cart && cart.length > 0) {
+      const names = cart.map((item) => `${item.quantity}x ${item.product.title}`).join(", ");
       setProductNames(names);
-      // cart.removeAll(); // Si decides activarlo en el futuro
     }
   }, [cart]);
 
@@ -53,34 +49,37 @@ function CompraExitosaContent() {
   const handleWhatsApp = () => {
     const { nombre, dni, domicilio, ciudad, provincia, telefono, email, cp, referencias } = formData;
 
-    // Validación
+    // Validación de campos obligatorios
     if (!nombre || !dni || !domicilio || !ciudad || !provincia || !telefono || !email || !cp) {
       setError("Por favor completa todos los campos obligatorios para poder coordinar el envío.");
       return;
     }
 
-    // Armado del mensaje
-    const message = `Hola! Realicé la compra del producto: ${productNames || "Varios productos"}
+    // Armado del mensaje profesional
+    const message = `¡Hola! Realicé una compra de: ${productNames}
     
-Por MercadoPago, ID de pago: ${paymentId}
+ID de Pago MP: ${paymentId}
 
-*DATOS PARA ENVIO*
+*DATOS PARA ENVÍO*
 ------------------
-*NOMBRE COMPLETO:* ${nombre}
+*NOMBRE:* ${nombre}
 *DNI:* ${dni}
 *DOMICILIO:* ${domicilio}
 *CIUDAD:* ${ciudad}
 *PROVINCIA:* ${provincia}
-*TELEFONO:* ${telefono}
+*TELÉFONO:* ${telefono}
 *E-MAIL:* ${email}
-*CODIGO POSTAL:* ${cp}
-*REFERENCIAS DE LA CASA:* ${referencias}`;
+*CP:* ${cp}
+*REFERENCIAS:* ${referencias || "Sin referencias"}`;
 
-    // ⚠️ RECUERDA: CAMBIA ESTE NÚMERO POR EL TUYO
     const phoneNumber = "5493512404003"; 
-    
     const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    
+    // Abrimos WhatsApp
     window.open(url, "_blank");
+
+    // Limpiamos el carrito DESPUÉS de abrir el link para que el proceso quede finalizado
+    clearCart();
   };
 
   return (
@@ -91,14 +90,13 @@ Por MercadoPago, ID de pago: ${paymentId}
           </div>
           <CardTitle className="text-3xl font-bold text-green-700">¡Pago Exitoso!</CardTitle>
           <CardDescription className="text-lg mt-2">
-             Tu ID de operación es: <span className="font-bold text-black">{paymentId}</span>
+             ID de operación: <span className="font-bold text-black">{paymentId}</span>
              <br/>
-             Para finalizar, por favor completa los datos de envío.
+             <span className="text-red-600 font-semibold">IMPORTANTE:</span> Completa tus datos para coordinar el envío.
           </CardDescription>
         </CardHeader>
         
         <CardContent className="space-y-6 pt-8 bg-white rounded-b-lg">
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="nombre">Nombre Completo <span className="text-red-500">*</span></Label>
@@ -108,16 +106,10 @@ Por MercadoPago, ID de pago: ${paymentId}
               <Label htmlFor="dni">DNI <span className="text-red-500">*</span></Label>
               <Input id="dni" name="dni" placeholder="12345678" value={formData.dni} onChange={handleChange} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="telefono">Teléfono <span className="text-red-500">*</span></Label>
-              <Input id="telefono" name="telefono" type="tel" placeholder="351..." value={formData.telefono} onChange={handleChange} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail <span className="text-red-500">*</span></Label>
-              <Input id="email" name="email" type="email" placeholder="juan@ejemplo.com" value={formData.email} onChange={handleChange} />
-            </div>
+            {/* ... Resto de los campos igual que antes ... */}
           </div>
 
+          {/* Reutiliza tus inputs de Domicilio, Ciudad, etc. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div className="space-y-2 md:col-span-2">
               <Label htmlFor="domicilio">Domicilio (Calle y Altura) <span className="text-red-500">*</span></Label>
@@ -135,16 +127,19 @@ Por MercadoPago, ID de pago: ${paymentId}
               <Label htmlFor="cp">Código Postal <span className="text-red-500">*</span></Label>
               <Input id="cp" name="cp" value={formData.cp} onChange={handleChange} />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="telefono">Teléfono <span className="text-red-500">*</span></Label>
+              <Input id="telefono" name="telefono" value={formData.telefono} onChange={handleChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail <span className="text-red-500">*</span></Label>
+              <Input id="email" name="email" value={formData.email} onChange={handleChange} />
+            </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="referencias">Referencias de la casa (Opcional)</Label>
-            <Textarea 
-              id="referencias" name="referencias" 
-              placeholder="Ej: Casa de rejas negras, esquina, portón gris..." 
-              value={formData.referencias} onChange={handleChange} 
-              className="min-h-[100px]"
-            />
+            <Label htmlFor="referencias">Referencias (Opcional)</Label>
+            <Textarea id="referencias" name="referencias" value={formData.referencias} onChange={handleChange} />
           </div>
 
           {error && (
@@ -156,27 +151,16 @@ Por MercadoPago, ID de pago: ${paymentId}
 
           <Button 
             onClick={handleWhatsApp}
-            className="w-full bg-green-600 hover:bg-green-700 text-lg py-6 mt-4 gap-2 shadow-md hover:shadow-lg transition-all"
+            className="w-full bg-green-600 hover:bg-green-700 text-lg py-6 mt-4 gap-2 shadow-md"
           >
             <Send className="w-5 h-5" />
-            Enviar Datos por WhatsApp
+            Confirmar Envío por WhatsApp
           </Button>
-
-          <div className="pt-4 border-t flex justify-center">
-            <Button variant="ghost" asChild className="text-muted-foreground">
-              <Link href="/shop" className="gap-2">
-                <ShoppingBag className="w-4 h-4" />
-                Volver a la tienda
-              </Link>
-            </Button>
-          </div>
-
         </CardContent>
     </Card>
   );
 }
 
-// Componente principal envuelto en Suspense
 export default function CompraExitosaPage() {
   return (
     <div className="container mx-auto py-10 px-4 flex justify-center items-start min-h-screen bg-slate-50">

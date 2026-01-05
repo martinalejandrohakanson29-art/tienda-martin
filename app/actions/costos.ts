@@ -1,5 +1,6 @@
 "use server";
-import prisma from "@/lib/prisma";
+// Cambiamos el import para que coincida con tu lib/prisma.ts
+import { prisma } from "@/lib/prisma"; 
 
 export async function getCostosKits() {
   try {

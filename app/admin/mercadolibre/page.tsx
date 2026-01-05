@@ -1,6 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PackageCheck, FileSpreadsheet, ExternalLink, ArrowLeft, ArrowRight, Truck } from "lucide-react";
+import { 
+  PackageCheck, 
+  FileSpreadsheet, 
+  ExternalLink, 
+  ArrowLeft, 
+  ArrowRight, 
+  Truck, 
+  ReceiptText 
+} from "lucide-react";
 import Link from "next/link";
 
 export default function MercadoLibreDashboard() {
@@ -18,6 +26,7 @@ export default function MercadoLibreDashboard() {
 
       <p className="text-gray-500">Selecciona una herramienta para comenzar.</p>
 
+      {/* SECCIÓN 1: Operativa de Envíos */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         
         {/* TARJETA 1: Railway */}
@@ -44,7 +53,7 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* TARJETA 2: Control / Auditoría (NUEVA) */}
+        {/* TARJETA 2: Control / Auditoría */}
         <Card className="hover:shadow-md transition-all border-l-4 border-l-blue-500">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-blue-700">
@@ -83,7 +92,36 @@ export default function MercadoLibreDashboard() {
             </Link>
           </CardContent>
         </Card>
+      </div>
 
+      {/* SEPARADOR PARA NUEVA SECCIÓN */}
+      <hr className="my-10 border-gray-200" />
+      
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold tracking-tight text-gray-700">Análisis y Rentabilidad</h2>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          
+          {/* TARJETA 4: Costos ML (NUEVA) */}
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-cyan-500 bg-cyan-50/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-cyan-700">
+                <ReceiptText className="h-6 w-6" />
+                Costos ML
+              </CardTitle>
+              <CardDescription>
+                Cálculo de costos totales por kit en tiempo real.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/admin/mercadolibre/costos">
+                <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white gap-2 shadow-sm">
+                  Ver Análisis de Costos <ArrowRight size={16} />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+        </div>
       </div>
     </div>
   );

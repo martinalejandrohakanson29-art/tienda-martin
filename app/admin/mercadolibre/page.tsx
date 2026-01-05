@@ -101,7 +101,7 @@ export default function MercadoLibreDashboard() {
         <h2 className="text-xl font-semibold tracking-tight text-gray-700">Análisis y Rentabilidad</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           
-          {/* TARJETA 4: Costos ML (NUEVA) */}
+          {/* TARJETA 4: Costos ML */}
           <Card className="hover:shadow-md transition-all border-l-4 border-l-cyan-500 bg-cyan-50/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-cyan-700">

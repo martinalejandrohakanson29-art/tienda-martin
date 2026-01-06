@@ -7,7 +7,8 @@ import {
   ArrowLeft, 
   ArrowRight, 
   Truck, 
-  ReceiptText 
+  ReceiptText,
+  Package // <--- Agregamos este ícono
 } from "lucide-react";
 import Link from "next/link";
 
@@ -120,20 +121,27 @@ export default function MercadoLibreDashboard() {
               </Link>
             </CardContent>
           </Card>
-{/* Nueva Tarjeta: Lista de Costos */}
-<Card className="p-6 hover:bg-accent transition-colors cursor-pointer" onClick={() => router.push('/admin/mercadolibre/articulos')}>
-  <div className="flex flex-col gap-2">
-    <div className="flex items-center gap-2">
-      <Package className="h-5 w-5 text-primary" />
-      <h3 className="font-semibold text-xl">Lista de Artículos</h3>
-    </div>
-    <p className="text-sm text-muted-foreground">
-      Consulta la tabla maestra de costos, precios en dólares y conversión a pesos.
-    </p>
-  </div>
-</Card>
 
-          
+          {/* NUEVA TARJETA: Lista de Artículos (corregida) */}
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-amber-500 bg-amber-50/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-amber-700">
+                <Package className="h-6 w-6" />
+                Artículos Individuales
+              </CardTitle>
+              <CardDescription>
+                Tabla maestra de costos y conversión USD/ARS.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/admin/mercadolibre/articulos">
+                <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-sm">
+                  Ver Tabla Maestra <ArrowRight size={16} />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
         </div>
       </div>
     </div>

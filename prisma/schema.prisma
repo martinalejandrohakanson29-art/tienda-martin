@@ -125,6 +125,7 @@ model ComposicionKits {
   mla             String
   nombre_variante String?
   id_articulo     String
+  nombre_articulo String?  // <--- Agregamos esta línea
   cantidad        Int      @default(1)
   fecha_registro  DateTime @default(now())
 

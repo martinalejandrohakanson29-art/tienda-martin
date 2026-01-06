@@ -133,3 +133,83 @@ model ComposicionKits {
   @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
   @@map("composicion_kits")
 }
+
+// --- GESTIÓN DE IMPORTACIONES Y COMPRAS (ERP) ---
+
+// 1. EL ARTÍCULO DEL PROVEEDOR (Ej: 483329 - Cigueñal Dakar)
+model SupplierProduct {
+  id              String   @id @default(cuid())
+  sku             String   @unique // El código de Cover/Boggie (Ej: "483329")
+  name            String   // Descripción (Ej: "Cigueñal dakar")
+  supplier        String   // Ej: "Cover", "Boggie"
+  
+  // Datos Vivos (Scrapeados de Cover)
+  stockExternal   Int      @default(0) // Columna "STOCK ACTUAL" (S)
+  priceExternal   Decimal? @db.Decimal(10, 2) // Precio (P)
+  
+  // Métricas Calculadas (Vienen del Workflow de Ventas)
+  salesLast30     Int      @default(0) // Ventas ML
+  salesVelocity   Decimal? @db.Decimal(10, 2) // Promedio Consumo x Mes
+  monthsCoverage  Decimal? @db.Decimal(10, 2) // Meses de stock calculados
+
+  // Relaciones
+  purchaseItems   PurchaseOrderItem[] // Lo que pediste en carritos
+  kitComponents   KitComponent[]      // En qué Kits de ML se usa esto
+
+  updatedAt       DateTime @updatedAt
+}
+
+// 2. PEDIDOS A PROVEEDORES (Los "Carritos" importados)
+model PurchaseOrder {
+  id              String   @id @default(cuid()) 
+  externalId      String?  // El ID del carrito de Cover (Ej: "4983138")
+  supplier        String   // "CHINA-BOGGIE", "CHINA-MATT"
+  status          String   // "PENDIENTE", "EN_TRANSITO", "RECIBIDO"
+  
+  arrivalDate     DateTime? // Fecha estimada de arribo
+  totalItems      Int       @default(0)
+  
+  items           PurchaseOrderItem[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// 3. DETALLE DEL PEDIDO (Qué hay dentro del carrito)
+model PurchaseOrderItem {
+  id                String          @id @default(cuid())
+  purchaseOrderId   String
+  purchaseOrder     PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  
+  supplierProductSku String
+  supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
+  
+  quantity          Int             // Cantidad pedida
+  confirmed         Boolean         @default(false) // Si ya llegó
+}
+
+// 4. MAPEO (Tu "Agrupar por agregado")
+// Relaciona tus Kits de ML (MLA) con el Artículo del Proveedor
+model KitComponent {
+  id                 String          @id @default(cuid())
+  
+  mla                String          // El ID de la publicación en ML
+  variant            String?         // Si es por talle (26mm, 28mm)
+  
+  supplierProductSku String
+  supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
+  
+  quantityPerKit     Int             @default(1) // Cuántos lleva el kit
+  
+  @@index([mla])
+  @@index([supplierProductSku])
+}
+
+// 5. CONFIGURACIÓN DE IMPORTACIÓN (Guardar fechas de análisis)
+model PlanningSession {
+  id          String   @id @default(cuid())
+  dateFrom    DateTime // Fecha Inicio análisis
+  dateTo      DateTime // Fecha Final análisis
+  createdAt   DateTime @default(now())
+}
+

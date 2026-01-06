@@ -24,11 +24,12 @@ export async function getArticulos() {
       }
     });
     
-    // Convertimos los tipos Decimal de Prisma a números simples 
-    // para que Next.js no tenga problemas al pasarlos al cliente
     return articulos.map(art => ({
       ...art,
-      costo_fob_usd: art.costo_fob_usd ? Number(art.costo_fob_usd) : 0,
+      // Cambiamos costo_fob_usd por costo_usd
+      costo_usd: art.costo_usd ? Number(art.costo_usd) : 0,
+      // Agregamos el factor_fob
+      factor_fob: art.factor_fob ? Number(art.factor_fob) : 1,
       costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0
     }));
   } catch (error) {

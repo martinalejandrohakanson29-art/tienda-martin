@@ -8,22 +8,26 @@ export default async function ArticulosPage() {
   const data = await getArticulos();
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center gap-4">
-        <Link href="/admin/mercadolibre">
-          <Button variant="ghost" size="sm" className="gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            Volver
-          </Button>
-        </Link>
-        <h2 className="text-3xl font-bold tracking-tight">Artículos Individuales</h2>
+    <div className="flex flex-col h-screen">
+      {/* Cabecera superior fija con el botón Atrás */}
+      <div className="bg-white border-b px-8 py-4 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-4">
+          <Link href="/admin/mercadolibre">
+            <Button variant="outline" size="sm" className="gap-2 border-slate-200">
+              <ArrowLeft className="h-4 w-4" />
+              Volver a Gestión
+            </Button>
+          </Link>
+          <h2 className="text-2xl font-bold tracking-tight">Tabla Maestra de Artículos</h2>
+        </div>
+        <div className="text-sm text-slate-500 font-medium bg-slate-100 px-3 py-1 rounded-full">
+          {data.length} Artículos cargados
+        </div>
       </div>
-      
-      <p className="text-muted-foreground">
-        Consulta y busca costos base de repuestos y piezas.
-      </p>
 
-      <ArticulosTable data={data} />
+      <div className="flex-1 overflow-auto p-8 pt-4">
+        <ArticulosTable data={data} />
+      </div>
     </div>
   );
 }

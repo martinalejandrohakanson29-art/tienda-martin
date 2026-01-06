@@ -34,8 +34,9 @@ export function CostosTable({ data }: { data: any[] }) {
           <TableHeader>
             <TableRow className="bg-slate-50">
               <TableHead className="w-[120px]">MLA</TableHead>
-              <TableHead className="w-[300px]">Publicación</TableHead>
+              <TableHead className="w-[280px]">Publicación</TableHead>
               <TableHead>Componentes del Kit</TableHead>
+              <TableHead className="w-[100px]">IDs</TableHead>
               <TableHead>
                 <Button 
                   variant="ghost" 
@@ -49,48 +50,68 @@ export function CostosTable({ data }: { data: any[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedData.map((item) => (
-              <TableRow key={item.mla + item.nombre_variante} className="hover:bg-slate-50/50">
-                <TableCell className="font-mono text-[11px] text-gray-500">{item.mla}</TableCell>
-                <TableCell className="max-w-[300px] py-4">
-                  <div className="font-semibold text-sm leading-tight mb-1">
-                    {item.nombre_publicacion}
-                  </div>
-                  {/* Eliminamos el (Normal) visualmente si existe */}
-                  <div className="text-[11px] text-blue-600 font-medium bg-blue-50 w-fit px-2 rounded">
-                    {item.nombre_variante?.replace(' (Normal)', '')}
-                  </div>
-                </TableCell>
-                <TableCell className="max-w-[400px]">
-                  <div className="space-y-1.5 py-2">
-                    {/* Separamos el texto por el '+' y creamos un renglón por cada uno */}
-                    {item.componentes?.split(' + ').map((comp: string, idx: number) => (
-                      <div key={idx} className="text-[11px] text-gray-700 border-l-2 border-slate-200 pl-2 leading-none">
-                        {comp}
-                      </div>
-                    ))}
-                    {!item.componentes && <span className="text-gray-400 text-xs italic">Sin componentes</span>}
-                  </div>
-                </TableCell>
-                <TableCell className="font-bold text-base text-green-700">
-                  ${Number(item.costo_total_reposicion).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                </TableCell>
-                <TableCell className="text-right pr-6">
-                  <a href={item.link_publicacion} target="_blank" rel="noreferrer">
-                    <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-slate-300">
-                      <ExternalLink className="h-4 w-4 text-slate-600" />
-                    </Button>
-                  </a>
-                </TableCell>
-              </TableRow>
-            ))}
-            {sortedData.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-20 text-gray-500">
-                  No se encontraron resultados para su búsqueda.
-                </TableCell>
-              </TableRow>
-            )}
+            {sortedData.map((item) => {
+              // Dividimos los componentes en un array para procesarlos
+              const listaComponentes = item.componentes?.split(' + ') || [];
+              
+              return (
+                <TableRow key={item.mla + item.nombre_variante} className="hover:bg-slate-50/50">
+                  <TableCell className="font-mono text-[10px] text-gray-400">{item.mla}</TableCell>
+                  
+                  <TableCell className="max-w-[280px] py-4">
+                    <div className="font-semibold text-sm leading-tight mb-1 uppercase text-gray-800">
+                      {item.nombre_publicacion}
+                    </div>
+                    {/* Limpiamos el (Normal) del nombre de la variante */}
+                    <div className="text-[10px] text-blue-600 font-bold bg-blue-50 w-fit px-1.5 rounded border border-blue-100">
+                      {item.nombre_variante?.replace(' (Normal)', '')}
+                    </div>
+                  </TableCell>
+
+                  {/* Columna de Nombres de Componentes */}
+                  <TableCell>
+                    <div className="space-y-2 py-2">
+                      {listaComponentes.map((comp: string, idx: number) => {
+                        // Extraemos solo el nombre (lo que está antes del paréntesis)
+                        const nombreSolo = comp.substring(0, comp.lastIndexOf(' ('));
+                        return (
+                          <div key={idx} className="text-[11px] text-gray-700 border-l-2 border-slate-300 pl-2 leading-tight h-4 flex items-center">
+                            {nombreSolo || comp}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </TableCell>
+
+                  {/* Columna Nueva de IDs correspondientes */}
+                  <TableCell>
+                    <div className="space-y-2 py-2">
+                      {listaComponentes.map((comp: string, idx: number) => {
+                        // Extraemos solo el ID (lo que está adentro de los paréntesis)
+                        const idSolo = comp.substring(comp.lastIndexOf(' (') + 2, comp.lastIndexOf(')'));
+                        return (
+                          <div key={idx} className="text-[10px] font-mono text-gray-500 bg-gray-50 px-1 rounded h-4 flex items-center justify-center border border-gray-100">
+                            {idSolo}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="font-bold text-base text-green-700">
+                    ${Number(item.costo_total_reposicion).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </TableCell>
+
+                  <TableCell className="text-right pr-6">
+                    <a href={item.link_publicacion} target="_blank" rel="noreferrer">
+                      <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-slate-200 hover:border-blue-400">
+                        <ExternalLink className="h-4 w-4 text-slate-500 hover:text-blue-600" />
+                      </Button>
+                    </a>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>

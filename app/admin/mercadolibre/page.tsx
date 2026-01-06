@@ -107,7 +107,7 @@ export default function MercadoLibreDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-cyan-700">
                 <ReceiptText className="h-6 w-6" />
-                Costos ML
+                Tabla Comparador (costo y agregados ML)
               </CardTitle>
               <CardDescription>
                 Cálculo de costos totales por kit en tiempo real.

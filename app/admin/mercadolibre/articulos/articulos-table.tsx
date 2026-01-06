@@ -15,7 +15,7 @@ export function ArticulosTable({ data }: { data: any[] }) {
   return (
     <div className="space-y-4">
       <Input
-        placeholder="Buscar por descripción o ID de artículo..."
+        placeholder="Buscar por descripción o ID..."
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
         className="max-w-sm bg-white"
@@ -25,39 +25,41 @@ export function ArticulosTable({ data }: { data: any[] }) {
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-100">
-              <TableHead className="w-[80px] font-bold text-slate-700">ID</TableHead>
               <TableHead className="w-[150px] font-bold text-slate-700">Cód. Artículo</TableHead>
               <TableHead className="font-bold text-slate-700">Descripción</TableHead>
-              <TableHead className="w-[140px] font-bold text-slate-700 text-center">Costo</TableHead>
-              <TableHead className="w-[100px] font-bold text-slate-700 text-center">Es Dólar</TableHead>
-              <TableHead className="w-[150px] font-bold text-slate-700 text-right pr-6">Costo Final ARS</TableHead>
+              <TableHead className="w-[120px] font-bold text-slate-700 text-center">Precio Base</TableHead>
+              <TableHead className="w-[100px] font-bold text-slate-700 text-center">Factor FOB</TableHead>
+              <TableHead className="w-[150px] font-bold text-slate-700 text-right pr-6">Final ARS</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredData.map((item) => (
               <TableRow key={item.id} className="hover:bg-amber-50/50 transition-colors">
-                <TableCell className="text-slate-500 text-xs">{item.id}</TableCell>
                 <TableCell className="font-mono font-medium text-blue-600">
                   {item.id_articulo}
                 </TableCell>
-                <TableCell className="font-medium uppercase text-gray-800">
+                <TableCell className="font-medium uppercase text-gray-800 text-xs">
                   {item.descripcion}
                 </TableCell>
                 
-                {/* CAMBIO: Formato de moneda unificado (Punto para miles, Coma para decimales) */}
-                <TableCell className="text-center font-semibold">
+                {/* PRECIO BASE (Dólar o Pesos) */}
+                <TableCell className="text-center font-semibold text-slate-600">
                   {item.es_dolar ? 'U$S ' : '$ '}
-                  {item.costo_fob_usd.toLocaleString('es-AR', { 
-                    minimumFractionDigits: 2, 
-                    maximumFractionDigits: 2 
-                  })}
+                  {item.costo_usd.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                 </TableCell>
 
+                {/* FACTOR FOB (Solo se muestra si es dólar) */}
                 <TableCell className="text-center">
-                  <Badge variant={item.es_dolar ? "default" : "secondary"}>
-                    {item.es_dolar ? "SÍ" : "NO"}
-                  </Badge>
+                  {item.es_dolar ? (
+                    <Badge variant="outline" className="font-mono">
+                      x {item.factor_fob.toFixed(2)}
+                    </Badge>
+                  ) : (
+                    <span className="text-slate-300">-</span>
+                  )}
                 </TableCell>
+
+                {/* COSTO FINAL EN PESOS */}
                 <TableCell className="text-right pr-6 font-bold text-green-700 text-lg">
                   ${item.costo_final_ars.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                 </TableCell>
@@ -65,10 +67,6 @@ export function ArticulosTable({ data }: { data: any[] }) {
             ))}
           </TableBody>
         </Table>
-      </div>
-      
-      <div className="text-xs text-slate-500">
-        Mostrando {filteredData.length} de {data.length} artículos.
       </div>
     </div>
   );

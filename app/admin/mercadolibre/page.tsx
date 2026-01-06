@@ -120,7 +120,20 @@ export default function MercadoLibreDashboard() {
               </Link>
             </CardContent>
           </Card>
+{/* Nueva Tarjeta: Lista de Costos */}
+<Card className="p-6 hover:bg-accent transition-colors cursor-pointer" onClick={() => router.push('/admin/mercadolibre/articulos')}>
+  <div className="flex flex-col gap-2">
+    <div className="flex items-center gap-2">
+      <Package className="h-5 w-5 text-primary" />
+      <h3 className="font-semibold text-xl">Lista de Artículos</h3>
+    </div>
+    <p className="text-sm text-muted-foreground">
+      Consulta la tabla maestra de costos, precios en dólares y conversión a pesos.
+    </p>
+  </div>
+</Card>
 
+          
         </div>
       </div>
     </div>

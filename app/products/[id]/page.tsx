@@ -2,6 +2,7 @@ import { getProduct, incrementProductView } from "@/app/actions/products"
 import { notFound } from "next/navigation"
 import AddToCart from "./add-to-cart"
 import { formatPrice } from "@/lib/utils"
+import { Metadata, ResolvingMetadata } from "next" // 👈 Importamos tipos para Metadata
 import {
   Carousel,
   CarouselContent,
@@ -11,6 +12,32 @@ import {
 } from "@/components/ui/carousel"
 
 export const dynamic = "force-dynamic"
+
+// 👇 1. NUEVA FUNCIÓN: Genera el título y foto para WhatsApp/Google
+export async function generateMetadata(
+  { params }: { params: { id: string } },
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const product = await getProduct(params.id)
+
+  if (!product) {
+    return { title: "Producto no encontrado | Revolución Motos" }
+  }
+
+  // Si hay fotos, usamos la primera, si no, una por defecto
+  const previousImages = (await parent).openGraph?.images || []
+  const productImage = product.imageUrl ? [product.imageUrl] : previousImages
+
+  return {
+    title: `${product.title} | Revolución Motos`,
+    description: `Comprá ${product.title} a ${formatPrice(Number(product.price))}. ${product.description?.slice(0, 100)}...`,
+    openGraph: {
+      images: productImage,
+      title: product.title,
+      description: `¡Mirá este repuesto! Precio: ${formatPrice(Number(product.price))}`,
+    },
+  }
+}
 
 function getVideoEmbedUrl(url: string) {
     if (!url) return null;
@@ -41,7 +68,6 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 
                 {/* SECCIÓN DE IMÁGENES / CARRUSEL */}
                 <div className="relative rounded-2xl bg-gray-50 border shadow-sm overflow-hidden">
-                    {/* 👇 CAMBIO: Badge Verde */}
                     {hasDiscount && (
                         <span className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-md z-10">
                             {product.discount}% OFF
@@ -73,11 +99,13 @@ export default async function ProductPage({ params }: { params: { id: string } }
                 <div className="space-y-6">
                     <div>
                         <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{product.title}</h1>
-                        <p className="text-lg text-gray-500 mt-2 badge badge-secondary">{product.category}</p>
+                        <div className="flex gap-2 mt-2">
+                             <span className="badge bg-slate-100 text-slate-800 px-2 py-1 rounded text-xs font-bold border border-slate-200 uppercase">{product.category}</span>
+                             {product.freeShipping && <span className="badge bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold border border-red-200">ENVÍO GRATIS</span>}
+                        </div>
                     </div>
                     
                     <div className="flex items-end gap-3">
-                        {/* 👇 CAMBIO: Precio Verde si hay descuento */}
                         <span className={`text-4xl font-bold ${hasDiscount ? 'text-green-700' : 'text-gray-900'}`}>
                             {formatPrice(finalPrice)}
                         </span>
@@ -88,7 +116,7 @@ export default async function ProductPage({ params }: { params: { id: string } }
                         )}
                     </div>
 
-                    <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed">
+                    <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed whitespace-pre-wrap">
                         <p>{product.description}</p>
                     </div>
 

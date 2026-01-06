@@ -2,14 +2,27 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Label } from "@/components/ui/label"; // Usamos Label para los títulos de los inputs
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button"; // Importamos el botón
+import { RefreshCw } from "lucide-react"; // Un ícono para el botón
 
 export function ArticulosTable({ data }: { data: any[] }) {
   const [filter, setFilter] = useState("");
   
-  // 1. Estados para el Dólar y el FOB Global con tus valores por defecto
-  const [globalDolar, setGlobalDolar] = useState(1530);
-  const [globalFob, setGlobalFob] = useState(2.3);
+  // 1. Valores que se muestran en los inputs (lo que estás escribiendo)
+  const [tempDolar, setTempDolar] = useState(1530);
+  const [tempFob, setTempFob] = useState(2.3);
+
+  // 2. Valores que REALMENTE se usan para el cálculo (los confirmados)
+  const [activeDolar, setActiveDolar] = useState(1530);
+  const [activeFob, setActiveFob] = useState(2.3);
+
+  // Función para confirmar el cambio
+  const aplicarCambios = () => {
+    setActiveDolar(tempDolar);
+    setActiveFob(tempFob);
+  };
 
   const filteredData = data.filter(item => 
     item.descripcion?.toLowerCase().includes(filter.toLowerCase()) ||
@@ -18,10 +31,9 @@ export function ArticulosTable({ data }: { data: any[] }) {
 
   return (
     <div className="space-y-4">
-      {/* 2. Barra de Herramientas: Buscador + Controles Globales */}
+      {/* BARRA DE HERRAMIENTAS */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         
-        {/* Buscador a la izquierda */}
         <Input
           placeholder="Buscar por descripción o ID..."
           value={filter}
@@ -29,62 +41,60 @@ export function ArticulosTable({ data }: { data: any[] }) {
           className="max-w-sm bg-white shadow-sm"
         />
 
-        {/* Controles de Dólar y FOB a la derecha */}
-        <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner">
+        {/* PANEL DE CONTROL CON BOTÓN DE CONFIRMACIÓN */}
+        <div className="flex items-end gap-4 bg-slate-50 p-3 rounded-lg border border-slate-200 shadow-inner">
           <div className="flex flex-col gap-1">
-            <Label htmlFor="dolar-global" className="text-[10px] font-bold uppercase text-slate-500">Valor Dólar</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 font-bold">$</span>
-              <Input
-                id="dolar-global"
-                type="number"
-                value={globalDolar}
-                onChange={(e) => setGlobalDolar(Number(e.target.value))}
-                className="w-24 h-9 bg-white font-bold text-blue-700 border-blue-100 focus:border-blue-500"
-              />
-            </div>
+            <Label htmlFor="dolar-global" className="text-[10px] font-bold uppercase text-slate-500">Dólar</Label>
+            <Input
+              id="dolar-global"
+              type="number"
+              value={tempDolar}
+              onChange={(e) => setTempDolar(Number(e.target.value))}
+              className="w-24 h-9 bg-white font-bold text-blue-700"
+            />
           </div>
           
-          {/* Separador visual */}
-          <div className="w-[1px] h-10 bg-slate-200 mx-1" />
-
           <div className="flex flex-col gap-1">
-            <Label htmlFor="fob-global" className="text-[10px] font-bold uppercase text-slate-500">Factor FOB</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-slate-400 font-bold">x</span>
-              <Input
-                id="fob-global"
-                type="number"
-                step="0.1"
-                value={globalFob}
-                onChange={(e) => setGlobalFob(Number(e.target.value))}
-                className="w-20 h-9 bg-white font-bold text-amber-700 border-amber-100 focus:border-amber-500"
-              />
-            </div>
+            <Label htmlFor="fob-global" className="text-[10px] font-bold uppercase text-slate-500">FOB</Label>
+            <Input
+              id="fob-global"
+              type="number"
+              step="0.1"
+              value={tempFob}
+              onChange={(e) => setTempFob(Number(e.target.value))}
+              className="w-20 h-9 bg-white font-bold text-amber-700"
+            />
           </div>
+
+          {/* BOTÓN MODIFICAR */}
+          <Button 
+            onClick={aplicarCambios}
+            className="h-9 bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-md"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Modificar
+          </Button>
         </div>
       </div>
       
-      {/* 3. Tabla Maestra */}
+      {/* TABLA MAESTRA */}
       <div className="rounded-md border bg-white overflow-hidden shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="bg-slate-100">
               <TableHead className="w-[150px] font-bold text-slate-700">Cód. Artículo</TableHead>
               <TableHead className="font-bold text-slate-700">Descripción</TableHead>
+              <TableHead className="w-[120px] font-bold text-slate-700 text-center">Es Dólar</TableHead>
               <TableHead className="w-[140px] font-bold text-slate-700 text-center">Precio Base</TableHead>
-              {/* Eliminamos la columna Factor FOB como pediste */}
               <TableHead className="w-[150px] font-bold text-slate-700 text-right pr-6">Final ARS</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredData.map((item) => {
-              // 4. Lógica de cálculo en tiempo real:
-              // Si es dólar: Precio Base * Dólar Global * FOB Global
-              // Si es peso: Se queda el Precio Base tal cual
+              // Usamos los valores ACTIVOS para el cálculo
               const finalArs = item.es_dolar 
-                ? item.costo_usd * globalDolar * globalFob 
-                : item.costo_usd;
+                ? Number(item.costo_usd) * activeDolar * activeFob 
+                : Number(item.costo_usd);
 
               return (
                 <TableRow key={item.id} className="hover:bg-amber-50/50 transition-colors">
@@ -95,13 +105,18 @@ export function ArticulosTable({ data }: { data: any[] }) {
                     {item.descripcion}
                   </TableCell>
                   
-                  {/* PRECIO BASE */}
-                  <TableCell className="text-center font-semibold text-slate-600">
-                    {item.es_dolar ? 'U$S ' : '$ '}
-                    {item.costo_usd.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  {/* COLUMNA ES DÓLAR (SÍ/NO) */}
+                  <TableCell className="text-center">
+                    <Badge variant={item.es_dolar ? "default" : "secondary"}>
+                      {item.es_dolar ? "SÍ" : "NO"}
+                    </Badge>
                   </TableCell>
 
-                  {/* COSTO FINAL RECALCULADO (Verde y resaltado) */}
+                  <TableCell className="text-center font-semibold text-slate-600">
+                    {item.es_dolar ? 'U$S ' : '$ '}
+                    {Number(item.costo_usd).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </TableCell>
+
                   <TableCell className="text-right pr-6 font-bold text-green-700 text-lg">
                     ${finalArs.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </TableCell>
@@ -112,9 +127,8 @@ export function ArticulosTable({ data }: { data: any[] }) {
         </Table>
       </div>
       
-      {/* Mensaje de referencia al pie */}
       <div className="text-[10px] text-slate-400 italic text-right pr-4">
-        * Cálculos basados en Dólar a ${globalDolar.toLocaleString('es-AR')} y multiplicador FOB x{globalFob.toFixed(2)}
+        * Calculando con Dólar a ${activeDolar} y FOB x{activeFob}. (Presiona Modificar para actualizar)
       </div>
     </div>
   );

@@ -32,11 +32,11 @@ export function CostosTable({ data }: { data: any[] }) {
       <div className="rounded-md border bg-white overflow-hidden shadow-sm">
         <Table>
           <TableHeader>
-            <TableRow className="bg-slate-50">
-              <TableHead className="w-[120px]">MLA</TableHead>
-              <TableHead className="w-[280px]">Publicación</TableHead>
-              <TableHead>Componentes del Kit</TableHead>
-              <TableHead className="w-[100px]">IDs</TableHead>
+            <TableRow className="bg-slate-100">
+              <TableHead className="w-[140px] font-bold text-slate-700">MLA</TableHead>
+              <TableHead className="w-[280px] font-bold text-slate-700">Publicación</TableHead>
+              <TableHead className="font-bold text-slate-700">Componentes del Kit</TableHead>
+              <TableHead className="w-[120px] font-bold text-slate-700 text-center">IDs</TableHead>
               <TableHead>
                 <Button 
                   variant="ghost" 
@@ -46,7 +46,7 @@ export function CostosTable({ data }: { data: any[] }) {
                   Costo Total <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
-              <TableHead className="text-right pr-6">Link</TableHead>
+              <TableHead className="text-right pr-6 font-bold text-slate-700">Link</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -55,8 +55,14 @@ export function CostosTable({ data }: { data: any[] }) {
               const listaComponentes = item.componentes?.split(' + ') || [];
               
               return (
-                <TableRow key={item.mla + item.nombre_variante} className="hover:bg-slate-50/50">
-                  <TableCell className="font-mono text-[10px] text-gray-400">{item.mla}</TableCell>
+                <TableRow 
+                  key={item.mla + item.nombre_variante} 
+                  className="hover:bg-blue-50/50 even:bg-slate-50/50 transition-colors"
+                >
+                  {/* MLA: Ahora más grande y legible */}
+                  <TableCell className="font-bold text-sm text-slate-600 py-4">
+                    {item.mla}
+                  </TableCell>
                   
                   <TableCell className="max-w-[280px] py-4">
                     <div className="font-semibold text-sm leading-tight mb-1 uppercase text-gray-800">
@@ -69,13 +75,12 @@ export function CostosTable({ data }: { data: any[] }) {
                   </TableCell>
 
                   {/* Columna de Nombres de Componentes */}
-                  <TableCell>
-                    <div className="space-y-2 py-2">
+                  <TableCell className="py-4">
+                    <div className="space-y-2">
                       {listaComponentes.map((comp: string, idx: number) => {
-                        // Extraemos solo el nombre (lo que está antes del paréntesis)
                         const nombreSolo = comp.substring(0, comp.lastIndexOf(' ('));
                         return (
-                          <div key={idx} className="text-[11px] text-gray-700 border-l-2 border-slate-300 pl-2 leading-tight h-4 flex items-center">
+                          <div key={idx} className="text-[11px] text-gray-700 border-l-2 border-slate-300 pl-2 leading-tight h-5 flex items-center">
                             {nombreSolo || comp}
                           </div>
                         );
@@ -83,14 +88,13 @@ export function CostosTable({ data }: { data: any[] }) {
                     </div>
                   </TableCell>
 
-                  {/* Columna Nueva de IDs correspondientes */}
-                  <TableCell>
-                    <div className="space-y-2 py-2">
+                  {/* IDs: Centrados y con fuente más clara */}
+                  <TableCell className="py-4">
+                    <div className="flex flex-col items-center justify-center space-y-2">
                       {listaComponentes.map((comp: string, idx: number) => {
-                        // Extraemos solo el ID (lo que está adentro de los paréntesis)
                         const idSolo = comp.substring(comp.lastIndexOf(' (') + 2, comp.lastIndexOf(')'));
                         return (
-                          <div key={idx} className="text-[10px] font-mono text-gray-500 bg-gray-50 px-1 rounded h-4 flex items-center justify-center border border-gray-100">
+                          <div key={idx} className="text-[11px] font-mono font-medium text-slate-600 bg-slate-100 px-2 rounded h-5 flex items-center justify-center border border-slate-200 min-w-[60px]">
                             {idSolo}
                           </div>
                         );
@@ -98,11 +102,11 @@ export function CostosTable({ data }: { data: any[] }) {
                     </div>
                   </TableCell>
 
-                  <TableCell className="font-bold text-base text-green-700">
+                  <TableCell className="font-bold text-base text-green-700 py-4">
                     ${Number(item.costo_total_reposicion).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </TableCell>
 
-                  <TableCell className="text-right pr-6">
+                  <TableCell className="text-right pr-6 py-4">
                     <a href={item.link_publicacion} target="_blank" rel="noreferrer">
                       <Button size="sm" variant="outline" className="h-8 w-8 p-0 border-slate-200 hover:border-blue-400">
                         <ExternalLink className="h-4 w-4 text-slate-500 hover:text-blue-600" />

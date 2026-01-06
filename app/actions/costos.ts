@@ -15,3 +15,24 @@ export async function getCostosKits() {
     return [];
   }
 }
+
+export async function getArticulos() {
+  try {
+    const articulos = await prisma.costosArticulos.findMany({
+      orderBy: {
+        descripcion: 'asc'
+      }
+    });
+    
+    // Convertimos los tipos Decimal de Prisma a números simples 
+    // para que Next.js no tenga problemas al pasarlos al cliente
+    return articulos.map(art => ({
+      ...art,
+      costo_fob_usd: art.costo_fob_usd ? Number(art.costo_fob_usd) : 0,
+      costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0
+    }));
+  } catch (error) {
+    console.error("Error al obtener artículos:", error);
+    return [];
+  }
+}

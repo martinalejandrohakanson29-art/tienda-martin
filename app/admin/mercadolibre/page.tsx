@@ -8,7 +8,8 @@ import {
   ArrowRight, 
   Truck, 
   ReceiptText,
-  Package // <--- Agregamos este ícono
+  Package,
+  Ship // 👈 Nuevo ícono para Importaciones
 } from "lucide-react";
 import Link from "next/link";
 
@@ -95,19 +96,40 @@ export default function MercadoLibreDashboard() {
         </Card>
       </div>
 
-      {/* SEPARADOR PARA NUEVA SECCIÓN */}
+      {/* SEPARADOR */}
       <hr className="my-10 border-gray-200" />
       
+      {/* SECCIÓN 2: GESTIÓN DE STOCK E IMPORTACIONES */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold tracking-tight text-gray-700">Análisis y Rentabilidad</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-gray-700">Abastecimiento y Rentabilidad</h2>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           
+          {/* 👇 NUEVA TARJETA: IMPORTACIONES (MASTER) */}
+          <Card className="hover:shadow-md transition-all border-l-4 border-l-indigo-500 bg-indigo-50/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-indigo-700">
+                <Ship className="h-6 w-6" />
+                Gestión de Importaciones
+              </CardTitle>
+              <CardDescription>
+                Control de Stock Proveedores, Ventas y Cobertura.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/admin/mercadolibre/importaciones">
+                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm">
+                  Ver Tablero Maestro <ArrowRight size={16} />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
           {/* TARJETA 4: Costos ML */}
           <Card className="hover:shadow-md transition-all border-l-4 border-l-cyan-500 bg-cyan-50/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-cyan-700">
                 <ReceiptText className="h-6 w-6" />
-                Tabla Comparador (costo y agregados ML)
+                Tabla Comparador (Kits)
               </CardTitle>
               <CardDescription>
                 Cálculo de costos totales por kit en tiempo real.
@@ -122,12 +144,12 @@ export default function MercadoLibreDashboard() {
             </CardContent>
           </Card>
 
-          {/* NUEVA TARJETA: Lista de Artículos (corregida) */}
+          {/* TARJETA: Lista de Artículos */}
           <Card className="hover:shadow-md transition-all border-l-4 border-l-amber-500 bg-amber-50/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-amber-700">
                 <Package className="h-6 w-6" />
-                Tabla de Costos
+                Tabla de Costos Base
               </CardTitle>
               <CardDescription>
                 Tabla maestra de costos y conversión USD/ARS.

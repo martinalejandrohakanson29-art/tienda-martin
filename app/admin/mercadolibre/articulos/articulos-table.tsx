@@ -28,8 +28,7 @@ export function ArticulosTable({ data }: { data: any[] }) {
               <TableHead className="w-[80px] font-bold text-slate-700">ID</TableHead>
               <TableHead className="w-[150px] font-bold text-slate-700">Cód. Artículo</TableHead>
               <TableHead className="font-bold text-slate-700">Descripción</TableHead>
-              {/* CAMBIO: Título de la columna a "Costo" */}
-              <TableHead className="w-[120px] font-bold text-slate-700 text-center">Costo</TableHead>
+              <TableHead className="w-[140px] font-bold text-slate-700 text-center">Costo</TableHead>
               <TableHead className="w-[100px] font-bold text-slate-700 text-center">Es Dólar</TableHead>
               <TableHead className="w-[150px] font-bold text-slate-700 text-right pr-6">Costo Final ARS</TableHead>
             </TableRow>
@@ -44,10 +43,16 @@ export function ArticulosTable({ data }: { data: any[] }) {
                 <TableCell className="font-medium uppercase text-gray-800">
                   {item.descripcion}
                 </TableCell>
-                {/* CAMBIO: Lógica de signo según si es dólar o peso */}
+                
+                {/* CAMBIO: Formato de moneda unificado (Punto para miles, Coma para decimales) */}
                 <TableCell className="text-center font-semibold">
-                  {item.es_dolar ? 'U$S' : '$'} {item.costo_fob_usd.toFixed(2)}
+                  {item.es_dolar ? 'U$S ' : '$ '}
+                  {item.costo_fob_usd.toLocaleString('es-AR', { 
+                    minimumFractionDigits: 2, 
+                    maximumFractionDigits: 2 
+                  })}
                 </TableCell>
+
                 <TableCell className="text-center">
                   <Badge variant={item.es_dolar ? "default" : "secondary"}>
                     {item.es_dolar ? "SÍ" : "NO"}

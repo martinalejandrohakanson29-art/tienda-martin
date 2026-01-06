@@ -127,7 +127,7 @@ export default function MercadoLibreDashboard() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-amber-700">
                 <Package className="h-6 w-6" />
-                Artículos Individuales
+                Tabla de Costos
               </CardTitle>
               <CardDescription>
                 Tabla maestra de costos y conversión USD/ARS.

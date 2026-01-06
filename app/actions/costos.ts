@@ -1,39 +1,42 @@
+// app/actions/costos.ts
 "use server";
-// Cambiamos el import para que coincida con tu lib/prisma.ts
-import { prisma } from "@/lib/prisma"; 
+import { prisma } from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
 
-export async function getCostosKits() {
+// ... funciones anteriores (getCostosKits, getArticulos)
+
+export async function upsertArticulo(data: any) {
   try {
-    // Usamos queryRaw para leer directamente desde la vista SQL que creamos
-    const costos = await prisma.$queryRaw`
-      SELECT * FROM vista_costos_totales_kits
-      ORDER BY costo_total_reposicion DESC
-    `;
-    return costos as any[];
+    const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
+
+    if (id) {
+      // Editar existente
+      await prisma.costosArticulos.update({
+        where: { id },
+        data: { id_articulo, descripcion, costo_usd, es_dolar },
+      });
+    } else {
+      // Crear nuevo
+      await prisma.costosArticulos.create({
+        data: { id_articulo, descripcion, costo_usd, es_dolar },
+      });
+    }
+
+    revalidatePath("/admin/mercadolibre/articulos");
+    return { success: true };
   } catch (error) {
-    console.error("Error al obtener costos:", error);
-    return [];
+    console.error("Error al guardar:", error);
+    return { success: false, error: "Error al guardar el artículo" };
   }
 }
 
-export async function getArticulos() {
+export async function deleteArticulo(id: number) {
   try {
-    const articulos = await prisma.costosArticulos.findMany({
-      orderBy: {
-        descripcion: 'asc'
-      }
-    });
-    
-    return articulos.map(art => ({
-      ...art,
-      // Cambiamos costo_fob_usd por costo_usd
-      costo_usd: art.costo_usd ? Number(art.costo_usd) : 0,
-      // Agregamos el factor_fob
-      factor_fob: art.factor_fob ? Number(art.factor_fob) : 1,
-      costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0
-    }));
+    await prisma.costosArticulos.delete({ where: { id } });
+    revalidatePath("/admin/mercadolibre/articulos");
+    return { success: true };
   } catch (error) {
-    console.error("Error al obtener artículos:", error);
-    return [];
+    console.error("Error al eliminar:", error);
+    return { success: false, error: "No se pudo eliminar el artículo" };
   }
 }

@@ -101,7 +101,8 @@ model CostosArticulos {
   id                 Int      @id @default(autoincrement())
   id_articulo        String   @unique
   descripcion        String?
-  costo_fob_usd      Decimal? @db.Decimal(10, 2)
+  costo_usd          Decimal? @db.Decimal(10, 2) // <-- Cambiamos el nombre
+  factor_fob         Decimal? @db.Decimal(10, 2) @default(1.00) // <-- Nueva columna
   es_dolar           Boolean? @default(true)
   costo_final_ars    Decimal? @db.Decimal(20, 2)
   fecha_actualizacion DateTime @default(now())

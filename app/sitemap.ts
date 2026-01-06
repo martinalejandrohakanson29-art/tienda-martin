@@ -1,19 +1,20 @@
 import { getProducts } from "@/app/actions/products"
 import { MetadataRoute } from "next"
+import { Product } from "@prisma/client" // 👈 1. Importamos el "molde" del Producto
 
-// 👇 ESTA LÍNEA ES LA CLAVE.
-// Le dice a Next.js: "No intentes construir esto antes. Hazlo cuando te lo pidan".
 export const dynamic = "force-dynamic"
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://www.revolucionmotos.com.ar"
 
-  // Intentamos obtener productos. Si falla la DB, no rompemos todo, devolvemos un mapa básico.
-  let products = []
+  // 👇 2. TIPADO FUERTE: Le decimos "Esto es un array de Product"
+  let products: Product[] = []
+
   try {
       products = await getProducts()
   } catch (error) {
       console.error("Error generando sitemap de productos:", error)
+      // Si falla, 'products' se queda como array vacío [] y no rompe el sitio
   }
 
   const productUrls = products.map((product) => ({

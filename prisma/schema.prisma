@@ -133,15 +133,15 @@ model ProductosMaestros {
 model ComposicionKits {
   id              Int      @id @default(autoincrement())
   mla             String
-  variation_id    String?  // ID numérico de la variante de ML
-  nombre_variante String?
+  variation_id    String?  // Lo dejamos opcional por si luego lo quieres llenar
+  nombre_variante String?  // <--- IMPORTANTE: Ahora usaremos esto para el match
   id_articulo     String
   nombre_articulo String?  
   cantidad        Int      @default(1)
   fecha_registro  DateTime @default(now())
 
-  // Actualizado para usar variation_id en la restricción de unicidad
-  @@unique([mla, variation_id, id_articulo], name: "unique_kit_component")
+  // Cambiamos la restricción única para que coincida con tu Excel
+  @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
   @@map("composicion_kits")
 }
 

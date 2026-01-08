@@ -1,13 +1,15 @@
+// app/actions/costos.ts
+
 "use server";
 import { prisma } from "@/lib/prisma"; 
 import { revalidatePath } from "next/cache";
 
-// 1. Función para la tabla de Kits (la que ya tenías)
+// Actualizado para usar la nueva vista_costos_productos
 export async function getCostosKits() {
   try {
     const costos = await prisma.$queryRaw`
-      SELECT * FROM vista_costos_totales_kits
-      ORDER BY costo_total_reposicion DESC
+      SELECT * FROM vista_costos_productos
+      ORDER BY costo_total DESC
     `;
     return costos as any[];
   } catch (error) {
@@ -15,6 +17,8 @@ export async function getCostosKits() {
     return [];
   }
 }
+
+// ... (el resto de las funciones se mantienen igual)
 
 // 2. Función para obtener los artículos individuales
 export async function getArticulos() {

@@ -82,6 +82,8 @@ model ShipmentItem {
   sku        String?
   quantity   Int      // Cantidad planificada
   agregados  String?  // Columnas N, O, P, Q de la planilla
+  imageUrl   String?  // <--- Nueva columna para la foto
+  variation  String?  // <--- Nueva columna para la variante
   
   @@index([shipmentId])
 }

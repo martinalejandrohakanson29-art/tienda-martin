@@ -1,4 +1,3 @@
-// Archivo: app/actions/planning.ts
 "use server"
 
 import { prisma } from "@/lib/prisma"
@@ -48,40 +47,40 @@ export async function sendPlanningToN8N(data: any[], shipmentName: string) {
             body: JSON.stringify(data), 
         });
 
-        if (!n8nResponse.ok) throw new Error("Error al obtener datos de n8n");
+        if (!n8nResponse.ok) throw new Error("Error al obtener fotos de n8n");
         
-        // Recibimos la respuesta de n8n (el array con id, title, imageUrl, etc.)
+        // Recibimos la respuesta de n8n
         const n8nResults = await n8nResponse.json();
 
-        // 2. CREACIÓN DEL ENVÍO Y SUS ÍTEMS EN LA DB (Transacción de Prisma)
+        // 2. CREACIÓN DEL ENVÍO Y SUS ÍTEMS EN LA DB
         await prisma.shipment.create({
             data: {
                 name: shipmentName,
                 items: {
                     create: data.map((itemOri) => {
-                        // Buscamos la respuesta de n8n que coincida con el MLA (sku en itemOri)
+                        // Buscamos la respuesta de n8n que coincida con el MLA
                         const infoML = Array.isArray(n8nResults) 
                             ? n8nResults.find((n: any) => n.id === itemOri.sku) 
                             : null;
                         
-                        // CORRECCIÓN IMAGEN: n8n ya devuelve "imageUrl" como un string
+                        // Capturamos la URL de la imagen que ya viene "limpia" desde n8n
                         const urlFoto = infoML?.imageUrl || null;
 
-                        // CORRECCIÓN SKU: Priorizamos el de n8n, si es null usamos el de la planilla
+                        // Si n8n no trae el SKU de vendedor, usamos el que ya teníamos de la planilla
                         const skuFinal = infoML?.["USER PRODUCT ID"] || itemOri.seller_sku || "S/D";
 
-                        // Formateamos los agregados
+                        // Unimos los agregados en un solo texto
                         const listaAgregados = [itemOri.agregado1, itemOri.agregado2, itemOri.agregado3, itemOri.agregado4]
                             .filter(val => val && val.trim() !== "").join(", ");
 
                         return {
-                            itemId: itemOri.sku || "S/D",       // El MLA
+                            itemId: itemOri.sku || "S/D",       
                             title: itemOri.title || "Sin título",
-                            sku: skuFinal,                      // El código de vendedor corregido
+                            sku: skuFinal,                      
                             quantity: Number(itemOri.quantity_to_send || 0),
                             agregados: listaAgregados,
-                            imageUrl: urlFoto,                 // La URL de la imagen directa
-                            variation: itemOri.variation_label || "" // La variante (Columna J enviada desde el front)
+                            imageUrl: urlFoto,                 
+                            variation: itemOri.variation_label || "" 
                         };
                     })
                 }

@@ -113,14 +113,19 @@ model CostosArticulos {
   @@map("costos_articulos")
 }
 
+// martinalejandrohakanson29-art/tienda-martin/.../prisma/schema.prisma
+
 model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
-  mla                  String   @unique
+  mla                  String   
+  variation_id         String?  // <--- NUEVO: El ID de variante de ML
   nombre_publicacion   String?
   link_publicacion     String?
   estado               String?
   ultima_actualizacion DateTime @default(now())
 
+  // Esto permite que el mismo MLA exista varias veces siempre que su variation_id sea distinto
+  @@unique([mla, variation_id], name: "unique_mla_variation")
   @@map("productos_maestros")
 }
 

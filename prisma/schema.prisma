@@ -101,24 +101,25 @@ model ShipmentAudit {
 }
 
 model CostosArticulos {
-  id                 Int      @id @default(autoincrement())
-  id_articulo        String   @unique
-  descripcion        String?
-  costo_usd          Decimal? @db.Decimal(10, 2)
-  factor_fob         Decimal? @db.Decimal(10, 2) @default(1.00)
-  es_dolar           Boolean? @default(true)
-  costo_final_ars    Decimal? @db.Decimal(20, 2)
+  id                  Int      @id @default(autoincrement())
+  id_articulo         String   @unique
+  descripcion         String?
+  costo_usd           Decimal? @db.Decimal(10, 2)
+  factor_fob          Decimal? @db.Decimal(10, 2) @default(1.00)
+  es_dolar            Boolean? @default(true)
+  costo_final_ars     Decimal? @db.Decimal(20, 2)
   fecha_actualizacion DateTime @default(now())
 
   @@map("costos_articulos")
 }
 
-// martinalejandrohakanson29-art/tienda-martin/.../prisma/schema.prisma
+// --- TABLAS MAESTRAS DE MERCADO LIBRE ---
 
 model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
   mla                  String   
-  variation_id         String?  // <--- NUEVO: El ID de variante de ML
+  variation_id         String?  // ID de variante de ML
+  nombre_variante      String?  // <--- NUEVO: El nombre legible de la variante
   nombre_publicacion   String?
   link_publicacion     String?
   estado               String?
@@ -132,7 +133,7 @@ model ProductosMaestros {
 model ComposicionKits {
   id              Int      @id @default(autoincrement())
   mla             String
-  variation_id    String?  // <--- NUEVO: ID numérico de la variante de ML
+  variation_id    String?  // ID numérico de la variante de ML
   nombre_variante String?
   id_articulo     String
   nombre_articulo String?  
@@ -167,11 +168,11 @@ model SupplierProduct {
 
 model PurchaseOrder {
   id              String   @id @default(cuid()) 
-  externalId      String?  
+  externalId      String?
   supplier        String   
   status          String   
   
-  arrivalDate     DateTime? 
+  arrivalDate     DateTime?
   totalItems      Int       @default(0)
   
   items           PurchaseOrderItem[]
@@ -196,7 +197,7 @@ model KitComponent {
   id                 String          @id @default(cuid())
   
   mla                String          
-  variation_id       String?         // <--- NUEVO: Para relacionar con ventas reales
+  variation_id       String?         // Para relacionar con ventas reales
   variant            String?         // Nombre legible (ej: "Italy 30")
   
   supplierProductSku String
@@ -205,7 +206,7 @@ model KitComponent {
   quantityPerKit     Int             @default(1) 
   
   @@index([mla])
-  @@index([variation_id])            // <--- NUEVO: Index para búsquedas rápidas
+  @@index([variation_id])            // Index para búsquedas rápidas
   @@index([supplierProductSku])
 }
 

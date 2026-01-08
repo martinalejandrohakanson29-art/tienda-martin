@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 
 const N8N_SALES_WORKFLOW_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/3ac81569-93e4-4e90-9a64-025b79a727c5";
 const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql-kdfGt_kQReLGEzFGaqVcex55VydptBQhV2EI0DTLhXFvzxukPbtZ6YCiprd8D7HKF80sWL/pub?gid=0&single=true&output=csv";
+const N8N_PROCESS_WORKFLOW_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/obtener-fotos-planning";
 
 export async function runN8nSalesWorkflow() {
     try {
@@ -36,69 +37,48 @@ export async function fetchSheetData(): Promise<{
 
 export async function sendPlanningToN8N(data: any[], shipmentName: string) {
     try {
-        await prisma.shipment.create({
-            data: {
-                name: shipmentName,
-                items: {
-                    create: data.map((item) => {
-                        const listaAgregados = [item.agregado1, item.agregado2, item.agregado3, item.agregado4]
-                            .filter(val => val && val.trim() !== "").join(", ");
-                        return {
-                            itemId: item.sku || "S/D",
-                            title: item.title || "Sin título",
-                            sku: item.seller_sku || "S/D",
-                            quantity: Number(item.quantity_to_send || 0),
-                            agregados: listaAgregados
-                        };
-                    })
-                }
-            }
-        });
-        return { success: true };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
-}
-// En app/actions/planning.ts
-
-// URL del Webhook de n8n para obtener fotos y procesar (ajustar según tu n8n)
-const N8N_PROCESS_WORKFLOW_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/obtener-fotos-planning";
-
-export async function sendPlanningToN8N(data: any[], shipmentName: string) {
-    try {
-        // 1. Llamamos a n8n enviando los datos de la planificación
-        const response = await fetch(N8N_PROCESS_WORKFLOW_URL, {
+        // 1. Llamamos a n8n enviando los datos para obtener las fotos y procesar
+        const n8nResponse = await fetch(N8N_PROCESS_WORKFLOW_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items: data, shipmentName }),
         });
 
-        if (!response.ok) throw new Error("Error al comunicarse con n8n");
+        if (!n8nResponse.ok) throw new Error("Error al comunicarse con n8n");
         
-        // 2. n8n nos devuelve la lista de items con las URLs de las fotos incorporadas
-        const { itemsWithImages } = await response.json();
+        // Obtenemos los datos enriquecidos (con fotos) de n8n
+        const responseData = await n8nResponse.json();
+        // Asumimos que n8n devuelve una propiedad 'items' con la info completa
+        const processedItems = responseData.items || data;
 
-        // 3. Creamos el envío y sus ítems en la base de datos
+        // 2. Guardamos en la base de datos
         await prisma.shipment.create({
             data: {
                 name: shipmentName,
                 items: {
-                    create: itemsWithImages.map((item: any) => ({
-                        itemId: item.sku || "S/D",
-                        title: item.title || "Sin título",
-                        sku: item.seller_sku || "S/D",
-                        quantity: Number(item.quantity_to_send || 0),
-                        agregados: item.agregados,
-                        imageUrl: item.imageUrl, // Guardamos la URL devuelta por n8n
-                        variation: item.variation_label || ""
-                    }))
+                    create: processedItems.map((item: any) => {
+                        // Procesamos los agregados si vienen por separado
+                        const listaAgregados = item.agregados || [item.agregado1, item.agregado2, item.agregado3, item.agregado4]
+                            .filter((val: any) => val && val.trim() !== "").join(", ");
+
+                        return {
+                            itemId: item.sku || "S/D", // MLA
+                            title: item.title || "Sin título",
+                            sku: item.seller_sku || "S/D",
+                            quantity: Number(item.quantity_to_send || 0),
+                            agregados: listaAgregados,
+                            // Si actualizaste el schema de Prisma, descomenta estas líneas:
+                            // imageUrl: item.imageUrl || "",
+                            // variation: item.variation_label || ""
+                        };
+                    })
                 }
             }
         });
 
         return { success: true };
     } catch (error: any) {
-        console.error("Error en proceso:", error);
+        console.error("Error en sendPlanningToN8N:", error);
         return { success: false, message: error.message };
     }
 }

@@ -104,20 +104,20 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
     if (!confirm(`¿Procesar #${shipmentId} con ${totalQuantity} unidades?`)) return;
     startTransition(async () => {
       const itemsToSend = displayBody.map((row, index) => {
-        const noteQty = cleanNumber(inputValues[index] || "");
-        return {
-          shipment_id: shipmentId.trim(),
-          sku: row[0], seller_sku: row[1], title: row[2], colJ: row[9] || "",
-          quantity_to_send: noteQty,
-          agregado1: row[13] || "", agregado2: row[14] || "", agregado3: row[15] || "", agregado4: row[16] || "",
-          variation_label: row[6] || ""
-        };
-      }).filter(item => item.quantity_to_send > 0);
-      if (itemsToSend.length === 0) return alert("No hay cantidades.");
-      const result = await sendPlanningToN8N(itemsToSend, shipmentId.trim());
-      if (result.success) setSummaryData(itemsToSend); else alert("❌ Error: " + result.message);
-    });
+  const noteQty = cleanNumber(inputValues[index] || "");
+  return {
+    shipment_id: shipmentId.trim(),
+    sku: row[0], 
+    seller_sku: row[1], 
+    title: row[2], 
+    colJ: row[9] || "",
+    quantity_to_send: noteQty,
+    agregados1: row[13] || "", 
+    // ... otros agregados ...
+    // CORRECCIÓN: Usamos row[9] (Columna J) que tiene el texto de la variante
+    variation_label: row[9] || "" 
   };
+}).filter(item => item.quantity_to_send > 0);
 
   // 1. MODAL RESUMEN (A, B, C, J)
   if (summaryData) {

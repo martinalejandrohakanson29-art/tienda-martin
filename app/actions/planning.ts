@@ -37,6 +37,7 @@ export async function fetchSheetData() {
 
 /**
  * Envía la planificación a n8n para obtener fotos y guarda el envío en la base de datos.
+ * Incluye corrección para evitar errores de duplicados en el nombre del envío.
  */
 export async function sendPlanningToN8N(data: any[], shipmentName: string) {
     try {
@@ -52,7 +53,13 @@ export async function sendPlanningToN8N(data: any[], shipmentName: string) {
         // Recibimos la respuesta de n8n
         const n8nResults = await n8nResponse.json();
 
-        // 2. CREACIÓN DEL ENVÍO Y SUS ÍTEMS EN LA DB
+        // 2. LIMPIEZA PREVIA: Evitamos el error "Unique constraint failed on the fields: (name)"
+        // Borramos cualquier envío anterior que tenga el mismo nombre antes de crear el nuevo.
+        await prisma.shipment.deleteMany({
+            where: { name: shipmentName }
+        });
+
+        // 3. CREACIÓN DEL ENVÍO Y SUS ÍTEMS EN LA DB
         await prisma.shipment.create({
             data: {
                 name: shipmentName,

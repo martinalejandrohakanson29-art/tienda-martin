@@ -63,7 +63,7 @@ export default function MercadoLibreDashboard() {
               Control envios Full
             </CardTitle>
             <CardDescription>
-              Auditoría y revisión de fotos.
+              Aprobacion de envios
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -83,7 +83,7 @@ export default function MercadoLibreDashboard() {
               Planificación Envíos Full
             </CardTitle>
             <CardDescription>
-              Armado de pedidos desde Sheets.
+              Planificacion de envios full.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -112,7 +112,7 @@ export default function MercadoLibreDashboard() {
                 Gestión de Importaciones
               </CardTitle>
               <CardDescription>
-                Control de Stock Proveedores, Ventas y Cobertura.
+                Control de Stock, Ventas e Importacion.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -132,7 +132,7 @@ export default function MercadoLibreDashboard() {
                 Tabla Comparador (Kits)
               </CardTitle>
               <CardDescription>
-                Cálculo de costos totales por kit en tiempo real.
+                Tabla Composicion de kits
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -152,7 +152,7 @@ export default function MercadoLibreDashboard() {
                 Tabla de Costos Base
               </CardTitle>
               <CardDescription>
-                Tabla maestra de costos y conversión USD/ARS.
+                Tabla maestra de costos
               </CardDescription>
             </CardHeader>
             <CardContent>

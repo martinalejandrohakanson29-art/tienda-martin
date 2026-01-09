@@ -24,14 +24,16 @@ export async function getComposicionKits() {
 
 export async function upsertKitComponent(data: any) {
   try {
-    const { id, mla, nombre_variante, id_articulo, cantidad, nombre_articulo } = data;
+    // 1. Agregamos variation_id a la desestructuración
+    const { id, mla, variation_id, nombre_variante, id_articulo, cantidad, nombre_articulo } = data;
 
     if (id) {
       await prisma.composicionKits.update({
         where: { id },
         data: { 
-          mla, 
-          // Si el usuario no escribe nada, ahora guardamos "0"
+          mla,
+          // 2. Guardamos el ID de la variante (si viene vacío, lo dejamos null)
+          variation_id: variation_id || null,
           nombre_variante: nombre_variante || "0", 
           id_articulo, 
           cantidad: Number(cantidad), 
@@ -42,7 +44,8 @@ export async function upsertKitComponent(data: any) {
       await prisma.composicionKits.create({
         data: { 
           mla, 
-          // Cambiamos "Principal" por "0" aquí también
+          // 3. Lo mismo para la creación
+          variation_id: variation_id || null,
           nombre_variante: nombre_variante || "0", 
           id_articulo, 
           cantidad: Number(cantidad), 
@@ -58,7 +61,6 @@ export async function upsertKitComponent(data: any) {
     return { success: false, error: "Error al guardar el componente del kit" };
   }
 }
-
 // Eliminar un componente de un kit
 export async function deleteKitComponent(id: number) {
   try {

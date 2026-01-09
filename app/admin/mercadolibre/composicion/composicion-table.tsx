@@ -7,9 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Trash2, Pencil, Check, Box } from "lucide-react";
+import { Search, Plus, Trash2, Pencil, Check } from "lucide-react";
 import { upsertKitComponent, deleteKitComponent } from "@/app/actions/kits";
-import { cn } from "@/lib/utils";
 
 export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: any[] }) {
   const [filter, setFilter] = useState("");
@@ -33,8 +32,16 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
       ).slice(0, 5) // Mostramos solo los primeros 5 para no saturar
     : [];
 
-  const handleOpenModal = (item = null) => {
-    setEditingItem(item || { mla: "", nombre_variante: "", id_articulo: "", cantidad: 1, nombre_articulo: "" });
+  const handleOpenModal = (item: any = null) => {
+    // CORRECCIÓN 1: Inicializamos variation_id para evitar errores
+    setEditingItem(item || { 
+      mla: "", 
+      variation_id: "", // <--- IMPORTANTE: Campo nuevo
+      nombre_variante: "", 
+      id_articulo: "", 
+      cantidad: 1, 
+      nombre_articulo: "" 
+    });
     setSearchArticulo(""); // Resetear buscador
     setIsModalOpen(true);
   };
@@ -99,9 +106,15 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
               <TableRow key={item.id} className="hover:bg-blue-50/20 transition-colors border-slate-100">
                 <TableCell className="font-mono text-blue-600 font-bold">{item.mla}</TableCell>
                 <TableCell>
-                  <span className="text-[10px] font-bold uppercase bg-slate-100 px-2 py-1 rounded text-slate-500">
-                    {item.nombre_variante || "Única"}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold uppercase bg-slate-100 px-2 py-1 rounded text-slate-500 w-fit">
+                        {item.nombre_variante || "Única"}
+                    </span>
+                    {/* Visualización opcional del ID de variante si existe */}
+                    {item.variation_id && (
+                        <span className="text-[9px] text-slate-400 font-mono mt-0.5">{item.variation_id}</span>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="font-mono font-medium">{item.id_articulo}</TableCell>
                 <TableCell className="text-[11px] uppercase text-slate-600">{item.nombre_articulo}</TableCell>
@@ -143,15 +156,29 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
                   required
                 />
               </div>
+
+              {/* CORRECCIÓN 2: Nuevo input para el ID numérico de variante */}
               <div className="space-y-2">
-                <Label className="font-bold text-slate-700">Variante (opcional)</Label>
+                <Label className="font-bold text-slate-700">ID Variante (Opcional)</Label>
                 <Input 
-                  placeholder="Ej: Larga" 
+                  placeholder="Ej: 174680609242" 
+                  value={editingItem?.variation_id || ""} 
+                  onChange={e => setEditingItem({...editingItem, variation_id: e.target.value})}
+                  className="bg-slate-50 font-mono text-xs"
+                />
+                <p className="text-[9px] text-slate-400">Pegar aquí el ID largo si es necesario.</p>
+              </div>
+            </div>
+
+            {/* Movemos el nombre de variante aquí abajo */}
+            <div className="space-y-2">
+                <Label className="font-bold text-slate-700">Nombre Variante (Ref)</Label>
+                <Input 
+                  placeholder="Ej: Larga / 68mm" 
                   value={editingItem?.nombre_variante || ""} 
                   onChange={e => setEditingItem({...editingItem, nombre_variante: e.target.value})}
                   className="bg-slate-50"
                 />
-              </div>
             </div>
 
             {/* SECCIÓN BUSCADOR DE ARTÍCULOS */}

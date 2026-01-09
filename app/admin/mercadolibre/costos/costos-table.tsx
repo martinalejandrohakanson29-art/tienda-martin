@@ -94,8 +94,8 @@ export function CostosTable({ data }: { data: any[] }) {
                 <TableHead className="w-[300px] font-bold text-slate-700">Publicación</TableHead>
                 <TableHead className="font-bold text-slate-700">Variante</TableHead>
                 <TableHead className="font-bold text-slate-700">Estado</TableHead>
-                <TableHead className="font-bold text-slate-700">IDs Artículos</TableHead>
-                <TableHead className="w-[300px] font-bold text-slate-700">Receta Detallada</TableHead>
+                <TableHead className="font-bold text-slate-700">IDs Agregados</TableHead>
+                <TableHead className="w-[300px] font-bold text-slate-700">Agregados</TableHead>
                 <TableHead>
                   <Button 
                     variant="ghost" 
@@ -147,7 +147,7 @@ export function CostosTable({ data }: { data: any[] }) {
                           <span className="text-base font-black text-green-700">
                             ${Number(item.costo_total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                           </span>
-                          <span className="text-[8px] text-slate-400 uppercase font-bold tracking-tighter">Costo Reposición</span>
+                          <span className="text-[8px] text-slate-400 uppercase font-bold tracking-tighter">Costo Total</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-right pr-6">

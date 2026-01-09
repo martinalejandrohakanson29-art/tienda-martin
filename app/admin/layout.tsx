@@ -1,3 +1,4 @@
+// app/admin/layout.tsx
 "use client";
 
 import { AdminNav } from "@/components/admin-nav";
@@ -13,16 +14,16 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   
-  // 1. Definimos qué páginas queremos ver SIN menú lateral (Pantalla Completa)
+  // Agregamos la ruta de costos a la lista de pantalla completa
   const isFullscreenPage = 
     pathname === "/admin/mercadolibre/planning" || 
-    pathname === "/admin/mercadolibre/articulos";
+    pathname === "/admin/mercadolibre/articulos" ||
+    pathname === "/admin/mercadolibre/costos"; // <-- Añadido aquí
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen">
       
-      {/* 2. BARRA LATERAL (SOLO PC) */}
-      {/* Se oculta si estamos en Planning o Artículos */}
+      {/* BARRA LATERAL (Se ocultará si es una página de pantalla completa) */}
       {!isFullscreenPage && (
         <aside className="hidden md:block w-72 shrink-0 bg-gray-900 border-r border-gray-800">
           <div className="sticky top-24 h-[calc(100vh-6rem)] overflow-y-auto">
@@ -31,10 +32,10 @@ export default function AdminLayout({
         </aside>
       )}
 
-      {/* 3. CONTENIDO PRINCIPAL */}
+      {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 overflow-hidden"> 
         
-        {/* CABECERA MÓVIL (SOLO CELULAR) */}
+        {/* CABECERA MÓVIL (Se ocultará si es pantalla completa) */}
         {!isFullscreenPage && (
             <div className="md:hidden flex items-center p-4 border-b bg-white shadow-sm sticky top-0 z-40">
                 <Sheet>
@@ -51,8 +52,7 @@ export default function AdminLayout({
             </div>
         )}
 
-        {/* EL DASHBOARD / TABLA */}
-        {/* Si es pantalla completa, quitamos el padding (p-0) para usar todo el espacio */}
+        {/* El contenedor principal ahora usará h-screen si es pantalla completa */}
         <div className={isFullscreenPage ? "p-0 h-screen overflow-hidden" : "p-4 md:p-8"}>
             {children}
         </div>

@@ -3,18 +3,24 @@
 import * as React from "react"
 import { ArrowLeft, RefreshCw } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation" // <--- Importamos el router
 import { Button } from "@/components/ui/button"
 import { DateRangePicker } from "./date-range-picker"
-import { toast } from "sonner" // Asumo que usas sonner o similar para avisos
+import { toast } from "sonner" 
 
 export function ImportsHeader() {
     const [dates, setDates] = React.useState({ from: "", to: "" })
     const [isSyncing, setIsSyncing] = React.useState(false)
+    const router = useRouter() // <--- Inicializamos el router
 
     const handleSync = async () => {
+        if (!dates.from || !dates.to) {
+            alert("Por favor selecciona un rango de fechas")
+            return
+        }
+
         setIsSyncing(true)
         try {
-            // Llamamos al webhook de n8n (Asegúrate de poner tu URL real aquí)
             const response = await fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-ml", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -25,10 +31,18 @@ export function ImportsHeader() {
             })
 
             if (response.ok) {
-                alert(`🚀 Sincronización iniciada para el periodo: ${dates.from} al ${dates.to}`)
+                // 1. Avisamos al usuario
+                alert(`🚀 Sincronización finalizada correctamente.`)
+                
+                // 2. ¡IMPORTANTE! Refrescamos la página actual
+                // Esto obliga a Next.js a ejecutar de nuevo 'getSupplierProducts()' en el servidor
+                router.refresh() 
+            } else {
+                alert("Hubo un error en el servidor de n8n")
             }
         } catch (error) {
             console.error("Error sincronizando:", error)
+            alert("No se pudo conectar con el servidor de sincronización")
         } finally {
             setIsSyncing(false)
         }

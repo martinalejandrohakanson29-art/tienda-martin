@@ -20,6 +20,8 @@ export async function getComposicionKits() {
 }
 
 // Agregar o editar un componente en un kit
+// app/actions/kits.ts
+
 export async function upsertKitComponent(data: any) {
   try {
     const { id, mla, nombre_variante, id_articulo, cantidad, nombre_articulo } = data;
@@ -27,13 +29,21 @@ export async function upsertKitComponent(data: any) {
     if (id) {
       await prisma.composicionKits.update({
         where: { id },
-        data: { mla, nombre_variante, id_articulo, cantidad: Number(cantidad), nombre_articulo },
+        data: { 
+          mla, 
+          // Si el usuario no escribe nada, ahora guardamos "0"
+          nombre_variante: nombre_variante || "0", 
+          id_articulo, 
+          cantidad: Number(cantidad), 
+          nombre_articulo 
+        },
       });
     } else {
       await prisma.composicionKits.create({
         data: { 
           mla, 
-          nombre_variante: nombre_variante || "Principal", 
+          // Cambiamos "Principal" por "0" aquí también
+          nombre_variante: nombre_variante || "0", 
           id_articulo, 
           cantidad: Number(cantidad), 
           nombre_articulo 

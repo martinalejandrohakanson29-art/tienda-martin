@@ -15,7 +15,7 @@ export function ImportsHeader() {
         setIsSyncing(true)
         try {
             // Llamamos al webhook de n8n (Asegúrate de poner tu URL real aquí)
-            const response = await fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/sincronizar-importaciones", {
+            const response = await fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/sincronizar-ventas", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

@@ -19,48 +19,62 @@ export async function getComposicionKits() {
   }
 }
 
-// Agregar o editar un componente en un kit
-// app/actions/kits.ts
-
+/**
+ * Agregar o editar un componente en un kit.
+ * Se encarga de limpiar los IDs para que coincidan con la tabla de costos.
+ */
 export async function upsertKitComponent(data: any) {
   try {
-    // 1. Agregamos variation_id a la desestructuración
     const { id, mla, variation_id, nombre_variante, id_articulo, cantidad, nombre_articulo } = data;
 
+    // Limpiamos los datos: quitamos espacios en blanco y normalizamos
+    const cleanMla = mla?.trim().toUpperCase() || "";
+    // Si variation_id está vacío o es solo espacios, lo guardamos como null
+    const cleanVariationId = (variation_id && variation_id.trim() !== "") ? variation_id.trim() : null;
+    const cleanNombreVariante = (nombre_variante && nombre_variante.trim() !== "") ? nombre_variante.trim() : "0";
+    const cleanIdArticulo = id_articulo?.trim() || "";
+
     if (id) {
+      // Actualizar registro existente
       await prisma.composicionKits.update({
         where: { id },
         data: { 
-          mla,
-          // 2. Guardamos el ID de la variante (si viene vacío, lo dejamos null)
-          variation_id: variation_id || null,
-          nombre_variante: nombre_variante || "0", 
-          id_articulo, 
+          mla: cleanMla,
+          variation_id: cleanVariationId,
+          nombre_variante: cleanNombreVariante, 
+          id_articulo: cleanIdArticulo, 
           cantidad: Number(cantidad), 
-          nombre_articulo 
+          nombre_articulo: nombre_articulo?.trim() || ""
         },
       });
     } else {
+      // Crear nuevo registro
       await prisma.composicionKits.create({
         data: { 
-          mla, 
-          // 3. Lo mismo para la creación
-          variation_id: variation_id || null,
-          nombre_variante: nombre_variante || "0", 
-          id_articulo, 
+          mla: cleanMla, 
+          variation_id: cleanVariationId,
+          nombre_variante: cleanNombreVariante, 
+          id_articulo: cleanIdArticulo, 
           cantidad: Number(cantidad), 
-          nombre_articulo 
+          nombre_articulo: nombre_articulo?.trim() || ""
         },
       });
     }
 
+    // Refrescamos las rutas para que los cambios se vean en ambas tablas
     revalidatePath("/admin/mercadolibre/composicion");
+    revalidatePath("/admin/mercadolibre/costos");
+    
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error al guardar componente:", error);
-    return { success: false, error: "Error al guardar el componente del kit" };
+    return { 
+      success: false, 
+      error: error.message || "Error al guardar el componente del kit" 
+    };
   }
 }
+
 // Eliminar un componente de un kit
 export async function deleteKitComponent(id: number) {
   try {
@@ -68,6 +82,7 @@ export async function deleteKitComponent(id: number) {
       where: { id }
     });
     revalidatePath("/admin/mercadolibre/composicion");
+    revalidatePath("/admin/mercadolibre/costos");
     return { success: true };
   } catch (error) {
     console.error("Error al eliminar componente:", error);

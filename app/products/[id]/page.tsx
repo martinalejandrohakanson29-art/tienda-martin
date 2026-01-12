@@ -2,7 +2,8 @@ import { getProduct, incrementProductView } from "@/app/actions/products"
 import { notFound } from "next/navigation"
 import AddToCart from "./add-to-cart"
 import { formatPrice } from "@/lib/utils"
-import { Metadata, ResolvingMetadata } from "next" // 👈 Importamos tipos para Metadata
+import { Metadata, ResolvingMetadata } from "next"
+import PixelProductView from "@/components/pixel-product-view" // 👈 1. IMPORTANTE: Importamos el componente del Píxel
 import {
   Carousel,
   CarouselContent,
@@ -13,7 +14,7 @@ import {
 
 export const dynamic = "force-dynamic"
 
-// 👇 1. NUEVA FUNCIÓN: Genera el título y foto para WhatsApp/Google
+// Genera el título y foto para WhatsApp/Google
 export async function generateMetadata(
   { params }: { params: { id: string } },
   parent: ResolvingMetadata
@@ -64,6 +65,9 @@ export default async function ProductPage({ params }: { params: { id: string } }
 
     return (
         <div className="container mx-auto px-4 py-12">
+            {/* 👇 2. Disparamos el evento ViewContent de Meta */}
+            <PixelProductView product={product} />
+
             <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
                 
                 {/* SECCIÓN DE IMÁGENES / CARRUSEL */}

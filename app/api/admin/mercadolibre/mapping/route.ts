@@ -14,19 +14,26 @@ export async function GET(req: Request) {
 
         // 2. Consultamos la tabla KitComponent
         // Incluimos el nombre del producto (desde SupplierProduct) por si n8n lo necesita para debug
-        const mapping = await prisma.kitComponent.findMany({
+    const mapping = await prisma.kitComponent.findMany({
+    where: {
+        // Esto garantiza que solo enviamos MLAs de productos 
+        // que actualmente tienes en tu lista de Importaciones
+        supplierProduct: {
+            isNot: null 
+        }
+    },
+    select: {
+        mla: true,
+        variant: true,
+        supplierProductSku: true,
+        quantityPerKit: true,
+        supplierProduct: {
             select: {
-                mla: true,
-                variant: true,
-                supplierProductSku: true,
-                quantityPerKit: true,
-                supplierProduct: {
-                    select: {
-                        name: true
-                    }
-                }
+                name: true
             }
-        })
+        }
+    }
+})
 
         // 3. Formateamos la respuesta para que sea fácil de procesar en n8n
         const response = mapping.map(item => ({

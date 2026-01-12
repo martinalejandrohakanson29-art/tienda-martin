@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Send, CheckCircle2, ShoppingBag, AlertCircle } from "lucide-react";
+import { Send, CheckCircle2, AlertCircle } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
 
 function CompraExitosaContent() {
@@ -21,13 +21,42 @@ function CompraExitosaContent() {
   const [productNames, setProductNames] = useState("");
   const [error, setError] = useState("");
 
-  // Guardamos los nombres de los productos antes de que el carrito se limpie
+  // 1. Guardamos los nombres de los productos para WhatsApp
   useEffect(() => {
     if (cart && cart.length > 0) {
       const names = cart.map((item) => `${item.quantity}x ${item.product.title}`).join(", ");
       setProductNames(names);
     }
   }, [cart]);
+
+  // 2. 👇 LÓGICA DE META PIXEL: Evento "Purchase" (Compra)
+  useEffect(() => {
+    // Verificamos que existan window, fbq, items en el carrito y un ID de pago válido
+    if (
+        typeof window !== "undefined" && 
+        (window as any).fbq && 
+        cart.length > 0 && 
+        paymentId !== "No disponible"
+    ) {
+        // Calculamos el valor total de la compra
+        const totalValue = cart.reduce((acc, item) => {
+            return acc + (Number(item.product.price) * item.quantity);
+        }, 0);
+
+        // Obtenemos los IDs de los productos comprados
+        const contentIds = cart.map((item) => item.product.id);
+
+        // Disparamos el evento
+        (window as any).fbq('track', 'Purchase', {
+            value: totalValue,
+            currency: 'ARS',
+            content_ids: contentIds,
+            content_type: 'product',
+            order_id: paymentId // Usamos el ID de MercadoPago para evitar duplicados
+        });
+    }
+  }, [cart, paymentId]);
+
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -106,10 +135,8 @@ ID de Pago MP: ${paymentId}
               <Label htmlFor="dni">DNI <span className="text-red-500">*</span></Label>
               <Input id="dni" name="dni" placeholder="12345678" value={formData.dni} onChange={handleChange} />
             </div>
-            {/* ... Resto de los campos igual que antes ... */}
           </div>
 
-          {/* Reutiliza tus inputs de Domicilio, Ciudad, etc. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
              <div className="space-y-2 md:col-span-2">
               <Label htmlFor="domicilio">Domicilio (Calle y Altura) <span className="text-red-500">*</span></Label>

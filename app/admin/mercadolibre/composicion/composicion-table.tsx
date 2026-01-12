@@ -7,20 +7,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus } from "lucide-react";
+import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2 } from "lucide-react"; // <--- Agregamos Loader2
 import { upsertKitComponent, deleteKitComponent } from "@/app/actions/kits";
-import { createManualProduct } from "@/app/actions/ml-maestros"; // <--- IMPORTAMOS LA NUEVA ACCIÓN
+import { createManualProduct } from "@/app/actions/ml-maestros";
 
 export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: any[] }) {
   const [filter, setFilter] = useState("");
   
-  // MODAL DE RECETAS (El que ya teníamos)
+  // MODAL DE RECETAS (El habitual)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   
   // NUEVO MODAL: ALTA DE PRODUCTO MAESTRO
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
   const [newProduct, setNewProduct] = useState({ mla: "", titulo: "", nombre_variante: "", variation_id: "" });
+  const [isSubmitting, setIsSubmitting] = useState(false); // <--- NUEVO ESTADO DE CARGA
   
   const [searchArticulo, setSearchArticulo] = useState("");
 
@@ -85,17 +86,28 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
     }
   };
 
-  // --- NUEVOS HANDLERS: ALTA DE PRODUCTO MAESTRO ---
+  // --- NUEVOS HANDLERS: ALTA DE PRODUCTO MAESTRO (CORREGIDO) ---
   const handleSaveMaster = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await createManualProduct(newProduct);
-    if (res.success) {
-      setIsMasterModalOpen(false);
-      setNewProduct({ mla: "", titulo: "", nombre_variante: "", variation_id: "" });
-      // Opcional: Abrir el modal de receta automáticamente después de crear
-      handleOpenModal({ mla: newProduct.mla, nombre_variante: newProduct.nombre_variante || "0" });
-    } else {
-      alert(res.error);
+    setIsSubmitting(true); // 1. Bloqueamos botón
+    try {
+        const res = await createManualProduct(newProduct);
+        if (res.success) {
+          setIsMasterModalOpen(false); // 2. Cerramos el modal limpiamente
+          setNewProduct({ mla: "", titulo: "", nombre_variante: "", variation_id: "" });
+          
+          // 3. ELIMINAMOS LA APERTURA AUTOMÁTICA para evitar el conflicto visual
+          // handleOpenModal(...)  <--- ESTA LINEA ERA LA CULPABLE
+          
+          alert("¡Producto creado correctamente! Ahora búscalo en la lista y agrégale su receta.");
+        } else {
+          alert(res.error);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Ocurrió un error inesperado al crear el producto.");
+    } finally {
+        setIsSubmitting(false); // 4. Desbloqueamos siempre
     }
   };
 
@@ -117,7 +129,7 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
 
         {/* Botones de Acción */}
         <div className="flex gap-2 w-full md:w-auto">
-          {/* Botón 1: Crear Producto en Catálogo (NUEVO) */}
+          {/* Botón 1: Crear Producto en Catálogo */}
           <Button 
             onClick={() => setIsMasterModalOpen(true)} 
             variant="outline"
@@ -138,7 +150,7 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
         </div>
       </div>
 
-      {/* TABLA DE KITS (La misma de siempre) */}
+      {/* TABLA DE KITS */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-slate-50">
@@ -197,7 +209,6 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSaveKit} className="space-y-6 pt-4">
-             {/* ... (El contenido de este form es el mismo que hicimos antes) ... */}
              <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-bold text-slate-700">MLA Destino</Label>
@@ -281,7 +292,7 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
         </DialogContent>
       </Dialog>
 
-      {/* MODAL 2: ALTA DE PRODUCTO MAESTRO (NUEVO) */}
+      {/* MODAL 2: ALTA DE PRODUCTO MAESTRO (CORREGIDO CON LOADING) */}
       <Dialog open={isMasterModalOpen} onOpenChange={setIsMasterModalOpen}>
         <DialogContent className="sm:max-w-[500px] border-l-4 border-l-purple-500">
           <DialogHeader>
@@ -335,15 +346,25 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
                   className="text-sm font-mono"
                 />
               </div>
-              <p className="col-span-2 text-[10px] text-slate-400 italic">
-                * Si el producto no tiene variantes, deja estos campos vacíos.
-              </p>
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="ghost" onClick={() => setIsMasterModalOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white shadow-md">
-                Crear Producto
+              <Button type="button" variant="ghost" onClick={() => setIsMasterModalOpen(false)} disabled={isSubmitting}>
+                Cancelar
+              </Button>
+              <Button 
+                type="submit" 
+                className="bg-purple-600 hover:bg-purple-700 text-white shadow-md"
+                disabled={isSubmitting} // Deshabilitamos si está cargando
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creando...
+                  </>
+                ) : (
+                  "Crear Producto"
+                )}
               </Button>
             </DialogFooter>
           </form>

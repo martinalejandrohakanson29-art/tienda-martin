@@ -6,8 +6,8 @@ export async function getSupplierProducts() {
     try {
         const products = await prisma.supplierProduct.findMany({
             include: {
-                ventas: true, // Traemos datos de ImportVentas
-                stock: true   // Traemos datos de ImportStock
+                ventas: true, 
+                stock: true   
             },
             orderBy: { sku: 'asc' }
         })
@@ -16,15 +16,13 @@ export async function getSupplierProducts() {
             const ventas = p.ventas?.salesLast30 || 0;
             const velocity = Number(p.ventas?.salesVelocity || 0);
             const stock = p.stock?.stockExternal || 0;
-            
-            // Calculamos cobertura: Stock / Ventas Mensuales
             const coverage = velocity > 0 ? Number((stock / velocity).toFixed(1)) : 0;
 
             return {
                 id: p.id,
                 sku: p.sku,
                 name: p.name,
-                // Hemos eliminado la línea de supplier aquí
+                // El campo 'supplier' ya no vendrá en 'p', así que no lo incluimos
                 salesLast30: ventas,
                 stockExternal: stock,
                 salesVelocity: velocity,

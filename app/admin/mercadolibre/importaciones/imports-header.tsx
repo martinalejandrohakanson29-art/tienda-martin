@@ -3,7 +3,7 @@
 import * as React from "react"
 import { ArrowLeft, RefreshCw } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation" // <--- Importamos el router
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DateRangePicker } from "./date-range-picker"
 import { toast } from "sonner" 
@@ -11,38 +11,42 @@ import { toast } from "sonner"
 export function ImportsHeader() {
     const [dates, setDates] = React.useState({ from: "", to: "" })
     const [isSyncing, setIsSyncing] = React.useState(false)
-    const router = useRouter() // <--- Inicializamos el router
+    const router = useRouter()
 
     const handleSync = async () => {
+        // Validamos que haya fechas para el cálculo de ventas
         if (!dates.from || !dates.to) {
-            alert("Por favor selecciona un rango de fechas")
+            alert("Por favor selecciona un rango de fechas para calcular las ventas")
             return
         }
 
         setIsSyncing(true)
         try {
-            const response = await fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-ml", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    from: dates.from,
-                    to: dates.to
+            // DISPARAMOS AMBOS WORKFLOWS EN PARALELO
+            // 1. Ventas (necesita las fechas)
+            // 2. Stock (no necesita fechas, solo activarse)
+            const [respVentas, respStock] = await Promise.all([
+                fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-ml", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ from: dates.from, to: dates.to })
+                }),
+                fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/actualizar-stock-proveedor", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" }
                 })
-            })
+            ])
 
-            if (response.ok) {
-                // 1. Avisamos al usuario
-                alert(`🚀 Sincronización finalizada correctamente.`)
-                
-                // 2. ¡IMPORTANTE! Refrescamos la página actual
-                // Esto obliga a Next.js a ejecutar de nuevo 'getSupplierProducts()' en el servidor
+            if (respVentas.ok && respStock.ok) {
+                alert(`🚀 Sincronización completa: Ventas y Stock actualizados correctamente.`)
+                // Refrescamos la página para ver los nuevos datos en la tabla
                 router.refresh() 
             } else {
-                alert("Hubo un error en el servidor de n8n")
+                alert("Atención: Uno de los procesos de n8n devolvió un error. Revisa el historial de ejecuciones.")
             }
         } catch (error) {
             console.error("Error sincronizando:", error)
-            alert("No se pudo conectar con el servidor de sincronización")
+            alert("No se pudo conectar con el servidor de n8n. Verifica tu conexión o el estado del servicio.")
         } finally {
             setIsSyncing(false)
         }

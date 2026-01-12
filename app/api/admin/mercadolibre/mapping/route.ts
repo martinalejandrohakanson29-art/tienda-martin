@@ -13,27 +13,20 @@ export async function GET(req: Request) {
         }
 
         // 2. Consultamos la tabla KitComponent
-        // Incluimos el nombre del producto (desde SupplierProduct) por si n8n lo necesita para debug
-    const mapping = await prisma.kitComponent.findMany({
-    where: {
-        // Esto garantiza que solo enviamos MLAs de productos 
-        // que actualmente tienes en tu lista de Importaciones
-        supplierProduct: {
-            isNot: null 
-        }
-    },
-    select: {
-        mla: true,
-        variant: true,
-        supplierProductSku: true,
-        quantityPerKit: true,
-        supplierProduct: {
+        // Se elimina el filtro 'isNot: null' ya que la relación es obligatoria en el schema
+        const mapping = await prisma.kitComponent.findMany({
             select: {
-                name: true
+                mla: true,
+                variant: true,
+                supplierProductSku: true,
+                quantityPerKit: true,
+                supplierProduct: {
+                    select: {
+                        name: true
+                    }
+                }
             }
-        }
-    }
-})
+        })
 
         // 3. Formateamos la respuesta para que sea fácil de procesar en n8n
         const response = mapping.map(item => ({
@@ -41,7 +34,7 @@ export async function GET(req: Request) {
             variant: item.variant,
             sku: item.supplierProductSku,
             qty: item.quantityPerKit,
-            productName: item.supplierProduct.name
+            productName: item.supplierProduct.name // Al ser relación obligatoria, el nombre siempre existe
         }))
 
         console.log(`📡 API Mapping: Enviando ${response.length} relaciones a n8n.`)

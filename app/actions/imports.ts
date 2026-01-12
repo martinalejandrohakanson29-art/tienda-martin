@@ -24,7 +24,7 @@ export async function getSupplierProducts() {
                 id: p.id,
                 sku: p.sku,
                 name: p.name,
-                supplier: p.supplier || "-",
+                // Hemos eliminado la línea de supplier aquí
                 salesLast30: ventas,
                 stockExternal: stock,
                 salesVelocity: velocity,

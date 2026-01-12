@@ -149,12 +149,12 @@ model SupplierProduct {
   id              String   @id @default(cuid())
   sku             String   @unique 
   name            String   
-  supplier        String?  // Hecho opcional
+  // ELIMINAR ESTA LÍNEA:
+  // supplier        String?  
   
   // Relaciones con datos dinámicos
   ventas          ImportVentas?
   stock           ImportStock?
-
   purchaseItems   PurchaseOrderItem[] 
   kitComponents   KitComponent[]      
 

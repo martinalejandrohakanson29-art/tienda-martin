@@ -67,7 +67,7 @@ model CarouselItem {
 
 model Shipment {
   id        String         @id @default(cuid())
-  name      String         @unique // Nombre de la carpeta de Drive / Envio
+  name      String         @unique
   createdAt DateTime       @default(now())
   items     ShipmentItem[]
 }
@@ -77,13 +77,13 @@ model ShipmentItem {
   shipmentId String
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   
-  itemId     String   // ID de Mercado Libre (MLA...)
+  itemId     String
   title      String
   sku        String?
-  quantity   Int      // Cantidad planificada
-  agregados  String?  // Columnas N, O, P, Q de la planilla
-  imageUrl   String?  
-  variation  String?  
+  quantity   Int
+  agregados  String?
+  imageUrl   String?
+  variation  String?
   
   @@index([shipmentId])
 }
@@ -92,7 +92,7 @@ model ShipmentAudit {
   id        String   @id @default(cuid())
   itemId    String   
   envioId   String   
-  status    String   // APROBADO / RECHAZADO / PENDIENTE
+  status    String
   reason    String?
   auditor   String?  
   createdAt DateTime @default(now())
@@ -118,14 +118,13 @@ model CostosArticulos {
 model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
   mla                  String   
-  variation_id         String?  // ID de variante de ML
-  nombre_variante      String?  // <--- NUEVO: El nombre legible de la variante
+  variation_id         String?
+  nombre_variante      String?
   nombre_publicacion   String?
   link_publicacion     String?
   estado               String?
   ultima_actualizacion DateTime @default(now())
 
-  // Esto permite que el mismo MLA exista varias veces siempre que su variation_id sea distinto
   @@unique([mla, variation_id], name: "unique_mla_variation")
   @@map("productos_maestros")
 }
@@ -133,35 +132,52 @@ model ProductosMaestros {
 model ComposicionKits {
   id              Int      @id @default(autoincrement())
   mla             String
-  variation_id    String?  // Lo dejamos opcional por si luego lo quieres llenar
-  nombre_variante String?  // <--- IMPORTANTE: Ahora usaremos esto para el match
+  variation_id    String?
+  nombre_variante String?
   id_articulo     String
-  nombre_articulo String?  
+  nombre_articulo String?
   cantidad        Int      @default(1)
   fecha_registro  DateTime @default(now())
 
-  // Cambiamos la restricción única para que coincida con tu Excel
   @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
   @@map("composicion_kits")
 }
 
-// --- GESTIÓN DE IMPORTACIONES Y COMPRAS (ERP) ---
+// --- GESTIÓN DE IMPORTACIONES (MODULAR) ---
 
 model SupplierProduct {
   id              String   @id @default(cuid())
   sku             String   @unique 
   name            String   
-  supplier        String   
+  supplier        String?  // Hecho opcional
   
-  stockExternal   Int      @default(0) 
-  priceExternal   Decimal? @db.Decimal(10, 2) 
-  
-  salesLast30     Int      @default(0) 
-  salesVelocity   Decimal? @db.Decimal(10, 2) 
-  monthsCoverage  Decimal? @db.Decimal(10, 2) 
+  // Relaciones con datos dinámicos
+  ventas          ImportVentas?
+  stock           ImportStock?
 
   purchaseItems   PurchaseOrderItem[] 
   kitComponents   KitComponent[]      
+
+  updatedAt       DateTime @updatedAt
+}
+
+model ImportVentas {
+  id              String          @id @default(cuid())
+  sku             String          @unique
+  product         SupplierProduct @relation(fields: [sku], references: [sku], onDelete: Cascade)
+  
+  salesLast30     Int             @default(0) 
+  salesVelocity   Decimal?        @db.Decimal(10, 2) 
+
+  updatedAt       DateTime @updatedAt
+}
+
+model ImportStock {
+  id              String          @id @default(cuid())
+  sku             String          @unique
+  product         SupplierProduct @relation(fields: [sku], references: [sku], onDelete: Cascade)
+  
+  stockExternal   Int             @default(0) 
 
   updatedAt       DateTime @updatedAt
 }
@@ -171,9 +187,8 @@ model PurchaseOrder {
   externalId      String?
   supplier        String   
   status          String   
-  
   arrivalDate     DateTime?
-  totalItems      Int       @default(0)
+  totalItems      Int      @default(0)
   
   items           PurchaseOrderItem[]
 
@@ -182,23 +197,22 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderItem {
-  id                String          @id @default(cuid())
-  purchaseOrderId   String
-  purchaseOrder     PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  id                 String          @id @default(cuid())
+  purchaseOrderId    String
+  purchaseOrder      PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   
   supplierProductSku String
   supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
   
-  quantity          Int             
-  confirmed         Boolean         @default(false) 
+  quantity           Int             
+  confirmed          Boolean         @default(false) 
 }
 
 model KitComponent {
   id                 String          @id @default(cuid())
-  
   mla                String          
-  variation_id       String?         // Para relacionar con ventas reales
-  variant            String?         // Nombre legible (ej: "Italy 30")
+  variation_id       String?
+  variant            String?
   
   supplierProductSku String
   supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
@@ -206,7 +220,7 @@ model KitComponent {
   quantityPerKit     Int             @default(1) 
   
   @@index([mla])
-  @@index([variation_id])            // Index para búsquedas rápidas
+  @@index([variation_id])
   @@index([supplierProductSku])
 }
 

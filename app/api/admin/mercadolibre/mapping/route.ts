@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
     try {
         const authHeader = req.headers.get("authorization")
+        // Verifica que el token coincida exactamente con lo que configuramos en n8n
         if (authHeader !== `Bearer ${process.env.N8N_SECRET_TOKEN}`) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 })
         }
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
             }
         })
 
-        // Filtramos para evitar errores si el producto fue borrado pero el kit sigue existiendo
+        // SOLUCIÓN: Filtramos los items donde el producto ya no existe (null)
         const response = mapping
             .filter(item => item.supplierProduct !== null) 
             .map(item => ({

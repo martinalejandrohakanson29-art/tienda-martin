@@ -60,7 +60,7 @@ export const columns: ColumnDef<ImportItem>[] = [
     accessorKey: "salesLast30",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Ventas (30d) <ArrowUpDown className="ml-2 h-4 w-4" />
+        Ventas en rango <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => <div className="text-center">{row.getValue("salesLast30")}</div>,
@@ -101,7 +101,7 @@ export const columns: ColumnDef<ImportItem>[] = [
     accessorKey: "salesVelocity",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Promedio Mensual <ArrowUpDown className="ml-2 h-4 w-4" />
+        Consumo Mensual <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => <div className="text-center">{row.getValue("salesVelocity")}</div>,

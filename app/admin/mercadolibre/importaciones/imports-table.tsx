@@ -25,9 +25,9 @@ import { Badge } from "@/components/ui/badge"
 export type ImportItem = {
   id: string
   sku: string
-  name: string // <--- Aseguramos que el nombre esté en el tipo
+  name: string
   salesLast30: number
-  stockExternal: number
+  stockExternal: number // <--- Este es el dato del stock que viene de Prisma
   salesVelocity: number
   monthsCoverage: number
 }
@@ -42,14 +42,23 @@ export const columns: ColumnDef<ImportItem>[] = [
     ),
   },
   {
-    // AGREGAMOS LA COLUMNA DE NOMBRE
     accessorKey: "name",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
         Producto <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => <div className="font-medium">{row.getValue("name")}</div>,
+    cell: ({ row }) => <div className="font-medium text-left">{row.getValue("name")}</div>,
+  },
+  {
+    // --- NUEVA COLUMNA DE STOCK ---
+    accessorKey: "stockExternal",
+    header: ({ column }) => (
+      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        Stock <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => <div className="text-center font-bold">{row.getValue("stockExternal")}</div>,
   },
   {
     accessorKey: "salesLast30",
@@ -112,7 +121,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
   })
 
   return (
-    <div className="rounded-md border bg-white">
+    <div className="rounded-md border bg-white shadow-sm">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => (

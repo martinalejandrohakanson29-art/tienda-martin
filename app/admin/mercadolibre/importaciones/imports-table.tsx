@@ -22,17 +22,15 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 
-// Definición de tipos basada en tu workflow de n8n
+// CORRECCIÓN: Definición actualizada para coincidir con tu Base de Datos
 export type ImportItem = {
+  id: string
   sku: string
-  VENTAS_ML: number
-  PROMEDIO_CONSUMO: number
-  // Asumo que tienes un campo de cobertura o meses calculado, o stock.
-  // Si el semáforo se basa en "Meses de Cobertura", usaremos ese valor.
-  // Si no viene directo, a veces se calcula como: Stock / Promedio.
-  // Por ahora, asumiré que existe un campo 'cobertura' o aplicaré la lógica al campo relevante.
-  // AJUSTA 'cobertura' AL NOMBRE REAL DE TU COLUMNA SI ES DIFERENTE.
-  cobertura?: number 
+  name: string
+  salesLast30: number     // Coincide con el error (antes VENTAS_ML)
+  stockExternal: number
+  salesVelocity: number   // Coincide con el error (antes PROMEDIO_CONSUMO)
+  monthsCoverage: number  // Coincide con el error (antes cobertura)
 }
 
 export const columns: ColumnDef<ImportItem>[] = [
@@ -51,7 +49,7 @@ export const columns: ColumnDef<ImportItem>[] = [
     },
   },
   {
-    accessorKey: "VENTAS_ML",
+    accessorKey: "salesLast30", // Nombre corregido
     header: ({ column }) => {
       return (
         <Button
@@ -63,10 +61,10 @@ export const columns: ColumnDef<ImportItem>[] = [
         </Button>
       )
     },
-    cell: ({ row }) => <div className="text-center">{row.getValue("VENTAS_ML")}</div>,
+    cell: ({ row }) => <div className="text-center">{row.getValue("salesLast30")}</div>,
   },
   {
-    accessorKey: "PROMEDIO_CONSUMO",
+    accessorKey: "salesVelocity", // Nombre corregido
     header: ({ column }) => {
       return (
         <Button
@@ -78,12 +76,10 @@ export const columns: ColumnDef<ImportItem>[] = [
         </Button>
       )
     },
-    cell: ({ row }) => <div className="text-center">{row.getValue("PROMEDIO_CONSUMO")}</div>,
+    cell: ({ row }) => <div className="text-center">{row.getValue("salesVelocity")}</div>,
   },
   {
-    // AQUI APLICAMOS LA LOGICA DEL SEMAFORO
-    // Si el campo se llama diferente en tu DB (ej: "meses_stock"), cámbialo aquí.
-    accessorKey: "cobertura", 
+    accessorKey: "monthsCoverage", // Nombre corregido
     header: ({ column }) => {
       return (
         <Button
@@ -96,19 +92,17 @@ export const columns: ColumnDef<ImportItem>[] = [
       )
     },
     cell: ({ row }) => {
-        // Obtenemos el valor. Si no existe, usamos 0 para evitar errores.
-        // Si tu lógica es sobre "PROMEDIO_CONSUMO", cambia row.getValue("cobertura") por row.getValue("PROMEDIO_CONSUMO")
-        const val = parseFloat(row.getValue("cobertura") || "0")
+        // Usamos el campo correcto 'monthsCoverage'
+        const val = parseFloat(row.getValue("monthsCoverage") || "0")
 
-        let colorClass = "bg-gray-500" // Default
+        let colorClass = "bg-gray-500"
 
-        // Lógica solicitada:
         if (val <= 5) {
-            colorClass = "bg-red-500 hover:bg-red-600" // Rojo: <= 5
+            colorClass = "bg-red-500 hover:bg-red-600"
         } else if (val >= 7) {
-            colorClass = "bg-green-500 hover:bg-green-600" // Verde: >= 7
+            colorClass = "bg-green-500 hover:bg-green-600"
         } else {
-            colorClass = "bg-yellow-500 hover:bg-yellow-600" // Amarillo: Entre 5 y 7
+            colorClass = "bg-yellow-500 hover:bg-yellow-600"
         }
 
         return (

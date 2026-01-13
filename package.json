@@ -10,6 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tanstack/react-table": "^8.10.0",
     "@prisma/client": "^5.10.0",
     "mercadopago": "^2.0.9",
     "@radix-ui/react-dialog": "^1.1.15",

@@ -3,7 +3,7 @@
 import * as React from "react"
 import { ArrowLeft, RefreshCw } from "lucide-react"
 import Link from "next/link"
-import { useRouter, useSearchParams, usePathname } from "next/navigation" // Importamos herramientas de navegación
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DateRangePicker } from "./date-range-picker"
 import { toast } from "sonner" 
@@ -13,7 +13,6 @@ export function ImportsHeader() {
     const pathname = usePathname()
     const searchParams = useSearchParams()
 
-    // Leemos las fechas iniciales de la URL o usamos vacío si no existen
     const [dates, setDates] = React.useState({ 
         from: searchParams.get("from") || "", 
         to: searchParams.get("to") || "" 
@@ -21,27 +20,26 @@ export function ImportsHeader() {
     
     const [isSyncing, setIsSyncing] = React.useState(false)
 
-    // Esta función actualiza la URL cuando cambias el calendario
     const handleRangeChange = (from: string, to: string) => {
         setDates({ from, to })
-        
         const params = new URLSearchParams(searchParams)
         if (from) params.set("from", from)
         if (to) params.set("to", to)
-        
-        // Actualizamos la URL sin recargar la página completa
         router.push(`${pathname}?${params.toString()}`)
     }
 
     const handleSync = async () => {
         if (!dates.from || !dates.to) {
-            alert("Por favor selecciona un rango de fechas para calcular las ventas")
+            toast.error("Por favor selecciona un rango de fechas")
             return
         }
 
         setIsSyncing(true)
+        const syncToast = toast.loading("Sincronizando datos con Cover y Mercado Libre...")
+
         try {
-            const [respVentas, respStock] = await Promise.all([
+            // Ejecutamos los 3 procesos de n8n en paralelo
+            const [respVentas, respStock, respCarritos] = await Promise.all([
                 fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-ml", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -50,18 +48,27 @@ export function ImportsHeader() {
                 fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/actualizar-stock-proveedor", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" }
+                }),
+                fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/importar-carrito", {
+                    method: "GET"
                 })
             ])
 
-            if (respVentas.ok && respStock.ok) {
-                alert(`🚀 Sincronización completa: Ventas y Stock actualizados correctamente.`)
+            if (respVentas.ok && respStock.ok && respCarritos.ok) {
+                toast.success("🚀 Sincronización completa: Ventas, Stock y Compras Futuras actualizados.", {
+                    id: syncToast
+                })
                 router.refresh() 
             } else {
-                alert("Atención: Uno de los procesos de n8n devolvió un error.")
+                toast.warning("Atención: Algunos procesos de n8n devolvieron error.", {
+                    id: syncToast
+                })
             }
         } catch (error) {
             console.error("Error sincronizando:", error)
-            alert("No se pudo conectar con el servidor de n8n.")
+            toast.error("No se pudo conectar con el servidor de n8n.", {
+                id: syncToast
+            })
         } finally {
             setIsSyncing(false)
         }
@@ -82,7 +89,6 @@ export function ImportsHeader() {
             </div>
             
             <div className="flex items-center gap-4">
-                {/* Usamos nuestra nueva función para capturar el cambio */}
                 <DateRangePicker onRangeChange={handleRangeChange} />
                 
                 <Button 

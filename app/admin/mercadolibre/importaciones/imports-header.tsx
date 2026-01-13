@@ -3,18 +3,37 @@
 import * as React from "react"
 import { ArrowLeft, RefreshCw } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation" // Importamos herramientas de navegación
 import { Button } from "@/components/ui/button"
 import { DateRangePicker } from "./date-range-picker"
 import { toast } from "sonner" 
 
 export function ImportsHeader() {
-    const [dates, setDates] = React.useState({ from: "", to: "" })
-    const [isSyncing, setIsSyncing] = React.useState(false)
     const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+
+    // Leemos las fechas iniciales de la URL o usamos vacío si no existen
+    const [dates, setDates] = React.useState({ 
+        from: searchParams.get("from") || "", 
+        to: searchParams.get("to") || "" 
+    })
+    
+    const [isSyncing, setIsSyncing] = React.useState(false)
+
+    // Esta función actualiza la URL cuando cambias el calendario
+    const handleRangeChange = (from: string, to: string) => {
+        setDates({ from, to })
+        
+        const params = new URLSearchParams(searchParams)
+        if (from) params.set("from", from)
+        if (to) params.set("to", to)
+        
+        // Actualizamos la URL sin recargar la página completa
+        router.push(`${pathname}?${params.toString()}`)
+    }
 
     const handleSync = async () => {
-        // Validamos que haya fechas para el cálculo de ventas
         if (!dates.from || !dates.to) {
             alert("Por favor selecciona un rango de fechas para calcular las ventas")
             return
@@ -22,9 +41,6 @@ export function ImportsHeader() {
 
         setIsSyncing(true)
         try {
-            // DISPARAMOS AMBOS WORKFLOWS EN PARALELO
-            // 1. Ventas (necesita las fechas)
-            // 2. Stock (no necesita fechas, solo activarse)
             const [respVentas, respStock] = await Promise.all([
                 fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-ml", {
                     method: "POST",
@@ -39,14 +55,13 @@ export function ImportsHeader() {
 
             if (respVentas.ok && respStock.ok) {
                 alert(`🚀 Sincronización completa: Ventas y Stock actualizados correctamente.`)
-                // Refrescamos la página para ver los nuevos datos en la tabla
                 router.refresh() 
             } else {
-                alert("Atención: Uno de los procesos de n8n devolvió un error. Revisa el historial de ejecuciones.")
+                alert("Atención: Uno de los procesos de n8n devolvió un error.")
             }
         } catch (error) {
             console.error("Error sincronizando:", error)
-            alert("No se pudo conectar con el servidor de n8n. Verifica tu conexión o el estado del servicio.")
+            alert("No se pudo conectar con el servidor de n8n.")
         } finally {
             setIsSyncing(false)
         }
@@ -67,7 +82,8 @@ export function ImportsHeader() {
             </div>
             
             <div className="flex items-center gap-4">
-                <DateRangePicker onRangeChange={(from, to) => setDates({ from, to })} />
+                {/* Usamos nuestra nueva función para capturar el cambio */}
+                <DateRangePicker onRangeChange={handleRangeChange} />
                 
                 <Button 
                     onClick={handleSync} 

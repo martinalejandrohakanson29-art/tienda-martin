@@ -3,13 +3,13 @@ import { cn } from "@/lib/utils"
 
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  React.HTMLAttributes<HTMLTableElement> & { containerClassName?: string }
+>(({ className, containerClassName, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto", containerClassName)}>
     <table
       ref={ref}
       className={cn("w-full caption-bottom text-sm", className)}
-      {...props} // Corregido: Agregadas llaves
+      {...props}
     />
   </div>
 ))
@@ -30,7 +30,7 @@ const TableBody = React.forwardRef<
   <tbody
     ref={ref}
     className={cn("[&_tr:last-child]:border-0", className)}
-    {...props} // Corregido: Agregadas llaves
+    {...props}
   />
 ))
 TableBody.displayName = "TableBody"
@@ -45,7 +45,7 @@ const TableFooter = React.forwardRef<
       "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
       className
     )}
-    {...props} // Corregido: Agregadas llaves
+    {...props}
   />
 ))
 TableFooter.displayName = "TableFooter"
@@ -60,7 +60,7 @@ const TableRow = React.forwardRef<
       "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
       className
     )}
-    {...props} // Corregido: Agregadas llaves
+    {...props}
   />
 ))
 TableRow.displayName = "TableRow"
@@ -75,7 +75,7 @@ const TableHead = React.forwardRef<
       "h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0",
       className
     )}
-    {...props} // Corregido: Agregadas llaves
+    {...props}
   />
 ))
 TableHead.displayName = "TableHead"
@@ -87,7 +87,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0", className)}
-    {...props} // Corregido: Agregadas llaves
+    {...props}
   />
 ))
 TableCell.displayName = "TableCell"
@@ -99,7 +99,7 @@ const TableCaption = React.forwardRef<
   <caption
     ref={ref}
     className={cn("mt-4 text-sm text-muted-foreground", className)}
-    {...props} // Corregido: Agregadas llaves
+    {...props}
   />
 ))
 TableCaption.displayName = "TableCaption"

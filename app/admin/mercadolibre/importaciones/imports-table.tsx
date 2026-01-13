@@ -27,7 +27,7 @@ export type ImportItem = {
   sku: string
   name: string
   salesLast30: number
-  stockExternal: number // <--- Este es el dato del stock que viene de Prisma
+  stockExternal: number
   salesVelocity: number
   monthsCoverage: number
 }
@@ -51,7 +51,6 @@ export const columns: ColumnDef<ImportItem>[] = [
     cell: ({ row }) => <div className="font-medium text-left">{row.getValue("name")}</div>,
   },
   {
-    // --- NUEVA COLUMNA DE STOCK ---
     accessorKey: "stockExternal",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
@@ -88,15 +87,27 @@ export const columns: ColumnDef<ImportItem>[] = [
     cell: ({ row }) => {
         const val = parseFloat(row.getValue("monthsCoverage") || "0")
         let colorClass = "bg-gray-500"
+        let displayText = val.toFixed(2)
 
-        if (val <= 5) colorClass = "bg-red-500 hover:bg-red-600"
-        else if (val >= 7) colorClass = "bg-green-500 hover:bg-green-600"
-        else colorClass = "bg-yellow-500 hover:bg-yellow-600"
+        // Lógica corregida para el semáforo e Infinito
+        if (val >= 999) {
+            colorClass = "bg-green-500 hover:bg-green-600"
+            displayText = "∞"
+        } 
+        else if (val <= 5) {
+            colorClass = "bg-red-500 hover:bg-red-600"
+        } 
+        else if (val >= 7) {
+            colorClass = "bg-green-500 hover:bg-green-600"
+        } 
+        else {
+            colorClass = "bg-yellow-500 hover:bg-yellow-600"
+        }
 
         return (
             <div className="flex justify-center">
-                <Badge className={`${colorClass} text-white border-none px-3`}>
-                    {val.toFixed(2)}
+                <Badge className={`${colorClass} text-white border-none px-3 text-lg font-bold`}>
+                    {displayText}
                 </Badge>
             </div>
         )

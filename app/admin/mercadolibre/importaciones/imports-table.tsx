@@ -12,6 +12,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table"
 import { ArrowUpDown, Search, Percent, CalendarDays } from "lucide-react"
+import { useSearchParams } from "next/navigation" // Para leer las fechas de la URL
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,12 +40,25 @@ interface ImportsTableProps {
 }
 
 export function ImportsTable({ data }: ImportsTableProps) {
+  const searchParams = useSearchParams()
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  
-  // 1. Estados para los cálculos dinámicos
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
-  const [periodDays, setPeriodDays] = React.useState<number>(30) // Por defecto 30 días
+
+  // --- CÁLCULO AUTOMÁTICO DE DÍAS ---
+  const periodDays = React.useMemo(() => {
+    const from = searchParams.get("from")
+    const to = searchParams.get("to")
+    
+    if (!from || !to) return 30 // Si no hay fechas, asumimos 30 por defecto
+
+    const startDate = new Date(from)
+    const endDate = new Date(to)
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    return diffDays > 0 ? diffDays : 30
+  }, [searchParams])
 
   const columns = React.useMemo<ColumnDef<ImportItem>[]>(() => [
     {
@@ -73,7 +87,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
       ),
       cell: ({ row }) => <div className="text-center">{row.getValue("salesLast30")}</div>,
     },
-    // COLUMNA: Ventas Proyectadas (Total del periodo con el margen aplicado)
     {
       id: "salesProjected",
       accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
@@ -97,12 +110,11 @@ export function ImportsTable({ data }: ImportsTableProps) {
       ),
       cell: ({ row }) => <div className="text-center font-bold">{row.getValue("stockExternal")}</div>,
     },
-    // COLUMNA: CONSUMO MENSUAL (Normalizado a 30 días)
+    // CONSUMO MENSUAL (Calculado con los días automáticos)
     {
       id: "calculatedVelocity",
       accessorFn: (row) => {
         const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
-        // Dividimos por el factor de meses (ej: si son 90 días, dividimos por 3)
         const factorMeses = periodDays / 30
         return Math.ceil(totalConMargen / factorMeses)
       },
@@ -113,7 +125,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
       ),
       cell: ({ row }) => <div className="text-center font-semibold">{row.getValue("calculatedVelocity")}</div>,
     },
-    // COLUMNA: MESES EN STOCK (Usa la velocidad normalizada para el cálculo)
     {
       id: "dynamicCoverage", 
       accessorFn: (row) => {
@@ -121,7 +132,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
           const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
           const factorMeses = periodDays / 30
           const monthlyVelocity = totalConMargen / factorMeses
-          
           return monthlyVelocity > 0 ? (stock / monthlyVelocity) : (stock > 0 ? 999 : 0)
       },
       header: ({ column }) => (
@@ -149,7 +159,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
           )
       },
     },
-  ], [safetyMargin, periodDays]) // IMPORTANTE: Se recalculan si cambia el margen o los días
+  ], [safetyMargin, periodDays])
 
   const table = useReactTable({
     data,
@@ -165,7 +175,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
   return (
     <div className="flex flex-col h-full space-y-4">
       <div className="flex items-center justify-between gap-4">
-        {/* BUSCADOR */}
         <div className="flex items-center relative max-w-sm shrink-0">
           <Search className="absolute left-3 h-4 w-4 text-slate-400" />
           <Input
@@ -176,21 +185,16 @@ export function ImportsTable({ data }: ImportsTableProps) {
           />
         </div>
 
-        {/* CONTROLES DINÁMICOS */}
         <div className="flex items-center gap-4">
-            {/* SELECTOR DE DÍAS DEL PERIODO */}
-            <div className="flex items-center gap-2 bg-white border px-3 py-1.5 rounded-md shadow-sm">
-                <CalendarDays className="h-4 w-4 text-orange-600" />
-                <span className="text-sm font-medium text-slate-600">Días del Periodo:</span>
-                <Input
-                    type="number"
-                    value={periodDays}
-                    onChange={(e) => setPeriodDays(Number(e.target.value))}
-                    className="w-16 h-8 text-center font-bold"
-                />
+            {/* DÍAS DEL PERIODO: Ahora es solo informativo y automático */}
+            <div className="flex items-center gap-2 bg-slate-50 border px-3 py-1.5 rounded-md shadow-inner text-slate-500">
+                <CalendarDays className="h-4 w-4" />
+                <span className="text-sm font-medium">Días detectados:</span>
+                <span className="text-sm font-bold text-slate-700 bg-white px-2 py-0.5 rounded border">
+                    {periodDays}
+                </span>
             </div>
 
-            {/* SELECTOR DE MARGEN DINÁMICO */}
             <div className="flex items-center gap-2 bg-white border px-3 py-1.5 rounded-md shadow-sm">
                 <Percent className="h-4 w-4 text-blue-600" />
                 <span className="text-sm font-medium text-slate-600">Margen de Seguridad:</span>

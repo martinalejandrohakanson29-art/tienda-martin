@@ -1,4 +1,3 @@
-// app/admin/layout.tsx
 "use client";
 
 import { AdminNav } from "@/components/admin-nav";
@@ -14,11 +13,12 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   
-  // Agregamos la ruta de costos a la lista de pantalla completa
+  // Agregamos la ruta de importaciones a la lista de pantalla completa
   const isFullscreenPage = 
     pathname === "/admin/mercadolibre/planning" || 
     pathname === "/admin/mercadolibre/articulos" ||
-    pathname === "/admin/mercadolibre/costos"; // <-- Añadido aquí
+    pathname === "/admin/mercadolibre/costos" ||
+    pathname === "/admin/mercadolibre/importaciones"; // <-- NUEVO: Agregado aquí
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen">

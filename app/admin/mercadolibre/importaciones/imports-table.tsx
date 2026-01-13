@@ -96,20 +96,14 @@ export const columns: ColumnDef<ImportItem>[] = [
             colorClass = "bg-green-500 hover:bg-green-600"
             displayText = "∞"
         } 
-        else if (val <= 5) {
-            colorClass = "bg-red-500 hover:bg-red-600"
-        } 
-        else if (val >= 7) {
-            colorClass = "bg-green-500 hover:bg-green-600"
-        } 
-        else {
-            colorClass = "bg-yellow-500 hover:bg-yellow-600"
-        }
+        else if (val <= 5) colorClass = "bg-red-500 hover:bg-red-600"
+        else if (val >= 7) colorClass = "bg-green-500 hover:bg-green-600"
+        else colorClass = "bg-yellow-500 hover:bg-yellow-600"
 
         return (
             <div className="flex justify-center">
-                {/* 3) TAMAÑO DE LETRA ACHICADO (text-[10px]) */}
-                <Badge className={`${colorClass} text-white border-none px-2 py-0 text-[10px] font-bold min-w-[45px] justify-center`}>
+                {/* TAMAÑO DE LETRA ACHICADO (text-[9px]) Y PADDING MÍNIMO */}
+                <Badge className={`${colorClass} text-white border-none px-1.5 py-0 text-[9px] font-bold min-w-[35px] justify-center`}>
                     {displayText}
                 </Badge>
             </div>
@@ -134,38 +128,34 @@ export function ImportsTable({ data }: ImportsTableProps) {
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
-    state: { 
-      sorting,
-      columnFilters,
-    },
+    state: { sorting, columnFilters },
   })
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      {/* 1) BUSCADOR */}
+      {/* BUSCADOR FIJO ARRIBA */}
       <div className="flex items-center relative max-w-sm shrink-0">
         <Search className="absolute left-3 h-4 w-4 text-slate-400" />
         <Input
           placeholder="Buscar producto por nombre..."
           value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("name")?.setFilterValue(event.target.value)
-          }
-          className="pl-9 bg-white"
+          onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
+          className="pl-9 bg-white shadow-sm"
         />
       </div>
 
-      {/* 2) CONTENEDOR CON SCROLL Y TÍTULOS FIJOS */}
+      {/* CONTENEDOR DE TABLA CON SCROLL INTERNO */}
       <div className="flex-1 min-h-0 rounded-md border bg-white shadow-sm overflow-hidden flex flex-col">
-        <div className="overflow-auto flex-1 relative">
-          <Table>
-            <TableHeader>
+        {/* Aquí sucede la magia: overflow-auto y h-full */}
+        <div className="overflow-auto flex-1 h-full">
+          <Table className="relative">
+            <TableHeader className="sticky top-0 z-30 bg-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <TableHead 
-                      key={header.id} 
-                      className="sticky top-0 z-20 bg-slate-100 font-bold text-slate-700 shadow-[0_1px_0_rgba(0,0,0,0.1)]"
+                        key={header.id} 
+                        className="bg-slate-100 font-bold text-slate-700 py-3"
                     >
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
@@ -186,8 +176,8 @@ export function ImportsTable({ data }: ImportsTableProps) {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No hay resultados.
+                  <TableCell colSpan={columns.length} className="h-24 text-center text-slate-500">
+                    No se encontraron productos.
                   </TableCell>
                 </TableRow>
               )}

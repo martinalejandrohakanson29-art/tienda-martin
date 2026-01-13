@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 // Definimos el tipo extendido para incluir los ingresos futuros
 export type ImportItem = {
@@ -75,7 +76,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
       .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
   }, [data]);
 
-  // 3. DEFINICIÓN DE COLUMNAS (Fusionada con tus nuevos rangos de colores)
+  // 3. DEFINICIÓN DE COLUMNAS (Lógica original + Nuevos Colores + Columnas de Carritos)
   const columns = React.useMemo<ColumnDef<ImportItem>[]>(() => {
     const baseColumns: ColumnDef<ImportItem>[] = [
       {
@@ -156,11 +157,16 @@ export function ImportsTable({ data }: ImportsTableProps) {
             const val = row.getValue("dynamicCoverage") as number
             let color = ""
             
-            // --- LÓGICA DEL SEMÁFORO ---
-            if (val >= 999) color = "text-green-600"
-            else if (val <= 5) color = "text-red-600"    // Menor o igual a 5: ROJO
-            else if (val > 7) color = "text-green-600"   // Mayor a 7: VERDE
-            else color = "text-yellow-600"              // Entre 5 y 7: AMARILLO
+            // --- NUEVA LÓGICA DEL SEMÁFORO ---
+            if (val >= 999) {
+                color = "text-green-600"
+            } else if (val <= 5) {
+                color = "text-red-600"    // Menor o igual a 5: ROJO
+            } else if (val > 7) {
+                color = "text-green-600"   // Mayor a 7: VERDE
+            } else {
+                color = "text-yellow-600"  // Entre 5 y 7: AMARILLO
+            }
 
             return (
               <div className={`text-center font-bold ${color}`}>
@@ -211,7 +217,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
         <div className="flex items-center relative max-w-sm shrink-0">
           <Search className="absolute left-3 h-4 w-4 text-slate-400" />
           <Input
-            placeholder="Buscar producto..."
+            placeholder="Buscar producto por nombre..."
             value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
             onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
             className="pl-9 bg-white shadow-sm"
@@ -221,12 +227,15 @@ export function ImportsTable({ data }: ImportsTableProps) {
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 bg-slate-50 border px-3 py-1.5 rounded-md shadow-inner text-slate-500">
                 <CalendarDays className="h-4 w-4" />
-                <span className="text-sm">Dias consultados: <span className="font-bold text-slate-700">{periodDays}</span></span>
+                <span className="text-sm font-medium">Dias consultados:</span>
+                <span className="text-sm font-bold text-slate-700 bg-white px-2 py-0.5 rounded border">
+                    {periodDays}
+                </span>
             </div>
 
             <div className="flex items-center gap-2 bg-white border px-3 py-1.5 rounded-md shadow-sm">
                 <Percent className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-medium">Margen:</span>
+                <span className="text-sm font-medium text-slate-600">Margen de Seguridad:</span>
                 <Input
                     type="number"
                     value={safetyMargin}
@@ -237,12 +246,11 @@ export function ImportsTable({ data }: ImportsTableProps) {
         </div>
       </div>
 
-      {/* CONTENEDOR DE LA TABLA: Aquí arreglamos los títulos fijos */}
+      {/* CONTENEDOR DE LA TABLA CON SCROLL Y TÍTULOS FIJOS */}
       <div className="flex-1 min-h-0 rounded-md border bg-white shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-auto flex-1 h-full">
-          {/* border-separate y border-spacing-0 son necesarios para que el sticky funcione bien con los bordes */}
-          <Table className="relative border-separate border-spacing-0">
-            <TableHeader className="sticky top-0 z-30 shadow-sm">
+          <Table containerClassName="overflow-visible" className="relative border-separate border-spacing-0">
+            <TableHeader className="sticky top-0 z-30 shadow-[0_2px_4px_rgba(0,0,0,0.05)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="hover:bg-transparent border-none">
                   {headerGroup.headers.map((header) => (
@@ -261,7 +269,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
                 table.getRowModel().rows.map((row) => (
                   <TableRow key={row.id} className="hover:bg-slate-50/50">
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="border-b">
+                      <TableCell key={cell.id}>
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}

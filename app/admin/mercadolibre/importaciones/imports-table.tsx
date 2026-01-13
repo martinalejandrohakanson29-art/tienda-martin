@@ -189,7 +189,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
             {/* DÍAS DEL PERIODO: Ahora es solo informativo y automático */}
             <div className="flex items-center gap-2 bg-slate-50 border px-3 py-1.5 rounded-md shadow-inner text-slate-500">
                 <CalendarDays className="h-4 w-4" />
-                <span className="text-sm font-medium">Días detectados:</span>
+                <span className="text-sm font-medium">Dias consultados:</span>
                 <span className="text-sm font-bold text-slate-700 bg-white px-2 py-0.5 rounded border">
                     {periodDays}
                 </span>

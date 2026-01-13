@@ -124,7 +124,6 @@ interface ImportsTableProps {
 
 export function ImportsTable({ data }: ImportsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
-  // 1) ESTADO PARA EL FILTRO (Buscador)
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
 
   const table = useReactTable({
@@ -133,7 +132,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
-    // Configuración del filtro
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     state: { 
@@ -143,9 +141,9 @@ export function ImportsTable({ data }: ImportsTableProps) {
   })
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full space-y-4">
       {/* 1) BUSCADOR */}
-      <div className="flex items-center relative max-w-sm">
+      <div className="flex items-center relative max-w-sm shrink-0">
         <Search className="absolute left-3 h-4 w-4 text-slate-400" />
         <Input
           placeholder="Buscar producto por nombre..."
@@ -157,16 +155,18 @@ export function ImportsTable({ data }: ImportsTableProps) {
         />
       </div>
 
-      <div className="rounded-md border bg-white shadow-sm overflow-hidden">
-        {/* Ajustamos el contenedor para permitir el scroll interno y que el header sea fijo */}
-        <div className="max-h-[calc(100vh-250px)] overflow-auto">
+      {/* 2) CONTENEDOR CON SCROLL Y TÍTULOS FIJOS */}
+      <div className="flex-1 min-h-0 rounded-md border bg-white shadow-sm overflow-hidden flex flex-col">
+        <div className="overflow-auto flex-1 relative">
           <Table>
-            {/* 2) TÍTULOS FIJOS (sticky top-0) */}
-            <TableHeader className="sticky top-0 z-10 bg-white border-b shadow-sm">
+            <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="bg-slate-50/80 backdrop-blur-sm">
+                    <TableHead 
+                      key={header.id} 
+                      className="sticky top-0 z-20 bg-slate-100 font-bold text-slate-700 shadow-[0_1px_0_rgba(0,0,0,0.1)]"
+                    >
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}

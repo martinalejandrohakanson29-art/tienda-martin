@@ -4,14 +4,17 @@ import * as React from "react"
 import {
   ColumnDef,
   SortingState,
+  ColumnFiltersState,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
+  getFilteredRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown } from "lucide-react"
+import { ArrowUpDown, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Table,
   TableBody,
@@ -89,7 +92,6 @@ export const columns: ColumnDef<ImportItem>[] = [
         let colorClass = "bg-gray-500"
         let displayText = val.toFixed(2)
 
-        // Lógica corregida para el semáforo e Infinito
         if (val >= 999) {
             colorClass = "bg-green-500 hover:bg-green-600"
             displayText = "∞"
@@ -106,7 +108,8 @@ export const columns: ColumnDef<ImportItem>[] = [
 
         return (
             <div className="flex justify-center">
-                <Badge className={`${colorClass} text-white border-none px-3 text-lg font-bold`}>
+                {/* 3) TAMAÑO DE LETRA ACHICADO (text-[10px]) */}
+                <Badge className={`${colorClass} text-white border-none px-2 py-0 text-[10px] font-bold min-w-[45px] justify-center`}>
                     {displayText}
                 </Badge>
             </div>
@@ -121,6 +124,8 @@ interface ImportsTableProps {
 
 export function ImportsTable({ data }: ImportsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
+  // 1) ESTADO PARA EL FILTRO (Buscador)
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
 
   const table = useReactTable({
     data,
@@ -128,43 +133,68 @@ export function ImportsTable({ data }: ImportsTableProps) {
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
-    state: { sorting },
+    // Configuración del filtro
+    onColumnFiltersChange: setColumnFilters,
+    getFilteredRowModel: getFilteredRowModel(),
+    state: { 
+      sorting,
+      columnFilters,
+    },
   })
 
   return (
-    <div className="rounded-md border bg-white shadow-sm">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
-                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                </TableHead>
+    <div className="space-y-4">
+      {/* 1) BUSCADOR */}
+      <div className="flex items-center relative max-w-sm">
+        <Search className="absolute left-3 h-4 w-4 text-slate-400" />
+        <Input
+          placeholder="Buscar producto por nombre..."
+          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("name")?.setFilterValue(event.target.value)
+          }
+          className="pl-9 bg-white"
+        />
+      </div>
+
+      <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+        {/* Ajustamos el contenedor para permitir el scroll interno y que el header sea fijo */}
+        <div className="max-h-[calc(100vh-250px)] overflow-auto">
+          <Table>
+            {/* 2) TÍTULOS FIJOS (sticky top-0) */}
+            <TableHeader className="sticky top-0 z-10 bg-white border-b shadow-sm">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} className="bg-slate-50/80 backdrop-blur-sm">
+                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                    </TableHead>
+                  ))}
+                </TableRow>
               ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    No hay resultados.
                   </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                No hay resultados.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   )
 }

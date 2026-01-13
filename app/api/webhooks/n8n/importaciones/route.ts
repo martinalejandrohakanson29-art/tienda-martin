@@ -15,39 +15,51 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "No hay items" }, { status: 400 })
         }
 
-        // --- LÓGICA PARA STOCK Y VENTAS (Lo que ya tenías) ---
+        // --- 1. LÓGICA PARA STOCK Y VENTAS ---
         const salesAndStockOps = items.map((item: any) => {
             const skuVal = String(item.sku || item.SKU || item.id_articulo);
             
+            // IMPORTANTE: Primero aseguramos que el SupplierProduct existe para evitar el error de FK
+            const ensureProduct = prisma.supplierProduct.upsert({
+                where: { sku: skuVal },
+                update: {}, // Si existe, no cambiamos nada
+                create: { 
+                    sku: skuVal, 
+                    name: item.articulo || item.name || "Producto nuevo de sincronización" 
+                }
+            });
+
             if (item.VENTAS_ML !== undefined) {
-                return prisma.importVentas.upsert({
-                    where: { sku: skuVal },
-                    update: { salesLast30: Number(item.VENTAS_ML), updatedAt: new Date() },
-                    create: { sku: skuVal, salesLast30: Number(item.VENTAS_ML) }
-                })
+                return [
+                    ensureProduct,
+                    prisma.importVentas.upsert({
+                        where: { sku: skuVal },
+                        update: { salesLast30: Number(item.VENTAS_ML), updatedAt: new Date() },
+                        create: { sku: skuVal, salesLast30: Number(item.VENTAS_ML) }
+                    })
+                ]
             }
             if (item.STOCK_ACTUAL !== undefined) {
-                return prisma.importStock.upsert({
-                    where: { sku: skuVal },
-                    update: { stockExternal: Number(item.STOCK_ACTUAL), updatedAt: new Date() },
-                    create: { sku: skuVal, stockExternal: Number(item.STOCK_ACTUAL) }
-                })
+                return [
+                    ensureProduct,
+                    prisma.importStock.upsert({
+                        where: { sku: skuVal },
+                        update: { stockExternal: Number(item.STOCK_ACTUAL), updatedAt: new Date() },
+                        create: { sku: skuVal, stockExternal: Number(item.STOCK_ACTUAL) }
+                    })
+                ]
             }
             return null;
-        }).filter(Boolean);
+        }).filter(Boolean).flat();
 
-        // --- LÓGICA PARA FUTUROS INGRESOS (Nueva sección) ---
-        // Verificamos si el primer item tiene carrito_id (indica que es un ingreso de mercadería)
+        // --- 2. LÓGICA PARA FUTUROS INGRESOS (PurchaseOrders) ---
         if (items[0].carrito_id) {
             const firstItem = items[0];
-            
-            // Convertimos la fecha de "17/12/2025" a formato que la base de datos entienda
             const [day, month, year] = firstItem.fecha_arribo.split('/');
             const formattedDate = new Date(`${year}-${month}-${day}`);
 
-            // 1. Creamos o actualizamos la Orden de Compra (Cabecera)
             const purchaseOrder = await prisma.purchaseOrder.upsert({
-                where: { id: firstItem.carrito_id }, // Usamos carrito_id como ID único
+                where: { id: firstItem.carrito_id },
                 update: {
                     supplier: firstItem.proveedor,
                     arrivalDate: formattedDate,
@@ -65,17 +77,25 @@ export async function POST(req: Request) {
                 }
             });
 
-            // 2. Limpiamos items viejos de esta orden para no duplicar si n8n re-envía
             await prisma.purchaseOrderItem.deleteMany({
                 where: { purchaseOrderId: purchaseOrder.id }
             });
 
-            // 3. Preparamos la creación de los nuevos items
+            // Usamos connectOrCreate para asegurar que el producto existe antes de crear el ítem
             const itemOperations = items.map((item: any) => {
+                const skuVal = String(item.id_articulo);
                 return prisma.purchaseOrderItem.create({
                     data: {
-                        purchaseOrderId: purchaseOrder.id,
-                        supplierProductSku: String(item.id_articulo),
+                        purchaseOrder: { connect: { id: purchaseOrder.id } },
+                        supplierProduct: {
+                            connectOrCreate: {
+                                where: { sku: skuVal },
+                                create: { 
+                                    sku: skuVal, 
+                                    name: item.articulo || "Producto Importado" 
+                                }
+                            }
+                        },
                         quantity: parseInt(item.cantidad),
                     }
                 });
@@ -84,12 +104,11 @@ export async function POST(req: Request) {
             await prisma.$transaction(itemOperations);
         }
 
-        // Ejecutamos también las operaciones de stock/ventas si existieran
         if (salesAndStockOps.length > 0) {
             await prisma.$transaction(salesAndStockOps as any);
         }
 
-        return NextResponse.json({ success: true, message: "Ingreso de mercadería guardado" })
+        return NextResponse.json({ success: true, message: "Datos procesados correctamente" })
     } catch (error: any) {
         console.error("Error en webhook:", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 })

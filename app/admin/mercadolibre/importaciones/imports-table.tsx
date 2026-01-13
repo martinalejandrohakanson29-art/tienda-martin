@@ -146,9 +146,10 @@ export function ImportsTable({ data }: ImportsTableProps) {
 
       {/* CONTENEDOR DE TABLA CON SCROLL INTERNO */}
       <div className="flex-1 min-h-0 rounded-md border bg-white shadow-sm overflow-hidden flex flex-col">
-        {/* Aquí sucede la magia: overflow-auto y h-full */}
+        {/* Scroll manejado aquí */}
         <div className="overflow-auto flex-1 h-full">
-          <Table className="relative">
+          {/* containerClassName="overflow-visible" libera el scroll interno de la UI table */}
+          <Table containerClassName="overflow-visible" className="relative">
             <TableHeader className="sticky top-0 z-30 bg-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>

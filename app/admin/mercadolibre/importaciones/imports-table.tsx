@@ -41,10 +41,9 @@ interface ImportsTableProps {
 export function ImportsTable({ data }: ImportsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
-  // 1. Estado para el margen de seguridad modificable
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
 
-  // 2. Definimos las columnas dentro del componente para que usen el safetyMargin
+  // Definimos las columnas usando accessorFn para que el ordenamiento funcione correctamente
   const columns = React.useMemo<ColumnDef<ImportItem>[]>(() => [
     {
       accessorKey: "name",
@@ -72,23 +71,21 @@ export function ImportsTable({ data }: ImportsTableProps) {
       ),
       cell: ({ row }) => <div className="text-center">{row.getValue("salesLast30")}</div>,
     },
-    // Columna calculada con el % variable
+    // Ventas Proyectadas (+%)
     {
       id: "salesProjected",
+      // accessorFn permite que la tabla "conozca" el valor calculado para poder ordenarlo
+      accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
       header: () => (
           <div className="text-center text-blue-700 font-bold px-4">
             Ventas +{safetyMargin}%
           </div>
       ),
-      cell: ({ row }) => {
-          const sales = parseFloat(row.getValue("salesLast30") || "0")
-          const projected = Math.ceil(sales * (1 + safetyMargin / 100)) 
-          return (
-              <div className="text-center font-bold text-blue-600 bg-blue-50 py-1 rounded-md">
-                  {projected}
-              </div>
-          )
-      },
+      cell: ({ row }) => (
+          <div className="text-center font-bold text-blue-600 bg-blue-50 py-1 rounded-md">
+              {row.getValue("salesProjected")}
+          </div>
+      ),
     },
     {
       accessorKey: "stockExternal",
@@ -99,35 +96,34 @@ export function ImportsTable({ data }: ImportsTableProps) {
       ),
       cell: ({ row }) => <div className="text-center font-bold">{row.getValue("stockExternal")}</div>,
     },
-    // CONSUMO MENSUAL: Ahora usa el dato proyectado (+%)
+    // CONSUMO MENSUAL
     {
       id: "calculatedVelocity",
+      accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
       header: ({ column }) => (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Consumo Mensual <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
-      cell: ({ row }) => {
-        const sales = parseFloat(row.getValue("salesLast30") || "0")
-        const projected = Math.ceil(sales * (1 + safetyMargin / 100))
-        return <div className="text-center">{projected}</div>
-      },
+      cell: ({ row }) => <div className="text-center">{row.getValue("calculatedVelocity")}</div>,
     },
-    // MESES EN STOCK: Recalculado y con nuevo estilo de fuente (sin burbuja)
+    // MESES EN STOCK (Corregido para que el ordenamiento funcione)
     {
       id: "dynamicCoverage", 
+      accessorFn: (row) => {
+          const stock = row.stockExternal || 0
+          const sales = row.salesLast30 || 0
+          const projectedVelocity = Math.ceil(sales * (1 + safetyMargin / 100))
+          // Calculamos el valor numérico puro para el ordenamiento
+          return projectedVelocity > 0 ? (stock / projectedVelocity) : (stock > 0 ? 999 : 0)
+      },
       header: ({ column }) => (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Meses en Stock <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
       cell: ({ row }) => {
-          const stock = parseFloat(row.getValue("stockExternal") || "0")
-          const sales = parseFloat(row.getValue("salesLast30") || "0")
-          const projectedVelocity = Math.ceil(sales * (1 + safetyMargin / 100))
-          
-          // Cálculo de cobertura en base a la nueva velocidad proyectada
-          let val = projectedVelocity > 0 ? (stock / projectedVelocity) : (stock > 0 ? 999 : 0)
+          const val = row.getValue("dynamicCoverage") as number
           
           let textColor = "text-slate-500"
           let displayText = val.toFixed(2)

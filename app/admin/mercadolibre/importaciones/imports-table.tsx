@@ -11,7 +11,7 @@ import {
   getFilteredRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Search, Percent } from "lucide-react"
+import { ArrowUpDown, Search, Percent, CalendarDays } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,9 +41,11 @@ interface ImportsTableProps {
 export function ImportsTable({ data }: ImportsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+  
+  // 1. Estados para los cálculos dinámicos
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
+  const [periodDays, setPeriodDays] = React.useState<number>(30) // Por defecto 30 días
 
-  // Definimos las columnas usando accessorFn para que el ordenamiento funcione correctamente
   const columns = React.useMemo<ColumnDef<ImportItem>[]>(() => [
     {
       accessorKey: "name",
@@ -71,10 +73,9 @@ export function ImportsTable({ data }: ImportsTableProps) {
       ),
       cell: ({ row }) => <div className="text-center">{row.getValue("salesLast30")}</div>,
     },
-    // Ventas Proyectadas (+%)
+    // COLUMNA: Ventas Proyectadas (Total del periodo con el margen aplicado)
     {
       id: "salesProjected",
-      // accessorFn permite que la tabla "conozca" el valor calculado para poder ordenarlo
       accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
       header: () => (
           <div className="text-center text-blue-700 font-bold px-4">
@@ -96,26 +97,32 @@ export function ImportsTable({ data }: ImportsTableProps) {
       ),
       cell: ({ row }) => <div className="text-center font-bold">{row.getValue("stockExternal")}</div>,
     },
-    // CONSUMO MENSUAL
+    // COLUMNA: CONSUMO MENSUAL (Normalizado a 30 días)
     {
       id: "calculatedVelocity",
-      accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
+      accessorFn: (row) => {
+        const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
+        // Dividimos por el factor de meses (ej: si son 90 días, dividimos por 3)
+        const factorMeses = periodDays / 30
+        return Math.ceil(totalConMargen / factorMeses)
+      },
       header: ({ column }) => (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Consumo Mensual <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       ),
-      cell: ({ row }) => <div className="text-center">{row.getValue("calculatedVelocity")}</div>,
+      cell: ({ row }) => <div className="text-center font-semibold">{row.getValue("calculatedVelocity")}</div>,
     },
-    // MESES EN STOCK (Corregido para que el ordenamiento funcione)
+    // COLUMNA: MESES EN STOCK (Usa la velocidad normalizada para el cálculo)
     {
       id: "dynamicCoverage", 
       accessorFn: (row) => {
           const stock = row.stockExternal || 0
-          const sales = row.salesLast30 || 0
-          const projectedVelocity = Math.ceil(sales * (1 + safetyMargin / 100))
-          // Calculamos el valor numérico puro para el ordenamiento
-          return projectedVelocity > 0 ? (stock / projectedVelocity) : (stock > 0 ? 999 : 0)
+          const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
+          const factorMeses = periodDays / 30
+          const monthlyVelocity = totalConMargen / factorMeses
+          
+          return monthlyVelocity > 0 ? (stock / monthlyVelocity) : (stock > 0 ? 999 : 0)
       },
       header: ({ column }) => (
         <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
@@ -124,7 +131,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
       ),
       cell: ({ row }) => {
           const val = row.getValue("dynamicCoverage") as number
-          
           let textColor = "text-slate-500"
           let displayText = val.toFixed(2)
 
@@ -143,7 +149,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
           )
       },
     },
-  ], [safetyMargin])
+  ], [safetyMargin, periodDays]) // IMPORTANTE: Se recalculan si cambia el margen o los días
 
   const table = useReactTable({
     data,
@@ -170,16 +176,31 @@ export function ImportsTable({ data }: ImportsTableProps) {
           />
         </div>
 
-        {/* SELECTOR DE MARGEN DINÁMICO */}
-        <div className="flex items-center gap-2 bg-white border px-3 py-1.5 rounded-md shadow-sm">
-          <Percent className="h-4 w-4 text-blue-600" />
-          <span className="text-sm font-medium text-slate-600">Margen de Seguridad:</span>
-          <Input
-            type="number"
-            value={safetyMargin}
-            onChange={(e) => setSafetyMargin(Number(e.target.value))}
-            className="w-20 h-8 text-center font-bold"
-          />
+        {/* CONTROLES DINÁMICOS */}
+        <div className="flex items-center gap-4">
+            {/* SELECTOR DE DÍAS DEL PERIODO */}
+            <div className="flex items-center gap-2 bg-white border px-3 py-1.5 rounded-md shadow-sm">
+                <CalendarDays className="h-4 w-4 text-orange-600" />
+                <span className="text-sm font-medium text-slate-600">Días del Periodo:</span>
+                <Input
+                    type="number"
+                    value={periodDays}
+                    onChange={(e) => setPeriodDays(Number(e.target.value))}
+                    className="w-16 h-8 text-center font-bold"
+                />
+            </div>
+
+            {/* SELECTOR DE MARGEN DINÁMICO */}
+            <div className="flex items-center gap-2 bg-white border px-3 py-1.5 rounded-md shadow-sm">
+                <Percent className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium text-slate-600">Margen de Seguridad:</span>
+                <Input
+                    type="number"
+                    value={safetyMargin}
+                    onChange={(e) => setSafetyMargin(Number(e.target.value))}
+                    className="w-16 h-8 text-center font-bold"
+                />
+            </div>
         </div>
       </div>
 

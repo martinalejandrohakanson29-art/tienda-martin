@@ -36,14 +36,7 @@ export type ImportItem = {
 }
 
 export const columns: ColumnDef<ImportItem>[] = [
-  {
-    accessorKey: "sku",
-    header: ({ column }) => (
-      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        SKU <ArrowUpDown className="ml-2 h-4 w-4" />
-      </Button>
-    ),
-  },
+  // 1. PRODUCTO (Primero)
   {
     accessorKey: "name",
     header: ({ column }) => (
@@ -53,15 +46,16 @@ export const columns: ColumnDef<ImportItem>[] = [
     ),
     cell: ({ row }) => <div className="font-medium text-left">{row.getValue("name")}</div>,
   },
+  // 2. SKU
   {
-    accessorKey: "stockExternal",
+    accessorKey: "sku",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Stock <ArrowUpDown className="ml-2 h-4 w-4" />
+        SKU <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => <div className="text-center font-bold">{row.getValue("stockExternal")}</div>,
   },
+  // 3. VENTAS (30d)
   {
     accessorKey: "salesLast30",
     header: ({ column }) => (
@@ -71,20 +65,53 @@ export const columns: ColumnDef<ImportItem>[] = [
     ),
     cell: ({ row }) => <div className="text-center">{row.getValue("salesLast30")}</div>,
   },
+  // 4. VENTAS + 10% (Nueva Columna Calculada)
+  {
+    id: "salesPlus10",
+    header: ({ column }) => (
+        <Button variant="ghost" disabled className="cursor-default text-black font-bold">
+          Ventas +10%
+        </Button>
+    ),
+    cell: ({ row }) => {
+        // Obtenemos el valor de ventas y calculamos el 10% extra
+        const sales = parseFloat(row.getValue("salesLast30") || "0")
+        // Math.ceil para redondear hacia arriba (ej: 4.4 -> 5) para seguridad de stock
+        const projected = Math.ceil(sales * 1.10) 
+        
+        return (
+            <div className="text-center font-bold text-blue-600 bg-blue-50 py-1 rounded-md">
+                {projected}
+            </div>
+        )
+    },
+  },
+  // 5. STOCK
+  {
+    accessorKey: "stockExternal",
+    header: ({ column }) => (
+      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+        Stock <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => <div className="text-center font-bold">{row.getValue("stockExternal")}</div>,
+  },
+  // 6. PROMEDIO MENSUAL (Antes Promedio Diario)
   {
     accessorKey: "salesVelocity",
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Promedio Diario <ArrowUpDown className="ml-2 h-4 w-4" />
+        Promedio Mensual <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => <div className="text-center">{row.getValue("salesVelocity")}</div>,
   },
+  // 7. MESES EN STOCK (Antes Semáforo)
   {
     accessorKey: "monthsCoverage", 
     header: ({ column }) => (
       <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-        Semáforo (Meses) <ArrowUpDown className="ml-2 h-4 w-4" />
+        Meses en Stock <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
     cell: ({ row }) => {
@@ -102,7 +129,6 @@ export const columns: ColumnDef<ImportItem>[] = [
 
         return (
             <div className="flex justify-center">
-                {/* TAMAÑO DE LETRA ACHICADO (text-[9px]) Y PADDING MÍNIMO */}
                 <Badge className={`${colorClass} text-white border-none px-1.5 py-0 text-[9px] font-bold min-w-[35px] justify-center`}>
                     {displayText}
                 </Badge>
@@ -146,9 +172,9 @@ export function ImportsTable({ data }: ImportsTableProps) {
 
       {/* CONTENEDOR DE TABLA CON SCROLL INTERNO */}
       <div className="flex-1 min-h-0 rounded-md border bg-white shadow-sm overflow-hidden flex flex-col">
-        {/* Scroll manejado aquí */}
+        {/* Aquí sucede la magia: overflow-auto y h-full */}
         <div className="overflow-auto flex-1 h-full">
-          {/* containerClassName="overflow-visible" libera el scroll interno de la UI table */}
+          {/* containerClassName="overflow-visible" libera el scroll interno de la UI table para que funcione el sticky header */}
           <Table containerClassName="overflow-visible" className="relative">
             <TableHeader className="sticky top-0 z-30 bg-slate-100 shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
               {table.getHeaderGroups().map((headerGroup) => (

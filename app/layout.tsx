@@ -4,7 +4,9 @@ import "./globals.css";
 import Header from "@/components/header";
 import Footer from "@/components/footer";
 import AnnouncementBar from "@/components/announcement-bar";
-import Script from "next/script"; // 👈 1. IMPORTANTE: Importamos Script
+import Script from "next/script";
+// 👇 IMPORTAMOS EL NUEVO COMPONENTE HELPER
+import ConditionalHeader from "@/components/conditional-header"; 
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -37,7 +39,6 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
-        {/* 👇 2. AQUÍ ESTÁ TU CÓDIGO DE META PIXEL INTEGRADO */}
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
             !function(f,b,e,v,n,t,s)
@@ -53,7 +54,6 @@ export default function RootLayout({
           `}
         </Script>
         
-        {/* 👇 3. Parte NoScript (para navegadores sin JS) */}
         <noscript>
           <img 
             height="1" 
@@ -64,14 +64,19 @@ export default function RootLayout({
           />
         </noscript>
 
-        <div className="sticky top-0 z-50 w-full flex flex-col">
-            <AnnouncementBar />
-            <Header />
-        </div>
+        {/* 👇 AQUÍ ESTÁ LA MAGIA: Envolvemos el Header y Announcement con el condicional */}
+        <ConditionalHeader>
+            <div className="sticky top-0 z-50 w-full flex flex-col">
+                <AnnouncementBar />
+                <Header />
+            </div>
+        </ConditionalHeader>
         
         <main className="flex-1">
           {children}
         </main>
+        
+        {/* El Footer podrías querer ocultarlo también, si es así, mételo dentro de ConditionalHeader también */}
         <Footer />
       </body>
     </html>

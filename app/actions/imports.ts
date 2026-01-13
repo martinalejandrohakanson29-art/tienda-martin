@@ -16,7 +16,9 @@ export async function getSupplierProducts() {
             const ventas = p.ventas?.salesLast30 || 0;
             const velocity = Number(p.ventas?.salesVelocity || 0);
             const stock = p.stock?.stockExternal || 0;
-            const coverage = velocity > 0 ? Number((stock / velocity).toFixed(1)) : 0;
+           const coverage = velocity > 0 
+    ? Number((stock / velocity).toFixed(1)) 
+    : (stock > 0 ? 999 : 0);
 
             return {
                 id: p.id,

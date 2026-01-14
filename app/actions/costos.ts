@@ -126,11 +126,15 @@ export async function getCostosKits() {
 
 // --- FUNCIONES DE GESTIÓN (CRUD) ---
 
+// app/actions/costos.ts
+
 export async function upsertArticulo(data: any) {
   try {
     const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
-    const cleanSku = id_articulo.trim();
-    const cleanDesc = descripcion?.trim();
+    
+    // FORZAMOS MAYÚSCULAS Y LIMPIAMOS ESPACIOS AQUÍ
+    const cleanSku = id_articulo.trim().toUpperCase();
+    const cleanDesc = descripcion?.trim().toUpperCase(); 
 
     const updateData = {
       id_articulo: cleanSku,
@@ -141,18 +145,19 @@ export async function upsertArticulo(data: any) {
     };
 
     if (id) {
-      // 1. Antes de actualizar, obtenemos el artículo actual para saber su SKU viejo
+      // 1. Buscamos el registro actual para comparar
       const articuloViejo = await prisma.costosArticulos.findUnique({
         where: { id: Number(id) }
       });
 
-      // 2. Actualizamos el artículo principal
+      // 2. Actualizamos la tabla principal (costos_articulos)
       await prisma.costosArticulos.update({ 
         where: { id: Number(id) }, 
         data: updateData 
       });
 
-      // 3. PROPAGACIÓN DE NOMBRE: Si cambió la descripción, actualizamos ComposicionKits
+      // 3. PROPAGACIÓN: Si cambió el nombre, lo actualizamos en ComposicionKits
+      // Ahora cleanDesc ya viene en MAYÚSCULAS puras
       if (articuloViejo && articuloViejo.descripcion !== cleanDesc) {
         await prisma.composicionKits.updateMany({
           where: { id_articulo: cleanSku },
@@ -160,22 +165,16 @@ export async function upsertArticulo(data: any) {
         });
       }
 
-      // 4. (Opcional) Si cambiaste el SKU, avisar o manejar el error
-      if (articuloViejo && articuloViejo.id_articulo !== cleanSku) {
-         console.warn("⚠️ Se cambió un SKU. Las relaciones en kits antiguos podrían romperse.");
-         // Aquí podrías agregar lógica para actualizar articulos_compuestos también
-      }
-
     } else {
-      // Es un artículo nuevo
+      // Si es nuevo, también se guarda en MAYÚSCULAS
       await prisma.costosArticulos.create({ data: updateData });
     }
 
-    // Recalculamos costos por si cambió el precio
+    // Recalcular costos
     await recalculateProductCost(cleanSku);
     
     revalidatePath("/admin/mercadolibre/articulos");
-    revalidatePath("/admin/mercadolibre/composicion"); // Revalidamos también la tabla de kits
+    revalidatePath("/admin/mercadolibre/composicion");
     
     return { success: true };
   } catch (error: any) {
@@ -183,7 +182,6 @@ export async function upsertArticulo(data: any) {
     return { success: false, error: error.message };
   }
 }
-
 export async function deleteArticulo(id: number) {
   try {
     await prisma.costosArticulos.delete({ where: { id } });

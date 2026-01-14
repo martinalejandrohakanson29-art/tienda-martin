@@ -129,24 +129,57 @@ export async function getCostosKits() {
 export async function upsertArticulo(data: any) {
   try {
     const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
+    const cleanSku = id_articulo.trim();
+    const cleanDesc = descripcion?.trim();
+
     const updateData = {
-      id_articulo: id_articulo.trim(),
-      descripcion: descripcion?.trim(),
+      id_articulo: cleanSku,
+      descripcion: cleanDesc,
       costo_usd: Number(costo_usd),
       es_dolar: Boolean(es_dolar),
       fecha_actualizacion: new Date()
     };
 
     if (id) {
-      await prisma.costosArticulos.update({ where: { id: Number(id) }, data: updateData });
+      // 1. Antes de actualizar, obtenemos el artículo actual para saber su SKU viejo
+      const articuloViejo = await prisma.costosArticulos.findUnique({
+        where: { id: Number(id) }
+      });
+
+      // 2. Actualizamos el artículo principal
+      await prisma.costosArticulos.update({ 
+        where: { id: Number(id) }, 
+        data: updateData 
+      });
+
+      // 3. PROPAGACIÓN DE NOMBRE: Si cambió la descripción, actualizamos ComposicionKits
+      if (articuloViejo && articuloViejo.descripcion !== cleanDesc) {
+        await prisma.composicionKits.updateMany({
+          where: { id_articulo: cleanSku },
+          data: { nombre_articulo: cleanDesc }
+        });
+      }
+
+      // 4. (Opcional) Si cambiaste el SKU, avisar o manejar el error
+      if (articuloViejo && articuloViejo.id_articulo !== cleanSku) {
+         console.warn("⚠️ Se cambió un SKU. Las relaciones en kits antiguos podrían romperse.");
+         // Aquí podrías agregar lógica para actualizar articulos_compuestos también
+      }
+
     } else {
+      // Es un artículo nuevo
       await prisma.costosArticulos.create({ data: updateData });
     }
 
-    await recalculateProductCost(id_articulo.trim());
+    // Recalculamos costos por si cambió el precio
+    await recalculateProductCost(cleanSku);
+    
     revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/composicion"); // Revalidamos también la tabla de kits
+    
     return { success: true };
   } catch (error: any) {
+    console.error("Error en upsertArticulo:", error);
     return { success: false, error: error.message };
   }
 }

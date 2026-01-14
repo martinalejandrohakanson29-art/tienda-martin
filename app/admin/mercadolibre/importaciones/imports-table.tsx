@@ -47,8 +47,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
-  
-  // Estado para resaltar la fila seleccionada
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
 
   const periodDays = React.useMemo(() => {
@@ -62,7 +60,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  // Función para calcular colores y valores de cobertura (el "semáforo")
   const getCoverageData = (row: ImportItem) => {
     const stock = row.stockExternal || 0
     const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
@@ -97,17 +94,32 @@ export function ImportsTable({ data }: ImportsTableProps) {
     const baseColumns: ColumnDef<ImportItem>[] = [
       {
         accessorKey: "sku",
-        header: "SKU",
+        header: ({ column }) => (
+            <Button 
+                variant="ghost" 
+                className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+                SKU <ArrowUpDown className="ml-1 h-3 w-3" />
+            </Button>
+        ),
         cell: ({ row }) => <div className="font-mono text-[10px] font-bold px-1">{row.getValue("sku")}</div>,
       },
       {
         accessorKey: "name",
-        header: "Producto",
+        header: ({ column }) => (
+            <Button 
+                variant="ghost" 
+                className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
+                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+                Producto <ArrowUpDown className="ml-1 h-3 w-3" />
+            </Button>
+        ),
         cell: ({ row }) => {
           const { colorClass } = getCoverageData(row.original)
           return (
             <div className="flex items-center gap-2 max-w-[250px] px-1">
-              {/* Círculo de estado al lado del nombre */}
               <div className={cn("h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado de stock" />
               <div className="font-medium text-xs truncate py-1" title={row.getValue("name")}>
                 {row.getValue("name")}
@@ -118,7 +130,17 @@ export function ImportsTable({ data }: ImportsTableProps) {
       },
       {
         accessorKey: "salesLast30",
-        header: () => <div className="text-center text-[10px]">Ventas</div>,
+        header: ({ column }) => (
+            <div className="flex justify-center">
+                <Button 
+                    variant="ghost" 
+                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                >
+                    Ventas <ArrowUpDown className="ml-1 h-3 w-3" />
+                </Button>
+            </div>
+        ),
         cell: ({ row }) => <div className="text-center text-xs">{row.getValue("salesLast30")}</div>,
       },
       {
@@ -133,7 +155,17 @@ export function ImportsTable({ data }: ImportsTableProps) {
       },
       {
         accessorKey: "stockExternal",
-        header: () => <div className="text-center text-[10px]">Stock</div>,
+        header: ({ column }) => (
+            <div className="flex justify-center">
+                <Button 
+                    variant="ghost" 
+                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                >
+                    Stock <ArrowUpDown className="ml-1 h-3 w-3" />
+                </Button>
+            </div>
+        ),
         cell: ({ row }) => <div className="text-center font-bold text-blue-600 text-xs">{row.getValue("stockExternal")}</div>,
       },
       {
@@ -143,12 +175,32 @@ export function ImportsTable({ data }: ImportsTableProps) {
           const factorMeses = periodDays / 30
           return Math.ceil(totalConMargen / factorMeses)
         },
-        header: () => <div className="text-center text-[10px]">Consumo Mes</div>,
+        header: ({ column }) => (
+            <div className="flex justify-center">
+                <Button 
+                    variant="ghost" 
+                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold text-center"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                >
+                    Consumo <ArrowUpDown className="ml-1 h-3 w-3" />
+                </Button>
+            </div>
+        ),
         cell: ({ row }) => <div className="text-center font-semibold text-xs">{row.getValue("calculatedVelocity")}</div>,
       },
       {
         id: "dynamicCoverage", 
-        header: () => <div className="text-center text-[10px]">Meses Stock</div>,
+        header: ({ column }) => (
+            <div className="flex justify-center">
+                <Button 
+                    variant="ghost" 
+                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                >
+                    Meses <ArrowUpDown className="ml-1 h-3 w-3" />
+                </Button>
+            </div>
+        ),
         cell: ({ row }) => {
             const { val, textColor } = getCoverageData(row.original)
             return (

@@ -6,29 +6,27 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-// Importamos recalculateAllArticulos para refrescar los precios al guardar
-import { RefreshCw, Search, Plus, Pencil, Trash2, Boxes, Trash } from "lucide-react";
+// Agregamos Filter para el ícono del nuevo filtro
+import { RefreshCw, Search, Plus, Pencil, Trash2, Boxes, Trash, Filter } from "lucide-react";
 import { upsertArticulo, deleteArticulo, getComponentes, updateComponentes, recalculateAllArticulos } from "@/app/actions/costos";
 import { updateConfig } from "@/app/actions/config";
 
 export function ArticulosTable({ data, initialConfig }: { data: any[], initialConfig: any }) {
   const [filter, setFilter] = useState("");
+  // NUEVO: Estado para filtrar por Dólar (all, dolar, pesos)
+  const [dolarFilter, setDolarFilter] = useState<"all" | "dolar" | "pesos">("all");
   
-  // Valores para los inputs (Temporales para cálculo en vivo de artículos simples)
   const [tempDolar, setTempDolar] = useState(Number(initialConfig?.dolarCotizacion || 1530));
   const [tempFob, setTempFob] = useState(Number(initialConfig?.factorFob || 2.3));
   const [tempFinanc, setTempFinanc] = useState(Number(initialConfig?.recargoFinanciacion || 0));
 
-  // Valores "Activos" en la base de datos
   const [activeDolar, setActiveDolar] = useState(tempDolar);
   const [activeFob, setActiveFob] = useState(tempFob);
   const [activeFinanc, setActiveFinanc] = useState(tempFinanc);
 
-  // Estados para Modal CRUD de Artículos
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingArticulo, setEditingArticulo] = useState<any>(null);
 
-  // ESTADOS PARA MODAL DE COMPOSICIÓN (KITS)
   const [isKitModalOpen, setIsKitModalOpen] = useState(false);
   const [selectedPadre, setSelectedPadre] = useState<any>(null);
   const [componentesTemp, setComponentesTemp] = useState<{sku_hijo: string, cantidad: number}[]>([]);
@@ -38,20 +36,15 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     setActiveDolar(tempDolar);
     setActiveFob(tempFob);
     setActiveFinanc(tempFinanc);
-    
-    // 1. Guardamos la nueva configuración en la DB
     await updateConfig({
       dolarCotizacion: tempDolar,
       factorFob: tempFob,
       recargoFinanciacion: tempFinanc
     });
-
-    // 2. IMPORTANTE: Recalculamos todos los artículos para que los Kits tomen el nuevo valor del dólar de sus hijos
     await recalculateAllArticulos();
     alert("Configuración guardada y precios de Kits actualizados.");
   };
 
-  // --- LÓGICA DE COMPOSICIÓN ---
   const handleOpenKitModal = async (articulo: any) => {
     setSelectedPadre(articulo);
     const comps = await getComponentes(articulo.id_articulo);
@@ -70,7 +63,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     setComponentesTemp(componentesTemp.filter(c => c.sku_hijo !== sku));
   };
 
-  const updateCantidad = (sku: string, cant: number) => {
+  const updateQuantity = (sku: string, cant: number) => {
     setComponentesTemp(componentesTemp.map(c => c.sku_hijo === sku ? { ...c, cantidad: cant } : c));
   };
 
@@ -83,7 +76,6 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     }
   };
 
-  // --- CRUD BÁSICO ---
   const handleOpenModal = (articulo = null) => {
     setEditingArticulo(articulo || { id_articulo: "", descripcion: "", costo_usd: 0, es_dolar: true });
     setIsModalOpen(true);
@@ -95,10 +87,17 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     if (res?.success) setIsModalOpen(false);
   };
 
-  const filteredData = data.filter(item => 
-    item.descripcion?.toLowerCase().includes(filter.toLowerCase()) ||
-    item.id_articulo?.toLowerCase().includes(filter.toLowerCase())
-  );
+  // LÓGICA DE FILTRADO ACTUALIZADA (Buscador + Filtro Dólar)
+  const filteredData = data.filter(item => {
+    const matchesSearch = item.descripcion?.toLowerCase().includes(filter.toLowerCase()) ||
+                         item.id_articulo?.toLowerCase().includes(filter.toLowerCase());
+    
+    const matchesDolar = dolarFilter === "all" || 
+                        (dolarFilter === "dolar" && item.es_dolar) || 
+                        (dolarFilter === "pesos" && !item.es_dolar);
+    
+    return matchesSearch && matchesDolar;
+  });
 
   const listaHijosDisponibles = data.filter(item => 
     item.id_articulo.toLowerCase().includes(busquedaHijo.toLowerCase()) ||
@@ -110,7 +109,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
       {/* HEADER DE CONTROL */}
       <div className="sticky top-[-16px] z-30 bg-slate-50/95 backdrop-blur-sm pb-4 pt-2 -mx-2 px-2 border-b mb-6">
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
-          <div className="flex items-center gap-3 w-full max-w-xl">
+          <div className="flex items-center gap-3 w-full max-w-2xl">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
@@ -120,6 +119,21 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
                 className="pl-10 bg-white border-slate-200"
               />
             </div>
+
+            {/* NUEVO SELECT DE FILTRO POR MONEDA */}
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 h-10 shadow-sm">
+              <Filter className="h-4 w-4 text-slate-400" />
+              <select 
+                value={dolarFilter} 
+                onChange={(e) => setDolarFilter(e.target.value as any)}
+                className="bg-transparent text-sm font-medium focus:outline-none cursor-pointer"
+              >
+                <option value="all">Todos</option>
+                <option value="dolar">Solo Dólar</option>
+                <option value="pesos">Solo Pesos</option>
+              </select>
+            </div>
+
             <Button onClick={() => handleOpenModal()} className="bg-green-600 hover:bg-green-700 gap-2 shadow-sm">
               <Plus className="h-4 w-4" /> Nuevo
             </Button>
@@ -161,20 +175,13 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
           </TableHeader>
           <TableBody>
             {filteredData.map((item) => {
-              /**
-               * LÓGICA CORREGIDA PARA PREVIEW:
-               * 1. Si el artículo es un KIT (isKit), mostramos su valor final guardado en pesos.
-               * 2. Si es un artículo simple, aplicamos la fórmula de conversión en vivo.
-               */
               let finalArs = 0;
-
               if (item.isKit) {
                 finalArs = Number(item.costo_final_ars || 0);
               } else {
                 const subtotal = item.es_dolar 
                   ? Number(item.costo_usd) * tempDolar * tempFob 
                   : Number(item.costo_usd);
-                
                 finalArs = item.es_dolar 
                   ? subtotal * (1 + (tempFinanc / 100)) 
                   : subtotal;
@@ -261,7 +268,6 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 pt-4">
-            {/* Buscador de hijos */}
             <div className="space-y-2 relative">
               <Label className="font-bold">Agregar Artículo al Kit</Label>
               <div className="relative">
@@ -280,7 +286,6 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               )}
             </div>
 
-            {/* Lista de componentes actuales */}
             <div className="border rounded-lg overflow-hidden">
               <Table>
                 <TableHeader className="bg-slate-50">
@@ -295,7 +300,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
                     <TableRow key={comp.sku_hijo}>
                       <TableCell className="font-mono text-xs">{comp.sku_hijo}</TableCell>
                       <TableCell className="text-center">
-                        <Input type="number" min="1" value={comp.cantidad} onChange={(e) => updateCantidad(comp.sku_hijo, Number(e.target.value))} className="w-16 h-8 text-center mx-auto" />
+                        <Input type="number" min="1" value={comp.cantidad} onChange={(e) => updateQuantity(comp.sku_hijo, Number(e.target.value))} className="w-16 h-8 text-center mx-auto" />
                       </TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => removeComponente(comp.sku_hijo)} className="h-8 w-8 text-red-500 hover:text-red-700"><Trash className="h-4 w-4" /></Button>

@@ -1,5 +1,6 @@
+// app/admin/mercadolibre/articulos/page.tsx
 import { getArticulos } from "@/app/actions/costos";
-import { getConfig } from "@/app/actions/config"; // Importamos tu acción
+import { getConfig } from "@/app/actions/config"; // Importante traer el config
 import { ArticulosTable } from "./articulos-table";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -7,7 +8,7 @@ import Link from "next/link";
 
 export default async function ArticulosPage() {
   const data = await getArticulos();
-  const config = await getConfig(); // Traemos la config persistente
+  const config = await getConfig(); // Traemos los valores fijos de la DB
 
   return (
     <div className="flex flex-col h-screen">
@@ -27,7 +28,7 @@ export default async function ArticulosPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-8 pt-4">
-        {/* Pasamos la configuración inicial a la tabla */}
+        {/* Pasamos initialConfig a la tabla */}
         <ArticulosTable data={data} initialConfig={config} />
       </div>
     </div>

@@ -34,11 +34,23 @@ export function ArticulosTable({ data }: { data: any[] }) {
     setIsModalOpen(true);
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+const handleSave = async (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  try {
     const res = await upsertArticulo(editingArticulo);
-    if (res.success) setIsModalOpen(false);
-  };
+    
+    if (res.success) {
+      setIsModalOpen(false);
+      // Opcional: puedes agregar un toast o alerta de éxito aquí
+    } else {
+      // SI HAY ERROR: Ahora sí te enterarás
+      alert("Error: " + res.error);
+    }
+  } catch (err) {
+    alert("Ocurrió un error inesperado en la comunicación con el servidor.");
+  }
+};
 
   const handleDelete = async (id: number) => {
     if (confirm("¿Estás seguro de eliminar este artículo?")) {

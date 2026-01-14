@@ -1,10 +1,10 @@
 // app/actions/costos.ts
-
 "use server";
+
 import { prisma } from "@/lib/prisma"; 
 import { revalidatePath } from "next/cache";
 
-// Actualizado para usar la nueva vista_costos_productos
+// Obtener costos de kits (usando la vista de la DB)
 export async function getCostosKits() {
   try {
     const costos = await prisma.$queryRaw`
@@ -18,9 +18,7 @@ export async function getCostosKits() {
   }
 }
 
-// ... (el resto de las funciones se mantienen igual)
-
-// 2. Función para obtener los artículos individuales
+// Obtener los artículos individuales
 export async function getArticulos() {
   try {
     const articulos = await prisma.costosArticulos.findMany({
@@ -40,22 +38,23 @@ export async function getArticulos() {
   }
 }
 
-// app/actions/costos.ts
-
+// GUARDAR O EDITAR ARTÍCULO (Calculando precio final persistente)
 export async function upsertArticulo(data: any) {
   try {
     const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
     
-    // Traemos la config actual para el cálculo
+    // 1. Buscamos la configuración global para saber el Dólar, FOB y Financiación actuales
     const config = await prisma.config.findFirst();
     const dolar = Number(config?.dolarCotizacion || 1);
     const fob = Number(config?.factorFob || 1);
     const financ = Number(config?.recargoFinanciacion || 0);
 
-    // Calculamos el costo final antes de guardar
+    // 2. Calculamos el costo final antes de guardar en la base de datos
     let costo_final = Number(costo_usd);
     if (Boolean(es_dolar)) {
-        costo_final = (Number(costo_usd) * dolar * fob) * (1 + (financ / 100));
+        // (Precio * Dolar * FOB) + Recargo de Financiación
+        const subtotal = Number(costo_usd) * dolar * fob;
+        costo_final = subtotal * (1 + (financ / 100));
     }
 
     const updateData = {
@@ -63,7 +62,7 @@ export async function upsertArticulo(data: any) {
       descripcion: descripcion?.trim(),
       costo_usd: Number(costo_usd),
       es_dolar: Boolean(es_dolar),
-      costo_final_ars: costo_final, // GUARDAMOS EL VALOR CALCULADO
+      costo_final_ars: costo_final, 
       fecha_actualizacion: new Date()
     };
 
@@ -80,19 +79,26 @@ export async function upsertArticulo(data: any) {
 
     revalidatePath("/admin/mercadolibre/articulos");
     revalidatePath("/admin/mercadolibre/costos");
-    return { success: true };
+    
+    return { success: true }; // Éxito
   } catch (error: any) {
-    // ... manejo de errores ...
+    console.error("Error al guardar artículo:", error);
+    // IMPORTANTE: Siempre devolvemos un objeto para que TypeScript no de error
+    return { 
+      success: false, 
+      error: error.message || "Error de base de datos al guardar." 
+    };
   }
 }
 
-// 4. Función para eliminar artículos
+// Eliminar artículos
 export async function deleteArticulo(id: number) {
   try {
     await prisma.costosArticulos.delete({
       where: { id }
     });
     revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/costos");
     return { success: true };
   } catch (error) {
     console.error("Error al eliminar:", error);

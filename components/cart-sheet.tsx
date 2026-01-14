@@ -58,6 +58,19 @@ export default function CartSheet() {
 
         setLoading(true)
 
+        // 👇 LÓGICA AGREGADA PARA META PIXEL: InitiateCheckout
+        // Esto registra que el usuario tiene intención real de comprar (ya puso su nombre y eligió pago)
+        if (typeof window !== "undefined" && (window as any).fbq) {
+            (window as any).fbq('track', 'InitiateCheckout', {
+                content_name: 'Carrito de Compras',
+                content_ids: cart.map(item => item.product.id), // IDs de los productos
+                content_type: 'product',
+                currency: 'ARS',
+                value: total, // El valor total del carrito
+                num_items: cart.reduce((acc, item) => acc + item.quantity, 0)
+            });
+        }
+
         if (isMP) {
             try {
                 const response = await fetch("/api/checkout", {
@@ -225,4 +238,4 @@ export default function CartSheet() {
             </SheetContent>
         </Sheet>
     )
-}
+}    

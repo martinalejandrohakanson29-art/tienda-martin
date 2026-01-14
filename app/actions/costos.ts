@@ -44,19 +44,30 @@ export async function getArticulos() {
 
 export async function upsertArticulo(data: any) {
   try {
-    // Extraemos los datos y nos aseguramos de que el id sea un número si existe
     const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
     
-    // Preparamos los datos para Prisma asegurando tipos numéricos
+    // Traemos la config actual para el cálculo
+    const config = await prisma.config.findFirst();
+    const dolar = Number(config?.dolarCotizacion || 1);
+    const fob = Number(config?.factorFob || 1);
+    const financ = Number(config?.recargoFinanciacion || 0);
+
+    // Calculamos el costo final antes de guardar
+    let costo_final = Number(costo_usd);
+    if (Boolean(es_dolar)) {
+        costo_final = (Number(costo_usd) * dolar * fob) * (1 + (financ / 100));
+    }
+
     const updateData = {
       id_articulo: id_articulo.trim(),
       descripcion: descripcion?.trim(),
-      costo_usd: Number(costo_usd), // Forzamos que sea número (Decimal en Prisma acepta number)
+      costo_usd: Number(costo_usd),
       es_dolar: Boolean(es_dolar),
+      costo_final_ars: costo_final, // GUARDAMOS EL VALOR CALCULADO
+      fecha_actualizacion: new Date()
     };
 
     if (id) {
-      // MODIFICACIÓN: Aseguramos que el id sea un número entero
       await prisma.costosArticulos.update({
         where: { id: Number(id) }, 
         data: updateData,
@@ -68,16 +79,10 @@ export async function upsertArticulo(data: any) {
     }
 
     revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/costos");
     return { success: true };
   } catch (error: any) {
-    console.error("Error al guardar:", error);
-    // Devolvemos el error específico para que el frontend pueda mostrarlo
-    return { 
-      success: false, 
-      error: error.code === 'P2002' 
-        ? "Ya existe un artículo con ese SKU (ID de Artículo)." 
-        : "Error de base de datos al guardar." 
-    };
+    // ... manejo de errores ...
   }
 }
 

@@ -139,7 +139,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               <Input type="number" value={tempFinanc} onChange={(e) => setTempFinanc(Number(e.target.value))} className="w-32 h-10 font-bold text-purple-600" />
             </div>
             <Button onClick={aplicarCambiosGlobales} className="h-10 bg-blue-600 hover:bg-blue-700 shadow-md gap-2 px-6">
-              <RefreshCw className="h-4 w-4" /> Guardar DB
+              <RefreshCw className="h-4 w-4" /> Guardar variables
             </Button>
           </div>
         </div>

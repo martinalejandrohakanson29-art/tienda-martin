@@ -5,7 +5,6 @@ import Header from "@/components/header";
 import Footer from "@/components/footer";
 import AnnouncementBar from "@/components/announcement-bar";
 import Script from "next/script";
-// 👇 IMPORTAMOS EL NUEVO COMPONENTE HELPER
 import ConditionalHeader from "@/components/conditional-header"; 
 
 const geistSans = localFont({
@@ -39,6 +38,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
+        {/* 👇 CÓDIGO ACTUALIZADO CON TU NUEVO ID: 690783850730543 */}
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
             !function(f,b,e,v,n,t,s)
@@ -49,7 +49,7 @@ export default function RootLayout({
             t.src=v;s=b.getElementsByTagName(e)[0];
             s.parentNode.insertBefore(t,s)}(window, document,'script',
             'https://connect.facebook.net/en_US/fbevents.js');
-            fbq('init', '1404885534459570');
+            fbq('init', '690783850730543');
             fbq('track', 'PageView');
           `}
         </Script>
@@ -59,12 +59,12 @@ export default function RootLayout({
             height="1" 
             width="1" 
             style={{ display: 'none' }}
-            src="https://www.facebook.com/tr?id=1404885534459570&ev=PageView&noscript=1"
+            src="https://www.facebook.com/tr?id=690783850730543&ev=PageView&noscript=1"
             alt=""
           />
         </noscript>
+        {/* 👆 FIN DEL CÓDIGO ACTUALIZADO */}
 
-        {/* 👇 AQUÍ ESTÁ LA MAGIA: Envolvemos el Header y Announcement con el condicional */}
         <ConditionalHeader>
             <div className="sticky top-0 z-50 w-full flex flex-col">
                 <AnnouncementBar />
@@ -76,7 +76,6 @@ export default function RootLayout({
           {children}
         </main>
         
-        {/* El Footer podrías querer ocultarlo también, si es así, mételo dentro de ConditionalHeader también */}
         <Footer />
       </body>
     </html>

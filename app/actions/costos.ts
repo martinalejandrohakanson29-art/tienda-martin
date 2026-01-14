@@ -112,22 +112,30 @@ export async function recalculateAllArticulos() {
 
 // --- FUNCIONES DE OBTENCIÓN DE DATOS ---
 
+// app/actions/costos.ts
+
 export async function getArticulos() {
   try {
     const articulos = await prisma.costosArticulos.findMany({ orderBy: { descripcion: 'asc' } });
+    
+    // 1. Buscamos qué artículos son padres de algún kit para marcarlos
+    const kits = await prisma.articulosCompuestos.findMany({
+      select: { sku_padre: true },
+      distinct: ['sku_padre']
+    });
+    const kitSkus = new Set(kits.map(k => k.sku_padre));
+
     return articulos.map(art => ({
       ...art,
+      // 2. Agregamos la propiedad 'isKit' para usarla en la tabla
+      isKit: kitSkus.has(art.id_articulo),
       costo_usd: art.costo_usd ? Number(art.costo_usd) : 0,
       costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0
     }));
-  } catch (error) { return []; }
-}
-
-export async function getCostosKits() {
-  try {
-    const costos = await prisma.$queryRaw`SELECT * FROM vista_costos_productos ORDER BY costo_total DESC`;
-    return costos as any[];
-  } catch (error) { return []; }
+  } catch (error) { 
+    console.error("Error al obtener artículos:", error);
+    return []; 
+  }
 }
 
 // --- FUNCIONES DE GESTIÓN (CRUD) ---

@@ -9,7 +9,7 @@ import { revalidatePath } from "next/cache";
  * Calcula el costo base sumando sus hijos (si es kit) y luego aplica Dólar/FOB/Financ.
  */
 export async function recalculateProductCost(sku: string) {
-  // 1. Buscamos si este artículo tiene hijos (es un kit) en la nueva tabla
+  // 1. Buscamos si este artículo tiene hijos (es un kit) en la tabla articulosCompuestos
   const componentes = await prisma.articulosCompuestos.findMany({
     where: { sku_padre: sku }
   });
@@ -27,12 +27,12 @@ export async function recalculateProductCost(sku: string) {
       }
     }
   } else {
-    // ES SIMPLE: Simplemente leemos su costo actual
+    // ES SIMPLE: Simplemente leemos su costo actual cargado a mano
     const art = await prisma.costosArticulos.findUnique({ where: { id_articulo: sku } });
     nuevoCostoUsd = Number(art?.costo_usd || 0);
   }
 
-  // 2. Traemos configuración global para el precio final
+  // 2. Traemos configuración global para aplicar al precio final
   const config = await prisma.config.findFirst();
   const dolar = Number(config?.dolarCotizacion || 1);
   const fob = Number(config?.factorFob || 1);
@@ -69,7 +69,6 @@ export async function recalculateProductCost(sku: string) {
 
 /**
  * OBTENER COSTOS DE KITS (Usa la vista de la DB)
- * Esta es la función que faltaba y causaba el error de build.
  */
 export async function getCostosKits() {
   try {
@@ -160,5 +159,54 @@ export async function deleteArticulo(id: number) {
   } catch (error) {
     console.error("Error al eliminar:", error);
     return { success: false, error: "No se pudo eliminar el artículo" };
+  }
+}
+
+/**
+ * OBTENER COMPONENTES DE UN ARTÍCULO PADRE
+ */
+export async function getComponentes(skuPadre: string) {
+  try {
+    const componentes = await prisma.articulosCompuestos.findMany({
+      where: { sku_padre: skuPadre }
+    });
+    return componentes;
+  } catch (error) {
+    console.error("Error al obtener componentes:", error);
+    return [];
+  }
+}
+
+/**
+ * ACTUALIZAR COMPONENTES DE UN ARTÍCULO
+ */
+export async function updateComponentes(skuPadre: string, componentes: { sku_hijo: string, cantidad: number }[]) {
+  try {
+    // 1. Eliminamos las relaciones actuales para el padre
+    await prisma.articulosCompuestos.deleteMany({
+      where: { sku_padre: skuPadre }
+    });
+
+    // 2. Si hay nuevos componentes, los creamos
+    if (componentes.length > 0) {
+      await prisma.articulosCompuestos.createMany({
+        data: componentes.map(c => ({
+          sku_padre: skuPadre,
+          sku_hijo: c.sku_hijo,
+          cantidad: c.cantidad
+        }))
+      });
+    }
+
+    // 3. Recalculamos el costo del padre automáticamente (esto disparará la propagación)
+    await recalculateProductCost(skuPadre);
+
+    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/costos");
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al actualizar componentes:", error);
+    return { success: false, error: error.message || "Error al actualizar la composición." };
   }
 }

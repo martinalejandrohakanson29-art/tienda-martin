@@ -60,20 +60,20 @@ export function ImportsTable({ data }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  const getCoverageData = (row: ImportItem) => {
+  // Lógica de cálculo centralizada para que tanto el ordenamiento como la visualización usen lo mismo
+  const getCoverageValue = React.useCallback((row: ImportItem) => {
     const stock = row.stockExternal || 0
     const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
     const factorMeses = periodDays / 30
     const monthlyVelocity = totalConMargen / factorMeses
-    const val = monthlyVelocity > 0 ? (stock / monthlyVelocity) : (stock > 0 ? 999 : 0)
+    return monthlyVelocity > 0 ? (stock / monthlyVelocity) : (stock > 0 ? 999 : 0)
+  }, [safetyMargin, periodDays])
 
-    let colorClass = ""
-    if (val >= 999) colorClass = "bg-green-500"
-    else if (val <= 5) colorClass = "bg-red-500"
-    else if (val > 7) colorClass = "bg-green-500"
-    else colorClass = "bg-yellow-500"
-
-    return { val, colorClass, textColor: colorClass.replace('bg-', 'text-') }
+  const getStatusColor = (val: number) => {
+    if (val >= 999) return "bg-green-500"
+    if (val <= 5) return "bg-red-500"
+    if (val > 7) return "bg-green-500"
+    return "bg-yellow-500"
   }
 
   const uniqueOrders = React.useMemo(() => {
@@ -117,7 +117,8 @@ export function ImportsTable({ data }: ImportsTableProps) {
             </Button>
         ),
         cell: ({ row }) => {
-          const { colorClass } = getCoverageData(row.original)
+          const val = getCoverageValue(row.original)
+          const colorClass = getStatusColor(val)
           return (
             <div className="flex items-center gap-2 max-w-[250px] px-1">
               <div className={cn("h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado de stock" />
@@ -190,6 +191,8 @@ export function ImportsTable({ data }: ImportsTableProps) {
       },
       {
         id: "dynamicCoverage", 
+        // FIX: Agregamos el accessorFn para que la tabla pueda ordenar esta columna
+        accessorFn: (row) => getCoverageValue(row),
         header: ({ column }) => (
             <div className="flex justify-center">
                 <Button 
@@ -202,7 +205,9 @@ export function ImportsTable({ data }: ImportsTableProps) {
             </div>
         ),
         cell: ({ row }) => {
-            const { val, textColor } = getCoverageData(row.original)
+            const val = row.getValue("dynamicCoverage") as number
+            const colorClass = getStatusColor(val)
+            const textColor = colorClass.replace('bg-', 'text-')
             return (
               <div className={cn("text-center font-bold text-xs px-1", textColor)}>
                 {val >= 999 ? "∞" : val.toFixed(1) + " m"}
@@ -231,7 +236,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
     }));
 
     return [...baseColumns, ...poColumns];
-  }, [safetyMargin, periodDays, uniqueOrders])
+  }, [safetyMargin, periodDays, uniqueOrders, getCoverageValue]) // Agregado getCoverageValue a las dependencias
 
   const table = useReactTable({
     data,

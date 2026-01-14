@@ -5,59 +5,78 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
 /**
- * RECALCULAR PRECIO DE UN ARTÍCULO
- * Calcula el costo base sumando sus hijos (si es kit) y luego aplica Dólar/FOB/Financ.
+ * RECALCULAR PRECIO DE UN ARTÍCULO (LÓGICA PARA KITS MIXTOS)
+ * Si es kit: Suma los VALORES FINALES EN PESOS de cada componente.
+ * Si es simple: Aplica factores de conversión (Dólar/FOB/Financ) si es moneda dólar.
  */
 export async function recalculateProductCost(sku: string) {
-  // 1. Buscamos si este artículo tiene hijos (es un kit) en la tabla articulosCompuestos
-  const componentes = await prisma.articulosCompuestos.findMany({
-    where: { sku_padre: sku }
-  });
-
-  let nuevoCostoUsd = 0;
-
-  if (componentes.length > 0) {
-    // ES UN KIT: Sumamos el costo de sus hijos multiplicando por la cantidad de cada uno
-    for (const comp of componentes) {
-      const hijo = await prisma.costosArticulos.findUnique({
-        where: { id_articulo: comp.sku_hijo }
-      });
-      if (hijo && hijo.costo_usd) {
-        nuevoCostoUsd += Number(hijo.costo_usd) * comp.cantidad;
-      }
-    }
-  } else {
-    // ES SIMPLE: Simplemente leemos su costo actual cargado a mano
-    const art = await prisma.costosArticulos.findUnique({ where: { id_articulo: sku } });
-    nuevoCostoUsd = Number(art?.costo_usd || 0);
-  }
-
-  // 2. Traemos configuración global para aplicar al precio final
+  // 1. Traemos la configuración global vigente
   const config = await prisma.config.findFirst();
   const dolar = Number(config?.dolarCotizacion || 1);
   const fob = Number(config?.factorFob || 1);
   const financ = Number(config?.recargoFinanciacion || 0);
 
-  const artActual = await prisma.costosArticulos.findUnique({ where: { id_articulo: sku } });
+  // 2. Buscamos el artículo y sus posibles componentes
+  const artActual = await prisma.costosArticulos.findUnique({ 
+    where: { id_articulo: sku } 
+  });
   
-  // 3. Calculamos el costo final ARS persistente
-  let costo_final = nuevoCostoUsd;
-  if (artActual?.es_dolar) {
-      const subtotal = nuevoCostoUsd * dolar * fob;
-      costo_final = subtotal * (1 + (financ / 100));
+  if (!artActual) return;
+
+  const componentes = await prisma.articulosCompuestos.findMany({
+    where: { sku_padre: sku }
+  });
+
+  let nuevoCostoUsd = 0;
+  let nuevoCostoFinalArs = 0;
+
+  if (componentes.length > 0) {
+    /**
+     * ESCENARIO A: ES UN KIT
+     * Sumamos el costo_final_ars de cada hijo (que ya está convertido si era dólar).
+     */
+    let totalArs = 0;
+    let totalBaseUsd = 0;
+
+    for (const comp of componentes) {
+      const hijo = await prisma.costosArticulos.findUnique({
+        where: { id_articulo: comp.sku_hijo }
+      });
+      if (hijo) {
+        totalArs += Number(hijo.costo_final_ars || 0) * comp.cantidad;
+        totalBaseUsd += Number(hijo.costo_usd || 0) * comp.cantidad;
+      }
+    }
+    
+    nuevoCostoUsd = totalBaseUsd;
+    nuevoCostoFinalArs = totalArs; 
+
+  } else {
+    /**
+     * ESCENARIO B: ES UN ARTÍCULO SIMPLE
+     */
+    nuevoCostoUsd = Number(artActual.costo_usd || 0);
+    if (artActual.es_dolar) {
+        // (Costo * Dolar * FOB) * Recargo Financiero
+        const subtotal = nuevoCostoUsd * dolar * fob;
+        nuevoCostoFinalArs = subtotal * (1 + (financ / 100));
+    } else {
+        // Es en pesos: el costo base es igual al final
+        nuevoCostoFinalArs = nuevoCostoUsd;
+    }
   }
 
-  // 4. Actualizamos el artículo con los nuevos valores calculados
+  // 3. Guardamos los resultados calculados en la DB
   await prisma.costosArticulos.update({
     where: { id_articulo: sku },
     data: {
       costo_usd: nuevoCostoUsd,
-      costo_final_ars: costo_final,
+      costo_final_ars: nuevoCostoFinalArs,
       fecha_actualizacion: new Date()
     }
   });
 
-  // 5. PROPAGACIÓN: Si este artículo es hijo de otros kits, los recalculamos a ellos también
+  // 4. PROPAGACIÓN: Si este artículo es hijo de otros kits, los recalculamos también
   const relacionesComoHijo = await prisma.articulosCompuestos.findMany({
     where: { sku_hijo: sku }
   });
@@ -68,48 +87,54 @@ export async function recalculateProductCost(sku: string) {
 }
 
 /**
- * OBTENER COSTOS DE KITS (Usa la vista de la DB)
+ * RECALCULAR TODO EL CATÁLOGO
+ * Útil para actualizar todos los precios de la DB cuando cambia el valor del Dólar global.
  */
-export async function getCostosKits() {
+export async function recalculateAllArticulos() {
   try {
-    const costos = await prisma.$queryRaw`
-      SELECT * FROM vista_costos_productos
-      ORDER BY costo_total DESC
-    `;
-    return costos as any[];
+    const todos = await prisma.costosArticulos.findMany({
+      select: { id_articulo: true }
+    });
+    
+    // Recorremos y recalculamos uno por uno
+    for (const art of todos) {
+      await recalculateProductCost(art.id_articulo);
+    }
+    
+    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/costos");
+    return { success: true };
   } catch (error) {
-    console.error("Error al obtener costos de kits:", error);
-    return [];
+    console.error("Error al recalcular catálogo:", error);
+    return { success: false, error: "No se pudo actualizar el catálogo completo." };
   }
 }
 
-/**
- * OBTENER LOS ARTÍCULOS INDIVIDUALES
- */
+// --- FUNCIONES DE OBTENCIÓN DE DATOS ---
+
 export async function getArticulos() {
   try {
-    const articulos = await prisma.costosArticulos.findMany({
-      orderBy: { descripcion: 'asc' }
-    });
-    
+    const articulos = await prisma.costosArticulos.findMany({ orderBy: { descripcion: 'asc' } });
     return articulos.map(art => ({
       ...art,
       costo_usd: art.costo_usd ? Number(art.costo_usd) : 0,
       costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0
     }));
-  } catch (error) {
-    console.error("Error al obtener artículos:", error);
-    return [];
-  }
+  } catch (error) { return []; }
 }
 
-/**
- * GUARDAR O EDITAR ARTÍCULO
- */
+export async function getCostosKits() {
+  try {
+    const costos = await prisma.$queryRaw`SELECT * FROM vista_costos_productos ORDER BY costo_total DESC`;
+    return costos as any[];
+  } catch (error) { return []; }
+}
+
+// --- FUNCIONES DE GESTIÓN (CRUD) ---
+
 export async function upsertArticulo(data: any) {
   try {
     const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
-    
     const updateData = {
       id_articulo: id_articulo.trim(),
       descripcion: descripcion?.trim(),
@@ -119,94 +144,45 @@ export async function upsertArticulo(data: any) {
     };
 
     if (id) {
-      await prisma.costosArticulos.update({
-        where: { id: Number(id) }, 
-        data: updateData,
-      });
+      await prisma.costosArticulos.update({ where: { id: Number(id) }, data: updateData });
     } else {
-      await prisma.costosArticulos.create({
-        data: updateData,
-      });
+      await prisma.costosArticulos.create({ data: updateData });
     }
 
-    // Disparamos el recálculo automático para este SKU y sus posibles padres
     await recalculateProductCost(id_articulo.trim());
-
     revalidatePath("/admin/mercadolibre/articulos");
-    revalidatePath("/admin/mercadolibre/costos");
-    
     return { success: true };
   } catch (error: any) {
-    console.error("Error al guardar artículo:", error);
-    return { 
-      success: false, 
-      error: error.message || "Error de base de datos al guardar." 
-    };
+    return { success: false, error: error.message };
   }
 }
 
-/**
- * ELIMINAR ARTÍCULO
- */
 export async function deleteArticulo(id: number) {
   try {
-    await prisma.costosArticulos.delete({
-      where: { id }
-    });
+    await prisma.costosArticulos.delete({ where: { id } });
     revalidatePath("/admin/mercadolibre/articulos");
-    revalidatePath("/admin/mercadolibre/costos");
     return { success: true };
-  } catch (error) {
-    console.error("Error al eliminar:", error);
-    return { success: false, error: "No se pudo eliminar el artículo" };
-  }
+  } catch (error) { return { success: false, error: "Error al eliminar." }; }
 }
 
-/**
- * OBTENER COMPONENTES DE UN ARTÍCULO PADRE
- */
+// --- GESTIÓN DE COMPOSICIÓN (KITS) ---
+
 export async function getComponentes(skuPadre: string) {
   try {
-    const componentes = await prisma.articulosCompuestos.findMany({
-      where: { sku_padre: skuPadre }
-    });
-    return componentes;
-  } catch (error) {
-    console.error("Error al obtener componentes:", error);
-    return [];
-  }
+    return await prisma.articulosCompuestos.findMany({ where: { sku_padre: skuPadre } });
+  } catch (error) { return []; }
 }
 
-/**
- * ACTUALIZAR COMPONENTES DE UN ARTÍCULO
- */
 export async function updateComponentes(skuPadre: string, componentes: { sku_hijo: string, cantidad: number }[]) {
   try {
-    // 1. Eliminamos las relaciones actuales para el padre
-    await prisma.articulosCompuestos.deleteMany({
-      where: { sku_padre: skuPadre }
-    });
-
-    // 2. Si hay nuevos componentes, los creamos
+    await prisma.articulosCompuestos.deleteMany({ where: { sku_padre: skuPadre } });
     if (componentes.length > 0) {
       await prisma.articulosCompuestos.createMany({
-        data: componentes.map(c => ({
-          sku_padre: skuPadre,
-          sku_hijo: c.sku_hijo,
-          cantidad: c.cantidad
-        }))
+        data: componentes.map(c => ({ sku_padre: skuPadre, sku_hijo: c.sku_hijo, cantidad: c.cantidad }))
       });
     }
-
-    // 3. Recalculamos el costo del padre automáticamente (esto disparará la propagación)
     await recalculateProductCost(skuPadre);
-
     revalidatePath("/admin/mercadolibre/articulos");
-    revalidatePath("/admin/mercadolibre/costos");
-    
     return { success: true };
-  } catch (error: any) {
-    console.error("Error al actualizar componentes:", error);
-    return { success: false, error: error.message || "Error al actualizar la composición." };
-  }
+  } catch (error: any) { return { success: false, error: error.message }; }
 }

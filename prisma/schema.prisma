@@ -37,6 +37,9 @@ model Product {
 
 model Config {
   id                    String   @id @default(cuid())
+  dolarCotizacion       Decimal  @default(1000) @db.Decimal(10, 2)
+  factorFob             Decimal  @default(1.00) @db.Decimal(10, 2)
+  recargoFinanciacion   Decimal  @default(0)    @db.Decimal(10, 2)
   companyName           String   @default("Mi Tienda")
   logoUrl               String   @default("")
   logoHeight            String   @default("80px")

@@ -7,32 +7,31 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RefreshCw, Search, Plus, Pencil, Trash2 } from "lucide-react";
-import { upsertArticulo, deleteArticulo } from "@/app/actions/costos"; //
-import { updateConfig } from "@/app/actions/config"; //
+import { upsertArticulo, deleteArticulo } from "@/app/actions/costos";
+import { updateConfig } from "@/app/actions/config";
 
 export function ArticulosTable({ data, initialConfig }: { data: any[], initialConfig: any }) {
   const [filter, setFilter] = useState("");
   
-  // Valores para los inputs (Temporales) - Cargamos desde initialConfig
+  // Valores para los inputs (Temporales) - Estos son los que usaremos para calcular en vivo
   const [tempDolar, setTempDolar] = useState(Number(initialConfig?.dolarCotizacion || 1530));
   const [tempFob, setTempFob] = useState(Number(initialConfig?.factorFob || 2.3));
   const [tempFinanc, setTempFinanc] = useState(Number(initialConfig?.recargoFinanciacion || 0));
 
-  // Valores que REALMENTE calculan (Activos)
+  // Valores "Activos" - Representan lo que está actualmente en la DB
   const [activeDolar, setActiveDolar] = useState(tempDolar);
   const [activeFob, setActiveFob] = useState(tempFob);
   const [activeFinanc, setActiveFinanc] = useState(tempFinanc);
 
-  // Estados para el Modal de CRUD
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingArticulo, setEditingArticulo] = useState<any>(null);
 
   const aplicarCambiosGlobales = async () => {
+    // Cuando apretamos el botón, sincronizamos los valores activos y guardamos en DB
     setActiveDolar(tempDolar);
     setActiveFob(tempFob);
     setActiveFinanc(tempFinanc);
 
-    // GUARDADO PERSISTENTE en la base de datos a través de config
     await updateConfig({
       dolarCotizacion: tempDolar,
       factorFob: tempFob,
@@ -49,14 +48,13 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     e.preventDefault();
     try {
       const res = await upsertArticulo(editingArticulo);
-      // CORRECCIÓN: Se usa res?.success para evitar el error de 'possibly undefined'
       if (res?.success) {
         setIsModalOpen(false);
       } else {
-        alert("Error: " + (res?.error || "Error de base de datos al guardar."));
+        alert("Error: " + (res?.error || "Error de base de datos."));
       }
     } catch (err) {
-      alert("Ocurrió un error inesperado en la comunicación con el servidor.");
+      alert("Error inesperado en el servidor.");
     }
   };
 
@@ -73,11 +71,9 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
 
   return (
     <div className="space-y-4">
-      {/* BARRA SUPERIOR FIJA (STICKY) */}
       <div className="sticky top-[-16px] z-30 bg-slate-50/95 backdrop-blur-sm pb-4 pt-2 -mx-2 px-2 border-b mb-6">
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
           
-          {/* Buscador y Botón Nuevo */}
           <div className="flex items-center gap-3 w-full max-w-xl">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -93,7 +89,6 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
             </Button>
           </div>
 
-          {/* Panel de Dólar, FOB y Financiación con Botón Modificar */}
           <div className="flex items-end gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex flex-col gap-1.5">
               <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Valor Dólar</Label>
@@ -126,12 +121,13 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Financ. %</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">%</span>
+                {/* CAMBIO: Aumentado el ancho de w-20 a w-32 para que entre el número entero */}
                 <Input
                   type="number"
                   step="0.01"
                   value={tempFinanc}
                   onChange={(e) => setTempFinanc(Number(e.target.value))}
-                  className="w-20 h-10 pl-7 font-bold text-purple-600 border-slate-100 bg-slate-50/50"
+                  className="w-32 h-10 pl-7 font-bold text-purple-600 border-slate-100 bg-slate-50/50"
                 />
               </div>
             </div>
@@ -141,13 +137,12 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               className="h-10 bg-blue-600 hover:bg-blue-700 shadow-md gap-2 px-6"
             >
               <RefreshCw className="h-4 w-4" />
-              Modificar
+              Guardar en DB
             </Button>
           </div>
         </div>
       </div>
       
-      {/* TABLA DE ARTÍCULOS */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-slate-50">
@@ -156,7 +151,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               <TableHead className="font-bold text-slate-600">Descripción</TableHead>
               <TableHead className="w-[100px] font-bold text-slate-600 text-center">Es Dólar</TableHead>
               <TableHead className="w-[140px] font-bold text-slate-600 text-center">Precio Base</TableHead>
-              <TableHead className="w-[180px] font-bold text-slate-700 text-right pr-8">Final ARS</TableHead>
+              <TableHead className="w-[180px] font-bold text-slate-700 text-right pr-8">Final ARS (Vista Previa)</TableHead>
               <TableHead className="w-[100px] font-bold text-slate-600 text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -164,11 +159,10 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
             {filteredData.map((item) => {
               let finalArs = 0;
               if (item.es_dolar) {
-                // Cálculo USD: (Precio * Dolar * FOB) + Recargo Financiero
-                const subtotal = Number(item.costo_usd) * activeDolar * activeFob;
-                finalArs = subtotal * (1 + (activeFinanc / 100));
+                // CAMBIO: Ahora usamos tempDolar, tempFob y tempFinanc para ver el cambio instantáneo
+                const subtotal = Number(item.costo_usd) * tempDolar * tempFob;
+                finalArs = subtotal * (1 + (tempFinanc / 100));
               } else {
-                // Cálculo Pesos: Directo
                 finalArs = Number(item.costo_usd);
               }
 
@@ -211,10 +205,10 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
       </div>
 
       <div className="text-[10px] text-slate-400 italic text-right pr-4 pb-10">
-        * Dólar: ${activeDolar.toLocaleString('es-AR')} | FOB: x{activeFob.toFixed(2)} | Financ: {activeFinanc}% (Afecta solo a Dólar: SÍ)
+        {/* CAMBIO: La leyenda inferior también refleja los cambios que estás simulando */}
+        * Vista Previa -> Dólar: ${tempDolar.toLocaleString('es-AR')} | FOB: x{tempFob.toFixed(2)} | Financ: {tempFinanc}%
       </div>
 
-      {/* MODAL DE EDICIÓN / CREACIÓN */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>

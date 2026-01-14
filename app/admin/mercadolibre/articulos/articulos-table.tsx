@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { RefreshCw, Search, Plus, Pencil, Trash2 } from "lucide-react";
-import { upsertArticulo, deleteArticulo } from "@/app/actions/costos";
-import { updateConfig } from "@/app/actions/config"; // Importamos tu acción existente
+import { upsertArticulo, deleteArticulo } from "@/app/actions/costos"; //
+import { updateConfig } from "@/app/actions/config"; //
 
 export function ArticulosTable({ data, initialConfig }: { data: any[], initialConfig: any }) {
   const [filter, setFilter] = useState("");
@@ -32,7 +32,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     setActiveFob(tempFob);
     setActiveFinanc(tempFinanc);
 
-    // GUARDADO PERSISTENTE en la base de datos
+    // GUARDADO PERSISTENTE en la base de datos a través de config
     await updateConfig({
       dolarCotizacion: tempDolar,
       factorFob: tempFob,
@@ -49,13 +49,14 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     e.preventDefault();
     try {
       const res = await upsertArticulo(editingArticulo);
-      if (res.success) {
+      // CORRECCIÓN: Se usa res?.success para evitar el error de 'possibly undefined'
+      if (res?.success) {
         setIsModalOpen(false);
       } else {
-        alert("Error: " + res.error);
+        alert("Error: " + (res?.error || "Error de base de datos al guardar."));
       }
     } catch (err) {
-      alert("Ocurrió un error inesperado.");
+      alert("Ocurrió un error inesperado en la comunicación con el servidor.");
     }
   };
 
@@ -72,10 +73,11 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
 
   return (
     <div className="space-y-4">
-      {/* BARRA SUPERIOR FIJA */}
+      {/* BARRA SUPERIOR FIJA (STICKY) */}
       <div className="sticky top-[-16px] z-30 bg-slate-50/95 backdrop-blur-sm pb-4 pt-2 -mx-2 px-2 border-b mb-6">
         <div className="flex flex-col md:flex-row justify-between items-end gap-4">
           
+          {/* Buscador y Botón Nuevo */}
           <div className="flex items-center gap-3 w-full max-w-xl">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -91,7 +93,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
             </Button>
           </div>
 
-          {/* PANEL DE COSTOS ACTUALIZADO */}
+          {/* Panel de Dólar, FOB y Financiación con Botón Modificar */}
           <div className="flex items-end gap-4 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
             <div className="flex flex-col gap-1.5">
               <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Valor Dólar</Label>
@@ -111,7 +113,8 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">x</span>
                 <Input
-                  type="number" step="0.1"
+                  type="number"
+                  step="0.1"
                   value={tempFob}
                   onChange={(e) => setTempFob(Number(e.target.value))}
                   className="w-20 h-10 pl-7 font-bold text-amber-600 border-slate-100 bg-slate-50/50"
@@ -119,13 +122,13 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               </div>
             </div>
 
-            {/* NUEVO INPUT: FINANCIACIÓN */}
             <div className="flex flex-col gap-1.5">
               <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Financ. %</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">%</span>
                 <Input
-                  type="number" step="0.01"
+                  type="number"
+                  step="0.01"
                   value={tempFinanc}
                   onChange={(e) => setTempFinanc(Number(e.target.value))}
                   className="w-20 h-10 pl-7 font-bold text-purple-600 border-slate-100 bg-slate-50/50"
@@ -133,13 +136,18 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               </div>
             </div>
 
-            <Button onClick={aplicarCambiosGlobales} className="h-10 bg-blue-600 hover:bg-blue-700 shadow-md gap-2 px-6">
-              <RefreshCw className="h-4 w-4" /> Modificar
+            <Button 
+              onClick={aplicarCambiosGlobales} 
+              className="h-10 bg-blue-600 hover:bg-blue-700 shadow-md gap-2 px-6"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Modificar
             </Button>
           </div>
         </div>
       </div>
       
+      {/* TABLA DE ARTÍCULOS */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-slate-50">
@@ -154,7 +162,6 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
           </TableHeader>
           <TableBody>
             {filteredData.map((item) => {
-              // LÓGICA DE CÁLCULO CONDICIONAL
               let finalArs = 0;
               if (item.es_dolar) {
                 // Cálculo USD: (Precio * Dolar * FOB) + Recargo Financiero
@@ -172,21 +179,26 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
                     {item.descripcion}
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant={item.es_dolar ? "default" : "secondary"}>{item.es_dolar ? "SÍ" : "NO"}</Badge>
+                    <Badge variant={item.es_dolar ? "default" : "secondary"}>
+                      {item.es_dolar ? "SÍ" : "NO"}
+                    </Badge>
                   </TableCell>
+                  
                   <TableCell className="text-center font-semibold text-slate-500">
                     {item.es_dolar ? 'U$S ' : '$ '}
                     {Number(item.costo_usd).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </TableCell>
+
                   <TableCell className="text-right pr-8 font-extrabold text-green-700 text-lg">
                     ${finalArs.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </TableCell>
+
                   <TableCell className="text-center">
                     <div className="flex items-center justify-center gap-1">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600" onClick={() => handleOpenModal(item)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => handleOpenModal(item)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600" onClick={() => handleDelete(item.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => handleDelete(item.id)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
@@ -202,7 +214,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
         * Dólar: ${activeDolar.toLocaleString('es-AR')} | FOB: x{activeFob.toFixed(2)} | Financ: {activeFinanc}% (Afecta solo a Dólar: SÍ)
       </div>
 
-      {/* MODAL (IGUAL AL ORIGINAL) */}
+      {/* MODAL DE EDICIÓN / CREACIÓN */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -213,20 +225,43 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
           <form onSubmit={handleSave} className="space-y-4 pt-4">
             <div className="grid gap-2">
               <Label htmlFor="sku" className="font-bold">ID de Artículo (SKU)</Label>
-              <Input id="sku" value={editingArticulo?.id_articulo || ""} onChange={e => setEditingArticulo({...editingArticulo, id_articulo: e.target.value})} required className="bg-slate-50" />
+              <Input 
+                id="sku"
+                value={editingArticulo?.id_articulo || ""} 
+                onChange={e => setEditingArticulo({...editingArticulo, id_articulo: e.target.value})} 
+                required
+                className="bg-slate-50"
+              />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="desc" className="font-bold">Descripción</Label>
-              <Input id="desc" value={editingArticulo?.descripcion || ""} onChange={e => setEditingArticulo({...editingArticulo, descripcion: e.target.value})} required className="bg-slate-50 uppercase" />
+              <Input 
+                id="desc"
+                value={editingArticulo?.descripcion || ""} 
+                onChange={e => setEditingArticulo({...editingArticulo, descripcion: e.target.value})} 
+                required
+                className="bg-slate-50 uppercase"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="price" className="font-bold">Precio Base</Label>
-                <Input id="price" type="number" step="0.01" value={editingArticulo?.costo_usd || 0} onChange={e => setEditingArticulo({...editingArticulo, costo_usd: Number(e.target.value)})} required />
+                <Input 
+                  id="price"
+                  type="number" step="0.01"
+                  value={editingArticulo?.costo_usd || 0} 
+                  onChange={e => setEditingArticulo({...editingArticulo, costo_usd: Number(e.target.value)})} 
+                  required
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="is-usd" className="font-bold">¿Es Dólar?</Label>
-                <select id="is-usd" className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500" value={editingArticulo?.es_dolar ? "true" : "false"} onChange={e => setEditingArticulo({...editingArticulo, es_dolar: e.target.value === "true"})}>
+                <select 
+                  id="is-usd"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                  value={editingArticulo?.es_dolar ? "true" : "false"}
+                  onChange={e => setEditingArticulo({...editingArticulo, es_dolar: e.target.value === "true"})}
+                >
                   <option value="true">SÍ (Usar Dólar/FOB)</option>
                   <option value="false">NO (Precio en Pesos)</option>
                 </select>

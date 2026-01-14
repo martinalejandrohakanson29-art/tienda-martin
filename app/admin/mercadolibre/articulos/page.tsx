@@ -1,4 +1,5 @@
 import { getArticulos } from "@/app/actions/costos";
+import { getConfig } from "@/app/actions/config"; // Importamos tu acción
 import { ArticulosTable } from "./articulos-table";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -6,10 +7,10 @@ import Link from "next/link";
 
 export default async function ArticulosPage() {
   const data = await getArticulos();
+  const config = await getConfig(); // Traemos la config persistente
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Cabecera superior fija con el botón Atrás */}
       <div className="bg-white border-b px-8 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <Link href="/admin/mercadolibre">
@@ -26,7 +27,8 @@ export default async function ArticulosPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-8 pt-4">
-        <ArticulosTable data={data} />
+        {/* Pasamos la configuración inicial a la tabla */}
+        <ArticulosTable data={data} initialConfig={config} />
       </div>
     </div>
   );

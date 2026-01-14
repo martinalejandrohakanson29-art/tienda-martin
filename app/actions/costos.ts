@@ -40,27 +40,44 @@ export async function getArticulos() {
   }
 }
 
-// 3. Función para crear o editar artículos (UPSERT)
+// app/actions/costos.ts
+
 export async function upsertArticulo(data: any) {
   try {
+    // Extraemos los datos y nos aseguramos de que el id sea un número si existe
     const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
+    
+    // Preparamos los datos para Prisma asegurando tipos numéricos
+    const updateData = {
+      id_articulo: id_articulo.trim(),
+      descripcion: descripcion?.trim(),
+      costo_usd: Number(costo_usd), // Forzamos que sea número (Decimal en Prisma acepta number)
+      es_dolar: Boolean(es_dolar),
+    };
 
     if (id) {
+      // MODIFICACIÓN: Aseguramos que el id sea un número entero
       await prisma.costosArticulos.update({
-        where: { id },
-        data: { id_articulo, descripcion, costo_usd, es_dolar },
+        where: { id: Number(id) }, 
+        data: updateData,
       });
     } else {
       await prisma.costosArticulos.create({
-        data: { id_articulo, descripcion, costo_usd, es_dolar },
+        data: updateData,
       });
     }
 
     revalidatePath("/admin/mercadolibre/articulos");
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error al guardar:", error);
-    return { success: false, error: "Error al guardar el artículo" };
+    // Devolvemos el error específico para que el frontend pueda mostrarlo
+    return { 
+      success: false, 
+      error: error.code === 'P2002' 
+        ? "Ya existe un artículo con ese SKU (ID de Artículo)." 
+        : "Error de base de datos al guardar." 
+    };
   }
 }
 

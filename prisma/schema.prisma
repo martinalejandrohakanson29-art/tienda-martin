@@ -227,6 +227,17 @@ model KitComponent {
   @@index([supplierProductSku])
 }
 
+model ArticulosCompuestos {
+  id              Int      @id @default(autoincrement())
+  sku_padre       String   // El SKU del kit (ej: 485801)
+  sku_hijo        String   // El SKU del componente (ej: 483329)
+  cantidad        Int      @default(1)
+  fecha_registro  DateTime @default(now())
+
+  @@unique([sku_padre, sku_hijo], name: "unique_parent_child")
+  @@map("articulos_compuestos")
+}
+
 model PlanningSession {
   id          String   @id @default(cuid())
   dateFrom    DateTime 

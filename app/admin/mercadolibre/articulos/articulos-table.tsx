@@ -13,12 +13,12 @@ import { updateConfig } from "@/app/actions/config";
 export function ArticulosTable({ data, initialConfig }: { data: any[], initialConfig: any }) {
   const [filter, setFilter] = useState("");
   
-  // Valores para los inputs (Temporales) - Estos son los que usaremos para calcular en vivo
+  // Valores para los inputs (Temporales) - Para cálculo en vivo
   const [tempDolar, setTempDolar] = useState(Number(initialConfig?.dolarCotizacion || 1530));
   const [tempFob, setTempFob] = useState(Number(initialConfig?.factorFob || 2.3));
   const [tempFinanc, setTempFinanc] = useState(Number(initialConfig?.recargoFinanciacion || 0));
 
-  // Valores "Activos" - Representan lo que está actualmente en la DB
+  // Valores "Activos" (Persistidos en DB)
   const [activeDolar, setActiveDolar] = useState(tempDolar);
   const [activeFob, setActiveFob] = useState(tempFob);
   const [activeFinanc, setActiveFinanc] = useState(tempFinanc);
@@ -27,7 +27,6 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
   const [editingArticulo, setEditingArticulo] = useState<any>(null);
 
   const aplicarCambiosGlobales = async () => {
-    // Cuando apretamos el botón, sincronizamos los valores activos y guardamos en DB
     setActiveDolar(tempDolar);
     setActiveFob(tempFob);
     setActiveFinanc(tempFinanc);
@@ -121,7 +120,6 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               <Label className="text-[10px] font-bold uppercase text-slate-400 ml-1">Financ. %</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">%</span>
-                {/* CAMBIO: Aumentado el ancho de w-20 a w-32 para que entre el número entero */}
                 <Input
                   type="number"
                   step="0.01"
@@ -159,7 +157,6 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
             {filteredData.map((item) => {
               let finalArs = 0;
               if (item.es_dolar) {
-                // CAMBIO: Ahora usamos tempDolar, tempFob y tempFinanc para ver el cambio instantáneo
                 const subtotal = Number(item.costo_usd) * tempDolar * tempFob;
                 finalArs = subtotal * (1 + (tempFinanc / 100));
               } else {
@@ -205,8 +202,8 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
       </div>
 
       <div className="text-[10px] text-slate-400 italic text-right pr-4 pb-10">
-        {/* CAMBIO: La leyenda inferior también refleja los cambios que estás simulando */}
-        * Vista Previa -> Dólar: ${tempDolar.toLocaleString('es-AR')} | FOB: x{tempFob.toFixed(2)} | Financ: {tempFinanc}%
+        {/* CORRECCIÓN: Se usa &rarr; para la flecha y se limpia la interpolación de moneda */}
+        * Vista Previa &rarr; Dólar: ${tempDolar.toLocaleString('es-AR')} | FOB: x{tempFob.toFixed(2)} | Financ: {tempFinanc}%
       </div>
 
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

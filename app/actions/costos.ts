@@ -4,12 +4,12 @@
 import { prisma } from "@/lib/prisma"; 
 import { revalidatePath } from "next/cache";
 
-// --- FUNCIÓN MAESTRA: RECALCULAR PRECIO DE UN ARTÍCULO ---
-// Esta función calcula el costo base de un artículo:
-// - Si es simple: usa su costo_usd actual.
-// - Si es compuesto: suma el costo de todos sus hijos.
+/**
+ * RECALCULAR PRECIO DE UN ARTÍCULO
+ * Calcula el costo base sumando sus hijos (si es kit) y luego aplica Dólar/FOB/Financ.
+ */
 export async function recalculateProductCost(sku: string) {
-  // 1. Buscamos si este artículo tiene hijos (es un kit)
+  // 1. Buscamos si este artículo tiene hijos (es un kit) en la nueva tabla
   const componentes = await prisma.articulosCompuestos.findMany({
     where: { sku_padre: sku }
   });
@@ -17,7 +17,7 @@ export async function recalculateProductCost(sku: string) {
   let nuevoCostoUsd = 0;
 
   if (componentes.length > 0) {
-    // ES UN KIT: Calculamos la suma de sus hijos
+    // ES UN KIT: Sumamos el costo de sus hijos multiplicando por la cantidad de cada uno
     for (const comp of componentes) {
       const hijo = await prisma.costosArticulos.findUnique({
         where: { id_articulo: comp.sku_hijo }
@@ -27,12 +27,12 @@ export async function recalculateProductCost(sku: string) {
       }
     }
   } else {
-    // ES SIMPLE: Mantenemos el costo que ya tiene
+    // ES SIMPLE: Simplemente leemos su costo actual
     const art = await prisma.costosArticulos.findUnique({ where: { id_articulo: sku } });
     nuevoCostoUsd = Number(art?.costo_usd || 0);
   }
 
-  // 2. Traemos configuración global para el precio final ARS
+  // 2. Traemos configuración global para el precio final
   const config = await prisma.config.findFirst();
   const dolar = Number(config?.dolarCotizacion || 1);
   const fob = Number(config?.factorFob || 1);
@@ -40,13 +40,14 @@ export async function recalculateProductCost(sku: string) {
 
   const artActual = await prisma.costosArticulos.findUnique({ where: { id_articulo: sku } });
   
-  // 3. Calculamos el costo final ARS
+  // 3. Calculamos el costo final ARS persistente
   let costo_final = nuevoCostoUsd;
   if (artActual?.es_dolar) {
-      costo_final = (nuevoCostoUsd * dolar * fob) * (1 + (financ / 100));
+      const subtotal = nuevoCostoUsd * dolar * fob;
+      costo_final = subtotal * (1 + (financ / 100));
   }
 
-  // 4. Guardamos los cambios en el artículo
+  // 4. Actualizamos el artículo con los nuevos valores calculados
   await prisma.costosArticulos.update({
     where: { id_articulo: sku },
     data: {
@@ -56,24 +57,60 @@ export async function recalculateProductCost(sku: string) {
     }
   });
 
-  // 5. RECURSIVIDAD (Propagación hacia arriba):
-  // ¿Este artículo es a su vez hijo de otro kit? Buscamos sus "padres"
+  // 5. PROPAGACIÓN: Si este artículo es hijo de otros kits, los recalculamos a ellos también
   const relacionesComoHijo = await prisma.articulosCompuestos.findMany({
     where: { sku_hijo: sku }
   });
 
   for (const rel of relacionesComoHijo) {
-    // Llamamos a la misma función para el padre (así sube por toda la cadena)
     await recalculateProductCost(rel.sku_padre);
   }
 }
 
-// --- ACTUALIZAR O CREAR ARTÍCULO ---
+/**
+ * OBTENER COSTOS DE KITS (Usa la vista de la DB)
+ * Esta es la función que faltaba y causaba el error de build.
+ */
+export async function getCostosKits() {
+  try {
+    const costos = await prisma.$queryRaw`
+      SELECT * FROM vista_costos_productos
+      ORDER BY costo_total DESC
+    `;
+    return costos as any[];
+  } catch (error) {
+    console.error("Error al obtener costos de kits:", error);
+    return [];
+  }
+}
+
+/**
+ * OBTENER LOS ARTÍCULOS INDIVIDUALES
+ */
+export async function getArticulos() {
+  try {
+    const articulos = await prisma.costosArticulos.findMany({
+      orderBy: { descripcion: 'asc' }
+    });
+    
+    return articulos.map(art => ({
+      ...art,
+      costo_usd: art.costo_usd ? Number(art.costo_usd) : 0,
+      costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0
+    }));
+  } catch (error) {
+    console.error("Error al obtener artículos:", error);
+    return [];
+  }
+}
+
+/**
+ * GUARDAR O EDITAR ARTÍCULO
+ */
 export async function upsertArticulo(data: any) {
   try {
     const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
     
-    // 1. Guardamos los datos básicos
     const updateData = {
       id_articulo: id_articulo.trim(),
       descripcion: descripcion?.trim(),
@@ -93,8 +130,7 @@ export async function upsertArticulo(data: any) {
       });
     }
 
-    // 2. DISPARAMOS EL RECALCULO:
-    // Al actualizar un artículo, recalculamos su precio y el de todos sus kits "padres"
+    // Disparamos el recálculo automático para este SKU y sus posibles padres
     await recalculateProductCost(id_articulo.trim());
 
     revalidatePath("/admin/mercadolibre/articulos");
@@ -103,32 +139,26 @@ export async function upsertArticulo(data: any) {
     return { success: true };
   } catch (error: any) {
     console.error("Error al guardar artículo:", error);
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: error.message || "Error de base de datos al guardar." 
+    };
   }
 }
 
-// Obtener los artículos individuales (sin cambios)
-export async function getArticulos() {
-  try {
-    const articulos = await prisma.costosArticulos.findMany({
-      orderBy: { descripcion: 'asc' }
-    });
-    return articulos.map(art => ({
-      ...art,
-      costo_usd: art.costo_usd ? Number(art.costo_usd) : 0,
-      costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0
-    }));
-  } catch (error) {
-    return [];
-  }
-}
-
+/**
+ * ELIMINAR ARTÍCULO
+ */
 export async function deleteArticulo(id: number) {
   try {
-    await prisma.costosArticulos.delete({ where: { id } });
+    await prisma.costosArticulos.delete({
+      where: { id }
+    });
     revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/costos");
     return { success: true };
   } catch (error) {
-    return { success: false, error: "Error al eliminar" };
+    console.error("Error al eliminar:", error);
+    return { success: false, error: "No se pudo eliminar el artículo" };
   }
 }

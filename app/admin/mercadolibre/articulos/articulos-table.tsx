@@ -6,20 +6,20 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-// Agregamos Boxes para el ícono de Kit
+// Importamos recalculateAllArticulos para refrescar los precios al guardar
 import { RefreshCw, Search, Plus, Pencil, Trash2, Boxes, Trash } from "lucide-react";
-import { upsertArticulo, deleteArticulo, getComponentes, updateComponentes } from "@/app/actions/costos";
+import { upsertArticulo, deleteArticulo, getComponentes, updateComponentes, recalculateAllArticulos } from "@/app/actions/costos";
 import { updateConfig } from "@/app/actions/config";
 
 export function ArticulosTable({ data, initialConfig }: { data: any[], initialConfig: any }) {
   const [filter, setFilter] = useState("");
   
-  // Valores para los inputs (Temporales para cálculo en vivo)
+  // Valores para los inputs (Temporales para cálculo en vivo de artículos simples)
   const [tempDolar, setTempDolar] = useState(Number(initialConfig?.dolarCotizacion || 1530));
   const [tempFob, setTempFob] = useState(Number(initialConfig?.factorFob || 2.3));
   const [tempFinanc, setTempFinanc] = useState(Number(initialConfig?.recargoFinanciacion || 0));
 
-  // Valores "Activos"
+  // Valores "Activos" en la base de datos
   const [activeDolar, setActiveDolar] = useState(tempDolar);
   const [activeFob, setActiveFob] = useState(tempFob);
   const [activeFinanc, setActiveFinanc] = useState(tempFinanc);
@@ -38,11 +38,17 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     setActiveDolar(tempDolar);
     setActiveFob(tempFob);
     setActiveFinanc(tempFinanc);
+    
+    // 1. Guardamos la nueva configuración en la DB
     await updateConfig({
       dolarCotizacion: tempDolar,
       factorFob: tempFob,
       recargoFinanciacion: tempFinanc
     });
+
+    // 2. IMPORTANTE: Recalculamos todos los artículos para que los Kits tomen el nuevo valor del dólar de sus hijos
+    await recalculateAllArticulos();
+    alert("Configuración guardada y precios de Kits actualizados.");
   };
 
   // --- LÓGICA DE COMPOSICIÓN ---
@@ -155,15 +161,36 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
           </TableHeader>
           <TableBody>
             {filteredData.map((item) => {
-              const subtotal = item.es_dolar ? Number(item.costo_usd) * tempDolar * tempFob : Number(item.costo_usd);
-              const finalArs = item.es_dolar ? subtotal * (1 + (tempFinanc / 100)) : subtotal;
+              /**
+               * LÓGICA CORREGIDA PARA PREVIEW:
+               * 1. Si el artículo es un KIT (isKit), mostramos su valor final guardado en pesos.
+               * 2. Si es un artículo simple, aplicamos la fórmula de conversión en vivo.
+               */
+              let finalArs = 0;
+
+              if (item.isKit) {
+                finalArs = Number(item.costo_final_ars || 0);
+              } else {
+                const subtotal = item.es_dolar 
+                  ? Number(item.costo_usd) * tempDolar * tempFob 
+                  : Number(item.costo_usd);
+                
+                finalArs = item.es_dolar 
+                  ? subtotal * (1 + (tempFinanc / 100)) 
+                  : subtotal;
+              }
 
               return (
                 <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors">
                   <TableCell className="font-mono text-blue-600">{item.id_articulo}</TableCell>
                   <TableCell className="font-medium uppercase text-[11px]">{item.descripcion}</TableCell>
                   <TableCell className="text-center">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-amber-600 hover:bg-amber-50" onClick={() => handleOpenKitModal(item)}>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className={`h-8 w-8 ${item.isKit ? 'text-amber-600 hover:bg-amber-50' : 'text-slate-300 hover:bg-slate-50'}`} 
+                      onClick={() => handleOpenKitModal(item)}
+                    >
                       <Boxes className="h-4 w-4" />
                     </Button>
                   </TableCell>
@@ -224,7 +251,7 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
         </DialogContent>
       </Dialog>
 
-      {/* MODAL 2: COMPOSICIÓN DE KIT (NUEVO) */}
+      {/* MODAL 2: COMPOSICIÓN DE KIT */}
       <Dialog open={isKitModalOpen} onOpenChange={setIsKitModalOpen}>
         <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>

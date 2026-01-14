@@ -1,4 +1,3 @@
-
 // app/admin/mercadolibre/costos/costos-table.tsx
 "use client";
 
@@ -7,13 +6,23 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, ArrowUpDown, Search } from "lucide-react";
+// Importamos iconos para el feedback de copiado
+import { ExternalLink, ArrowUpDown, Search, Copy, Check } from "lucide-react"; 
 import { cn } from "@/lib/utils";
 
 export function CostosTable({ data }: { data: any[] }) {
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<'active' | 'paused' | 'all'>('active');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  // Estado para el feedback visual de copiado
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
+  // Función para copiar al portapapeles
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2000); // El icono vuelve a la normalidad en 2 seg
+  };
 
   // Lógica de filtrado
   const filteredData = data.filter(item => {
@@ -49,7 +58,7 @@ export function CostosTable({ data }: { data: any[] }) {
   return (
     <div className="flex flex-col h-full w-full bg-slate-50">
       
-      {/* 1. SECCIÓN FIJA SUPERIOR: Buscador y Filtros */}
+      {/* 1. SECCIÓN FIJA SUPERIOR */}
       <div className="p-4 bg-white border-b border-slate-200 z-30 shadow-sm">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between max-w-[1600px] mx-auto w-full">
           <div className="relative w-full max-w-xl">
@@ -85,20 +94,18 @@ export function CostosTable({ data }: { data: any[] }) {
         </div>
       </div>
 
-      {/* 2. CONTENEDOR DE LA TABLA CON SCROLL */}
-      {/* Usamos flex-1 y overflow-auto para que esta parte use el resto de la pantalla y scrolee */}
+      {/* 2. CONTENEDOR DE LA TABLA */}
       <div className="flex-1 overflow-auto p-4 pt-0"> 
         <div className="max-w-[1600px] mx-auto rounded-xl border border-slate-200 bg-white shadow-sm mt-4">
           <Table>
-            {/* 3. ENCABEZADO FIJO (Sticky Header) */}
-            {/* Importante: sticky top-0 y z-20 para que los títulos no se muevan */}
             <TableHeader className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
               <TableRow className="hover:bg-transparent border-none">
                 <TableHead className="font-bold text-slate-700 py-4 h-12">MLA</TableHead>
                 <TableHead className="w-[300px] font-bold text-slate-700 h-12">Publicación</TableHead>
                 <TableHead className="font-bold text-slate-700 h-12">Variante / ID</TableHead>
                 <TableHead className="font-bold text-slate-700 h-12">Estado</TableHead>
-                <TableHead className="font-bold text-slate-700 h-12">IDs Agregados</TableHead>
+                {/* Ajustamos ancho para que no bailen las columnas */}
+                <TableHead className="font-bold text-slate-700 h-12 min-w-[120px]">IDs Agregados</TableHead>
                 <TableHead className="w-[300px] font-bold text-slate-700 h-12">Agregados</TableHead>
                 <TableHead className="h-12">
                   <Button 
@@ -125,9 +132,7 @@ export function CostosTable({ data }: { data: any[] }) {
                       key={`${item.mla}-${item.variation_id || index}`} 
                       className="hover:bg-blue-50/30 transition-colors border-slate-100"
                     >
-                      <TableCell className="font-mono text-slate-500 text-xs">
-                        {item.mla}
-                      </TableCell>
+                      <TableCell className="font-mono text-slate-500 text-xs">{item.mla}</TableCell>
                       
                       <TableCell className="py-4">
                         <div className="font-bold text-[11px] leading-tight uppercase text-slate-800">
@@ -148,25 +153,35 @@ export function CostosTable({ data }: { data: any[] }) {
 
                       <TableCell>{renderEstadoBadge(item.estado)}</TableCell>
 
+                      {/* --- COLUMNA IDs (CON COPIADO) --- */}
                       <TableCell>
                         <div className="flex flex-col gap-1 py-1">
                           {listaIds.map((id: string, idx: number) => (
-                            <span 
+                            <button 
                               key={idx} 
-                              className="text-[9px] font-mono font-black bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 w-fit"
+                              onClick={() => handleCopy(id)}
+                              className={cn(
+                                "group flex items-center gap-2 text-[9px] font-mono font-black border px-2 py-0.5 rounded transition-all w-fit h-[18px]",
+                                copiedText === id 
+                                  ? "bg-green-100 border-green-300 text-green-700" 
+                                  : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
+                              )}
+                              title="Click para copiar SKU"
                             >
                               {id}
-                            </span>
+                              {copiedText === id ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100" />}
+                            </button>
                           ))}
                         </div>
                       </TableCell>
 
+                      {/* --- COLUMNA AGREGADOS (NOMBRES) ALINEADA --- */}
                       <TableCell>
-                        <div className="flex flex-col gap-1.5 py-1">
+                        <div className="flex flex-col gap-1 py-1">
                           {listaReceta.map((r: string, idx: number) => (
                             <div 
                               key={idx} 
-                              className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none py-0.5"
+                              className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]"
                             >
                               {r}
                             </div>

@@ -48,7 +48,6 @@ export type ImportItem = {
   futureArrivals?: Record<string, { quantity: number, supplier: string }>
 }
 
-// Extendemos el meta de la tabla para que TS reconozca manualInputs
 declare module '@tanstack/react-table' {
   interface TableMeta<TData> {
     manualInputs: Record<string, number>
@@ -66,18 +65,15 @@ type StatusFilterType = "all" | "red" | "yellow" | "green"
 export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const searchParams = useSearchParams()
   
-  // Estados de la tabla
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
   const [manualInputs, setManualInputs] = React.useState<Record<string, number>>({})
   
-  // Estados de filtros visuales
   const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
   const [projectionFilter, setProjectionFilter] = React.useState<StatusFilterType>("all")
 
-  // Calcular días del periodo basados en la URL
   const periodDays = React.useMemo(() => {
     const from = searchParams.get("from")
     const to = searchParams.get("to")
@@ -89,7 +85,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     } catch { return 30 }
   }, [searchParams])
 
-  // Lógica de cálculo centralizada
   const calculateCoverageValue = React.useCallback((
     row: ImportItem, 
     margin: number, 
@@ -100,14 +95,11 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     let futureStock = 0
     
     if (includeFuture) {
-      // Sumar ingresos programados (POs)
       futureStock += Object.values(row.futureArrivals || {}).reduce((sum, a) => sum + a.quantity, 0)
-      // Sumar ingresos manuales (Simulación)
       futureStock += (currentManualInputs[row.id] || 0)
     }
         
     const totalStock = currentStock + futureStock
-    // Ajustar ventas según margen de seguridad y días del periodo
     const adjustedSales = row.salesLast30 * (1 + margin / 100)
     const monthlyVelocity = adjustedSales / (periodDays / 30)
     
@@ -117,12 +109,11 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
 
   const getStatusColor = (val: number) => {
     if (val >= 999) return "bg-green-500"
-    if (val <= 1.5) return "bg-red-600" // Menos de un mes y medio es crítico
-    if (val <= 3) return "bg-yellow-500" // Alerta
+    if (val <= 1.5) return "bg-red-600"
+    if (val <= 3) return "bg-yellow-500"
     return "bg-green-500"
   }
 
-  // Filtrado de datos (Aplicado antes de la tabla)
   const filteredData = React.useMemo(() => {
     return data.filter((item) => {
       const covActual = calculateCoverageValue(item, safetyMargin, false, {})
@@ -144,7 +135,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     })
   }, [data, statusFilter, projectionFilter, safetyMargin, manualInputs, calculateCoverageValue])
 
-  // Extraer órdenes de compra únicas para las columnas dinámicas
   const uniqueOrders = React.useMemo(() => {
     const orderMap = new Map<string, string>();
     data.forEach(p => {
@@ -157,7 +147,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return Array.from(orderMap.entries()).map(([id, supplier]) => ({ id, supplier }));
   }, [data]);
 
-  // Definición de Columnas
+  // --- SOLUCIÓN AL FOCO: Quitamos manualInputs de las dependencias ---
   const columns = React.useMemo<ColumnDef<ImportItem>[]>(() => {
     const cols: ColumnDef<ImportItem>[] = [
       {
@@ -198,9 +188,8 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         id: "currentCoverage",
         header: "Meses Hoy",
         size: 80,
-        accessorFn: (row) => calculateCoverageValue(row, safetyMargin, false, {}),
-        cell: ({ getValue }) => {
-          const val = getValue() as number
+        cell: ({ row }) => {
+          const val = calculateCoverageValue(row.original, safetyMargin, false, {})
           return (
             <div className={cn("text-center font-bold text-[11px]", getStatusColor(val).replace('bg-', 'text-'))}>
               {val >= 999 ? "∞" : `${val.toFixed(1)}m`}
@@ -210,7 +199,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       }
     ];
 
-    // Columnas de POs (Ingresos futuros programados)
     uniqueOrders.forEach(order => {
       cols.push({
         id: `po-${order.id}`,
@@ -228,7 +216,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       })
     })
 
-    // Columna de Simulación (Input)
     cols.push({
       id: "simulation",
       header: "SIMULAR",
@@ -237,6 +224,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         <div className="px-1">
           <Input
             type="number"
+            // Leemos del meta para que sea reactivo pero no rompa el memo
             value={table.options.meta?.manualInputs[row.original.id] || ""}
             onChange={(e) => {
               const val = e.target.value === "" ? 0 : parseInt(e.target.value)
@@ -249,14 +237,14 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       )
     })
 
-    // Columna Proyectada FINAL
     cols.push({
       id: "projected",
       header: "Stock Final",
       size: 90,
-      accessorFn: (row) => calculateCoverageValue(row, safetyMargin, true, manualInputs),
       cell: ({ row, table }) => {
-        const val = calculateCoverageValue(row.original, safetyMargin, true, table.options.meta?.manualInputs || {})
+        // Recalculamos usando el meta actual en cada renderizado de celda
+        const currentInputs = table.options.meta?.manualInputs || {}
+        const val = calculateCoverageValue(row.original, safetyMargin, true, currentInputs)
         const color = getStatusColor(val)
         return (
           <div className="flex justify-center mx-1">
@@ -272,7 +260,8 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     })
 
     return cols
-  }, [uniqueOrders, safetyMargin, manualInputs, calculateCoverageValue])
+    // IMPORTANTE: manualInputs NO debe estar aquí para no perder el foco
+  }, [uniqueOrders, safetyMargin, calculateCoverageValue])
 
   const table = useReactTable({
     data: filteredData,
@@ -291,7 +280,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
 
   return (
     <div className="flex flex-col h-full space-y-4 p-2">
-      {/* TOOLBAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-2 rounded-lg border">
         <div className="flex items-center relative w-64">
           <Search className="absolute left-3 h-4 w-4 text-slate-400" />
@@ -304,7 +292,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Botón Limpiar */}
           {Object.keys(manualInputs).length > 0 && (
             <Button 
               variant="ghost" 
@@ -316,7 +303,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
             </Button>
           )}
 
-          {/* Filtros de Color */}
           <div className="flex items-center gap-2 bg-white px-2 py-1 rounded border shadow-sm">
             <span className="text-[10px] font-bold text-slate-500 uppercase">Estado:</span>
             <div className="flex gap-1">
@@ -337,7 +323,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
             </div>
           </div>
 
-          {/* Margen de Seguridad */}
           <div className="flex items-center gap-2 bg-white px-2 py-1 rounded border shadow-sm">
             <Percent className="h-3 w-3 text-blue-500" />
             <Input
@@ -357,7 +342,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         </div>
       </div>
 
-      {/* TABLA */}
       <div className="flex-1 border rounded-lg overflow-hidden bg-white">
         <div className="overflow-auto h-[calc(100vh-250px)]">
           <Table className="relative border-separate border-spacing-0">

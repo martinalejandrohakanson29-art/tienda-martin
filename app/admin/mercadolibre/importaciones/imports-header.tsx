@@ -84,7 +84,7 @@ export function ImportsHeader() {
                 </Link>
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Tablero de Importaciones</h1>
-                    <p className="text-sm text-slate-500">Vista maestra de proveedores y abastecimiento</p>
+                    <p className="text-sm text-slate-500">Detalles de ventas, stock y tiempos hasta quebrar stock </p>
                 </div>
             </div>
             

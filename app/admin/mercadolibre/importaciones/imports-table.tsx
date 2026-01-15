@@ -60,7 +60,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  // Lógica de cálculo centralizada para que tanto el ordenamiento como la visualización usen lo mismo
+  // Lógica de cálculo centralizada
   const getCoverageValue = React.useCallback((row: ImportItem) => {
     const stock = row.stockExternal || 0
     const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
@@ -121,10 +121,11 @@ export function ImportsTable({ data }: ImportsTableProps) {
           const colorClass = getStatusColor(val)
           return (
             <div className="flex items-center gap-2 max-w-[250px] px-1">
-              <div className={cn("h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado de stock" />
+              {/* CAMBIO 1: Texto primero, luego el semáforo */}
               <div className="font-medium text-xs truncate py-1" title={row.getValue("name")}>
                 {row.getValue("name")}
               </div>
+              <div className={cn("h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado de stock" />
             </div>
           )
         },
@@ -191,7 +192,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
       },
       {
         id: "dynamicCoverage", 
-        // FIX: Agregamos el accessorFn para que la tabla pueda ordenar esta columna
         accessorFn: (row) => getCoverageValue(row),
         header: ({ column }) => (
             <div className="flex justify-center">
@@ -219,8 +219,12 @@ export function ImportsTable({ data }: ImportsTableProps) {
 
     const poColumns: ColumnDef<ImportItem>[] = uniqueOrders.map(order => ({
       id: `po-${order.id}`,
+      // CAMBIO 2: Tamaño fijo más pequeño para la columna
+      size: 55, 
+      minSize: 50,
       header: () => (
-        <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100 min-w-[80px]">
+        // CAMBIO 2: min-w reducido de 80px a 50px
+        <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100 min-w-[50px]">
           <div className="text-[8px] uppercase text-blue-400 font-bold truncate px-1">{order.supplier}</div>
           <div className="text-blue-800 text-[10px] font-bold">#{order.id}</div>
         </div>
@@ -236,7 +240,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
     }));
 
     return [...baseColumns, ...poColumns];
-  }, [safetyMargin, periodDays, uniqueOrders, getCoverageValue]) // Agregado getCoverageValue a las dependencias
+  }, [safetyMargin, periodDays, uniqueOrders, getCoverageValue]) 
 
   const table = useReactTable({
     data,

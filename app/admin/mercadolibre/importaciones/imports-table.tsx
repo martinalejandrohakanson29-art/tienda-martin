@@ -96,20 +96,20 @@ export function ImportsTable({ data }: ImportsTableProps) {
         header: ({ column }) => (
             <Button 
                 variant="ghost" 
-                className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
+                className="hover:bg-transparent p-0 h-auto text-[10px] font-bold w-full justify-center"
                 onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
             >
                 SKU <ArrowUpDown className="ml-1 h-3 w-3" />
             </Button>
         ),
-        cell: ({ row }) => <div className="font-mono text-[10px] font-bold px-1 whitespace-nowrap">{row.getValue("sku")}</div>,
+        cell: ({ row }) => <div className="font-mono text-[10px] font-bold px-1 whitespace-nowrap text-center">{row.getValue("sku")}</div>,
       },
       {
         accessorKey: "name",
         header: ({ column }) => (
             <Button 
                 variant="ghost" 
-                className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
+                className="hover:bg-transparent p-0 h-auto text-[10px] font-bold w-full justify-center"
                 onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
             >
                 Producto <ArrowUpDown className="ml-1 h-3 w-3" />
@@ -119,8 +119,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
           const val = getCoverageValue(row.original)
           const colorClass = getStatusColor(val)
           return (
-            // CAMBIO: Quitamos max-w y truncate. Usamos whitespace-nowrap para que se ensanche sola.
-            <div className="flex items-center gap-2 px-1">
+            <div className="flex items-center justify-center gap-2 px-1">
               <div className="font-medium text-xs whitespace-nowrap py-1" title={row.getValue("name")}>
                 {row.getValue("name")}
               </div>
@@ -188,6 +187,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
             </div>
         ),
         cell: ({ row }) => <div className="text-center font-semibold text-xs">{row.getValue("calculatedVelocity")}</div>,
+        size: 80,
       },
       {
         id: "dynamicCoverage", 
@@ -213,12 +213,12 @@ export function ImportsTable({ data }: ImportsTableProps) {
               </div>
             )
         },
+        size: 70,
       },
     ];
 
     const poColumns: ColumnDef<ImportItem>[] = uniqueOrders.map(order => ({
       id: `po-${order.id}`,
-      // Ya no necesitamos tamaños fijos estrictos, dejamos que table-auto lo maneje, pero damos un mínimo
       header: () => (
         <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100 min-w-[40px]">
           <div className="text-[8px] uppercase text-blue-400 font-bold truncate px-1 max-w-[60px]">{order.supplier}</div>
@@ -286,16 +286,15 @@ export function ImportsTable({ data }: ImportsTableProps) {
 
       <div className="flex-1 min-h-0 rounded-md border bg-white shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-auto flex-1 h-full">
-          {/* CAMBIO: table-fixed a table-auto. Esto permite que las columnas se ajusten al contenido */}
-          <Table containerClassName="overflow-visible" className="relative border-separate border-spacing-0 table-auto w-full">
+          <Table containerClassName="overflow-visible" className="relative border-separate border-spacing-0 w-full">
             <TableHeader className="sticky top-0 z-30 shadow-sm">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="hover:bg-transparent border-none">
                   {headerGroup.headers.map((header) => (
                     <TableHead 
                         key={header.id} 
-                        className="bg-slate-100 font-bold text-slate-700 h-10 py-0 px-1 sticky top-0 z-30 border-b text-[10px] whitespace-nowrap"
-                        // CAMBIO: Quitamos style={{ width: header.getSize() }} para que table-auto funcione libremente
+                        className="bg-slate-100 font-bold text-slate-700 h-10 py-0 px-1 sticky top-0 z-30 border-b text-[10px] whitespace-nowrap text-center"
+                        style={header.column.getSize() !== 150 ? { width: header.column.getSize() } : undefined}
                     >
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>

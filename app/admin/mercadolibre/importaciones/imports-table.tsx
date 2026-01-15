@@ -16,10 +16,11 @@ import {
   Search, 
   Percent, 
   CalendarDays, 
-  RefreshCw 
+  RefreshCw,
+  TrendingUp 
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
-import { format } from "date-fns" // Cambiamos formatDistanceToNow por format
+import { format } from "date-fns"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,13 +50,18 @@ interface ImportsTableProps {
   lastUpdate: Date | null
 }
 
+type StatusFilterType = "all" | "red" | "yellow" | "green"
+
 export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const searchParams = useSearchParams()
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
-  const [statusFilter, setStatusFilter] = React.useState<"all" | "red" | "yellow" | "green">("all")
+  
+  // --- NUEVOS ESTADOS DE FILTRO ---
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
+  const [projectionFilter, setProjectionFilter] = React.useState<StatusFilterType>("all")
 
   const periodDays = React.useMemo(() => {
     const from = searchParams.get("from")
@@ -68,12 +74,21 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  const calculateCoverage = React.useCallback((row: ImportItem, margin: number) => {
-    const stock = row.stockExternal || 0
+  // --- LÓGICA DE CÁLCULO MEJORADA ---
+  const calculateCoverage = React.useCallback((row: ImportItem, margin: number, includeFuture = false) => {
+    const currentStock = row.stockExternal || 0
+    
+    // Sumamos todas las cantidades de las órdenes de compra futuras
+    const futureStock = includeFuture 
+        ? Object.values(row.futureArrivals || {}).reduce((sum, arrival) => sum + arrival.quantity, 0)
+        : 0
+        
+    const totalStock = currentStock + futureStock
     const totalWithMargin = row.salesLast30 * (1 + margin / 100)
     const factorMonths = periodDays / 30
     const monthlyVelocity = totalWithMargin / factorMonths
-    return monthlyVelocity > 0 ? (stock / monthlyVelocity) : (stock > 0 ? 999 : 0)
+    
+    return monthlyVelocity > 0 ? (totalStock / monthlyVelocity) : (totalStock > 0 ? 999 : 0)
   }, [periodDays])
 
   const getStatusColor = (val: number) => {
@@ -83,16 +98,29 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return "bg-yellow-500"
   }
 
+  // --- FILTRADO COMBINADO ---
   const filteredData = React.useMemo(() => {
-    if (statusFilter === "all") return data
     return data.filter((item) => {
-      const coverage = calculateCoverage(item, safetyMargin)
-      if (statusFilter === "red") return coverage <= 5
-      if (statusFilter === "yellow") return coverage > 5 && coverage <= 7
-      if (statusFilter === "green") return coverage > 7 || coverage >= 999
-      return true
+      const coverageActual = calculateCoverage(item, safetyMargin, false)
+      const coverageProyectada = calculateCoverage(item, safetyMargin, true)
+
+      // Filtro por estado actual
+      const passActual = statusFilter === "all" || (
+        statusFilter === "red" ? coverageActual <= 5 :
+        statusFilter === "yellow" ? (coverageActual > 5 && coverageActual <= 7) :
+        statusFilter === "green" ? (coverageActual > 7 || coverageActual >= 999) : true
+      )
+
+      // Filtro por estado proyectado
+      const passProyectada = projectionFilter === "all" || (
+        projectionFilter === "red" ? coverageProyectada <= 5 :
+        projectionFilter === "yellow" ? (coverageProyectada > 5 && coverageProyectada <= 7) :
+        projectionFilter === "green" ? (coverageProyectada > 7 || coverageProyectada >= 999) : true
+      )
+
+      return passActual && passProyectada
     })
-  }, [data, statusFilter, safetyMargin, calculateCoverage])
+  }, [data, statusFilter, projectionFilter, safetyMargin, calculateCoverage])
 
   const uniqueOrders = React.useMemo(() => {
     const orderMap = new Map<string, string>();
@@ -137,14 +165,14 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
             </Button>
         ),
         cell: ({ row }) => {
-          const val = calculateCoverage(row.original, safetyMargin)
+          const val = calculateCoverage(row.original, safetyMargin, false)
           const colorClass = getStatusColor(val)
           return (
             <div className="flex items-center justify-center gap-2 px-1">
               <div className="font-medium text-xs whitespace-nowrap py-1" title={row.getValue("name")}>
                 {row.getValue("name")}
               </div>
-              <div className={cn("h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado de stock" />
+              <div className={cn("h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado Stock Hoy" />
             </div>
           )
         },
@@ -166,20 +194,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         cell: ({ row }) => <div className="text-center text-xs">{row.getValue("salesLast30")}</div>,
       },
       {
-        id: "salesProjected",
-        size: 90,
-        accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
-        header: () => <div className="text-center text-blue-700 font-bold text-[10px] whitespace-nowrap">Vtas +{safetyMargin}%</div>,
-        cell: ({ row }) => {
-            const projected = Math.ceil(row.original.salesLast30 * (1 + safetyMargin / 100))
-            return (
-                <div className="text-center font-bold text-blue-600 bg-blue-50/50 py-0.5 rounded text-xs mx-1">
-                    {projected}
-                </div>
-            )
-        },
-      },
-      {
         accessorKey: "stockExternal",
         size: 80,
         header: ({ column }) => (
@@ -196,35 +210,9 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         cell: ({ row }) => <div className="text-center font-bold text-blue-600 text-xs">{row.getValue("stockExternal")}</div>,
       },
       {
-        id: "calculatedVelocity",
-        size: 90,
-        accessorFn: (row) => {
-          const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
-          const factorMeses = periodDays / 30
-          return Math.ceil(totalConMargen / factorMeses)
-        },
-        header: ({ column }) => (
-            <div className="flex justify-center">
-                <Button 
-                    variant="ghost" 
-                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold text-center"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Consumo <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-            </div>
-        ),
-        cell: ({ row }) => {
-            const totalConMargen = row.original.salesLast30 * (1 + safetyMargin / 100)
-            const factorMeses = periodDays / 30
-            const velocity = Math.ceil(totalConMargen / factorMeses)
-            return <div className="text-center font-semibold text-xs">{velocity}</div>
-        },
-      },
-      {
         id: "dynamicCoverage", 
         size: 80,
-        accessorFn: (row) => calculateCoverage(row, safetyMargin),
+        accessorFn: (row) => calculateCoverage(row, safetyMargin, false),
         header: ({ column }) => (
             <div className="flex justify-center">
                 <Button 
@@ -232,17 +220,46 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                     className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                 >
-                    Meses <ArrowUpDown className="ml-1 h-3 w-3" />
+                    Meses Hoy <ArrowUpDown className="ml-1 h-3 w-3" />
                 </Button>
             </div>
         ),
         cell: ({ row }) => {
-            const val = calculateCoverage(row.original, safetyMargin)
+            const val = calculateCoverage(row.original, safetyMargin, false)
             const colorClass = getStatusColor(val)
             const textColor = colorClass.replace('bg-', 'text-')
             return (
               <div className={cn("text-center font-bold text-xs px-1 whitespace-nowrap", textColor)}>
                 {val >= 999 ? "∞" : val.toFixed(1) + " m"}
+              </div>
+            )
+        },
+      },
+      // --- NUEVA COLUMNA PROYECTADA ---
+      {
+        id: "projectedCoverage", 
+        size: 85,
+        accessorFn: (row) => calculateCoverage(row, safetyMargin, true),
+        header: ({ column }) => (
+            <div className="flex justify-center">
+                <Button 
+                    variant="ghost" 
+                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold text-orange-600"
+                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+                >
+                    Meses Proy. <ArrowUpDown className="ml-1 h-3 w-3" />
+                </Button>
+            </div>
+        ),
+        cell: ({ row }) => {
+            const val = calculateCoverage(row.original, safetyMargin, true)
+            const colorClass = getStatusColor(val)
+            return (
+              <div className="flex items-center justify-center gap-1.5 bg-orange-50/30 rounded-md py-0.5 mx-1 border border-orange-100/50">
+                <div className={cn("text-center font-bold text-xs", colorClass.replace('bg-', 'text-'))}>
+                  {val >= 999 ? "∞" : val.toFixed(1) + " m"}
+                </div>
+                <div className={cn("h-2 w-2 rounded-full shrink-0 shadow-xs", colorClass)} />
               </div>
             )
         },
@@ -297,69 +314,48 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
 
         <div className="flex items-center gap-3">
             {lastUpdate && (
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm">
+                <div className="hidden xl:flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm">
                     <RefreshCw className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
                     <span className="text-[10px] font-medium whitespace-nowrap">
-                        Ultima actualizacion: {format(lastUpdate, "d/M HH.mm'hs'")}
+                        Actualizado: {format(lastUpdate, "d/M HH.mm'hs'")}
                     </span>
                 </div>
             )}
 
+            {/* --- GRUPO FILTROS HOY --- */}
             <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-md shadow-sm">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Estado:</span>
-                <div className="flex gap-1.5 items-center">
-                    <button 
-                        onClick={() => setStatusFilter("all")}
-                        className={cn(
-                            "text-[9px] font-bold px-2 py-0.5 rounded border transition-colors",
-                            statusFilter === "all" ? "bg-slate-800 text-white border-slate-800" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
-                        )}
-                    >
-                        Todos
-                    </button>
-                    <button 
-                        onClick={() => setStatusFilter("red")}
-                        title="Crítico (Menos de 5 meses)"
-                        className={cn(
-                            "h-4 w-4 rounded-full bg-red-500 border-2 transition-transform hover:scale-110",
-                            statusFilter === "red" ? "border-slate-800 scale-110 shadow-sm" : "border-transparent opacity-60 hover:opacity-100"
-                        )}
-                    />
-                    <button 
-                        onClick={() => setStatusFilter("yellow")}
-                        title="Advertencia (5 a 7 meses)"
-                        className={cn(
-                            "h-4 w-4 rounded-full bg-yellow-500 border-2 transition-transform hover:scale-110",
-                            statusFilter === "yellow" ? "border-slate-800 scale-110 shadow-sm" : "border-transparent opacity-60 hover:opacity-100"
-                        )}
-                    />
-                    <button 
-                        onClick={() => setStatusFilter("green")}
-                        title="Saludable (Más de 7 meses)"
-                        className={cn(
-                            "h-4 w-4 rounded-full bg-green-500 border-2 transition-transform hover:scale-110",
-                            statusFilter === "green" ? "border-slate-800 scale-110 shadow-sm" : "border-transparent opacity-60 hover:opacity-100"
-                        )}
-                    />
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Hoy:</span>
+                <div className="flex gap-1 items-center">
+                    <button onClick={() => setStatusFilter("all")} className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border", statusFilter === "all" ? "bg-slate-800 text-white" : "bg-slate-50")}>T</button>
+                    <button onClick={() => setStatusFilter("red")} className={cn("h-3.5 w-3.5 rounded-full bg-red-500 border-2", statusFilter === "red" ? "border-slate-800 scale-110" : "border-transparent opacity-60")} />
+                    <button onClick={() => setStatusFilter("yellow")} className={cn("h-3.5 w-3.5 rounded-full bg-yellow-500 border-2", statusFilter === "yellow" ? "border-slate-800 scale-110" : "border-transparent opacity-60")} />
+                    <button onClick={() => setStatusFilter("green")} className={cn("h-3.5 w-3.5 rounded-full bg-green-500 border-2", statusFilter === "green" ? "border-slate-800 scale-110" : "border-transparent opacity-60")} />
+                </div>
+            </div>
+
+            {/* --- GRUPO FILTROS PROYECCIÓN --- */}
+            <div className="flex items-center gap-2 bg-orange-50/50 border border-orange-100 px-3 py-1 rounded-md shadow-sm">
+                <span className="text-[9px] font-bold text-orange-600 uppercase tracking-tight">Proy:</span>
+                <div className="flex gap-1 items-center">
+                    <button onClick={() => setProjectionFilter("all")} className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border", projectionFilter === "all" ? "bg-orange-600 text-white" : "bg-white border-orange-200")}>T</button>
+                    <button onClick={() => setProjectionFilter("red")} className={cn("h-3.5 w-3.5 rounded-full bg-red-500 border-2", projectionFilter === "red" ? "border-orange-800 scale-110" : "border-transparent opacity-60")} />
+                    <button onClick={() => setProjectionFilter("yellow")} className={cn("h-3.5 w-3.5 rounded-full bg-yellow-500 border-2", projectionFilter === "yellow" ? "border-orange-800 scale-110" : "border-transparent opacity-60")} />
+                    <button onClick={() => setProjectionFilter("green")} className={cn("h-3.5 w-3.5 rounded-full bg-green-500 border-2", projectionFilter === "green" ? "border-orange-800 scale-110" : "border-transparent opacity-60")} />
                 </div>
             </div>
 
             <div className="flex items-center gap-2 bg-slate-50 border px-2 py-1 rounded-md text-slate-500">
                 <CalendarDays className="h-3.5 w-3.5" />
-                <span className="text-[11px] font-medium">Dias:</span>
-                <span className="text-[11px] font-bold text-slate-700 bg-white px-1.5 rounded border">
-                    {periodDays}
-                </span>
+                <span className="text-[11px] font-bold text-slate-700 bg-white px-1.5 rounded border">{periodDays}d</span>
             </div>
 
             <div className="flex items-center gap-2 bg-white border px-2 py-1 rounded-md shadow-sm">
                 <Percent className="h-3.5 w-3.5 text-blue-600" />
-                <span className="text-[11px] font-medium text-slate-600">Margen:</span>
                 <Input
                     type="number"
                     value={safetyMargin}
                     onChange={(e) => setSafetyMargin(Number(e.target.value))}
-                    className="w-12 h-7 px-1 text-center text-[11px] font-bold"
+                    className="w-10 h-7 px-1 text-center text-[11px] font-bold"
                 />
             </div>
         </div>
@@ -404,7 +400,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center text-slate-500">
-                    No se encontraron productos con ese estado.
+                    No se encontraron productos con esos filtros.
                   </TableCell>
                 </TableRow>
               )}

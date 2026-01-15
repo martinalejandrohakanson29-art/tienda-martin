@@ -17,7 +17,7 @@ import {
   Percent, 
   CalendarDays, 
   RefreshCw,
-  RotateCcw // Icono para resetear
+  RotateCcw
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import { format } from "date-fns"
@@ -59,7 +59,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
   
-  // --- NUEVO: Estado para guardar los ingresos manuales ---
   const [manualInputs, setManualInputs] = React.useState<Record<string, number>>({})
   
   const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
@@ -76,14 +75,12 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  // --- MODIFICADO: Ahora suma manualInputs[row.id] al cálculo futuro ---
   const calculateCoverage = React.useCallback((row: ImportItem, margin: number, includeFuture = false) => {
     const currentStock = row.stockExternal || 0
     let futureStock = includeFuture 
         ? Object.values(row.futureArrivals || {}).reduce((sum, arrival) => sum + arrival.quantity, 0)
         : 0
     
-    // Si estamos calculando futuro, sumamos la simulación manual
     if (includeFuture) {
       futureStock += (manualInputs[row.id] || 0)
     }
@@ -94,7 +91,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     const monthlyVelocity = totalWithMargin / factorMonths
     
     return monthlyVelocity > 0 ? (totalStock / monthlyVelocity) : (totalStock > 0 ? 999 : 0)
-  }, [periodDays, manualInputs]) // Agregado manualInputs a las dependencias
+  }, [periodDays, manualInputs])
 
   const getStatusColor = (val: number) => {
     if (val >= 999) return "bg-green-500"
@@ -261,7 +258,8 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     const projectedColumn: ColumnDef<ImportItem> = {
       id: "projectedCoverage", 
       size: 85,
-      accessorFn: (row) => calculateCoverage(row.original, safetyMargin, true),
+      // CORRECCIÓN AQUÍ: Se eliminó .original
+      accessorFn: (row) => calculateCoverage(row, safetyMargin, true),
       header: ({ column }) => (
           <div className="flex justify-center">
               <Button 
@@ -287,7 +285,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       },
     };
 
-    // --- NUEVO: Columna de Simulación Manual ---
     const simulationColumn: ColumnDef<ImportItem> = {
       id: "simulation",
       size: 100,
@@ -331,9 +328,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      {/* --- CABECERA REORGANIZADA --- */}
       <div className="flex items-center justify-between gap-4">
-        {/* BUSCADOR (IZQUIERDA) */}
         <div className="flex items-center relative max-w-sm shrink-0">
           <Search className="absolute left-3 h-4 w-4 text-slate-400" />
           <Input
@@ -344,10 +339,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
           />
         </div>
 
-        {/* GRUPO DE FILTROS E INPUTS (CENTRO/DERECHA) */}
         <div className="flex items-center gap-4 flex-1 justify-end">
-            
-            {/* BOTÓN RESET SIMULACIÓN (NUEVO) */}
             {Object.keys(manualInputs).length > 0 && (
                 <Button 
                     variant="outline" 
@@ -360,7 +352,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </Button>
             )}
 
-            {/* FILTRO HOY */}
             <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Hoy:</span>
                 <div className="flex gap-1 items-center">
@@ -371,7 +362,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </div>
             </div>
 
-            {/* FILTRO PROY */}
             <div className="flex items-center gap-2 bg-orange-50/50 border border-orange-100 px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[9px] font-bold text-orange-600 uppercase tracking-tight">A futuro:</span>
                 <div className="flex gap-1 items-center">
@@ -382,13 +372,11 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </div>
             </div>
 
-            {/* CALENDARIO */}
             <div className="flex items-center gap-2 bg-slate-50 border px-2 py-1 rounded-md text-slate-500">
                 <CalendarDays className="h-3.5 w-3.5" />
                 <span className="text-[11px] font-bold text-slate-700 bg-white px-1.5 rounded border">{periodDays}d</span>
             </div>
 
-            {/* INPUT % COBERTURA */}
             <div className="flex items-center gap-2 bg-white border px-2 py-1 rounded-md shadow-sm">
                 <Percent className="h-3.5 w-3.5 text-blue-600" />
                 <Input
@@ -399,7 +387,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 />
             </div>
 
-            {/* ÚLTIMA ACTUALIZACIÓN */}
             {lastUpdate && (
                 <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm ml-2">
                     <RefreshCw className="h-3 w-3 animate-[spin_3s_linear_infinite]" />

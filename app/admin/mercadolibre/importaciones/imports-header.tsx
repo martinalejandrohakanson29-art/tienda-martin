@@ -98,7 +98,7 @@ export function ImportsHeader() {
                     className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-95"
                 >
                     <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                    {isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'}
+                    {isSyncing ? 'Sincronizando...' : 'Actualizar datos'}
                 </Button>
             </div>
         </div>

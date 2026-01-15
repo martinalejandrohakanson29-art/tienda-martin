@@ -161,7 +161,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       },
       {
         accessorKey: "name",
-        header: "Producto",
+        header: "PRODUCTO",
         size: 200,
         cell: ({ row }) => {
           const val = calculateCoverageValue(row.original, safetyMargin, false, {})
@@ -178,19 +178,19 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       },
       {
         accessorKey: "salesLast30",
-        header: "Ventas",
+        header: "VENTAS",
         size: 70,
         cell: ({ row }) => <div className="text-center text-[11px]">{row.original.salesLast30}</div>,
       },
       {
         accessorKey: "stockExternal",
-        header: "Stock",
+        header: "STOCK",
         size: 70,
         cell: ({ row }) => <div className="text-center font-bold text-blue-600 text-[11px]">{row.original.stockExternal}</div>,
       },
       {
         id: "currentCoverage",
-        header: "Meses en stock hoy",
+        header: "MESES S/ IMPORTACIONES",
         size: 80,
         cell: ({ row }) => {
           const val = calculateCoverageValue(row.original, safetyMargin, false, {})
@@ -242,7 +242,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
 
     cols.push({
       id: "projected",
-      header: "Stock Final con importaciones",
+      header: "STOCK FINAL C/ IMPORTACIONES",
       size: 90,
       cell: ({ row, table }) => {
         const currentInputs = table.options.meta?.manualInputs || {}

@@ -1,17 +1,14 @@
-import { getConfig } from "@/app/actions/config"
+"use client"
 
-export default async function AnnouncementBar() {
-    const config = await getConfig()
-
-    // Si no hay texto configurado, no mostramos nada
+// Agregamos ({ config }: { config: any }) para que TypeScript no de error
+export default function AnnouncementBar({ config }: { config: any }) {
+    // Si no hay texto en la base de datos, no se muestra nada
     if (!config?.announcementText) return null
 
     return (
-        <div className="w-full bg-gradient-to-r from-slate-900 via-purple-900 to-slate-900 text-white h-10 flex items-center overflow-hidden shadow-inner relative z-40 border-b border-purple-500/30">
-            <div className="w-full whitespace-nowrap">
-                <p className="animate-marquee inline-block text-sm font-bold tracking-wider uppercase px-4">
-                    {config.announcementText}
-                </p>
+        <div className="bg-blue-600 text-white py-2.5 px-4 text-center text-xs md:text-sm font-bold tracking-wide shadow-inner overflow-hidden">
+            <div className="animate-pulse">
+                {config.announcementText}
             </div>
         </div>
     )

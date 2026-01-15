@@ -1,18 +1,17 @@
 "use client"
 
 import { usePathname } from "next/navigation"
-import Footer from "./footer"
 
-export default function ConditionalFooter({ children }: { children?: React.ReactNode }) {
+export default function ConditionalFooter({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   
-  // Aquí definimos dónde NO queremos que aparezca el footer
-  // Si la ruta empieza con /admin, no se muestra.
+  // Si la ruta empieza con /admin, no se muestra nada
   const isAdminPage = pathname?.startsWith("/admin")
 
   if (isAdminPage) {
     return null
   }
 
-  return <Footer />
+  // Renderizamos lo que nos pasen desde el Layout (en este caso, el Footer)
+  return <>{children}</>
 }

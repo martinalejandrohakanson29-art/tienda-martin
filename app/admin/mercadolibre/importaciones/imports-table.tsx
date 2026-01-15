@@ -11,7 +11,7 @@ import {
   getFilteredRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Search, Percent, CalendarDays } from "lucide-react"
+import { ArrowUpDown, Search, Percent, CalendarDays, Filter } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
@@ -47,6 +47,9 @@ export function ImportsTable({ data }: ImportsTableProps) {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
+  
+  // 👇 NUEVO: Estado para el filtro de semáforo
+  const [statusFilter, setStatusFilter] = React.useState<"all" | "red" | "yellow" | "green">("all")
 
   const periodDays = React.useMemo(() => {
     const from = searchParams.get("from")
@@ -59,7 +62,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  // Función auxiliar para calcular cobertura (ahora recibe el margen actual)
   const calculateCoverage = React.useCallback((row: ImportItem, margin: number) => {
     const stock = row.stockExternal || 0
     const totalWithMargin = row.salesLast30 * (1 + margin / 100)
@@ -74,6 +76,18 @@ export function ImportsTable({ data }: ImportsTableProps) {
     if (val > 7) return "bg-green-500"
     return "bg-yellow-500"
   }
+
+  // 👇 NUEVO: Filtrado de datos por semáforo
+  const filteredData = React.useMemo(() => {
+    if (statusFilter === "all") return data
+    return data.filter((item) => {
+      const coverage = calculateCoverage(item, safetyMargin)
+      if (statusFilter === "red") return coverage <= 5
+      if (statusFilter === "yellow") return coverage > 5 && coverage <= 7
+      if (statusFilter === "green") return coverage > 7 || coverage >= 999
+      return true
+    })
+  }, [data, statusFilter, safetyMargin, calculateCoverage])
 
   const uniqueOrders = React.useMemo(() => {
     const orderMap = new Map<string, string>();
@@ -149,11 +163,9 @@ export function ImportsTable({ data }: ImportsTableProps) {
       {
         id: "salesProjected",
         size: 90,
-        // Usamos accessorFn solo para permitir ordenamiento/filtros
         accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
         header: () => <div className="text-center text-blue-700 font-bold text-[10px] whitespace-nowrap">Vtas +{safetyMargin}%</div>,
         cell: ({ row }) => {
-            // Cálculo en tiempo real usando el estado actual de safetyMargin
             const projected = Math.ceil(row.original.salesLast30 * (1 + safetyMargin / 100))
             return (
                 <div className="text-center font-bold text-blue-600 bg-blue-50/50 py-0.5 rounded text-xs mx-1">
@@ -255,7 +267,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
   }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage]) 
 
   const table = useReactTable({
-    data,
+    data: filteredData, // 👇 AHORA USAMOS LOS DATOS FILTRADOS
     columns,
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
@@ -279,6 +291,46 @@ export function ImportsTable({ data }: ImportsTableProps) {
         </div>
 
         <div className="flex items-center gap-3">
+            {/* 👇 NUEVO: FILTRO DE SEMÁFORO */}
+            <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-md shadow-sm">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Estado:</span>
+                <div className="flex gap-1.5 items-center">
+                    <button 
+                        onClick={() => setStatusFilter("all")}
+                        className={cn(
+                            "text-[9px] font-bold px-2 py-0.5 rounded border transition-colors",
+                            statusFilter === "all" ? "bg-slate-800 text-white border-slate-800" : "bg-slate-50 text-slate-600 hover:bg-slate-100"
+                        )}
+                    >
+                        Todos
+                    </button>
+                    <button 
+                        onClick={() => setStatusFilter("red")}
+                        title="Crítico (Menos de 5 meses)"
+                        className={cn(
+                            "h-4 w-4 rounded-full bg-red-500 border-2 transition-transform hover:scale-110",
+                            statusFilter === "red" ? "border-slate-800 scale-110 shadow-sm" : "border-transparent opacity-60 hover:opacity-100"
+                        )}
+                    />
+                    <button 
+                        onClick={() => setStatusFilter("yellow")}
+                        title="Advertencia (5 a 7 meses)"
+                        className={cn(
+                            "h-4 w-4 rounded-full bg-yellow-500 border-2 transition-transform hover:scale-110",
+                            statusFilter === "yellow" ? "border-slate-800 scale-110 shadow-sm" : "border-transparent opacity-60 hover:opacity-100"
+                        )}
+                    />
+                    <button 
+                        onClick={() => setStatusFilter("green")}
+                        title="Saludable (Más de 7 meses)"
+                        className={cn(
+                            "h-4 w-4 rounded-full bg-green-500 border-2 transition-transform hover:scale-110",
+                            statusFilter === "green" ? "border-slate-800 scale-110 shadow-sm" : "border-transparent opacity-60 hover:opacity-100"
+                        )}
+                    />
+                </div>
+            </div>
+
             <div className="flex items-center gap-2 bg-slate-50 border px-2 py-1 rounded-md text-slate-500">
                 <CalendarDays className="h-3.5 w-3.5" />
                 <span className="text-[11px] font-medium">Dias:</span>
@@ -339,7 +391,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center text-slate-500">
-                    No se encontraron productos.
+                    No se encontraron productos con ese estado.
                   </TableCell>
                 </TableRow>
               )}

@@ -212,7 +212,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                     className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                 >
-                    Meses Hoy <ArrowUpDown className="ml-1 h-3 w-3" />
+                    Stock sin Ingresos <ArrowUpDown className="ml-1 h-3 w-3" />
                 </Button>
             </div>
         ),
@@ -261,7 +261,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                   className="hover:bg-transparent p-0 h-auto text-[10px] font-bold text-orange-600"
                   onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
               >
-                  Meses Proy. <ArrowUpDown className="ml-1 h-3 w-3" />
+                  Stock con Ingresos <ArrowUpDown className="ml-1 h-3 w-3" />
               </Button>
           </div>
       ),

@@ -10,6 +10,7 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
   useReactTable,
+  TableMeta,
 } from "@tanstack/react-table"
 import { 
   ArrowUpDown, 
@@ -33,6 +34,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+
+// 1. Definimos la interfaz para el "meta" de la tabla para TypeScript
+interface MyTableMeta extends TableMeta<ImportItem> {
+  manualInputs: Record<string, number>
+  setManualInputs: React.Dispatch<React.SetStateAction<Record<string, number>>>
+}
 
 export type ImportItem = {
   id: string
@@ -59,6 +66,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
   
+  // Estado para la simulación
   const [manualInputs, setManualInputs] = React.useState<Record<string, number>>({})
   
   const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
@@ -75,14 +83,17 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  const calculateCoverage = React.useCallback((row: ImportItem, margin: number, includeFuture = false) => {
+  // Función de cálculo ajustada para aceptar manualInputs opcionales
+  const calculateCoverage = React.useCallback((row: ImportItem, margin: number, includeFuture = false, currentManualInputs?: Record<string, number>) => {
     const currentStock = row.stockExternal || 0
     let futureStock = includeFuture 
         ? Object.values(row.futureArrivals || {}).reduce((sum, arrival) => sum + arrival.quantity, 0)
         : 0
     
     if (includeFuture) {
-      futureStock += (manualInputs[row.id] || 0)
+      // Priorizamos los inputs que vengan por parámetro (desde el meta)
+      const inputs = currentManualInputs || manualInputs
+      futureStock += (inputs[row.id] || 0)
     }
         
     const totalStock = currentStock + futureStock
@@ -135,6 +146,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
   }, [data]);
 
+  // --- IMPORTANTE: Quitamos 'manualInputs' de las dependencias de useMemo ---
   const columns = React.useMemo<ColumnDef<ImportItem>[]>(() => {
     const baseColumns: ColumnDef<ImportItem>[] = [
       {
@@ -258,7 +270,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     const projectedColumn: ColumnDef<ImportItem> = {
       id: "projectedCoverage", 
       size: 85,
-      // CORRECCIÓN AQUÍ: Se eliminó .original
       accessorFn: (row) => calculateCoverage(row, safetyMargin, true),
       header: ({ column }) => (
           <div className="flex justify-center">
@@ -271,8 +282,10 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
               </Button>
           </div>
       ),
-      cell: ({ row }) => {
-          const val = calculateCoverage(row.original, safetyMargin, true)
+      cell: ({ row, table }) => {
+          // Extraemos manualInputs desde el meta para mantener reactividad sin re-render de columna
+          const meta = table.options.meta as MyTableMeta;
+          const val = calculateCoverage(row.original, safetyMargin, true, meta.manualInputs)
           const colorClass = getStatusColor(val)
           return (
             <div className="flex items-center justify-center gap-1 bg-orange-50/30 rounded-md py-0.5 mx-1 border border-orange-100/50">
@@ -293,31 +306,39 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
           Simular Ingreso
         </div>
       ),
-      cell: ({ row }) => (
-        <div className="px-1">
-          <Input
-            type="number"
-            value={manualInputs[row.original.id] || ""}
-            onChange={(e) => {
-              const val = e.target.value === "" ? 0 : parseInt(e.target.value)
-              setManualInputs(prev => ({
-                ...prev,
-                [row.original.id]: val
-              }))
-            }}
-            className="h-7 text-[11px] text-center font-bold border-purple-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-purple-50/30"
-            placeholder="0"
-          />
-        </div>
-      )
+      cell: ({ row, table }) => {
+        const meta = table.options.meta as MyTableMeta;
+        return (
+          <div className="px-1">
+            <Input
+              type="number"
+              value={meta.manualInputs[row.original.id] || ""}
+              onChange={(e) => {
+                const val = e.target.value === "" ? 0 : parseInt(e.target.value)
+                meta.setManualInputs(prev => ({
+                  ...prev,
+                  [row.original.id]: val
+                }))
+              }}
+              className="h-7 text-[11px] text-center font-bold border-purple-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-purple-50/30"
+              placeholder="0"
+            />
+          </div>
+        )
+      }
     };
 
     return [...baseColumns, ...poColumns, projectedColumn, simulationColumn];
-  }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage, manualInputs]) 
+  }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage]) 
 
   const table = useReactTable({
     data: filteredData,
     columns,
+    // Pasamos el estado al meta de la tabla
+    meta: {
+      manualInputs,
+      setManualInputs
+    } as MyTableMeta,
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),

@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import Header from "@/components/header";
-// Importamos el nuevo componente condicional en lugar del Footer normal
 import ConditionalFooter from "@/components/conditional-footer"; 
 import AnnouncementBar from "@/components/announcement-bar";
 import Script from "next/script";
 import ConditionalHeader from "@/components/conditional-header"; 
+// 👇 IMPORTACIONES NECESARIAS
+import { getConfig } from "@/app/actions/config";
+import { getUniqueCategories } from "@/app/actions/products";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -29,17 +31,22 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // 1. Obtenemos los datos en el servidor (punto de entrada)
+  const configData = await getConfig();
+  const categoriesData = await getUniqueCategories();
+
+  // 2. Serializamos para evitar errores de objetos complejos (como Decimal de Prisma)
+  const config = JSON.parse(JSON.stringify(configData));
+  const categories = JSON.parse(JSON.stringify(categoriesData));
+
   return (
     <html lang="es">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
-      >
-        {/* Meta Pixel Code */}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}>
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
             !function(f,b,e,v,n,t,s)
@@ -56,19 +63,14 @@ export default function RootLayout({
         </Script>
         
         <noscript>
-          <img 
-            height="1" 
-            width="1" 
-            style={{ display: 'none' }}
-            src="https://www.facebook.com/tr?id=690783850730543&ev=PageView&noscript=1"
-            alt=""
-          />
+          <img height="1" width="1" style={{ display: 'none' }} src="https://www.facebook.com/tr?id=690783850730543&ev=PageView&noscript=1" alt="" />
         </noscript>
 
         <ConditionalHeader>
             <div className="sticky top-0 z-50 w-full flex flex-col">
-                <AnnouncementBar />
-                <Header />
+                {/* 👇 PASAMOS LOS DATOS COMO PROPS */}
+                <AnnouncementBar config={config} />
+                <Header config={config} categories={categories} />
             </div>
         </ConditionalHeader>
         
@@ -76,7 +78,6 @@ export default function RootLayout({
           {children}
         </main>
         
-        {/* Usamos el footer condicional aquí */}
         <ConditionalFooter />
       </body>
     </html>

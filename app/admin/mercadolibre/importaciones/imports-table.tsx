@@ -19,8 +19,7 @@ import {
   RefreshCw 
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
-import { formatDistanceToNow } from "date-fns"
-import { es } from "date-fns/locale"
+import { format } from "date-fns" // Cambiamos formatDistanceToNow por format
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -301,7 +300,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm">
                     <RefreshCw className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
                     <span className="text-[10px] font-medium whitespace-nowrap">
-                        Actualizado {formatDistanceToNow(lastUpdate, { addSuffix: true, locale: es })}
+                        Ultima actualizacion: {format(lastUpdate, "d/M HH.mm'hs'")}
                     </span>
                 </div>
             )}

@@ -65,7 +65,6 @@ type StatusFilterType = "all" | "red" | "yellow" | "green"
 export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const searchParams = useSearchParams()
   
-  // 2) ORDENAR POR VENTAS DE MAYOR A MENOR POR DEFECTO
   const [sorting, setSorting] = React.useState<SortingState>([
     { id: "salesLast30", desc: true }
   ])
@@ -111,28 +110,29 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return totalStock / monthlyVelocity
   }, [periodDays])
 
+  // --- LÓGICA DE COLORES CORREGIDA ---
   const getStatusColor = (val: number) => {
-    if (val >= 999) return "bg-green-500"
-    if (val <= 1.5) return "bg-red-600"
-    if (val <= 3) return "bg-yellow-500"
+    if (val < 6) return "bg-red-600"
+    if (val <= 8) return "bg-yellow-500"
     return "bg-green-500"
   }
 
+  // --- LÓGICA DE FILTROS CORREGIDA ---
   const filteredData = React.useMemo(() => {
     return data.filter((item) => {
       const covActual = calculateCoverageValue(item, safetyMargin, false, {})
       const covProyectada = calculateCoverageValue(item, safetyMargin, true, manualInputs)
 
       const matchActual = statusFilter === "all" || (
-        statusFilter === "red" ? covActual <= 1.5 :
-        statusFilter === "yellow" ? (covActual > 1.5 && covActual <= 3) :
-        statusFilter === "green" ? covActual > 3 : true
+        statusFilter === "red" ? covActual < 6 :
+        statusFilter === "yellow" ? (covActual >= 6 && covActual <= 8) :
+        statusFilter === "green" ? covActual > 8 : true
       )
 
       const matchProj = projectionFilter === "all" || (
-        projectionFilter === "red" ? covProyectada <= 1.5 :
-        projectionFilter === "yellow" ? (covProyectada > 1.5 && covProyectada <= 3) :
-        projectionFilter === "green" ? covProyectada > 3 : true
+        projectionFilter === "red" ? covProyectada < 6 :
+        projectionFilter === "yellow" ? (covProyectada >= 6 && covProyectada <= 8) :
+        projectionFilter === "green" ? covProyectada > 8 : true
       )
 
       return matchActual && matchProj
@@ -166,7 +166,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         cell: ({ row }) => {
           const val = calculateCoverageValue(row.original, safetyMargin, false, {})
           return (
-            // 1) PRODUCTO CENTRADO (Cambiado items-center por justify-center)
             <div className="flex items-center justify-center gap-2 px-2 overflow-hidden text-center">
               <div className={cn("h-2 w-2 rounded-full shrink-0", getStatusColor(val))} />
               <span className="truncate text-[11px] font-medium" title={row.original.name}>
@@ -251,8 +250,8 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         return (
           <div className="flex justify-center mx-1">
              <div className={cn("px-2 py-0.5 rounded text-[11px] font-black border", 
-              color.replace('bg-', 'text-').replace('500', '700'),
-              color.replace('bg-', 'bg-').replace('500', '50')
+              color.replace('bg-', 'text-').replace('500', '700').replace('600', '800'),
+              color.replace('bg-', 'bg-').replace('500', '50').replace('600', '50')
             )}>
               {val >= 999 ? "∞" : `${val.toFixed(1)}m`}
             </div>
@@ -352,7 +351,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                   {headerGroup.headers.map((header) => (
                     <TableHead 
                       key={header.id} 
-                      // 3) AGRANDAR TAMAÑO FUENTE TÍTULOS (De 10px a 12px)
                       className="h-10 text-[12px] font-bold text-slate-700 border-b border-r text-center px-1"
                       style={{ width: header.getSize() }}
                     >
@@ -379,7 +377,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                   onClick={() => setSelectedRowId(row.id)}
                   className={cn(
                     "hover:bg-slate-50 transition-colors cursor-pointer",
-                    // 4) CAMBIO A GRIS SUAVE AL PRESIONAR (bg-slate-100)
                     selectedRowId === row.id ? "bg-slate-100 shadow-inner" : ""
                   )}
                 >

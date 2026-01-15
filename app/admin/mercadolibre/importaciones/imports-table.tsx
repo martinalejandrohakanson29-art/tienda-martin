@@ -322,7 +322,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
 
             {/* FILTRO PROY (Relacionado a Stock con ingresos) */}
             <div className="flex items-center gap-2 bg-orange-50/50 border border-orange-100 px-3 py-1 rounded-md shadow-sm">
-                <span className="text-[9px] font-bold text-orange-600 uppercase tracking-tight">Proy:</span>
+                <span className="text-[9px] font-bold text-orange-600 uppercase tracking-tight">A futuro:</span>
                 <div className="flex gap-1 items-center">
                     <button onClick={() => setProjectionFilter("all")} className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border", projectionFilter === "all" ? "bg-orange-600 text-white" : "bg-white border-orange-200")}>T</button>
                     <button onClick={() => setProjectionFilter("red")} className={cn("h-3.5 w-3.5 rounded-full bg-red-500 border-2", projectionFilter === "red" ? "border-orange-800 scale-110" : "border-transparent opacity-60")} />

@@ -1,7 +1,9 @@
-import { getConfig } from "@/app/actions/config"
+// components/announcement-bar.tsx
 
-export default async function AnnouncementBar() {
-    const config = await getConfig()
+// Ya no necesitamos importar getConfig aquí porque el dato viene del padre (layout.tsx)
+
+export default function AnnouncementBar({ config }: { config: any }) {
+    // ELIMINADO: const config = await getConfig() -> Ya lo recibimos por props
 
     // Si no hay texto configurado, no mostramos nada
     if (!config?.announcementText) return null

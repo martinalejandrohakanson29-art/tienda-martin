@@ -60,7 +60,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  // Lógica de cálculo centralizada
   const getCoverageValue = React.useCallback((row: ImportItem) => {
     const stock = row.stockExternal || 0
     const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
@@ -103,7 +102,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
                 SKU <ArrowUpDown className="ml-1 h-3 w-3" />
             </Button>
         ),
-        cell: ({ row }) => <div className="font-mono text-[10px] font-bold px-1">{row.getValue("sku")}</div>,
+        cell: ({ row }) => <div className="font-mono text-[10px] font-bold px-1 whitespace-nowrap">{row.getValue("sku")}</div>,
       },
       {
         accessorKey: "name",
@@ -120,9 +119,9 @@ export function ImportsTable({ data }: ImportsTableProps) {
           const val = getCoverageValue(row.original)
           const colorClass = getStatusColor(val)
           return (
-            <div className="flex items-center gap-2 max-w-[250px] px-1">
-              {/* CAMBIO 1: Texto primero, luego el semáforo */}
-              <div className="font-medium text-xs truncate py-1" title={row.getValue("name")}>
+            // CAMBIO: Quitamos max-w y truncate. Usamos whitespace-nowrap para que se ensanche sola.
+            <div className="flex items-center gap-2 px-1">
+              <div className="font-medium text-xs whitespace-nowrap py-1" title={row.getValue("name")}>
                 {row.getValue("name")}
               </div>
               <div className={cn("h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado de stock" />
@@ -148,7 +147,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
       {
         id: "salesProjected",
         accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
-        header: () => <div className="text-center text-blue-700 font-bold text-[10px]">Vtas +{safetyMargin}%</div>,
+        header: () => <div className="text-center text-blue-700 font-bold text-[10px] whitespace-nowrap">Vtas +{safetyMargin}%</div>,
         cell: ({ row }) => (
             <div className="text-center font-bold text-blue-600 bg-blue-50/50 py-0.5 rounded text-xs mx-1">
                 {row.getValue("salesProjected")}
@@ -209,7 +208,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
             const colorClass = getStatusColor(val)
             const textColor = colorClass.replace('bg-', 'text-')
             return (
-              <div className={cn("text-center font-bold text-xs px-1", textColor)}>
+              <div className={cn("text-center font-bold text-xs px-1 whitespace-nowrap", textColor)}>
                 {val >= 999 ? "∞" : val.toFixed(1) + " m"}
               </div>
             )
@@ -219,13 +218,10 @@ export function ImportsTable({ data }: ImportsTableProps) {
 
     const poColumns: ColumnDef<ImportItem>[] = uniqueOrders.map(order => ({
       id: `po-${order.id}`,
-      // CAMBIO 2: Tamaño fijo más pequeño para la columna
-      size: 55, 
-      minSize: 50,
+      // Ya no necesitamos tamaños fijos estrictos, dejamos que table-auto lo maneje, pero damos un mínimo
       header: () => (
-        // CAMBIO 2: min-w reducido de 80px a 50px
-        <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100 min-w-[50px]">
-          <div className="text-[8px] uppercase text-blue-400 font-bold truncate px-1">{order.supplier}</div>
+        <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100 min-w-[40px]">
+          <div className="text-[8px] uppercase text-blue-400 font-bold truncate px-1 max-w-[60px]">{order.supplier}</div>
           <div className="text-blue-800 text-[10px] font-bold">#{order.id}</div>
         </div>
       ),
@@ -290,15 +286,16 @@ export function ImportsTable({ data }: ImportsTableProps) {
 
       <div className="flex-1 min-h-0 rounded-md border bg-white shadow-sm overflow-hidden flex flex-col">
         <div className="overflow-auto flex-1 h-full">
-          <Table containerClassName="overflow-visible" className="relative border-separate border-spacing-0 table-fixed">
+          {/* CAMBIO: table-fixed a table-auto. Esto permite que las columnas se ajusten al contenido */}
+          <Table containerClassName="overflow-visible" className="relative border-separate border-spacing-0 table-auto w-full">
             <TableHeader className="sticky top-0 z-30 shadow-sm">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="hover:bg-transparent border-none">
                   {headerGroup.headers.map((header) => (
                     <TableHead 
                         key={header.id} 
-                        className="bg-slate-100 font-bold text-slate-700 h-10 py-0 px-1 sticky top-0 z-30 border-b text-[10px]"
-                        style={{ width: header.getSize() }}
+                        className="bg-slate-100 font-bold text-slate-700 h-10 py-0 px-1 sticky top-0 z-30 border-b text-[10px] whitespace-nowrap"
+                        // CAMBIO: Quitamos style={{ width: header.getSize() }} para que table-auto funcione libremente
                     >
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>

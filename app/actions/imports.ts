@@ -4,26 +4,26 @@ import { prisma } from "@/lib/prisma"
 
 export async function getSupplierProducts() {
     try {
+        // 1. Traemos los productos
         const products = await prisma.supplierProduct.findMany({
             include: {
                 ventas: true, 
                 stock: true,
-                // Traemos los ítems de órdenes de compra que están pendientes
                 purchaseItems: {
-                    where: {
-                        purchaseOrder: {
-                            status: "PENDIENTE"
-                        }
-                    },
-                    include: {
-                        purchaseOrder: true
-                    }
+                    where: { purchaseOrder: { status: "PENDIENTE" } },
+                    include: { purchaseOrder: true }
                 }
             },
             orderBy: { sku: 'asc' }
         })
-        
-        return products.map(p => {
+
+        // 2. Buscamos la fecha de la última actualización de ventas/stock
+        const lastVentasUpdate = await prisma.importVentas.findFirst({
+            orderBy: { updatedAt: 'desc' },
+            select: { updatedAt: true }
+        })
+
+        const mappedData = products.map(p => {
             const ventas = p.ventas?.salesLast30 || 0;
             const velocity = Number(p.ventas?.salesVelocity || 0);
             const stock = p.stock?.stockExternal || 0;
@@ -31,14 +31,10 @@ export async function getSupplierProducts() {
                 ? Number((stock / velocity).toFixed(1)) 
                 : (stock > 0 ? 999 : 0);
 
-            // Mapeamos los ingresos futuros: { "1408": 300, "1414": 50 }
             const futureArrivals: Record<string, { quantity: number, supplier: string }> = {};
-            
             p.purchaseItems.forEach(item => {
                 const po = item.purchaseOrder;
-                // Usamos externalId (el nro visual) o el id como respaldo
                 const orderKey = po.externalId || po.id;
-                
                 futureArrivals[orderKey] = {
                     quantity: item.quantity,
                     supplier: po.supplier
@@ -53,11 +49,16 @@ export async function getSupplierProducts() {
                 stockExternal: stock,
                 salesVelocity: velocity,
                 monthsCoverage: coverage,
-                futureArrivals // <-- Enviamos este nuevo objeto a la tabla
+                futureArrivals 
             }
         })
+
+        return {
+            data: mappedData,
+            lastUpdate: lastVentasUpdate?.updatedAt || null
+        }
     } catch (error) {
         console.error("Error obteniendo productos:", error)
-        return []
+        return { data: [], lastUpdate: null }
     }
 }

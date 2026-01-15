@@ -195,7 +195,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                     className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                 >
-                    Stock <ArrowUpDown className="ml-1 h-3 w-3" />
+                    Stock Actual <ArrowUpDown className="ml-1 h-3 w-3" />
                 </Button>
             </div>
         ),
@@ -212,7 +212,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                     className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                 >
-                    Stock sin Ingresos <ArrowUpDown className="ml-1 h-3 w-3" />
+                    Stock sin ingresos <ArrowUpDown className="ml-1 h-3 w-3" />
                 </Button>
             </div>
         ),
@@ -229,10 +229,9 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       },
     ];
 
-    // COLUMNAS DE CARRITOS (MÁS CHICAS)
     const poColumns: ColumnDef<ImportItem>[] = uniqueOrders.map(order => ({
       id: `po-${order.id}`,
-      size: 55, // Achicamos de 70 a 55
+      size: 55,
       header: () => (
         <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100 mx-0.5">
           <div className="text-[7px] uppercase text-blue-400 font-bold leading-tight truncate px-0.5">{order.supplier}</div>
@@ -249,7 +248,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       }
     }));
 
-    // COLUMNA PROYECTADA (AL FINAL)
     const projectedColumn: ColumnDef<ImportItem> = {
       id: "projectedCoverage", 
       size: 85,
@@ -261,7 +259,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                   className="hover:bg-transparent p-0 h-auto text-[10px] font-bold text-orange-600"
                   onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
               >
-                  Stock con Ingresos <ArrowUpDown className="ml-1 h-3 w-3" />
+                  Stock con ingresos <ArrowUpDown className="ml-1 h-3 w-3" />
               </Button>
           </div>
       ),
@@ -295,7 +293,9 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
 
   return (
     <div className="flex flex-col h-full space-y-4">
+      {/* --- CABECERA REORGANIZADA --- */}
       <div className="flex items-center justify-between gap-4">
+        {/* BUSCADOR (IZQUIERDA) */}
         <div className="flex items-center relative max-w-sm shrink-0">
           <Search className="absolute left-3 h-4 w-4 text-slate-400" />
           <Input
@@ -306,16 +306,10 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
           />
         </div>
 
-        <div className="flex items-center gap-3">
-            {lastUpdate && (
-                <div className="hidden xl:flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm">
-                    <RefreshCw className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
-                    <span className="text-[10px] font-medium whitespace-nowrap">
-                        Actualizado: {format(lastUpdate, "d/M HH.mm'hs'")}
-                    </span>
-                </div>
-            )}
-
+        {/* GRUPO DE FILTROS E INPUTS (CENTRO/DERECHA) */}
+        <div className="flex items-center gap-4 flex-1 justify-end">
+            
+            {/* FILTRO HOY (Relacionado a Stock sin ingresos) */}
             <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Hoy:</span>
                 <div className="flex gap-1 items-center">
@@ -326,6 +320,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </div>
             </div>
 
+            {/* FILTRO PROY (Relacionado a Stock con ingresos) */}
             <div className="flex items-center gap-2 bg-orange-50/50 border border-orange-100 px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[9px] font-bold text-orange-600 uppercase tracking-tight">Proy:</span>
                 <div className="flex gap-1 items-center">
@@ -336,20 +331,32 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </div>
             </div>
 
+            {/* CALENDARIO */}
             <div className="flex items-center gap-2 bg-slate-50 border px-2 py-1 rounded-md text-slate-500">
                 <CalendarDays className="h-3.5 w-3.5" />
                 <span className="text-[11px] font-bold text-slate-700 bg-white px-1.5 rounded border">{periodDays}d</span>
             </div>
 
+            {/* INPUT % COBERTURA (AGRANDADO) */}
             <div className="flex items-center gap-2 bg-white border px-2 py-1 rounded-md shadow-sm">
                 <Percent className="h-3.5 w-3.5 text-blue-600" />
                 <Input
                     type="number"
                     value={safetyMargin}
                     onChange={(e) => setSafetyMargin(Number(e.target.value))}
-                    className="w-10 h-7 px-1 text-center text-[11px] font-bold"
+                    className="w-16 h-8 px-1 text-center text-[12px] font-bold"
                 />
             </div>
+
+            {/* ÚLTIMA ACTUALIZACIÓN (DERECHA DE TODO) */}
+            {lastUpdate && (
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm ml-2">
+                    <RefreshCw className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
+                    <span className="text-[10px] font-medium whitespace-nowrap">
+                        Actualizado: {format(lastUpdate, "d/M HH.mm'hs'")}
+                    </span>
+                </div>
+            )}
         </div>
       </div>
 

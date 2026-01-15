@@ -16,8 +16,7 @@ import {
   Search, 
   Percent, 
   CalendarDays, 
-  RefreshCw,
-  TrendingUp 
+  RefreshCw
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import { format } from "date-fns"
@@ -59,7 +58,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
   
-  // --- NUEVOS ESTADOS DE FILTRO ---
   const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
   const [projectionFilter, setProjectionFilter] = React.useState<StatusFilterType>("all")
 
@@ -74,11 +72,8 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  // --- LÓGICA DE CÁLCULO MEJORADA ---
   const calculateCoverage = React.useCallback((row: ImportItem, margin: number, includeFuture = false) => {
     const currentStock = row.stockExternal || 0
-    
-    // Sumamos todas las cantidades de las órdenes de compra futuras
     const futureStock = includeFuture 
         ? Object.values(row.futureArrivals || {}).reduce((sum, arrival) => sum + arrival.quantity, 0)
         : 0
@@ -98,20 +93,17 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return "bg-yellow-500"
   }
 
-  // --- FILTRADO COMBINADO ---
   const filteredData = React.useMemo(() => {
     return data.filter((item) => {
       const coverageActual = calculateCoverage(item, safetyMargin, false)
       const coverageProyectada = calculateCoverage(item, safetyMargin, true)
 
-      // Filtro por estado actual
       const passActual = statusFilter === "all" || (
         statusFilter === "red" ? coverageActual <= 5 :
         statusFilter === "yellow" ? (coverageActual > 5 && coverageActual <= 7) :
         statusFilter === "green" ? (coverageActual > 7 || coverageActual >= 999) : true
       )
 
-      // Filtro por estado proyectado
       const passProyectada = projectionFilter === "all" || (
         projectionFilter === "red" ? coverageProyectada <= 5 :
         projectionFilter === "yellow" ? (coverageProyectada > 5 && coverageProyectada <= 7) :
@@ -154,7 +146,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       },
       {
         accessorKey: "name",
-        size: 200,
+        size: 180,
         header: ({ column }) => (
             <Button 
                 variant="ghost" 
@@ -169,17 +161,17 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
           const colorClass = getStatusColor(val)
           return (
             <div className="flex items-center justify-center gap-2 px-1">
-              <div className="font-medium text-xs whitespace-nowrap py-1" title={row.getValue("name")}>
+              <div className="font-medium text-[11px] whitespace-nowrap py-1 overflow-hidden text-ellipsis" title={row.getValue("name")}>
                 {row.getValue("name")}
               </div>
-              <div className={cn("h-2.5 w-2.5 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado Stock Hoy" />
+              <div className={cn("h-2 w-2 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado Stock Hoy" />
             </div>
           )
         },
       },
       {
         accessorKey: "salesLast30",
-        size: 80,
+        size: 70,
         header: ({ column }) => (
             <div className="flex justify-center">
                 <Button 
@@ -191,11 +183,11 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </Button>
             </div>
         ),
-        cell: ({ row }) => <div className="text-center text-xs">{row.getValue("salesLast30")}</div>,
+        cell: ({ row }) => <div className="text-center text-[11px]">{row.getValue("salesLast30")}</div>,
       },
       {
         accessorKey: "stockExternal",
-        size: 80,
+        size: 70,
         header: ({ column }) => (
             <div className="flex justify-center">
                 <Button 
@@ -207,7 +199,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </Button>
             </div>
         ),
-        cell: ({ row }) => <div className="text-center font-bold text-blue-600 text-xs">{row.getValue("stockExternal")}</div>,
+        cell: ({ row }) => <div className="text-center font-bold text-blue-600 text-[11px]">{row.getValue("stockExternal")}</div>,
       },
       {
         id: "dynamicCoverage", 
@@ -229,63 +221,65 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
             const colorClass = getStatusColor(val)
             const textColor = colorClass.replace('bg-', 'text-')
             return (
-              <div className={cn("text-center font-bold text-xs px-1 whitespace-nowrap", textColor)}>
+              <div className={cn("text-center font-bold text-[11px] px-1 whitespace-nowrap", textColor)}>
                 {val >= 999 ? "∞" : val.toFixed(1) + " m"}
-              </div>
-            )
-        },
-      },
-      // --- NUEVA COLUMNA PROYECTADA ---
-      {
-        id: "projectedCoverage", 
-        size: 85,
-        accessorFn: (row) => calculateCoverage(row, safetyMargin, true),
-        header: ({ column }) => (
-            <div className="flex justify-center">
-                <Button 
-                    variant="ghost" 
-                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold text-orange-600"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Meses Proy. <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-            </div>
-        ),
-        cell: ({ row }) => {
-            const val = calculateCoverage(row.original, safetyMargin, true)
-            const colorClass = getStatusColor(val)
-            return (
-              <div className="flex items-center justify-center gap-1.5 bg-orange-50/30 rounded-md py-0.5 mx-1 border border-orange-100/50">
-                <div className={cn("text-center font-bold text-xs", colorClass.replace('bg-', 'text-'))}>
-                  {val >= 999 ? "∞" : val.toFixed(1) + " m"}
-                </div>
-                <div className={cn("h-2 w-2 rounded-full shrink-0 shadow-xs", colorClass)} />
               </div>
             )
         },
       },
     ];
 
+    // COLUMNAS DE CARRITOS (MÁS CHICAS)
     const poColumns: ColumnDef<ImportItem>[] = uniqueOrders.map(order => ({
       id: `po-${order.id}`,
-      size: 70,
+      size: 55, // Achicamos de 70 a 55
       header: () => (
-        <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100">
-          <div className="text-[8px] uppercase text-blue-400 font-bold text-center">{order.supplier}</div>
-          <div className="text-blue-800 text-[10px] font-bold text-center">#{order.id}</div>
+        <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100 mx-0.5">
+          <div className="text-[7px] uppercase text-blue-400 font-bold leading-tight truncate px-0.5">{order.supplier}</div>
+          <div className="text-blue-800 text-[9px] font-bold">#{order.id}</div>
         </div>
       ),
       cell: ({ row }) => {
         const qty = row.original.futureArrivals?.[order.id]?.quantity;
         return (
-          <div className="text-center font-bold text-orange-600 text-xs">
+          <div className="text-center font-bold text-orange-600 text-[10px]">
             {qty ? `+${qty}` : <span className="text-slate-200 font-normal">-</span>}
           </div>
         );
       }
     }));
 
-    return [...baseColumns, ...poColumns];
+    // COLUMNA PROYECTADA (AL FINAL)
+    const projectedColumn: ColumnDef<ImportItem> = {
+      id: "projectedCoverage", 
+      size: 85,
+      accessorFn: (row) => calculateCoverage(row, safetyMargin, true),
+      header: ({ column }) => (
+          <div className="flex justify-center">
+              <Button 
+                  variant="ghost" 
+                  className="hover:bg-transparent p-0 h-auto text-[10px] font-bold text-orange-600"
+                  onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              >
+                  Meses Proy. <ArrowUpDown className="ml-1 h-3 w-3" />
+              </Button>
+          </div>
+      ),
+      cell: ({ row }) => {
+          const val = calculateCoverage(row.original, safetyMargin, true)
+          const colorClass = getStatusColor(val)
+          return (
+            <div className="flex items-center justify-center gap-1 bg-orange-50/30 rounded-md py-0.5 mx-1 border border-orange-100/50">
+              <div className={cn("text-center font-bold text-[11px]", colorClass.replace('bg-', 'text-'))}>
+                {val >= 999 ? "∞" : val.toFixed(1) + " m"}
+              </div>
+              <div className={cn("h-1.5 w-1.5 rounded-full shrink-0 shadow-xs", colorClass)} />
+            </div>
+          )
+      },
+    };
+
+    return [...baseColumns, ...poColumns, projectedColumn];
   }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage]) 
 
   const table = useReactTable({
@@ -322,7 +316,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </div>
             )}
 
-            {/* --- GRUPO FILTROS HOY --- */}
             <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Hoy:</span>
                 <div className="flex gap-1 items-center">
@@ -333,7 +326,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </div>
             </div>
 
-            {/* --- GRUPO FILTROS PROYECCIÓN --- */}
             <div className="flex items-center gap-2 bg-orange-50/50 border border-orange-100 px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[9px] font-bold text-orange-600 uppercase tracking-tight">Proy:</span>
                 <div className="flex gap-1 items-center">

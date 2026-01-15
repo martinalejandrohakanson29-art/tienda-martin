@@ -190,7 +190,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       },
       {
         id: "currentCoverage",
-        header: "Meses Hoy",
+        header: "Meses en stock hoy",
         size: 80,
         cell: ({ row }) => {
           const val = calculateCoverageValue(row.original, safetyMargin, false, {})
@@ -242,7 +242,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
 
     cols.push({
       id: "projected",
-      header: "Stock Final",
+      header: "Stock Final con importaciones",
       size: 90,
       cell: ({ row, table }) => {
         const currentInputs = table.options.meta?.manualInputs || {}

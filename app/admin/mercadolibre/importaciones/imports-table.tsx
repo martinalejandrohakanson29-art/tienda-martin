@@ -1,4 +1,3 @@
-// app/admin/mercadolibre/importaciones/imports-table.tsx
 "use client"
 
 import * as React from "react"
@@ -60,13 +59,14 @@ export function ImportsTable({ data }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
-  const getCoverageValue = React.useCallback((row: ImportItem) => {
+  // Función auxiliar para calcular cobertura (ahora recibe el margen actual)
+  const calculateCoverage = React.useCallback((row: ImportItem, margin: number) => {
     const stock = row.stockExternal || 0
-    const totalConMargen = row.salesLast30 * (1 + safetyMargin / 100)
-    const factorMeses = periodDays / 30
-    const monthlyVelocity = totalConMargen / factorMeses
+    const totalWithMargin = row.salesLast30 * (1 + margin / 100)
+    const factorMonths = periodDays / 30
+    const monthlyVelocity = totalWithMargin / factorMonths
     return monthlyVelocity > 0 ? (stock / monthlyVelocity) : (stock > 0 ? 999 : 0)
-  }, [safetyMargin, periodDays])
+  }, [periodDays])
 
   const getStatusColor = (val: number) => {
     if (val >= 999) return "bg-green-500"
@@ -118,7 +118,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
             </Button>
         ),
         cell: ({ row }) => {
-          const val = getCoverageValue(row.original)
+          const val = calculateCoverage(row.original, safetyMargin)
           const colorClass = getStatusColor(val)
           return (
             <div className="flex items-center justify-center gap-2 px-1">
@@ -149,13 +149,18 @@ export function ImportsTable({ data }: ImportsTableProps) {
       {
         id: "salesProjected",
         size: 90,
+        // Usamos accessorFn solo para permitir ordenamiento/filtros
         accessorFn: (row) => Math.ceil(row.salesLast30 * (1 + safetyMargin / 100)),
         header: () => <div className="text-center text-blue-700 font-bold text-[10px] whitespace-nowrap">Vtas +{safetyMargin}%</div>,
-        cell: ({ row }) => (
-            <div className="text-center font-bold text-blue-600 bg-blue-50/50 py-0.5 rounded text-xs mx-1">
-                {row.getValue("salesProjected")}
-            </div>
-        ),
+        cell: ({ row }) => {
+            // Cálculo en tiempo real usando el estado actual de safetyMargin
+            const projected = Math.ceil(row.original.salesLast30 * (1 + safetyMargin / 100))
+            return (
+                <div className="text-center font-bold text-blue-600 bg-blue-50/50 py-0.5 rounded text-xs mx-1">
+                    {projected}
+                </div>
+            )
+        },
       },
       {
         accessorKey: "stockExternal",
@@ -192,12 +197,17 @@ export function ImportsTable({ data }: ImportsTableProps) {
                 </Button>
             </div>
         ),
-        cell: ({ row }) => <div className="text-center font-semibold text-xs">{row.getValue("calculatedVelocity")}</div>,
+        cell: ({ row }) => {
+            const totalConMargen = row.original.salesLast30 * (1 + safetyMargin / 100)
+            const factorMeses = periodDays / 30
+            const velocity = Math.ceil(totalConMargen / factorMeses)
+            return <div className="text-center font-semibold text-xs">{velocity}</div>
+        },
       },
       {
         id: "dynamicCoverage", 
         size: 80,
-        accessorFn: (row) => getCoverageValue(row),
+        accessorFn: (row) => calculateCoverage(row, safetyMargin),
         header: ({ column }) => (
             <div className="flex justify-center">
                 <Button 
@@ -210,7 +220,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
             </div>
         ),
         cell: ({ row }) => {
-            const val = row.getValue("dynamicCoverage") as number
+            const val = calculateCoverage(row.original, safetyMargin)
             const colorClass = getStatusColor(val)
             const textColor = colorClass.replace('bg-', 'text-')
             return (
@@ -242,7 +252,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
     }));
 
     return [...baseColumns, ...poColumns];
-  }, [safetyMargin, periodDays, uniqueOrders, getCoverageValue]) 
+  }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage]) 
 
   const table = useReactTable({
     data,

@@ -35,11 +35,7 @@ import {
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
-// 1. Definimos la interfaz para el "meta" de la tabla para TypeScript
-interface MyTableMeta extends TableMeta<ImportItem> {
-  manualInputs: Record<string, number>
-  setManualInputs: React.Dispatch<React.SetStateAction<Record<string, number>>>
-}
+// --- INTERFACES ---
 
 export type ImportItem = {
   id: string
@@ -52,6 +48,14 @@ export type ImportItem = {
   futureArrivals?: Record<string, { quantity: number, supplier: string }>
 }
 
+// Extendemos el meta de la tabla para que TS reconozca manualInputs
+declare module '@tanstack/react-table' {
+  interface TableMeta<TData> {
+    manualInputs: Record<string, number>
+    setManualInputs: React.Dispatch<React.SetStateAction<Record<string, number>>>
+  }
+}
+
 interface ImportsTableProps {
   data: ImportItem[]
   lastUpdate: Date | null
@@ -61,407 +65,344 @@ type StatusFilterType = "all" | "red" | "yellow" | "green"
 
 export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const searchParams = useSearchParams()
+  
+  // Estados de la tabla
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
-  
-  // Estado para la simulación
   const [manualInputs, setManualInputs] = React.useState<Record<string, number>>({})
   
+  // Estados de filtros visuales
   const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
   const [projectionFilter, setProjectionFilter] = React.useState<StatusFilterType>("all")
 
+  // Calcular días del periodo basados en la URL
   const periodDays = React.useMemo(() => {
     const from = searchParams.get("from")
     const to = searchParams.get("to")
     if (!from || !to) return 30
-    const startDate = new Date(from)
-    const endDate = new Date(to)
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime())
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays > 0 ? diffDays : 30
+    try {
+      const diffTime = Math.abs(new Date(to).getTime() - new Date(from).getTime())
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      return diffDays > 0 ? diffDays : 30
+    } catch { return 30 }
   }, [searchParams])
 
-  // Función de cálculo ajustada para aceptar manualInputs opcionales
-  const calculateCoverage = React.useCallback((row: ImportItem, margin: number, includeFuture = false, currentManualInputs?: Record<string, number>) => {
+  // Lógica de cálculo centralizada
+  const calculateCoverageValue = React.useCallback((
+    row: ImportItem, 
+    margin: number, 
+    includeFuture: boolean, 
+    currentManualInputs: Record<string, number>
+  ) => {
     const currentStock = row.stockExternal || 0
-    let futureStock = includeFuture 
-        ? Object.values(row.futureArrivals || {}).reduce((sum, arrival) => sum + arrival.quantity, 0)
-        : 0
+    let futureStock = 0
     
     if (includeFuture) {
-      // Priorizamos los inputs que vengan por parámetro (desde el meta)
-      const inputs = currentManualInputs || manualInputs
-      futureStock += (inputs[row.id] || 0)
+      // Sumar ingresos programados (POs)
+      futureStock += Object.values(row.futureArrivals || {}).reduce((sum, a) => sum + a.quantity, 0)
+      // Sumar ingresos manuales (Simulación)
+      futureStock += (currentManualInputs[row.id] || 0)
     }
         
     const totalStock = currentStock + futureStock
-    const totalWithMargin = row.salesLast30 * (1 + margin / 100)
-    const factorMonths = periodDays / 30
-    const monthlyVelocity = totalWithMargin / factorMonths
+    // Ajustar ventas según margen de seguridad y días del periodo
+    const adjustedSales = row.salesLast30 * (1 + margin / 100)
+    const monthlyVelocity = adjustedSales / (periodDays / 30)
     
-    return monthlyVelocity > 0 ? (totalStock / monthlyVelocity) : (totalStock > 0 ? 999 : 0)
-  }, [periodDays, manualInputs])
+    if (monthlyVelocity <= 0) return totalStock > 0 ? 999 : 0
+    return totalStock / monthlyVelocity
+  }, [periodDays])
 
   const getStatusColor = (val: number) => {
     if (val >= 999) return "bg-green-500"
-    if (val <= 5) return "bg-red-500"
-    if (val > 7) return "bg-green-500"
-    return "bg-yellow-500"
+    if (val <= 1.5) return "bg-red-600" // Menos de un mes y medio es crítico
+    if (val <= 3) return "bg-yellow-500" // Alerta
+    return "bg-green-500"
   }
 
+  // Filtrado de datos (Aplicado antes de la tabla)
   const filteredData = React.useMemo(() => {
     return data.filter((item) => {
-      const coverageActual = calculateCoverage(item, safetyMargin, false)
-      const coverageProyectada = calculateCoverage(item, safetyMargin, true)
+      const covActual = calculateCoverageValue(item, safetyMargin, false, {})
+      const covProyectada = calculateCoverageValue(item, safetyMargin, true, manualInputs)
 
-      const passActual = statusFilter === "all" || (
-        statusFilter === "red" ? coverageActual <= 5 :
-        statusFilter === "yellow" ? (coverageActual > 5 && coverageActual <= 7) :
-        statusFilter === "green" ? (coverageActual > 7 || coverageActual >= 999) : true
+      const matchActual = statusFilter === "all" || (
+        statusFilter === "red" ? covActual <= 1.5 :
+        statusFilter === "yellow" ? (covActual > 1.5 && covActual <= 3) :
+        statusFilter === "green" ? covActual > 3 : true
       )
 
-      const passProyectada = projectionFilter === "all" || (
-        projectionFilter === "red" ? coverageProyectada <= 5 :
-        projectionFilter === "yellow" ? (coverageProyectada > 5 && coverageProyectada <= 7) :
-        projectionFilter === "green" ? (coverageProyectada > 7 || coverageProyectada >= 999) : true
+      const matchProj = projectionFilter === "all" || (
+        projectionFilter === "red" ? covProyectada <= 1.5 :
+        projectionFilter === "yellow" ? (covProyectada > 1.5 && covProyectada <= 3) :
+        projectionFilter === "green" ? covProyectada > 3 : true
       )
 
-      return passActual && passProyectada
+      return matchActual && matchProj
     })
-  }, [data, statusFilter, projectionFilter, safetyMargin, calculateCoverage])
+  }, [data, statusFilter, projectionFilter, safetyMargin, manualInputs, calculateCoverageValue])
 
+  // Extraer órdenes de compra únicas para las columnas dinámicas
   const uniqueOrders = React.useMemo(() => {
     const orderMap = new Map<string, string>();
-    data.forEach(product => {
-      if (product.futureArrivals) {
-        Object.entries(product.futureArrivals).forEach(([id, info]) => {
+    data.forEach(p => {
+      if (p.futureArrivals) {
+        Object.entries(p.futureArrivals).forEach(([id, info]) => {
           if (id && id !== "undefined") orderMap.set(id, info.supplier);
         });
       }
     });
-    return Array.from(orderMap.entries())
-      .map(([id, supplier]) => ({ id, supplier }))
-      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    return Array.from(orderMap.entries()).map(([id, supplier]) => ({ id, supplier }));
   }, [data]);
 
-  // --- IMPORTANTE: Quitamos 'manualInputs' de las dependencias de useMemo ---
+  // Definición de Columnas
   const columns = React.useMemo<ColumnDef<ImportItem>[]>(() => {
-    const baseColumns: ColumnDef<ImportItem>[] = [
+    const cols: ColumnDef<ImportItem>[] = [
       {
         accessorKey: "sku",
+        header: "SKU",
+        cell: ({ row }) => <div className="font-mono text-[10px] font-bold text-center">{row.original.sku}</div>,
         size: 80,
-        header: ({ column }) => (
-            <Button 
-                variant="ghost" 
-                className="hover:bg-transparent p-0 h-auto text-[10px] font-bold w-full justify-center"
-                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            >
-                SKU <ArrowUpDown className="ml-1 h-3 w-3" />
-            </Button>
-        ),
-        cell: ({ row }) => <div className="font-mono text-[10px] font-bold px-1 whitespace-nowrap text-center">{row.getValue("sku")}</div>,
       },
       {
         accessorKey: "name",
-        size: 180,
-        header: ({ column }) => (
-            <Button 
-                variant="ghost" 
-                className="hover:bg-transparent p-0 h-auto text-[10px] font-bold w-full justify-center"
-                onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            >
-                Producto <ArrowUpDown className="ml-1 h-3 w-3" />
-            </Button>
-        ),
+        header: "Producto",
+        size: 200,
         cell: ({ row }) => {
-          const val = calculateCoverage(row.original, safetyMargin, false)
-          const colorClass = getStatusColor(val)
+          const val = calculateCoverageValue(row.original, safetyMargin, false, {})
           return (
-            <div className="flex items-center justify-center gap-2 px-1">
-              <div className="font-medium text-[11px] whitespace-nowrap py-1 overflow-hidden text-ellipsis" title={row.getValue("name")}>
-                {row.getValue("name")}
-              </div>
-              <div className={cn("h-2 w-2 rounded-full shrink-0 shadow-sm", colorClass)} title="Estado Stock Hoy" />
+            <div className="flex items-center gap-2 px-2 overflow-hidden">
+              <div className={cn("h-2 w-2 rounded-full shrink-0", getStatusColor(val))} />
+              <span className="truncate text-[11px] font-medium" title={row.original.name}>
+                {row.original.name}
+              </span>
             </div>
           )
         },
       },
       {
         accessorKey: "salesLast30",
+        header: "Ventas",
         size: 70,
-        header: ({ column }) => (
-            <div className="flex justify-center">
-                <Button 
-                    variant="ghost" 
-                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Ventas <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-            </div>
-        ),
-        cell: ({ row }) => <div className="text-center text-[11px]">{row.getValue("salesLast30")}</div>,
+        cell: ({ row }) => <div className="text-center text-[11px]">{row.original.salesLast30}</div>,
       },
       {
         accessorKey: "stockExternal",
+        header: "Stock",
         size: 70,
-        header: ({ column }) => (
-            <div className="flex justify-center">
-                <Button 
-                    variant="ghost" 
-                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Stock Actual <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-            </div>
-        ),
-        cell: ({ row }) => <div className="text-center font-bold text-blue-600 text-[11px]">{row.getValue("stockExternal")}</div>,
+        cell: ({ row }) => <div className="text-center font-bold text-blue-600 text-[11px]">{row.original.stockExternal}</div>,
       },
       {
-        id: "dynamicCoverage", 
+        id: "currentCoverage",
+        header: "Meses Hoy",
         size: 80,
-        accessorFn: (row) => calculateCoverage(row, safetyMargin, false),
-        header: ({ column }) => (
-            <div className="flex justify-center">
-                <Button 
-                    variant="ghost" 
-                    className="hover:bg-transparent p-0 h-auto text-[10px] font-bold"
-                    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-                >
-                    Stock sin ingresos <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-            </div>
-        ),
-        cell: ({ row }) => {
-            const val = calculateCoverage(row.original, safetyMargin, false)
-            const colorClass = getStatusColor(val)
-            const textColor = colorClass.replace('bg-', 'text-')
-            return (
-              <div className={cn("text-center font-bold text-[11px] px-1 whitespace-nowrap", textColor)}>
-                {val >= 999 ? "∞" : val.toFixed(1) + " m"}
-              </div>
-            )
-        },
-      },
-    ];
-
-    const poColumns: ColumnDef<ImportItem>[] = uniqueOrders.map(order => ({
-      id: `po-${order.id}`,
-      size: 55,
-      header: () => (
-        <div className="text-center bg-blue-50/30 p-0.5 rounded border border-blue-100 mx-0.5">
-          <div className="text-[7px] uppercase text-blue-400 font-bold leading-tight truncate px-0.5">{order.supplier}</div>
-          <div className="text-blue-800 text-[9px] font-bold">#{order.id}</div>
-        </div>
-      ),
-      cell: ({ row }) => {
-        const qty = row.original.futureArrivals?.[order.id]?.quantity;
-        return (
-          <div className="text-center font-bold text-orange-600 text-[10px]">
-            {qty ? `+${qty}` : <span className="text-slate-200 font-normal">-</span>}
-          </div>
-        );
-      }
-    }));
-
-    const projectedColumn: ColumnDef<ImportItem> = {
-      id: "projectedCoverage", 
-      size: 85,
-      accessorFn: (row) => calculateCoverage(row, safetyMargin, true),
-      header: ({ column }) => (
-          <div className="flex justify-center">
-              <Button 
-                  variant="ghost" 
-                  className="hover:bg-transparent p-0 h-auto text-[10px] font-bold text-orange-600"
-                  onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-              >
-                  Stock con ingresos <ArrowUpDown className="ml-1 h-3 w-3" />
-              </Button>
-          </div>
-      ),
-      cell: ({ row, table }) => {
-          // Extraemos manualInputs desde el meta para mantener reactividad sin re-render de columna
-          const meta = table.options.meta as MyTableMeta;
-          const val = calculateCoverage(row.original, safetyMargin, true, meta.manualInputs)
-          const colorClass = getStatusColor(val)
+        accessorFn: (row) => calculateCoverageValue(row, safetyMargin, false, {}),
+        cell: ({ getValue }) => {
+          const val = getValue() as number
           return (
-            <div className="flex items-center justify-center gap-1 bg-orange-50/30 rounded-md py-0.5 mx-1 border border-orange-100/50">
-              <div className={cn("text-center font-bold text-[11px]", colorClass.replace('bg-', 'text-'))}>
-                {val >= 999 ? "∞" : val.toFixed(1) + " m"}
-              </div>
-              <div className={cn("h-1.5 w-1.5 rounded-full shrink-0 shadow-xs", colorClass)} />
+            <div className={cn("text-center font-bold text-[11px]", getStatusColor(val).replace('bg-', 'text-'))}>
+              {val >= 999 ? "∞" : `${val.toFixed(1)}m`}
             </div>
           )
-      },
-    };
+        }
+      }
+    ];
 
-    const simulationColumn: ColumnDef<ImportItem> = {
+    // Columnas de POs (Ingresos futuros programados)
+    uniqueOrders.forEach(order => {
+      cols.push({
+        id: `po-${order.id}`,
+        header: () => (
+          <div className="text-[8px] leading-tight">
+            <div className="text-blue-500 uppercase">{order.supplier}</div>
+            <div className="text-slate-900 font-bold">#{order.id}</div>
+          </div>
+        ),
+        size: 60,
+        cell: ({ row }) => {
+          const qty = row.original.futureArrivals?.[order.id]?.quantity
+          return qty ? <div className="text-center font-bold text-orange-600 text-[10px]">+{qty}</div> : null
+        }
+      })
+    })
+
+    // Columna de Simulación (Input)
+    cols.push({
       id: "simulation",
-      size: 100,
-      header: () => (
-        <div className="text-center font-bold text-purple-600 text-[10px] uppercase tracking-tighter">
-          Simular Ingreso
+      header: "SIMULAR",
+      size: 90,
+      cell: ({ row, table }) => (
+        <div className="px-1">
+          <Input
+            type="number"
+            value={table.options.meta?.manualInputs[row.original.id] || ""}
+            onChange={(e) => {
+              const val = e.target.value === "" ? 0 : parseInt(e.target.value)
+              table.options.meta?.setManualInputs(prev => ({ ...prev, [row.original.id]: val }))
+            }}
+            className="h-7 text-[11px] text-center border-purple-200 bg-purple-50/30 focus:ring-purple-500"
+            placeholder="0"
+          />
         </div>
-      ),
+      )
+    })
+
+    // Columna Proyectada FINAL
+    cols.push({
+      id: "projected",
+      header: "Stock Final",
+      size: 90,
+      accessorFn: (row) => calculateCoverageValue(row, safetyMargin, true, manualInputs),
       cell: ({ row, table }) => {
-        const meta = table.options.meta as MyTableMeta;
+        const val = calculateCoverageValue(row.original, safetyMargin, true, table.options.meta?.manualInputs || {})
+        const color = getStatusColor(val)
         return (
-          <div className="px-1">
-            <Input
-              type="number"
-              value={meta.manualInputs[row.original.id] || ""}
-              onChange={(e) => {
-                const val = e.target.value === "" ? 0 : parseInt(e.target.value)
-                meta.setManualInputs(prev => ({
-                  ...prev,
-                  [row.original.id]: val
-                }))
-              }}
-              className="h-7 text-[11px] text-center font-bold border-purple-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-purple-50/30"
-              placeholder="0"
-            />
+          <div className="flex justify-center mx-1">
+             <div className={cn("px-2 py-0.5 rounded text-[11px] font-black border", 
+              color.replace('bg-', 'text-').replace('500', '700'),
+              color.replace('bg-', 'bg-').replace('500', '50')
+            )}>
+              {val >= 999 ? "∞" : `${val.toFixed(1)}m`}
+            </div>
           </div>
         )
       }
-    };
+    })
 
-    return [...baseColumns, ...poColumns, projectedColumn, simulationColumn];
-  }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage]) 
+    return cols
+  }, [uniqueOrders, safetyMargin, manualInputs, calculateCoverageValue])
 
   const table = useReactTable({
     data: filteredData,
     columns,
-    // Pasamos el estado al meta de la tabla
+    state: { sorting, columnFilters },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
     meta: {
       manualInputs,
       setManualInputs
-    } as MyTableMeta,
-    getCoreRowModel: getCoreRowModel(),
-    onSortingChange: setSorting,
-    getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    getFilteredRowModel: getFilteredRowModel(),
-    state: { sorting, columnFilters },
+    }
   })
 
   return (
-    <div className="flex flex-col h-full space-y-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center relative max-w-sm shrink-0">
+    <div className="flex flex-col h-full space-y-4 p-2">
+      {/* TOOLBAR */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-2 rounded-lg border">
+        <div className="flex items-center relative w-64">
           <Search className="absolute left-3 h-4 w-4 text-slate-400" />
           <Input
-            placeholder="Buscar producto..."
+            placeholder="Buscar SKU o nombre..."
             value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-            onChange={(event) => table.getColumn("name")?.setFilterValue(event.target.value)}
-            className="pl-9 h-9 text-sm bg-white shadow-sm"
+            onChange={(e) => table.getColumn("name")?.setFilterValue(e.target.value)}
+            className="pl-9 h-9 bg-white"
           />
         </div>
 
-        <div className="flex items-center gap-4 flex-1 justify-end">
-            {Object.keys(manualInputs).length > 0 && (
-                <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => setManualInputs({})}
-                    className="h-9 px-3 text-[10px] font-bold text-purple-600 border-purple-200 hover:bg-purple-50"
-                >
-                    <RotateCcw className="mr-2 h-3.5 w-3.5" />
-                    LIMPIAR SIMULACIÓN
-                </Button>
-            )}
+        <div className="flex items-center gap-3">
+          {/* Botón Limpiar */}
+          {Object.keys(manualInputs).length > 0 && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setManualInputs({})}
+              className="text-purple-600 hover:text-purple-700 hover:bg-purple-100 h-8"
+            >
+              <RotateCcw className="mr-2 h-3 w-3" /> Limpiar Simulación
+            </Button>
+          )}
 
-            <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-md shadow-sm">
-                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Hoy:</span>
-                <div className="flex gap-1 items-center">
-                    <button onClick={() => setStatusFilter("all")} className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border", statusFilter === "all" ? "bg-slate-800 text-white" : "bg-slate-50")}>T</button>
-                    <button onClick={() => setStatusFilter("red")} className={cn("h-3.5 w-3.5 rounded-full bg-red-500 border-2", statusFilter === "red" ? "border-slate-800 scale-110" : "border-transparent opacity-60")} />
-                    <button onClick={() => setStatusFilter("yellow")} className={cn("h-3.5 w-3.5 rounded-full bg-yellow-500 border-2", statusFilter === "yellow" ? "border-slate-800 scale-110" : "border-transparent opacity-60")} />
-                    <button onClick={() => setStatusFilter("green")} className={cn("h-3.5 w-3.5 rounded-full bg-green-500 border-2", statusFilter === "green" ? "border-slate-800 scale-110" : "border-transparent opacity-60")} />
-                </div>
-            </div>
-
-            <div className="flex items-center gap-2 bg-orange-50/50 border border-orange-100 px-3 py-1 rounded-md shadow-sm">
-                <span className="text-[9px] font-bold text-orange-600 uppercase tracking-tight">A futuro:</span>
-                <div className="flex gap-1 items-center">
-                    <button onClick={() => setProjectionFilter("all")} className={cn("text-[9px] font-bold px-1.5 py-0.5 rounded border", projectionFilter === "all" ? "bg-orange-600 text-white" : "bg-white border-orange-200")}>T</button>
-                    <button onClick={() => setProjectionFilter("red")} className={cn("h-3.5 w-3.5 rounded-full bg-red-500 border-2", projectionFilter === "red" ? "border-orange-800 scale-110" : "border-transparent opacity-60")} />
-                    <button onClick={() => setProjectionFilter("yellow")} className={cn("h-3.5 w-3.5 rounded-full bg-yellow-500 border-2", projectionFilter === "yellow" ? "border-orange-800 scale-110" : "border-transparent opacity-60")} />
-                    <button onClick={() => setProjectionFilter("green")} className={cn("h-3.5 w-3.5 rounded-full bg-green-500 border-2", projectionFilter === "green" ? "border-orange-800 scale-110" : "border-transparent opacity-60")} />
-                </div>
-            </div>
-
-            <div className="flex items-center gap-2 bg-slate-50 border px-2 py-1 rounded-md text-slate-500">
-                <CalendarDays className="h-3.5 w-3.5" />
-                <span className="text-[11px] font-bold text-slate-700 bg-white px-1.5 rounded border">{periodDays}d</span>
-            </div>
-
-            <div className="flex items-center gap-2 bg-white border px-2 py-1 rounded-md shadow-sm">
-                <Percent className="h-3.5 w-3.5 text-blue-600" />
-                <Input
-                    type="number"
-                    value={safetyMargin}
-                    onChange={(e) => setSafetyMargin(Number(e.target.value))}
-                    className="w-16 h-8 px-1 text-center text-[12px] font-bold"
+          {/* Filtros de Color */}
+          <div className="flex items-center gap-2 bg-white px-2 py-1 rounded border shadow-sm">
+            <span className="text-[10px] font-bold text-slate-500 uppercase">Estado:</span>
+            <div className="flex gap-1">
+              {(['all', 'red', 'yellow', 'green'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setStatusFilter(f)}
+                  className={cn(
+                    "w-5 h-5 rounded-full border-2 transition-all",
+                    f === 'all' && "bg-slate-200 border-slate-300",
+                    f === 'red' && "bg-red-500 border-red-200",
+                    f === 'yellow' && "bg-yellow-500 border-yellow-200",
+                    f === 'green' && "bg-green-500 border-green-200",
+                    statusFilter === f ? "ring-2 ring-blue-500 scale-110" : "opacity-40"
+                  )}
                 />
+              ))}
             </div>
+          </div>
 
-            {lastUpdate && (
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm ml-2">
-                    <RefreshCw className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
-                    <span className="text-[10px] font-medium whitespace-nowrap">
-                        Actualizado: {format(lastUpdate, "d/M HH.mm'hs'")}
-                    </span>
-                </div>
-            )}
+          {/* Margen de Seguridad */}
+          <div className="flex items-center gap-2 bg-white px-2 py-1 rounded border shadow-sm">
+            <Percent className="h-3 w-3 text-blue-500" />
+            <Input
+              type="number"
+              value={safetyMargin}
+              onChange={(e) => setSafetyMargin(Number(e.target.value))}
+              className="w-12 h-7 p-1 text-center text-xs font-bold border-none focus:ring-0"
+            />
+          </div>
+
+          {lastUpdate && (
+             <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                <RefreshCw className="h-3 w-3" />
+                {format(lastUpdate, "HH:mm")}
+             </div>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 rounded-md border bg-white shadow-sm overflow-hidden flex flex-col">
-        <div className="overflow-auto flex-1 h-full">
-          <Table containerClassName="overflow-visible" className="relative border-separate border-spacing-0 table-fixed">
-            <TableHeader className="sticky top-0 z-30 shadow-sm">
+      {/* TABLA */}
+      <div className="flex-1 border rounded-lg overflow-hidden bg-white">
+        <div className="overflow-auto h-[calc(100vh-250px)]">
+          <Table className="relative border-separate border-spacing-0">
+            <TableHeader className="sticky top-0 z-20 bg-slate-100 shadow-sm">
               {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id} className="hover:bg-transparent border-none">
+                <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <TableHead 
-                        key={header.id} 
-                        className="bg-slate-100 font-bold text-slate-700 h-10 py-0 px-1 sticky top-0 z-30 border-b text-[10px] whitespace-nowrap text-center"
-                        style={{ width: `${header.getSize()}px` }}
+                      key={header.id} 
+                      className="h-10 text-[10px] font-bold text-slate-600 border-b border-r text-center px-1"
+                      style={{ width: header.getSize() }}
                     >
-                      {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.isPlaceholder ? null : (
+                        <div 
+                          className={cn(
+                            header.column.getCanSort() ? "cursor-pointer select-none flex items-center justify-center gap-1" : ""
+                          )}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {header.column.getIsSorted() && <ArrowUpDown className="h-3 w-3" />}
+                        </div>
+                      )}
                     </TableHead>
                   ))}
                 </TableRow>
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow 
-                    key={row.id} 
-                    onClick={() => setSelectedRowId(row.id)}
-                    className={cn(
-                        "cursor-pointer transition-colors",
-                        selectedRowId === row.id ? "bg-blue-50/80 hover:bg-blue-100/80" : "hover:bg-slate-50/50"
-                    )}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="p-0 h-9 border-b border-slate-100">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center text-slate-500">
-                    No se encontraron productos con esos filtros.
-                  </TableCell>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow 
+                  key={row.id}
+                  onClick={() => setSelectedRowId(row.id)}
+                  className={cn(
+                    "hover:bg-slate-50 transition-colors",
+                    selectedRowId === row.id ? "bg-blue-50" : ""
+                  )}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id} className="h-9 p-0 border-b border-r border-slate-100">
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              )}
+              ))}
             </TableBody>
           </Table>
         </div>

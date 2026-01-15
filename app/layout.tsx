@@ -3,10 +3,10 @@ import localFont from "next/font/local";
 import "./globals.css";
 import Header from "@/components/header";
 import ConditionalFooter from "@/components/conditional-footer"; 
+import Footer from "@/components/footer"; // 👈 1. IMPORTAMOS EL FOOTER AQUÍ
 import AnnouncementBar from "@/components/announcement-bar";
 import Script from "next/script";
 import ConditionalHeader from "@/components/conditional-header"; 
-// 👇 IMPORTACIONES NECESARIAS
 import { getConfig } from "@/app/actions/config";
 import { getUniqueCategories } from "@/app/actions/products";
 
@@ -36,11 +36,9 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  // 1. Obtenemos los datos en el servidor (punto de entrada)
   const configData = await getConfig();
   const categoriesData = await getUniqueCategories();
 
-  // 2. Serializamos para evitar errores de objetos complejos (como Decimal de Prisma)
   const config = JSON.parse(JSON.stringify(configData));
   const categories = JSON.parse(JSON.stringify(categoriesData));
 
@@ -68,7 +66,6 @@ export default async function RootLayout({
 
         <ConditionalHeader>
             <div className="sticky top-0 z-50 w-full flex flex-col">
-                {/* 👇 PASAMOS LOS DATOS COMO PROPS */}
                 <AnnouncementBar config={config} />
                 <Header config={config} categories={categories} />
             </div>
@@ -78,7 +75,11 @@ export default async function RootLayout({
           {children}
         </main>
         
-        <ConditionalFooter />
+        {/* 👇 2. CAMBIO AQUÍ: Pasamos el Footer como hijo */}
+        <ConditionalFooter>
+            <Footer />
+        </ConditionalFooter>
+
       </body>
     </html>
   );

@@ -65,7 +65,11 @@ type StatusFilterType = "all" | "red" | "yellow" | "green"
 export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const searchParams = useSearchParams()
   
-  const [sorting, setSorting] = React.useState<SortingState>([])
+  // 2) ORDENAR POR VENTAS DE MAYOR A MENOR POR DEFECTO
+  const [sorting, setSorting] = React.useState<SortingState>([
+    { id: "salesLast30", desc: true }
+  ])
+  
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
@@ -147,7 +151,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return Array.from(orderMap.entries()).map(([id, supplier]) => ({ id, supplier }));
   }, [data]);
 
-  // --- SOLUCIÓN AL FOCO: Quitamos manualInputs de las dependencias ---
   const columns = React.useMemo<ColumnDef<ImportItem>[]>(() => {
     const cols: ColumnDef<ImportItem>[] = [
       {
@@ -163,7 +166,8 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         cell: ({ row }) => {
           const val = calculateCoverageValue(row.original, safetyMargin, false, {})
           return (
-            <div className="flex items-center gap-2 px-2 overflow-hidden">
+            // 1) PRODUCTO CENTRADO (Cambiado items-center por justify-center)
+            <div className="flex items-center justify-center gap-2 px-2 overflow-hidden text-center">
               <div className={cn("h-2 w-2 rounded-full shrink-0", getStatusColor(val))} />
               <span className="truncate text-[11px] font-medium" title={row.original.name}>
                 {row.original.name}
@@ -224,7 +228,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         <div className="px-1">
           <Input
             type="number"
-            // Leemos del meta para que sea reactivo pero no rompa el memo
             value={table.options.meta?.manualInputs[row.original.id] || ""}
             onChange={(e) => {
               const val = e.target.value === "" ? 0 : parseInt(e.target.value)
@@ -242,7 +245,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       header: "Stock Final",
       size: 90,
       cell: ({ row, table }) => {
-        // Recalculamos usando el meta actual en cada renderizado de celda
         const currentInputs = table.options.meta?.manualInputs || {}
         const val = calculateCoverageValue(row.original, safetyMargin, true, currentInputs)
         const color = getStatusColor(val)
@@ -260,7 +262,6 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     })
 
     return cols
-    // IMPORTANTE: manualInputs NO debe estar aquí para no perder el foco
   }, [uniqueOrders, safetyMargin, calculateCoverageValue])
 
   const table = useReactTable({
@@ -351,7 +352,8 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                   {headerGroup.headers.map((header) => (
                     <TableHead 
                       key={header.id} 
-                      className="h-10 text-[10px] font-bold text-slate-600 border-b border-r text-center px-1"
+                      // 3) AGRANDAR TAMAÑO FUENTE TÍTULOS (De 10px a 12px)
+                      className="h-10 text-[12px] font-bold text-slate-700 border-b border-r text-center px-1"
                       style={{ width: header.getSize() }}
                     >
                       {header.isPlaceholder ? null : (
@@ -376,8 +378,9 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                   key={row.id}
                   onClick={() => setSelectedRowId(row.id)}
                   className={cn(
-                    "hover:bg-slate-50 transition-colors",
-                    selectedRowId === row.id ? "bg-blue-50" : ""
+                    "hover:bg-slate-50 transition-colors cursor-pointer",
+                    // 4) CAMBIO A GRIS SUAVE AL PRESIONAR (bg-slate-100)
+                    selectedRowId === row.id ? "bg-slate-100 shadow-inner" : ""
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (

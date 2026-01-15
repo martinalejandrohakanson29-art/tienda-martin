@@ -11,8 +11,16 @@ import {
   getFilteredRowModel,
   useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, Search, Percent, CalendarDays, Filter } from "lucide-react"
+import { 
+  ArrowUpDown, 
+  Search, 
+  Percent, 
+  CalendarDays, 
+  RefreshCw 
+} from "lucide-react"
 import { useSearchParams } from "next/navigation"
+import { formatDistanceToNow } from "date-fns"
+import { es } from "date-fns/locale"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,16 +47,15 @@ export type ImportItem = {
 
 interface ImportsTableProps {
   data: ImportItem[]
+  lastUpdate: Date | null
 }
 
-export function ImportsTable({ data }: ImportsTableProps) {
+export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const searchParams = useSearchParams()
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
-  
-  // 👇 NUEVO: Estado para el filtro de semáforo
   const [statusFilter, setStatusFilter] = React.useState<"all" | "red" | "yellow" | "green">("all")
 
   const periodDays = React.useMemo(() => {
@@ -77,7 +84,6 @@ export function ImportsTable({ data }: ImportsTableProps) {
     return "bg-yellow-500"
   }
 
-  // 👇 NUEVO: Filtrado de datos por semáforo
   const filteredData = React.useMemo(() => {
     if (statusFilter === "all") return data
     return data.filter((item) => {
@@ -267,7 +273,7 @@ export function ImportsTable({ data }: ImportsTableProps) {
   }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage]) 
 
   const table = useReactTable({
-    data: filteredData, // 👇 AHORA USAMOS LOS DATOS FILTRADOS
+    data: filteredData,
     columns,
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
@@ -291,7 +297,15 @@ export function ImportsTable({ data }: ImportsTableProps) {
         </div>
 
         <div className="flex items-center gap-3">
-            {/* 👇 NUEVO: FILTRO DE SEMÁFORO */}
+            {lastUpdate && (
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm">
+                    <RefreshCw className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
+                    <span className="text-[10px] font-medium whitespace-nowrap">
+                        Actualizado {formatDistanceToNow(lastUpdate, { addSuffix: true, locale: es })}
+                    </span>
+                </div>
+            )}
+
             <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">Estado:</span>
                 <div className="flex gap-1.5 items-center">

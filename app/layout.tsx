@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import Header from "@/components/header";
-import Footer from "@/components/footer";
+// Importamos el nuevo componente condicional en lugar del Footer normal
+import ConditionalFooter from "@/components/conditional-footer"; 
 import AnnouncementBar from "@/components/announcement-bar";
 import Script from "next/script";
 import ConditionalHeader from "@/components/conditional-header"; 
@@ -38,7 +39,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
-        {/* 👇 CÓDIGO ACTUALIZADO CON TU NUEVO ID: 690783850730543 */}
+        {/* Meta Pixel Code */}
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
             !function(f,b,e,v,n,t,s)
@@ -63,7 +64,6 @@ export default function RootLayout({
             alt=""
           />
         </noscript>
-        {/* 👆 FIN DEL CÓDIGO ACTUALIZADO */}
 
         <ConditionalHeader>
             <div className="sticky top-0 z-50 w-full flex flex-col">
@@ -76,7 +76,8 @@ export default function RootLayout({
           {children}
         </main>
         
-        <Footer />
+        {/* Usamos el footer condicional aquí */}
+        <ConditionalFooter />
       </body>
     </html>
   );

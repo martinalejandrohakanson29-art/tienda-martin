@@ -16,7 +16,8 @@ import {
   Search, 
   Percent, 
   CalendarDays, 
-  RefreshCw
+  RefreshCw,
+  RotateCcw // Icono para resetear
 } from "lucide-react"
 import { useSearchParams } from "next/navigation"
 import { format } from "date-fns"
@@ -58,6 +59,9 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
   const [safetyMargin, setSafetyMargin] = React.useState<number>(10)
   const [selectedRowId, setSelectedRowId] = React.useState<string | null>(null)
   
+  // --- NUEVO: Estado para guardar los ingresos manuales ---
+  const [manualInputs, setManualInputs] = React.useState<Record<string, number>>({})
+  
   const [statusFilter, setStatusFilter] = React.useState<StatusFilterType>("all")
   const [projectionFilter, setProjectionFilter] = React.useState<StatusFilterType>("all")
 
@@ -72,11 +76,17 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     return diffDays > 0 ? diffDays : 30
   }, [searchParams])
 
+  // --- MODIFICADO: Ahora suma manualInputs[row.id] al cálculo futuro ---
   const calculateCoverage = React.useCallback((row: ImportItem, margin: number, includeFuture = false) => {
     const currentStock = row.stockExternal || 0
-    const futureStock = includeFuture 
+    let futureStock = includeFuture 
         ? Object.values(row.futureArrivals || {}).reduce((sum, arrival) => sum + arrival.quantity, 0)
         : 0
+    
+    // Si estamos calculando futuro, sumamos la simulación manual
+    if (includeFuture) {
+      futureStock += (manualInputs[row.id] || 0)
+    }
         
     const totalStock = currentStock + futureStock
     const totalWithMargin = row.salesLast30 * (1 + margin / 100)
@@ -84,7 +94,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     const monthlyVelocity = totalWithMargin / factorMonths
     
     return monthlyVelocity > 0 ? (totalStock / monthlyVelocity) : (totalStock > 0 ? 999 : 0)
-  }, [periodDays])
+  }, [periodDays, manualInputs]) // Agregado manualInputs a las dependencias
 
   const getStatusColor = (val: number) => {
     if (val >= 999) return "bg-green-500"
@@ -251,7 +261,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
     const projectedColumn: ColumnDef<ImportItem> = {
       id: "projectedCoverage", 
       size: 85,
-      accessorFn: (row) => calculateCoverage(row, safetyMargin, true),
+      accessorFn: (row) => calculateCoverage(row.original, safetyMargin, true),
       header: ({ column }) => (
           <div className="flex justify-center">
               <Button 
@@ -277,8 +287,36 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
       },
     };
 
-    return [...baseColumns, ...poColumns, projectedColumn];
-  }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage]) 
+    // --- NUEVO: Columna de Simulación Manual ---
+    const simulationColumn: ColumnDef<ImportItem> = {
+      id: "simulation",
+      size: 100,
+      header: () => (
+        <div className="text-center font-bold text-purple-600 text-[10px] uppercase tracking-tighter">
+          Simular Ingreso
+        </div>
+      ),
+      cell: ({ row }) => (
+        <div className="px-1">
+          <Input
+            type="number"
+            value={manualInputs[row.original.id] || ""}
+            onChange={(e) => {
+              const val = e.target.value === "" ? 0 : parseInt(e.target.value)
+              setManualInputs(prev => ({
+                ...prev,
+                [row.original.id]: val
+              }))
+            }}
+            className="h-7 text-[11px] text-center font-bold border-purple-200 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-purple-50/30"
+            placeholder="0"
+          />
+        </div>
+      )
+    };
+
+    return [...baseColumns, ...poColumns, projectedColumn, simulationColumn];
+  }, [safetyMargin, periodDays, uniqueOrders, calculateCoverage, manualInputs]) 
 
   const table = useReactTable({
     data: filteredData,
@@ -309,7 +347,20 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
         {/* GRUPO DE FILTROS E INPUTS (CENTRO/DERECHA) */}
         <div className="flex items-center gap-4 flex-1 justify-end">
             
-            {/* FILTRO HOY (Relacionado a Stock sin ingresos) */}
+            {/* BOTÓN RESET SIMULACIÓN (NUEVO) */}
+            {Object.keys(manualInputs).length > 0 && (
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setManualInputs({})}
+                    className="h-9 px-3 text-[10px] font-bold text-purple-600 border-purple-200 hover:bg-purple-50"
+                >
+                    <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                    LIMPIAR SIMULACIÓN
+                </Button>
+            )}
+
+            {/* FILTRO HOY */}
             <div className="flex items-center gap-2 bg-white border px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">Hoy:</span>
                 <div className="flex gap-1 items-center">
@@ -320,7 +371,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 </div>
             </div>
 
-            {/* FILTRO PROY (Relacionado a Stock con ingresos) */}
+            {/* FILTRO PROY */}
             <div className="flex items-center gap-2 bg-orange-50/50 border border-orange-100 px-3 py-1 rounded-md shadow-sm">
                 <span className="text-[9px] font-bold text-orange-600 uppercase tracking-tight">A futuro:</span>
                 <div className="flex gap-1 items-center">
@@ -337,7 +388,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 <span className="text-[11px] font-bold text-slate-700 bg-white px-1.5 rounded border">{periodDays}d</span>
             </div>
 
-            {/* INPUT % COBERTURA (AGRANDADO) */}
+            {/* INPUT % COBERTURA */}
             <div className="flex items-center gap-2 bg-white border px-2 py-1 rounded-md shadow-sm">
                 <Percent className="h-3.5 w-3.5 text-blue-600" />
                 <Input
@@ -348,7 +399,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 />
             </div>
 
-            {/* ÚLTIMA ACTUALIZACIÓN (DERECHA DE TODO) */}
+            {/* ÚLTIMA ACTUALIZACIÓN */}
             {lastUpdate && (
                 <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50/50 border border-blue-100 rounded-md text-blue-600 shadow-sm ml-2">
                     <RefreshCw className="h-3 w-3 animate-[spin_3s_linear_infinite]" />
@@ -398,7 +449,7 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center text-slate-500">
+                  <TableCell colSpan={table.getAllColumns().length} className="h-24 text-center text-slate-500">
                     No se encontraron productos con esos filtros.
                   </TableCell>
                 </TableRow>

@@ -1,20 +1,21 @@
+// components/header.tsx
 import Link from "next/link"
 import { Menu, LayoutDashboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import CartSheet from "@/components/cart-sheet"
-import { getConfig } from "@/app/actions/config"
-import { getUniqueCategories } from "@/app/actions/products"
+// ELIMINAMOS las importaciones de acciones que ya no usamos (getConfig, getUniqueCategories)
 import CategoryMenu from "@/components/category-menu"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
-// 👇 1. Importamos nuestro nuevo componente
 import HeaderLogo from "@/components/header-logo"
 
-export default async function Header() {
-  const config = await getConfig()
-  const categories = await getUniqueCategories()
+// Definimos que el componente recibe config y categories
+export default async function Header({ config, categories }: { config: any, categories: any }) {
+  // ELIMINADO: const config = await getConfig()
+  // ELIMINADO: const categories = await getUniqueCategories()
   
+  // Esto SÍ lo mantenemos porque el layout no lo está pasando
   const session = await getServerSession(authOptions)
 
   return (
@@ -24,8 +25,8 @@ export default async function Header() {
         {/* GRUPO IZQUIERDA: Logo Inteligente + Categorías */}
         <div className="flex items-center gap-2 md:gap-6">
             
-            {/* 👇 2. Usamos el componente que decide qué mostrar */}
-            <HeaderLogo config={JSON.parse(JSON.stringify(config))} />
+            {/* Pasamos el config directamente, ya viene procesado del layout */}
+            <HeaderLogo config={config} />
 
             {/* Visible solo en móvil (md:hidden) */}
             <div className="md:hidden border-l pl-2 ml-1 border-gray-300">

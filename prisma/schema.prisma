@@ -245,21 +245,21 @@ model PlanningSession {
   createdAt   DateTime @default(now())
 }
 
-// --- GESTIÓN DE VENTAS INSTAGRAM (Estructura Completa) ---
+// --- GESTIÓN DE VENTAS INSTAGRAM (Versión Simplificada) ---
 
 model InstagramSale {
   id                String   @id @default(cuid())
-  id_comprobante    String   @unique // ID externo: "5477793"
-  numero_comprobante String   // "00014572"
-  fecha             DateTime // La convertiremos a fecha real
-  total             Decimal  @db.Decimal(20, 10) // Soporta muchos decimales como el tuyo
-  cliente           String   // "ALBORNOZ ALAN ALEXIS"
-  dni               String   // "37244446"
-  vendedor          String   // "MARTIN"
-  forma_comprobante String   // "Factura"
-  
-  // Relación con los grupos de pago y artículos
-  paymentGroups     InstagramSalePaymentGroup[]
+  id_comprobante    String   @unique // ID externo
+  numero_comprobante String
+  fecha             DateTime @default(now())
+  total             Decimal  @db.Decimal(20, 10)
+  cliente           String
+  dni               String?  // Lo dejamos opcional
+  metodo_pago       String?  // Movido aquí para no usar otra tabla
+  envio             Decimal? @db.Decimal(20, 2) @default(0)
+
+  // Relación directa con los artículos
+  articulos         InstagramSaleItem[]
 
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -267,33 +267,13 @@ model InstagramSale {
   @@map("instagram_sales")
 }
 
-model InstagramSalePaymentGroup {
+model InstagramSaleItem {
   id            String   @id @default(cuid())
   saleId        String
   sale          InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   
-  metodo_pago   String   // "TRANSFERENCIA CRUZ. (Débito)"
-  monto_total   Decimal  @db.Decimal(20, 2)
-  envio         Decimal  @db.Decimal(20, 2) // "10.000,00"
-
-  // Artículos dentro de este pago
-  articulos     InstagramSaleItem[]
-
-  @@map("instagram_sale_payments")
-}
-
-model InstagramSaleItem {
-  id            String   @id @default(cuid())
-  paymentGroupId String
-  paymentGroup  InstagramSalePaymentGroup @relation(fields: [paymentGroupId], references: [id], onDelete: Cascade)
-  
-  tipo          String   // "articulo"
-  cantidad      String   // "1,00" (se guarda como string para respetar tu formato)
-  detalle       String   // "KIT CILINDRO TITAN 190..."
-  marca         String   // "IMPO"
-  precio_neto   Decimal  @db.Decimal(20, 2)
-  iva           Decimal  @db.Decimal(20, 2)
-  precio_total  Decimal  @db.Decimal(20, 2)
+  detalle       String   
+  cantidad      String   // Formato "2,00"
 
   @@map("instagram_sale_items")
 }

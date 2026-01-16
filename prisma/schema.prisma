@@ -258,13 +258,51 @@ model InstagramSale {
   metodo_pago        String?
   envio              Decimal?            @db.Decimal(20, 2) @default(0)
 
-  // Relación con los artículos
+  // Relación con los artículos básicos (si los sigues usando)
   articulos          InstagramSaleItem[]
+  
+  // NUEVA RELACIÓN: Para que el código de "details/route.ts" funcione
+  paymentGroups      InstagramSalePaymentGroup[]
 
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
   @@map("instagram_sales")
+}
+
+// Modelo para los grupos de pago detallados que vienen de n8n
+model InstagramSalePaymentGroup {
+  id          String   @id @default(cuid())
+  saleId      String
+  sale        InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  metodo_pago String?
+  monto_total Decimal  @db.Decimal(20, 2)
+  envio       Decimal  @db.Decimal(20, 2)
+  
+  // Relación con los artículos detallados del grupo de pago
+  articulos   InstagramSalePaymentItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("instagram_sale_payment_groups")
+}
+
+// Modelo para los artículos específicos dentro de un grupo de pago
+model InstagramSalePaymentItem {
+  id             String                    @id @default(cuid())
+  paymentGroupId String
+  paymentGroup   InstagramSalePaymentGroup @relation(fields: [paymentGroupId], references: [id], onDelete: Cascade)
+  
+  tipo           String?
+  cantidad       String?
+  detalle        String?
+  marca          String?
+  precio_neto    Decimal?                  @db.Decimal(20, 2)
+  iva            Decimal?                  @db.Decimal(20, 2)
+  precio_total   Decimal?                  @db.Decimal(20, 2)
+
+  @@map("instagram_sale_payment_items")
 }
 
 model InstagramSaleItem {

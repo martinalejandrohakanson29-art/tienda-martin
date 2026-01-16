@@ -245,35 +245,35 @@ model PlanningSession {
   createdAt   DateTime @default(now())
 }
 
-// --- GESTIÓN DE VENTAS INSTAGRAM (Versión Simplificada) ---
+// --- GESTIÓN DE VENTAS INSTAGRAM ---
 
 model InstagramSale {
-  id                String   @id @default(cuid())
-  id_comprobante    String   @unique // ID externo
+  id                 String              @id @default(cuid())
+  id_comprobante     String              @unique // ID externo (ej: "5477793")
   numero_comprobante String
-  fecha             DateTime @default(now())
-  total             Decimal  @db.Decimal(20, 10)
-  cliente           String
-  dni               String?  // Lo dejamos opcional
-  metodo_pago       String?  // Movido aquí para no usar otra tabla
-  envio             Decimal? @db.Decimal(20, 2) @default(0)
+  fecha              DateTime            @default(now())
+  total              Decimal             @db.Decimal(20, 2)
+  cliente            String
+  dni                String?
+  metodo_pago        String?
+  envio              Decimal?            @db.Decimal(20, 2) @default(0)
 
-  // Relación directa con los artículos
-  articulos         InstagramSaleItem[]
+  // Relación con los artículos
+  articulos          InstagramSaleItem[]
 
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@map("instagram_sales")
 }
 
 model InstagramSaleItem {
-  id            String   @id @default(cuid())
-  saleId        String
-  sale          InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  id       String        @id @default(cuid())
+  saleId   String
+  sale     InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   
-  detalle       String   
-  cantidad      String   // Formato "2,00"
+  detalle  String   
+  cantidad String        // Formato "2,00" (tal cual viene de n8n)
 
   @@map("instagram_sale_items")
 }

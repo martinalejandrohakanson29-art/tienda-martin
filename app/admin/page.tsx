@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getProducts } from "@/app/actions/products"
-import { Eye, Package, Trophy, Store, ArrowRight } from "lucide-react"
+import { Eye, Package, Trophy, Store, ArrowRight, Instagram } from "lucide-react" // 👈 Agregamos 'Instagram'
 import Link from "next/link"
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export default async function AdminDashboard() {
     const totalProducts = products.length
     const totalViews = products.reduce((acc, curr) => acc + (curr.views || 0), 0)
     
-    // 👇 CAMBIO 1: Ahora obtenemos los 5 más vistos en lugar de solo 1
+    // Ranking de los 5 más vistos
     const topProducts = [...products]
         .sort((a, b) => (b.views || 0) - (a.views || 0))
         .slice(0, 5)
@@ -48,6 +48,29 @@ export default async function AdminDashboard() {
                             </p>
                             <Link href="/admin/mercadolibre">
                                 <Button className="w-full bg-yellow-500 hover:bg-yellow-600 text-white gap-2 shadow-sm h-12 text-lg">
+                                    Entrar al Panel <ArrowRight size={18} />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+
+                    {/* NUEVA: Tarjeta de Instagram 📸 */}
+                    <Card className="border-l-4 border-l-pink-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-pink-50/50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-pink-800 text-xl">
+                                <Instagram className="h-6 w-6" />
+                                Gestionar Instagram
+                            </CardTitle>
+                            <CardDescription className="text-pink-700/80 font-medium">
+                                Feed, etiquetas y catálogo
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-gray-600 mb-6">
+                                Administra tu presencia visual y sincronización de productos.
+                            </p>
+                            <Link href="/admin/instagram">
+                                <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white gap-2 shadow-sm h-12 text-lg">
                                     Entrar al Panel <ArrowRight size={18} />
                                 </Button>
                             </Link>
@@ -103,7 +126,6 @@ export default async function AdminDashboard() {
                         </CardContent>
                     </Card>
 
-                    {/* 👇 CAMBIO 2: Ranking de los 5 más populares */}
                     <Card className="border-l-4 border-l-yellow-400 bg-yellow-50/30">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium text-yellow-700">Top 5 Más Vistos</CardTitle>

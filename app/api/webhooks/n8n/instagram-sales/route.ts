@@ -1,15 +1,16 @@
+// app/api/webhooks/n8n/instagram-sales/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
-// Función para convertir fecha "16/01/2026" a objeto Date
 function parseDate(dateStr: string): Date {
+    // Si por algún motivo llega vacío, devolvemos la fecha actual para que no falle
+    if (!dateStr) return new Date();
     const [day, month, year] = dateStr.split("/").map(Number);
     return new Date(year, month - 1, day);
 }
 
 export async function POST(req: Request) {
     try {
-        // Validación de seguridad (Igual a tu webhook de importaciones)
         const authHeader = req.headers.get("authorization")
         if (authHeader !== `Bearer ${process.env.N8N_SECRET_TOKEN}`) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 })
@@ -17,31 +18,39 @@ export async function POST(req: Request) {
 
         const data = await req.json()
 
-        // El nodo de n8n enviará las ventas una por una o en array. 
-        // Vamos a manejar el caso de una sola venta por cada llamada.
+        // 💡 CORRECCIÓN: Buscamos tanto en minúscula como en mayúscula para evitar el error
+        const id_comprobante = String(data.id_comprobante || data.Id_comprobante);
+        const fecha_str = data.fecha || data.Fecha;
+        const total = data.total || data.Total || 0;
+        const cliente = data.cliente || data.Cliente || "Sin nombre";
+        const vendedor = data.vendedor || data.Vendedor || "MARTIN";
+
         const sale = await prisma.instagramSale.upsert({
-            where: { id_comprobante: String(data.id_comprobante) },
+            where: { id_comprobante: id_comprobante },
             update: {
-                total: data.total,
-                cliente: data.cliente,
-                vendedor: data.vendedor,
+                total: total,
+                cliente: cliente,
+                vendedor: vendedor,
                 updatedAt: new Date()
             },
             create: {
-                id_comprobante: String(data.id_comprobante),
-                numero_comprobante: data.numero_comprobante,
-                fecha: parseDate(data.fecha),
-                total: data.total,
-                cliente: data.cliente,
+                id_comprobante: id_comprobante,
+                numero_comprobante: data.numero_comprobante || "",
+                fecha: parseDate(fecha_str),
+                total: total,
+                cliente: cliente,
                 dni: data.dni || "",
-                vendedor: data.vendedor,
-                forma_comprobante: data.forma_comprobante,
+                vendedor: vendedor,
+                forma_comprobante: data.forma_comprobante || "Factura",
             }
         })
 
         return NextResponse.json({ success: true, id: sale.id })
     } catch (error: any) {
         console.error("Error en Webhook IG Sales:", error);
-        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
+        return NextResponse.json({ 
+            success: false, 
+            error: error.message 
+        }, { status: 500 })
     }
 }

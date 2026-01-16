@@ -1,13 +1,5 @@
-// app/api/webhooks/n8n/instagram-sales/route.ts
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-
-function parseDate(dateStr: string): Date {
-    // Si por algún motivo llega vacío, devolvemos la fecha actual para que no falle
-    if (!dateStr) return new Date();
-    const [day, month, year] = dateStr.split("/").map(Number);
-    return new Date(year, month - 1, day);
-}
 
 export async function POST(req: Request) {
     try {
@@ -18,39 +10,42 @@ export async function POST(req: Request) {
 
         const data = await req.json()
 
-        // 💡 CORRECCIÓN: Buscamos tanto en minúscula como en mayúscula para evitar el error
-        const id_comprobante = String(data.id_comprobante || data.Id_comprobante);
-        const fecha_str = data.fecha || data.Fecha;
-        const total = data.total || data.Total || 0;
-        const cliente = data.cliente || data.Cliente || "Sin nombre";
-        const vendedor = data.vendedor || data.Vendedor || "MARTIN";
-
+        // Usamos upsert para que si la venta ya existe, solo se actualice
         const sale = await prisma.instagramSale.upsert({
-            where: { id_comprobante: id_comprobante },
+            where: { id_comprobante: String(data.id_comprobante) },
             update: {
-                total: total,
-                cliente: cliente,
-                vendedor: vendedor,
-                updatedAt: new Date()
+                total: data.monto_total,
+                metodo_pago: data.metodo_pago,
+                // Borramos ítems viejos para recargarlos (limpieza)
+                articulos: { deleteMany: {} } 
             },
             create: {
-                id_comprobante: id_comprobante,
-                numero_comprobante: data.numero_comprobante || "",
-                fecha: parseDate(fecha_str),
-                total: total,
-                cliente: cliente,
-                dni: data.dni || "",
-                vendedor: vendedor,
-                forma_comprobante: data.forma_comprobante || "Factura",
+                id_comprobante: String(data.id_comprobante),
+                numero_comprobante: data.numero_comprobante,
+                cliente: data.cliente,
+                total: data.monto_total,
+                metodo_pago: data.metodo_pago,
+                envio: data.envio || 0,
+                dni: data.dni || ""
             }
         })
 
+        // Cargamos los artículos si vienen en el JSON
+        if (data.articulos && Array.isArray(data.articulos)) {
+            await prisma.instagramSaleItem.createMany({
+                data: data.articulos
+                    .filter((art: any) => art.detalle) // Filtramos los que vienen null
+                    .map((art: any) => ({
+                        saleId: sale.id,
+                        detalle: art.detalle,
+                        cantidad: String(art.cantidad)
+                    }))
+            })
+        }
+
         return NextResponse.json({ success: true, id: sale.id })
     } catch (error: any) {
-        console.error("Error en Webhook IG Sales:", error);
-        return NextResponse.json({ 
-            success: false, 
-            error: error.message 
-        }, { status: 500 })
+        console.error("Error en Carga Unificada IG:", error)
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 }

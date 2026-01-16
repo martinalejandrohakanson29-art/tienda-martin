@@ -62,12 +62,12 @@ export default async function AdminDashboard() {
                                 Gestionar Instagram
                             </CardTitle>
                             <CardDescription className="text-pink-700/80 font-medium">
-                                Feed, etiquetas y catálogo
+                                Seguimiento de ventas
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
                             <p className="text-sm text-gray-600 mb-6">
-                                Administra tu presencia visual y sincronización de productos.
+                                Administrar ventas y datos
                             </p>
                             <Link href="/admin/instagram">
                                 <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white gap-2 shadow-sm h-12 text-lg">
@@ -157,3 +157,4 @@ export default async function AdminDashboard() {
         </div>
     )
 }
+

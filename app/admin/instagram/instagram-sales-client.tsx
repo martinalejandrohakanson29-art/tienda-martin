@@ -67,12 +67,12 @@ export function InstagramSalesClient({ data }: { data: InstagramData }) {
     onGlobalFilterChange: setFiltering,
   })
 
-  // Cálculo de ventas netas (Total menos envíos)
+  // Cálculo de ventas reales sin contar el costo de los envíos
   const ventasNetas = data.totalGeneral - data.totalEnvios
 
   return (
     <div className="w-full space-y-6">
-      {/* TARJETAS DE RESUMEN ACUMULADO */}
+      {/* TARJETAS DE RESUMEN */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-white shadow-sm border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -83,49 +83,47 @@ export function InstagramSalesClient({ data }: { data: InstagramData }) {
             <div className="text-2xl font-bold text-green-700">
               ${ventasNetas.toLocaleString('es-AR')}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Total recaudado (sin envíos)</p>
+            <p className="text-xs text-muted-foreground mt-1">Recaudación real (sin fletes)</p>
           </CardContent>
         </Card>
 
         <Card className="bg-white shadow-sm border-l-4 border-l-orange-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Envíos</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Cobrado Envíos</CardTitle>
             <Truck className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-orange-700">
               ${data.totalEnvios.toLocaleString('es-AR')}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Dinero cobrado por fletes</p>
+            <p className="text-xs text-muted-foreground mt-1">Suma de cargos de envío</p>
           </CardContent>
         </Card>
 
         <Card className="bg-white shadow-sm border-l-4 border-l-blue-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Variedad de Artículos</CardTitle>
+            <CardTitle className="text-sm font-medium">Artículos Distintos</CardTitle>
             <Package className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-700">
               {data.articles.length}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Productos distintos vendidos</p>
+            <p className="text-xs text-muted-foreground mt-1">Variedad de productos vendidos</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* SECCIÓN DE TABLA Y BUSQUEDA */}
+      {/* BUSCADOR Y TABLA */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative max-w-sm flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nombre de artículo..."
-              value={filtering}
-              onChange={(e) => setFiltering(e.target.value)}
-              className="pl-8 bg-white"
-            />
-          </div>
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Filtrar por nombre..."
+            value={filtering}
+            onChange={(e) => setFiltering(e.target.value)}
+            className="pl-8 bg-white"
+          />
         </div>
 
         <div className="rounded-md border bg-white shadow-sm overflow-hidden">
@@ -155,7 +153,7 @@ export function InstagramSalesClient({ data }: { data: InstagramData }) {
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No se encontraron artículos cargados.
+                    No hay datos disponibles.
                   </TableCell>
                 </TableRow>
               )}
@@ -164,20 +162,10 @@ export function InstagramSalesClient({ data }: { data: InstagramData }) {
         </div>
         
         <div className="flex items-center justify-end space-x-2 py-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => table.previousPage()} 
-            disabled={!table.getCanPreviousPage()}
-          >
+          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
             Anterior
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => table.nextPage()} 
-            disabled={!table.getCanNextPage()}
-          >
+          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
             Siguiente
           </Button>
         </div>

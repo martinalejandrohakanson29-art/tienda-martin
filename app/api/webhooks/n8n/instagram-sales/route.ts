@@ -2,18 +2,15 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
-// Función para convertir precios en texto "387000" o "1.200,50" a número
 function parsePrice(priceStr: any): number {
     if (typeof priceStr === "number") return priceStr;
     if (!priceStr) return 0;
-    // Quitamos puntos de miles y cambiamos la coma decimal por punto
     const clean = String(priceStr).replace(/\./g, "").replace(",", ".");
     return parseFloat(clean);
 }
 
 export async function POST(req: Request) {
     try {
-        // Verificación de seguridad (Token)
         const authHeader = req.headers.get("authorization")
         if (authHeader !== `Bearer ${process.env.N8N_SECRET_TOKEN}`) {
             return NextResponse.json({ error: "No autorizado" }, { status: 401 })
@@ -21,9 +18,7 @@ export async function POST(req: Request) {
 
         const data = await req.json()
 
-        // Usamos una transacción para que se cree la venta y sus ítems como un solo bloque
         const result = await prisma.$transaction(async (tx) => {
-            // 1. Crear o actualizar la venta base
             const sale = await tx.instagramSale.upsert({
                 where: { id_comprobante: String(data.id_comprobante) },
                 update: {
@@ -31,9 +26,7 @@ export async function POST(req: Request) {
                     metodo_pago: data.metodo_pago,
                     cliente: data.cliente,
                     numero_comprobante: data.numero_comprobante,
-                    // CORRECCIÓN: Cargamos el envío también en el update
                     envio: data.envio ? parsePrice(data.envio) : 0, 
-                    // Borramos ítems viejos para evitar duplicados si se re-envía
                     articulos: { deleteMany: {} } 
                 },
                 create: {
@@ -47,23 +40,40 @@ export async function POST(req: Request) {
                 }
             })
 
-            // 2. Cargar los artículos si vienen en el JSON
+            // --- LÓGICA PARA UNIFICAR ARTÍCULOS Y ENVÍO ---
+            const itemsToCreate = [];
+
+            // 1. Agregamos los artículos normales
             if (data.articulos && Array.isArray(data.articulos)) {
-                // Filtramos los que vienen con 'detalle' nulo para no cargar basura
                 const validItems = data.articulos.filter((art: any) => art.detalle !== null);
-                
-                if (validItems.length > 0) {
-                    await tx.instagramSaleItem.createMany({
-                        data: validItems.map((art: any) => ({
-                            saleId: sale.id,
-                            detalle: art.detalle,
-                            cantidad: String(art.cantidad),
-                            // CORRECCIÓN: Agregamos el mapeo del precio total del artículo
-                            precio_total: parsePrice(art.precio_total) 
-                        }))
-                    })
-                }
+                validItems.forEach((art: any) => {
+                    itemsToCreate.push({
+                        saleId: sale.id,
+                        detalle: art.detalle,
+                        cantidad: String(art.cantidad),
+                        precio_total: parsePrice(art.precio_total) 
+                    });
+                });
             }
+
+            // 2. Agregamos el envío como un artículo especial
+            const montoEnvio = data.envio ? parsePrice(data.envio) : 0;
+            if (montoEnvio > 0) {
+                itemsToCreate.push({
+                    saleId: sale.id,
+                    detalle: "COSTO DE ENVIO", // Así aparecerá en tu tabla
+                    cantidad: "1",
+                    precio_total: montoEnvio
+                });
+            }
+
+            // 3. Guardamos todo junto en la tabla instagram_sale_items
+            if (itemsToCreate.length > 0) {
+                await tx.instagramSaleItem.createMany({
+                    data: itemsToCreate
+                })
+            }
+            
             return sale;
         });
 

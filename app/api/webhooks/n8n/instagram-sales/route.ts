@@ -40,12 +40,15 @@ export async function POST(req: Request) {
                 }
             })
 
-            // --- LÓGICA PARA UNIFICAR ARTÍCULOS Y ENVÍO ---
             const itemsToCreate = [];
 
-            // 1. Agregamos los artículos normales
+            // 1. Mapeamos artículos FILTRANDO los que valen $0 (regalos)
             if (data.articulos && Array.isArray(data.articulos)) {
-                const validItems = data.articulos.filter((art: any) => art.detalle !== null);
+                const validItems = data.articulos.filter((art: any) => {
+                    const precio = parsePrice(art.precio_total);
+                    return art.detalle !== null && precio > 0; // <--- FILTRO CLAVE
+                });
+
                 validItems.forEach((art: any) => {
                     itemsToCreate.push({
                         saleId: sale.id,
@@ -56,18 +59,17 @@ export async function POST(req: Request) {
                 });
             }
 
-            // 2. Agregamos el envío como un artículo especial
+            // 2. Agregamos el envío como un artículo especial si existe
             const montoEnvio = data.envio ? parsePrice(data.envio) : 0;
             if (montoEnvio > 0) {
                 itemsToCreate.push({
                     saleId: sale.id,
-                    detalle: "COSTO DE ENVIO", // Así aparecerá en tu tabla
+                    detalle: "COSTO DE ENVIO",
                     cantidad: "1",
                     precio_total: montoEnvio
                 });
             }
 
-            // 3. Guardamos todo junto en la tabla instagram_sale_items
             if (itemsToCreate.length > 0) {
                 await tx.instagramSaleItem.createMany({
                     data: itemsToCreate

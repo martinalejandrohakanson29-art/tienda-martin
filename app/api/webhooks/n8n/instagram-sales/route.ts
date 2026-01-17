@@ -31,6 +31,8 @@ export async function POST(req: Request) {
                     metodo_pago: data.metodo_pago,
                     cliente: data.cliente,
                     numero_comprobante: data.numero_comprobante,
+                    // CORRECCIÓN: Cargamos el envío también en el update
+                    envio: data.envio ? parsePrice(data.envio) : 0, 
                     // Borramos ítems viejos para evitar duplicados si se re-envía
                     articulos: { deleteMany: {} } 
                 },
@@ -55,7 +57,9 @@ export async function POST(req: Request) {
                         data: validItems.map((art: any) => ({
                             saleId: sale.id,
                             detalle: art.detalle,
-                            cantidad: String(art.cantidad) // Se guarda como string "2,00"
+                            cantidad: String(art.cantidad),
+                            // CORRECCIÓN: Agregamos el mapeo del precio total del artículo
+                            precio_total: parsePrice(art.precio_total) 
                         }))
                     })
                 }

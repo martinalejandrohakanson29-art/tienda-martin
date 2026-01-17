@@ -13,25 +13,46 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Search, Package, DollarSign } from "lucide-react"
+import { Search, Package, DollarSign, Truck } from "lucide-react"
 
-export function InstagramSalesClient({ data }: { data: { articles: any[], totalGeneral: number } }) {
+interface InstagramData {
+  articles: any[]
+  totalGeneral: number
+  totalEnvios: number
+}
+
+export function InstagramSalesClient({ data }: { data: InstagramData }) {
   const [filtering, setFiltering] = useState("")
 
   const columns: ColumnDef<any>[] = [
     {
       accessorKey: "detalle",
       header: "Descripción del Artículo",
-      cell: ({ row }) => <span className="font-medium text-slate-700">{row.getValue("detalle")}</span>,
+      cell: ({ row }) => (
+        <span className="font-medium text-slate-700">
+          {row.getValue("detalle")}
+        </span>
+      ),
     },
     {
       accessorKey: "cantidad",
       header: "Total Vendido",
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          <span className="text-lg font-bold text-blue-600">{row.getValue("cantidad")}</span>
+          <span className="text-lg font-bold text-blue-600">
+            {Number(row.getValue("cantidad"))}
+          </span>
           <span className="text-xs text-slate-400">unidades</span>
         </div>
+      ),
+    },
+    {
+      accessorKey: "recaudado",
+      header: "Monto Recaudado",
+      cell: ({ row }) => (
+        <span className="font-bold text-green-600">
+          ${Number(row.getValue("recaudado")).toLocaleString('es-AR')}
+        </span>
       ),
     },
   ]
@@ -46,20 +67,36 @@ export function InstagramSalesClient({ data }: { data: { articles: any[], totalG
     onGlobalFilterChange: setFiltering,
   })
 
+  // Cálculo de ventas netas (Total menos envíos)
+  const ventasNetas = data.totalGeneral - data.totalEnvios
+
   return (
     <div className="w-full space-y-6">
-      {/* TARJETA DE TOTAL GENERAL */}
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* TARJETAS DE RESUMEN ACUMULADO */}
+      <div className="grid gap-4 md:grid-cols-3">
         <Card className="bg-white shadow-sm border-l-4 border-l-green-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recaudación Total Instagram</CardTitle>
+            <CardTitle className="text-sm font-medium">Ventas Netas</CardTitle>
             <DollarSign className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-700">
-              ${data.totalGeneral.toLocaleString('es-AR')}
+              ${ventasNetas.toLocaleString('es-AR')}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Suma de todos los comprobantes cargados</p>
+            <p className="text-xs text-muted-foreground mt-1">Total recaudado (sin envíos)</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white shadow-sm border-l-4 border-l-orange-500">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Envíos</CardTitle>
+            <Truck className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-700">
+              ${data.totalEnvios.toLocaleString('es-AR')}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">Dinero cobrado por fletes</p>
           </CardContent>
         </Card>
 
@@ -77,16 +114,18 @@ export function InstagramSalesClient({ data }: { data: { articles: any[], totalG
         </Card>
       </div>
 
-      {/* BUSCADOR Y TABLA */}
+      {/* SECCIÓN DE TABLA Y BUSQUEDA */}
       <div className="space-y-4">
-        <div className="relative max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre de artículo..."
-            value={filtering}
-            onChange={(e) => setFiltering(e.target.value)}
-            className="pl-8 bg-white"
-          />
+        <div className="flex items-center justify-between gap-4">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre de artículo..."
+              value={filtering}
+              onChange={(e) => setFiltering(e.target.value)}
+              className="pl-8 bg-white"
+            />
+          </div>
         </div>
 
         <div className="rounded-md border bg-white shadow-sm overflow-hidden">
@@ -116,7 +155,7 @@ export function InstagramSalesClient({ data }: { data: { articles: any[], totalG
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
-                    No se encontraron artículos.
+                    No se encontraron artículos cargados.
                   </TableCell>
                 </TableRow>
               )}
@@ -125,10 +164,20 @@ export function InstagramSalesClient({ data }: { data: { articles: any[], totalG
         </div>
         
         <div className="flex items-center justify-end space-x-2 py-2">
-          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => table.previousPage()} 
+            disabled={!table.getCanPreviousPage()}
+          >
             Anterior
           </Button>
-          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => table.nextPage()} 
+            disabled={!table.getCanNextPage()}
+          >
             Siguiente
           </Button>
         </div>

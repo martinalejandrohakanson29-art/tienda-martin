@@ -316,3 +316,48 @@ model InstagramSaleItem {
 
   @@map("instagram_sale_items")
 }
+
+// En prisma/schema.prisma
+
+model MeliOrder {
+  id              String   @id // Aquí usamos el shipment_id de ML (el que escaneas)
+  orderId         String   // ID de la venta principal
+  packId          String?  // ID del paquete (si es un carrito, varios orders tienen el mismo packId)
+  
+  // Datos del Cliente
+  buyerNickname   String?
+  buyerName       String?
+  
+  // Estados de tu proceso interno
+  status          String   // Estado en ML (ready_to_ship, shipped, etc.)
+  printStatus     String   @default("pending") // pending, printed
+  prepStatus      String   @default("pending") // pending, in_preparation, ready, audited
+  
+  // Logística y Auditoría
+  submethod       String?  // express, cross_docking, forward, etc. (Útil para filtrar Flex)
+  labelUrl        String?  // Para re-imprimir sin llamar a la API
+  drivePhotoUrl   String?  // Link a la foto en el Drive que sacarás con el celu
+  
+  // Relaciones
+  items           MeliOrderItem[]
+  audit           ShipmentAudit?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("meli_orders")
+}
+
+model MeliOrderItem {
+  id           String    @id @default(cuid())
+  orderId      String    // Relación con el ID de MeliOrder
+  order        MeliOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  mlaId        String    // El código MLA del producto
+  title        String
+  quantity     Int
+  sku          String?
+  variationId  String?
+  
+  @@map("meli_order_items")
+}

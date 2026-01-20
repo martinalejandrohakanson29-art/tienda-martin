@@ -1,33 +1,92 @@
-import React from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Construction } from "lucide-react";
+import { 
+  Truck, 
+  Settings2, 
+  ArrowLeft, 
+  ArrowRight,
+  MapPinned // Icono para Colecta y Flex
+} from "lucide-react";
 import Link from "next/link";
 
-export default function GestionEnviosPage() {
+export default function MercadoLibreDashboard() {
   return (
     <div className="space-y-6 p-6">
-      {/* Encabezado con botón de volver */}
       <div className="flex items-center gap-4">
-        <Link href="/admin/mercadolibre">
+        <Link href="/admin">
           <Button variant="ghost" size="sm" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
-            Volver
+            Volver al Panel General
           </Button>
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-          Gestión de Envíos (Colecta y Flex)
-        </h1>
+        <h1 className="text-3xl font-bold tracking-tight">Gestión Mercado Libre</h1>
       </div>
 
-      {/* Contenedor de marcador de posición (Placeholder) */}
-      <div className="bg-white p-12 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center min-h-[400px] text-center">
-        <div className="bg-slate-50 p-4 rounded-full mb-4">
-          <Construction className="h-12 w-12 text-slate-400" />
-        </div>
-        <h2 className="text-xl font-semibold text-slate-700">Sección en Construcción</h2>
-        <p className="text-slate-500 max-w-sm mt-2">
-          Estamos preparando las herramientas para el control de Colectas y la logística de Mercado Envíos Flex para Revolución Motos.
-        </p>
+      <p className="text-gray-500 text-lg">Selecciona el área de trabajo operativa.</p>
+
+      {/* Grid de 3 columnas para las carpetas principales */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        
+        {/* TARJETA 1: GESTIÓN FULL */}
+        <Card className="hover:shadow-lg transition-all border-l-4 border-l-purple-500 bg-purple-50/10">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3 text-purple-700 text-2xl">
+              <Truck className="h-8 w-8" />
+              Gestión Full
+            </CardTitle>
+            <CardDescription className="text-base font-medium">
+              Envíos a depósitos de ML.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/mercadolibre/full">
+              <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white h-12 text-lg gap-2">
+                Entrar <ArrowRight size={20} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 2: GESTIÓN DE ENVÍOS (COLECTA Y FLEX) */}
+        <Card className="hover:shadow-lg transition-all border-l-4 border-l-blue-600 bg-blue-50/10">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3 text-blue-800 text-2xl">
+              <MapPinned className="h-8 w-8" />
+              Envíos Colecta y Flex
+            </CardTitle>
+            <CardDescription className="text-base font-medium">
+              Logística local y colectas diarias.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/mercadolibre/envios">
+              <Button className="w-full bg-blue-700 hover:bg-blue-800 text-white h-12 text-lg gap-2">
+                Entrar <ArrowRight size={20} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 3: GESTIÓN INTERNA */}
+        <Card className="hover:shadow-lg transition-all border-l-4 border-l-indigo-500 bg-indigo-50/10">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-3 text-indigo-700 text-2xl">
+              <Settings2 className="h-8 w-8" />
+              Gestión Interna
+            </CardTitle>
+            <CardDescription className="text-base font-medium">
+              Stock, Costos y Rentabilidad.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/mercadolibre/interna">
+              <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 text-lg gap-2">
+                Entrar <ArrowRight size={20} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
       </div>
     </div>
   );

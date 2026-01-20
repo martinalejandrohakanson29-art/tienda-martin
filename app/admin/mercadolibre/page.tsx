@@ -55,7 +55,7 @@ export default function MercadoLibreDashboard() {
               Envíos Colecta y Flex
             </CardTitle>
             <CardDescription className="text-base font-medium">
-              Logística local y colectas diarias.
+              Gestion de envios
             </CardDescription>
           </CardHeader>
           <CardContent>

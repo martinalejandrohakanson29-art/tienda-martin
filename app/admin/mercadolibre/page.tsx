@@ -1,3 +1,4 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Construction } from "lucide-react";
 import Link from "next/link";
@@ -13,7 +14,9 @@ export default function GestionEnviosPage() {
             Volver
           </Button>
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Gestión de Envíos (Colecta y Flex)</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+          Gestión de Envíos (Colecta y Flex)
+        </h1>
       </div>
 
       {/* Contenedor de marcador de posición (Placeholder) */}
@@ -23,7 +26,7 @@ export default function GestionEnviosPage() {
         </div>
         <h2 className="text-xl font-semibold text-slate-700">Sección en Construcción</h2>
         <p className="text-slate-500 max-w-sm mt-2">
-          Estamos preparando las herramientas para el control de Colectas y la logística de Mercado Envíos Flex.
+          Estamos preparando las herramientas para el control de Colectas y la logística de Mercado Envíos Flex para Revolución Motos.
         </p>
       </div>
     </div>

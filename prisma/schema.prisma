@@ -100,6 +100,9 @@ model ShipmentAudit {
   auditor   String?  
   createdAt DateTime @default(now())
   
+  // Relación corregida para conectar con MeliOrder
+  order     MeliOrder? @relation(fields: [envioId], references: [id])
+
   @@unique([itemId, envioId])
 }
 
@@ -152,8 +155,6 @@ model SupplierProduct {
   id              String   @id @default(cuid())
   sku             String   @unique 
   name            String   
-  // ELIMINAR ESTA LÍNEA:
-  // supplier        String?  
   
   // Relaciones con datos dinámicos
   ventas          ImportVentas?
@@ -229,8 +230,8 @@ model KitComponent {
 
 model ArticulosCompuestos {
   id              Int      @id @default(autoincrement())
-  sku_padre       String   // El SKU del kit (ej: 485801)
-  sku_hijo        String   // El SKU del componente (ej: 483329)
+  sku_padre       String   // El SKU del kit
+  sku_hijo        String   // El SKU del componente
   cantidad        Int      @default(1)
   fecha_registro  DateTime @default(now())
 
@@ -244,23 +245,21 @@ model PlanningSession {
   dateTo      DateTime 
   createdAt   DateTime @default(now())
 }
-// --- GESTIÓN DE VENTAS INSTAGRAM (Versión Optimizada para Revolución Motos) ---
+
+// --- GESTIÓN DE VENTAS INSTAGRAM ---
 
 model InstagramSale {
   id                 String                      @id @default(cuid())
-  id_comprobante     String                      @unique // ID externo de Cover
+  id_comprobante     String                      @unique 
   numero_comprobante String
   fecha              DateTime                    @default(now())
   total              Decimal                     @db.Decimal(20, 2)
   cliente            String
   dni                String?
   metodo_pago        String?
-  envio              Decimal?                    @db.Decimal(20, 2) @default(0) // Captura el envío de n8n
+  envio              Decimal?                    @db.Decimal(20, 2) @default(0)
 
-  // Relación con artículos básicos
   articulos          InstagramSaleItem[]
-  
-  // Relación con grupos de pago (para details/route.ts)
   paymentGroups      InstagramSalePaymentGroup[]
 
   createdAt          DateTime                    @default(now())
@@ -269,14 +268,13 @@ model InstagramSale {
   @@map("instagram_sales")
 }
 
-// Modelo para los grupos de pago (uno por cada venta de n8n)
 model InstagramSalePaymentGroup {
   id          String   @id @default(cuid())
   saleId      String
   sale        InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   metodo_pago String?
   monto_total Decimal  @db.Decimal(20, 2)
-  envio       Decimal  @db.Decimal(20, 2) // Guardamos el envío también aquí si es necesario
+  envio       Decimal  @db.Decimal(20, 2) 
   
   articulos   InstagramSalePaymentItem[]
 
@@ -286,7 +284,6 @@ model InstagramSalePaymentGroup {
   @@map("instagram_sale_payment_groups")
 }
 
-// Modelo para los artículos DETALLADOS (el corazón de tu nueva mejora)
 model InstagramSalePaymentItem {
   id             String                    @id @default(cuid())
   paymentGroupId String
@@ -295,7 +292,6 @@ model InstagramSalePaymentItem {
   tipo           String?
   detalle        String?
   marca          String?
-  // CAMBIO CLAVE: Todo ahora es Decimal para que Prisma lo trate como número
   cantidad       Decimal?                  @db.Decimal(20, 2)
   precio_neto    Decimal?                  @db.Decimal(20, 2)
   iva            Decimal?                  @db.Decimal(20, 2)
@@ -304,43 +300,38 @@ model InstagramSalePaymentItem {
   @@map("instagram_sale_payment_items")
 }
 
-// Modelo para artículos simples (por si tu sistema actual lo sigue usando)
 model InstagramSaleItem {
   id           String        @id @default(cuid())
   saleId       String
   sale         InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   
   detalle      String   
-  cantidad     Decimal       @db.Decimal(20, 2) // Cambiado a Decimal
-  precio_total Decimal?      @db.Decimal(20, 2) // Agregado para capturar el precio
+  cantidad     Decimal       @db.Decimal(20, 2) 
+  precio_total Decimal?      @db.Decimal(20, 2) 
 
   @@map("instagram_sale_items")
 }
 
-// En prisma/schema.prisma
+// --- GESTIÓN DE ENVÍOS MERCADO LIBRE ---
 
 model MeliOrder {
-  id              String   @id // Aquí usamos el shipment_id de ML (el que escaneas)
-  orderId         String   // ID de la venta principal
-  packId          String?  // ID del paquete (si es un carrito, varios orders tienen el mismo packId)
+  id              String   @id // shipment_id de ML
+  orderId         String   
+  packId          String?  
   
-  // Datos del Cliente
   buyerNickname   String?
   buyerName       String?
   
-  // Estados de tu proceso interno
-  status          String   // Estado en ML (ready_to_ship, shipped, etc.)
-  printStatus     String   @default("pending") // pending, printed
-  prepStatus      String   @default("pending") // pending, in_preparation, ready, audited
+  status          String   
+  printStatus     String   @default("pending") 
+  prepStatus      String   @default("pending") 
   
-  // Logística y Auditoría
-  submethod       String?  // express, cross_docking, forward, etc. (Útil para filtrar Flex)
-  labelUrl        String?  // Para re-imprimir sin llamar a la API
-  drivePhotoUrl   String?  // Link a la foto en el Drive que sacarás con el celu
+  submethod       String?  
+  labelUrl        String?  
+  drivePhotoUrl   String?  
   
-  // Relaciones
   items           MeliOrderItem[]
-  audit           ShipmentAudit?
+  audits          ShipmentAudit[] // Relación corregida (1:N)
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -350,10 +341,10 @@ model MeliOrder {
 
 model MeliOrderItem {
   id           String    @id @default(cuid())
-  orderId      String    // Relación con el ID de MeliOrder
+  orderId      String    
   order        MeliOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   
-  mlaId        String    // El código MLA del producto
+  mlaId        String    
   title        String
   quantity     Int
   sku          String?

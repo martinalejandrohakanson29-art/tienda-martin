@@ -316,3 +316,40 @@ model InstagramSaleItem {
 
   @@map("instagram_sale_items")
 }
+
+// --- GESTIÓN DE ETIQUETAS Y PREPARACIÓN (Proceso Nuevo) ---
+
+model EtiquetaML {
+  id              String         @id // Usaremos el Shipping ID de Mercado Libre
+  orderId         String?
+  logisticType    String?        // "self_service" (Flex), "cross_docking" (Colecta), "fulfillment"
+  status          String         @default("PENDIENTE") // PENDIENTE, IMPRESO, PREPARADO, AUDITADO
+  substatus       String?        // "printed" o "ready_to_print" según ML
+  resumen         String?        // Resumen de productos para vista rápida
+  
+  // Auditoría y Control
+  auditor         String?        // Quién escaneó/preparó
+  drivePhotoUrl   String?        // Link a la foto guardada en Drive
+  
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  items           EtiquetaMLItem[]
+
+  @@map("etiquetas_ml")
+}
+
+model EtiquetaMLItem {
+  id              String     @id @default(cuid())
+  etiquetaId      String
+  etiqueta        EtiquetaML @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
+  
+  mla             String     // Código MLA para matchear al escanear
+  title           String     // Título del producto
+  sku             String?
+  quantity        Int
+  variation       String?    // ID de variante
+  
+  @@index([etiquetaId])
+  @@map("etiquetas_ml_items")
+}

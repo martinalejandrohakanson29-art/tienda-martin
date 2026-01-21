@@ -17,7 +17,7 @@ interface EnviosTableProps {
 
 export function EnviosTable({ envios }: EnviosTableProps) {
     
-    // Traducción de substatus con estilos más sutiles
+    // Traducción de substatus con estilos sutiles
     const getSubstatusLabel = (substatus: string) => {
         switch (substatus) {
             case 'ready_to_print': 
@@ -29,7 +29,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         }
     }
 
-    // Configuración estética de la logística (más suave)
+    // Configuración de logística (Colores suaves para no saturar)
     const getLogisticConfig = (type: string) => {
         switch (type) {
             case 'self_service':
@@ -55,11 +55,15 @@ export function EnviosTable({ envios }: EnviosTableProps) {
             <Table>
                 <TableHeader>
                     <TableRow className="bg-slate-50/50">
-                        <TableHead className="w-[140px] font-semibold">Shipping ID</TableHead>
-                        <TableHead className="font-semibold">Estado</TableHead>
-                        <TableHead className="font-semibold">Logística</TableHead>
-                        <TableHead className="w-[350px] font-semibold">Productos</TableHead>
-                        <TableHead className="text-right font-semibold">Ingreso</TableHead>
+                        {/* Columnas con anchos reducidos para optimizar espacio */}
+                        <TableHead className="w-[110px] px-2 font-semibold">Shipping ID</TableHead>
+                        <TableHead className="w-[150px] px-2 font-semibold">Estado</TableHead>
+                        <TableHead className="w-[120px] px-2 font-semibold">Logística</TableHead>
+                        
+                        {/* Columna de Productos sin ancho fijo para que use todo el resto del lugar */}
+                        <TableHead className="font-semibold px-4">Detalle de Productos</TableHead>
+                        
+                        <TableHead className="w-[110px] px-2 text-right font-semibold">Ingreso</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -76,58 +80,58 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                             
                             return (
                                 <TableRow key={envio.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <TableCell className="font-mono text-[13px] font-medium text-slate-500">
+                                    <TableCell className="px-2 py-3 font-mono text-[12px] font-medium text-slate-500">
                                         {envio.id}
                                     </TableCell>
-                                    <TableCell>
-                                        <div className="flex flex-col gap-1.5">
-                                            {/* Estado Principal: Ahora más neutral */}
+                                    <TableCell className="px-2 py-3">
+                                        <div className="flex flex-col gap-1">
+                                            {/* Estado Principal Neutral */}
                                             <Badge 
                                                 variant="outline"
-                                                className={`w-fit px-2 py-0.5 text-[11px] font-medium border-slate-200 text-slate-600 ${
+                                                className={`w-fit px-1.5 py-0 text-[10px] font-medium border-slate-200 text-slate-600 ${
                                                     envio.status === "PENDIENTE" ? "bg-slate-50" : "bg-blue-50 text-blue-700 border-blue-100"
                                                 }`}
                                             >
                                                 {envio.status === "PENDIENTE" ? "PENDIENTE DESPACHO" : envio.status}
                                             </Badge>
                                             
-                                            {/* Substatus: Diseño minimalista */}
+                                            {/* Substatus Minimalista */}
                                             {envio.substatus && (
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-md border w-fit font-medium ${substatus.className}`}>
+                                                <span className={`text-[9px] px-1 py-0 rounded border w-fit font-medium ${substatus.className}`}>
                                                     {substatus.label}
                                                 </span>
                                             )}
                                         </div>
                                     </TableCell>
-                                    <TableCell>
+                                    <TableCell className="px-2 py-3">
                                         <Badge 
                                             variant="outline" 
-                                            className={`rounded-lg px-2.5 py-0.5 text-[11px] ${logistic.className}`}
+                                            className={`rounded-md px-2 py-0 text-[10px] whitespace-nowrap ${logistic.className}`}
                                         >
                                             {logistic.label}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell>
-                                        <div className="py-1">
-                                            <p className="text-[13px] text-slate-700 font-medium mb-1.5 line-clamp-1">
+                                    <TableCell className="px-4 py-3">
+                                        <div className="max-w-full">
+                                            <p className="text-[13px] text-slate-800 font-medium mb-1.5 leading-snug">
                                                 {envio.resumen}
                                             </p>
                                             <div className="flex flex-wrap gap-1">
                                                 {envio.items?.map((item: any) => (
                                                     <div 
                                                         key={item.id} 
-                                                        className="text-[10px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded border border-slate-100 flex items-center gap-1"
+                                                        className="text-[10px] bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 flex items-center gap-1"
                                                     >
                                                         <span className="font-bold text-slate-700">{item.quantity}x</span>
-                                                        <span className="truncate max-w-[150px]">{item.title}</span>
+                                                        <span className="truncate max-w-[200px]">{item.title}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="text-[11px] text-slate-400 leading-tight">
-                                            <div>{new Date(envio.createdAt).toLocaleDateString('es-AR')}</div>
+                                    <TableCell className="px-2 py-3 text-right">
+                                        <div className="text-[10px] text-slate-400 leading-tight">
+                                            <div className="whitespace-nowrap">{new Date(envio.createdAt).toLocaleDateString('es-AR')}</div>
                                             <div className="font-medium text-slate-500">
                                                 {new Date(envio.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
                                             </div>

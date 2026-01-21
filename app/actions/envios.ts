@@ -5,23 +5,24 @@ import { prisma } from "@/lib/prisma"
 
 export async function getEtiquetasML() {
     try {
-        // Obtenemos las etiquetas filtrando las que ya cumplieron su ciclo
+        // Obtenemos las etiquetas filtrando las que ya cumplieron su ciclo operativo
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 NOT: [
                     {
                         AND: [
-                            { logisticType: 'cross_docking' },
-                            { status: 'picked_up' }
+                            { logisticType: 'cross_docking' }, // Colecta
+                            { substatus: 'picked_up' }       // Ya retirado
                         ]
                     },
                     {
                         AND: [
-                            { logisticType: 'self_service' },
-                            { status: 'out_for_delivery' }
+                            { logisticType: 'self_service' }, // Flex
+                            { substatus: 'out_for_delivery' } // Ya en reparto
                         ]
                     },
                     {
+                        // Excluimos también si el estado general ya es entregado o cancelado
                         status: { in: ['delivered', 'cancelled'] }
                     }
                 ]
@@ -36,7 +37,6 @@ export async function getEtiquetasML() {
 
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
             const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
-                // 1. Buscamos los IDs en la vista técnica usando el MLA y Variante
                 const viewResult: any[] = await prisma.$queryRaw`
                     SELECT ids_articulos 
                     FROM vista_costos_productos 
@@ -46,13 +46,12 @@ export async function getEtiquetasML() {
                 `;
 
                 if (viewResult.length > 0 && viewResult[0].ids_articulos) {
-                    // 2. Limpiamos los IDs (Soporta comas o signo +)
+                    // Mejora: Separamos por coma O por signo más y limpiamos espacios
                     const ids: string[] = viewResult[0].ids_articulos
                         .split(/[+,]/)
                         .map((id: string) => id.trim())
                         .filter(Boolean);
                     
-                    // 3. Buscamos las descripciones
                     const articulos = await prisma.costosArticulos.findMany({
                         where: { id_articulo: { in: ids } },
                         select: { id_articulo: true, descripcion: true }

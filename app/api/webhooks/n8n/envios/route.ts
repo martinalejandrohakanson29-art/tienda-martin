@@ -54,7 +54,7 @@ export async function POST(req: Request) {
                 mla: String(item.mla),
                 title: item.nombre,
                 quantity: Number(item.cantidad),
-                variation: String(item.variante)
+                variation: item.variante && item.variante !== "Sin variante" ? String(item.variante) : null
             }));
 
             await tx.etiquetaMLItem.createMany({

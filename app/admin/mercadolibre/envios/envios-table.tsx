@@ -78,11 +78,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     <TableHeader>
                         <TableRow className="bg-slate-50/50">
                             <TableHead className="w-[110px] px-2 font-semibold text-[12px]">Shipping ID</TableHead>
-                            <TableHead className="w-[140px] px-2 font-semibold text-[12px]">Estado</TableHead>
-                            <TableHead className="w-[120px] px-2 font-semibold text-[12px]">Logística</TableHead>
+                            <TableHead className="w-[140px] px-2 font-semibold text-[12px]">Estado de etiqueta</TableHead>
+                            <TableHead className="w-[120px] px-2 font-semibold text-[12px]">Forma de entrega</TableHead>
                             <TableHead className="font-semibold px-4 text-[12px]">Detalle de Productos</TableHead>
-                            <TableHead className="w-[300px] font-semibold px-4 text-[12px]">Agregados (Técnico)</TableHead>
-                            <TableHead className="w-[110px] px-2 text-right font-semibold text-[12px]">Ingreso</TableHead>
+                            <TableHead className="w-[300px] font-semibold px-4 text-[12px]">Agregados</TableHead>
+                            <TableHead className="w-[110px] px-2 text-right font-semibold text-[12px]">Actualizacion</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>

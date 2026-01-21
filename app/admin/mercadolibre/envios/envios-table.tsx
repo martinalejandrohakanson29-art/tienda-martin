@@ -11,7 +11,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input" // Asegurate de tener este componente de shadcn
+import { Input } from "@/components/ui/input"
 import { Search } from "lucide-react"
 
 interface EnviosTableProps {
@@ -21,10 +21,8 @@ interface EnviosTableProps {
 export function EnviosTable({ envios }: EnviosTableProps) {
     const [searchTerm, setSearchTerm] = useState("")
 
-    // Función de filtrado inteligente
     const filteredEnvios = envios.filter((envio) => {
         const searchLower = searchTerm.toLowerCase();
-        // Busca en ID, Resumen y en los MLA de los items aunque no se vean
         return (
             envio.id.toLowerCase().includes(searchLower) ||
             envio.resumen?.toLowerCase().includes(searchLower) ||
@@ -50,7 +48,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     return (
         <div className="space-y-4">
-            {/* Buscador Superior */}
             <div className="relative max-w-sm">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                 <Input
@@ -69,7 +66,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                             <TableHead className="w-[140px] px-2 font-semibold text-[12px]">Estado</TableHead>
                             <TableHead className="w-[120px] px-2 font-semibold text-[12px]">Logística</TableHead>
                             <TableHead className="font-semibold px-4 text-[12px]">Detalle de Productos</TableHead>
-                            <TableHead className="w-[250px] font-semibold px-4 text-[12px]">Agregados</TableHead>
+                            <TableHead className="w-[300px] font-semibold px-4 text-[12px]">Agregados (Técnico)</TableHead>
                             <TableHead className="w-[110px] px-2 text-right font-semibold text-[12px]">Ingreso</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -105,18 +102,26 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                 {envio.resumen}
                                             </p>
                                         </TableCell>
+                                        {/* COLUMNA AGREGADOS MODIFICADA */}
                                         <TableCell className="px-4 py-4">
-                                            <div className="flex flex-col gap-2">
+                                            <div className="flex flex-col gap-1.5">
                                                 {envio.items.map((item: any) => (
                                                     <div key={item.id}>
                                                         {item.agregadoInfo ? (
-                                                            <div className="bg-slate-50 border border-slate-100 rounded p-1.5">
-                                                                <div className="font-semibold text-slate-700 text-[11px] leading-tight mb-1">
-                                                                    {item.agregadoInfo.titulo}
-                                                                </div>
-                                                                <div className="text-blue-600 font-mono text-[10px]">
-                                                                    IDs: {item.agregadoInfo.ids_articulos}
-                                                                </div>
+                                                            <div className="flex flex-col gap-1">
+                                                                {item.agregadoInfo.ids_articulos?.split(',').map((id: string, idx: number) => {
+                                                                    const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
+                                                                    return (
+                                                                        <div key={idx} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1">
+                                                                            <span className="text-blue-600 font-mono text-[10px] font-bold">
+                                                                                {id.trim()}
+                                                                            </span>
+                                                                            <span className="text-slate-600 text-[10px] font-medium border-l border-slate-200 pl-2">
+                                                                                {nombres[idx]?.trim() || "Sin descripción"}
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                })}
                                                             </div>
                                                         ) : (
                                                             <span className="text-slate-400 italic text-[10px]">Sin info técnica</span>

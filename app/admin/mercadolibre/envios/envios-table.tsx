@@ -42,7 +42,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     const getLogisticConfig = (type: string) => {
         if (type === 'self_service') return { label: "Envío Flex", className: "bg-orange-50 text-orange-700 border-orange-200" };
-        if (type === 'cross_docking') return { label: "Envío Colecta", className: "bg-blue-50 text-blue-700 border-blue-200" };
+        if (type === 'cross_docking') return { label: "Envío Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
         return { label: type?.replace('_', ' ') || "Sin asignar", className: "bg-gray-50 text-gray-600 border-gray-200" };
     }
 
@@ -74,7 +74,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                         {filteredEnvios.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={6} className="text-center py-12 text-slate-400">
-                                    No se encontraron resultados para "{searchTerm}"
+                                    No se encontraron resultados
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -102,7 +102,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                 {envio.resumen}
                                             </p>
                                         </TableCell>
-                                        {/* COLUMNA AGREGADOS MODIFICADA */}
+                                        {/* COLUMNA AGREGADOS - DISEÑO NUEVO */}
                                         <TableCell className="px-4 py-4">
                                             <div className="flex flex-col gap-1.5">
                                                 {envio.items.map((item: any) => (
@@ -111,10 +111,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                             <div className="flex flex-col gap-1">
                                                                 {item.agregadoInfo.ids_articulos?.split(',').map((id: string, idx: number) => {
                                                                     const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
+                                                                    const currentId = id.trim();
                                                                     return (
-                                                                        <div key={idx} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1">
+                                                                        <div key={`${item.id}-${idx}`} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1">
                                                                             <span className="text-blue-600 font-mono text-[10px] font-bold">
-                                                                                {id.trim()}
+                                                                                {currentId}
                                                                             </span>
                                                                             <span className="text-slate-600 text-[10px] font-medium border-l border-slate-200 pl-2">
                                                                                 {nombres[idx]?.trim() || "Sin descripción"}

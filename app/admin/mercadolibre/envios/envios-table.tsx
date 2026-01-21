@@ -34,17 +34,23 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         const sub = envio.substatus;
         const status = envio.status;
 
+        // Mapeo de sub-estados técnicos de Mercado Libre
         switch (sub) {
-            case 'ready_to_print': return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
-            case 'printed': return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
-            case 'ready_for_pickup': return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
+            case 'ready_to_print': 
+                return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
+            case 'printed': 
+                return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
+            case 'ready_for_pickup': 
+                return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
+            case 'picked_up': 
+                return { label: "Despachado (Colecta)", className: "bg-blue-100 text-blue-800 border-blue-200" };
+            case 'out_for_delivery': 
+                return { label: "En reparto (Flex)", className: "bg-orange-100 text-orange-800 border-orange-200" };
         }
 
-        // Mapeo manual para estados que vienen de n8n
-        if (status === "PENDIENTE") return { label: "Pendiente Despacho", className: "bg-gray-50 text-gray-500 border-gray-100" };
-        
+        // Caso por defecto para estados simples o de n8n
         return { 
-            label: sub?.toUpperCase() || status?.toUpperCase() || "S/E", 
+            label: status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || status?.toUpperCase() || "S/E", 
             className: "bg-gray-50 text-gray-500 border-gray-100" 
         };
     }

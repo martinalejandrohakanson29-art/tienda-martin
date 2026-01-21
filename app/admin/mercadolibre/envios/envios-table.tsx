@@ -32,20 +32,21 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     const getStatusConfig = (envio: any) => {
         const sub = envio.substatus;
+        const status = envio.status;
+
         switch (sub) {
-            case 'ready_to_print': 
-                return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
-            case 'printed': 
-                return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
-            case 'ready_for_pickup': 
-                return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
-            default: 
-                // Usamos un gris neutro para "Pendiente Despacho" para que no resalte tanto
-                return { 
-                    label: envio.status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || envio.status, 
-                    className: "bg-gray-50 text-gray-500 border-gray-100" 
-                };
+            case 'ready_to_print': return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
+            case 'printed': return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
+            case 'ready_for_pickup': return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
         }
+
+        // Mapeo manual para estados que vienen de n8n
+        if (status === "PENDIENTE") return { label: "Pendiente Despacho", className: "bg-gray-50 text-gray-500 border-gray-100" };
+        
+        return { 
+            label: sub?.toUpperCase() || status?.toUpperCase() || "S/E", 
+            className: "bg-gray-50 text-gray-500 border-gray-100" 
+        };
     }
 
     const getLogisticConfig = (type: string) => {
@@ -82,7 +83,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                         {filteredEnvios.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={6} className="text-center py-12 text-slate-400">
-                                    No se encontraron resultados
+                                    No hay envíos pendientes de procesar
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -110,22 +111,16 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                 {envio.resumen}
                                             </p>
                                         </TableCell>
-                                        
-                                        {/* COLUMNA AGREGADOS - LÓGICA CORREGIDA */}
                                         <TableCell className="px-4 py-4">
                                             <div className="flex flex-col gap-1.5">
                                                 {envio.items.map((item: any) => (
                                                     <div key={item.id}>
                                                         {item.agregadoInfo ? (
                                                             <div className="flex flex-col gap-1">
-                                                                {/* Separamos los IDs por coma y mapeamos cada uno */}
                                                                 {item.agregadoInfo.ids_articulos?.split(',').map((id: string, idx: number) => {
                                                                     const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
                                                                     const currentId = id.trim();
-                                                                    
-                                                                    // Si el ID está vacío, no renderizamos el recuadro
                                                                     if (!currentId) return null;
-
                                                                     return (
                                                                         <div key={`${item.id}-${idx}`} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1">
                                                                             <span className="text-blue-600 font-mono text-[10px] font-bold">
@@ -145,7 +140,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                 ))}
                                             </div>
                                         </TableCell>
-
                                         <TableCell className="px-2 py-4 text-right text-[10px]">
                                             <div className="text-slate-400 whitespace-nowrap">{new Date(envio.createdAt).toLocaleDateString('es-AR')}</div>
                                             <div className="font-medium text-slate-500">

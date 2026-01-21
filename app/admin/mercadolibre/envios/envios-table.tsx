@@ -33,10 +33,18 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     const getStatusConfig = (envio: any) => {
         const sub = envio.substatus;
         switch (sub) {
-            case 'ready_to_print': return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
-            case 'printed': return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
-            case 'ready_for_pickup': return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
-            default: return { label: envio.status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || envio.status, className: "bg-gray-50 text-gray-500" };
+            case 'ready_to_print': 
+                return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
+            case 'printed': 
+                return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
+            case 'ready_for_pickup': 
+                return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
+            default: 
+                // Usamos un gris neutro para "Pendiente Despacho" para que no resalte tanto
+                return { 
+                    label: envio.status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || envio.status, 
+                    className: "bg-gray-50 text-gray-500 border-gray-100" 
+                };
         }
     }
 
@@ -102,16 +110,22 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                 {envio.resumen}
                                             </p>
                                         </TableCell>
-                                        {/* COLUMNA AGREGADOS - DISEÑO NUEVO */}
+                                        
+                                        {/* COLUMNA AGREGADOS - LÓGICA CORREGIDA */}
                                         <TableCell className="px-4 py-4">
                                             <div className="flex flex-col gap-1.5">
                                                 {envio.items.map((item: any) => (
                                                     <div key={item.id}>
                                                         {item.agregadoInfo ? (
                                                             <div className="flex flex-col gap-1">
+                                                                {/* Separamos los IDs por coma y mapeamos cada uno */}
                                                                 {item.agregadoInfo.ids_articulos?.split(',').map((id: string, idx: number) => {
                                                                     const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
                                                                     const currentId = id.trim();
+                                                                    
+                                                                    // Si el ID está vacío, no renderizamos el recuadro
+                                                                    if (!currentId) return null;
+
                                                                     return (
                                                                         <div key={`${item.id}-${idx}`} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1">
                                                                             <span className="text-blue-600 font-mono text-[10px] font-bold">
@@ -131,6 +145,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                 ))}
                                             </div>
                                         </TableCell>
+
                                         <TableCell className="px-2 py-4 text-right text-[10px]">
                                             <div className="text-slate-400 whitespace-nowrap">{new Date(envio.createdAt).toLocaleDateString('es-AR')}</div>
                                             <div className="font-medium text-slate-500">

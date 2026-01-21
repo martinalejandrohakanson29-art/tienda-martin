@@ -19,7 +19,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     
     // Función unificada para el estado de la etiqueta
     const getStatusConfig = (envio: any) => {
-        // Priorizamos el substatus de la etiqueta de ML
         const sub = envio.substatus;
 
         switch (sub) {
@@ -30,7 +29,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
             case 'ready_for_pickup': 
                 return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
             default: 
-                // Si no hay substatus de etiqueta, mostramos el estado interno de despacho
                 if (envio.status === "PENDIENTE") {
                     return { label: "Pendiente Despacho", className: "bg-slate-50 text-slate-500 border-slate-200" };
                 }
@@ -66,6 +64,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                         <TableHead className="w-[110px] px-2 font-semibold text-[12px]">Shipping ID</TableHead>
                         <TableHead className="w-[140px] px-2 font-semibold text-[12px]">Estado</TableHead>
                         <TableHead className="w-[120px] px-2 font-semibold text-[12px]">Logística</TableHead>
+                        {/* Columna de Productos con el ancho máximo para títulos largos */}
                         <TableHead className="font-semibold px-4 text-[12px]">Detalle de Productos</TableHead>
                         <TableHead className="w-[110px] px-2 text-right font-semibold text-[12px]">Ingreso</TableHead>
                     </TableRow>
@@ -83,12 +82,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                             const statusInfo = getStatusConfig(envio);
                             
                             return (
-                                <TableRow key={envio.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <TableCell className="px-2 py-3 font-mono text-[11px] font-medium text-slate-500">
+                                <TableRow key={envio.id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0">
+                                    <TableCell className="px-2 py-4 font-mono text-[11px] font-medium text-slate-500">
                                         {envio.id}
                                     </TableCell>
-                                    <TableCell className="px-2 py-3">
-                                        {/* Un solo Badge con el estado prioritario */}
+                                    <TableCell className="px-2 py-4">
                                         <Badge 
                                             variant="outline"
                                             className={`rounded-md px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${statusInfo.className}`}
@@ -96,7 +94,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                             {statusInfo.label}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="px-2 py-3">
+                                    <TableCell className="px-2 py-4">
                                         <Badge 
                                             variant="outline" 
                                             className={`rounded-md px-2 py-0.5 text-[10px] whitespace-nowrap ${logistic.className}`}
@@ -104,25 +102,13 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                             {logistic.label}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell className="px-4 py-3">
-                                        <div className="max-w-full">
-                                            <p className="text-[13px] text-slate-800 font-medium mb-1.5 leading-snug">
-                                                {envio.resumen}
-                                            </p>
-                                            <div className="flex flex-wrap gap-1">
-                                                {envio.items?.map((item: any) => (
-                                                    <div 
-                                                        key={item.id} 
-                                                        className="text-[10px] bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 flex items-center gap-1"
-                                                    >
-                                                        <span className="font-bold text-slate-700">{item.quantity}x</span>
-                                                        <span className="truncate max-w-[250px]">{item.title}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
+                                    <TableCell className="px-4 py-4">
+                                        {/* Solo mostramos el título/resumen principal */}
+                                        <p className="text-[13px] text-slate-800 font-medium leading-relaxed">
+                                            {envio.resumen}
+                                        </p>
                                     </TableCell>
-                                    <TableCell className="px-2 py-3 text-right">
+                                    <TableCell className="px-2 py-4 text-right">
                                         <div className="text-[10px] text-slate-400 leading-tight">
                                             <div className="whitespace-nowrap">{new Date(envio.createdAt).toLocaleDateString('es-AR')}</div>
                                             <div className="font-medium text-slate-500">

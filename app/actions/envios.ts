@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma"
 
 export async function getEtiquetasML() {
     try {
-        // 1. Obtenemos las etiquetas e ítems como siempre
         const etiquetas = await prisma.etiquetaML.findMany({
             include: {
                 items: true
@@ -15,17 +14,20 @@ export async function getEtiquetasML() {
             }
         });
 
-        // 2. Enriquecemos cada ítem con los datos de la vista_costos_productos
-        // Usamos Promise.all para procesar todo en paralelo y ser más rápidos
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
             const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
-                // Buscamos en la vista usando mla y variation_id
-                // variation_id en la vista corresponde a item.variation en nuestra tabla
+                // Ajustamos el SQL para manejar "Sin variante" como NULL
+                const variationToSearch = (item.variation === "Sin variante" || !item.variation) ? null : item.variation;
+
                 const datosVista: any[] = await prisma.$queryRaw`
                     SELECT titulo, ids_articulos 
                     FROM vista_costos_productos 
                     WHERE mla = ${item.mla} 
-                    AND (variation_id = ${item.variation} OR variation_id IS NULL AND ${item.variation} IS NULL)
+                    AND (
+                        variation_id = ${variationToSearch} 
+                        OR (variation_id IS NULL AND ${variationToSearch} IS NULL)
+                        OR (variation_id = '' AND ${variationToSearch} IS NULL)
+                    )
                     LIMIT 1
                 `;
 

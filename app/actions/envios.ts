@@ -26,30 +26,32 @@ export async function getEtiquetasML() {
                 `;
 
                 if (viewResult.length > 0 && viewResult[0].ids_articulos) {
-                    // 2. Limpiamos los IDs y definimos explícitamente que es un array de strings
-                    const ids: string[] = viewResult[0].ids_articulos.split(',').map((id: string) => id.trim());
-                    
-                    // 3. Buscamos las descripciones de esos IDs específicos en la tabla de costos
-                    const articulos = await prisma.costosArticulos.findMany({
-                        where: { id_articulo: { in: ids } },
-                        select: { id_articulo: true, descripcion: true }
-                    });
-                    
-                    // 4. Mapeamos cada ID con su nombre. Agregamos (id: string) para corregir el error de build.
-                    const nombres = ids.map((id: string) => {
-                        const art = articulos.find((a) => a.id_articulo === id);
-                        return art?.descripcion || "Sin descripción";
-                    });
+    // CAMBIO: Usamos una expresión regular /[+,]/ para que separe por coma O por signo más
+    const ids: string[] = viewResult[0].ids_articulos
+        .split(/[+,]/) 
+        .map((id: string) => id.trim())
+        .filter(Boolean); // Eliminamos espacios vacíos por si acaso
+    
+    // 3. Buscamos las descripciones de esos IDs específicos
+    const articulos = await prisma.costosArticulos.findMany({
+        where: { id_articulo: { in: ids } },
+        select: { id_articulo: true, descripcion: true }
+    });
+    
+    // 4. Mapeamos cada ID con su nombre
+    const nombres = ids.map((id: string) => {
+        const art = articulos.find((a) => a.id_articulo === id);
+        return art?.descripcion || "Sin descripción";
+    });
 
-                    return {
-                        ...item,
-                        agregadoInfo: {
-                            ids_articulos: ids.join(', '),
-                            nombres_articulos: nombres.join(' | ')
-                        }
-                    };
-                }
-
+    return {
+        ...item,
+        agregadoInfo: {
+            ids_articulos: ids.join(', '), // Los mandamos limpios a la tabla
+            nombres_articulos: nombres.join(' | ')
+        }
+    };
+}
                 return { ...item, agregadoInfo: null };
             }));
 

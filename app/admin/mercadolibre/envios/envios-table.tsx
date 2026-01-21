@@ -17,133 +17,121 @@ interface EnviosTableProps {
 
 export function EnviosTable({ envios }: EnviosTableProps) {
     
-    // Función para traducir el substatus de Mercado Libre
+    // Traducción de substatus con estilos más sutiles
     const getSubstatusLabel = (substatus: string) => {
         switch (substatus) {
-            case 'ready_to_print': return "Lista para imprimir";
-            case 'printed': return "Impreso";
-            default: return substatus?.toUpperCase() || "";
+            case 'ready_to_print': 
+                return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
+            case 'printed': 
+                return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
+            default: 
+                return { label: substatus?.toUpperCase() || "", className: "bg-gray-50 text-gray-500" };
         }
     }
 
-    // Función para traducir el status interno de nuestra web
-    const getStatusLabel = (status: string) => {
-        if (status === "PENDIENTE") return "PENDIENTE DE DESPACHO";
-        return status;
-    }
-
-    // NUEVA FUNCIÓN: Traduce la logística y asigna colores de prioridad
+    // Configuración estética de la logística (más suave)
     const getLogisticConfig = (type: string) => {
         switch (type) {
             case 'self_service':
                 return { 
                     label: "Envío Flex", 
-                    variant: "destructive" as const, // Rojo para prioridad
-                    className: "font-bold uppercase tracking-wider" 
+                    className: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-50" 
                 };
             case 'cross_docking':
                 return { 
                     label: "Envío Colecta", 
-                    variant: "outline" as const, 
-                    className: "bg-blue-50 text-blue-700 border-blue-200" 
-                };
-            case 'fulfillment':
-                return { 
-                    label: "Fulfillment", 
-                    variant: "secondary" as const, 
-                    className: "opacity-70" 
+                    className: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50" 
                 };
             default:
                 return { 
                     label: type?.replace('_', ' ') || "Sin asignar", 
-                    variant: "outline" as const, 
-                    className: "" 
+                    className: "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-50" 
                 };
         }
     }
 
     return (
-        <div className="rounded-md border">
+        <div className="rounded-xl border shadow-sm bg-white overflow-hidden">
             <Table>
                 <TableHeader>
-                    <TableRow className="bg-muted/50">
-                        <TableHead className="w-[150px]">Shipping ID</TableHead>
-                        <TableHead>Estado Actual</TableHead>
-                        <TableHead>Tipo Logística</TableHead>
-                        <TableHead className="w-[400px]">Detalle de Productos</TableHead>
-                        <TableHead>Fecha Ingreso</TableHead>
+                    <TableRow className="bg-slate-50/50">
+                        <TableHead className="w-[140px] font-semibold">Shipping ID</TableHead>
+                        <TableHead className="font-semibold">Estado</TableHead>
+                        <TableHead className="font-semibold">Logística</TableHead>
+                        <TableHead className="w-[350px] font-semibold">Productos</TableHead>
+                        <TableHead className="text-right font-semibold">Ingreso</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {envios.length === 0 ? (
                         <TableRow>
-                            <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                                No hay envíos registrados aún.
+                            <TableCell colSpan={5} className="text-center py-12 text-slate-400">
+                                No hay envíos registrados.
                             </TableCell>
                         </TableRow>
                     ) : (
                         envios.map((envio) => {
                             const logistic = getLogisticConfig(envio.logisticType);
+                            const substatus = getSubstatusLabel(envio.substatus);
                             
                             return (
-                                <TableRow key={envio.id} className="hover:bg-muted/30">
-                                    <TableCell className="font-mono font-medium text-blue-600">
+                                <TableRow key={envio.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <TableCell className="font-mono text-[13px] font-medium text-slate-500">
                                         {envio.id}
                                     </TableCell>
                                     <TableCell>
-                                        <div className="flex flex-col gap-1">
-                                            {/* Estado principal de despacho */}
+                                        <div className="flex flex-col gap-1.5">
+                                            {/* Estado Principal: Ahora más neutral */}
                                             <Badge 
-                                                variant={envio.status === "PENDIENTE" ? "destructive" : "default"}
-                                                className="w-fit"
+                                                variant="outline"
+                                                className={`w-fit px-2 py-0.5 text-[11px] font-medium border-slate-200 text-slate-600 ${
+                                                    envio.status === "PENDIENTE" ? "bg-slate-50" : "bg-blue-50 text-blue-700 border-blue-100"
+                                                }`}
                                             >
-                                                {getStatusLabel(envio.status)}
+                                                {envio.status === "PENDIENTE" ? "PENDIENTE DESPACHO" : envio.status}
                                             </Badge>
                                             
-                                            {/* Estado de la etiqueta de ML */}
+                                            {/* Substatus: Diseño minimalista */}
                                             {envio.substatus && (
-                                                <span className={`text-[11px] font-bold px-1 py-0.5 rounded w-fit ${
-                                                    envio.substatus === 'ready_to_print' 
-                                                    ? 'bg-green-100 text-green-700' 
-                                                    : 'bg-blue-100 text-blue-700'
-                                                }`}>
-                                                    {getSubstatusLabel(envio.substatus)}
+                                                <span className={`text-[10px] px-1.5 py-0.5 rounded-md border w-fit font-medium ${substatus.className}`}>
+                                                    {substatus.label}
                                                 </span>
                                             )}
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        {/* Badge de logística personalizado */}
                                         <Badge 
-                                            variant={logistic.variant} 
-                                            className={logistic.className}
+                                            variant="outline" 
+                                            className={`rounded-lg px-2.5 py-0.5 text-[11px] ${logistic.className}`}
                                         >
                                             {logistic.label}
                                         </Badge>
                                     </TableCell>
                                     <TableCell>
-                                        <div className="space-y-1">
-                                            <p className="text-sm font-medium leading-none mb-2">
+                                        <div className="py-1">
+                                            <p className="text-[13px] text-slate-700 font-medium mb-1.5 line-clamp-1">
                                                 {envio.resumen}
                                             </p>
-                                            <div className="grid grid-cols-1 gap-1">
+                                            <div className="flex flex-wrap gap-1">
                                                 {envio.items?.map((item: any) => (
-                                                    <div key={item.id} className="text-[11px] bg-muted px-2 py-1 rounded-sm border-l-2 border-primary">
-                                                        <span className="font-bold">{item.quantity}x</span> {item.title} 
-                                                        <span className="text-muted-foreground ml-2">({item.mla})</span>
+                                                    <div 
+                                                        key={item.id} 
+                                                        className="text-[10px] bg-slate-50 text-slate-500 px-2 py-0.5 rounded border border-slate-100 flex items-center gap-1"
+                                                    >
+                                                        <span className="font-bold text-slate-700">{item.quantity}x</span>
+                                                        <span className="truncate max-w-[150px]">{item.title}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-[11px] text-muted-foreground">
-                                        {new Date(envio.createdAt).toLocaleString('es-AR', {
-                                            day: '2-digit',
-                                            month: '2-digit',
-                                            year: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        })} hs
+                                    <TableCell className="text-right">
+                                        <div className="text-[11px] text-slate-400 leading-tight">
+                                            <div>{new Date(envio.createdAt).toLocaleDateString('es-AR')}</div>
+                                            <div className="font-medium text-slate-500">
+                                                {new Date(envio.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
+                                            </div>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             )

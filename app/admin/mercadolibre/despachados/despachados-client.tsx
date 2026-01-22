@@ -1,4 +1,3 @@
-// app/admin/mercadolibre/despachados/despachados-client.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -6,8 +5,9 @@ import { getEtiquetasDespachadas } from "@/app/actions/envios"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Search, CalendarIcon, PackageCheck, Loader2 } from "lucide-react"
+import { Search, CalendarIcon, Loader2 } from "lucide-react"
 import { format } from "date-fns"
+import { toast } from "sonner"
 
 export function DespachadosClient() {
     const [fecha, setFecha] = useState(format(new Date(), "yyyy-MM-dd"))
@@ -25,10 +25,22 @@ export function DespachadosClient() {
         load()
     }, [fecha])
 
+    // Filtro actualizado para incluir el orderId (ref)
     const filtered = envios.filter(e => 
         e.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.resumen?.toLowerCase().includes(searchTerm.toLowerCase())
+        e.resumen?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (e.orderId && e.orderId.toLowerCase().includes(searchTerm.toLowerCase()))
     )
+
+    // Función para copiar al portapapeles con aviso visual
+    const handleCopy = (text: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        toast.success(`Copiado: ${text}`, {
+            duration: 1500,
+            position: 'bottom-center'
+        });
+    }
 
     return (
         <div className="space-y-6">
@@ -42,7 +54,7 @@ export function DespachadosClient() {
                             type="date" 
                             value={fecha} 
                             onChange={(e) => setFecha(e.target.value)}
-                            className="bg-transparent text-sm font-medium outline-none"
+                            className="bg-transparent text-sm font-medium outline-none cursor-pointer"
                         />
                     </div>
                 </div>
@@ -52,7 +64,7 @@ export function DespachadosClient() {
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         <Input
-                            placeholder="Buscar por ID o Producto..."
+                            placeholder="Buscar por Shipping ID, Venta (Ref) o Producto..."
                             className="pl-10"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -71,32 +83,47 @@ export function DespachadosClient() {
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50/50">
-                            <TableHead className="w-[150px] font-semibold text-[12px]">Venta / Shipping ID</TableHead>
+                            <TableHead className="w-[180px] font-semibold text-[12px]">Venta / Shipping ID</TableHead>
                             <TableHead className="font-semibold text-[12px]">Detalle de Productos</TableHead>
-                            <TableHead className="w-[350px] font-semibold text-[12px]">Configuración Técnica (Agregados)</TableHead>
-                            <TableHead className="w-[120px] text-right font-semibold text-[12px]">Hora Despacho</TableHead>
+                            <TableHead className="font-semibold text-[12px]">Configuración Técnica (Agregados)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center py-20">
+                                <TableCell colSpan={3} className="text-center py-20">
                                     <Loader2 className="h-8 w-8 animate-spin mx-auto text-slate-300" />
                                     <p className="text-slate-400 mt-2">Cargando registros...</p>
                                 </TableCell>
                             </TableRow>
                         ) : filtered.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center py-20 text-slate-400">
+                                <TableCell colSpan={3} className="text-center py-20 text-slate-400">
                                     No se encontraron pedidos despachados para esta fecha.
                                 </TableCell>
                             </TableRow>
                         ) : (
                             filtered.map((envio) => (
                                 <TableRow key={envio.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <TableCell className="py-4">
-                                        <div className="font-mono text-[11px] font-bold text-slate-600">{envio.id}</div>
-                                        <div className="text-[10px] text-slate-400">Ref: {envio.orderId || 'S/D'}</div>
+                                    <TableCell className="py-4 space-y-1">
+                                        {/* Shipping ID con Copiar */}
+                                        <div 
+                                            onClick={() => handleCopy(envio.id)}
+                                            className="font-mono text-[11px] font-bold text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
+                                            title="Click para copiar Shipping ID"
+                                        >
+                                            {envio.id}
+                                        </div>
+                                        {/* Order ID (Ref) con mismo estilo y Copiar */}
+                                        {envio.orderId && (
+                                            <div 
+                                                onClick={() => handleCopy(envio.orderId)}
+                                                className="font-mono text-[11px] font-bold text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
+                                                title="Click para copiar ID de Venta"
+                                            >
+                                                {envio.orderId}
+                                            </div>
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         <p className="text-[13px] text-slate-800 font-medium">{envio.resumen}</p>
@@ -107,21 +134,21 @@ export function DespachadosClient() {
                                                 <div key={item.id}>
                                                     {item.agregadoInfo?.ids_articulos?.split(',').map((id: string, idx: number) => {
                                                         const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
+                                                        const cleanId = id.trim();
                                                         return (
-                                                            <div key={idx} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1">
-                                                                <span className="text-blue-600 font-mono text-[10px] font-bold">{id.trim()}</span>
+                                                            <div 
+                                                                key={idx} 
+                                                                onClick={() => handleCopy(cleanId)}
+                                                                className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1 cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all group"
+                                                                title="Click para copiar SKU"
+                                                            >
+                                                                <span className="text-blue-600 font-mono text-[10px] font-bold group-hover:text-blue-700">{cleanId}</span>
                                                                 <span className="text-slate-600 text-[10px] font-medium border-l pl-2">{nombres[idx]?.trim()}</span>
                                                             </div>
                                                         );
                                                     })}
                                                 </div>
                                             ))}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-1 text-emerald-600 font-bold text-[13px]">
-                                            <PackageCheck className="h-3 w-3" />
-                                            {new Date(envio.updatedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
                                         </div>
                                     </TableCell>
                                 </TableRow>

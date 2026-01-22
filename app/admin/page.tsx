@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getProducts } from "@/app/actions/products"
-import { Eye, Package, Trophy, Store, ArrowRight, Instagram } from "lucide-react" // 👈 Agregamos 'Instagram'
+import { Eye, Package, Trophy, Store, ArrowRight, Instagram, Settings2 } from "lucide-react" 
 import Link from "next/link"
 
 export const dynamic = "force-dynamic";
@@ -54,7 +54,7 @@ export default async function AdminDashboard() {
                         </CardContent>
                     </Card>
 
-                    {/* NUEVA: Tarjeta de Instagram 📸 */}
+                    {/* Tarjeta de Instagram 📸 */}
                     <Card className="border-l-4 border-l-pink-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-pink-50/50">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-pink-800 text-xl">
@@ -67,10 +67,33 @@ export default async function AdminDashboard() {
                         </CardHeader>
                         <CardContent>
                             <p className="text-sm text-gray-600 mb-6">
-                                Administrar ventas y datos
+                                Administrar ventas y datos de canales externos.
                             </p>
                             <Link href="/admin/instagram">
                                 <Button className="w-full bg-pink-600 hover:bg-pink-700 text-white gap-2 shadow-sm h-12 text-lg">
+                                    Entrar al Panel <ArrowRight size={18} />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+
+                    {/* NUEVA: Tarjeta de Gestión Interna ⚙️ */}
+                    <Card className="border-l-4 border-l-indigo-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-indigo-50/50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-indigo-800 text-xl">
+                                <Settings2 className="h-6 w-6" />
+                                Gestión Interna
+                            </CardTitle>
+                            <CardDescription className="text-indigo-700/80 font-medium">
+                                Stock, Costos y Rentabilidad
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm text-gray-600 mb-6">
+                                Administrar costos, artículos maestros y composición de kits.
+                            </p>
+                            <Link href="/admin/mercadolibre/interna">
+                                <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm h-12 text-lg">
                                     Entrar al Panel <ArrowRight size={18} />
                                 </Button>
                             </Link>
@@ -85,7 +108,7 @@ export default async function AdminDashboard() {
                                 Gestionar Catálogo
                             </CardTitle>
                             <CardDescription>
-                                Editar precios, stock y fotos
+                                Editar precios, stock y fotos de la web
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="pt-4">
@@ -157,4 +180,3 @@ export default async function AdminDashboard() {
         </div>
     )
 }
-

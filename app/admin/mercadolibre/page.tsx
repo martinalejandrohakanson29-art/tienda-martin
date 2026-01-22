@@ -51,7 +51,7 @@ export default function MercadoLibreDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-blue-800 text-2xl">
               <MapPinned className="h-8 w-8" />
-              Envíos Colecta y Flex
+              Gestion de etiquetas de Colecta y Flex
             </CardTitle>
             <CardDescription className="text-base font-medium">
               Logística local y colectas diarias.

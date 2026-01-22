@@ -30,7 +30,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     });
 
     const formatDispatchDate = (dateString: string | null) => {
-        if (!dateString) return "No definida";
+        if (!dateString) return <span className="text-slate-400 italic">No definida</span>;
         
         const date = new Date(dateString);
         const today = new Date();
@@ -62,12 +62,12 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 return { label: "Despachado (Colecta)", className: "bg-blue-100 text-blue-800 border-blue-200" };
             case 'out_for_delivery': 
                 return { label: "En reparto (Flex)", className: "bg-orange-100 text-orange-800 border-orange-200" };
+            default:
+                return { 
+                    label: status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || status?.toUpperCase() || "S/E", 
+                    className: "bg-gray-50 text-gray-500 border-gray-100" 
+                };
         }
-
-        return { 
-            label: status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || status?.toUpperCase() || "S/E", 
-            className: "bg-gray-50 text-gray-500 border-gray-100" 
-        };
     }
 
     const getLogisticConfig = (type: string) => {
@@ -93,19 +93,19 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     <TableHeader>
                         <TableRow className="bg-slate-50/50">
                             <TableHead className="w-[110px] px-2 font-semibold text-[12px]">Shipping ID</TableHead>
-                            <TableHead className="w-[130px] px-2 font-semibold text-[12px]">Despacho Límite</TableHead>
-                            <TableHead className="w-[140px] px-2 font-semibold text-[12px]">Estado de etiqueta</TableHead>
-                            <TableHead className="w-[120px] px-2 font-semibold text-[12px]">Forma de entrega</TableHead>
-                            <TableHead className="font-semibold px-4 text-[12px]">Detalle de Productos</TableHead>
-                            <TableHead className="w-[300px] font-semibold px-4 text-[12px]">Agregados</TableHead>
-                            <TableHead className="w-[110px] px-2 text-right font-semibold text-[12px]">Actualizacion</TableHead>
+                            <TableHead className="w-[130px] px-2 font-semibold text-[12px]">Fecha Despacho</TableHead>
+                            <TableHead className="w-[140px] px-2 font-semibold text-[12px]">Estado</TableHead>
+                            <TableHead className="w-[120px] px-2 font-semibold text-[12px]">Logística</TableHead>
+                            <TableHead className="font-semibold px-4 text-[12px]">Detalle del Pedido</TableHead>
+                            <TableHead className="w-[280px] font-semibold px-4 text-[12px]">Info Técnica</TableHead>
+                            <TableHead className="w-[110px] px-2 text-right font-semibold text-[12px]">Actualización</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {filteredEnvios.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7} className="text-center py-12 text-slate-400">
-                                    No hay envíos pendientes de procesar
+                                    No hay envíos pendientes
                                 </TableCell>
                             </TableRow>
                         ) : (
@@ -135,32 +135,26 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="px-4 py-4">
-                                            <p className="text-[13px] text-slate-800 font-medium leading-relaxed">
+                                            <p className="text-[13px] text-slate-800 font-semibold leading-relaxed">
                                                 {envio.resumen}
                                             </p>
                                         </TableCell>
                                         <TableCell className="px-4 py-4">
                                             <div className="flex flex-col gap-1.5">
                                                 {envio.items.map((item: any) => (
-                                                    <div key={item.id}>
-                                                        {item.agregadoInfo ? (
-                                                            <div className="flex flex-col gap-1">
-                                                                {item.agregadoInfo.ids_articulos?.split(',').map((id: string, idx: number) => {
-                                                                    const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
-                                                                    const currentId = id.trim();
-                                                                    if (!currentId) return null;
-                                                                    return (
-                                                                        <div key={`${item.id}-${idx}`} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1">
-                                                                            <span className="text-blue-600 font-mono text-[10px] font-bold">
-                                                                                {currentId}
-                                                                            </span>
-                                                                            <span className="text-slate-600 text-[10px] font-medium border-l border-slate-200 pl-2">
-                                                                                {nombres[idx]?.trim() || "Sin descripción"}
-                                                                            </span>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
+                                                    <div key={item.id} className="flex flex-col gap-1">
+                                                        {item.agregadoInfo?.ids_articulos ? (
+                                                            item.agregadoInfo.ids_articulos.split(',').map((id: string, idx: number) => {
+                                                                const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
+                                                                return (
+                                                                    <div key={idx} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1">
+                                                                        <span className="text-blue-600 font-mono text-[10px] font-bold shrink-0">{id.trim()}</span>
+                                                                        <span className="text-slate-600 text-[10px] font-medium border-l border-slate-200 pl-2 truncate">
+                                                                            {nombres[idx]?.trim() || "Sin descripción"}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })
                                                         ) : (
                                                             <span className="text-slate-400 italic text-[10px]">Sin info técnica</span>
                                                         )}

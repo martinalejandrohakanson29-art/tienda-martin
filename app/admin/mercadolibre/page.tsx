@@ -55,7 +55,7 @@ export default function MercadoLibreDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-blue-800 text-xl">
               <MapPinned className="h-6 w-6" />
-              Colecta y Flex
+              Gestion Etiquetas Colecta y Flex
             </CardTitle>
             <CardDescription className="text-blue-700/80 font-medium">
               Logística local y diaria
@@ -78,7 +78,7 @@ export default function MercadoLibreDashboard() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-emerald-800 text-xl">
               <PackageCheck className="h-6 w-6" />
-              Pedidos Despachados
+              Gestion de Pedidos Despachados
             </CardTitle>
             <CardDescription className="text-emerald-700/80 font-medium">
               Control post-despacho
@@ -86,7 +86,7 @@ export default function MercadoLibreDashboard() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-6">
-              Seguimiento de órdenes entregadas al correo o transportista.
+              Seguimiento de pedidos despachados.
             </p>
             <Link href="/admin/mercadolibre/despachados">
               <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm h-12 text-lg">

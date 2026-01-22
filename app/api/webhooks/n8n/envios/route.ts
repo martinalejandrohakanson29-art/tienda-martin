@@ -10,8 +10,10 @@ export async function POST(req: Request) {
 
         const data = await req.json();
 
-        // --- SOLUCIÓN AL ERROR 500 ---
-        // Si datos_json llega como string (texto), lo convertimos a objeto (array)
+        // Extraemos la fecha de despacho límite si existe
+        const rawPayBefore = data["shipping_option.estimated_delivery_time.pay_before"];
+        const payBefore = rawPayBefore ? new Date(rawPayBefore) : null;
+
         let itemsDetalle = data.datos_json;
         if (typeof itemsDetalle === 'string') {
             try {
@@ -33,7 +35,8 @@ export async function POST(req: Request) {
                     orderId: String(data.order_id),
                     substatus: data.substatus,
                     resumen: data.resumen,
-                    logisticType: data.logistic_type
+                    logisticType: data.logistic_type,
+                    payBefore: payBefore // Actualizamos la fecha
                 },
                 create: {
                     id: String(data.shipping_id),
@@ -41,7 +44,8 @@ export async function POST(req: Request) {
                     substatus: data.substatus,
                     resumen: data.resumen,
                     status: "PENDIENTE",
-                    logisticType: data.logistic_type
+                    logisticType: data.logistic_type,
+                    payBefore: payBefore // Guardamos la fecha inicial
                 }
             });
 

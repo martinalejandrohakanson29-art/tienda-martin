@@ -32,7 +32,8 @@
     "papaparse": "^5.4.1",
     "embla-carousel-autoplay": "^8.5.1",
     "sonner": "^1.5.0",
-    "date-fns": "^3.6.0"
+    "date-fns": "^3.6.0",
+    "html-to-image": "^1.11.11"
   },
   "devDependencies": {
     "@types/node": "^20",

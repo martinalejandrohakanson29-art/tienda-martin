@@ -73,7 +73,7 @@ export function DespachadosClient() {
 
                         {/* Tarjeta 2: Aprobados (Placeholder solicitado) */}
                         <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-5 py-3 flex flex-col items-center min-w-[140px]">
-                            <span className="text-[10px] uppercase font-bold text-emerald-500 mb-1 tracking-wider">Auditoría</span>
+                            <span className="text-[10px] uppercase font-bold text-emerald-500 mb-1 tracking-wider">Control de preparacion</span>
                             <div className="flex items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                 <span className="text-sm font-bold text-emerald-700">TODO APROBADO</span>

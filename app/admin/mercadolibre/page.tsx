@@ -2,10 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { 
   Truck, 
-  Settings2, 
   ArrowLeft, 
   ArrowRight,
-  MapPinned // Icono para Colecta y Flex
+  MapPinned 
 } from "lucide-react";
 import Link from "next/link";
 
@@ -24,8 +23,8 @@ export default function MercadoLibreDashboard() {
 
       <p className="text-gray-500 text-lg">Selecciona el área de trabajo operativa.</p>
 
-      {/* Grid de 3 columnas para las carpetas principales */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {/* Grid para las operativas de ML */}
+      <div className="grid gap-6 md:grid-cols-2">
         
         {/* TARJETA 1: GESTIÓN FULL */}
         <Card className="hover:shadow-lg transition-all border-l-4 border-l-purple-500 bg-purple-50/10">
@@ -61,26 +60,6 @@ export default function MercadoLibreDashboard() {
           <CardContent>
             <Link href="/admin/mercadolibre/envios">
               <Button className="w-full bg-blue-700 hover:bg-blue-800 text-white h-12 text-lg gap-2">
-                Entrar <ArrowRight size={20} />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* TARJETA 3: GESTIÓN INTERNA */}
-        <Card className="hover:shadow-lg transition-all border-l-4 border-l-indigo-500 bg-indigo-50/10">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-3 text-indigo-700 text-2xl">
-              <Settings2 className="h-8 w-8" />
-              Gestión Interna
-            </CardTitle>
-            <CardDescription className="text-base font-medium">
-              Stock, Costos y Rentabilidad.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/admin/mercadolibre/interna">
-              <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 text-lg gap-2">
                 Entrar <ArrowRight size={20} />
               </Button>
             </Link>

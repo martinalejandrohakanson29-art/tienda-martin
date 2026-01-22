@@ -1,4 +1,3 @@
-// app/admin/mercadolibre/envios/envios-table.tsx
 "use client"
 
 import { useState } from "react"
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Search } from "lucide-react"
+import { Search, Calendar } from "lucide-react"
 
 interface EnviosTableProps {
     envios: any[];
@@ -30,11 +29,28 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         );
     });
 
+    const formatDispatchDate = (dateString: string | null) => {
+        if (!dateString) return "No definida";
+        
+        const date = new Date(dateString);
+        const today = new Date();
+        
+        const isToday = 
+            date.getDate() === today.getDate() &&
+            date.getMonth() === today.getMonth() &&
+            date.getFullYear() === today.getFullYear();
+
+        if (isToday) {
+            return <span className="text-emerald-600 font-bold">Hoy</span>;
+        }
+
+        return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    }
+
     const getStatusConfig = (envio: any) => {
         const sub = envio.substatus;
         const status = envio.status;
 
-        // Mapeo de sub-estados técnicos de Mercado Libre
         switch (sub) {
             case 'ready_to_print': 
                 return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
@@ -48,7 +64,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 return { label: "En reparto (Flex)", className: "bg-orange-100 text-orange-800 border-orange-200" };
         }
 
-        // Caso por defecto para estados simples o de n8n
         return { 
             label: status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || status?.toUpperCase() || "S/E", 
             className: "bg-gray-50 text-gray-500 border-gray-100" 
@@ -78,6 +93,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     <TableHeader>
                         <TableRow className="bg-slate-50/50">
                             <TableHead className="w-[110px] px-2 font-semibold text-[12px]">Shipping ID</TableHead>
+                            <TableHead className="w-[130px] px-2 font-semibold text-[12px]">Despacho Límite</TableHead>
                             <TableHead className="w-[140px] px-2 font-semibold text-[12px]">Estado de etiqueta</TableHead>
                             <TableHead className="w-[120px] px-2 font-semibold text-[12px]">Forma de entrega</TableHead>
                             <TableHead className="font-semibold px-4 text-[12px]">Detalle de Productos</TableHead>
@@ -88,7 +104,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     <TableBody>
                         {filteredEnvios.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-12 text-slate-400">
+                                <TableCell colSpan={7} className="text-center py-12 text-slate-400">
                                     No hay envíos pendientes de procesar
                                 </TableCell>
                             </TableRow>
@@ -101,6 +117,12 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                     <TableRow key={envio.id} className="hover:bg-slate-50/50 transition-colors border-b last:border-0">
                                         <TableCell className="px-2 py-4 font-mono text-[11px] font-medium text-slate-500">
                                             {envio.id}
+                                        </TableCell>
+                                        <TableCell className="px-2 py-4">
+                                            <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate-700 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                                                <Calendar className="h-3 w-3 text-slate-400" />
+                                                {formatDispatchDate(envio.payBefore)}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="px-2 py-4">
                                             <Badge variant="outline" className={`rounded-md px-2 py-0.5 text-[10px] font-medium whitespace-nowrap ${statusInfo.className}`}>

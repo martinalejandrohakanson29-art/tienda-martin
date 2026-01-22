@@ -1,20 +1,25 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { getEtiquetasDespachadas } from "@/app/actions/envios"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock, Copy, Image as ImageIcon } from "lucide-react"
 import { format } from "date-fns"
-import { es } from "date-fns/locale" // Para mostrar la fecha en español
+import { es } from "date-fns/locale"
 import { toast } from "sonner"
+import { toBlob } from "html-to-image" // Importante: instalalo con npm install html-to-image
 
 export function DespachadosClient() {
     const [fecha, setFecha] = useState(format(new Date(), "yyyy-MM-dd"))
     const [loading, setLoading] = useState(true)
     const [envios, setEnvios] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState("")
+    
+    // Referencia para capturar el diseño cuadrado
+    const areaCapturaRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         const load = async () => {
@@ -32,88 +37,116 @@ export function DespachadosClient() {
         (e.orderId && e.orderId.toLowerCase().includes(searchTerm.toLowerCase()))
     )
 
-    const handleCopy = (text: string) => {
+    // Función mágica para copiar como imagen
+    const copiarComoImagen = async () => {
+        if (!areaCapturaRef.current) return;
+        
+        try {
+            const blob = await toBlob(areaCapturaRef.current, {
+                cacheBust: true,
+                backgroundColor: '#ffffff',
+            });
+            
+            if (blob) {
+                const item = new ClipboardItem({ "image/png": blob });
+                await navigator.clipboard.write([item]);
+                toast.success("¡Imagen copiada! Ya podés pegarla en WhatsApp", {
+                    position: "bottom-center",
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error("No se pudo copiar la imagen");
+        }
+    };
+
+    const handleCopyText = (text: string) => {
         if (!text) return;
         navigator.clipboard.writeText(text);
-        toast.success(`Copiado: ${text}`, {
-            duration: 1500,
-            position: 'bottom-center'
-        });
+        toast.success(`Copiado: ${text}`, { duration: 1500 });
     }
 
-    // Formateamos la fecha para el reporte visual (ej: "Lunes, 21 de Enero")
-    const displayDate = format(new Date(fecha + "T12:00:00"), "EEEE, dd 'de' MMMM", { locale: es });
+    const displayDate = format(new Date(fecha + "T12:00:00"), "EEEE dd 'de' MMMM", { locale: es });
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-8">
             
-            {/* --- ZONA DE REPORTE (Ideal para captura de WhatsApp) --- */}
-            <div className="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-md">
-                <div className="flex flex-wrap gap-4 items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-blue-600 p-2 rounded-lg text-white">
+            {/* --- CONTENEDOR DEL RESUMEN CUADRADO --- */}
+            <div className="flex flex-col items-center justify-center py-4 bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+                
+                <div 
+                    ref={areaCapturaRef}
+                    className="w-[380px] h-[380px] bg-white p-8 rounded-[40px] shadow-2xl flex flex-col justify-between border border-slate-100 relative overflow-hidden"
+                >
+                    {/* Decoración de fondo */}
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-blue-50 rounded-full blur-3xl opacity-50" />
+                    
+                    {/* Cabecera: Fecha */}
+                    <div className="text-center relative z-10">
+                        <div className="inline-flex p-3 bg-blue-600 rounded-2xl text-white mb-4 shadow-lg shadow-blue-200">
                             <Package className="h-6 w-6" />
                         </div>
-                        <div>
-                            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight">Reporte de Despacho</h2>
-                            <div className="flex items-center gap-1.5 text-slate-500 font-medium text-sm">
-                                <CalendarIcon className="h-3.5 w-3.5" />
-                                <span className="capitalize">{displayDate}</span>
+                        <h2 className="text-slate-400 uppercase text-[12px] font-black tracking-[0.2em] mb-1">Reporte Diario</h2>
+                        <h3 className="text-2xl font-black text-slate-800 capitalize">{displayDate}</h3>
+                    </div>
+
+                    {/* Cuerpo: Estadísticas en Grilla */}
+                    <div className="grid grid-cols-1 gap-4 relative z-10">
+                        <div className="bg-slate-50 rounded-3xl p-5 flex items-center justify-between border border-slate-100">
+                            <span className="text-slate-500 font-bold text-sm">TOTAL DESPACHOS</span>
+                            <span className="text-4xl font-black text-blue-600">{filtered.length}</span>
+                        </div>
+                        
+                        <div className="bg-emerald-50 rounded-3xl p-5 flex items-center justify-between border border-emerald-100">
+                            <div className="flex flex-col">
+                                <span className="text-emerald-600 font-bold text-[10px] uppercase tracking-wider">Estado de Control</span>
+                                <span className="text-emerald-700 font-black text-sm">TODO OK</span>
                             </div>
+                            <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                         </div>
                     </div>
-                    
-                    {/* Tarjetas de Datos */}
-                    <div className="flex flex-wrap gap-3">
-                        {/* Tarjeta 1: Total */}
-                        <div className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 flex flex-col items-center min-w-[120px]">
-                            <span className="text-[10px] uppercase font-bold text-slate-400 mb-1">Total Pedidos</span>
-                            <span className="text-2xl font-black text-slate-700">{filtered.length}</span>
-                        </div>
 
-                        {/* Tarjeta 2: Aprobados (Placeholder solicitado) */}
-                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-5 py-3 flex flex-col items-center min-w-[140px]">
-                            <span className="text-[10px] uppercase font-bold text-emerald-500 mb-1 tracking-wider">Control de preparacion</span>
-                            <div className="flex items-center gap-2">
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                <span className="text-sm font-bold text-emerald-700">TODO APROBADO</span>
-                            </div>
+                    {/* Pie: Hora y Marca */}
+                    <div className="flex justify-between items-end border-t border-slate-100 pt-4 relative z-10">
+                        <div>
+                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Revolución Motos</p>
                         </div>
-
-                        {/* Tarjeta 3: Hora del reporte (Opcional, pero útil para WhatsApp) */}
-                        <div className="hidden md:flex bg-amber-50 border border-amber-100 rounded-xl px-5 py-3 flex-col items-center">
-                            <span className="text-[10px] uppercase font-bold text-amber-500 mb-1">Sincronizado</span>
-                            <div className="flex items-center gap-1 text-amber-700 font-mono text-sm">
-                                <Clock className="h-3.5 w-3.5" />
-                                {format(new Date(), "HH:mm")}
-                            </div>
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-50 rounded-full border border-amber-100">
+                            <Clock className="h-3 w-3 text-amber-500" />
+                            <span className="text-[11px] font-bold text-amber-600">{format(new Date(), "HH:mm")} hs</span>
                         </div>
                     </div>
                 </div>
+
+                {/* Botón de acción (fuera del área de captura) */}
+                <Button 
+                    onClick={copiarComoImagen}
+                    className="mt-6 rounded-full bg-slate-800 hover:bg-black text-white px-8 py-6 shadow-xl transition-all hover:scale-105 active:scale-95 gap-2"
+                >
+                    <ImageIcon className="h-5 w-5" />
+                    Copiar Imagen para WhatsApp
+                </Button>
             </div>
 
-            {/* --- CONTROLES Y FILTROS (No necesitas sacarle foto a esto) --- */}
-            <div className="flex flex-col md:flex-row gap-4 items-end bg-slate-50/50 p-4 rounded-xl border border-dashed">
+            {/* --- FILTROS --- */}
+            <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <div className="flex flex-col gap-2">
-                    <Label className="text-xs font-bold uppercase text-slate-500 ml-1">Cambiar Fecha</Label>
-                    <div className="flex items-center gap-2 border rounded-lg px-3 py-2 bg-white shadow-sm">
-                        <CalendarIcon className="h-4 w-4 text-slate-400" />
-                        <input 
-                            type="date" 
-                            value={fecha} 
-                            onChange={(e) => setFecha(e.target.value)}
-                            className="bg-transparent text-sm font-medium outline-none cursor-pointer"
-                        />
-                    </div>
+                    <Label className="text-xs font-bold uppercase text-slate-500">Filtrar Fecha</Label>
+                    <input 
+                        type="date" 
+                        value={fecha} 
+                        onChange={(e) => setFecha(e.target.value)}
+                        className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                    />
                 </div>
 
                 <div className="flex flex-col gap-2 flex-1 max-w-md">
-                    <Label className="text-xs font-bold uppercase text-slate-500 ml-1">Buscador rápido</Label>
+                    <Label className="text-xs font-bold uppercase text-slate-500">Buscador</Label>
                     <div className="relative">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                         <Input
-                            placeholder="Shipping ID, Venta o Producto..."
-                            className="pl-10 bg-white shadow-sm"
+                            placeholder="Buscar pedido o producto..."
+                            className="pl-10 rounded-xl"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -122,50 +155,44 @@ export function DespachadosClient() {
             </div>
 
             {/* --- TABLA --- */}
-            <div className="rounded-xl border shadow-sm bg-white overflow-hidden">
+            <div className="rounded-2xl border shadow-sm bg-white overflow-hidden">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50/50">
-                            <TableHead className="w-[180px] font-semibold text-[12px]">Venta / Shipping ID</TableHead>
-                            <TableHead className="font-semibold text-[12px]">Detalle de Productos</TableHead>
-                            <TableHead className="font-semibold text-[12px]">Agregados</TableHead>
+                            <TableHead className="w-[180px] font-bold text-[11px] uppercase text-slate-500">Venta / ID</TableHead>
+                            <TableHead className="font-bold text-[11px] uppercase text-slate-500">Productos</TableHead>
+                            <TableHead className="font-bold text-[11px] uppercase text-slate-500">Agregados</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={3} className="text-center py-20">
-                                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-slate-300" />
-                                    <p className="text-slate-400 mt-2">Cargando registros...</p>
+                                <TableCell colSpan={3} className="text-center py-20 text-slate-300 font-medium">
+                                    <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                                    Cargando datos...
                                 </TableCell>
                             </TableRow>
                         ) : filtered.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={3} className="text-center py-20 text-slate-400">
-                                    No se encontraron pedidos despachados para esta fecha.
+                                <TableCell colSpan={3} className="text-center py-20 text-slate-400 italic">
+                                    No hay registros para hoy.
                                 </TableCell>
                             </TableRow>
                         ) : (
                             filtered.map((envio) => (
-                                <TableRow key={envio.id} className="hover:bg-slate-50/50 transition-colors">
-                                    <TableCell className="py-4 space-y-1">
-                                        <div 
-                                            onClick={() => handleCopy(envio.id)}
-                                            className="font-mono text-[11px] font-bold text-slate-600 cursor-pointer hover:text-blue-600"
-                                        >
+                                <TableRow key={envio.id} className="hover:bg-slate-50/30">
+                                    <TableCell className="py-4">
+                                        <div onClick={() => handleCopyText(envio.id)} className="font-mono text-[11px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">
                                             {envio.id}
                                         </div>
                                         {envio.orderId && (
-                                            <div 
-                                                onClick={() => handleCopy(envio.orderId)}
-                                                className="font-mono text-[11px] font-bold text-slate-400 cursor-pointer hover:text-blue-600"
-                                            >
+                                            <div onClick={() => handleCopyText(envio.orderId)} className="font-mono text-[10px] text-slate-400 cursor-pointer hover:text-blue-600">
                                                  {envio.orderId}
                                             </div>
                                         )}
                                     </TableCell>
-                                    <TableCell>
-                                        <p className="text-[13px] text-slate-800 font-medium">{envio.resumen}</p>
+                                    <TableCell className="text-[13px] font-medium text-slate-700">
+                                        {envio.resumen}
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex flex-col gap-1.5">
@@ -177,8 +204,8 @@ export function DespachadosClient() {
                                                         return (
                                                             <div 
                                                                 key={idx} 
-                                                                onClick={() => handleCopy(cleanId)}
-                                                                className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-1 cursor-pointer hover:bg-blue-50 transition-all group"
+                                                                onClick={() => handleCopyText(cleanId)}
+                                                                className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 cursor-pointer hover:bg-blue-50 transition-all"
                                                             >
                                                                 <span className="text-blue-600 font-mono text-[10px] font-bold">{cleanId}</span>
                                                                 <span className="text-slate-600 text-[10px] font-medium border-l pl-2">{nombres[idx]?.trim()}</span>

@@ -99,8 +99,8 @@ export function DespachadosClient() {
                         
                         <div className="bg-emerald-50 rounded-3xl p-5 flex items-center justify-between border border-emerald-100">
                             <div className="flex flex-col">
-                                <span className="text-emerald-600 font-bold text-[10px] uppercase tracking-wider">Estado de Control</span>
-                                <span className="text-emerald-700 font-black text-sm">TODO OK</span>
+                                <span className="text-emerald-600 font-bold text-[10px] uppercase tracking-wider">APROBACION DE PEDIDOS</span>
+                                <span className="text-emerald-700 font-black text-sm">TODOS APROBADOS</span>
                             </div>
                             <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                         </div>

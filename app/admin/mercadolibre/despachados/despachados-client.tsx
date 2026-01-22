@@ -128,7 +128,7 @@ export function DespachadosClient() {
                         <TableRow className="bg-slate-50/50">
                             <TableHead className="w-[180px] font-semibold text-[12px]">Venta / Shipping ID</TableHead>
                             <TableHead className="font-semibold text-[12px]">Detalle de Productos</TableHead>
-                            <TableHead className="font-semibold text-[12px]">Configuración Técnica (Agregados)</TableHead>
+                            <TableHead className="font-semibold text-[12px]">Agregados</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -160,7 +160,7 @@ export function DespachadosClient() {
                                                 onClick={() => handleCopy(envio.orderId)}
                                                 className="font-mono text-[11px] font-bold text-slate-400 cursor-pointer hover:text-blue-600"
                                             >
-                                                Ref: {envio.orderId}
+                                                 {envio.orderId}
                                             </div>
                                         )}
                                     </TableCell>

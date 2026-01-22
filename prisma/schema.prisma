@@ -324,11 +324,12 @@ model EtiquetaML {
   orderId         String?
   logisticType    String?        // "self_service" (Flex), "cross_docking" (Colecta), "fulfillment"
   status          String         @default("PENDIENTE") // PENDIENTE, IMPRESO, PREPARADO, AUDITADO
-  substatus       String?        // "printed" o "ready_to_print" según ML
-  resumen         String?        // Resumen de productos para vista rápida
+  substatus       String?
+  resumen         String?
+  payBefore       DateTime?      // Fecha límite para despachar (Dato de ML)
   
   // Auditoría y Control
-  auditor         String?        // Quién escaneó/preparó
+  auditor         String?
   drivePhotoUrl   String?        // Link a la foto guardada en Drive
   
   createdAt       DateTime       @default(now())

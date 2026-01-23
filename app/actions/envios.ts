@@ -1,30 +1,64 @@
+// app/actions/envios.ts
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { revalidatePath } from "next/cache"
+
+/**
+ * Llama al workflow de n8n para iniciar la descarga y actualización de etiquetas
+ */
+export async function actualizarPedidos() {
+    try {
+        const webhookUrl = process.env.N8N_GENERATE_ETIQUETAS_URL;
+        
+        if (!webhookUrl) {
+            throw new Error("La URL de n8n no está configurada en las variables de entorno");
+        }
+
+        const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            // Enviamos un cuerpo vacío o con alguna info de rastro si lo prefieres
+            body: JSON.stringify({ source: 'nextjs_admin_panel', action: 'manual_refresh' })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error en n8n: ${response.statusText}`);
+        }
+
+        // Forzamos a Next.js a limpiar la caché de esta ruta para mostrar datos nuevos
+        revalidatePath('/admin/mercadolibre/envios');
+
+        return { success: true, message: "Sincronización iniciada correctamente" };
+    } catch (error: any) {
+        console.error("Error al llamar a n8n:", error);
+        return { success: false, error: error.message || "Error al conectar con n8n" };
+    }
+}
 
 /**
  * Obtiene las etiquetas que aún están en proceso operativo (Pendientes, Impresas, etc.)
  */
 export async function getEtiquetasML() {
     try {
-        // Obtenemos las etiquetas filtrando las que ya cumplieron su ciclo operativo
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 NOT: [
                     {
                         AND: [
-                            { logisticType: 'cross_docking' }, // Colecta
-                            { substatus: 'picked_up' }       // Ya retirado
+                            { logisticType: 'cross_docking' },
+                            { substatus: 'picked_up' }
                         ]
                     },
                     {
                         AND: [
-                            { logisticType: 'self_service' }, // Flex
-                            { substatus: 'out_for_delivery' } // Ya en reparto
+                            { logisticType: 'self_service' },
+                            { substatus: 'out_for_delivery' }
                         ]
                     },
                     {
-                        // Excluimos también si el estado general ya es entregado o cancelado
                         status: { in: ['delivered', 'cancelled'] }
                     }
                 ]
@@ -83,14 +117,11 @@ export async function getEtiquetasML() {
 
         return { success: true, data: etiquetasEnriquecidas };
     } catch (error) {
-        console.error("Error al obtener etiquetas enriquecidas:", error);
+        console.error("Error al obtener etiquetas:", error);
         return { success: false, data: [] };
     }
 }
 
-/**
- * Obtiene los pedidos que fueron despachados en una fecha específica
- */
 export async function getEtiquetasDespachadas(fecha: string) {
     try {
         const startOfDay = new Date(fecha);
@@ -106,9 +137,9 @@ export async function getEtiquetasDespachadas(fecha: string) {
                     lte: endOfDay
                 },
                 OR: [
-                    { AND: [{ logisticType: 'cross_docking' }, { substatus: 'picked_up' }] }, // Colecta retirada
-                    { AND: [{ logisticType: 'self_service' }, { substatus: 'out_for_delivery' }] }, // Flex en reparto
-                    { status: 'delivered' } // Entregas finales
+                    { AND: [{ logisticType: 'cross_docking' }, { substatus: 'picked_up' }] },
+                    { AND: [{ logisticType: 'self_service' }, { substatus: 'out_for_delivery' }] },
+                    { status: 'delivered' }
                 ]
             },
             include: {
@@ -119,7 +150,6 @@ export async function getEtiquetasDespachadas(fecha: string) {
             }
         });
 
-        // Enriquecemos con la info técnica de los artículos (IDs internos y descripciones)
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
             const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
                 const viewResult: any[] = await prisma.$queryRaw`

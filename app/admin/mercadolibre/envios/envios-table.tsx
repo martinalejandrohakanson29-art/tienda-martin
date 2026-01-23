@@ -85,13 +85,14 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
-        // Opcional: Podrías agregar un toast aquí si tienes la librería instalada
     }
 
+    // LÓGICA DE BÚSQUEDA ACTUALIZADA: Ahora busca también por orderId (Venta)
     const filteredEnvios = envios.filter((envio) => {
         const searchLower = searchTerm.toLowerCase();
         return (
-            envio.id.toLowerCase().includes(searchLower) ||
+            envio.id.toString().toLowerCase().includes(searchLower) ||
+            envio.orderId?.toString().toLowerCase().includes(searchLower) || // Búsqueda por ID de Venta
             envio.resumen?.toLowerCase().includes(searchLower) ||
             envio.items?.some((item: any) => item.mla.toLowerCase().includes(searchLower))
         );
@@ -115,10 +116,8 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         const sub = envio.substatus;
         const status = envio.status;
         switch (sub) {
-            // CAMBIO: Color Rojo para "Listo Imprimir"
             case 'ready_to_print': return { label: "Listo Imprimir", className: "bg-rose-50 text-rose-700 border-rose-200", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> };
             case 'printed': return { label: "Impreso", className: "bg-blue-50 text-blue-700 border-blue-200", icon: <Package className="w-3 h-3 mr-1" /> };
-            // CAMBIO: Color Verde para "Listo para Colecta"
             case 'ready_for_pickup': return { label: "Listo para Colecta", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <Truck className="w-3 h-3 mr-1" /> };
             default: return { label: status === "PENDIENTE" ? "Pendiente" : sub?.toUpperCase() || "S/E", className: "bg-slate-50 text-slate-600 border-slate-200", icon: <Clock className="w-3 h-3 mr-1" /> };
         }
@@ -132,12 +131,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     return (
         <div className="space-y-3">
-            {/* Buscador y Botón Sincro */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-2.5 rounded-lg border shadow-sm">
                 <div className="relative w-full sm:max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                     <Input
-                        placeholder="Buscar envío..."
+                        placeholder="Buscar envío o venta..."
                         className="pl-8 h-9 text-sm bg-slate-50 border-slate-200 rounded-md"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -155,12 +153,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 </Button>
             </div>
 
-            {/* Tabla Principal */}
             <div className="rounded-lg border border-slate-200 shadow-sm bg-white overflow-hidden">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50 hover:bg-slate-50">
-                            <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">ID</TableHead>
+                            <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">ID Envío / Venta</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter text-center">Despacho</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">Estado / Logística</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">Producto</TableHead>
@@ -182,8 +179,12 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                 
                                 return (
                                     <TableRow key={envio.id} className="group hover:bg-slate-50/50 transition-colors border-b last:border-0">
-                                        <TableCell className="px-3 py-2 font-mono text-[11px] font-bold text-blue-600">
-                                            {envio.id}
+                                        {/* COLUMNA ID ACTUALIZADA */}
+                                        <TableCell className="px-3 py-2 font-mono text-[11px] font-bold">
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="text-blue-600">{envio.id}</span>
+                                                <span className="text-slate-400 font-medium text-[9px]">V: {envio.orderId || 'S/D'}</span>
+                                            </div>
                                         </TableCell>
                                         
                                         <TableCell className="px-3 py-2 text-center">
@@ -208,7 +209,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                         </TableCell>
 
                                         <TableCell className="px-3 py-2">
-                                            {/* Los agregados ahora se extienden libremente hacia la derecha */}
                                             <div className="flex flex-col gap-1.5 min-w-[200px]">
                                                 {envio.items.map((item: any) => (
                                                     <div key={item.id} className="flex flex-col gap-1">
@@ -256,7 +256,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 </Table>
             </div>
 
-            {/* Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="sm:max-w-[350px] rounded-xl">
                     <DialogHeader className="flex flex-col items-center text-center">

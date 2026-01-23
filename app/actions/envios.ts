@@ -11,24 +11,29 @@ export async function actualizarPedidos() {
     try {
         const webhookUrl = process.env.N8N_GENERATE_ETIQUETAS_URL;
         
+        // Log para ver en Railway (puedes borrarlo después)
+        console.log("Intentando llamar a n8n. URL configurada:", webhookUrl ? "OK (Cargada)" : "ERROR (No cargada)");
+
         if (!webhookUrl) {
             throw new Error("La URL de n8n no está configurada en las variables de entorno");
         }
 
-        const response = await fetch(webhookUrl, {
+        const response = await fetch(webhookUrl.trim(), { // .trim() para limpiar espacios accidentales
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            // Enviamos un cuerpo vacío o con alguna info de rastro si lo prefieres
-            body: JSON.stringify({ source: 'nextjs_admin_panel', action: 'manual_refresh' })
+            body: JSON.stringify({ 
+                source: 'nextjs_admin_panel', 
+                action: 'manual_refresh',
+                timestamp: new Date().toISOString()
+            })
         });
 
         if (!response.ok) {
             throw new Error(`Error en n8n: ${response.statusText}`);
         }
 
-        // Forzamos a Next.js a limpiar la caché de esta ruta para mostrar datos nuevos
         revalidatePath('/admin/mercadolibre/envios');
 
         return { success: true, message: "Sincronización iniciada correctamente" };
@@ -39,36 +44,20 @@ export async function actualizarPedidos() {
 }
 
 /**
- * Obtiene las etiquetas que aún están en proceso operativo (Pendientes, Impresas, etc.)
+ * Obtiene las etiquetas que aún están en proceso operativo
  */
 export async function getEtiquetasML() {
     try {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 NOT: [
-                    {
-                        AND: [
-                            { logisticType: 'cross_docking' },
-                            { substatus: 'picked_up' }
-                        ]
-                    },
-                    {
-                        AND: [
-                            { logisticType: 'self_service' },
-                            { substatus: 'out_for_delivery' }
-                        ]
-                    },
-                    {
-                        status: { in: ['delivered', 'cancelled'] }
-                    }
+                    { AND: [{ logisticType: 'cross_docking' }, { substatus: 'picked_up' }] },
+                    { AND: [{ logisticType: 'self_service' }, { substatus: 'out_for_delivery' }] },
+                    { status: { in: ['delivered', 'cancelled'] } }
                 ]
             },
-            include: {
-                items: true
-            },
-            orderBy: {
-                createdAt: 'desc'
-            }
+            include: { items: true },
+            orderBy: { createdAt: 'desc' }
         });
 
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
@@ -82,37 +71,17 @@ export async function getEtiquetasML() {
                 `;
 
                 if (viewResult.length > 0 && viewResult[0].ids_articulos) {
-                    const ids: string[] = viewResult[0].ids_articulos
-                        .split(/[+,]/)
-                        .map((id: string) => id.trim())
-                        .filter(Boolean);
-                    
+                    const ids: string[] = viewResult[0].ids_articulos.split(/[+,]/).map((id: string) => id.trim()).filter(Boolean);
                     const articulos = await prisma.costosArticulos.findMany({
                         where: { id_articulo: { in: ids } },
                         select: { id_articulo: true, descripcion: true }
                     });
-                    
-                    const nombres = ids.map((id: string) => {
-                        const art = articulos.find((a) => a.id_articulo === id);
-                        return art?.descripcion || "Sin descripción";
-                    });
-
-                    return {
-                        ...item,
-                        agregadoInfo: {
-                            ids_articulos: ids.join(', '),
-                            nombres_articulos: nombres.join(' | ')
-                        }
-                    };
+                    const nombres = ids.map((id: string) => articulos.find((a) => a.id_articulo === id)?.descripcion || "Sin descripción");
+                    return { ...item, agregadoInfo: { ids_articulos: ids.join(', '), nombres_articulos: nombres.join(' | ') } };
                 }
-
                 return { ...item, agregadoInfo: null };
             }));
-
-            return {
-                ...envio,
-                items: itemsConAgregados
-            };
+            return { ...envio, items: itemsConAgregados };
         }));
 
         return { success: true, data: etiquetasEnriquecidas };
@@ -124,74 +93,36 @@ export async function getEtiquetasML() {
 
 export async function getEtiquetasDespachadas(fecha: string) {
     try {
-        const startOfDay = new Date(fecha);
-        startOfDay.setHours(0, 0, 0, 0);
-        
-        const endOfDay = new Date(fecha);
-        endOfDay.setHours(23, 59, 59, 999);
+        const startOfDay = new Date(fecha); startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(fecha); endOfDay.setHours(23, 59, 59, 999);
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                updatedAt: {
-                    gte: startOfDay,
-                    lte: endOfDay
-                },
+                updatedAt: { gte: startOfDay, lte: endOfDay },
                 OR: [
                     { AND: [{ logisticType: 'cross_docking' }, { substatus: 'picked_up' }] },
                     { AND: [{ logisticType: 'self_service' }, { substatus: 'out_for_delivery' }] },
                     { status: 'delivered' }
                 ]
             },
-            include: {
-                items: true
-            },
-            orderBy: {
-                updatedAt: 'desc'
-            }
+            include: { items: true },
+            orderBy: { updatedAt: 'desc' }
         });
 
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
             const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
                 const viewResult: any[] = await prisma.$queryRaw`
-                    SELECT ids_articulos 
-                    FROM vista_costos_productos 
-                    WHERE mla = ${item.mla} 
-                    AND variation_id IS NOT DISTINCT FROM ${item.variation}
-                    LIMIT 1
+                    SELECT ids_articulos FROM vista_costos_productos WHERE mla = ${item.mla} AND variation_id IS NOT DISTINCT FROM ${item.variation} LIMIT 1
                 `;
-
                 if (viewResult.length > 0 && viewResult[0].ids_articulos) {
-                    const ids: string[] = viewResult[0].ids_articulos
-                        .split(/[+,]/)
-                        .map((id: string) => id.trim())
-                        .filter(Boolean);
-                    
-                    const articulos = await prisma.costosArticulos.findMany({
-                        where: { id_articulo: { in: ids } },
-                        select: { id_articulo: true, descripcion: true }
-                    });
-                    
-                    const nombres = ids.map((id: string) => {
-                        const art = articulos.find((a) => a.id_articulo === id);
-                        return art?.descripcion || "Sin descripción";
-                    });
-
-                    return {
-                        ...item,
-                        agregadoInfo: {
-                            ids_articulos: ids.join(', '),
-                            nombres_articulos: nombres.join(' | ')
-                        }
-                    };
+                    const ids: string[] = viewResult[0].ids_articulos.split(/[+,]/).map((id: string) => id.trim()).filter(Boolean);
+                    const articulos = await prisma.costosArticulos.findMany({ where: { id_articulo: { in: ids } }, select: { id_articulo: true, descripcion: true } });
+                    const nombres = ids.map((id: string) => articulos.find((a) => a.id_articulo === id)?.descripcion || "Sin descripción");
+                    return { ...item, agregadoInfo: { ids_articulos: ids.join(', '), nombres_articulos: nombres.join(' | ') } };
                 }
-
                 return { ...item, agregadoInfo: null };
             }));
-
-            return {
-                ...envio,
-                items: itemsConAgregados
-            };
+            return { ...envio, items: itemsConAgregados };
         }));
 
         return { success: true, data: etiquetasEnriquecidas };

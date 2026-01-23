@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation"
 
-// Este componente solo renderizará sus hijos si NO estamos en una página "Full Screen"
+// Este componente oculta el Header de la tienda en toda la sección de administración
 export default function ConditionalHeader({
   children,
 }: {
@@ -10,16 +10,10 @@ export default function ConditionalHeader({
 }) {
   const pathname = usePathname()
 
-  // Lista de rutas donde queremos ocultar el Header y el AnnouncementBar
-  const isFullscreen =
-    pathname === "/admin/mercadolibre/importaciones" ||
-    pathname === "/admin/mercadolibre/planning" ||
-    pathname === "/admin/mercadolibre/articulos" ||
-    pathname === "/admin/mercadolibre/costos"
+  // Ocultamos si la ruta empieza con /admin
+  const isFullscreen = pathname?.startsWith("/admin")
 
-  // Si es pantalla completa, no mostramos nada (return null)
   if (isFullscreen) return null
 
-  // Si no, mostramos el contenido normal (Header, etc)
   return <>{children}</>
 }

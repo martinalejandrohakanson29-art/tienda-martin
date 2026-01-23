@@ -183,7 +183,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                         <TableCell className="px-3 py-2 font-mono text-[11px] font-bold">
                                             <div className="flex flex-col gap-0.5">
                                                 <span className="text-blue-600">{envio.id}</span>
-                                                <span className="text-slate-400 font-medium text-[9px]">V: {envio.orderId || 'S/D'}</span>
+                                                <span className="text-slate-400 font-medium text-[9px]"> {envio.orderId || 'S/D'}</span>
                                             </div>
                                         </TableCell>
                                         

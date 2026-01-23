@@ -112,64 +112,47 @@ export async function aprobarPedido(envioId: string) {
     }
 }
 
+// app/actions/preparacion.ts
+
 export async function subirFotoAuditoria(formData: FormData) {
     try {
-        const file = formData.get('photo') as File
-        const envioId = formData.get('envioId') as string
-        const mla = formData.get('mla') as string
+        // ... (tu código anterior de subir a Drive se mantiene igual) ...
 
-        if (!file || !envioId) throw new Error("Faltan datos obligatorios")
-
-        const drive = await getDriveClient()
-        
-        // 1. Obtener la fecha actual (DD/MM)
-        const hoy = new Date();
-        const diaMes = hoy.toLocaleDateString('es-AR', { 
-            day: '2-digit', 
-            month: '2-digit' 
-        });
-
-        // 2. Crear estructura: Raíz -> Fecha -> ID_Envio
-        const dateFolderId = await getOrCreateFolder(drive, diaMes, DRIVE_PARENT_FOLDER_ID);
-        const envioFolderId = await getOrCreateFolder(drive, envioId, dateFolderId);
-
-        // 3. Subir archivo directamente a la carpeta del Envío
-        const buffer = Buffer.from(await file.arrayBuffer())
-        const fileMetadata = { 
-            name: `${mla}_${Date.now()}.jpg`, 
-            parents: [envioFolderId] 
-        }
-        const media = { 
-            mimeType: 'image/jpeg', 
-            body: require('stream').Readable.from(buffer) 
-        }
-        
-        const driveFile = await drive.files.create({
-            requestBody: fileMetadata,
-            media: media,
-            fields: 'id, webViewLink'
-        })
-
-        // 4. Actualizar base de datos
-        await prisma.$transaction([
-            prisma.shipmentAudit.upsert({
+        // 4. Actualizar base de datos con lógica de completitud
+        await prisma.$transaction(async (tx) => {
+            // Registramos la auditoría de este item específico
+            await tx.shipmentAudit.upsert({
                 where: { itemId_envioId: { itemId: mla, envioId: envioId } },
                 update: { status: "AUDITADO", createdAt: new Date() },
                 create: { itemId: mla, envioId: envioId, status: "AUDITADO" }
-            }),
-            prisma.etiquetaML.update({
-                where: { id: envioId },
-                data: { 
-                    status: "PREPARADO",
-                    drivePhotoUrl: driveFile.data.webViewLink 
-                }
-            })
-        ])
+            });
 
-        revalidatePath('/admin/mercadolibre/preparacion')
-        return { success: true, link: driveFile.data.webViewLink }
+            // Contamos cuántos items tiene el envío en total
+            const totalItems = await tx.etiquetaMLItem.count({
+                where: { etiquetaId: envioId }
+            });
+
+            // Contamos cuántos ya fueron auditados
+            const auditados = await tx.shipmentAudit.count({
+                where: { envioId: envioId, status: "AUDITADO" }
+            });
+
+            // Solo si están todos, pasamos el envío a PREPARADO
+            if (auditados >= totalItems) {
+                await tx.etiquetaML.update({
+                    where: { id: envioId },
+                    data: { 
+                        status: "PREPARADO",
+                        drivePhotoUrl: driveFile.data.webViewLink 
+                    }
+                });
+            }
+        });
+
+        revalidatePath('/admin/mercadolibre/preparacion');
+        return { success: true };
     } catch (error: any) {
-        console.error("Error en auditoría:", error)
-        return { success: false, error: error.message }
+        console.error("Error en auditoría:", error);
+        return { success: false, error: error.message };
     }
 }

@@ -5,8 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { google } from 'googleapis'
 import { revalidatePath } from "next/cache"
 
-// Configuración de Google Drive (asegúrate de tener estas variables en Railway)
-const DRIVE_PARENT_FOLDER_ID = '1v-E638QF0AaPr7zywfH2luZvnHXtJujp' // ID de tu carpeta raíz
+// Nuevo ID de carpeta raíz que creaste: Preparacion_colecta
+const DRIVE_PARENT_FOLDER_ID = '1ZSoopV-LYzweqNejotZO1h6o2j6wbPld'
 
 async function getDriveClient() {
     const auth = new google.auth.OAuth2(
@@ -16,6 +16,31 @@ async function getDriveClient() {
     )
     auth.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN })
     return google.drive({ version: 'v3', auth })
+}
+
+/**
+ * Función auxiliar para buscar o crear una carpeta en Drive
+ */
+async function getOrCreateFolder(drive: any, name: string, parentId: string) {
+    const response = await drive.files.list({
+        q: `mimeType='application/vnd.google-apps.folder' and name='${name}' and '${parentId}' in parents and trashed=false`,
+        fields: 'files(id)'
+    });
+
+    if (response.data.files && response.data.files.length > 0) {
+        return response.data.files[0].id;
+    }
+
+    const newFolder = await drive.files.create({
+        requestBody: {
+            name: name,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [parentId]
+        },
+        fields: 'id'
+    });
+
+    return newFolder.data.id;
 }
 
 export async function subirFotoAuditoria(formData: FormData) {
@@ -29,29 +54,29 @@ export async function subirFotoAuditoria(formData: FormData) {
 
         const drive = await getDriveClient()
         
-        // 1. Crear/Encontrar carpeta del Envío
-        const folderName = envioId.replace(/[^a-zA-Z0-9]/g, '_')
-        let folderId = ""
-        
-        const folderExist = await drive.files.list({
-            q: `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and '${DRIVE_PARENT_FOLDER_ID}' in parents and trashed=false`,
-            fields: 'files(id)'
-        })
+        // 1. Obtener la fecha actual en formato DD/MM
+        const hoy = new Date();
+        const diaMes = hoy.toLocaleDateString('es-AR', { 
+            day: '2-digit', 
+            month: '2-digit' 
+        }); // Resultado: "21/01"
 
-        if (folderExist.data.files && folderExist.data.files.length > 0) {
-            folderId = folderExist.data.files[0].id!
-        } else {
-            const newFolder = await drive.files.create({
-                requestBody: { name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [DRIVE_PARENT_FOLDER_ID] },
-                fields: 'id'
-            })
-            folderId = newFolder.data.id!
-        }
+        // 2. Crear la estructura de carpetas anidada
+        // Estructura: Raíz -> 21/01 -> ID_Envio -> Fotos
+        const dateFolderId = await getOrCreateFolder(drive, diaMes, DRIVE_PARENT_FOLDER_ID);
+        const envioFolderId = await getOrCreateFolder(drive, envioId, dateFolderId);
+        const fotosFolderId = await getOrCreateFolder(drive, "Fotos", envioFolderId);
 
-        // 2. Subir archivo
+        // 3. Preparar y subir el archivo a la carpeta "Fotos"
         const buffer = Buffer.from(await file.arrayBuffer())
-        const fileMetadata = { name: `${mla}_${Date.now()}.jpg`, parents: [folderId] }
-        const media = { mimeType: 'image/jpeg', body: require('stream').Readable.from(buffer) }
+        const fileMetadata = { 
+            name: `${mla}_${Date.now()}.jpg`, 
+            parents: [fotosFolderId] 
+        }
+        const media = { 
+            mimeType: 'image/jpeg', 
+            body: require('stream').Readable.from(buffer) 
+        }
         
         const driveFile = await drive.files.create({
             requestBody: fileMetadata,
@@ -59,7 +84,7 @@ export async function subirFotoAuditoria(formData: FormData) {
             fields: 'id, webViewLink'
         })
 
-        // 3. Registrar en Auditoría y Actualizar Etiqueta
+        // 4. Registrar en Auditoría y Actualizar Etiqueta
         await prisma.$transaction([
             prisma.shipmentAudit.upsert({
                 where: { itemId_envioId: { itemId: mla, envioId: envioId } },

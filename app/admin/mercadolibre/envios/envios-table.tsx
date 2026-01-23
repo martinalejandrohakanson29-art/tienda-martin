@@ -116,7 +116,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         const sub = envio.substatus;
         const status = envio.status;
         switch (sub) {
-            case 'ready_to_print': return { label: "Listo para Imprimir", className: "bg-rose-50 text-rose-700 border-rose-200", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> };
+            case 'ready_to_print': return { label: "IMPRIMIR", className: "bg-rose-50 text-rose-700 border-rose-200", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> };
             case 'printed': return { label: "Impreso", className: "bg-blue-50 text-blue-700 border-blue-200", icon: <Package className="w-3 h-3 mr-1" /> };
             case 'ready_for_pickup': return { label: "Impreso", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <Truck className="w-3 h-3 mr-1" /> };
             default: return { label: status === "PENDIENTE" ? "Pendiente" : sub?.toUpperCase() || "S/E", className: "bg-slate-50 text-slate-600 border-slate-200", icon: <Clock className="w-3 h-3 mr-1" /> };

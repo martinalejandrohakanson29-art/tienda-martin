@@ -34,7 +34,7 @@ import {
     CarouselPrevious,
 } from "@/components/ui/carousel"
 
-// Colores llamativos para diferenciar artículos en un mismo envío
+// Colores llamativos para los bloques de nombres
 const getAgregadoColor = (index: number) => {
     const colors = [
         "bg-blue-600 text-white border-blue-800",
@@ -124,7 +124,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     return (
         <div className="space-y-4">
-            {/* NAVEGACIÓN TABS */}
+            {/* TABS NAVEGACIÓN */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[72px] z-10 shadow-sm border border-slate-200">
                 <button 
                     onClick={() => setActiveTab('pendientes')}
@@ -150,20 +150,20 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <Input 
                     placeholder="Escanear o buscar..." 
-                    className="pl-10 h-12 rounded-xl border-slate-200 shadow-sm bg-white focus-visible:ring-blue-500"
+                    className="pl-10 h-12 rounded-xl border-slate-200 shadow-sm bg-white"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                 />
             </div>
 
-            {/* LISTADO DE ENVÍOS */}
+            {/* LISTADO DINÁMICO */}
             <div className="grid gap-3">
                 {filtered.map((envio) => (
-                    <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-md">
+                    <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
                         <div className="flex justify-between items-start mb-3">
                             <div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{envio.logisticType}</span>
-                                <h3 className="font-bold text-slate-900 leading-none mt-1 text-lg">{envio.id}</h3>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{envio.logisticType}</span>
+                                <h3 className="font-bold text-slate-900 leading-none mt-1">{envio.id}</h3>
                             </div>
                             
                             <div className="flex gap-2">
@@ -193,7 +193,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         {envio.status === "PREPARADO" && (
                             <Button 
                                 variant="secondary" 
-                                className="w-full mb-4 gap-2 bg-blue-50 text-blue-700 border-none hover:bg-blue-100 h-11 rounded-xl font-bold transition-colors"
+                                className="w-full mb-4 gap-2 bg-blue-50 text-blue-700 border-none hover:bg-blue-100 h-11 rounded-xl font-bold"
                                 onClick={() => handleOpenViewer(envio.id)}
                                 disabled={isFetchingFotos}
                             >
@@ -201,23 +201,22 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </Button>
                         )}
 
-                        {/* LISTADO DE AGREGADOS (SKU + NOMBRE) */}
+                        {/* SECCIÓN DE PRODUCTOS (NOMBRES DE AGREGADOS) */}
                         <div className="space-y-2 mb-4">
                             {envio.items.map((item: any) => {
-                                const ids = item.agregadoInfo?.ids_articulos?.split(',') || ['S/SKU'];
-                                const nombres = item.agregadoInfo?.nombres_articulos?.split(',') || ['Sin descripción'];
+                                // Priorizamos nombres_articulos. Si no hay, usamos el title del item.
+                                const nombresString = item.agregadoInfo?.nombres_articulos;
+                                const nombres = nombresString ? nombresString.split(',') : [item.title];
                                 
                                 return (
                                     <div key={item.id} className="flex flex-col gap-1.5">
-                                        {ids.map((id: string, idx: number) => (
+                                        {nombres.map((nombre: string, idx: number) => (
                                             <div 
                                                 key={idx} 
-                                                className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-bold text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}
+                                                className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}
                                             >
                                                 <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                                                <span className="shrink-0">{id.trim()}</span>
-                                                <span className="opacity-40">|</span>
-                                                <span className="truncate">{nombres[idx]?.trim() || 'S/D'}</span>
+                                                <span className="truncate">{nombre.trim()}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -237,8 +236,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] max-w-lg flex flex-col rounded-t-3xl sm:rounded-3xl">
                     <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
-                        <DialogTitle className="text-white text-sm font-medium">Fotos Envío {viewingFotos?.id}</DialogTitle>
-                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 rounded-full" onClick={() => setViewingFotos(null)}>
+                        <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
+                        <Button variant="ghost" size="icon" className="text-white" onClick={() => setViewingFotos(null)}>
                             <X className="h-5 w-5" />
                         </Button>
                     </DialogHeader>
@@ -256,7 +255,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 
-                                                    className="max-h-full max-w-full object-contain select-none shadow-2xl"
+                                                    className="max-h-full max-w-full object-contain select-none"
                                                 />
                                             </div>
                                         </CarouselItem>
@@ -264,30 +263,30 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 </CarouselContent>
                                 {viewingFotos.fotos.length > 1 && !zoom && (
                                     <>
-                                        <CarouselPrevious className="left-4 bg-black/40 hover:bg-black/60 border-none text-white h-10 w-10" />
-                                        <CarouselNext className="right-4 bg-black/40 hover:bg-black/60 border-none text-white h-10 w-10" />
+                                        <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/20 border-none text-white" />
+                                        <CarouselNext className="right-4 bg-white/10 hover:bg-white/20 border-none text-white" />
                                     </>
                                 )}
                             </Carousel>
                         ) : (
                             <div className="text-center text-white/40">
-                                <Eye className="h-10 w-10 mx-auto mb-2 opacity-10" />
-                                <p className="text-sm">No hay fotos registradas</p>
+                                <Eye className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                                <p>No se encontraron fotos</p>
                             </div>
                         )}
                     </div>
 
                     <div className="p-6 bg-slate-900 border-t border-white/10 flex gap-3">
                         <Button 
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl active:scale-95 transition-transform"
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl"
                             onClick={() => handleApprove(viewingFotos?.id!)}
                             disabled={loading === viewingFotos?.id}
                         >
-                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR TODO</>}
+                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2" /> APROBAR TODO</>}
                         </Button>
                         <Button 
                             variant="outline" 
-                            className="h-14 w-14 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10"
+                            className="h-14 w-14 rounded-2xl border-white/20 text-white bg-white/5"
                             onClick={() => setZoom(!zoom)}
                         >
                             <Search className="h-6 w-6" />

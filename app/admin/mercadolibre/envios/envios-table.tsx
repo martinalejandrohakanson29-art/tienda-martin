@@ -20,7 +20,6 @@ import {
     AlertCircle,
     Package,
     Truck,
-    Info,
     Clock,
 } from "lucide-react"
 import { actualizarPedidos } from "@/app/actions/envios"
@@ -112,7 +111,8 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         switch (sub) {
             case 'ready_to_print': return { label: "Listo Imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> };
             case 'printed': return { label: "Impreso", className: "bg-blue-50 text-blue-700 border-blue-100", icon: <Package className="w-3 h-3 mr-1" /> };
-            case 'ready_for_pickup': return { label: "Colecta", className: "bg-indigo-50 text-indigo-700 border-indigo-100", icon: <Truck className="w-3 h-3 mr-1" /> };
+            // CAMBIO: Ahora dice "Listo para Colecta" para diferenciarlo del tipo de logística
+            case 'ready_for_pickup': return { label: "Listo para Colecta", className: "bg-indigo-50 text-indigo-700 border-indigo-100", icon: <Truck className="w-3 h-3 mr-1" /> };
             default: return { label: status === "PENDIENTE" ? "Pendiente" : sub?.toUpperCase() || "S/E", className: "bg-slate-50 text-slate-600 border-slate-200", icon: <Clock className="w-3 h-3 mr-1" /> };
         }
     }
@@ -125,7 +125,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     return (
         <div className="space-y-3">
-            {/* Header Reducido */}
+            {/* Header */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-2.5 rounded-lg border shadow-sm">
                 <div className="relative w-full sm:max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -148,7 +148,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 </Button>
             </div>
 
-            {/* Tabla Compacta */}
+            {/* Tabla */}
             <div className="rounded-lg border border-slate-200 shadow-sm bg-white overflow-hidden">
                 <Table>
                     <TableHeader>
@@ -184,11 +184,12 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                         </TableCell>
 
                                         <TableCell className="px-3 py-2">
-                                            <div className="flex flex-col gap-0.5">
-                                                <Badge variant="outline" className={`w-fit rounded px-1.5 py-0 text-[10px] font-bold uppercase border ${statusInfo.className}`}>
+                                            {/* AJUSTE: Ahora están uno al lado del otro */}
+                                            <div className="flex flex-row items-center gap-2">
+                                                <Badge variant="outline" className={`whitespace-nowrap rounded px-1.5 py-0 text-[10px] font-bold uppercase border ${statusInfo.className}`}>
                                                     {statusInfo.label}
                                                 </Badge>
-                                                <span className={`text-[9px] font-black px-0.5 tracking-tighter ${logistic.className}`}>
+                                                <span className={`text-[10px] font-black px-0.5 tracking-tighter whitespace-nowrap ${logistic.className}`}>
                                                     {logistic.label}
                                                 </span>
                                             </div>
@@ -201,16 +202,18 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                         </TableCell>
 
                                         <TableCell className="px-3 py-2">
-                                            <div className="flex flex-wrap gap-1 max-w-[250px]">
+                                            {/* AJUSTE: Ahora están uno debajo del otro */}
+                                            <div className="flex flex-col gap-1.5">
                                                 {envio.items.map((item: any) => (
-                                                    <div key={item.id} className="flex flex-wrap gap-1">
+                                                    <div key={item.id} className="flex flex-col gap-1">
                                                         {item.agregadoInfo?.ids_articulos ? (
                                                             item.agregadoInfo.ids_articulos.split(',').map((id: string, idx: number) => {
                                                                 const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
                                                                 return (
-                                                                    <div key={idx} className="flex items-center gap-1 bg-slate-100 px-1 py-0.5 rounded text-[10px] border border-slate-200">
+                                                                    <div key={idx} className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] border border-slate-200 w-fit">
                                                                         <span className="font-bold text-slate-700">{id.trim()}</span>
-                                                                        <span className="text-slate-500 truncate max-w-[80px]">{nombres[idx]?.trim() || "N/A"}</span>
+                                                                        <span className="text-slate-400 mx-0.5">|</span>
+                                                                        <span className="text-slate-500 truncate max-w-[120px]">{nombres[idx]?.trim() || "N/A"}</span>
                                                                     </div>
                                                                 );
                                                             })

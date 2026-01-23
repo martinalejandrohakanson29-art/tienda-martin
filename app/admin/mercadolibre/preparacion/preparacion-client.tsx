@@ -1,12 +1,11 @@
-// app/admin/mercadolibre/preparacion/preparacion-client.tsx
 "use client"
 
 import { useState, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Camera, CheckCircle2, Package, Copy } from "lucide-react"
+import { Search, Camera, CheckCircle2, Package } from "lucide-react"
 import { subirFotoAuditoria } from "@/app/actions/preparacion"
-import Swal from "sweetalert2"
+import { toast } from "sonner" // Usamos lo que ya tienes instalado
 
 export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [search, setSearch] = useState("")
@@ -39,12 +38,12 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         try {
             const res = await subirFotoAuditoria(formData)
             if (res.success) {
-                Swal.fire({ icon: 'success', title: 'Auditado', timer: 1500, showConfirmButton: false, position: 'top' })
+                toast.success("Pedido Auditado correctamente") // Feedback visual de sonner
             } else {
-                Swal.fire('Error', res.error, 'error')
+                toast.error("Error: " + res.error)
             }
         } catch (err) {
-            Swal.fire('Error', 'Fallo la subida', 'error')
+            toast.error("Fallo la subida al servidor")
         } finally {
             setLoading(null)
             setSelectedItem(null)
@@ -54,7 +53,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     return (
         <div className="space-y-4">
-            {/* Buscador persistente optimizado para pulgar */}
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <Input 
@@ -96,7 +94,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             {envio.resumen}
                         </p>
 
-                        {/* Sección de Agregados / SKUs internos */}
                         <div className="flex flex-wrap gap-2">
                             {envio.items.map((item: any) => (
                                 <div key={item.id} className="w-full">
@@ -116,7 +113,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 ))}
             </div>
 
-            {/* Input de cámara oculto */}
             <input 
                 type="file" 
                 ref={fileInputRef} 

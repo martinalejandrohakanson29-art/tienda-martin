@@ -56,7 +56,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
             if (result.success) {
                 setModalConfig({
                     title: "Sincronización Iniciada",
-                    description: "Se ha enviado la señal a n8n. Los pedidos se actualizarán en segundo plano. Puedes cerrar esta ventana y los cambios aparecerán en unos instantes.",
+                    description: "Pedidos Actualizados",
                     type: "success"
                 });
                 setIsModalOpen(true);

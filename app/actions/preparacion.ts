@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/prisma"
 import { google } from 'googleapis'
 import { revalidatePath } from "next/cache"
+import { Readable } from 'stream'
 
 // ID de carpeta raíz: Preparacion_colecta
 const DRIVE_PARENT_FOLDER_ID = '1ZSoopV-LYzweqNejotZO1h6o2j6wbPld'
@@ -43,10 +44,6 @@ async function getOrCreateFolder(drive: any, name: string, parentId: string) {
     return newFolder.data.id;
 }
 
-
-
-// app/actions/preparacion.ts (Añadir al final)
-
 /**
  * Obtiene las URLs de las miniaturas/fotos de una carpeta de envío
  */
@@ -54,7 +51,6 @@ export async function obtenerFotosEnvio(envioId: string) {
     try {
         const drive = await getDriveClient();
         
-        // 1. Buscamos la carpeta del envío por nombre
         const folderSearch = await drive.files.list({
             q: `mimeType='application/vnd.google-apps.folder' and name='${envioId}' and trashed=false`,
             fields: 'files(id)'
@@ -66,19 +62,17 @@ export async function obtenerFotosEnvio(envioId: string) {
 
         const folderId = folderSearch.data.files[0].id;
 
-        // 2. Listamos los archivos dentro de esa carpeta
         const filesSearch = await drive.files.list({
             q: `'${folderId}' in parents and trashed=false`,
             fields: 'files(id, name, webViewLink, thumbnailLink)',
             orderBy: 'createdTime desc'
         });
 
-        // Transformamos los links para que sean visibles directamente como imágenes
+        // URL corregida para visualizar las imágenes directamente
         const fotos = filesSearch.data.files?.map(f => ({
             id: f.id,
             name: f.name,
-            // Usamos el thumbnail en alta resolución o el link de vista previa
-            url: `https://lh3.googleusercontent.com/d/${f.id}=s1000`,
+            url: `https://lh3.googleusercontent.com/d/${f.id}`,
             link: f.webViewLink
         })) || [];
 
@@ -89,8 +83,6 @@ export async function obtenerFotosEnvio(envioId: string) {
     }
 }
 
-
-// app/actions/preparacion.ts (Añadir al final)
 export async function aprobarPedido(envioId: string) {
     try {
         await prisma.$transaction([
@@ -112,13 +104,48 @@ export async function aprobarPedido(envioId: string) {
     }
 }
 
-// app/actions/preparacion.ts
-
 export async function subirFotoAuditoria(formData: FormData) {
     try {
-        // ... (tu código anterior de subir a Drive se mantiene igual) ...
+        // EXTRACCIÓN DE DATOS (Asegura que estén disponibles para toda la función)
+        const file = formData.get('photo') as File
+        const envioId = formData.get('envioId') as string
+        const mla = formData.get('mla') as string
 
-        // 4. Actualizar base de datos con lógica de completitud
+        if (!file || !envioId || !mla) {
+            throw new Error("Faltan datos obligatorios (Archivo, ID de envío o MLA)")
+        }
+
+        const drive = await getDriveClient()
+        
+        const hoy = new Date();
+        const diaMes = hoy.toLocaleDateString('es-AR', { 
+            day: '2-digit', 
+            month: '2-digit' 
+        });
+
+        // 1. Estructura de carpetas en Drive
+        const dateFolderId = await getOrCreateFolder(drive, diaMes, DRIVE_PARENT_FOLDER_ID);
+        const envioFolderId = await getOrCreateFolder(drive, envioId, dateFolderId);
+
+        // 2. Subida del archivo
+        const buffer = Buffer.from(await file.arrayBuffer())
+        const fileMetadata = { 
+            name: `${mla}_${Date.now()}.jpg`, 
+            parents: [envioFolderId] 
+        }
+        
+        const media = { 
+            mimeType: 'image/jpeg', 
+            body: Readable.from(buffer) 
+        }
+        
+        const driveFile = await drive.files.create({
+            requestBody: fileMetadata,
+            media: media,
+            fields: 'id, webViewLink'
+        })
+
+        // 3. Actualización de Base de Datos con lógica de completitud
         await prisma.$transaction(async (tx) => {
             // Registramos la auditoría de este item específico
             await tx.shipmentAudit.upsert({
@@ -137,7 +164,7 @@ export async function subirFotoAuditoria(formData: FormData) {
                 where: { envioId: envioId, status: "AUDITADO" }
             });
 
-            // Solo si están todos, pasamos el envío a PREPARADO
+            // Solo si están todos auditados, pasamos el envío a PREPARADO
             if (auditados >= totalItems) {
                 await tx.etiquetaML.update({
                     where: { id: envioId },
@@ -149,10 +176,10 @@ export async function subirFotoAuditoria(formData: FormData) {
             }
         });
 
-        revalidatePath('/admin/mercadolibre/preparacion');
-        return { success: true };
+        revalidatePath('/admin/mercadolibre/preparacion')
+        return { success: true, link: driveFile.data.webViewLink }
     } catch (error: any) {
-        console.error("Error en auditoría:", error);
-        return { success: false, error: error.message };
+        console.error("Error en auditoría:", error)
+        return { success: false, error: error.message }
     }
 }

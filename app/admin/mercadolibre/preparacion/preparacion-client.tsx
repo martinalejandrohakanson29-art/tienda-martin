@@ -13,7 +13,7 @@ import {
     Loader2,
     X,
     Layers,
-    Barcode // Importamos el icono de código de barras
+    Barcode 
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
@@ -35,8 +35,8 @@ import {
     CarouselPrevious,
 } from "@/components/ui/carousel"
 
-// Importamos la lógica del scanner (solo se usará en el cliente)
-import { Html5Qrcode } from "html5-qr-code"
+// CORRECCIÓN: El nombre del paquete es html5-qrcode
+import { Html5Qrcode } from "html5-qrcode"
 
 const getAgregadoColor = (index: number) => {
     const colors = [
@@ -60,17 +60,13 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [selectedItem, setSelectedItem] = useState<any>(null)
 
-    // --- ESTADOS PARA EL SCANNER ---
     const [showScanner, setShowScanner] = useState(false)
     const scannerRef = useRef<Html5Qrcode | null>(null)
 
-    // Lógica para iniciar/detener el scanner cuando se abre el Dialog
     useEffect(() => {
         if (showScanner) {
             const startScanner = async () => {
-                // Pequeña espera para asegurar que el div 'reader' esté montado
                 await new Promise(r => setTimeout(r, 100));
-                
                 const html5QrCode = new Html5Qrcode("barcode-reader");
                 scannerRef.current = html5QrCode;
 
@@ -79,30 +75,27 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         { facingMode: "environment" },
                         {
                             fps: 10,
-                            qrbox: { width: 280, height: 150 }, // Formato rectangular para etiquetas
+                            qrbox: { width: 280, height: 150 },
                         },
                         (decodedText) => {
-                            // Cuando encuentra un código
                             setSearch(decodedText);
                             setShowScanner(false);
                             toast.success(`Pedido detectado: ${decodedText}`);
                             stopScanner();
                         },
-                        () => { /* Errores de escaneo silenciosos */ }
+                        () => {}
                     );
                 } catch (err) {
-                    console.error("Error al iniciar scanner:", err);
+                    console.error("Error scanner:", err);
                     toast.error("No se pudo acceder a la cámara");
                     setShowScanner(false);
                 }
             };
-
             startScanner();
         } else {
             stopScanner();
         }
-
-        return () => stopScanner();
+        return () => { stopScanner(); };
     }, [showScanner]);
 
     const stopScanner = async () => {
@@ -115,7 +108,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
                              e.resumen?.toLowerCase().includes(search.toLowerCase())
-        
         if (activeTab === 'pendientes') {
             return matchesSearch && (e.status === "PENDIENTE" || e.status === "PREPARADO")
         } else {
@@ -159,13 +151,11 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
         if (!file || !selectedItem) return
-
         setLoading(selectedItem.envioId)
         const formData = new FormData()
         formData.append('photo', file)
         formData.append('envioId', selectedItem.envioId)
         formData.append('mla', selectedItem.mla)
-
         try {
             const res = await subirFotoAuditoria(formData)
             if (res.success) toast.success("Foto guardada")
@@ -179,7 +169,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     return (
         <div className="space-y-4">
-            {/* TABS NAVEGACIÓN */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[72px] z-10 shadow-sm border border-slate-200">
                 <button 
                     onClick={() => setActiveTab('pendientes')}
@@ -200,7 +189,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </button>
             </div>
 
-            {/* BUSCADOR Y SCANNER */}
             <div className="flex gap-2">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
@@ -211,10 +199,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         onChange={(e) => setSearch(e.target.value)}
                     />
                     {search && (
-                        <button 
-                            onClick={() => setSearch("")}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1"
-                        >
+                        <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 p-1">
                             <X className="h-4 w-4 text-slate-400" />
                         </button>
                     )}
@@ -228,7 +213,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </Button>
             </div>
 
-            {/* LISTADO DE PEDIDOS */}
             <div className="grid gap-3">
                 {filtered.map((envio) => (
                     <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-md">
@@ -237,7 +221,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{envio.logisticType}</span>
                                 <h3 className="font-bold text-slate-900 leading-none mt-1">{envio.id}</h3>
                             </div>
-                            
                             <div className="flex gap-2">
                                 <Button 
                                     size="icon"
@@ -248,7 +231,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 >
                                     {loading === envio.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
                                 </Button>
-
                                 {envio.status === 'PREPARADO' && (
                                     <Button 
                                         size="icon"
@@ -261,7 +243,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 )}
                             </div>
                         </div>
-
                         {envio.status === "PREPARADO" && (
                             <Button 
                                 variant="secondary" 
@@ -272,22 +253,14 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 {isFetchingFotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Eye className="h-4 w-4" /> REVISAR FOTOS</>}
                             </Button>
                         )}
-
                         <div className="space-y-2 mb-4">
                             {envio.items.map((item: any) => {
                                 const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
-                                const nombres = rawNames
-                                    .split(/[,\+\|\n]/)
-                                    .map((n: string) => n.trim())
-                                    .filter((n: string) => n.length > 0);
-                                
+                                const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
                                 return (
                                     <div key={item.id} className="flex flex-col gap-1.5">
                                         {nombres.map((nombre: string, idx: number) => (
-                                            <div 
-                                                key={idx} 
-                                                className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}
-                                            >
+                                            <div key={idx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>
                                                 <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
                                                 <span className="truncate">{nombre}</span>
                                             </div>
@@ -296,47 +269,36 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 )
                             })}
                         </div>
-
                         <div className="flex items-center gap-2 px-1 pt-2 border-t border-slate-50">
                             <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                            <p className="text-[11px] text-slate-500 truncate italic font-medium">
-                                {envio.resumen}
-                            </p>
+                            <p className="text-[11px] text-slate-500 truncate italic font-medium">{envio.resumen}</p>
                         </div>
                     </div>
                 ))}
             </div>
 
-            {/* --- DIALOGO DEL SCANNER --- */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
                         <DialogTitle className="text-base flex items-center gap-2">
-                            <Barcode className="h-5 w-5" />
-                            Escaneando Etiqueta
+                            <Barcode className="h-5 w-5" /> Escaneando Etiqueta
                         </DialogTitle>
                         <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setShowScanner(false)}>
                             <X className="h-5 w-5" />
                         </Button>
                     </DialogHeader>
-                    
                     <div className="relative aspect-video bg-black flex items-center justify-center">
                         <div id="barcode-reader" className="w-full h-full"></div>
-                        {/* Guía visual para el usuario */}
                         <div className="absolute inset-0 border-2 border-blue-500/30 pointer-events-none flex items-center justify-center">
                             <div className="w-[80%] h-[40%] border-2 border-blue-400 rounded-lg shadow-[0_0_0_100vmax_rgba(0,0,0,0.5)]"></div>
                         </div>
                     </div>
-
                     <div className="p-4 bg-slate-900 flex justify-center">
-                        <Button variant="secondary" onClick={() => setShowScanner(false)} className="w-full">
-                            Cancelar
-                        </Button>
+                        <Button variant="secondary" onClick={() => setShowScanner(false)} className="w-full">Cancelar</Button>
                     </div>
                 </DialogContent>
             </Dialog>
 
-            {/* --- VISOR DE FOTOS --- */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] max-w-lg flex flex-col rounded-t-3xl sm:rounded-3xl">
                     <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
@@ -345,22 +307,14 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             <X className="h-5 w-5" />
                         </Button>
                     </DialogHeader>
-
                     <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
                         {viewingFotos?.fotos.length ? (
                             <Carousel className="w-full h-full flex items-center">
                                 <CarouselContent className="h-full">
                                     {viewingFotos.fotos.map((foto: any) => (
                                         <CarouselItem key={foto.id} className="flex items-center justify-center h-full">
-                                            <div 
-                                                className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`}
-                                                onClick={() => setZoom(!zoom)}
-                                            >
-                                                <img 
-                                                    src={foto.url} 
-                                                    alt="Auditoría" 
-                                                    className="max-h-full max-w-full object-contain select-none shadow-2xl"
-                                                />
+                                            <div className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} onClick={() => setZoom(!zoom)}>
+                                                <img src={foto.url} alt="Auditoría" className="max-h-full max-w-full object-contain select-none shadow-2xl" />
                                             </div>
                                         </CarouselItem>
                                     ))}
@@ -379,20 +333,11 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </div>
                         )}
                     </div>
-
                     <div className="p-6 bg-slate-900 border-t border-white/10 flex gap-3">
-                        <Button 
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-95"
-                            onClick={() => handleApprove(viewingFotos?.id!)}
-                            disabled={loading === viewingFotos?.id}
-                        >
+                        <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-95" onClick={() => handleApprove(viewingFotos?.id!)} disabled={loading === viewingFotos?.id}>
                             {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR TODO</>}
                         </Button>
-                        <Button 
-                            variant="outline" 
-                            className="h-14 w-14 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10"
-                            onClick={() => setZoom(!zoom)}
-                        >
+                        <Button variant="outline" className="h-14 w-14 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10" onClick={() => setZoom(!zoom)}>
                             <Search className="h-6 w-6" />
                         </Button>
                     </div>

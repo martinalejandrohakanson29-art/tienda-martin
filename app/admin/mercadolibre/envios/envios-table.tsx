@@ -1,4 +1,3 @@
-// app/admin/mercadolibre/envios/envios-table.tsx
 "use client"
 
 import { useState } from "react"
@@ -13,9 +12,24 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search, Calendar, RefreshCcw } from "lucide-react"
+import { 
+    Search, 
+    Calendar, 
+    RefreshCcw, 
+    CheckCircle2, 
+    XCircle, 
+    AlertCircle 
+} from "lucide-react"
 import { actualizarPedidos } from "@/app/actions/envios"
 import { useRouter } from "next/navigation"
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from "@/components/ui/dialog"
 
 interface EnviosTableProps {
     envios: any[];
@@ -24,6 +38,15 @@ interface EnviosTableProps {
 export function EnviosTable({ envios }: EnviosTableProps) {
     const [searchTerm, setSearchTerm] = useState("")
     const [isUpdating, setIsUpdating] = useState(false)
+    
+    // Estados para el Modal personalizado
+    const [isModalOpen, setIsModalOpen] = useState(false)
+    const [modalConfig, setModalConfig] = useState({
+        title: "",
+        description: "",
+        type: "success" as "success" | "error" | "info"
+    })
+
     const router = useRouter()
 
     const handleActualizar = async () => {
@@ -31,14 +54,28 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         try {
             const result = await actualizarPedidos();
             if (result.success) {
-                // n8n suele tardar unos segundos, pero refrescamos la UI
-                alert("Sincronización enviada a n8n. Los datos se actualizarán en breve.");
+                setModalConfig({
+                    title: "Sincronización Iniciada",
+                    description: "Se ha enviado la señal a n8n. Los pedidos se actualizarán en segundo plano. Puedes cerrar esta ventana y los cambios aparecerán en unos instantes.",
+                    type: "success"
+                });
+                setIsModalOpen(true);
                 router.refresh();
             } else {
-                alert(`Error: ${result.error}`);
+                setModalConfig({
+                    title: "Error de Sincronización",
+                    description: result.error || "No se pudo contactar con el servidor de n8n.",
+                    type: "error"
+                });
+                setIsModalOpen(true);
             }
         } catch (error) {
-            alert("Error al conectar con el servidor");
+            setModalConfig({
+                title: "Error Inesperado",
+                description: "Ocurrió un problema al intentar procesar la solicitud.",
+                type: "error"
+            });
+            setIsModalOpen(true);
         } finally {
             setIsUpdating(false);
         }
@@ -55,42 +92,23 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     const formatDispatchDate = (dateString: string | null) => {
         if (!dateString) return <span className="text-slate-400 italic">No definida</span>;
-        
         const date = new Date(dateString);
         const today = new Date();
-        
-        const isToday = 
-            date.getDate() === today.getDate() &&
-            date.getMonth() === today.getMonth() &&
-            date.getFullYear() === today.getFullYear();
-
-        if (isToday) {
-            return <span className="text-emerald-600 font-bold">Hoy</span>;
-        }
-
+        const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
+        if (isToday) return <span className="text-emerald-600 font-bold">Hoy</span>;
         return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
     }
 
     const getStatusConfig = (envio: any) => {
         const sub = envio.substatus;
         const status = envio.status;
-
         switch (sub) {
-            case 'ready_to_print': 
-                return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
-            case 'printed': 
-                return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
-            case 'ready_for_pickup': 
-                return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
-            case 'picked_up': 
-                return { label: "Despachado (Colecta)", className: "bg-blue-100 text-blue-800 border-blue-200" };
-            case 'out_for_delivery': 
-                return { label: "En reparto (Flex)", className: "bg-orange-100 text-orange-800 border-orange-200" };
-            default:
-                return { 
-                    label: status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || status?.toUpperCase() || "S/E", 
-                    className: "bg-gray-50 text-gray-500 border-gray-100" 
-                };
+            case 'ready_to_print': return { label: "Lista para imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100" };
+            case 'printed': return { label: "Impreso", className: "bg-slate-100 text-slate-600 border-slate-200" };
+            case 'ready_for_pickup': return { label: "Listo para Colecta", className: "bg-blue-50 text-blue-700 border-blue-100" };
+            case 'picked_up': return { label: "Despachado (Colecta)", className: "bg-blue-100 text-blue-800 border-blue-200" };
+            case 'out_for_delivery': return { label: "En reparto (Flex)", className: "bg-orange-100 text-orange-800 border-orange-200" };
+            default: return { label: status === "PENDIENTE" ? "Pendiente Despacho" : sub?.toUpperCase() || status?.toUpperCase() || "S/E", className: "bg-gray-50 text-gray-500 border-gray-100" };
         }
     }
 
@@ -211,6 +229,35 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Ventana de notificación personalizada (Shadcn Dialog) */}
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2 mb-2">
+                            {modalConfig.type === "success" ? (
+                                <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                            ) : (
+                                <AlertCircle className="h-6 w-6 text-rose-500" />
+                            )}
+                            <DialogTitle className="text-xl">{modalConfig.title}</DialogTitle>
+                        </div>
+                        <DialogDescription className="text-slate-600 text-[14px] leading-relaxed">
+                            {modalConfig.description}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="sm:justify-start mt-4">
+                        <Button 
+                            type="button" 
+                            variant="secondary" 
+                            onClick={() => setIsModalOpen(false)}
+                            className="w-full sm:w-auto"
+                        >
+                            Entendido
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

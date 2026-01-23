@@ -11,7 +11,8 @@ import {
     Eye, 
     CheckCircle,
     Loader2,
-    X
+    X,
+    Layers
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
@@ -32,6 +33,19 @@ import {
     CarouselNext,
     CarouselPrevious,
 } from "@/components/ui/carousel"
+
+// Función auxiliar para colores llamativos basados en el índice
+const getAgregadoColor = (index: number) => {
+    const colors = [
+        "bg-blue-600 text-white border-blue-700",
+        "bg-purple-600 text-white border-purple-700",
+        "bg-orange-600 text-white border-orange-700",
+        "bg-pink-600 text-white border-pink-700",
+        "bg-indigo-600 text-white border-indigo-700",
+        "bg-cyan-600 text-white border-cyan-700",
+    ];
+    return colors[index % colors.length];
+};
 
 export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [activeTab, setActiveTab] = useState<'pendientes' | 'revision'>('pendientes')
@@ -188,18 +202,34 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </Button>
                         )}
 
-                        <p className="text-sm text-slate-600 mb-3 font-medium line-clamp-2">{envio.resumen}</p>
+                        <p className="text-sm text-slate-600 mb-4 font-medium line-clamp-2">{envio.resumen}</p>
 
-                        <div className="space-y-1.5">
-                            {envio.items.map((item: any) => (
-                                <div key={item.id} className="text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                        <Package className="h-3 w-3 text-slate-400" />
-                                        <span className="font-black text-slate-800">{item.agregadoInfo?.ids_articulos || 'S/SKU'}</span>
+                        <div className="space-y-3">
+                            {envio.items.map((item: any) => {
+                                // Separamos los IDs en caso de que vengan varios juntos
+                                const ids = item.agregadoInfo?.ids_articulos?.split(',') || ['S/SKU'];
+                                
+                                return (
+                                    <div key={item.id} className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                                        {/* Listado de IDs uno debajo del otro */}
+                                        <div className="space-y-1.5 mb-2">
+                                            {ids.map((id: string, idx: number) => (
+                                                <div 
+                                                    key={idx} 
+                                                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-sm uppercase shadow-sm ${getAgregadoColor(idx)}`}
+                                                >
+                                                    <Layers className="h-4 w-4 opacity-70" />
+                                                    {id.trim()}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="flex items-center gap-2 px-1">
+                                            <Package className="h-3 w-3 text-slate-400 shrink-0" />
+                                            <p className="text-[11px] text-slate-500 truncate">{item.title}</p>
+                                        </div>
                                     </div>
-                                    <p className="text-slate-500 truncate pl-5">{item.title}</p>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
                 ))}

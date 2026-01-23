@@ -161,7 +161,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter text-center">Despacho</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">Estado / Logística</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">Producto</TableHead>
-                            <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">SKU / Técnica (Click copiar)</TableHead>
+                            <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">ID / AGREGADO</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter text-right">Creado</TableHead>
                         </TableRow>
                     </TableHeader>

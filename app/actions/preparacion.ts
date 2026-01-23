@@ -44,6 +44,52 @@ async function getOrCreateFolder(drive: any, name: string, parentId: string) {
 }
 
 
+
+// app/actions/preparacion.ts (Añadir al final)
+
+/**
+ * Obtiene las URLs de las miniaturas/fotos de una carpeta de envío
+ */
+export async function obtenerFotosEnvio(envioId: string) {
+    try {
+        const drive = await getDriveClient();
+        
+        // 1. Buscamos la carpeta del envío por nombre
+        const folderSearch = await drive.files.list({
+            q: `mimeType='application/vnd.google-apps.folder' and name='${envioId}' and trashed=false`,
+            fields: 'files(id)'
+        });
+
+        if (!folderSearch.data.files || folderSearch.data.files.length === 0) {
+            return { success: true, fotos: [] };
+        }
+
+        const folderId = folderSearch.data.files[0].id;
+
+        // 2. Listamos los archivos dentro de esa carpeta
+        const filesSearch = await drive.files.list({
+            q: `'${folderId}' in parents and trashed=false`,
+            fields: 'files(id, name, webViewLink, thumbnailLink)',
+            orderBy: 'createdTime desc'
+        });
+
+        // Transformamos los links para que sean visibles directamente como imágenes
+        const fotos = filesSearch.data.files?.map(f => ({
+            id: f.id,
+            name: f.name,
+            // Usamos el thumbnail en alta resolución o el link de vista previa
+            url: `https://lh3.googleusercontent.com/d/${f.id}=s1000`, 
+            link: f.webViewLink
+        })) || [];
+
+        return { success: true, fotos };
+    } catch (error: any) {
+        console.error("Error al obtener fotos:", error);
+        return { success: false, fotos: [] };
+    }
+}
+
+
 // app/actions/preparacion.ts (Añadir al final)
 export async function aprobarPedido(envioId: string) {
     try {

@@ -78,7 +78,7 @@ export async function obtenerFotosEnvio(envioId: string) {
             id: f.id,
             name: f.name,
             // Usamos el thumbnail en alta resolución o el link de vista previa
-            url: `https://lh3.googleusercontent.com/u/0/d/${f.id}=s1000`,
+            url: `https://lh3.googleusercontent.com/d/${f.id}=s1000`,
             link: f.webViewLink
         })) || [];
 

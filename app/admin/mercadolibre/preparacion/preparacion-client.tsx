@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { 
@@ -12,7 +12,8 @@ import {
     CheckCircle,
     Loader2,
     X,
-    Layers
+    Layers,
+    Barcode // Importamos el icono de código de barras
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
@@ -34,7 +35,9 @@ import {
     CarouselPrevious,
 } from "@/components/ui/carousel"
 
-// Colores para los bloques de nombres (resaltan sobre el fondo blanco)
+// Importamos la lógica del scanner (solo se usará en el cliente)
+import { Html5Qrcode } from "html5-qr-code"
+
 const getAgregadoColor = (index: number) => {
     const colors = [
         "bg-blue-600 text-white border-blue-800",
@@ -56,6 +59,58 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [zoom, setZoom] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [selectedItem, setSelectedItem] = useState<any>(null)
+
+    // --- ESTADOS PARA EL SCANNER ---
+    const [showScanner, setShowScanner] = useState(false)
+    const scannerRef = useRef<Html5Qrcode | null>(null)
+
+    // Lógica para iniciar/detener el scanner cuando se abre el Dialog
+    useEffect(() => {
+        if (showScanner) {
+            const startScanner = async () => {
+                // Pequeña espera para asegurar que el div 'reader' esté montado
+                await new Promise(r => setTimeout(r, 100));
+                
+                const html5QrCode = new Html5Qrcode("barcode-reader");
+                scannerRef.current = html5QrCode;
+
+                try {
+                    await html5QrCode.start(
+                        { facingMode: "environment" },
+                        {
+                            fps: 10,
+                            qrbox: { width: 280, height: 150 }, // Formato rectangular para etiquetas
+                        },
+                        (decodedText) => {
+                            // Cuando encuentra un código
+                            setSearch(decodedText);
+                            setShowScanner(false);
+                            toast.success(`Pedido detectado: ${decodedText}`);
+                            stopScanner();
+                        },
+                        () => { /* Errores de escaneo silenciosos */ }
+                    );
+                } catch (err) {
+                    console.error("Error al iniciar scanner:", err);
+                    toast.error("No se pudo acceder a la cámara");
+                    setShowScanner(false);
+                }
+            };
+
+            startScanner();
+        } else {
+            stopScanner();
+        }
+
+        return () => stopScanner();
+    }, [showScanner]);
+
+    const stopScanner = async () => {
+        if (scannerRef.current && scannerRef.current.isScanning) {
+            await scannerRef.current.stop();
+            scannerRef.current = null;
+        }
+    };
 
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
@@ -145,15 +200,32 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </button>
             </div>
 
-            {/* BUSCADOR */}
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <Input 
-                    placeholder="Escanear o buscar..." 
-                    className="pl-10 h-12 rounded-xl border-slate-200 shadow-sm bg-white focus-visible:ring-blue-500"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                />
+            {/* BUSCADOR Y SCANNER */}
+            <div className="flex gap-2">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <Input 
+                        placeholder="Escanear o buscar..." 
+                        className="pl-10 h-12 rounded-xl border-slate-200 shadow-sm bg-white focus-visible:ring-blue-500"
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {search && (
+                        <button 
+                            onClick={() => setSearch("")}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1"
+                        >
+                            <X className="h-4 w-4 text-slate-400" />
+                        </button>
+                    )}
+                </div>
+                <Button 
+                    variant="outline"
+                    className="h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm flex items-center justify-center p-0 shrink-0"
+                    onClick={() => setShowScanner(true)}
+                >
+                    <Barcode className="h-6 w-6 text-slate-600" />
+                </Button>
             </div>
 
             {/* LISTADO DE PEDIDOS */}
@@ -201,10 +273,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </Button>
                         )}
 
-                        {/* PRODUCTOS: Listado vertical de nombres */}
                         <div className="space-y-2 mb-4">
                             {envio.items.map((item: any) => {
-                                // Soporta división por coma, signo más, pipe o salto de línea
                                 const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
                                 const nombres = rawNames
                                     .split(/[,\+\|\n]/)
@@ -227,7 +297,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             })}
                         </div>
 
-                        {/* RESUMEN INFERIOR (Gris e Itálico) */}
                         <div className="flex items-center gap-2 px-1 pt-2 border-t border-slate-50">
                             <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                             <p className="text-[11px] text-slate-500 truncate italic font-medium">
@@ -237,6 +306,35 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     </div>
                 ))}
             </div>
+
+            {/* --- DIALOGO DEL SCANNER --- */}
+            <Dialog open={showScanner} onOpenChange={setShowScanner}>
+                <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
+                    <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
+                        <DialogTitle className="text-base flex items-center gap-2">
+                            <Barcode className="h-5 w-5" />
+                            Escaneando Etiqueta
+                        </DialogTitle>
+                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setShowScanner(false)}>
+                            <X className="h-5 w-5" />
+                        </Button>
+                    </DialogHeader>
+                    
+                    <div className="relative aspect-video bg-black flex items-center justify-center">
+                        <div id="barcode-reader" className="w-full h-full"></div>
+                        {/* Guía visual para el usuario */}
+                        <div className="absolute inset-0 border-2 border-blue-500/30 pointer-events-none flex items-center justify-center">
+                            <div className="w-[80%] h-[40%] border-2 border-blue-400 rounded-lg shadow-[0_0_0_100vmax_rgba(0,0,0,0.5)]"></div>
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-900 flex justify-center">
+                        <Button variant="secondary" onClick={() => setShowScanner(false)} className="w-full">
+                            Cancelar
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* --- VISOR DE FOTOS --- */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>

@@ -43,6 +43,29 @@ async function getOrCreateFolder(drive: any, name: string, parentId: string) {
     return newFolder.data.id;
 }
 
+
+// app/actions/preparacion.ts (Añadir al final)
+export async function aprobarPedido(envioId: string) {
+    try {
+        await prisma.$transaction([
+            prisma.etiquetaML.update({
+                where: { id: envioId },
+                data: { status: "AUDITADO" }
+            }),
+            prisma.shipmentAudit.updateMany({
+                where: { envioId: envioId },
+                data: { status: "AUDITADO" }
+            })
+        ])
+
+        revalidatePath('/admin/mercadolibre/preparacion')
+        return { success: true }
+    } catch (error: any) {
+        console.error("Error al aprobar:", error)
+        return { success: false, error: error.message }
+    }
+}
+
 export async function subirFotoAuditoria(formData: FormData) {
     try {
         const file = formData.get('photo') as File

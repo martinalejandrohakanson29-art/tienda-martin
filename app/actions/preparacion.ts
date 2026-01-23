@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { google } from 'googleapis'
 import { revalidatePath } from "next/cache"
 
-// Nuevo ID de carpeta raíz que creaste: Preparacion_colecta
+// ID de carpeta raíz: Preparacion_colecta
 const DRIVE_PARENT_FOLDER_ID = '1ZSoopV-LYzweqNejotZO1h6o2j6wbPld'
 
 async function getDriveClient() {
@@ -48,30 +48,27 @@ export async function subirFotoAuditoria(formData: FormData) {
         const file = formData.get('photo') as File
         const envioId = formData.get('envioId') as string
         const mla = formData.get('mla') as string
-        const resumen = formData.get('resumen') as string
 
         if (!file || !envioId) throw new Error("Faltan datos obligatorios")
 
         const drive = await getDriveClient()
         
-        // 1. Obtener la fecha actual en formato DD/MM
+        // 1. Obtener la fecha actual (DD/MM)
         const hoy = new Date();
         const diaMes = hoy.toLocaleDateString('es-AR', { 
             day: '2-digit', 
             month: '2-digit' 
-        }); // Resultado: "21/01"
+        });
 
-        // 2. Crear la estructura de carpetas anidada
-        // Estructura: Raíz -> 21/01 -> ID_Envio -> Fotos
+        // 2. Crear estructura: Raíz -> Fecha -> ID_Envio
         const dateFolderId = await getOrCreateFolder(drive, diaMes, DRIVE_PARENT_FOLDER_ID);
         const envioFolderId = await getOrCreateFolder(drive, envioId, dateFolderId);
-        const fotosFolderId = await getOrCreateFolder(drive, "Fotos", envioFolderId);
 
-        // 3. Preparar y subir el archivo a la carpeta "Fotos"
+        // 3. Subir archivo directamente a la carpeta del Envío
         const buffer = Buffer.from(await file.arrayBuffer())
         const fileMetadata = { 
             name: `${mla}_${Date.now()}.jpg`, 
-            parents: [fotosFolderId] 
+            parents: [envioFolderId] 
         }
         const media = { 
             mimeType: 'image/jpeg', 
@@ -84,7 +81,7 @@ export async function subirFotoAuditoria(formData: FormData) {
             fields: 'id, webViewLink'
         })
 
-        // 4. Registrar en Auditoría y Actualizar Etiqueta
+        // 4. Actualizar base de datos
         await prisma.$transaction([
             prisma.shipmentAudit.upsert({
                 where: { itemId_envioId: { itemId: mla, envioId: envioId } },

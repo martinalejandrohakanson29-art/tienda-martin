@@ -160,7 +160,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">ID Envío / Venta</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter text-center">Despacho</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">Estado / Logística</TableHead>
-                            <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter w-[350px]">Producto</TableHead>
+                            <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter w-[700px]">Producto</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">ID / AGREGADO</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter text-right">Creado</TableHead>
                         </TableRow>
@@ -202,7 +202,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                             </div>
                                         </TableCell>
 
-                                       <TableCell className="px-3 py-2 w-[350px]">
+                                       <TableCell className="px-3 py-2 w-[700px]">
                                             <p className="text-[12px] text-slate-800 font-medium leading-tight line-clamp-2">
                                                 {envio.resumen}
                                             </p>

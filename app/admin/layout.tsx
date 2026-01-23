@@ -17,19 +17,19 @@ export default function AdminLayout({
   const isFullscreenPage = pathname !== "/admin";
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen">
+    <div className="flex flex-col md:flex-row min-h-screen bg-white">
       
       {/* BARRA LATERAL (Se oculta si no estamos en el dashboard principal) */}
       {!isFullscreenPage && (
         <aside className="hidden md:block w-72 shrink-0 bg-gray-900 border-r border-gray-800">
-          <div className="sticky top-24 h-[calc(100vh-6rem)] overflow-y-auto">
+          <div className="sticky top-0 h-screen overflow-y-auto">
             <AdminNav />
           </div>
         </aside>
       )}
 
       {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 overflow-hidden"> 
+      <main className="flex-1 flex flex-col min-w-0"> 
         
         {/* CABECERA MÓVIL (Se oculta si no estamos en el dashboard principal) */}
         {!isFullscreenPage && (
@@ -48,8 +48,11 @@ export default function AdminLayout({
             </div>
         )}
 
-        {/* Usamos pantalla completa y quitamos paddings si no estamos en /admin */}
-        <div className={isFullscreenPage ? "p-0 h-screen overflow-hidden" : "p-4 md:p-8"}>
+        {/* CONTENEDOR DE CONTENIDO: 
+            Cambiamos overflow-hidden por overflow-y-auto para permitir el scroll 
+            y quitamos h-screen para que el contenido pueda expandirse.
+        */}
+        <div className={isFullscreenPage ? "p-0 min-h-screen" : "p-4 md:p-8"}>
             {children}
         </div>
       </main>

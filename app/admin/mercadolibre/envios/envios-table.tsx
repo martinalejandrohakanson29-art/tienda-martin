@@ -1,3 +1,4 @@
+// app/admin/mercadolibre/envios/envios-table.tsx
 "use client"
 
 import { useState } from "react"
@@ -11,7 +12,10 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Search, Calendar } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Search, Calendar, RefreshCcw } from "lucide-react"
+import { actualizarPedidos } from "@/app/actions/envios"
+import { useRouter } from "next/navigation"
 
 interface EnviosTableProps {
     envios: any[];
@@ -19,6 +23,26 @@ interface EnviosTableProps {
 
 export function EnviosTable({ envios }: EnviosTableProps) {
     const [searchTerm, setSearchTerm] = useState("")
+    const [isUpdating, setIsUpdating] = useState(false)
+    const router = useRouter()
+
+    const handleActualizar = async () => {
+        setIsUpdating(true);
+        try {
+            const result = await actualizarPedidos();
+            if (result.success) {
+                // n8n suele tardar unos segundos, pero refrescamos la UI
+                alert("Sincronización enviada a n8n. Los datos se actualizarán en breve.");
+                router.refresh();
+            } else {
+                alert(`Error: ${result.error}`);
+            }
+        } catch (error) {
+            alert("Error al conectar con el servidor");
+        } finally {
+            setIsUpdating(false);
+        }
+    }
 
     const filteredEnvios = envios.filter((envio) => {
         const searchLower = searchTerm.toLowerCase();
@@ -78,14 +102,26 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     return (
         <div className="space-y-4">
-            <div className="relative max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                    placeholder="Buscar por MLA, ID o Producto..."
-                    className="pl-9 bg-white"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+            <div className="flex items-center justify-between gap-4">
+                <div className="relative max-w-sm flex-1">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                    <Input
+                        placeholder="Buscar por MLA, ID o Producto..."
+                        className="pl-9 bg-white"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                
+                <Button 
+                    onClick={handleActualizar} 
+                    disabled={isUpdating}
+                    variant="outline"
+                    className="bg-white hover:bg-slate-50 border-slate-200 text-slate-700"
+                >
+                    <RefreshCcw className={`mr-2 h-4 w-4 ${isUpdating ? 'animate-spin' : ''}`} />
+                    {isUpdating ? 'Actualizando...' : 'Actualizar Pedidos'}
+                </Button>
             </div>
 
             <div className="rounded-xl border shadow-sm bg-white overflow-hidden">

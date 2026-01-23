@@ -2,16 +2,26 @@
 
 import { usePathname } from "next/navigation"
 
-export default function ConditionalFooter({ children }: { children: React.ReactNode }) {
+/**
+ * Este componente actúa como un filtro:
+ * Si la ruta comienza con "/admin", el footer no se renderiza.
+ * Para cualquier otra ruta de la tienda, muestra su contenido (el Footer).
+ */
+export default function ConditionalFooter({ 
+  children 
+}: { 
+  children: React.ReactNode 
+}) {
   const pathname = usePathname()
   
-  // Si la ruta empieza con /admin, no se muestra nada
+  // Verificamos si la ruta actual es parte del panel de administración
   const isAdminPage = pathname?.startsWith("/admin")
 
+  // Si es una página de admin, retornamos null para que no se vea nada
   if (isAdminPage) {
     return null
   }
 
-  // Renderizamos lo que nos pasen desde el Layout (en este caso, el Footer)
+  // Si no es admin, mostramos el Footer que viene como "children" desde el layout
   return <>{children}</>
 }

@@ -21,6 +21,7 @@ import {
     Package,
     Truck,
     Clock,
+    Copy,
 } from "lucide-react"
 import { actualizarPedidos } from "@/app/actions/envios"
 import { useRouter } from "next/navigation"
@@ -82,6 +83,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         }
     }
 
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
+        // Opcional: Podrías agregar un toast aquí si tienes la librería instalada
+    }
+
     const filteredEnvios = envios.filter((envio) => {
         const searchLower = searchTerm.toLowerCase();
         return (
@@ -109,10 +115,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         const sub = envio.substatus;
         const status = envio.status;
         switch (sub) {
-            case 'ready_to_print': return { label: "Listo Imprimir", className: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> };
-            case 'printed': return { label: "Impreso", className: "bg-blue-50 text-blue-700 border-blue-100", icon: <Package className="w-3 h-3 mr-1" /> };
-            // CAMBIO: Ahora dice "Listo para Colecta" para diferenciarlo del tipo de logística
-            case 'ready_for_pickup': return { label: "Listo para Colecta", className: "bg-indigo-50 text-indigo-700 border-indigo-100", icon: <Truck className="w-3 h-3 mr-1" /> };
+            // CAMBIO: Color Rojo para "Listo Imprimir"
+            case 'ready_to_print': return { label: "Listo Imprimir", className: "bg-rose-50 text-rose-700 border-rose-200", icon: <CheckCircle2 className="w-3 h-3 mr-1" /> };
+            case 'printed': return { label: "Impreso", className: "bg-blue-50 text-blue-700 border-blue-200", icon: <Package className="w-3 h-3 mr-1" /> };
+            // CAMBIO: Color Verde para "Listo para Colecta"
+            case 'ready_for_pickup': return { label: "Listo para Colecta", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <Truck className="w-3 h-3 mr-1" /> };
             default: return { label: status === "PENDIENTE" ? "Pendiente" : sub?.toUpperCase() || "S/E", className: "bg-slate-50 text-slate-600 border-slate-200", icon: <Clock className="w-3 h-3 mr-1" /> };
         }
     }
@@ -125,7 +132,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     return (
         <div className="space-y-3">
-            {/* Header */}
+            {/* Buscador y Botón Sincro */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-2.5 rounded-lg border shadow-sm">
                 <div className="relative w-full sm:max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -148,7 +155,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 </Button>
             </div>
 
-            {/* Tabla */}
+            {/* Tabla Principal */}
             <div className="rounded-lg border border-slate-200 shadow-sm bg-white overflow-hidden">
                 <Table>
                     <TableHeader>
@@ -157,7 +164,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter text-center">Despacho</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">Estado / Logística</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">Producto</TableHead>
-                            <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">SKU / Técnica</TableHead>
+                            <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">SKU / Técnica (Click copiar)</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter text-right">Creado</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -184,7 +191,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                         </TableCell>
 
                                         <TableCell className="px-3 py-2">
-                                            {/* AJUSTE: Ahora están uno al lado del otro */}
                                             <div className="flex flex-row items-center gap-2">
                                                 <Badge variant="outline" className={`whitespace-nowrap rounded px-1.5 py-0 text-[10px] font-bold uppercase border ${statusInfo.className}`}>
                                                     {statusInfo.label}
@@ -195,25 +201,34 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                             </div>
                                         </TableCell>
 
-                                        <TableCell className="px-3 py-2 max-w-[220px]">
+                                        <TableCell className="px-3 py-2 max-w-[200px]">
                                             <p className="text-[12px] text-slate-800 font-medium leading-tight line-clamp-2">
                                                 {envio.resumen}
                                             </p>
                                         </TableCell>
 
                                         <TableCell className="px-3 py-2">
-                                            {/* AJUSTE: Ahora están uno debajo del otro */}
-                                            <div className="flex flex-col gap-1.5">
+                                            {/* Los agregados ahora se extienden libremente hacia la derecha */}
+                                            <div className="flex flex-col gap-1.5 min-w-[200px]">
                                                 {envio.items.map((item: any) => (
                                                     <div key={item.id} className="flex flex-col gap-1">
                                                         {item.agregadoInfo?.ids_articulos ? (
                                                             item.agregadoInfo.ids_articulos.split(',').map((id: string, idx: number) => {
                                                                 const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
+                                                                const currentId = id.trim();
                                                                 return (
-                                                                    <div key={idx} className="flex items-center gap-1 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] border border-slate-200 w-fit">
-                                                                        <span className="font-bold text-slate-700">{id.trim()}</span>
-                                                                        <span className="text-slate-400 mx-0.5">|</span>
-                                                                        <span className="text-slate-500 truncate max-w-[120px]">{nombres[idx]?.trim() || "N/A"}</span>
+                                                                    <div 
+                                                                        key={idx} 
+                                                                        onClick={() => copyToClipboard(currentId)}
+                                                                        title="Clic para copiar ID"
+                                                                        className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 cursor-pointer active:scale-95 transition-all px-2 py-0.5 rounded text-[10px] border border-slate-200 w-fit"
+                                                                    >
+                                                                        <span className="font-bold text-slate-700 uppercase">{currentId}</span>
+                                                                        <span className="text-slate-300 mx-0.5">|</span>
+                                                                        <span className="text-slate-600 font-medium whitespace-nowrap">
+                                                                            {nombres[idx]?.trim() || "N/A"}
+                                                                        </span>
+                                                                        <Copy className="w-2.5 h-2.5 ml-1 text-slate-400 opacity-0 group-hover:opacity-100" />
                                                                     </div>
                                                                 );
                                                             })
@@ -241,7 +256,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 </Table>
             </div>
 
-            {/* Modal de Notificación */}
+            {/* Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="sm:max-w-[350px] rounded-xl">
                     <DialogHeader className="flex flex-col items-center text-center">

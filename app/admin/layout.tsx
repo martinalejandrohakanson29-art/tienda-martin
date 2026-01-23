@@ -13,17 +13,13 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   
-  // Agregamos la ruta de importaciones a la lista de pantalla completa
-  const isFullscreenPage = 
-    pathname === "/admin/mercadolibre/planning" || 
-    pathname === "/admin/mercadolibre/articulos" ||
-    pathname === "/admin/mercadolibre/costos" ||
-    pathname === "/admin/mercadolibre/importaciones"; // <-- NUEVO: Agregado aquí
+  // El panel solo se muestra si la ruta es exactamente "/admin"
+  const isFullscreenPage = pathname !== "/admin";
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen">
       
-      {/* BARRA LATERAL (Se ocultará si es una página de pantalla completa) */}
+      {/* BARRA LATERAL (Se oculta si no estamos en el dashboard principal) */}
       {!isFullscreenPage && (
         <aside className="hidden md:block w-72 shrink-0 bg-gray-900 border-r border-gray-800">
           <div className="sticky top-24 h-[calc(100vh-6rem)] overflow-y-auto">
@@ -35,7 +31,7 @@ export default function AdminLayout({
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-1 overflow-hidden"> 
         
-        {/* CABECERA MÓVIL (Se ocultará si es pantalla completa) */}
+        {/* CABECERA MÓVIL (Se oculta si no estamos en el dashboard principal) */}
         {!isFullscreenPage && (
             <div className="md:hidden flex items-center p-4 border-b bg-white shadow-sm sticky top-0 z-40">
                 <Sheet>
@@ -52,7 +48,7 @@ export default function AdminLayout({
             </div>
         )}
 
-        {/* El contenedor principal ahora usará h-screen si es pantalla completa */}
+        {/* Usamos pantalla completa y quitamos paddings si no estamos en /admin */}
         <div className={isFullscreenPage ? "p-0 h-screen overflow-hidden" : "p-4 md:p-8"}>
             {children}
         </div>

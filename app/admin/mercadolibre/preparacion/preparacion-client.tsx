@@ -34,7 +34,7 @@ import {
     CarouselPrevious,
 } from "@/components/ui/carousel"
 
-// Colores llamativos para los bloques de nombres
+// Colores para los bloques de nombres (resaltan sobre el fondo blanco)
 const getAgregadoColor = (index: number) => {
     const colors = [
         "bg-blue-600 text-white border-blue-800",
@@ -150,16 +150,16 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <Input 
                     placeholder="Escanear o buscar..." 
-                    className="pl-10 h-12 rounded-xl border-slate-200 shadow-sm bg-white"
+                    className="pl-10 h-12 rounded-xl border-slate-200 shadow-sm bg-white focus-visible:ring-blue-500"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                 />
             </div>
 
-            {/* LISTADO DINÁMICO */}
+            {/* LISTADO DE PEDIDOS */}
             <div className="grid gap-3">
                 {filtered.map((envio) => (
-                    <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm">
+                    <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-md">
                         <div className="flex justify-between items-start mb-3">
                             <div>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{envio.logisticType}</span>
@@ -193,7 +193,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         {envio.status === "PREPARADO" && (
                             <Button 
                                 variant="secondary" 
-                                className="w-full mb-4 gap-2 bg-blue-50 text-blue-700 border-none hover:bg-blue-100 h-11 rounded-xl font-bold"
+                                className="w-full mb-4 gap-2 bg-blue-50 text-blue-700 border-none hover:bg-blue-100 h-11 rounded-xl font-bold transition-colors"
                                 onClick={() => handleOpenViewer(envio.id)}
                                 disabled={isFetchingFotos}
                             >
@@ -201,12 +201,15 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </Button>
                         )}
 
-                        {/* SECCIÓN DE PRODUCTOS (NOMBRES DE AGREGADOS) */}
+                        {/* PRODUCTOS: Listado vertical de nombres */}
                         <div className="space-y-2 mb-4">
                             {envio.items.map((item: any) => {
-                                // Priorizamos nombres_articulos. Si no hay, usamos el title del item.
-                                const nombresString = item.agregadoInfo?.nombres_articulos;
-                                const nombres = nombresString ? nombresString.split(',') : [item.title];
+                                // Soporta división por coma, signo más, pipe o salto de línea
+                                const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
+                                const nombres = rawNames
+                                    .split(/[,\+\|\n]/)
+                                    .map((n: string) => n.trim())
+                                    .filter((n: string) => n.length > 0);
                                 
                                 return (
                                     <div key={item.id} className="flex flex-col gap-1.5">
@@ -216,7 +219,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}
                                             >
                                                 <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                                                <span className="truncate">{nombre.trim()}</span>
+                                                <span className="truncate">{nombre}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -224,9 +227,12 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             })}
                         </div>
 
+                        {/* RESUMEN INFERIOR (Gris e Itálico) */}
                         <div className="flex items-center gap-2 px-1 pt-2 border-t border-slate-50">
                             <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                            <p className="text-[11px] text-slate-500 truncate italic">{envio.resumen}</p>
+                            <p className="text-[11px] text-slate-500 truncate italic font-medium">
+                                {envio.resumen}
+                            </p>
                         </div>
                     </div>
                 ))}
@@ -237,7 +243,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] max-w-lg flex flex-col rounded-t-3xl sm:rounded-3xl">
                     <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
                         <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
-                        <Button variant="ghost" size="icon" className="text-white" onClick={() => setViewingFotos(null)}>
+                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setViewingFotos(null)}>
                             <X className="h-5 w-5" />
                         </Button>
                     </DialogHeader>
@@ -255,7 +261,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 
-                                                    className="max-h-full max-w-full object-contain select-none"
+                                                    className="max-h-full max-w-full object-contain select-none shadow-2xl"
                                                 />
                                             </div>
                                         </CarouselItem>
@@ -278,15 +284,15 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
                     <div className="p-6 bg-slate-900 border-t border-white/10 flex gap-3">
                         <Button 
-                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl"
+                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-95"
                             onClick={() => handleApprove(viewingFotos?.id!)}
                             disabled={loading === viewingFotos?.id}
                         >
-                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2" /> APROBAR TODO</>}
+                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR TODO</>}
                         </Button>
                         <Button 
                             variant="outline" 
-                            className="h-14 w-14 rounded-2xl border-white/20 text-white bg-white/5"
+                            className="h-14 w-14 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10"
                             onClick={() => setZoom(!zoom)}
                         >
                             <Search className="h-6 w-6" />

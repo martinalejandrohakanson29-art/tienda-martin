@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Search, CalendarIcon, Loader2, CheckCircle2, Image as ImageIcon } from "lucide-react"
+import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock, Copy, Image as ImageIcon } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
@@ -18,6 +18,7 @@ export function DespachadosClient() {
     const [envios, setEnvios] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState("")
     
+    // Referencia para capturar el diseño cuadrado
     const areaCapturaRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -65,9 +66,10 @@ export function DespachadosClient() {
 
     return (
         <div className="space-y-6">
+            {/* Buscador y Filtros */}
             <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-4 rounded-xl border shadow-sm">
                 <div className="grid gap-2">
-                    <Label htmlFor="fecha" className="text-xs font-semibold uppercase text-slate-500">Fecha de Preparación</Label>
+                    <Label htmlFor="fecha" className="text-xs font-semibold uppercase text-slate-500 text-[10px] tracking-wider">Fecha de Preparación</Label>
                     <div className="relative">
                         <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         <Input
@@ -81,7 +83,7 @@ export function DespachadosClient() {
                 </div>
 
                 <div className="grid gap-2 flex-1">
-                    <Label htmlFor="search" className="text-xs font-semibold uppercase text-slate-500">Buscar pedido o producto</Label>
+                    <Label htmlFor="search" className="text-xs font-semibold uppercase text-slate-500 text-[10px] tracking-wider">Buscar pedido o producto</Label>
                     <div className="relative">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                         <Input
@@ -104,11 +106,13 @@ export function DespachadosClient() {
                 </Button>
             </div>
 
+            {/* AREA DE CAPTURA (Diseño Cuadrado para WhatsApp) */}
             <div 
                 ref={areaCapturaRef} 
                 className="bg-white border rounded-xl overflow-hidden shadow-sm"
                 style={{ width: '100%', maxWidth: '800px', margin: '0 auto' }} 
             >
+                {/* Header del Reporte */}
                 <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
                     <div>
                         <h3 className="text-xl font-bold tracking-tight">Reporte de Preparación</h3>

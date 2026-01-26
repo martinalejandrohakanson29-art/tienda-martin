@@ -132,9 +132,16 @@ export async function getEtiquetasML() {
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
-        const startOfDay = new Date(fecha); startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(fecha); endOfDay.setHours(23, 59, 59, 999);
+        // 1. Configuramos el inicio del día en Argentina (00:00:00 ART = 03:00:00 UTC)
+        const startOfDay = new Date(fecha); 
+        startOfDay.setUTCHours(3, 0, 0, 0); // Forzamos 3 AM UTC
 
+        // 2. Configuramos el final del día en Argentina (23:59:59 ART = 02:59:59 UTC del día siguiente)
+        const endOfDay = new Date(fecha);
+        endOfDay.setDate(endOfDay.getDate() + 1); // Avanzamos un día calendario
+        endOfDay.setUTCHours(2, 59, 59, 999); // Hasta las 2:59:59 AM UTC del día siguiente
+
+        // 3. Consulta normal
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 updatedAt: { gte: startOfDay, lte: endOfDay },
@@ -144,6 +151,7 @@ export async function getEtiquetasPreparadas(fecha: string) {
             orderBy: { updatedAt: 'desc' }
         });
 
+        // 4. Enriquecimiento de datos (Tu lógica original intacta)
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
             const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
                 const viewResult: any[] = await prisma.$queryRaw`

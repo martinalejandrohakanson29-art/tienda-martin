@@ -11,8 +11,6 @@ export async function actualizarPedidos() {
     try {
         const webhookUrl = process.env.N8N_GENERATE_ETIQUETAS_URL;
         
-        console.log("Intentando llamar a n8n. URL configurada:", webhookUrl ? "OK (Cargada)" : "ERROR (No cargada)");
-
         if (!webhookUrl) {
             throw new Error("La URL de n8n no está configurada en las variables de entorno");
         }
@@ -69,7 +67,6 @@ export async function imprimirEtiquetas(ids: string[]) {
             throw new Error(`Error generando PDF en n8n: ${response.statusText}`);
         }
 
-        // Convertimos el PDF binario a Base64 para enviarlo al cliente
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const base64Pdf = buffer.toString('base64');
@@ -130,7 +127,10 @@ export async function getEtiquetasML() {
     }
 }
 
-export async function getEtiquetasDespachadas(fecha: string) {
+/**
+ * Obtiene las etiquetas que ya han sido PREPARADAS o AUDITADAS para el reporte
+ */
+export async function getEtiquetasPreparadas(fecha: string) {
     try {
         const startOfDay = new Date(fecha); startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(fecha); endOfDay.setHours(23, 59, 59, 999);
@@ -138,11 +138,8 @@ export async function getEtiquetasDespachadas(fecha: string) {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 updatedAt: { gte: startOfDay, lte: endOfDay },
-                OR: [
-                    { AND: [{ logisticType: 'cross_docking' }, { substatus: 'picked_up' }] },
-                    { AND: [{ logisticType: 'self_service' }, { substatus: 'out_for_delivery' }] },
-                    { status: 'delivered' }
-                ]
+                // Filtramos por estados manuales de tu proceso de preparación
+                status: { in: ['PREPARADO', 'AUDITADO'] }
             },
             include: { items: true },
             orderBy: { updatedAt: 'desc' }
@@ -166,7 +163,7 @@ export async function getEtiquetasDespachadas(fecha: string) {
 
         return { success: true, data: etiquetasEnriquecidas };
     } catch (error) {
-        console.error("Error al obtener despachados:", error);
+        console.error("Error al obtener preparados:", error);
         return { success: false, data: [] };
     }
 }

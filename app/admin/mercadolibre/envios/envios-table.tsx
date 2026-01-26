@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import {
     Table,
     TableBody,
@@ -22,6 +22,9 @@ import {
     Truck,
     Clock,
     Copy,
+    Printer,
+    Filter,
+    CheckSquare
 } from "lucide-react"
 import { actualizarPedidos } from "@/app/actions/envios"
 import { useRouter } from "next/navigation"
@@ -38,10 +41,24 @@ interface EnviosTableProps {
     envios: any[];
 }
 
+// Tipos de filtros disponibles
+type FilterType = 'flex' | 'colecta' | 'imprimir' | 'impreso';
+
 export function EnviosTable({ envios }: EnviosTableProps) {
     const [searchTerm, setSearchTerm] = useState("")
     const [isUpdating, setIsUpdating] = useState(false)
     
+    // Estado para filtros
+    const [activeFilters, setActiveFilters] = useState<Record<FilterType, boolean>>({
+        flex: false,
+        colecta: false,
+        imprimir: false,
+        impreso: false
+    });
+
+    // Estado para selección de filas
+    const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [modalConfig, setModalConfig] = useState({
         title: "",
@@ -50,6 +67,61 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     })
 
     const router = useRouter()
+
+    // --- LÓGICA DE FILTRADO ---
+    const filteredEnvios = useMemo(() => {
+        return envios.filter((envio) => {
+            // 1. Filtro de Texto (Búsqueda)
+            const searchLower = searchTerm.toLowerCase();
+            const matchesSearch = (
+                envio.id.toString().toLowerCase().includes(searchLower) ||
+                envio.orderId?.toString().toLowerCase().includes(searchLower) ||
+                envio.resumen?.toLowerCase().includes(searchLower) ||
+                envio.items?.some((item: any) => item.mla.toLowerCase().includes(searchLower))
+            );
+
+            if (!matchesSearch) return false;
+
+            // 2. Filtros por Botones (Lógica combinada)
+            // Agrupamos filtros por categoría para hacer lógica "OR" dentro del grupo y "AND" entre grupos
+            
+            const activeLogistics = [];
+            if (activeFilters.flex) activeLogistics.push('self_service');
+            if (activeFilters.colecta) activeLogistics.push('cross_docking');
+
+            const activeStatuses = [];
+            if (activeFilters.imprimir) activeStatuses.push('ready_to_print');
+            if (activeFilters.impreso) activeStatuses.push('printed', 'ready_for_pickup');
+
+            // Si hay filtros de logística activos, debe coincidir con alguno
+            const matchesLogistic = activeLogistics.length === 0 || activeLogistics.includes(envio.logisticType);
+            
+            // Si hay filtros de estado activos, debe coincidir con alguno
+            const matchesStatus = activeStatuses.length === 0 || activeStatuses.includes(envio.substatus);
+
+            return matchesLogistic && matchesStatus;
+        });
+    }, [envios, searchTerm, activeFilters]);
+
+    // --- LÓGICA DE SELECCIÓN ---
+    const toggleRow = (id: string) => {
+        const newSelected = new Set(selectedRows);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedRows(newSelected);
+    };
+
+    const toggleAll = () => {
+        if (selectedRows.size === filteredEnvios.length && filteredEnvios.length > 0) {
+            setSelectedRows(new Set()); // Deseleccionar todo
+        } else {
+            const newSelected = new Set(filteredEnvios.map(e => e.id));
+            setSelectedRows(newSelected); // Seleccionar todo lo visible
+        }
+    };
 
     const handleActualizar = async () => {
         setIsUpdating(true);
@@ -83,20 +155,13 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         }
     }
 
+    const toggleFilter = (filter: FilterType) => {
+        setActiveFilters(prev => ({ ...prev, [filter]: !prev[filter] }));
+    };
+
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
     }
-
-    // LÓGICA DE BÚSQUEDA ACTUALIZADA: Ahora busca también por orderId (Venta)
-    const filteredEnvios = envios.filter((envio) => {
-        const searchLower = searchTerm.toLowerCase();
-        return (
-            envio.id.toString().toLowerCase().includes(searchLower) ||
-            envio.orderId?.toString().toLowerCase().includes(searchLower) || // Búsqueda por ID de Venta
-            envio.resumen?.toLowerCase().includes(searchLower) ||
-            envio.items?.some((item: any) => item.mla.toLowerCase().includes(searchLower))
-        );
-    });
 
     const formatDispatchDate = (dateString: string | null) => {
         if (!dateString) return <span className="text-slate-400 italic text-[11px]">No definida</span>;
@@ -129,8 +194,19 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         return { label: "ESTÁNDAR", className: "text-slate-500" };
     }
 
+    // Contadores para los badges de filtros
+    const counts = useMemo(() => {
+        return {
+            flex: envios.filter(e => e.logisticType === 'self_service').length,
+            colecta: envios.filter(e => e.logisticType === 'cross_docking').length,
+            imprimir: envios.filter(e => e.substatus === 'ready_to_print').length,
+            impreso: envios.filter(e => ['printed', 'ready_for_pickup'].includes(e.substatus)).length
+        }
+    }, [envios]);
+
     return (
-        <div className="space-y-3">
+        <div className="space-y-4">
+            {/* BARRA SUPERIOR: BUSCADOR Y SINCRONIZAR */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-2.5 rounded-lg border shadow-sm">
                 <div className="relative w-full sm:max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -142,21 +218,101 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     />
                 </div>
                 
-                <Button 
-                    onClick={handleActualizar} 
-                    disabled={isUpdating}
-                    size="sm"
-                    className="w-full sm:w-auto bg-slate-900 h-9 px-4 text-xs font-bold"
-                >
-                    <RefreshCcw className={`mr-2 h-3.5 w-3.5 ${isUpdating ? 'animate-spin' : ''}`} />
-                    {isUpdating ? 'Sincronizando...' : 'Sincronizar'}
-                </Button>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                     {/* BOTÓN IMPRIMIR (Solo visible si hay selección) */}
+                     {selectedRows.size > 0 && (
+                        <Button 
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto border-slate-300 text-slate-700 hover:bg-slate-50"
+                            onClick={() => console.log("Imprimir IDs:", Array.from(selectedRows))}
+                        >
+                            <Printer className="mr-2 h-3.5 w-3.5" />
+                            Imprimir ({selectedRows.size})
+                        </Button>
+                    )}
+
+                    <Button 
+                        onClick={handleActualizar} 
+                        disabled={isUpdating}
+                        size="sm"
+                        className="w-full sm:w-auto bg-slate-900 h-9 px-4 text-xs font-bold"
+                    >
+                        <RefreshCcw className={`mr-2 h-3.5 w-3.5 ${isUpdating ? 'animate-spin' : ''}`} />
+                        {isUpdating ? 'Sincronizando...' : 'Sincronizar'}
+                    </Button>
+                </div>
+            </div>
+
+            {/* BARRA DE FILTROS */}
+            <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 mr-2">
+                    <Filter className="w-4 h-4 text-slate-400" />
+                    <span className="text-xs font-medium text-slate-500">Filtrar por:</span>
+                </div>
+                
+                {/* Grupo Logística */}
+                <div className="flex items-center gap-2 border-r border-slate-200 pr-4 mr-2">
+                    <FilterBadge 
+                        label="Flex" 
+                        active={activeFilters.flex} 
+                        count={counts.flex} 
+                        onClick={() => toggleFilter('flex')}
+                        colorClass="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200"
+                    />
+                    <FilterBadge 
+                        label="Colecta" 
+                        active={activeFilters.colecta} 
+                        count={counts.colecta} 
+                        onClick={() => toggleFilter('colecta')}
+                        colorClass="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
+                    />
+                </div>
+
+                {/* Grupo Estado */}
+                <div className="flex items-center gap-2">
+                    <FilterBadge 
+                        label="Imprimir" 
+                        active={activeFilters.imprimir} 
+                        count={counts.imprimir} 
+                        onClick={() => toggleFilter('imprimir')}
+                        colorClass="data-[state=active]:bg-rose-100 data-[state=active]:text-rose-700 data-[state=active]:border-rose-200"
+                    />
+                    <FilterBadge 
+                        label="Impreso" 
+                        active={activeFilters.impreso} 
+                        count={counts.impreso} 
+                        onClick={() => toggleFilter('impreso')}
+                        colorClass="data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-700 data-[state=active]:border-emerald-200"
+                    />
+                </div>
+
+                {/* Reset Filters */}
+                {Object.values(activeFilters).some(Boolean) && (
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setActiveFilters({flex: false, colecta: false, imprimir: false, impreso: false})}
+                        className="h-6 px-2 text-[10px] text-slate-400 hover:text-slate-600 ml-auto"
+                    >
+                        Limpiar filtros
+                    </Button>
+                )}
             </div>
 
             <div className="rounded-lg border border-slate-200 shadow-sm bg-white overflow-hidden">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50 hover:bg-slate-50">
+                            {/* Checkbox Header */}
+                            <TableHead className="w-[40px] px-3">
+                                <input 
+                                    type="checkbox" 
+                                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 accent-slate-900 cursor-pointer"
+                                    checked={selectedRows.size === filteredEnvios.length && filteredEnvios.length > 0}
+                                    onChange={toggleAll}
+                                />
+                            </TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">ID Envío / Venta</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter text-center">Despacho</TableHead>
                             <TableHead className="h-9 px-3 font-bold text-slate-500 text-[10px] uppercase tracking-tighter">Estado / Logística</TableHead>
@@ -168,18 +324,31 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     <TableBody>
                         {filteredEnvios.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-10">
-                                    <p className="text-sm text-slate-400 font-medium">No hay envíos</p>
+                                <TableCell colSpan={7} className="text-center py-10">
+                                    <p className="text-sm text-slate-400 font-medium">No hay envíos que coincidan</p>
                                 </TableCell>
                             </TableRow>
                         ) : (
                             filteredEnvios.map((envio) => {
                                 const logistic = getLogisticConfig(envio.logisticType);
                                 const statusInfo = getStatusConfig(envio);
+                                const isSelected = selectedRows.has(envio.id);
                                 
                                 return (
-                                    <TableRow key={envio.id} className="group hover:bg-slate-50/50 transition-colors border-b last:border-0">
-                                        {/* COLUMNA ID ACTUALIZADA */}
+                                    <TableRow 
+                                        key={envio.id} 
+                                        className={`group transition-colors border-b last:border-0 ${isSelected ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`}
+                                    >
+                                        {/* Checkbox Row */}
+                                        <TableCell className="px-3 py-2">
+                                            <input 
+                                                type="checkbox" 
+                                                className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 accent-slate-900 cursor-pointer"
+                                                checked={isSelected}
+                                                onChange={() => toggleRow(envio.id)}
+                                            />
+                                        </TableCell>
+
                                         <TableCell className="px-3 py-2 font-mono text-[11px] font-bold">
                                             <div className="flex flex-col gap-0.5">
                                                 <span className="text-blue-600">{envio.id}</span>
@@ -282,5 +451,26 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 </DialogContent>
             </Dialog>
         </div>
+    )
+}
+
+// Componente auxiliar para los botones de filtro
+function FilterBadge({ label, active, count, onClick, colorClass }: { label: string, active: boolean, count: number, onClick: () => void, colorClass: string }) {
+    return (
+        <button
+            onClick={onClick}
+            data-state={active ? "active" : "inactive"}
+            className={`
+                flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11px] font-bold transition-all
+                ${colorClass}
+                data-[state=inactive]:bg-white data-[state=inactive]:text-slate-500 data-[state=inactive]:border-slate-200 data-[state=inactive]:hover:bg-slate-50
+            `}
+        >
+            {active && <CheckCircle2 className="w-3 h-3" />}
+            {label}
+            <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[9px] ${active ? 'bg-white/50' : 'bg-slate-100'}`}>
+                {count}
+            </span>
+        </button>
     )
 }

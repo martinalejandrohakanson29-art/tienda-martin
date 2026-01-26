@@ -138,7 +138,6 @@ export async function getEtiquetasPreparadas(fecha: string) {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 updatedAt: { gte: startOfDay, lte: endOfDay },
-                // Filtramos por estados manuales de tu proceso de preparación
                 status: { in: ['PREPARADO', 'AUDITADO'] }
             },
             include: { items: true },

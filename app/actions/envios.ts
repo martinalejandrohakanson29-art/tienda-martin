@@ -11,14 +11,13 @@ export async function actualizarPedidos() {
     try {
         const webhookUrl = process.env.N8N_GENERATE_ETIQUETAS_URL;
         
-        // Log para ver en Railway (puedes borrarlo después)
         console.log("Intentando llamar a n8n. URL configurada:", webhookUrl ? "OK (Cargada)" : "ERROR (No cargada)");
 
         if (!webhookUrl) {
             throw new Error("La URL de n8n no está configurada en las variables de entorno");
         }
 
-        const response = await fetch(webhookUrl.trim(), { // .trim() para limpiar espacios accidentales
+        const response = await fetch(webhookUrl.trim(), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -40,6 +39,46 @@ export async function actualizarPedidos() {
     } catch (error: any) {
         console.error("Error al llamar a n8n:", error);
         return { success: false, error: error.message || "Error al conectar con n8n" };
+    }
+}
+
+/**
+ * Llama al workflow de n8n para generar el PDF de las etiquetas seleccionadas
+ */
+export async function imprimirEtiquetas(ids: string[]) {
+    try {
+        const webhookUrl = process.env.N8N_IMPRESION_WEBHOOK;
+
+        if (!webhookUrl) {
+            throw new Error("La variable N8N_IMPRESION_WEBHOOK no está configurada");
+        }
+
+        const response = await fetch(webhookUrl.trim(), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                ids: ids,
+                action: 'print_batch',
+                timestamp: new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error generando PDF en n8n: ${response.statusText}`);
+        }
+
+        // Convertimos el PDF binario a Base64 para enviarlo al cliente
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const base64Pdf = buffer.toString('base64');
+
+        return { success: true, pdfBase64: base64Pdf };
+
+    } catch (error: any) {
+        console.error("Error al imprimir etiquetas:", error);
+        return { success: false, error: error.message || "Error al generar el PDF" };
     }
 }
 

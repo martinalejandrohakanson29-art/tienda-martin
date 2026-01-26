@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { getEtiquetasPreparadas } from "@/app/actions/envios" // Importación corregida
+import { getEtiquetasPreparadas } from "@/app/actions/envios"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock, Copy, Image as ImageIcon } from "lucide-react"
+import { Search, CalendarIcon, Loader2, CheckCircle2, Image as ImageIcon } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
@@ -16,14 +16,14 @@ export function DespachadosClient() {
     const [fecha, setFecha] = useState(format(new Date(), "yyyy-MM-dd"))
     const [loading, setLoading] = useState(true)
     const [envios, setEnvios] = useState<any[]>([])
-    const [searchTerm, setSearchTerm] = useState(\"\")
+    const [searchTerm, setSearchTerm] = useState("")
     
     const areaCapturaRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
         const load = async () => {
             setLoading(true)
-            const res = await getEtiquetasPreparadas(fecha) // Usamos la nueva acción
+            const res = await getEtiquetasPreparadas(fecha)
             if (res.success) setEnvios(res.data)
             setLoading(false)
         }
@@ -53,7 +53,7 @@ export function DespachadosClient() {
             if (blob) {
                 const url = window.URL.createObjectURL(blob);
                 const link = document.createElement('a');
-                link.download = `reporte-preparados-${fecha}.png`; // Nombre actualizado
+                link.download = `reporte-preparados-${fecha}.png`;
                 link.href = url;
                 link.click();
                 toast.success("Imagen generada correctamente");
@@ -113,7 +113,7 @@ export function DespachadosClient() {
                     <div>
                         <h3 className="text-xl font-bold tracking-tight">Reporte de Preparación</h3>
                         <p className="text-slate-400 text-sm">
-                            {format(new Date(fecha + "T12:00:00"), \"EEEE d 'de' MMMM\", { locale: es })}
+                            {format(new Date(fecha + "T12:00:00"), "EEEE d 'de' MMMM", { locale: es })}
                         </p>
                     </div>
                     <div className="text-right">

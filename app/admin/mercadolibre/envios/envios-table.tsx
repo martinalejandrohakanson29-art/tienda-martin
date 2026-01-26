@@ -125,7 +125,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
             const result = await imprimirEtiquetas(idsToPrint);
 
             if (result.success && result.pdfBase64) {
-                // Convertir Base64 a Blob y abrir en nueva pestaña
+                // 1. Convertir Base64 a Blob (esto ya lo tenías bien)
                 const byteCharacters = atob(result.pdfBase64);
                 const byteNumbers = new Array(byteCharacters.length);
                 for (let i = 0; i < byteCharacters.length; i++) {
@@ -133,12 +133,23 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 }
                 const byteArray = new Uint8Array(byteNumbers);
                 const blob = new Blob([byteArray], { type: 'application/pdf' });
+                
+                // 2. Crear URL del objeto
                 const url = URL.createObjectURL(blob);
                 
-                window.open(url, '_blank');
+                // --- CAMBIO AQUÍ: FORZAR DESCARGA ---
+                // En lugar de window.open(url, '_blank'), hacemos esto:
+                const link = document.createElement('a');
+                link.href = url;
+                link.setAttribute('download', `etiquetas_ml_${new Date().toISOString().slice(0,10)}.pdf`); // Nombre del archivo
+                document.body.appendChild(link);
+                link.click(); // Simula el clic para descargar
                 
-                // Opcional: Limpiar selección después de imprimir
-                // setSelectedRows(new Set());
+                // Limpieza
+                link.parentNode?.removeChild(link);
+                window.URL.revokeObjectURL(url);
+                // ------------------------------------
+
             } else {
                 setModalConfig({
                     title: "Error de Impresión",

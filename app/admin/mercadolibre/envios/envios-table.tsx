@@ -23,10 +23,9 @@ import {
     Clock,
     Copy,
     Printer,
-    Filter,
-    CheckSquare
+    Filter
 } from "lucide-react"
-import { actualizarPedidos } from "@/app/actions/envios"
+import { actualizarPedidos, imprimirEtiquetas } from "@/app/actions/envios"
 import { useRouter } from "next/navigation"
 import {
     Dialog,
@@ -41,12 +40,12 @@ interface EnviosTableProps {
     envios: any[];
 }
 
-// Tipos de filtros disponibles
 type FilterType = 'flex' | 'colecta' | 'imprimir' | 'impreso';
 
 export function EnviosTable({ envios }: EnviosTableProps) {
     const [searchTerm, setSearchTerm] = useState("")
     const [isUpdating, setIsUpdating] = useState(false)
+    const [isPrinting, setIsPrinting] = useState(false) // Nuevo estado para loading de impresión
     
     // Estado para filtros
     const [activeFilters, setActiveFilters] = useState<Record<FilterType, boolean>>({
@@ -71,7 +70,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     // --- LÓGICA DE FILTRADO ---
     const filteredEnvios = useMemo(() => {
         return envios.filter((envio) => {
-            // 1. Filtro de Texto (Búsqueda)
             const searchLower = searchTerm.toLowerCase();
             const matchesSearch = (
                 envio.id.toString().toLowerCase().includes(searchLower) ||
@@ -82,9 +80,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
             if (!matchesSearch) return false;
 
-            // 2. Filtros por Botones (Lógica combinada)
-            // Agrupamos filtros por categoría para hacer lógica "OR" dentro del grupo y "AND" entre grupos
-            
             const activeLogistics = [];
             if (activeFilters.flex) activeLogistics.push('self_service');
             if (activeFilters.colecta) activeLogistics.push('cross_docking');
@@ -93,10 +88,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
             if (activeFilters.imprimir) activeStatuses.push('ready_to_print');
             if (activeFilters.impreso) activeStatuses.push('printed', 'ready_for_pickup');
 
-            // Si hay filtros de logística activos, debe coincidir con alguno
             const matchesLogistic = activeLogistics.length === 0 || activeLogistics.includes(envio.logisticType);
-            
-            // Si hay filtros de estado activos, debe coincidir con alguno
             const matchesStatus = activeStatuses.length === 0 || activeStatuses.includes(envio.substatus);
 
             return matchesLogistic && matchesStatus;
@@ -116,12 +108,56 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     const toggleAll = () => {
         if (selectedRows.size === filteredEnvios.length && filteredEnvios.length > 0) {
-            setSelectedRows(new Set()); // Deseleccionar todo
+            setSelectedRows(new Set());
         } else {
             const newSelected = new Set(filteredEnvios.map(e => e.id));
-            setSelectedRows(newSelected); // Seleccionar todo lo visible
+            setSelectedRows(newSelected);
         }
     };
+
+    // --- MANEJADOR DE IMPRESIÓN ---
+    const handlePrint = async () => {
+        if (selectedRows.size === 0) return;
+        
+        setIsPrinting(true);
+        try {
+            const idsToPrint = Array.from(selectedRows);
+            const result = await imprimirEtiquetas(idsToPrint);
+
+            if (result.success && result.pdfBase64) {
+                // Convertir Base64 a Blob y abrir en nueva pestaña
+                const byteCharacters = atob(result.pdfBase64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                
+                window.open(url, '_blank');
+                
+                // Opcional: Limpiar selección después de imprimir
+                // setSelectedRows(new Set());
+            } else {
+                setModalConfig({
+                    title: "Error de Impresión",
+                    description: result.error || "No se pudo generar el PDF.",
+                    type: "error"
+                });
+                setIsModalOpen(true);
+            }
+        } catch (error) {
+            setModalConfig({
+                title: "Error Inesperado",
+                description: "Hubo un problema al intentar imprimir.",
+                type: "error"
+            });
+            setIsModalOpen(true);
+        } finally {
+            setIsPrinting(false);
+        }
+    }
 
     const handleActualizar = async () => {
         setIsUpdating(true);
@@ -194,7 +230,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         return { label: "ESTÁNDAR", className: "text-slate-500" };
     }
 
-    // Contadores para los badges de filtros
     const counts = useMemo(() => {
         return {
             flex: envios.filter(e => e.logisticType === 'self_service').length,
@@ -206,7 +241,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
     return (
         <div className="space-y-4">
-            {/* BARRA SUPERIOR: BUSCADOR Y SINCRONIZAR */}
+            {/* BARRA SUPERIOR */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-2.5 rounded-lg border shadow-sm">
                 <div className="relative w-full sm:max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -219,16 +254,17 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 </div>
                 
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                     {/* BOTÓN IMPRIMIR (Solo visible si hay selección) */}
+                     {/* BOTÓN IMPRIMIR */}
                      {selectedRows.size > 0 && (
                         <Button 
                             variant="outline"
                             size="sm"
+                            disabled={isPrinting}
                             className="w-full sm:w-auto border-slate-300 text-slate-700 hover:bg-slate-50"
-                            onClick={() => console.log("Imprimir IDs:", Array.from(selectedRows))}
+                            onClick={handlePrint}
                         >
-                            <Printer className="mr-2 h-3.5 w-3.5" />
-                            Imprimir ({selectedRows.size})
+                            <Printer className={`mr-2 h-3.5 w-3.5 ${isPrinting ? 'animate-bounce' : ''}`} />
+                            {isPrinting ? 'Generando PDF...' : `Imprimir (${selectedRows.size})`}
                         </Button>
                     )}
 
@@ -251,7 +287,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     <span className="text-xs font-medium text-slate-500">Filtrar por:</span>
                 </div>
                 
-                {/* Grupo Logística */}
                 <div className="flex items-center gap-2 border-r border-slate-200 pr-4 mr-2">
                     <FilterBadge 
                         label="Flex" 
@@ -269,7 +304,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     />
                 </div>
 
-                {/* Grupo Estado */}
                 <div className="flex items-center gap-2">
                     <FilterBadge 
                         label="Imprimir" 
@@ -287,7 +321,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     />
                 </div>
 
-                {/* Reset Filters */}
                 {Object.values(activeFilters).some(Boolean) && (
                     <Button 
                         variant="ghost" 
@@ -300,11 +333,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 )}
             </div>
 
+            {/* TABLA */}
             <div className="rounded-lg border border-slate-200 shadow-sm bg-white overflow-hidden">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-slate-50 hover:bg-slate-50">
-                            {/* Checkbox Header */}
                             <TableHead className="w-[40px] px-3">
                                 <input 
                                     type="checkbox" 
@@ -339,7 +372,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                         key={envio.id} 
                                         className={`group transition-colors border-b last:border-0 ${isSelected ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`}
                                     >
-                                        {/* Checkbox Row */}
                                         <TableCell className="px-3 py-2">
                                             <input 
                                                 type="checkbox" 
@@ -454,7 +486,6 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     )
 }
 
-// Componente auxiliar para los botones de filtro
 function FilterBadge({ label, active, count, onClick, colorClass }: { label: string, active: boolean, count: number, onClick: () => void, colorClass: string }) {
     return (
         <button

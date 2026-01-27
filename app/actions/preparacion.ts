@@ -72,7 +72,7 @@ export async function obtenerFotosEnvio(envioId: string) {
         const fotos = filesSearch.data.files?.map(f => ({
             id: f.id,
             name: f.name,
-            url: `https://docs.google.com/uc?export=view&id=${f.id}`,
+            url: `https://docs.google.com/uc?id=${f.id}&export=download`,
             link: f.webViewLink
         })) || [];
 

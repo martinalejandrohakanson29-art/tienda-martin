@@ -13,11 +13,13 @@ import {
     Loader2,
     X,
     Layers,
-    Barcode 
+    Barcode,
+    AlertTriangle // Agregado para el botón de rechazo
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
     aprobarPedido, 
+    rechazarPedido, // Agregado
     obtenerFotosEnvio 
 } from "@/app/actions/preparacion"
 import { toast } from "sonner"
@@ -105,11 +107,14 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     };
 
+    // LÓGICA DE FILTRADO CORREGIDA: 
+    // Pendientes = Solo los que faltan preparar (sacar foto).
+    // Revisión = Solo los que ya tienen foto y esperan tu OK.
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
                              e.resumen?.toLowerCase().includes(search.toLowerCase())
         if (activeTab === 'pendientes') {
-            return matchesSearch && (e.status === "PENDIENTE" || e.status === "PREPARADO")
+            return matchesSearch && (e.status === "PENDIENTE")
         } else {
             return matchesSearch && e.status === "PREPARADO"
         }
@@ -140,10 +145,24 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         setLoading(envioId)
         const res = await aprobarPedido(envioId)
         if (res.success) {
-            toast.success("Pedido aprobado correctamente")
+            toast.success("Pedido aprobado y auditado")
             setViewingFotos(null)
         } else {
             toast.error("Error al aprobar")
+        }
+        setLoading(null)
+    }
+
+    // NUEVA ACCIÓN: Rechazar pedido
+    const handleReject = async (envioId: string) => {
+        if(!confirm("¿Deseas rechazar este pedido? Se borrará el estado 'Preparado' y volverá a la lista para sacar fotos de nuevo.")) return;
+        setLoading(envioId)
+        const res = await rechazarPedido(envioId)
+        if (res.success) {
+            toast.warning("Pedido rechazado. Volvió a Preparación.")
+            setViewingFotos(null)
+        } else {
+            toast.error("Error al rechazar")
         }
         setLoading(null)
     }
@@ -158,7 +177,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         formData.append('mla', selectedItem.mla)
         try {
             const res = await subirFotoAuditoria(formData)
-            if (res.success) toast.success("Foto guardada")
+            if (res.success) toast.success("Foto guardada. Pedido en revisión.")
         } catch (err) {
             toast.error("Error al subir")
         } finally {
@@ -174,15 +193,15 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     onClick={() => setActiveTab('pendientes')}
                     className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'pendientes' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
                 >
-                    Preparación
+                    1. Preparación
                 </button>
                 <button 
                     onClick={() => setActiveTab('revision')}
                     className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'revision' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}
                 >
-                    Aprobación
+                    2. Auditoría Manual
                     {initialEnvios.filter(e => e.status === 'PREPARADO').length > 0 && (
-                        <span className="bg-emerald-500 text-white text-[10px] px-1.5 rounded-full min-w-[18px]">
+                        <span className="bg-orange-500 text-white text-[10px] px-1.5 rounded-full min-w-[18px]">
                             {initialEnvios.filter(e => e.status === 'PREPARADO').length}
                         </span>
                     )}
@@ -225,22 +244,12 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 <Button 
                                     size="icon"
                                     variant="outline"
-                                    className={`rounded-full h-12 w-12 border-2 ${envio.status === 'PREPARADO' ? 'border-emerald-200 bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-600'}`}
+                                    className={`rounded-full h-12 w-12 border-2 ${envio.status === 'PREPARADO' ? 'border-orange-200 bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-600'}`}
                                     onClick={() => handleTriggerCamera(envio.id, envio.items[0]?.mla)}
                                     disabled={loading === envio.id}
                                 >
                                     {loading === envio.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
                                 </Button>
-                                {envio.status === 'PREPARADO' && (
-                                    <Button 
-                                        size="icon"
-                                        className="rounded-full h-12 w-12 bg-emerald-600 text-white shadow-lg"
-                                        onClick={() => handleApprove(envio.id)}
-                                        disabled={loading === envio.id}
-                                    >
-                                        <CheckCircle className="h-6 w-6" />
-                                    </Button>
-                                )}
                             </div>
                         </div>
                         {envio.status === "PREPARADO" && (
@@ -250,7 +259,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 onClick={() => handleOpenViewer(envio.id)}
                                 disabled={isFetchingFotos}
                             >
-                                {isFetchingFotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Eye className="h-4 w-4" /> REVISAR FOTOS</>}
+                                {isFetchingFotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Eye className="h-4 w-4" /> REVISAR Y AUDITAR</>}
                             </Button>
                         )}
                         <div className="space-y-2 mb-4">
@@ -329,15 +338,32 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         ) : (
                             <div className="text-center text-white/40">
                                 <Eye className="h-10 w-10 mx-auto mb-2 opacity-20" />
-                                <p>No se encontraron fotos</p>
+                                <p>Cargando fotos...</p>
                             </div>
                         )}
                     </div>
-                    <div className="p-6 bg-slate-900 border-t border-white/10 flex gap-3">
-                        <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-95" onClick={() => handleApprove(viewingFotos?.id!)} disabled={loading === viewingFotos?.id}>
-                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR TODO</>}
+                    {/* FOOTER DEL MODAL CON APROBAR Y RECHAZAR */}
+                    <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-3">
+                        <Button 
+                            variant="destructive" 
+                            className="col-span-1 h-14 rounded-2xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all"
+                            onClick={() => handleReject(viewingFotos?.id!)}
+                            disabled={loading === viewingFotos?.id}
+                        >
+                            <AlertTriangle className="h-6 w-6" />
                         </Button>
-                        <Button variant="outline" className="h-14 w-14 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10" onClick={() => setZoom(!zoom)}>
+                        <Button 
+                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-95" 
+                            onClick={() => handleApprove(viewingFotos?.id!)} 
+                            disabled={loading === viewingFotos?.id}
+                        >
+                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR</>}
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            className="col-span-1 h-14 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10" 
+                            onClick={() => setZoom(!zoom)}
+                        >
                             <Search className="h-6 w-6" />
                         </Button>
                     </div>

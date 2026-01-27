@@ -128,42 +128,23 @@ export async function getEtiquetasML() {
 }
 
 /**
- * Obtiene las etiquetas preparadas para el reporte
- * MEJORADO: Ahora busca por actividad de auditoría para mantener el histórico
- * aunque el pedido ya haya sido despachado o entregado.
+ * Obtiene pedidos que tuvieron cualquier cambio de estado en la fecha seleccionada
  */
-export async function getEtiquetasPreparadas(fecha: string) {
+export async function getEtiquetasDespachadas(fecha: string) {
     try {
-        const startOfDay = new Date(fecha); 
-        startOfDay.setUTCHours(3, 0, 0, 0); 
+        const startOfDay = new Date(fecha); startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(fecha); endOfDay.setHours(23, 59, 59, 999);
 
-        const endOfDay = new Date(fecha);
-        endOfDay.setDate(endOfDay.getDate() + 1); 
-        endOfDay.setUTCHours(2, 59, 59, 999); 
-
-        // 1. Identificamos qué pedidos tuvieron actividad de preparación (escaneo) en esa fecha.
-        // Usamos ShipmentAudit como fuente de verdad del trabajo realizado.
-        const auditorias = await prisma.shipmentAudit.findMany({
-            where: {
-                createdAt: { gte: startOfDay, lte: endOfDay }
-            },
-            select: { envioId: true },
-            distinct: ['envioId']
-        });
-
-        const idsPreparados = auditorias.map(a => a.envioId);
-
-        // 2. Traemos las etiquetas correspondientes a esos IDs.
-        // Quitamos el filtro de "status" para que aparezcan pedidos históricos.
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                id: { in: idsPreparados }
+                updatedAt: { gte: startOfDay, lte: endOfDay }
+                // MODIFICACIÓN: Se eliminó el filtro OR de estados específicos.
+                // Ahora busca CUALQUIER etiqueta actualizada en este rango temporal.
             },
             include: { items: true },
             orderBy: { updatedAt: 'desc' }
         });
 
-        // 3. Enriquecimiento de datos (Mantenemos tu lógica original para kits y agregados)
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
             const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
                 const viewResult: any[] = await prisma.$queryRaw`
@@ -182,7 +163,7 @@ export async function getEtiquetasPreparadas(fecha: string) {
 
         return { success: true, data: etiquetasEnriquecidas };
     } catch (error) {
-        console.error("Error al obtener preparados:", error);
+        console.error("Error al obtener despachados:", error);
         return { success: false, data: [] };
     }
 }

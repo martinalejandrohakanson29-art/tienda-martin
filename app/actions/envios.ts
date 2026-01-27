@@ -128,9 +128,10 @@ export async function getEtiquetasML() {
 }
 
 /**
- * Obtiene pedidos que tuvieron cualquier cambio de estado en la fecha seleccionada
+ * RENOMBRADA: getEtiquetasPreparadas (Antes getEtiquetasDespachadas)
+ * Lógica: Busca etiquetas que cambiaron de estado (updatedAt) en el rango temporal.
  */
-export async function getEtiquetasDespachadas(fecha: string) {
+export async function getEtiquetasPreparadas(fecha: string) {
     try {
         const startOfDay = new Date(fecha); startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(fecha); endOfDay.setHours(23, 59, 59, 999);
@@ -138,8 +139,8 @@ export async function getEtiquetasDespachadas(fecha: string) {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 updatedAt: { gte: startOfDay, lte: endOfDay }
-                // MODIFICACIÓN: Se eliminó el filtro OR de estados específicos.
-                // Ahora busca CUALQUIER etiqueta actualizada en este rango temporal.
+                // Se eliminó el filtro de estados específicos para capturar 
+                // cualquier pedido que haya tenido actividad ese día.
             },
             include: { items: true },
             orderBy: { updatedAt: 'desc' }
@@ -163,7 +164,7 @@ export async function getEtiquetasDespachadas(fecha: string) {
 
         return { success: true, data: etiquetasEnriquecidas };
     } catch (error) {
-        console.error("Error al obtener despachados:", error);
+        console.error("Error al obtener preparados:", error);
         return { success: false, data: [] };
     }
 }

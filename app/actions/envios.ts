@@ -129,8 +129,7 @@ export async function getEtiquetasML() {
 
 /**
  * Reporte Diario de Pedidos Preparados
- * Ahora excluye explícitamente pedidos en espera de impresión (ready_to_print) 
- * y usa el huso horario de Argentina para mayor precisión.
+ * Se modificó el filtro para excluir específicamente el substatus 'ready_to_print'.
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
@@ -145,10 +144,11 @@ export async function getEtiquetasPreparadas(fecha: string) {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 updatedAt: { gte: startOfDay, lte: endOfDay },
-                // FILTRO CLAVE: Excluimos pedidos sin procesar y cancelados
-                status: {
-                    notIn: ['ready_to_print', 'cancelled']
-                }
+                // NUEVO FILTRO: Excluimos por substatus y status
+                NOT: [
+                    { substatus: 'ready_to_print' },
+                    { status: 'cancelled' }
+                ]
             },
             include: { items: true },
             orderBy: { updatedAt: 'desc' }

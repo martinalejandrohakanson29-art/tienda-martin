@@ -47,27 +47,34 @@ async function getOrCreateFolder(drive: any, name: string, parentId: string) {
 /**
  * Obtiene las URLs de las miniaturas/fotos de una carpeta de envío
  */
-// En app/actions/preparacion.ts
-
 export async function obtenerFotosEnvio(envioId: string) {
     try {
         const drive = await getDriveClient();
         
-        // ... (código de búsqueda de carpeta igual que antes) ...
+        // RECUPERADO: Buscamos primero la carpeta del envío
+        const folderSearch = await drive.files.list({
+            q: `mimeType='application/vnd.google-apps.folder' and name='${envioId}' and trashed=false`,
+            fields: 'files(id)'
+        });
 
+        if (!folderSearch.data.files || folderSearch.data.files.length === 0) {
+            return { success: true, fotos: [] };
+        }
+
+        const folderId = folderSearch.data.files[0].id;
+
+        // Ahora sí buscamos los archivos DENTRO de esa carpeta (folderId)
         const filesSearch = await drive.files.list({
             q: `'${folderId}' in parents and trashed=false`,
-            // IMPORTANTE: Asegúrate de mantener 'thumbnailLink' aquí
             fields: 'files(id, name, webViewLink, thumbnailLink)',
             orderBy: 'createdTime desc'
         });
 
-        // CORRECCIÓN APLICADA:
+        // CORRECCIÓN APLICADA PARA VISUALIZACIÓN
         const fotos = filesSearch.data.files?.map(f => {
             // Truco: Reemplazamos el parámetro de tamaño (=s220) por =s0 para obtener la imagen full resolución
-            // Si no hay thumbnailLink, usamos webViewLink como fallback (aunque este último suele pedir login)
             const highResUrl = f.thumbnailLink 
-                ? f.thumbnailLink.replace(/=s\d+$/, "=s0") // "=s0" pide el tamaño original
+                ? f.thumbnailLink.replace(/=s\d+$/, "=s0") 
                 : f.webViewLink;
 
             return {

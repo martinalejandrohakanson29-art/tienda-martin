@@ -74,7 +74,7 @@ export async function sendPlanningToN8N(data: any[], shipmentName: string) {
                         const urlFoto = infoML?.imageUrl || null;
 
                         // Si n8n no trae el SKU de vendedor, usamos el que ya teníamos de la planilla
-                        const skuFinal = infoML?.["USER PRODUCT ID"] || itemOri.seller_sku || "S/D";
+                        const skuFinal = itemOri.seller_sku || infoML?.["USER PRODUCT ID"] || "S/D";
 
                         // Unimos los agregados en un solo texto
                         const listaAgregados = [itemOri.agregado1, itemOri.agregado2, itemOri.agregado3, itemOri.agregado4]

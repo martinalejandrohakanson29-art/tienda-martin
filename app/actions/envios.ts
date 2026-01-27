@@ -128,19 +128,27 @@ export async function getEtiquetasML() {
 }
 
 /**
- * RENOMBRADA: getEtiquetasPreparadas (Antes getEtiquetasDespachadas)
- * Lógica: Busca etiquetas que cambiaron de estado (updatedAt) en el rango temporal.
+ * Reporte Diario de Pedidos Preparados
+ * Ahora excluye explícitamente pedidos en espera de impresión (ready_to_print) 
+ * y usa el huso horario de Argentina para mayor precisión.
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
-        const startOfDay = new Date(fecha); startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(fecha); endOfDay.setHours(23, 59, 59, 999);
+        // AJUSTE DE ZONA HORARIA (Argentina UTC-3)
+        const startOfDay = new Date(fecha); 
+        startOfDay.setUTCHours(3, 0, 0, 0); 
+
+        const endOfDay = new Date(fecha);
+        endOfDay.setDate(endOfDay.getDate() + 1); 
+        endOfDay.setUTCHours(2, 59, 59, 999); 
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                updatedAt: { gte: startOfDay, lte: endOfDay }
-                // Se eliminó el filtro de estados específicos para capturar 
-                // cualquier pedido que haya tenido actividad ese día.
+                updatedAt: { gte: startOfDay, lte: endOfDay },
+                // FILTRO CLAVE: Excluimos pedidos sin procesar y cancelados
+                status: {
+                    notIn: ['ready_to_print', 'cancelled']
+                }
             },
             include: { items: true },
             orderBy: { updatedAt: 'desc' }

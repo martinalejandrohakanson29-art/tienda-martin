@@ -14,12 +14,12 @@ import {
     X,
     Layers,
     Barcode,
-    AlertTriangle // Agregado para el botón de rechazo
+    AlertTriangle 
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
     aprobarPedido, 
-    rechazarPedido, // Agregado
+    rechazarPedido, 
     obtenerFotosEnvio 
 } from "@/app/actions/preparacion"
 import { toast } from "sonner"
@@ -37,7 +37,6 @@ import {
     CarouselPrevious,
 } from "@/components/ui/carousel"
 
-// CORRECCIÓN: El nombre del paquete es html5-qrcode
 import { Html5Qrcode } from "html5-qrcode"
 
 const getAgregadoColor = (index: number) => {
@@ -107,9 +106,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     };
 
-    // LÓGICA DE FILTRADO CORREGIDA: 
-    // Pendientes = Solo los que faltan preparar (sacar foto).
-    // Revisión = Solo los que ya tienen foto y esperan tu OK.
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
                              e.resumen?.toLowerCase().includes(search.toLowerCase())
@@ -153,7 +149,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         setLoading(null)
     }
 
-    // NUEVA ACCIÓN: Rechazar pedido
     const handleReject = async (envioId: string) => {
         if(!confirm("¿Deseas rechazar este pedido? Se borrará el estado 'Preparado' y volverá a la lista para sacar fotos de nuevo.")) return;
         setLoading(envioId)
@@ -309,7 +304,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             </Dialog>
 
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] max-w-lg flex flex-col rounded-t-3xl sm:rounded-3xl">
+                {/* CAMBIO: Se aumentó el ancho máximo para PC de max-w-lg a max-w-5xl */}
+                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] max-w-full sm:max-w-5xl flex flex-col rounded-t-3xl sm:rounded-3xl">
                     <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
                         <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
                         <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setViewingFotos(null)}>
@@ -322,8 +318,16 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 <CarouselContent className="h-full">
                                     {viewingFotos.fotos.map((foto: any) => (
                                         <CarouselItem key={foto.id} className="flex items-center justify-center h-full">
-                                            <div className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} onClick={() => setZoom(!zoom)}>
-                                                <img src={foto.url} alt="Auditoría" className="max-h-full max-w-full object-contain select-none shadow-2xl" />
+                                            {/* CAMBIO: Se agregó overflow-auto y se cambió la lógica de zoom para que sea desplazable en PC */}
+                                            <div 
+                                                className={`relative w-full h-full flex items-center justify-center overflow-auto ${zoom ? 'cursor-zoom-out' : 'cursor-zoom-in'}`} 
+                                                onClick={() => setZoom(!zoom)}
+                                            >
+                                                <img 
+                                                    src={foto.url} 
+                                                    alt="Auditoría" 
+                                                    className={`transition-all duration-300 select-none shadow-2xl object-contain ${zoom ? 'min-w-[150%] h-auto' : 'max-h-full max-w-full'}`} 
+                                                />
                                             </div>
                                         </CarouselItem>
                                     ))}
@@ -342,7 +346,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </div>
                         )}
                     </div>
-                    {/* FOOTER DEL MODAL CON APROBAR Y RECHAZAR */}
+                    
                     <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-3">
                         <Button 
                             variant="destructive" 

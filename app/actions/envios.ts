@@ -129,8 +129,10 @@ export async function getEtiquetasML() {
 
 /**
  * Reporte Diario de Pedidos Preparados
- * LÓGICA HIBRIDA: Usa 'fechaPreparado' (dato real de ML) y hace fallback a 'updatedAt'
- * para registros antiguos que no tienen el dato nuevo.
+ * LÓGICA HIBRIDA BLINDADA: 
+ * 1. Usa 'fechaPreparado' (dato real de ML) si existe.
+ * 2. Si no, usa 'updatedAt' como fallback para registros antiguos.
+ * 3. BLOQUEA explícitamente cualquier estado cancelado para que el fallback no traiga basura histórica.
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
@@ -145,15 +147,20 @@ export async function getEtiquetasPreparadas(fecha: string) {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 AND: [
-                    // Excluimos cancelados siempre
-                    { NOT: { status: 'cancelled' } },
+                    // --- FILTRO DE SEGURIDAD REFORZADO ---
+                    // Excluimos explícitamente cualquier variante de cancelado
+                    { 
+                        status: { notIn: ['cancelled', 'canceled', 'CANCELLED'] } 
+                    },
+                    
+                    // --- LÓGICA DE FECHAS (Híbrida) ---
                     {
                         OR: [
-                            // Opción A: Tiene fecha oficial y coincide con el rango
+                            // Opción A (Ideal): Tiene fecha oficial de impresión y coincide con hoy
                             { 
                                 fechaPreparado: { gte: startOfDay, lte: endOfDay } 
                             },
-                            // Opción B (Fallback): NO tiene fecha oficial (es null) y su updatedAt coincide
+                            // Opción B (Fallback): NO tiene fecha oficial (es null) y se movió hoy (updatedAt)
                             { 
                                 fechaPreparado: null,
                                 updatedAt: { gte: startOfDay, lte: endOfDay }
@@ -164,11 +171,12 @@ export async function getEtiquetasPreparadas(fecha: string) {
             },
             include: { items: true },
             orderBy: { 
-                // Usamos updatedAt para ordenar uniformemente registros nuevos y viejos
+                // Usamos updatedAt para mantener un orden cronológico coherente entre registros nuevos y viejos
                 updatedAt: 'desc' 
             }
         });
 
+        // Lógica de enriquecimiento de items (Agregados)
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
             const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
                 const viewResult: any[] = await prisma.$queryRaw`

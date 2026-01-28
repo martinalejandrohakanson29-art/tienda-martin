@@ -26,6 +26,10 @@ export async function POST(req: Request) {
             const rawPayBefore = data.pay_before || data.shipping_option?.estimated_delivery_time?.pay_before;
             const payBefore = rawPayBefore ? new Date(rawPayBefore) : null;
 
+            // DETERMINAR SI EL PEDIDO ESTÁ "PREPARADO"
+            // 'ready_for_pickup' (Colecta) o 'printed' (Flex) indican que el paquete ya está listo
+            const esPreparado = ['ready_for_pickup', 'printed'].includes(data.substatus);
+
             // Procesamiento de itemsDetalle
             let itemsDetalle = data.datos_json || [];
             if (typeof itemsDetalle === 'string') {
@@ -37,6 +41,20 @@ export async function POST(req: Request) {
             }
 
             await prisma.$transaction(async (tx) => {
+                // BUSCAR SI YA EXISTE EL REGISTRO PARA VERIFICAR LA FECHA DE PREPARACIÓN
+                const registroExistente = await tx.etiquetaML.findUnique({
+                    where: { id: shippingId },
+                    select: { fechaPreparado: true }
+                });
+
+                // LÓGICA DE ASIGNACIÓN DE FECHA (SOLO LA PRIMERA VEZ)
+                let nuevaFechaPreparado = registroExistente?.fechaPreparado || null;
+                
+                // Si el pedido está listo y aún no tiene fecha grabada, se le asigna el momento actual
+                if (esPreparado && !nuevaFechaPreparado) {
+                    nuevaFechaPreparado = new Date();
+                }
+
                 await tx.etiquetaML.upsert({
                     where: { id: shippingId },
                     update: {
@@ -44,7 +62,8 @@ export async function POST(req: Request) {
                         substatus: data.substatus,
                         resumen: data.resumen,
                         logisticType: data.logistic_type,
-                        payBefore: payBefore
+                        payBefore: payBefore,
+                        fechaPreparado: nuevaFechaPreparado // Guardamos la fecha inmutable
                     },
                     create: {
                         id: shippingId,
@@ -53,7 +72,8 @@ export async function POST(req: Request) {
                         resumen: data.resumen,
                         status: "PENDIENTE",
                         logisticType: data.logistic_type,
-                        payBefore: payBefore
+                        payBefore: payBefore,
+                        fechaPreparado: nuevaFechaPreparado
                     }
                 });
 

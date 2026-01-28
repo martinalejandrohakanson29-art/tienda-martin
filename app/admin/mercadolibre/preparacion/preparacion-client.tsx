@@ -9,18 +9,17 @@ import {
     CheckCircle2, 
     Package, 
     Eye, 
+    CheckCircle,
     Loader2,
     X,
     Layers,
     Barcode,
-    AlertTriangle,
-    ZoomIn,
-    ZoomOut
+    AlertTriangle // Agregado para el botón de rechazo
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
     aprobarPedido, 
-    rechazarPedido, 
+    rechazarPedido, // Agregado
     obtenerFotosEnvio 
 } from "@/app/actions/preparacion"
 import { toast } from "sonner"
@@ -38,6 +37,7 @@ import {
     CarouselPrevious,
 } from "@/components/ui/carousel"
 
+// CORRECCIÓN: El nombre del paquete es html5-qrcode
 import { Html5Qrcode } from "html5-qrcode"
 
 const getAgregadoColor = (index: number) => {
@@ -107,6 +107,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     };
 
+    // LÓGICA DE FILTRADO CORREGIDA: 
+    // Pendientes = Solo los que faltan preparar (sacar foto).
+    // Revisión = Solo los que ya tienen foto y esperan tu OK.
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
                              e.resumen?.toLowerCase().includes(search.toLowerCase())
@@ -150,6 +153,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         setLoading(null)
     }
 
+    // NUEVA ACCIÓN: Rechazar pedido
     const handleReject = async (envioId: string) => {
         if(!confirm("¿Deseas rechazar este pedido? Se borrará el estado 'Preparado' y volverá a la lista para sacar fotos de nuevo.")) return;
         setLoading(envioId)
@@ -184,7 +188,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     return (
         <div className="space-y-4">
-            {/* TABS Y BUSCADOR */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[72px] z-10 shadow-sm border border-slate-200">
                 <button 
                     onClick={() => setActiveTab('pendientes')}
@@ -283,7 +286,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 ))}
             </div>
 
-            {/* MODAL SCANNER */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
@@ -306,91 +308,65 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </DialogContent>
             </Dialog>
 
-            {/* VISOR INMERSIVO - CORREGIDO PROBLEMA DE TAMAÑO GIGANTE */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                {/* KEY FIX: 'overflow-hidden' en el padre es vital. 
-                   'fixed inset-0 z-50' asegura que tome toda la ventana.
-                */}
-                <DialogContent className="w-screen h-screen max-w-none m-0 p-0 border-none bg-black flex flex-col fixed inset-0 z-50 overflow-hidden outline-none">
-                    
-                    {/* Botones Flotantes Superiores */}
-                    <div className="absolute top-0 left-0 w-full z-50 p-4 flex justify-between items-start pointer-events-none">
-                        <button 
-                            className="pointer-events-auto bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/20 hover:bg-white/20 transition-all"
-                            onClick={() => setZoom(!zoom)}
-                        >
-                            {zoom ? <ZoomOut className="h-6 w-6" /> : <ZoomIn className="h-6 w-6" />}
-                        </button>
-
-                        <button 
-                            className="pointer-events-auto bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/20 hover:bg-white/20 transition-all"
-                            onClick={() => setViewingFotos(null)}
-                        >
-                            <X className="h-6 w-6" />
-                        </button>
-                    </div>
-
-                    {/* Contenedor de Imagen */}
-                    <div className="flex-1 w-full h-full relative bg-black">
+                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] max-w-lg flex flex-col rounded-t-3xl sm:rounded-3xl">
+                    <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
+                        <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
+                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setViewingFotos(null)}>
+                            <X className="h-5 w-5" />
+                        </Button>
+                    </DialogHeader>
+                    <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
                         {viewingFotos?.fotos.length ? (
-                            <Carousel className="w-full h-full">
-                                <CarouselContent className="h-full ml-0">
+                            <Carousel className="w-full h-full flex items-center">
+                                <CarouselContent className="h-full">
                                     {viewingFotos.fotos.map((foto: any) => (
-                                        <CarouselItem key={foto.id} className="h-full w-full pl-0 basis-full relative">
-                                            {/* KEY FIX 2: LÓGICA DE ZOOM vs FIT 
-                                               Cuando NO hay zoom: Usamos 'absolute inset-0'. Esto saca a la imagen del flujo
-                                               y evita que "empuje" el contenedor. La obliga a respetar los bordes de la pantalla.
-                                            */}
-                                            <div className={`w-full h-full ${zoom ? 'overflow-auto flex items-center justify-center' : 'relative overflow-hidden'}`}>
-                                                <img 
-                                                    src={foto.url} 
-                                                    alt="Auditoría" 
-                                                    className={`transition-all duration-300 select-none ${
-                                                        zoom 
-                                                            ? 'max-w-none w-auto h-auto' // Zoom: Tamaño real, permite scroll
-                                                            : 'absolute inset-0 w-full h-full object-contain' // Sin Zoom: Clavada al contenedor
-                                                    }`} 
-                                                    onClick={() => setZoom(!zoom)}
-                                                />
+                                        <CarouselItem key={foto.id} className="flex items-center justify-center h-full">
+                                            <div className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} onClick={() => setZoom(!zoom)}>
+                                                <img src={foto.url} alt="Auditoría" className="max-h-full max-w-full object-contain select-none shadow-2xl" />
                                             </div>
                                         </CarouselItem>
                                     ))}
                                 </CarouselContent>
                                 {viewingFotos.fotos.length > 1 && !zoom && (
                                     <>
-                                        <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/20 border-none text-white h-12 w-12 z-40" />
-                                        <CarouselNext className="right-4 bg-white/10 hover:bg-white/20 border-none text-white h-12 w-12 z-40" />
+                                        <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/20 border-none text-white" />
+                                        <CarouselNext className="right-4 bg-white/10 hover:bg-white/20 border-none text-white" />
                                     </>
                                 )}
                             </Carousel>
                         ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-white/40">
-                                <Loader2 className="h-12 w-12 animate-spin mb-2 opacity-50" />
-                                <p>Cargando foto...</p>
+                            <div className="text-center text-white/40">
+                                <Eye className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                                <p>Cargando fotos...</p>
                             </div>
                         )}
                     </div>
-                    
-                    {/* Botones Flotantes Inferiores */}
-                    <div className="absolute bottom-0 left-0 right-0 z-50 p-6 pt-12 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-center justify-center gap-4">
+                    {/* FOOTER DEL MODAL CON APROBAR Y RECHAZAR */}
+                    <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-3">
                         <Button 
                             variant="destructive" 
-                            className="h-14 w-14 rounded-full bg-red-600/90 hover:bg-red-600 text-white shadow-lg border border-red-400/30 flex items-center justify-center shrink-0"
+                            className="col-span-1 h-14 rounded-2xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all"
                             onClick={() => handleReject(viewingFotos?.id!)}
                             disabled={loading === viewingFotos?.id}
                         >
                             <AlertTriangle className="h-6 w-6" />
                         </Button>
-
                         <Button 
-                            className="flex-1 h-14 rounded-full bg-emerald-600/90 hover:bg-emerald-600 text-white font-bold text-lg shadow-lg border border-emerald-400/30 backdrop-blur-sm max-w-sm" 
+                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-95" 
                             onClick={() => handleApprove(viewingFotos?.id!)} 
                             disabled={loading === viewingFotos?.id}
                         >
                             {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR</>}
                         </Button>
+                        <Button 
+                            variant="outline" 
+                            className="col-span-1 h-14 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10" 
+                            onClick={() => setZoom(!zoom)}
+                        >
+                            <Search className="h-6 w-6" />
+                        </Button>
                     </div>
-
                 </DialogContent>
             </Dialog>
 

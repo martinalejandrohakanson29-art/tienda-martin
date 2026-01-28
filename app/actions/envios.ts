@@ -129,7 +129,8 @@ export async function getEtiquetasML() {
 
 /**
  * Reporte Diario de Pedidos Preparados
- * Utiliza 'fechaPreparado' para asegurar que el reporte sea fiel al día de empaque.
+ * LÓGICA HIBRIDA: Usa 'fechaPreparado' (dato real de ML) y hace fallback a 'updatedAt'
+ * para registros antiguos que no tienen el dato nuevo.
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
@@ -143,15 +144,29 @@ export async function getEtiquetasPreparadas(fecha: string) {
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                // FILTRO CLAVE: Usamos la fecha de preparación manual/automatizada
-                fechaPreparado: { gte: startOfDay, lte: endOfDay },
-                // Excluimos cancelados para mantener limpio el reporte
-                NOT: [
-                    { status: 'cancelled' }
+                AND: [
+                    // Excluimos cancelados siempre
+                    { NOT: { status: 'cancelled' } },
+                    {
+                        OR: [
+                            // Opción A: Tiene fecha oficial y coincide con el rango
+                            { 
+                                fechaPreparado: { gte: startOfDay, lte: endOfDay } 
+                            },
+                            // Opción B (Fallback): NO tiene fecha oficial (es null) y su updatedAt coincide
+                            { 
+                                fechaPreparado: null,
+                                updatedAt: { gte: startOfDay, lte: endOfDay }
+                            }
+                        ]
+                    }
                 ]
             },
             include: { items: true },
-            orderBy: { fechaPreparado: 'desc' }
+            orderBy: { 
+                // Usamos updatedAt para ordenar uniformemente registros nuevos y viejos
+                updatedAt: 'desc' 
+            }
         });
 
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {

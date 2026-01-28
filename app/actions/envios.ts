@@ -143,15 +143,16 @@ export async function getEtiquetasPreparadas(fecha: string) {
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                updatedAt: { gte: startOfDay, lte: endOfDay },
-                // NUEVO FILTRO: Excluimos por substatus y status
+                // CAMBIO CLAVE: Usamos createdAt en lugar de updatedAt
+                createdAt: { gte: startOfDay, lte: endOfDay },
+                // Mantenemos los filtros de estado
                 NOT: [
                     { substatus: 'ready_to_print' },
                     { status: 'cancelled' }
                 ]
             },
             include: { items: true },
-            orderBy: { updatedAt: 'desc' }
+            orderBy: { createdAt: 'desc' } // También ordenamos por creación
         });
 
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {

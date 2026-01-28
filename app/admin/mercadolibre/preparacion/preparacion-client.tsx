@@ -9,12 +9,13 @@ import {
     CheckCircle2, 
     Package, 
     Eye, 
-    CheckCircle,
     Loader2,
     X,
     Layers,
     Barcode,
-    AlertTriangle 
+    AlertTriangle,
+    ZoomIn,
+    ZoomOut
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
@@ -281,6 +282,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 ))}
             </div>
 
+            {/* MODAL ESCANER */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
@@ -303,80 +305,92 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </DialogContent>
             </Dialog>
 
+            {/* MODAL VISOR DE FOTOS - FULL SCREEN REAL */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] w-[95vw] max-w-4xl flex flex-col rounded-2xl">
-                    <DialogHeader className="p-3 bg-slate-900/95 backdrop-blur-sm border-b border-white/10 flex-row justify-between items-center space-y-0 shrink-0">
-                        <DialogTitle className="text-white text-sm font-semibold">Fotos Envío {viewingFotos?.id}</DialogTitle>
-                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 h-8 w-8" onClick={() => setViewingFotos(null)}>
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </DialogHeader>
+                {/* Clases Clave aquí:
+                   w-screen h-screen: Ocupar toda la pantalla del dispositivo.
+                   max-w-none: Quitar límite de ancho (estaba en 4xl).
+                   m-0 p-0: Quitar margenes y paddings.
+                   bg-black: Fondo negro puro.
+                */}
+                <DialogContent className="w-screen h-screen max-w-none m-0 p-0 rounded-none border-none bg-black flex flex-col overflow-hidden relative">
+                    
+                    {/* Botón de cerrar FLOTANTE (arriba derecha) */}
+                    <button 
+                        onClick={() => setViewingFotos(null)}
+                        className="absolute top-4 right-4 z-50 bg-black/50 text-white p-2 rounded-full backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
+                    >
+                        <X className="h-6 w-6" />
+                    </button>
 
-                    <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0">
+                    {/* Botón de Zoom FLOTANTE (arriba izquierda) */}
+                     <button 
+                        onClick={() => setZoom(!zoom)}
+                        className="absolute top-4 left-4 z-50 bg-black/50 text-white p-2 rounded-full backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
+                    >
+                        {zoom ? <ZoomOut className="h-6 w-6" /> : <ZoomIn className="h-6 w-6" />}
+                    </button>
+
+                    {/* Contenedor Principal de la Foto */}
+                    <div className="flex-1 w-full h-full relative">
                         {viewingFotos?.fotos.length ? (
                             <Carousel className="w-full h-full">
                                 <CarouselContent className="h-full ml-0">
                                     {viewingFotos.fotos.map((foto: any) => (
-                                        // FIX 1: Asegurar que el Item del carrusel tome todo el espacio y no se encoja
-                                        <CarouselItem key={foto.id} className="h-full w-full basis-full shrink-0 pl-0 flex items-center justify-center p-0">
-                                            <div 
-                                                // El contenedor centra la imagen
-                                                className={`w-full h-full flex items-center justify-center ${zoom ? 'overflow-auto cursor-zoom-out' : 'cursor-zoom-in'}`} 
-                                                onClick={() => setZoom(!zoom)}
-                                            >
-                                                {/* FIX 2 (CRÍTICO): Usar max-h-full y max-w-full en lugar de h-full w-full.
-                                                    Esto permite que object-contain funcione correctamente sin que el navegador
-                                                    intente forzar dimensiones que rompen el aspecto. */}
+                                        <CarouselItem key={foto.id} className="h-full w-full pl-0 basis-full">
+                                            <div className={`w-full h-full flex items-center justify-center ${zoom ? 'overflow-auto' : 'overflow-hidden'}`}>
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 
-                                                    className={`transition-all duration-300 select-none ${
+                                                    // object-contain: Asegura que se vea la foto ENTERA sin cortar nada.
+                                                    // h-full w-full: Usa todo el espacio disponible.
+                                                    className={`transition-all duration-300 ${
                                                         zoom 
-                                                            ? 'w-auto h-auto max-w-none' 
-                                                            : 'max-h-full max-w-full object-contain'
+                                                            ? 'w-auto h-auto min-w-full' 
+                                                            : 'h-full w-full object-contain'
                                                     }`} 
                                                 />
                                             </div>
                                         </CarouselItem>
                                     ))}
                                 </CarouselContent>
+                                {/* Flechas de navegación (solo si hay más de 1 foto) */}
                                 {viewingFotos.fotos.length > 1 && !zoom && (
                                     <>
-                                        <CarouselPrevious className="left-2 bg-white/10 hover:bg-white/20 border-none text-white h-9 w-9" />
-                                        <CarouselNext className="right-2 bg-white/10 hover:bg-white/20 border-none text-white h-9 w-9" />
+                                        <CarouselPrevious className="left-4 bg-black/30 border-none text-white h-12 w-12 hover:bg-black/50" />
+                                        <CarouselNext className="right-4 bg-black/30 border-none text-white h-12 w-12 hover:bg-black/50" />
                                     </>
                                 )}
                             </Carousel>
                         ) : (
-                            <div className="text-center text-white/40">
-                                <Loader2 className="h-10 w-10 mx-auto mb-2 animate-spin opacity-20" />
-                                <p>Cargando fotos...</p>
+                            <div className="h-full w-full flex flex-col items-center justify-center text-white/40">
+                                <Loader2 className="h-10 w-10 animate-spin mb-2" />
+                                <p>Cargando imagen...</p>
                             </div>
                         )}
                     </div>
                     
-                    <div className="p-3 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-2 shrink-0">
-                        <Button 
+                    {/* Botones Flotantes de Acción (Abajo) */}
+                    <div className="absolute bottom-8 left-0 right-0 z-50 px-6 flex items-center justify-center gap-4">
+                         <Button 
                             variant="destructive" 
-                            className="col-span-1 h-11 rounded-xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all"
+                            className="h-14 w-14 rounded-full shadow-2xl border-2 border-red-500 bg-red-600 hover:bg-red-700 flex items-center justify-center p-0"
                             onClick={() => handleReject(viewingFotos?.id!)}
                             disabled={loading === viewingFotos?.id}
                         >
-                            <AlertTriangle className="h-4 w-4" />
+                            <AlertTriangle className="h-6 w-6 text-white" />
                         </Button>
+
                         <Button 
-                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white h-11 rounded-xl font-bold text-sm shadow-xl transition-all active:scale-95" 
+                            className="flex-1 max-w-xs h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg shadow-2xl border-2 border-emerald-500/50 backdrop-blur-sm" 
                             onClick={() => handleApprove(viewingFotos?.id!)} 
                             disabled={loading === viewingFotos?.id}
                         >
-                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin h-4 w-4" /> : <><CheckCircle2 className="mr-2 h-4 w-4" /> APROBAR</>}
-                        </Button>
-                        <Button 
-                            variant="outline" 
-                            className="col-span-1 h-11 rounded-xl border-white/20 text-white bg-white/5 hover:bg-white/10" 
-                            onClick={() => setZoom(!zoom)}
-                        >
-                            <Search className="h-4 w-4" />
+                            {loading === viewingFotos?.id ? (
+                                <Loader2 className="animate-spin h-6 w-6" />
+                            ) : (
+                                <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR PEDIDO</>
+                            )}
                         </Button>
                     </div>
                 </DialogContent>

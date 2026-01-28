@@ -304,7 +304,11 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             </Dialog>
 
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none max-h-[90vh] w-[95vw] max-w-2xl flex flex-col rounded-2xl">
+                {/* FIX INTELIGENTE DE DIMENSIONES:
+                   1. 'h-[90vh]': Fuerza una altura fija del 90% de la pantalla, evitando el formato "cuadrado".
+                   2. 'max-w-4xl': Permite más ancho si la pantalla es grande.
+                */}
+                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] w-[95vw] max-w-4xl flex flex-col rounded-2xl">
                     <DialogHeader className="p-3 bg-slate-900/95 backdrop-blur-sm border-b border-white/10 flex-row justify-between items-center space-y-0 shrink-0">
                         <DialogTitle className="text-white text-sm font-semibold">Fotos Envío {viewingFotos?.id}</DialogTitle>
                         <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 h-8 w-8" onClick={() => setViewingFotos(null)}>
@@ -317,15 +321,23 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             <Carousel className="w-full h-full">
                                 <CarouselContent className="h-full ml-0">
                                     {viewingFotos.fotos.map((foto: any) => (
-                                        <CarouselItem key={foto.id} className="h-full pl-0 flex items-center justify-center p-4">
+                                        <CarouselItem key={foto.id} className="h-full pl-0 flex items-center justify-center p-0">
                                             <div 
                                                 className={`w-full h-full flex items-center justify-center ${zoom ? 'overflow-auto cursor-zoom-out' : 'cursor-zoom-in'}`} 
                                                 onClick={() => setZoom(!zoom)}
                                             >
+                                                {/* FIX IMAGEN:
+                                                   Si no hay zoom: 'h-full w-full object-contain'. 
+                                                   Esto asegura que se vea la foto entera (alto y ancho) dentro del contenedor negro, sin cortar nada.
+                                                */}
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 
-                                                    className={`transition-all duration-300 select-none ${zoom ? 'w-auto h-auto max-w-none' : 'max-w-full max-h-full object-contain'}`} 
+                                                    className={`transition-all duration-300 select-none ${
+                                                        zoom 
+                                                            ? 'w-auto h-auto max-w-none' 
+                                                            : 'h-full w-full object-contain mx-auto'
+                                                    }`} 
                                                 />
                                             </div>
                                         </CarouselItem>

@@ -304,30 +304,28 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             </Dialog>
 
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                {/* CORRECCIÓN: Contenedor más equilibrado y flexible */}
-                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[85vh] max-w-[95vw] sm:max-w-3xl flex flex-col rounded-t-3xl sm:rounded-3xl">
-                    <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0 shrink-0">
-                        <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
-                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setViewingFotos(null)}>
-                            <X className="h-5 w-5" />
+                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none max-h-[90vh] w-[95vw] max-w-2xl flex flex-col rounded-2xl">
+                    <DialogHeader className="p-3 bg-slate-900/95 backdrop-blur-sm border-b border-white/10 flex-row justify-between items-center space-y-0 shrink-0">
+                        <DialogTitle className="text-white text-sm font-semibold">Fotos Envío {viewingFotos?.id}</DialogTitle>
+                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10 h-8 w-8" onClick={() => setViewingFotos(null)}>
+                            <X className="h-4 w-4" />
                         </Button>
                     </DialogHeader>
 
-                    {/* CORRECCIÓN: Área de imagen optimizada */}
-                    <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center">
+                    <div className="flex-1 relative overflow-hidden bg-black flex items-center justify-center min-h-0">
                         {viewingFotos?.fotos.length ? (
                             <Carousel className="w-full h-full">
                                 <CarouselContent className="h-full ml-0">
                                     {viewingFotos.fotos.map((foto: any) => (
-                                        <CarouselItem key={foto.id} className="h-full pl-0 flex items-center justify-center">
+                                        <CarouselItem key={foto.id} className="h-full pl-0 flex items-center justify-center p-4">
                                             <div 
-                                                className={`w-full h-full flex items-center justify-center overflow-auto p-2 ${zoom ? 'cursor-zoom-out' : 'cursor-zoom-in'}`} 
+                                                className={`w-full h-full flex items-center justify-center ${zoom ? 'overflow-auto cursor-zoom-out' : 'cursor-zoom-in'}`} 
                                                 onClick={() => setZoom(!zoom)}
                                             >
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 
-                                                    className={`transition-all duration-300 select-none shadow-2xl object-contain shrink-0 ${zoom ? 'min-w-[150%] h-auto' : 'max-h-full max-w-full'}`} 
+                                                    className={`transition-all duration-300 select-none ${zoom ? 'w-auto h-auto max-w-none' : 'max-w-full max-h-full object-contain'}`} 
                                                 />
                                             </div>
                                         </CarouselItem>
@@ -335,8 +333,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 </CarouselContent>
                                 {viewingFotos.fotos.length > 1 && !zoom && (
                                     <>
-                                        <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/20 border-none text-white h-10 w-10" />
-                                        <CarouselNext className="right-4 bg-white/10 hover:bg-white/20 border-none text-white h-10 w-10" />
+                                        <CarouselPrevious className="left-2 bg-white/10 hover:bg-white/20 border-none text-white h-9 w-9" />
+                                        <CarouselNext className="right-2 bg-white/10 hover:bg-white/20 border-none text-white h-9 w-9" />
                                     </>
                                 )}
                             </Carousel>
@@ -348,28 +346,28 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         )}
                     </div>
                     
-                    <div className="p-4 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-3 shrink-0">
+                    <div className="p-3 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-2 shrink-0">
                         <Button 
                             variant="destructive" 
-                            className="col-span-1 h-12 rounded-xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all"
+                            className="col-span-1 h-11 rounded-xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all"
                             onClick={() => handleReject(viewingFotos?.id!)}
                             disabled={loading === viewingFotos?.id}
                         >
-                            <AlertTriangle className="h-5 w-5" />
+                            <AlertTriangle className="h-4 w-4" />
                         </Button>
                         <Button 
-                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold text-base shadow-xl transition-all active:scale-95" 
+                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white h-11 rounded-xl font-bold text-sm shadow-xl transition-all active:scale-95" 
                             onClick={() => handleApprove(viewingFotos?.id!)} 
                             disabled={loading === viewingFotos?.id}
                         >
-                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-5 w-5" /> APROBAR</>}
+                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin h-4 w-4" /> : <><CheckCircle2 className="mr-2 h-4 w-4" /> APROBAR</>}
                         </Button>
                         <Button 
                             variant="outline" 
-                            className="col-span-1 h-12 rounded-xl border-white/20 text-white bg-white/5 hover:bg-white/10" 
+                            className="col-span-1 h-11 rounded-xl border-white/20 text-white bg-white/5 hover:bg-white/10" 
                             onClick={() => setZoom(!zoom)}
                         >
-                            <Search className="h-5 w-5" />
+                            <Search className="h-4 w-4" />
                         </Button>
                     </div>
                 </DialogContent>

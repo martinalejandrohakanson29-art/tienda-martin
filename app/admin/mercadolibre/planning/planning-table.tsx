@@ -36,14 +36,14 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
   const [headers, setHeaders] = useState<string[]>(initialHeaders);
   const [body, setBody] = useState<string[][]>(initialBody);
   const [isProcessingWorkflow, setIsProcessingWorkflow] = useState(false);
-  const [expandText, setExpandText] = useState(false);
+  const [expandText, setExpandText] = useState(true); // Lo activamos por defecto para aprovechar el ancho
   const [inputValues, setInputValues] = useState<{ [rowIndex: number]: string }>({});
   const [shipmentId, setShipmentId] = useState("");
   const [sortConfig, setSortConfig] = useState<{ index: number | null; direction: "asc" | "desc" }>({ index: null, direction: "asc" });
   const [summaryData, setSummaryData] = useState<any[] | null>(null);
   const [isPending, startTransition] = useTransition(); 
 
-  // Columnas visibles: A(0), B(1), C(2), D(3), I(8), J(9), K(10), L(11)
+  // Columnas visibles: A(0), B(1), C(2) - Título, D(3), I(8), J(9), K(10), L(11)
   const VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11]; 
 
   const cleanNumber = (value: string) => {
@@ -68,7 +68,7 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
     });
   }, [body]);
 
-  // Función para arrancar el proceso de n8n (El botón azul grande)
+  // Función para arrancar el proceso de n8n
   const handleStartProcess = async () => {
     setIsProcessingWorkflow(true);
     try {
@@ -100,7 +100,6 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
     });
   }, [displayBody, sortConfig]);
 
-  // Función para procesar y guardar en la base de datos (Botón Guardar/Procesar)
   const handleProcess = () => {
     if (!shipmentId.trim()) return alert("⚠️ Ingresa el Número de Envío.");
     if (!confirm(`¿Procesar #${shipmentId} con ${totalQuantity} unidades?`)) return;
@@ -109,16 +108,16 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
       const itemsToSend = displayBody.map((row, index) => {
         const noteQty = cleanNumber(inputValues[index] || "");
         return {
-          sku: row[0],             // MLA
-          seller_sku: row[1],      // SKU Vendedor
-          title: row[2],           // Título
-          colJ: row[9] || "",      // Info extra / Variante
+          sku: row[0],
+          seller_sku: row[1],
+          title: row[2],
+          colJ: row[9] || "",
           quantity_to_send: noteQty,
-          agregado1: row[13] || "", // Columnas de agregados
+          agregado1: row[13] || "",
           agregado2: row[14] || "",
           agregado3: row[15] || "",
           agregado4: row[16] || "",
-          variation_label: row[9] || "" // Tomamos la columna J para la variante
+          variation_label: row[9] || ""
         };
       }).filter(item => item.quantity_to_send > 0);
 
@@ -131,7 +130,6 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
     });
   };
 
-  // --- 1. MODAL DE RESUMEN (Se muestra al terminar de procesar) ---
   if (summaryData) {
     const totalUnitsSummary = summaryData.reduce((sum, item) => sum + item.quantity_to_send, 0);
     return (
@@ -179,7 +177,6 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
     );
   }
 
-  // --- 2. VISTA INICIAL (Si no hay datos cargados) ---
   if (body.length === 0 && !isProcessingWorkflow) {
     return (
       <Card className="flex flex-col items-center justify-center p-20 border-dashed border-2 bg-gray-50/50">
@@ -195,7 +192,6 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
     );
   }
 
-  // --- 3. VISTA DE CARGA (Mientras n8n trabaja) ---
   if (isProcessingWorkflow) {
     return (
       <Card className="flex flex-col items-center justify-center p-20 h-[60vh]">
@@ -216,7 +212,6 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
     );
   }
 
-  // --- 4. VISTA DE LA TABLA PRINCIPAL ---
   return (
     <Card className="h-full flex flex-col shadow-none border-0"> 
       <CardHeader className="flex flex-col gap-2 pb-4 px-0">
@@ -252,8 +247,12 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
                         {headers.map((header, i) => {
                             if (!VISIBLE_INDICES.includes(i)) return null;
                             const displayHeader = i === 11 ? "Sugerido (D-K)" : (header || `Col ${i+1}`);
+                            
+                            // MODIFICACIÓN DE ANCHOS: 500px para Título (i=2), 110px para el resto
+                            const columnWidth = i === 2 ? 500 : 110;
+
                             return (
-                                <th key={i} className="px-4 py-3 border-r border-b relative select-none cursor-pointer hover:bg-gray-200" style={{ width: 150 }} onClick={() => handleSort(i)}>
+                                <th key={i} className="px-4 py-3 border-r border-b relative select-none cursor-pointer hover:bg-gray-200" style={{ width: columnWidth }} onClick={() => handleSort(i)}>
                                     <div className="flex items-center justify-between gap-1">
                                       <span className="truncate font-bold text-xs">{displayHeader}</span>
                                       {sortConfig.index === i && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />)}
@@ -261,14 +260,20 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
                                 </th>
                             );
                         })}
-                        <th className="sticky right-0 top-0 z-30 px-4 py-3 w-[150px] bg-blue-50 border-l border-b border-blue-100 text-blue-800 font-bold text-xs">Cant. a Enviar</th>
+                        <th className="sticky right-0 top-0 z-30 px-4 py-3 w-[110px] bg-blue-50 border-l border-b border-blue-100 text-blue-800 font-bold text-xs">Cant. a Enviar</th>
                     </tr>
                 </thead>
                 <tbody className="divide-y">{sortedRows.map((item) => (
                     <tr key={item.originalIndex} className="hover:bg-blue-50/30 transition-colors">
                         {item.row.map((cell, cellIndex) => {
                             if (!VISIBLE_INDICES.includes(cellIndex)) return null;
-                            return (<td key={cellIndex} className={`px-4 py-2 border-r text-gray-600 ${expandText ? "whitespace-normal break-words" : "whitespace-nowrap truncate"}`}>{cell}</td>);
+                            return (
+                              <td key={cellIndex} 
+                                  className={`px-4 py-2 border-r text-gray-600 ${expandText || cellIndex === 2 ? "whitespace-normal break-words" : "whitespace-nowrap truncate"}`}
+                              >
+                                {cell}
+                              </td>
+                            );
                         })}
                         <td className="sticky right-0 px-2 py-1 border-l bg-blue-50/10 backdrop-blur-sm">
                             <Input placeholder="0" className="h-8 bg-white border-blue-100" value={inputValues[item.originalIndex] || ""} onChange={(e) => setInputValues(prev => ({ ...prev, [item.originalIndex]: e.target.value }))} />

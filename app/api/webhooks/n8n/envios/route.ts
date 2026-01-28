@@ -10,27 +10,22 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        // Convertimos a array si n8n envía un solo objeto o una lista
         const enviosInput = Array.isArray(body) ? body : [body];
 
         for (const data of enviosInput) {
-            // Buscamos el ID del envío (pueden venir como shipping_id o id)
             const shippingId = String(data.shipping_id || data.id);
             
             if (!shippingId || shippingId === 'undefined') {
-                console.warn("Se omitió un registro por falta de shipping_id");
                 continue;
             }
 
-            // Extracción robusta del campo pay_before basada en tu JSON
             const rawPayBefore = data.pay_before || data.shipping_option?.estimated_delivery_time?.pay_before;
             const payBefore = rawPayBefore ? new Date(rawPayBefore) : null;
 
-            // DETERMINAR SI EL PEDIDO ESTÁ "PREPARADO"
-            // 'ready_for_pickup' (Colecta) o 'printed' (Flex) indican que el paquete ya está listo
+            // CAPTURAMOS EL DATO OFICIAL DE MERCADO LIBRE
+            const mlFirstPrinted = data.date_first_printed ? new Date(data.date_first_printed) : null;
             const esPreparado = ['ready_for_pickup', 'printed'].includes(data.substatus);
 
-            // Procesamiento de itemsDetalle
             let itemsDetalle = data.datos_json || [];
             if (typeof itemsDetalle === 'string') {
                 try {
@@ -41,18 +36,19 @@ export async function POST(req: Request) {
             }
 
             await prisma.$transaction(async (tx) => {
-                // BUSCAR SI YA EXISTE EL REGISTRO PARA VERIFICAR LA FECHA DE PREPARACIÓN
                 const registroExistente = await tx.etiquetaML.findUnique({
                     where: { id: shippingId },
                     select: { fechaPreparado: true }
                 });
 
-                // LÓGICA DE ASIGNACIÓN DE FECHA (SOLO LA PRIMERA VEZ)
+                // LÓGICA DE FECHA PERFECCIONADA:
+                // 1. Si ya tiene una fecha grabada, la respetamos (inmutabilidad).
+                // 2. Si no tiene fecha y ML nos manda 'date_first_printed', usamos esa (la más precisa).
+                // 3. Si no tiene fecha, está listo, pero ML no mandó el dato aún, usamos la hora actual como backup.
                 let nuevaFechaPreparado = registroExistente?.fechaPreparado || null;
                 
-                // Si el pedido está listo y aún no tiene fecha grabada, se le asigna el momento actual
-                if (esPreparado && !nuevaFechaPreparado) {
-                    nuevaFechaPreparado = new Date();
+                if (!nuevaFechaPreparado && esPreparado) {
+                    nuevaFechaPreparado = mlFirstPrinted || new Date();
                 }
 
                 await tx.etiquetaML.upsert({
@@ -63,7 +59,7 @@ export async function POST(req: Request) {
                         resumen: data.resumen,
                         logisticType: data.logistic_type,
                         payBefore: payBefore,
-                        fechaPreparado: nuevaFechaPreparado // Guardamos la fecha inmutable
+                        fechaPreparado: nuevaFechaPreparado 
                     },
                     create: {
                         id: shippingId,
@@ -77,10 +73,7 @@ export async function POST(req: Request) {
                     }
                 });
 
-                await tx.etiquetaMLItem.deleteMany({
-                    where: { etiquetaId: shippingId }
-                });
-
+                await tx.etiquetaMLItem.deleteMany({ where: { etiquetaId: shippingId } });
                 const itemOperations = itemsDetalle.map((item: any) => ({
                     etiquetaId: shippingId,
                     mla: String(item.mla),
@@ -88,10 +81,7 @@ export async function POST(req: Request) {
                     quantity: Number(item.cantidad),
                     variation: item.variante && item.variante !== "Sin variante" ? String(item.variante) : null
                 }));
-
-                await tx.etiquetaMLItem.createMany({
-                    data: itemOperations
-                });
+                await tx.etiquetaMLItem.createMany({ data: itemOperations });
             });
         }
 

@@ -129,7 +129,7 @@ export async function getEtiquetasML() {
 
 /**
  * Reporte Diario de Pedidos Preparados
- * Se modificó el filtro para excluir específicamente el substatus 'ready_to_print'.
+ * Utiliza 'fechaPreparado' para asegurar que el reporte sea fiel al día de empaque.
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
@@ -143,16 +143,15 @@ export async function getEtiquetasPreparadas(fecha: string) {
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                // CAMBIO CLAVE: Usamos createdAt en lugar de updatedAt
-                createdAt: { gte: startOfDay, lte: endOfDay },
-                // Mantenemos los filtros de estado
+                // FILTRO CLAVE: Usamos la fecha de preparación manual/automatizada
+                fechaPreparado: { gte: startOfDay, lte: endOfDay },
+                // Excluimos cancelados para mantener limpio el reporte
                 NOT: [
-                    { substatus: 'ready_to_print' },
                     { status: 'cancelled' }
                 ]
             },
             include: { items: true },
-            orderBy: { createdAt: 'desc' } // También ordenamos por creación
+            orderBy: { fechaPreparado: 'desc' }
         });
 
         const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {

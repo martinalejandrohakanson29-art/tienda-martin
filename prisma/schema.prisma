@@ -327,6 +327,7 @@ model EtiquetaML {
   substatus       String?
   resumen         String?
   payBefore       DateTime?      // Fecha límite para despachar (Dato de ML)
+  fechaPreparado  DateTime?
   
   // Auditoría y Control
   auditor         String?

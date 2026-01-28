@@ -24,7 +24,13 @@ export async function POST(req: Request) {
 
             // CAPTURAMOS EL DATO OFICIAL DE MERCADO LIBRE
             const mlFirstPrinted = data.date_first_printed ? new Date(data.date_first_printed) : null;
-            const esPreparado = ['ready_for_pickup', 'printed'].includes(data.substatus);
+            
+            // LÓGICA DE DETECCIÓN MEJORADA:
+            // Es preparado si: viene el substatus de ML, el status general es 'ready_to_ship' o ya tenemos fecha de impresión.
+            const esPreparado = 
+                ['ready_for_pickup', 'printed'].includes(data.substatus) || 
+                data.status === 'ready_to_ship' || 
+                mlFirstPrinted !== null;
 
             let itemsDetalle = data.datos_json || [];
             if (typeof itemsDetalle === 'string') {
@@ -42,20 +48,22 @@ export async function POST(req: Request) {
                 });
 
                 // LÓGICA DE FECHA PERFECCIONADA:
-                // 1. Si ya tiene una fecha grabada, la respetamos (inmutabilidad).
-                // 2. Si no tiene fecha y ML nos manda 'date_first_printed', usamos esa (la más precisa).
-                // 3. Si no tiene fecha, está listo, pero ML no mandó el dato aún, usamos la hora actual como backup.
                 let nuevaFechaPreparado = registroExistente?.fechaPreparado || null;
                 
-                if (!nuevaFechaPreparado && esPreparado) {
-                    nuevaFechaPreparado = mlFirstPrinted || new Date();
+                // 1. Prioridad Máxima: Si ML nos manda la fecha real de impresión, usamos esa.
+                if (mlFirstPrinted) {
+                    nuevaFechaPreparado = mlFirstPrinted;
+                } 
+                // 2. Backup: Si no hay fecha oficial pero el pedido está listo y no teníamos fecha grabada, usamos la hora actual.
+                else if (!nuevaFechaPreparado && esPreparado) {
+                    nuevaFechaPreparado = new Date();
                 }
 
                 await tx.etiquetaML.upsert({
                     where: { id: shippingId },
                     update: {
                         orderId: String(data.order_id),
-                        substatus: data.substatus,
+                        substatus: data.substatus || null, // Evitamos errores si no viene
                         resumen: data.resumen,
                         logisticType: data.logistic_type,
                         payBefore: payBefore,
@@ -64,7 +72,7 @@ export async function POST(req: Request) {
                     create: {
                         id: shippingId,
                         orderId: String(data.order_id),
-                        substatus: data.substatus,
+                        substatus: data.substatus || null,
                         resumen: data.resumen,
                         status: "PENDIENTE",
                         logisticType: data.logistic_type,

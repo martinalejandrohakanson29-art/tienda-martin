@@ -184,7 +184,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     return (
         <div className="space-y-4">
-            {/* TABS Y BUSCADOR (Igual que antes) */}
+            {/* TABS Y BUSCADOR */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[72px] z-10 shadow-sm border border-slate-200">
                 <button 
                     onClick={() => setActiveTab('pendientes')}
@@ -306,45 +306,49 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </DialogContent>
             </Dialog>
 
-            {/* --- AQUÍ ESTÁ EL CAMBIO CLAVE: VISOR INMERSIVO --- */}
+            {/* VISOR INMERSIVO - CORREGIDO PROBLEMA DE TAMAÑO GIGANTE */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                <DialogContent className="w-screen h-screen max-w-none m-0 p-0 border-none bg-black flex flex-col relative overflow-hidden">
+                {/* KEY FIX: 'overflow-hidden' en el padre es vital. 
+                   'fixed inset-0 z-50' asegura que tome toda la ventana.
+                */}
+                <DialogContent className="w-screen h-screen max-w-none m-0 p-0 border-none bg-black flex flex-col fixed inset-0 z-50 overflow-hidden outline-none">
                     
-                    {/* Botón Cerrar (Flotante arriba derecha) */}
-                    <button 
-                        className="absolute top-4 right-4 z-50 bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/20 hover:bg-white/20 transition-all"
-                        onClick={() => setViewingFotos(null)}
-                    >
-                        <X className="h-6 w-6" />
-                    </button>
+                    {/* Botones Flotantes Superiores */}
+                    <div className="absolute top-0 left-0 w-full z-50 p-4 flex justify-between items-start pointer-events-none">
+                        <button 
+                            className="pointer-events-auto bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/20 hover:bg-white/20 transition-all"
+                            onClick={() => setZoom(!zoom)}
+                        >
+                            {zoom ? <ZoomOut className="h-6 w-6" /> : <ZoomIn className="h-6 w-6" />}
+                        </button>
 
-                    {/* Botón Zoom (Flotante arriba izquierda) */}
-                    <button 
-                        className="absolute top-4 left-4 z-50 bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/20 hover:bg-white/20 transition-all"
-                        onClick={() => setZoom(!zoom)}
-                    >
-                        {zoom ? <ZoomOut className="h-6 w-6" /> : <ZoomIn className="h-6 w-6" />}
-                    </button>
+                        <button 
+                            className="pointer-events-auto bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/20 hover:bg-white/20 transition-all"
+                            onClick={() => setViewingFotos(null)}
+                        >
+                            <X className="h-6 w-6" />
+                        </button>
+                    </div>
 
-                    {/* Contenedor de Imagen (Ocupa todo el espacio detrás) */}
-                    <div className="flex-1 w-full h-full relative flex items-center justify-center bg-black">
+                    {/* Contenedor de Imagen */}
+                    <div className="flex-1 w-full h-full relative bg-black">
                         {viewingFotos?.fotos.length ? (
                             <Carousel className="w-full h-full">
                                 <CarouselContent className="h-full ml-0">
                                     {viewingFotos.fotos.map((foto: any) => (
-                                        <CarouselItem key={foto.id} className="h-full w-full pl-0 basis-full">
-                                            {/* Lógica de Zoom:
-                                                - Sin Zoom: h-full w-full object-contain (Se ve la foto ENTERA sin cortes)
-                                                - Con Zoom: w-auto h-auto (Se ve en tamaño real y scrolleas)
+                                        <CarouselItem key={foto.id} className="h-full w-full pl-0 basis-full relative">
+                                            {/* KEY FIX 2: LÓGICA DE ZOOM vs FIT 
+                                               Cuando NO hay zoom: Usamos 'absolute inset-0'. Esto saca a la imagen del flujo
+                                               y evita que "empuje" el contenedor. La obliga a respetar los bordes de la pantalla.
                                             */}
-                                            <div className={`w-full h-full flex items-center justify-center ${zoom ? 'overflow-auto' : 'overflow-hidden'}`}>
+                                            <div className={`w-full h-full ${zoom ? 'overflow-auto flex items-center justify-center' : 'relative overflow-hidden'}`}>
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 
                                                     className={`transition-all duration-300 select-none ${
                                                         zoom 
-                                                            ? 'min-w-full min-h-full w-auto h-auto object-cover cursor-zoom-out' 
-                                                            : 'w-full h-full object-contain cursor-zoom-in'
+                                                            ? 'max-w-none w-auto h-auto' // Zoom: Tamaño real, permite scroll
+                                                            : 'absolute inset-0 w-full h-full object-contain' // Sin Zoom: Clavada al contenedor
                                                     }`} 
                                                     onClick={() => setZoom(!zoom)}
                                                 />
@@ -354,23 +358,21 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 </CarouselContent>
                                 {viewingFotos.fotos.length > 1 && !zoom && (
                                     <>
-                                        <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/20 border-none text-white h-12 w-12" />
-                                        <CarouselNext className="right-4 bg-white/10 hover:bg-white/20 border-none text-white h-12 w-12" />
+                                        <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/20 border-none text-white h-12 w-12 z-40" />
+                                        <CarouselNext className="right-4 bg-white/10 hover:bg-white/20 border-none text-white h-12 w-12 z-40" />
                                     </>
                                 )}
                             </Carousel>
                         ) : (
-                            <div className="text-center text-white/40">
-                                <Loader2 className="h-12 w-12 mx-auto mb-2 animate-spin opacity-50" />
+                            <div className="w-full h-full flex flex-col items-center justify-center text-white/40">
+                                <Loader2 className="h-12 w-12 animate-spin mb-2 opacity-50" />
                                 <p>Cargando foto...</p>
                             </div>
                         )}
                     </div>
                     
-                    {/* BOTONES FLOTANTES (Overlay)
-                        Están en absolute bottom-0 para flotar sobre la imagen sin empujarla
-                    */}
-                    <div className="absolute bottom-0 left-0 right-0 z-40 p-6 pt-12 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-center justify-center gap-4">
+                    {/* Botones Flotantes Inferiores */}
+                    <div className="absolute bottom-0 left-0 right-0 z-50 p-6 pt-12 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-center justify-center gap-4">
                         <Button 
                             variant="destructive" 
                             className="h-14 w-14 rounded-full bg-red-600/90 hover:bg-red-600 text-white shadow-lg border border-red-400/30 flex items-center justify-center shrink-0"

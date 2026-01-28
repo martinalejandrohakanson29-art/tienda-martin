@@ -184,6 +184,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     return (
         <div className="space-y-4">
+            {/* TABS Y BUSCADOR (Igual que antes) */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[72px] z-10 shadow-sm border border-slate-200">
                 <button 
                     onClick={() => setActiveTab('pendientes')}
@@ -282,7 +283,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 ))}
             </div>
 
-            {/* MODAL ESCANER */}
+            {/* MODAL SCANNER */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
@@ -305,94 +306,89 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL VISOR DE FOTOS - FULL SCREEN REAL */}
+            {/* --- AQUÍ ESTÁ EL CAMBIO CLAVE: VISOR INMERSIVO --- */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                {/* Clases Clave aquí:
-                   w-screen h-screen: Ocupar toda la pantalla del dispositivo.
-                   max-w-none: Quitar límite de ancho (estaba en 4xl).
-                   m-0 p-0: Quitar margenes y paddings.
-                   bg-black: Fondo negro puro.
-                */}
-                <DialogContent className="w-screen h-screen max-w-none m-0 p-0 rounded-none border-none bg-black flex flex-col overflow-hidden relative">
+                <DialogContent className="w-screen h-screen max-w-none m-0 p-0 border-none bg-black flex flex-col relative overflow-hidden">
                     
-                    {/* Botón de cerrar FLOTANTE (arriba derecha) */}
+                    {/* Botón Cerrar (Flotante arriba derecha) */}
                     <button 
+                        className="absolute top-4 right-4 z-50 bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/20 hover:bg-white/20 transition-all"
                         onClick={() => setViewingFotos(null)}
-                        className="absolute top-4 right-4 z-50 bg-black/50 text-white p-2 rounded-full backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
                     >
                         <X className="h-6 w-6" />
                     </button>
 
-                    {/* Botón de Zoom FLOTANTE (arriba izquierda) */}
-                     <button 
+                    {/* Botón Zoom (Flotante arriba izquierda) */}
+                    <button 
+                        className="absolute top-4 left-4 z-50 bg-black/40 backdrop-blur-md text-white p-2 rounded-full border border-white/20 hover:bg-white/20 transition-all"
                         onClick={() => setZoom(!zoom)}
-                        className="absolute top-4 left-4 z-50 bg-black/50 text-white p-2 rounded-full backdrop-blur-md border border-white/20 hover:bg-white/20 transition-all"
                     >
                         {zoom ? <ZoomOut className="h-6 w-6" /> : <ZoomIn className="h-6 w-6" />}
                     </button>
 
-                    {/* Contenedor Principal de la Foto */}
-                    <div className="flex-1 w-full h-full relative">
+                    {/* Contenedor de Imagen (Ocupa todo el espacio detrás) */}
+                    <div className="flex-1 w-full h-full relative flex items-center justify-center bg-black">
                         {viewingFotos?.fotos.length ? (
                             <Carousel className="w-full h-full">
                                 <CarouselContent className="h-full ml-0">
                                     {viewingFotos.fotos.map((foto: any) => (
                                         <CarouselItem key={foto.id} className="h-full w-full pl-0 basis-full">
+                                            {/* Lógica de Zoom:
+                                                - Sin Zoom: h-full w-full object-contain (Se ve la foto ENTERA sin cortes)
+                                                - Con Zoom: w-auto h-auto (Se ve en tamaño real y scrolleas)
+                                            */}
                                             <div className={`w-full h-full flex items-center justify-center ${zoom ? 'overflow-auto' : 'overflow-hidden'}`}>
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 
-                                                    // object-contain: Asegura que se vea la foto ENTERA sin cortar nada.
-                                                    // h-full w-full: Usa todo el espacio disponible.
-                                                    className={`transition-all duration-300 ${
+                                                    className={`transition-all duration-300 select-none ${
                                                         zoom 
-                                                            ? 'w-auto h-auto min-w-full' 
-                                                            : 'h-full w-full object-contain'
+                                                            ? 'min-w-full min-h-full w-auto h-auto object-cover cursor-zoom-out' 
+                                                            : 'w-full h-full object-contain cursor-zoom-in'
                                                     }`} 
+                                                    onClick={() => setZoom(!zoom)}
                                                 />
                                             </div>
                                         </CarouselItem>
                                     ))}
                                 </CarouselContent>
-                                {/* Flechas de navegación (solo si hay más de 1 foto) */}
                                 {viewingFotos.fotos.length > 1 && !zoom && (
                                     <>
-                                        <CarouselPrevious className="left-4 bg-black/30 border-none text-white h-12 w-12 hover:bg-black/50" />
-                                        <CarouselNext className="right-4 bg-black/30 border-none text-white h-12 w-12 hover:bg-black/50" />
+                                        <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/20 border-none text-white h-12 w-12" />
+                                        <CarouselNext className="right-4 bg-white/10 hover:bg-white/20 border-none text-white h-12 w-12" />
                                     </>
                                 )}
                             </Carousel>
                         ) : (
-                            <div className="h-full w-full flex flex-col items-center justify-center text-white/40">
-                                <Loader2 className="h-10 w-10 animate-spin mb-2" />
-                                <p>Cargando imagen...</p>
+                            <div className="text-center text-white/40">
+                                <Loader2 className="h-12 w-12 mx-auto mb-2 animate-spin opacity-50" />
+                                <p>Cargando foto...</p>
                             </div>
                         )}
                     </div>
                     
-                    {/* Botones Flotantes de Acción (Abajo) */}
-                    <div className="absolute bottom-8 left-0 right-0 z-50 px-6 flex items-center justify-center gap-4">
-                         <Button 
+                    {/* BOTONES FLOTANTES (Overlay)
+                        Están en absolute bottom-0 para flotar sobre la imagen sin empujarla
+                    */}
+                    <div className="absolute bottom-0 left-0 right-0 z-40 p-6 pt-12 bg-gradient-to-t from-black/90 via-black/50 to-transparent flex items-center justify-center gap-4">
+                        <Button 
                             variant="destructive" 
-                            className="h-14 w-14 rounded-full shadow-2xl border-2 border-red-500 bg-red-600 hover:bg-red-700 flex items-center justify-center p-0"
+                            className="h-14 w-14 rounded-full bg-red-600/90 hover:bg-red-600 text-white shadow-lg border border-red-400/30 flex items-center justify-center shrink-0"
                             onClick={() => handleReject(viewingFotos?.id!)}
                             disabled={loading === viewingFotos?.id}
                         >
-                            <AlertTriangle className="h-6 w-6 text-white" />
+                            <AlertTriangle className="h-6 w-6" />
                         </Button>
 
                         <Button 
-                            className="flex-1 max-w-xs h-14 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-lg shadow-2xl border-2 border-emerald-500/50 backdrop-blur-sm" 
+                            className="flex-1 h-14 rounded-full bg-emerald-600/90 hover:bg-emerald-600 text-white font-bold text-lg shadow-lg border border-emerald-400/30 backdrop-blur-sm max-w-sm" 
                             onClick={() => handleApprove(viewingFotos?.id!)} 
                             disabled={loading === viewingFotos?.id}
                         >
-                            {loading === viewingFotos?.id ? (
-                                <Loader2 className="animate-spin h-6 w-6" />
-                            ) : (
-                                <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR PEDIDO</>
-                            )}
+                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR</>}
                         </Button>
                     </div>
+
                 </DialogContent>
             </Dialog>
 

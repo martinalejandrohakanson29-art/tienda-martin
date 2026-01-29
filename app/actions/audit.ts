@@ -1,82 +1,82 @@
+// app/actions/audit.ts
 "use server"
 
-import { google } from "googleapis"
 import { prisma } from "@/lib/prisma"
+import { s3Client } from "@/lib/s3"
+import { ListObjectsV2Command } from "@aws-sdk/client-s3"
 
-const DRIVE_PARENT_FOLDER_ID = '1v-E638QF0AaPr7zywfH2luZvnHXtJujp' 
+const BUCKET_NAME = process.env.S3_BUCKET_NAME;
+const BUCKET_URL = "https://storage.railway.app";
 
-const getDriveClient = () => {
-    const oAuth2Client = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        "https://developers.google.com/oauthplayground"
-    )
-    oAuth2Client.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN })
-    return google.drive({ version: 'v3', auth: oAuth2Client })
-}
-
-const getPublicThumbnailLink = (fileId: string) => {
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
-}
-
+/**
+ * Obtiene la lista de "carpetas" (envíos) desde el Bucket
+ */
 export async function getShipmentFolders() {
     try {
-        const drive = getDriveClient()
-        const res = await drive.files.list({
-            q: `'${DRIVE_PARENT_FOLDER_ID}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-            fields: 'files(id, name, createdTime)',
-            orderBy: 'createdTime desc',
-            pageSize: 20
-        })
+        // Listamos los objetos con prefijo auditoria/ y usamos '/' como delimitador 
+        // para obtener los nombres de los envíos como "carpetas"
+        const command = new ListObjectsV2Command({
+            Bucket: BUCKET_NAME,
+            Prefix: 'auditoria/',
+            Delimiter: '/'
+        });
 
-        const folders = res.data.files || []
+        const response = await s3Client.send(command);
+        
+        // Los CommonPrefixes son nuestras "carpetas" de envío (ej: auditoria/ENVIO123/)
+        const prefixes = response.CommonPrefixes || [];
 
-        const folderStats = await Promise.all(folders.map(async (folder) => {
-            const folderName = folder.name || "Desconocido"
+        const folderStats = await Promise.all(prefixes.map(async (p) => {
+            const fullPath = p.Prefix || "";
+            // Extraemos solo el ID del envío: "auditoria/123/" -> "123"
+            const folderName = fullPath.split('/')[1];
+
             const audits = await prisma.shipmentAudit.findMany({
                 where: { envioId: folderName },
                 select: { status: true }
-            })
+            });
 
-            const mlaCountRes = await drive.files.list({
-                q: `'${folder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-                fields: 'files(id)'
-            })
-            const realTotal = mlaCountRes.data.files?.length || 0
+            // Contamos cuántos productos únicos hay en esa carpeta del bucket
+            const itemsCommand = new ListObjectsV2Command({
+                Bucket: BUCKET_NAME,
+                Prefix: fullPath
+            });
+            const itemsRes = await s3Client.send(itemsCommand);
+            
+            // Agrupamos por el ID del item (MLA) que está antes del guion bajo en el nombre
+            const uniqueItems = new Set();
+            itemsRes.Contents?.forEach(obj => {
+                const fileName = obj.Key?.split('/').pop() || "";
+                const itemId = fileName.split('_')[0];
+                if (itemId) uniqueItems.add(itemId);
+            });
 
             return {
-                id: folder.id,
-                name: folder.name,
-                createdTime: folder.createdTime,
+                id: folderName,
+                name: folderName,
                 stats: {
-                    total: realTotal,
+                    total: uniqueItems.size,
                     aprobados: audits.filter(a => a.status === 'APROBADO').length,
                     rechazados: audits.filter(a => a.status === 'RECHAZADO').length,
                 }
-            }
-        }))
+            };
+        }));
 
-        return { success: true, folders: folderStats }
+        return { success: true, folders: folderStats };
     } catch (error: any) {
-        console.error("Error folders:", error)
-        return { success: false, error: error.message }
+        console.error("Error folders (Bucket):", error);
+        return { success: false, error: error.message };
     }
 }
 
-export async function getAuditPendingItems(selectedEnvioName?: string) {
+/**
+ * Obtiene los items y sus fotos del Bucket para un envío específico
+ */
+export async function getAuditPendingItems(envioId: string) {
     try {
-        const drive = getDriveClient()
-        let envioId = selectedEnvioName || ""
-
-        // 1. Buscar la carpeta del envío
-        const query = `'${DRIVE_PARENT_FOLDER_ID}' in parents and name = '${envioId}' and trashed=false`
-        const envioFolderRes = await drive.files.list({ q: query, fields: 'files(id, name)', pageSize: 1 })
-
-        if (!envioFolderRes.data.files?.length) return { success: false, error: "No se encontró la carpeta" }
-
-        const envioFolderId = envioFolderRes.data.files[0].id!
-
-        // 2. Traer datos de la DB y Auditorías en paralelo (Optimización de DB)
+        const prefix = `auditoria/${envioId}/`;
+        
+        // 1. Traer datos de la DB
         const [dbShipment, auditedItems] = await Promise.all([
             prisma.shipment.findUnique({
                 where: { name: envioId },
@@ -86,67 +86,59 @@ export async function getAuditPendingItems(selectedEnvioName?: string) {
                 where: { envioId: envioId },
                 select: { itemId: true, status: true }
             })
-        ])
+        ]);
 
-        const dbItemsMap = new Map()
-        dbShipment?.items.forEach(item => {
-            dbItemsMap.set(item.itemId, item)
-        })
+        const dbItemsMap = new Map();
+        dbShipment?.items.forEach(item => dbItemsMap.set(item.itemId, item));
 
-        const statusMap = new Map<string, string>()
-        auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status))
+        const statusMap = new Map();
+        auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status));
 
-        // 3. Listar subcarpetas (MLAs)
-        const mlaFoldersRes = await drive.files.list({
-            q: `'${envioFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-            fields: 'files(id, name)',
-            pageSize: 500
-        })
+        // 2. Listar todos los archivos en esa carpeta del bucket
+        const command = new ListObjectsV2Command({
+            Bucket: BUCKET_NAME,
+            Prefix: prefix
+        });
+        const s3Res = await s3Client.send(command);
+        const files = s3Res.Contents || [];
 
-        const mlaFolders = mlaFoldersRes.data.files || []
-
-        // 👇 LA MAGIA ESTÁ AQUÍ: Usamos Promise.all para disparar todas las búsquedas de fotos a la vez
-        const allItems = await Promise.all(mlaFolders.map(async (f) => {
-            const mlaId = (f.name || "").split(' ')[0].trim()
-            
-            // Buscamos imágenes dentro de esta carpeta específica
-            const imgs = await drive.files.list({ 
-                q: `'${f.id}' in parents and mimeType contains 'image/' and trashed=false`, 
-                fields: 'files(id)' 
-            })
-            
-            if (imgs.data.files && imgs.data.files.length > 0) {
-                const evidence = imgs.data.files.map(img => getPublicThumbnailLink(img.id!))
-                const dbInfo = dbItemsMap.get(mlaId)
-                
-                return {
-                    itemId: mlaId,
-                    driveName: f.name || "Sin nombre", 
-                    title: dbInfo?.title || f.name || "Sin nombre",
-                    sku: dbInfo?.sku || "Sin SKU",
-                    quantity: dbInfo?.quantity || 0,
-                    // 👇 Recuperamos los AGREGADOS que guardamos en la planificación
-                    agregados: dbInfo?.agregados ? dbInfo.agregados.split(", ") : [],
-                    referenceImageUrl: null,
-                    evidenceImageUrl: evidence[0],
-                    evidenceImages: evidence,
-                    status: (statusMap.get(mlaId) || 'PENDIENTE') as 'PENDIENTE' | 'APROBADO' | 'RECHAZADO',
-                    envioId: envioId
-                }
+        // 3. Agrupar fotos por ItemId (MLA)
+        const itemsGrouped = new Map<string, string[]>();
+        files.forEach(file => {
+            const fileName = file.Key?.split('/').pop() || "";
+            const itemId = fileName.split('_')[0];
+            if (itemId) {
+                const url = `${BUCKET_URL}/${BUCKET_NAME}/${file.Key}`;
+                const existing = itemsGrouped.get(itemId) || [];
+                itemsGrouped.set(itemId, [...existing, url]);
             }
-            return null // Si no tiene fotos, retornamos null
-        }))
+        });
 
-        // Filtramos los nulos (carpetas sin fotos) y retornamos
-        return { 
-            success: true, 
-            data: allItems.filter(item => item !== null), 
-            envioId 
-        }
+        // 4. Formatear para la UI
+        const allItems = Array.from(itemsGrouped.keys()).map(itemId => {
+            const evidence = itemsGrouped.get(itemId) || [];
+            const dbInfo = dbItemsMap.get(itemId);
+            
+            return {
+                itemId: itemId,
+                driveName: itemId, 
+                title: dbInfo?.title || "Producto " + itemId,
+                sku: dbInfo?.sku || "Sin SKU",
+                quantity: dbInfo?.quantity || 0,
+                agregados: dbInfo?.agregados ? dbInfo.agregados.split(", ") : [],
+                referenceImageUrl: dbInfo?.imageUrl || null,
+                evidenceImageUrl: evidence[0],
+                evidenceImages: evidence,
+                status: (statusMap.get(itemId) || 'PENDIENTE'),
+                envioId: envioId
+            };
+        });
+
+        return { success: true, data: allItems, envioId };
 
     } catch (error: any) {
-        console.error("Error items:", error)
-        return { success: false, error: error.message }
+        console.error("Error items (Bucket):", error);
+        return { success: false, error: error.message };
     }
 }
 
@@ -156,9 +148,9 @@ export async function auditItem(itemId: string, status: string, envioId: string)
             where: { itemId_envioId: { itemId, envioId } },
             update: { status },
             create: { itemId, envioId, status, auditor: "Admin" }
-        })
-        return { success: true }
+        });
+        return { success: true };
     } catch (error: any) {
-        return { success: false, error: error.message }
+        return { success: false, error: error.message };
     }
 }

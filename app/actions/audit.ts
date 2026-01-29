@@ -21,10 +21,10 @@ export async function getShipmentFolders() {
 
         const folderStats = await Promise.all(prefixes.map(async (p) => {
             const fullPath = p.Prefix || "";
-            // Extrae el ID del envío (ej: cmkyf32pr0002ohyje87i2e6l)
-            const folderId = fullPath.split('/').filter(Boolean).pop() || "Desconocido";
+            // Extraemos el ID limpio (quitamos 'auditoria/' y las barras)
+            const folderId = fullPath.replace('auditoria/', '').replace(/\//g, '');
 
-            // Buscamos el nombre real del envío en la DB para que la UI se vea bien
+            // MATCH 1: Buscar el envío real por ID en la DB
             const shipmentDb = await prisma.shipment.findUnique({
                 where: { id: folderId },
                 select: { name: true }
@@ -50,7 +50,7 @@ export async function getShipmentFolders() {
 
             return {
                 id: folderId,
-                name: shipmentDb?.name || folderId, // Mostramos el nombre (ej: "Envío 28-01") si existe
+                name: shipmentDb?.name || `ID: ${folderId.substring(0, 8)}...`, 
                 stats: {
                     total: uniqueItems.size,
                     aprobados: audits.filter(a => a.status === 'APROBADO').length,
@@ -70,10 +70,10 @@ export async function getAuditPendingItems(envioId: string) {
     try {
         const prefix = `auditoria/${envioId}/`;
         
-        // --- CORRECCIÓN CLAVE: Buscamos por ID, no por Name ---
+        // MATCH 2: Traer los items reales de ese envío desde la DB
         const [dbShipment, auditedItems] = await Promise.all([
             prisma.shipment.findUnique({
-                where: { id: envioId }, // Usamos el ID que viene de la carpeta
+                where: { id: envioId }, 
                 include: { items: true }
             }),
             prisma.shipmentAudit.findMany({
@@ -82,8 +82,11 @@ export async function getAuditPendingItems(envioId: string) {
             })
         ]);
 
+        // Creamos un mapa de Items para un acceso rápido por itemId (MLA)
         const dbItemsMap = new Map();
-        dbShipment?.items.forEach(item => dbItemsMap.set(item.itemId, item));
+        dbShipment?.items.forEach(item => {
+            dbItemsMap.set(item.itemId, item);
+        });
 
         const statusMap = new Map();
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status));
@@ -98,9 +101,9 @@ export async function getAuditPendingItems(envioId: string) {
         const itemsGrouped = new Map<string, string[]>();
         files.forEach(file => {
             const fileName = file.Key?.split('/').pop() || "";
-            const itemId = fileName.split('_')[0];
+            const itemId = fileName.split('_')[0]; // Saca el MLA (ej: MLA1133188751)
             if (itemId) {
-                // Generamos la URL pública
+                // Generamos la URL pública directa
                 const url = `${BUCKET_URL}/${BUCKET_NAME}/${file.Key}`;
                 const existing = itemsGrouped.get(itemId) || [];
                 itemsGrouped.set(itemId, [...existing, url]);
@@ -109,13 +112,14 @@ export async function getAuditPendingItems(envioId: string) {
 
         const allItems = Array.from(itemsGrouped.keys()).map(itemId => {
             const evidence = itemsGrouped.get(itemId) || [];
+            // Buscamos los datos en el mapa que creamos de la DB
             const dbInfo = dbItemsMap.get(itemId);
             
             return {
                 itemId: itemId,
                 driveName: itemId, 
-                title: dbInfo?.title || "Producto " + itemId,
-                sku: dbInfo?.sku || "Sin SKU", // Ahora sí debería traer el SKU real
+                title: dbInfo?.title || "No encontrado en DB",
+                sku: dbInfo?.sku || "S/D",
                 quantity: dbInfo?.quantity || 0,
                 agregados: dbInfo?.agregados ? dbInfo.agregados.split(", ") : [],
                 referenceImageUrl: dbInfo?.imageUrl || null,

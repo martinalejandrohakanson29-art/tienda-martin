@@ -8,12 +8,8 @@ import { ListObjectsV2Command } from "@aws-sdk/client-s3"
 const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 const BUCKET_URL = "https://storage.railway.app";
 
-/**
- * Obtiene la lista de envíos (carpetas virtuales) desde el Bucket
- */
 export async function getShipmentFolders() {
     try {
-        // Listamos los prefijos dentro de auditoria/ para identificar los envíos
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
             Prefix: 'auditoria/',
@@ -25,16 +21,20 @@ export async function getShipmentFolders() {
 
         const folderStats = await Promise.all(prefixes.map(async (p) => {
             const fullPath = p.Prefix || "";
-            // Extrae el ID del envío: "auditoria/cmkyf.../ " -> "cmkyf..."
-            const folderName = fullPath.split('/').filter(Boolean).pop() || "Desconocido";
+            // Extrae el ID del envío (ej: cmkyf32pr0002ohyje87i2e6l)
+            const folderId = fullPath.split('/').filter(Boolean).pop() || "Desconocido";
 
-            // Buscamos estadísticas de auditoría en la base de datos
+            // Buscamos el nombre real del envío en la DB para que la UI se vea bien
+            const shipmentDb = await prisma.shipment.findUnique({
+                where: { id: folderId },
+                select: { name: true }
+            });
+
             const audits = await prisma.shipmentAudit.findMany({
-                where: { envioId: folderName },
+                where: { envioId: folderId },
                 select: { status: true }
             });
 
-            // Contamos cuántos productos (MLAs) únicos hay con fotos en este envío
             const itemsCommand = new ListObjectsV2Command({
                 Bucket: BUCKET_NAME,
                 Prefix: fullPath
@@ -49,8 +49,8 @@ export async function getShipmentFolders() {
             });
 
             return {
-                id: folderName,
-                name: folderName,
+                id: folderId,
+                name: shipmentDb?.name || folderId, // Mostramos el nombre (ej: "Envío 28-01") si existe
                 stats: {
                     total: uniqueItems.size,
                     aprobados: audits.filter(a => a.status === 'APROBADO').length,
@@ -61,22 +61,19 @@ export async function getShipmentFolders() {
 
         return { success: true, folders: folderStats };
     } catch (error: any) {
-        console.error("Error al obtener carpetas de auditoría:", error);
+        console.error("Error folders:", error);
         return { success: false, error: error.message };
     }
 }
 
-/**
- * Obtiene los detalles de los productos y sus fotos para auditar un envío
- */
 export async function getAuditPendingItems(envioId: string) {
     try {
         const prefix = `auditoria/${envioId}/`;
         
-        // 1. Consultamos datos del envío y auditorías previas en paralelo
+        // --- CORRECCIÓN CLAVE: Buscamos por ID, no por Name ---
         const [dbShipment, auditedItems] = await Promise.all([
             prisma.shipment.findUnique({
-                where: { name: envioId },
+                where: { id: envioId }, // Usamos el ID que viene de la carpeta
                 include: { items: true }
             }),
             prisma.shipmentAudit.findMany({
@@ -91,7 +88,6 @@ export async function getAuditPendingItems(envioId: string) {
         const statusMap = new Map();
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status));
 
-        // 2. Listamos todos los archivos del envío en el Bucket
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
             Prefix: prefix
@@ -99,19 +95,18 @@ export async function getAuditPendingItems(envioId: string) {
         const s3Res = await s3Client.send(command);
         const files = s3Res.Contents || [];
 
-        // 3. Agrupamos las fotos por ID de producto (MLA)
         const itemsGrouped = new Map<string, string[]>();
         files.forEach(file => {
             const fileName = file.Key?.split('/').pop() || "";
             const itemId = fileName.split('_')[0];
             if (itemId) {
+                // Generamos la URL pública
                 const url = `${BUCKET_URL}/${BUCKET_NAME}/${file.Key}`;
                 const existing = itemsGrouped.get(itemId) || [];
                 itemsGrouped.set(itemId, [...existing, url]);
             }
         });
 
-        // 4. Formateamos la información para la interfaz de usuario
         const allItems = Array.from(itemsGrouped.keys()).map(itemId => {
             const evidence = itemsGrouped.get(itemId) || [];
             const dbInfo = dbItemsMap.get(itemId);
@@ -120,7 +115,7 @@ export async function getAuditPendingItems(envioId: string) {
                 itemId: itemId,
                 driveName: itemId, 
                 title: dbInfo?.title || "Producto " + itemId,
-                sku: dbInfo?.sku || "Sin SKU",
+                sku: dbInfo?.sku || "Sin SKU", // Ahora sí debería traer el SKU real
                 quantity: dbInfo?.quantity || 0,
                 agregados: dbInfo?.agregados ? dbInfo.agregados.split(", ") : [],
                 referenceImageUrl: dbInfo?.imageUrl || null,
@@ -133,14 +128,11 @@ export async function getAuditPendingItems(envioId: string) {
 
         return { success: true, data: allItems, envioId };
     } catch (error: any) {
-        console.error("Error al obtener items para auditar:", error);
+        console.error("Error items:", error);
         return { success: false, error: error.message };
     }
 }
 
-/**
- * Registra la decisión de la auditoría (Aprobar/Rechazar)
- */
 export async function auditItem(itemId: string, status: string, envioId: string) {
     try {
         await prisma.shipmentAudit.upsert({

@@ -3,11 +3,14 @@
 
 import { prisma } from "@/lib/prisma"
 import { s3Client } from "@/lib/s3"
-import { ListObjectsV2Command } from "@aws-sdk/client-s3"
+// Agregamos GetObjectCommand para poder firmar la url
+import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3" 
+// Importamos la utilidad para firmar URLs
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner" 
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME;
-const BUCKET_URL = "https://storage.railway.app";
 
+// Esta función se mantiene casi igual, solo limpieza
 export async function getShipmentFolders() {
     try {
         const command = new ListObjectsV2Command({
@@ -21,10 +24,8 @@ export async function getShipmentFolders() {
 
         const folderStats = await Promise.all(prefixes.map(async (p) => {
             const fullPath = p.Prefix || "";
-            // Extraemos el ID limpio (quitamos 'auditoria/' y las barras)
             const folderId = fullPath.replace('auditoria/', '').replace(/\//g, '');
 
-            // MATCH 1: Buscar el envío real por ID en la DB
             const shipmentDb = await prisma.shipment.findUnique({
                 where: { id: folderId },
                 select: { name: true }
@@ -70,7 +71,7 @@ export async function getAuditPendingItems(envioId: string) {
     try {
         const prefix = `auditoria/${envioId}/`;
         
-        // MATCH 2: Traer los items reales de ese envío desde la DB
+        // 1. Datos de DB
         const [dbShipment, auditedItems] = await Promise.all([
             prisma.shipment.findUnique({
                 where: { id: envioId }, 
@@ -82,7 +83,6 @@ export async function getAuditPendingItems(envioId: string) {
             })
         ]);
 
-        // Creamos un mapa de Items para un acceso rápido por itemId (MLA)
         const dbItemsMap = new Map();
         dbShipment?.items.forEach(item => {
             dbItemsMap.set(item.itemId, item);
@@ -91,6 +91,7 @@ export async function getAuditPendingItems(envioId: string) {
         const statusMap = new Map();
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status));
 
+        // 2. Listar archivos en S3
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
             Prefix: prefix
@@ -98,21 +99,33 @@ export async function getAuditPendingItems(envioId: string) {
         const s3Res = await s3Client.send(command);
         const files = s3Res.Contents || [];
 
+        // 3. Agrupamos y generamos URLs FIRMADAS (Aquí estaba el problema)
+        // Usamos un mapa asíncrono para generar las URLs
         const itemsGrouped = new Map<string, string[]>();
-        files.forEach(file => {
+        
+        // Procesamos los archivos en paralelo para no demorar la respuesta
+        await Promise.all(files.map(async (file) => {
             const fileName = file.Key?.split('/').pop() || "";
-            const itemId = fileName.split('_')[0]; // Saca el MLA (ej: MLA1133188751)
-            if (itemId) {
-                // Generamos la URL pública directa
-                const url = `${BUCKET_URL}/${BUCKET_NAME}/${file.Key}`;
+            const itemId = fileName.split('_')[0]; // Saca el MLA
+
+            if (itemId && file.Key) {
+                // GENERACIÓN DE URL FIRMADA
+                // Esto crea un link temporal que da permiso de ver el archivo privado
+                const getCommand = new GetObjectCommand({
+                    Bucket: BUCKET_NAME,
+                    Key: file.Key,
+                });
+                
+                // Expira en 3600 segundos (1 hora)
+                const signedUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
+                
                 const existing = itemsGrouped.get(itemId) || [];
-                itemsGrouped.set(itemId, [...existing, url]);
+                itemsGrouped.set(itemId, [...existing, signedUrl]);
             }
-        });
+        }));
 
         const allItems = Array.from(itemsGrouped.keys()).map(itemId => {
             const evidence = itemsGrouped.get(itemId) || [];
-            // Buscamos los datos en el mapa que creamos de la DB
             const dbInfo = dbItemsMap.get(itemId);
             
             return {
@@ -123,8 +136,8 @@ export async function getAuditPendingItems(envioId: string) {
                 quantity: dbInfo?.quantity || 0,
                 agregados: dbInfo?.agregados ? dbInfo.agregados.split(", ") : [],
                 referenceImageUrl: dbInfo?.imageUrl || null,
-                evidenceImageUrl: evidence[0],
-                evidenceImages: evidence,
+                evidenceImageUrl: evidence[0], // Usamos la URL firmada
+                evidenceImages: evidence,      // Array de URLs firmadas
                 status: (statusMap.get(itemId) || 'PENDIENTE'),
                 envioId: envioId
             };

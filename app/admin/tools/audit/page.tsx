@@ -44,11 +44,13 @@ export default function AuditPage() {
         setLoading(false)
     }
 
-    const selectShipment = async (name: string) => {
-        setEnvioId(name)
+    // CORRECCIÓN AQUÍ: Recibimos el ID, no el nombre
+    const selectShipment = async (id: string) => {
+        setEnvioId(id)
         setView('ITEM_LIST')
         setLoading(true)
-        const res = await getAuditPendingItems(name)
+        // Buscamos en S3 usando el ID correcto
+        const res = await getAuditPendingItems(id)
         if (res.success) setItems(res.data || [])
         setLoading(false)
     }
@@ -97,7 +99,12 @@ export default function AuditPage() {
                             const ok = stats.total > 0 && faltanAprobar === 0 && !tieneRechazados
 
                             return (
-                                <Card key={folder.id} onClick={() => selectShipment(folder.name)} className={`cursor-pointer border-t-8 transition-all hover:shadow-lg ${ok ? 'border-t-green-500 bg-green-50/20' : tieneRechazados ? 'border-t-red-500 bg-red-50/20' : 'border-t-orange-400 bg-orange-50/20'}`}>
+                                <Card 
+                                    key={folder.id} 
+                                    // CORRECCIÓN AQUÍ: Pasamos folder.id en lugar de folder.name
+                                    onClick={() => selectShipment(folder.id)} 
+                                    className={`cursor-pointer border-t-8 transition-all hover:shadow-lg ${ok ? 'border-t-green-500 bg-green-50/20' : tieneRechazados ? 'border-t-red-500 bg-red-50/20' : 'border-t-orange-400 bg-orange-50/20'}`}
+                                >
                                     <CardContent className="p-6">
                                         <div className="flex justify-between items-start mb-4">
                                             <h3 className="font-bold text-xl">{folder.name}</h3>
@@ -133,7 +140,13 @@ export default function AuditPage() {
         return (
             <div className="max-w-3xl mx-auto p-4 space-y-4 font-sans">
                 <Button variant="ghost" onClick={() => setView('FOLDERS')} className="mb-2"><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
-                {loading ? <Loader2 className="animate-spin mx-auto h-10 w-10 text-blue-500" /> : items.map(item => (
+                {loading ? <Loader2 className="animate-spin mx-auto h-10 w-10 text-blue-500" /> : items.length === 0 ? (
+                   // Mensaje de ayuda si está vacío
+                   <div className="text-center py-10 text-gray-500">
+                       <p>No se encontraron imágenes para este envío.</p>
+                       <p className="text-xs">Verifica que las fotos se hayan subido a la carpeta: {envioId}</p>
+                   </div>
+                ) : items.map(item => (
                     <Card key={item.itemId} onClick={() => { setSelectedItem(item); setActiveEvidenceImage(item.evidenceImages[0]); setView('ITEM_DETAIL') }} className={`cursor-pointer border-l-4 hover:shadow-md transition-all ${item.status === 'APROBADO' ? 'border-l-green-500' : item.status === 'RECHAZADO' ? 'border-l-red-500' : 'border-l-gray-300'}`}>
                         <CardContent className="p-4 flex items-center gap-4">
                             <img src={item.evidenceImageUrl} className="h-16 w-16 object-cover rounded border" alt="Thumbnail" />

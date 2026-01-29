@@ -11,62 +11,47 @@ const BUCKET_URL = "https://storage.railway.app";
 /**
  * Obtiene la lista de envíos desde el Bucket
  */
+// app/actions/audit.ts
 export async function getShipmentFolders() {
     try {
-        console.log("🔍 Buscando envíos en el Bucket:", BUCKET_NAME);
+        console.log("🔍 DIAGNÓSTICO: Listando TODO el contenido del bucket...");
 
+        // Quitamos el Delimiter y el Prefix para ver el contenido crudo
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
-            Prefix: 'auditoria/',
-            Delimiter: '/'
         });
 
         const response = await s3Client.send(command);
         
-        // Debug para ver qué devuelve Railway en los logs
-        console.log("📦 Respuesta S3 (Prefixes):", response.CommonPrefixes?.length || 0);
+        if (!response.Contents || response.Contents.length === 0) {
+            console.log("⚠️ EL BUCKET ESTÁ TOTALMENTE VACÍO");
+            return { success: true, folders: [] };
+        }
 
-        const prefixes = response.CommonPrefixes || [];
+        console.log(`✅ Se encontraron ${response.Contents.length} archivos en total.`);
+        
+        // Imprimimos el nombre de cada archivo encontrado
+        response.Contents.forEach(obj => {
+            console.log("📄 Archivo encontrado -> Key:", obj.Key);
+        });
 
-        const folderStats = await Promise.all(prefixes.map(async (p) => {
-            const fullPath = p.Prefix || "";
-            // Extrae el nombre del envío: "auditoria/NOMBRE/" -> "NOMBRE"
-            const folderName = fullPath.split('/').filter(Boolean).pop() || "Desconocido";
+        // --- Lógica simplificada para que al menos veas algo en la UI ---
+        const uniqueFolders = new Set<string>();
+        response.Contents.forEach(obj => {
+            const parts = obj.Key?.split('/') || [];
+            if (parts.length > 1) uniqueFolders.add(parts[1]); // Asume auditoria/NOMBRE/archivo
+        });
 
-            // Buscamos auditorías en la DB
-            const audits = await prisma.shipmentAudit.findMany({
-                where: { envioId: folderName },
-                select: { status: true }
-            });
-
-            // Contamos items únicos dentro de esa carpeta en S3
-            const itemsCommand = new ListObjectsV2Command({
-                Bucket: BUCKET_NAME,
-                Prefix: fullPath
-            });
-            const itemsRes = await s3Client.send(itemsCommand);
-            
-            const uniqueItems = new Set();
-            itemsRes.Contents?.forEach(obj => {
-                const fileName = obj.Key?.split('/').pop() || "";
-                const itemId = fileName.split('_')[0]; // Ejemplo: MLA123_fecha.jpg
-                if (itemId) uniqueItems.add(itemId);
-            });
-
-            return {
-                id: folderName,
-                name: folderName,
-                stats: {
-                    total: uniqueItems.size,
-                    aprobados: audits.filter(a => a.status === 'APROBADO').length,
-                    rechazados: audits.filter(a => a.status === 'RECHAZADO').length,
-                }
-            };
+        const folders = Array.from(uniqueFolders).map(name => ({
+            id: name,
+            name: name,
+            stats: { total: 1, aprobados: 0, rechazados: 0 }
         }));
 
-        return { success: true, folders: folderStats };
+        return { success: true, folders };
+
     } catch (error: any) {
-        console.error("❌ Error en getShipmentFolders:", error);
+        console.error("❌ ERROR CRÍTICO EN S3:", error);
         return { success: false, error: error.message };
     }
 }

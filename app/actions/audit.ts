@@ -9,12 +9,12 @@ const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 const BUCKET_URL = "https://storage.railway.app";
 
 /**
- * Obtiene la lista de "carpetas" (envíos) desde el Bucket
+ * Obtiene la lista de envíos desde el Bucket
  */
 export async function getShipmentFolders() {
     try {
-        // Listamos los objetos con prefijo auditoria/ y usamos '/' como delimitador 
-        // para obtener los nombres de los envíos como "carpetas"
+        console.log("🔍 Buscando envíos en el Bucket:", BUCKET_NAME);
+
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
             Prefix: 'auditoria/',
@@ -23,31 +23,33 @@ export async function getShipmentFolders() {
 
         const response = await s3Client.send(command);
         
-        // Los CommonPrefixes son nuestras "carpetas" de envío (ej: auditoria/ENVIO123/)
+        // Debug para ver qué devuelve Railway en los logs
+        console.log("📦 Respuesta S3 (Prefixes):", response.CommonPrefixes?.length || 0);
+
         const prefixes = response.CommonPrefixes || [];
 
         const folderStats = await Promise.all(prefixes.map(async (p) => {
             const fullPath = p.Prefix || "";
-            // Extraemos solo el ID del envío: "auditoria/123/" -> "123"
-            const folderName = fullPath.split('/')[1];
+            // Extrae el nombre del envío: "auditoria/NOMBRE/" -> "NOMBRE"
+            const folderName = fullPath.split('/').filter(Boolean).pop() || "Desconocido";
 
+            // Buscamos auditorías en la DB
             const audits = await prisma.shipmentAudit.findMany({
                 where: { envioId: folderName },
                 select: { status: true }
             });
 
-            // Contamos cuántos productos únicos hay en esa carpeta del bucket
+            // Contamos items únicos dentro de esa carpeta en S3
             const itemsCommand = new ListObjectsV2Command({
                 Bucket: BUCKET_NAME,
                 Prefix: fullPath
             });
             const itemsRes = await s3Client.send(itemsCommand);
             
-            // Agrupamos por el ID del item (MLA) que está antes del guion bajo en el nombre
             const uniqueItems = new Set();
             itemsRes.Contents?.forEach(obj => {
                 const fileName = obj.Key?.split('/').pop() || "";
-                const itemId = fileName.split('_')[0];
+                const itemId = fileName.split('_')[0]; // Ejemplo: MLA123_fecha.jpg
                 if (itemId) uniqueItems.add(itemId);
             });
 
@@ -64,19 +66,19 @@ export async function getShipmentFolders() {
 
         return { success: true, folders: folderStats };
     } catch (error: any) {
-        console.error("Error folders (Bucket):", error);
+        console.error("❌ Error en getShipmentFolders:", error);
         return { success: false, error: error.message };
     }
 }
 
 /**
- * Obtiene los items y sus fotos del Bucket para un envío específico
+ * Obtiene los items detallados de un envío
  */
 export async function getAuditPendingItems(envioId: string) {
     try {
         const prefix = `auditoria/${envioId}/`;
         
-        // 1. Traer datos de la DB
+        // 1. Datos de DB
         const [dbShipment, auditedItems] = await Promise.all([
             prisma.shipment.findUnique({
                 where: { name: envioId },
@@ -94,7 +96,7 @@ export async function getAuditPendingItems(envioId: string) {
         const statusMap = new Map();
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status));
 
-        // 2. Listar todos los archivos en esa carpeta del bucket
+        // 2. Listar archivos del Bucket
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
             Prefix: prefix
@@ -102,7 +104,7 @@ export async function getAuditPendingItems(envioId: string) {
         const s3Res = await s3Client.send(command);
         const files = s3Res.Contents || [];
 
-        // 3. Agrupar fotos por ItemId (MLA)
+        // 3. Agrupar por ItemId
         const itemsGrouped = new Map<string, string[]>();
         files.forEach(file => {
             const fileName = file.Key?.split('/').pop() || "";
@@ -135,9 +137,8 @@ export async function getAuditPendingItems(envioId: string) {
         });
 
         return { success: true, data: allItems, envioId };
-
     } catch (error: any) {
-        console.error("Error items (Bucket):", error);
+        console.error("❌ Error en getAuditPendingItems:", error);
         return { success: false, error: error.message };
     }
 }

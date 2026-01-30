@@ -87,9 +87,11 @@ export async function getEtiquetasML() {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 NOT: [
-                    { AND: [{ logisticType: 'cross_docking' }, { substatus: 'picked_up' }] },
-                    { AND: [{ logisticType: 'self_service' }, { substatus: 'out_for_delivery' }] },
-                    { status: { in: ['delivered', 'cancelled'] } }
+                    // 1. Ocultar si ya fue retirado o está en reparto (Cualquier logística)
+                    { substatus: { in: ['picked_up', 'out_for_delivery', 'shipped'] } },
+                    
+                    // 2. Ocultar si el estado general es final o en viaje
+                    { status: { in: ['shipped', 'delivered', 'cancelled', 'canceled'] } }
                 ]
             },
             include: { items: true },

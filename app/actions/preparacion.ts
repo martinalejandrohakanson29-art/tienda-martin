@@ -2,92 +2,53 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { google } from 'googleapis'
 import { revalidatePath } from "next/cache"
-import { Readable } from 'stream'
+import { s3Client } from "@/lib/s3" // Usamos tu cliente ya configurado
+import { PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 
-// ID de carpeta raíz: Preparacion_colecta
-const DRIVE_PARENT_FOLDER_ID = '1ZSoopV-LYzweqNejotZO1h6o2j6wbPld'
-
-async function getDriveClient() {
-    const auth = new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        "https://developers.google.com/oauthplayground"
-    )
-    auth.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN })
-    return google.drive({ version: 'v3', auth })
-}
+// Nombre del bucket desde variables de entorno
+const BUCKET_NAME = process.env.S3_BUCKET_NAME
 
 /**
- * Función auxiliar para buscar o crear una carpeta en Drive
- */
-async function getOrCreateFolder(drive: any, name: string, parentId: string) {
-    const response = await drive.files.list({
-        q: `mimeType='application/vnd.google-apps.folder' and name='${name}' and '${parentId}' in parents and trashed=false`,
-        fields: 'files(id)'
-    });
-
-    if (response.data.files && response.data.files.length > 0) {
-        return response.data.files[0].id;
-    }
-
-    const newFolder = await drive.files.create({
-        requestBody: {
-            name: name,
-            mimeType: 'application/vnd.google-apps.folder',
-            parents: [parentId]
-        },
-        fields: 'id'
-    });
-
-    return newFolder.data.id;
-}
-
-/**
- * Obtiene las URLs de las miniaturas/fotos de una carpeta de envío
+ * Obtiene las fotos de un envío desde S3
+ * Genera URLs firmadas (seguras) que expiran en 1 hora
  */
 export async function obtenerFotosEnvio(envioId: string) {
     try {
-        const drive = await getDriveClient();
-        
-        // RECUPERADO: Buscamos primero la carpeta del envío
-        const folderSearch = await drive.files.list({
-            q: `mimeType='application/vnd.google-apps.folder' and name='${envioId}' and trashed=false`,
-            fields: 'files(id)'
+        // 1. Listar objetos en la carpeta del envío
+        const command = new ListObjectsV2Command({
+            Bucket: BUCKET_NAME,
+            Prefix: `auditoria/${envioId}/`, // Filtramos por la carpeta del envío
         });
 
-        if (!folderSearch.data.files || folderSearch.data.files.length === 0) {
+        const { Contents } = await s3Client.send(command);
+
+        if (!Contents || Contents.length === 0) {
             return { success: true, fotos: [] };
         }
 
-        const folderId = folderSearch.data.files[0].id;
-
-        // Ahora sí buscamos los archivos DENTRO de esa carpeta (folderId)
-        const filesSearch = await drive.files.list({
-            q: `'${folderId}' in parents and trashed=false`,
-            fields: 'files(id, name, webViewLink, thumbnailLink)',
-            orderBy: 'createdTime desc'
-        });
-
-        // CORRECCIÓN APLICADA PARA VISUALIZACIÓN
-        const fotos = filesSearch.data.files?.map(f => {
-            // Truco: Reemplazamos el parámetro de tamaño (=s220) por =s0 para obtener la imagen full resolución
-            const highResUrl = f.thumbnailLink 
-                ? f.thumbnailLink.replace(/=s\d+$/, "=s0") 
-                : f.webViewLink;
+        // 2. Generar URLs firmadas para cada foto encontrada
+        const fotos = await Promise.all(Contents.map(async (file) => {
+            const getCommand = new GetObjectCommand({
+                Bucket: BUCKET_NAME,
+                Key: file.Key,
+            });
+            
+            // La URL será válida por 3600 segundos (1 hora)
+            const signedUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
 
             return {
-                id: f.id,
-                name: f.name,
-                url: highResUrl, 
-                link: f.webViewLink
+                id: file.Key, // Usamos el Key como ID
+                name: file.Key?.split('/').pop() || 'Foto',
+                url: signedUrl, 
+                link: signedUrl
             };
-        }) || [];
+        }));
 
         return { success: true, fotos };
     } catch (error: any) {
-        console.error("Error al obtener fotos:", error);
+        console.error("Error al obtener fotos de S3:", error);
         return { success: false, fotos: [] };
     }
 }
@@ -113,16 +74,12 @@ export async function aprobarPedido(envioId: string) {
     }
 }
 
-/**
- * NUEVA ACCIÓN: Rechazar pedido
- * Devuelve el envío a estado PENDIENTE para volver a sacar fotos
- */
 export async function rechazarPedido(envioId: string) {
     try {
         await prisma.$transaction([
             prisma.etiquetaML.update({
                 where: { id: envioId },
-                data: { status: "PENDIENTE" }
+                data: { status: "PENDIENTE" } // Vuelve a pendiente para sacar fotos de nuevo
             }),
             prisma.shipmentAudit.updateMany({
                 where: { envioId: envioId },
@@ -148,26 +105,25 @@ export async function subirFotoAuditoria(formData: FormData) {
             throw new Error("Faltan datos obligatorios")
         }
 
-        const drive = await getDriveClient()
-        const hoy = new Date();
-        const diaMes = hoy.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
-
-        const dateFolderId = await getOrCreateFolder(drive, diaMes, DRIVE_PARENT_FOLDER_ID);
-        const envioFolderId = await getOrCreateFolder(drive, envioId, dateFolderId);
-
-        const buffer = Buffer.from(await file.arrayBuffer())
-        const fileMetadata = { name: `${mla}_${Date.now()}.jpg`, parents: [envioFolderId] }
-        const media = { mimeType: 'image/jpeg', body: Readable.from(buffer) }
+        // 1. Preparar el archivo para S3
+        const buffer = Buffer.from(await file.arrayBuffer());
         
-        const driveFile = await drive.files.create({
-            requestBody: fileMetadata,
-            media: media,
-            fields: 'id, webViewLink'
-        })
+        // Estructura: auditoria/ID_ENVIO/MLA_TIMESTAMP.jpg
+        const fileName = `auditoria/${envioId}/${mla}_${Date.now()}.jpg`;
 
-        // LÓGICA CORREGIDA PARA AUDITORÍA MANUAL
+        // 2. Subir a S3
+        const command = new PutObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: fileName,
+            Body: buffer,
+            ContentType: file.type || 'image/jpeg',
+        });
+
+        await s3Client.send(command);
+
+        // 3. Lógica de Base de Datos (idéntica a la original, pero guardamos el Key de S3)
         await prisma.$transaction(async (tx) => {
-            // 1. Ponemos el item en estado "FOTO_CARGADA" (paso previo al OK final)
+            // A. Registrar que este item ya tiene foto
             await tx.shipmentAudit.upsert({
                 where: { itemId_envioId: { itemId: mla, envioId: envioId } },
                 update: { status: "FOTO_CARGADA", createdAt: new Date() },
@@ -179,22 +135,22 @@ export async function subirFotoAuditoria(formData: FormData) {
                 where: { envioId: envioId, status: "FOTO_CARGADA" }
             });
 
-            // 2. Si todos los items tienen foto, el paquete está listo para tu revisión manual
+            // B. Si todos los items tienen foto, marcamos el pedido completo
             if (fotosCargadas >= totalItems) {
                 await tx.etiquetaML.update({
                     where: { id: envioId },
                     data: { 
                         status: "PREPARADO",
-                        drivePhotoUrl: driveFile.data.webViewLink 
+                        drivePhotoUrl: fileName // Guardamos la ruta S3 (Key) en lugar del link de Drive
                     }
                 });
             }
         });
 
         revalidatePath('/admin/mercadolibre/preparacion')
-        return { success: true, link: driveFile.data.webViewLink }
+        return { success: true, path: fileName }
     } catch (error: any) {
-        console.error("Error en auditoría:", error)
+        console.error("Error en auditoría S3:", error)
         return { success: false, error: error.message }
     }
 }

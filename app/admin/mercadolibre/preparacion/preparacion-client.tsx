@@ -1,3 +1,4 @@
+// app/admin/mercadolibre/preparacion/preparacion-client.tsx
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -9,17 +10,16 @@ import {
     CheckCircle2, 
     Package, 
     Eye, 
-    CheckCircle,
     Loader2,
     X,
     Layers,
     Barcode,
-    AlertTriangle // Agregado para el botón de rechazo
+    AlertTriangle 
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
     aprobarPedido, 
-    rechazarPedido, // Agregado
+    rechazarPedido, 
     obtenerFotosEnvio 
 } from "@/app/actions/preparacion"
 import { toast } from "sonner"
@@ -37,7 +37,6 @@ import {
     CarouselPrevious,
 } from "@/components/ui/carousel"
 
-// CORRECCIÓN: El nombre del paquete es html5-qrcode
 import { Html5Qrcode } from "html5-qrcode"
 
 const getAgregadoColor = (index: number) => {
@@ -107,18 +106,28 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     };
 
-    // LÓGICA DE FILTRADO CORREGIDA: 
-    // Pendientes = Solo los que faltan preparar (sacar foto).
-    // Revisión = Solo los que ya tienen foto y esperan tu OK.
+    // --- NUEVA LÓGICA DE FILTRADO ---
+    // Tab 1 (Pendientes): Muestra TODO lo que NO tenga foto.
+    // Tab 2 (Revisión): Muestra TODO lo que SÍ tenga foto (y no esté ya auditado).
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
-                             e.resumen?.toLowerCase().includes(search.toLowerCase())
+                             e.resumen?.toLowerCase().includes(search.toLowerCase()) ||
+                             e.orderId?.includes(search); // Agregamos búsqueda por OrderID también
+
+        const tieneFoto = Boolean(e.drivePhotoUrl);
+        const yaAuditado = e.status === "AUDITADO";
+
         if (activeTab === 'pendientes') {
-            return matchesSearch && (e.status === "PENDIENTE")
+            // MOSTRAR: Si coincide búsqueda Y NO tiene foto
+            return matchesSearch && !tieneFoto;
         } else {
-            return matchesSearch && e.status === "PREPARADO"
+            // MOSTRAR: Si coincide búsqueda Y SÍ tiene foto Y NO está terminado (Auditado)
+            return matchesSearch && tieneFoto && !yaAuditado;
         }
     })
+
+    // Calcular conteo para el badge de "Auditoría"
+    const auditoriaCount = initialEnvios.filter(e => Boolean(e.drivePhotoUrl) && e.status !== "AUDITADO").length;
 
     const handleTriggerCamera = (envioId: string, mla: string) => {
         setSelectedItem({ envioId, mla })
@@ -153,13 +162,12 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         setLoading(null)
     }
 
-    // NUEVA ACCIÓN: Rechazar pedido
     const handleReject = async (envioId: string) => {
-        if(!confirm("¿Deseas rechazar este pedido? Se borrará el estado 'Preparado' y volverá a la lista para sacar fotos de nuevo.")) return;
+        if(!confirm("¿Deseas rechazar este pedido? Volverá a la lista de preparación.")) return;
         setLoading(envioId)
         const res = await rechazarPedido(envioId)
         if (res.success) {
-            toast.warning("Pedido rechazado. Volvió a Preparación.")
+            toast.warning("Pedido rechazado.")
             setViewingFotos(null)
         } else {
             toast.error("Error al rechazar")
@@ -177,7 +185,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         formData.append('mla', selectedItem.mla)
         try {
             const res = await subirFotoAuditoria(formData)
-            if (res.success) toast.success("Foto guardada. Pedido en revisión.")
+            if (res.success) toast.success("Foto guardada. Pasando a Auditoría.")
         } catch (err) {
             toast.error("Error al subir")
         } finally {
@@ -200,9 +208,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${activeTab === 'revision' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}
                 >
                     2. Auditoría Manual
-                    {initialEnvios.filter(e => e.status === 'PREPARADO').length > 0 && (
+                    {auditoriaCount > 0 && (
                         <span className="bg-orange-500 text-white text-[10px] px-1.5 rounded-full min-w-[18px]">
-                            {initialEnvios.filter(e => e.status === 'PREPARADO').length}
+                            {auditoriaCount}
                         </span>
                     )}
                 </button>
@@ -233,59 +241,77 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             </div>
 
             <div className="grid gap-3">
-                {filtered.map((envio) => (
-                    <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-md">
-                        <div className="flex justify-between items-start mb-3">
-                            <div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{envio.logisticType}</span>
-                                <h3 className="font-bold text-slate-900 leading-none mt-1">{envio.id}</h3>
-                            </div>
-                            <div className="flex gap-2">
-                                <Button 
-                                    size="icon"
-                                    variant="outline"
-                                    className={`rounded-full h-12 w-12 border-2 ${envio.status === 'PREPARADO' ? 'border-orange-200 bg-orange-50 text-orange-600' : 'bg-slate-50 text-slate-600'}`}
-                                    onClick={() => handleTriggerCamera(envio.id, envio.items[0]?.mla)}
-                                    disabled={loading === envio.id}
-                                >
-                                    {loading === envio.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-                                </Button>
-                            </div>
-                        </div>
-                        {envio.status === "PREPARADO" && (
-                            <Button 
-                                variant="secondary" 
-                                className="w-full mb-4 gap-2 bg-blue-50 text-blue-700 border-none hover:bg-blue-100 h-11 rounded-xl font-bold transition-colors"
-                                onClick={() => handleOpenViewer(envio.id)}
-                                disabled={isFetchingFotos}
-                            >
-                                {isFetchingFotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Eye className="h-4 w-4" /> REVISAR Y AUDITAR</>}
-                            </Button>
-                        )}
-                        <div className="space-y-2 mb-4">
-                            {envio.items.map((item: any) => {
-                                const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
-                                const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
-                                return (
-                                    <div key={item.id} className="flex flex-col gap-1.5">
-                                        {nombres.map((nombre: string, idx: number) => (
-                                            <div key={idx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>
-                                                <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                                                <span className="truncate">{nombre}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )
-                            })}
-                        </div>
-                        <div className="flex items-center gap-2 px-1 pt-2 border-t border-slate-50">
-                            <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                            <p className="text-[11px] text-slate-500 truncate italic font-medium">{envio.resumen}</p>
-                        </div>
+                {filtered.length === 0 && (
+                    <div className="text-center py-10 text-slate-400">
+                        <Package className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                        <p className="text-sm font-medium">No hay pedidos en esta lista</p>
                     </div>
-                ))}
+                )}
+
+                {filtered.map((envio) => {
+                    const tieneFoto = Boolean(envio.drivePhotoUrl);
+                    
+                    return (
+                        <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-md">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{envio.logisticType}</span>
+                                    <h3 className="font-bold text-slate-900 leading-none mt-1">{envio.id}</h3>
+                                </div>
+                                <div className="flex gap-2">
+                                    {/* SI NO TIENE FOTO -> MUESTRA CÁMARA */}
+                                    {!tieneFoto && (
+                                        <Button 
+                                            size="icon"
+                                            variant="outline"
+                                            className="rounded-full h-12 w-12 border-2 bg-slate-50 text-slate-600"
+                                            onClick={() => handleTriggerCamera(envio.id, envio.items[0]?.mla)}
+                                            disabled={loading === envio.id}
+                                        >
+                                            {loading === envio.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* SI TIENE FOTO -> MUESTRA BOTÓN DE REVISAR */}
+                            {tieneFoto && (
+                                <Button 
+                                    variant="secondary" 
+                                    className="w-full mb-4 gap-2 bg-blue-50 text-blue-700 border-none hover:bg-blue-100 h-11 rounded-xl font-bold transition-colors"
+                                    onClick={() => handleOpenViewer(envio.id)}
+                                    disabled={isFetchingFotos}
+                                >
+                                    {isFetchingFotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Eye className="h-4 w-4" /> REVISAR Y AUDITAR</>}
+                                </Button>
+                            )}
+
+                            <div className="space-y-2 mb-4">
+                                {envio.items.map((item: any) => {
+                                    const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
+                                    const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
+                                    return (
+                                        <div key={item.id} className="flex flex-col gap-1.5">
+                                            {nombres.map((nombre: string, idx: number) => (
+                                                <div key={idx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>
+                                                    <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                                                    <span className="truncate">{nombre}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                            <div className="flex items-center gap-2 px-1 pt-2 border-t border-slate-50">
+                                <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                <p className="text-[11px] text-slate-500 truncate italic font-medium">{envio.resumen}</p>
+                            </div>
+                        </div>
+                    )
+                })}
             </div>
 
+            {/* --- MODALES Y DIALOGS (SIN CAMBIOS MAYORES) --- */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
@@ -342,7 +368,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </div>
                         )}
                     </div>
-                    {/* FOOTER DEL MODAL CON APROBAR Y RECHAZAR */}
                     <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-3">
                         <Button 
                             variant="destructive" 

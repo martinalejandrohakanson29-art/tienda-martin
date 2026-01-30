@@ -84,19 +84,23 @@ export async function imprimirEtiquetas(ids: string[]) {
  */
 export async function getEtiquetasML() {
     try {
+        // 🔥 IMPORTANTE: Forzamos revalidación para asegurar que no muestre datos viejos en caché
+        revalidatePath('/admin/mercadolibre/envios');
+
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 // CORRECCIÓN APLICADA: Filtros independientes (AND implícito)
                 
                 // 1. Filtro A: El estado general NO debe ser de finalización
                 status: { 
-                    notIn: ['shipped', 'delivered', 'cancelled', 'canceled'] 
+                    notIn: ['shipped', 'delivered', 'cancelled', 'canceled', 'closed'] 
                 },
 
                 // 2. Filtro B: El sub-estado NO debe indicar que ya está en manos del correo
-                // Usamos NOT aquí para que si es null (sin substatus) NO lo excluya.
+                // Usamos NOT aquí. Si substatus es "picked_up", esta condición da FALSO y se excluye.
+                // Si substatus es NULL, "null in [...]" es falso, NOT falso es VERDADERO -> Se muestra.
                 NOT: { 
-                    substatus: { in: ['picked_up', 'out_for_delivery', 'shipped'] } 
+                    substatus: { in: ['picked_up', 'out_for_delivery', 'shipped', 'delivered'] } 
                 }
             },
             include: { items: true },

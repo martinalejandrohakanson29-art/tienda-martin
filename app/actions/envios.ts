@@ -133,9 +133,10 @@ export async function getEtiquetasML() {
 
 /**
  * Reporte Diario de Pedidos Preparados
- * LÓGICA NUEVA (ESTRICTA): 
- * Solo muestra pedidos donde 'fechaPreparado' coincida con el filtro.
- * Se eliminó la lógica "híbrida" que usaba updatedAt.
+ * LÓGICA FINAL: 
+ * 1. Fecha Preparado: Coincide con el día filtrado.
+ * 2. Status: NO cancelado.
+ * 3. Substatus: NO 'ready_to_print' (debe estar listo de verdad).
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
@@ -160,6 +161,11 @@ export async function getEtiquetasPreparadas(fecha: string) {
                             gte: startOfDay, 
                             lte: endOfDay 
                         } 
+                    },
+                    // 3. NUEVO FILTRO: Excluir explícitamente si dice 'ready_to_print'
+                    // (Esto evita mostrar pedidos que quizás tuvieron fecha pero volvieron atrás)
+                    {
+                        substatus: { not: 'ready_to_print' }
                     }
                 ]
             },

@@ -81,24 +81,17 @@ export async function imprimirEtiquetas(ids: string[]) {
 
 /**
  * Obtiene las etiquetas que aún están en proceso operativo
+ * (Esta función alimenta la tabla general de envíos)
  */
 export async function getEtiquetasML() {
     try {
-        // 🔥 IMPORTANTE: Forzamos revalidación para asegurar que no muestre datos viejos en caché
         revalidatePath('/admin/mercadolibre/envios');
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                // CORRECCIÓN APLICADA: Filtros independientes (AND implícito)
-                
-                // 1. Filtro A: El estado general NO debe ser de finalización
                 status: { 
                     notIn: ['shipped', 'delivered', 'cancelled', 'canceled', 'closed'] 
                 },
-
-                // 2. Filtro B: El sub-estado NO debe indicar que ya está en manos del correo
-                // Usamos NOT aquí. Si substatus es "picked_up", esta condición da FALSO y se excluye.
-                // Si substatus es NULL, "null in [...]" es falso, NOT falso es VERDADERO -> Se muestra.
                 NOT: { 
                     substatus: { in: ['picked_up', 'out_for_delivery', 'shipped', 'delivered'] } 
                 }
@@ -140,14 +133,13 @@ export async function getEtiquetasML() {
 
 /**
  * Reporte Diario de Pedidos Preparados
- * LÓGICA HIBRIDA BLINDADA: 
- * 1. Usa 'fechaPreparado' (dato real de ML) si existe.
- * 2. Si no, usa 'updatedAt' como fallback para registros antiguos.
- * 3. BLOQUEA explícitamente cualquier estado cancelado para que el fallback no traiga basura histórica.
+ * LÓGICA NUEVA (ESTRICTA): 
+ * Solo muestra pedidos donde 'fechaPreparado' coincida con el filtro.
+ * Se eliminó la lógica "híbrida" que usaba updatedAt.
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
-        // AJUSTE DE ZONA HORARIA (Argentina UTC-3)
+        // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día
         const startOfDay = new Date(fecha); 
         startOfDay.setUTCHours(3, 0, 0, 0); 
 
@@ -158,32 +150,23 @@ export async function getEtiquetasPreparadas(fecha: string) {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 AND: [
-                    // --- FILTRO DE SEGURIDAD REFORZADO ---
-                    // Excluimos explícitamente cualquier variante de cancelado
+                    // 1. Filtro de seguridad: Nada cancelado
                     { 
                         status: { notIn: ['cancelled', 'canceled', 'CANCELLED'] } 
                     },
-                    
-                    // --- LÓGICA DE FECHAS (Híbrida) ---
-                    {
-                        OR: [
-                            // Opción A (Ideal): Tiene fecha oficial de impresión y coincide con hoy
-                            { 
-                                fechaPreparado: { gte: startOfDay, lte: endOfDay } 
-                            },
-                            // Opción B (Fallback): NO tiene fecha oficial (es null) y se movió hoy (updatedAt)
-                            { 
-                                fechaPreparado: null,
-                                updatedAt: { gte: startOfDay, lte: endOfDay }
-                            }
-                        ]
+                    // 2. Filtro estricto: Solo si tiene fecha de preparado en el rango
+                    { 
+                        fechaPreparado: { 
+                            gte: startOfDay, 
+                            lte: endOfDay 
+                        } 
                     }
                 ]
             },
             include: { items: true },
+            // Ordenamos por la fecha real de preparación
             orderBy: { 
-                // Usamos updatedAt para mantener un orden cronológico coherente entre registros nuevos y viejos
-                updatedAt: 'desc' 
+                fechaPreparado: 'desc' 
             }
         });
 

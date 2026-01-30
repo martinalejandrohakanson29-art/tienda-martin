@@ -14,7 +14,8 @@ import {
     X,
     Layers,
     Barcode,
-    AlertTriangle 
+    AlertTriangle,
+    Hash 
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
@@ -49,6 +50,21 @@ const getAgregadoColor = (index: number) => {
         "bg-cyan-600 text-white border-cyan-800",
     ];
     return colors[index % colors.length];
+};
+
+/**
+ * Función auxiliar para resaltar las cantidades (x1), (x2), etc.
+ */
+const renderTextWithQuantity = (text: string) => {
+    if (!text) return null;
+    const parts = text.split(/(\(x\d+\))/g);
+    return parts.map((part, i) => 
+        /(\(x\d+\))/.test(part) ? (
+            <span key={i} className="bg-red-600 text-white px-1.5 py-0.5 rounded-md font-black mx-0.5 animate-pulse">
+                {part}
+            </span>
+        ) : part
+    );
 };
 
 export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
@@ -106,27 +122,21 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     };
 
-    // --- NUEVA LÓGICA DE FILTRADO ---
-    // Tab 1 (Pendientes): Muestra TODO lo que NO tenga foto.
-    // Tab 2 (Revisión): Muestra TODO lo que SÍ tenga foto (y no esté ya auditado).
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
                              e.resumen?.toLowerCase().includes(search.toLowerCase()) ||
-                             e.orderId?.includes(search); // Agregamos búsqueda por OrderID también
+                             e.orderId?.includes(search);
 
         const tieneFoto = Boolean(e.drivePhotoUrl);
         const yaAuditado = e.status === "AUDITADO";
 
         if (activeTab === 'pendientes') {
-            // MOSTRAR: Si coincide búsqueda Y NO tiene foto
             return matchesSearch && !tieneFoto;
         } else {
-            // MOSTRAR: Si coincide búsqueda Y SÍ tiene foto Y NO está terminado (Auditado)
             return matchesSearch && tieneFoto && !yaAuditado;
         }
     })
 
-    // Calcular conteo para el badge de "Auditoría"
     const auditoriaCount = initialEnvios.filter(e => Boolean(e.drivePhotoUrl) && e.status !== "AUDITADO").length;
 
     const handleTriggerCamera = (envioId: string, mla: string) => {
@@ -252,26 +262,42 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     const tieneFoto = Boolean(envio.drivePhotoUrl);
                     
                     return (
-                        <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-md">
-                            <div className="flex justify-between items-start mb-3">
-                                <div>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{envio.logisticType}</span>
-                                    <h3 className="font-bold text-slate-900 leading-none mt-1">{envio.id}</h3>
+                        <div key={envio.id} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-md">
+                            {/* --- 1. ORDEN E INFO LOGISTICA --- */}
+                            <div className="flex justify-between items-start mb-2">
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="bg-orange-100 text-orange-700 text-[11px] font-black px-2 py-0.5 rounded-md flex items-center gap-1">
+                                            <Hash className="h-3 w-3" />
+                                            ORDEN: {envio.orderId || 'S/N'}
+                                        </span>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{envio.logisticType}</span>
+                                    </div>
+                                    
+                                    {/* --- 2. RESUMEN (Ahora arriba y con Cantidad Resaltada) --- */}
+                                    <h3 className="text-base font-bold text-slate-900 leading-tight">
+                                        {renderTextWithQuantity(envio.resumen)}
+                                    </h3>
                                 </div>
-                                <div className="flex gap-2">
-                                    {/* SI NO TIENE FOTO -> MUESTRA CÁMARA */}
-                                    {!tieneFoto && (
-                                        <Button 
-                                            size="icon"
-                                            variant="outline"
-                                            className="rounded-full h-12 w-12 border-2 bg-slate-50 text-slate-600"
-                                            onClick={() => handleTriggerCamera(envio.id, envio.items[0]?.mla)}
-                                            disabled={loading === envio.id}
-                                        >
-                                            {loading === envio.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-                                        </Button>
-                                    )}
-                                </div>
+
+                                {/* BOTÓN CÁMARA */}
+                                {!tieneFoto && (
+                                    <Button 
+                                        size="icon"
+                                        variant="outline"
+                                        className="rounded-full h-14 w-14 border-2 bg-blue-50 text-blue-600 border-blue-200 shrink-0"
+                                        onClick={() => handleTriggerCamera(envio.id, envio.items[0]?.mla)}
+                                        disabled={loading === envio.id}
+                                    >
+                                        {loading === envio.id ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
+                                    </Button>
+                                )}
+                            </div>
+
+                            {/* --- 3. ID DE ENVÍO --- */}
+                            <div className="flex items-center gap-2 mb-4 text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
+                                <Barcode className="h-4 w-4" />
+                                <span className="text-xs font-mono font-bold tracking-wider">ENVÍO: {envio.id}</span>
                             </div>
 
                             {/* SI TIENE FOTO -> MUESTRA BOTÓN DE REVISAR */}
@@ -286,7 +312,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 </Button>
                             )}
 
-                            <div className="space-y-2 mb-4">
+                            {/* --- 4. AGREGADOS (Debajo de todo) --- */}
+                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Artículos / Agregados:</p>
                                 {envio.items.map((item: any) => {
                                     const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
                                     const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
@@ -295,23 +323,19 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                             {nombres.map((nombre: string, idx: number) => (
                                                 <div key={idx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>
                                                     <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                                                    <span className="truncate">{nombre}</span>
+                                                    <span className="truncate">{renderTextWithQuantity(nombre)}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     )
                                 })}
                             </div>
-                            <div className="flex items-center gap-2 px-1 pt-2 border-t border-slate-50">
-                                <Package className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                <p className="text-[11px] text-slate-500 truncate italic font-medium">{envio.resumen}</p>
-                            </div>
                         </div>
                     )
                 })}
             </div>
 
-            {/* --- MODALES Y DIALOGS (SIN CAMBIOS MAYORES) --- */}
+            {/* --- MODALES Y DIALOGS --- */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">

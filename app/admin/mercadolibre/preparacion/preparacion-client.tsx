@@ -40,6 +40,17 @@ import {
 
 import { Html5Qrcode } from "html5-qrcode"
 
+/**
+ * 1. Función para mapear los nombres de logística solicitados
+ */
+const getLogisticName = (type: string) => {
+    const types: Record<string, string> = {
+        'cross_docking': 'COLECTA',
+        'self_service': 'FLEX'
+    }
+    return types[type] || type?.toUpperCase() || 'S/N';
+}
+
 const getAgregadoColor = (index: number) => {
     const colors = [
         "bg-blue-600 text-white border-blue-800",
@@ -52,9 +63,6 @@ const getAgregadoColor = (index: number) => {
     return colors[index % colors.length];
 };
 
-/**
- * Función auxiliar para resaltar las cantidades (x1), (x2), etc.
- */
 const renderTextWithQuantity = (text: string) => {
     if (!text) return null;
     const parts = text.split(/(\(x\d+\))/g);
@@ -122,6 +130,10 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     };
 
+    /**
+     * 2. Modificación de la lógica de filtrado:
+     * En 'pendientes' ahora mostramos todo lo que no esté AUDITADO, permitiendo ver los que ya tienen foto.
+     */
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
                              e.resumen?.toLowerCase().includes(search.toLowerCase()) ||
@@ -131,8 +143,10 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         const yaAuditado = e.status === "AUDITADO";
 
         if (activeTab === 'pendientes') {
-            return matchesSearch && !tieneFoto;
+            // Se queda en la lista hasta que alguien lo apruebe (AUDITADO)
+            return matchesSearch && !yaAuditado;
         } else {
+            // En revisión solo los que tienen foto y esperan aprobación
             return matchesSearch && tieneFoto && !yaAuditado;
         }
     })
@@ -195,7 +209,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         formData.append('mla', selectedItem.mla)
         try {
             const res = await subirFotoAuditoria(formData)
-            if (res.success) toast.success("Foto guardada. Pasando a Auditoría.")
+            if (res.success) toast.success("Foto guardada con éxito.")
         } catch (err) {
             toast.error("Error al subir")
         } finally {
@@ -263,7 +277,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     
                     return (
                         <div key={envio.id} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-md">
-                            {/* --- 1. ORDEN E INFO LOGISTICA --- */}
                             <div className="flex justify-between items-start mb-2">
                                 <div className="space-y-1">
                                     <div className="flex items-center gap-2">
@@ -271,36 +284,41 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                             <Hash className="h-3 w-3" />
                                             ORDEN: {envio.orderId || 'S/N'}
                                         </span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{envio.logisticType}</span>
+                                        {/* 3. Mapeo de Logística (COLECTA/FLEX) */}
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                                            {getLogisticName(envio.logisticType)}
+                                        </span>
+                                        
+                                        {/* 4. Check visual si tiene foto */}
+                                        {tieneFoto && (
+                                            <span className="flex items-center gap-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md animate-in fade-in zoom-in">
+                                                <CheckCircle2 className="h-3 w-3" /> FOTO OK
+                                            </span>
+                                        )}
                                     </div>
                                     
-                                    {/* --- 2. RESUMEN (Ahora arriba y con Cantidad Resaltada) --- */}
                                     <h3 className="text-base font-bold text-slate-900 leading-tight">
                                         {renderTextWithQuantity(envio.resumen)}
                                     </h3>
                                 </div>
 
-                                {/* BOTÓN CÁMARA */}
-                                {!tieneFoto && (
-                                    <Button 
-                                        size="icon"
-                                        variant="outline"
-                                        className="rounded-full h-14 w-14 border-2 bg-blue-50 text-blue-600 border-blue-200 shrink-0"
-                                        onClick={() => handleTriggerCamera(envio.id, envio.items[0]?.mla)}
-                                        disabled={loading === envio.id}
-                                    >
-                                        {loading === envio.id ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
-                                    </Button>
-                                )}
+                                {/* 5. El botón de cámara siempre está disponible para subir más fotos */}
+                                <Button 
+                                    size="icon"
+                                    variant="outline"
+                                    className={`rounded-full h-14 w-14 border-2 shrink-0 transition-all ${tieneFoto ? 'bg-white border-emerald-200 text-emerald-600 shadow-inner' : 'bg-blue-50 text-blue-600 border-blue-200'}`}
+                                    onClick={() => handleTriggerCamera(envio.id, envio.items[0]?.mla)}
+                                    disabled={loading === envio.id}
+                                >
+                                    {loading === envio.id ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
+                                </Button>
                             </div>
 
-                            {/* --- 3. ID DE ENVÍO --- */}
                             <div className="flex items-center gap-2 mb-4 text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
                                 <Barcode className="h-4 w-4" />
                                 <span className="text-xs font-mono font-bold tracking-wider">ENVÍO: {envio.id}</span>
                             </div>
 
-                            {/* SI TIENE FOTO -> MUESTRA BOTÓN DE REVISAR */}
                             {tieneFoto && (
                                 <Button 
                                     variant="secondary" 
@@ -308,11 +326,10 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                     onClick={() => handleOpenViewer(envio.id)}
                                     disabled={isFetchingFotos}
                                 >
-                                    {isFetchingFotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Eye className="h-4 w-4" /> REVISAR Y AUDITAR</>}
+                                    {isFetchingFotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Eye className="h-4 w-4" /> REVISAR FOTOS</>}
                                 </Button>
                             )}
 
-                            {/* --- 4. AGREGADOS (Debajo de todo) --- */}
                             <div className="space-y-2 pt-2 border-t border-slate-100">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase">Artículos / Agregados:</p>
                                 {envio.items.map((item: any) => {
@@ -335,7 +352,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 })}
             </div>
 
-            {/* --- MODALES Y DIALOGS --- */}
+            {/* --- RESTO DE MODALES SIN CAMBIOS --- */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">

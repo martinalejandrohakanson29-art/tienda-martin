@@ -86,13 +86,18 @@ export async function getEtiquetasML() {
     try {
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                NOT: [
-                    // 1. Ocultar si ya fue retirado o está en reparto (Cualquier logística)
-                    { substatus: { in: ['picked_up', 'out_for_delivery', 'shipped'] } },
-                    
-                    // 2. Ocultar si el estado general es final o en viaje
-                    { status: { in: ['shipped', 'delivered', 'cancelled', 'canceled'] } }
-                ]
+                // CORRECCIÓN APLICADA: Filtros independientes (AND implícito)
+                
+                // 1. Filtro A: El estado general NO debe ser de finalización
+                status: { 
+                    notIn: ['shipped', 'delivered', 'cancelled', 'canceled'] 
+                },
+
+                // 2. Filtro B: El sub-estado NO debe indicar que ya está en manos del correo
+                // Usamos NOT aquí para que si es null (sin substatus) NO lo excluya.
+                NOT: { 
+                    substatus: { in: ['picked_up', 'out_for_delivery', 'shipped'] } 
+                }
             },
             include: { items: true },
             orderBy: { createdAt: 'desc' }

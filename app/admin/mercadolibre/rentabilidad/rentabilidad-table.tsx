@@ -35,18 +35,24 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
 
   // 1. Lógica de Filtrado (Igual a CostosTable)
   const filteredData = data.filter((item) => {
-    // Filtro de Estado
-    if (statusFilter !== 'all' && item.estado !== statusFilter) return false;
-
-    // Filtro de Texto (Buscador)
+    // Filtro de Texto (Buscador) - PRIMERO
     const searchLower = filter.toLowerCase().trim();
-    if (!searchLower) return true;
+    if (searchLower) {
+      const matchesSearch = 
+        item.nombre?.toLowerCase().includes(searchLower) ||
+        item.item_id?.toLowerCase().includes(searchLower);
+      
+      if (!matchesSearch) return false; // Si no coincide con la búsqueda, descartamos
+    }
 
-    // Buscamos en ID y Nombre
-    return (
-      item.nombre?.toLowerCase().includes(searchLower) ||
-      item.item_id?.toLowerCase().includes(searchLower)
-    );
+    // Filtro de Estado - SEGUNDO (solo si pasó el filtro de texto)
+    if (statusFilter !== 'all') {
+      // Si el item no tiene estado definido, lo consideramos como 'paused'
+      const itemStatus = item.estado || 'paused';
+      if (itemStatus !== statusFilter) return false;
+    }
+
+    return true; // Pasó todos los filtros
   });
 
   // 2. Lógica de Ordenamiento (Por precio, pero puedes cambiarlo)

@@ -33,14 +33,18 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'paused'>('all');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // 1. Lógica de Filtrado (Igual a CostosTable)
+  // 1. Lógica de Filtrado Corregida
   const filteredData = data.filter((item) => {
     // Filtro de Texto (Buscador) - PRIMERO
     const searchLower = filter.toLowerCase().trim();
     if (searchLower) {
+      // CORRECCIÓN 1: Manejo seguro de nulos/undefined antes de usar toLowerCase()
+      const nombre = (item.nombre || "").toLowerCase();
+      const mla = (item.item_id || "").toLowerCase();
+
       const matchesSearch = 
-        item.nombre?.toLowerCase().includes(searchLower) ||
-        item.item_id?.toLowerCase().includes(searchLower);
+        nombre.includes(searchLower) ||
+        mla.includes(searchLower);
       
       if (!matchesSearch) return false; // Si no coincide con la búsqueda, descartamos
     }
@@ -144,8 +148,12 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
           </TableHeader>
           <TableBody>
             {sortedData.length > 0 ? (
-              sortedData.map((item) => (
-                <TableRow key={item.item_id} className="hover:bg-amber-50/50 transition-colors border-slate-100 bg-white">
+              // CORRECCIÓN 2: Agregamos 'index' y creamos una Key compuesta única
+              sortedData.map((item, index) => (
+                <TableRow 
+                  key={`${item.item_id || 'no-id'}-${index}`} 
+                  className="hover:bg-amber-50/50 transition-colors border-slate-100 bg-white"
+                >
                   <TableCell className="font-mono text-xs font-medium text-slate-500">
                     {item.item_id}
                   </TableCell>

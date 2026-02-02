@@ -25,6 +25,13 @@ interface ProductoRentabilidad {
   descuento_manual: string;
   precio_final: number;
   precio_final_nuestro: number;
+  // Cargos ML
+  cargo_venta_fijo: number;
+  cargo_venta_percent: number;
+  cuotas_fijo: number;
+  cuotas_percent: number;
+  envio_costo: number;
+  costo_fijo_ml: number;
 }
 
 export default function RentabilidadTable({ data }: { data: ProductoRentabilidad[] }) {
@@ -61,7 +68,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
             )}
           </div>
           <div className="text-xs text-slate-500 font-medium">
-            {filteredData.length} resultados
+            {filteredData.length} productos analizados
           </div>
         </div>
       </div>
@@ -70,23 +77,28 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
             <TableRow>
-              <TableHead className="min-w-[400px] font-bold text-slate-700">Publicación</TableHead>
-              <TableHead className="text-right font-bold text-slate-700">Precio Original</TableHead>
+              <TableHead className="min-w-[350px] font-bold text-slate-700">Publicación</TableHead>
+              <TableHead className="text-right font-bold text-slate-400">P. Original</TableHead>
               <TableHead className="text-right font-bold text-amber-600">Dcto Total</TableHead>
-              <TableHead className="text-right font-bold text-slate-600">Dcto Propio</TableHead>
-              <TableHead className="text-right font-bold text-blue-600">Dcto ML</TableHead>
-              <TableHead className="text-center font-bold text-slate-700">Manual</TableHead>
-              <TableHead className="text-right font-bold text-slate-900">Precio Final</TableHead>
+              <TableHead className="text-right font-bold text-slate-900">P. Final</TableHead>
               <TableHead className="text-right font-bold text-amber-700 bg-amber-50/50">Final Nuestro</TableHead>
+              
+              {/* NUEVAS COLUMNAS DE CARGOS */}
+              <TableHead className="text-right font-bold text-red-500">Cargo x Venta $</TableHead>
+              <TableHead className="text-right font-bold text-red-400">Cargo x Venta %</TableHead>
+              <TableHead className="text-right font-bold text-red-500">$ Cuotas</TableHead>
+              <TableHead className="text-right font-bold text-red-400">% Cuotas</TableHead>
+              <TableHead className="text-right font-bold text-blue-600">Envío</TableHead>
+              <TableHead className="text-right font-bold text-slate-500">Costo Fijo</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedData.map((item, index) => (
-              <TableRow key={`${item.item_id}-${index}`} className="hover:bg-amber-50/50 transition-colors border-slate-100 bg-white text-xs sm:text-sm">
+              <TableRow key={`${item.item_id}-${index}`} className="hover:bg-amber-50/50 transition-colors border-slate-100 bg-white text-[11px] sm:text-xs">
                 <TableCell>
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-slate-800 leading-tight">{item.nombre}</span>
-                    <span className="text-[10px] font-mono text-slate-400">{item.item_id}</span>
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-semibold text-slate-800 truncate max-w-[340px]">{item.nombre}</span>
+                    <span className="text-[9px] font-mono text-slate-400">{item.item_id}</span>
                   </div>
                 </TableCell>
                 <TableCell className="text-right text-slate-400 line-through">
@@ -95,27 +107,31 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                 <TableCell className="text-right font-bold text-amber-600">
                   {item.desc_pct_total > 0 ? `${item.desc_pct_total}%` : '-'}
                 </TableCell>
-                <TableCell className="text-right text-slate-600">
-                  {item.desc_vendedor_pct > 0 ? `${item.desc_vendedor_pct}%` : '-'}
-                </TableCell>
-                <TableCell className="text-right text-blue-600">
-                  {item.desc_meli_pct > 0 ? `${item.desc_meli_pct}%` : '-'}
-                </TableCell>
-                <TableCell className="text-center">
-                  <Badge variant="outline" className={cn(
-                    "text-[9px] font-bold px-1.5 h-4",
-                    item.descuento_manual === "SI" 
-                      ? "bg-purple-50 text-purple-700 border-purple-200" 
-                      : "bg-slate-50 text-slate-400 border-slate-200"
-                  )}>
-                    {item.descuento_manual}
-                  </Badge>
-                </TableCell>
                 <TableCell className="text-right font-bold text-slate-900">
                   ${item.precio_final.toLocaleString('es-AR')}
                 </TableCell>
                 <TableCell className="text-right font-black text-amber-800 bg-amber-50/30">
-                  ${item.precio_final_nuestro.toLocaleString('es-AR')}
+                  ${item.precio_final_nuestro.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </TableCell>
+
+                {/* VALORES DE CARGOS */}
+                <TableCell className="text-right text-red-600">
+                  ${item.cargo_venta_fijo.toLocaleString('es-AR')}
+                </TableCell>
+                <TableCell className="text-right text-red-400">
+                  {item.cargo_venta_percent}%
+                </TableCell>
+                <TableCell className="text-right text-red-600">
+                  ${item.cuotas_fijo.toLocaleString('es-AR')}
+                </TableCell>
+                <TableCell className="text-right text-red-400">
+                  {item.cuotas_percent}%
+                </TableCell>
+                <TableCell className="text-right text-blue-600 font-medium">
+                  {item.envio_costo > 0 ? `$${item.envio_costo.toLocaleString('es-AR')}` : '-'}
+                </TableCell>
+                <TableCell className="text-right text-slate-500">
+                  ${item.costo_fijo_ml.toLocaleString('es-AR')}
                 </TableCell>
               </TableRow>
             ))}

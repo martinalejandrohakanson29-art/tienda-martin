@@ -7,42 +7,44 @@ export async function POST(req: Request) {
     const items = Array.isArray(body) ? body : [body];
 
     for (const item of items) {
+      // Ajustamos los nombres para que coincidan con el nodo HTTP Request2 de n8n
       const { 
-        item_id, 
-        "precio final": precio_final, 
+        mla, 
+        precio_final, 
         pct_descuento, 
         seller_percentage, 
         meli_percentage, 
         descuento_propio,
-        precio_standard // Tomamos este como el original
+        precio_original // Agregamos este que incluiremos en n8n
       } = item;
 
-      if (!item_id) continue;
+      // Si no viene el MLA, saltamos este ítem
+      if (!mla) continue;
 
       await prisma.mLDescuentos.upsert({
-        where: { mla: item_id },
+        where: { mla: mla },
         update: {
-          original_price: precio_standard,
-          precio_final: precio_final,
-          pct_descuento: pct_descuento,
-          seller_percentage: seller_percentage,
-          meli_percentage: meli_percentage,
+          original_price: precio_original ? Number(precio_original) : null,
+          precio_final: precio_final ? Number(precio_final) : null,
+          pct_descuento: pct_descuento ? Number(pct_descuento) : null,
+          seller_percentage: seller_percentage ? Number(seller_percentage) : null,
+          meli_percentage: meli_percentage ? Number(meli_percentage) : null,
           descuento_propio: descuento_propio,
           ultima_actualizacion: new Date(),
         },
         create: {
-          mla: item_id,
-          original_price: precio_standard,
-          precio_final: precio_final,
-          pct_descuento: pct_descuento,
-          seller_percentage: seller_percentage,
-          meli_percentage: meli_percentage,
+          mla: mla,
+          original_price: precio_original ? Number(precio_original) : null,
+          precio_final: precio_final ? Number(precio_final) : null,
+          pct_descuento: pct_descuento ? Number(pct_descuento) : null,
+          seller_percentage: seller_percentage ? Number(seller_percentage) : null,
+          meli_percentage: meli_percentage ? Number(meli_percentage) : null,
           descuento_propio: descuento_propio,
         },
       });
     }
 
-    return NextResponse.json({ success: true, message: "Descuentos actualizados" });
+    return NextResponse.json({ success: true, message: "Descuentos sincronizados correctamente" });
   } catch (error: any) {
     console.error("Error en webhook descuentos:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

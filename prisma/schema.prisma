@@ -369,3 +369,16 @@ model MLFees {
 
   @@map("ml_fees")
 }
+
+model MLDescuentos {
+  mla               String   @id
+  original_price    Decimal? @db.Decimal(20, 2)
+  precio_final      Decimal? @db.Decimal(20, 2)
+  pct_descuento     Decimal? @db.Decimal(10, 2)
+  seller_percentage Decimal? @db.Decimal(10, 2)
+  meli_percentage   Decimal? @db.Decimal(10, 2)
+  descuento_propio  String?  // "SI" o "NO"
+  ultima_actualizacion DateTime @default(now())
+
+  @@map("ml_descuentos")
+}

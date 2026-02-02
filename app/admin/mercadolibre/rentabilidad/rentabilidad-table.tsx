@@ -11,11 +11,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { useState, useMemo } from "react";
 
-// Definimos una interfaz simple para el item (opcional pero ayuda)
-interface RentabilidadItem {
+// Definimos la interfaz para tener autocompletado y evitar errores
+interface ProductoRentabilidad {
   item_id: string;
   nombre: string;
   precio_venta: number;
@@ -28,67 +28,80 @@ interface RentabilidadItem {
   estado?: string;
 }
 
-export default function RentabilidadTable({ data }: { data: RentabilidadItem[] }) {
+export default function RentabilidadTable({ data }: { data: ProductoRentabilidad[] }) {
   const [search, setSearch] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 15; // Ajustado a 15 para que se vea mejor en pantalla
+  const [page, setPage] = useState(1);
+  const pageSize = 20; // Filas por página
 
-  // Manejador del buscador
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value);
-    setCurrentPage(1); // IMPORTANTE: Volver a la página 1 al buscar
+  // Al escribir, actualizamos búsqueda y volvemos a la página 1
+  const handleSearch = (val: string) => {
+    setSearch(val);
+    setPage(1);
   };
 
-  // 1. FILTRADO: Se ejecuta automáticamente cuando cambia 'search' o 'data'
-  const filteredData = useMemo(() => {
+  // 1. LÓGICA DE FILTRADO (Genera 'resultadosFiltrados')
+  const resultadosFiltrados = useMemo(() => {
     const query = search.toLowerCase().trim();
     
+    // Si no hay búsqueda, usamos toda la data original
     if (!query) return data;
 
-    // Buscador "inteligente": busca cada palabra por separado
+    // Buscador multi-término (ej: "bujia honda")
     const terms = query.split(" ").filter(t => t.length > 0);
 
     return data.filter((item) => {
-      // Unimos los campos donde queremos buscar
-      const textToSearch = `${item.nombre || ""} ${item.item_id || ""}`.toLowerCase();
-      
-      // Verificamos que el item contenga TODOS los términos de búsqueda
-      return terms.every(term => textToSearch.includes(term));
+      const texto = `${item.nombre || ""} ${item.item_id || ""}`.toLowerCase();
+      // El item debe tener TODAS las palabras buscadas
+      return terms.every(term => texto.includes(term));
     });
   }, [data, search]);
 
-  // 2. PAGINACIÓN: Cortamos 'filteredData' (NO data) según la página actual
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  
-  // Esta es la variable EXACTA que debemos recorrer en la tabla
-  const paginatedData = filteredData.slice(startIndex, endIndex);
+  // 2. LÓGICA DE PAGINACIÓN (Genera 'filasVisibles')
+  // Cortamos 'resultadosFiltrados' para mostrar solo la página actual
+  const totalItems = resultadosFiltrados.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  // ESTA es la variable que la tabla DEBE renderizar
+  const filasVisibles = resultadosFiltrados.slice(startIndex, endIndex);
 
   return (
     <div className="space-y-4 bg-white p-4 rounded-lg border shadow-sm">
-      {/* --- ZONA DE BUSCADOR --- */}
+      {/* --- BARRA DE BUSQUEDA --- */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="relative w-full max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Buscar por título o MLA..."
             value={search}
-            onChange={handleSearchChange}
-            className="pl-9 border-amber-200 focus:border-amber-500"
+            onChange={(e) => handleSearch(e.target.value)}
+            className="pl-9 pr-8 border-amber-200 focus:border-amber-500"
           />
+          {search && (
+            <button 
+              onClick={() => handleSearch("")}
+              className="absolute right-2 top-2.5 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         
         <div className="text-sm text-gray-500 font-medium">
           {search ? (
-            <span>Encontrados: <span className="text-amber-700 font-bold">{filteredData.length}</span></span>
+            <span>
+              Encontrados: <span className="text-amber-700 font-bold">{totalItems}</span>
+              <span className="text-gray-400 mx-1">/</span>
+              {data.length}
+            </span>
           ) : (
-            <span>Total: {data.length} publicaciones</span>
+            <span>Total: {totalItems} publicaciones</span>
           )}
         </div>
       </div>
       
-      {/* --- TABLA --- */}
+      {/* --- TABLA DE DATOS --- */}
       <div className="rounded-md border overflow-hidden">
         <Table>
           <TableHeader className="bg-amber-50/50">
@@ -102,8 +115,9 @@ export default function RentabilidadTable({ data }: { data: RentabilidadItem[] }
             </TableRow>
           </TableHeader>
           <TableBody>
-            {paginatedData.length > 0 ? (
-              paginatedData.map((item) => (
+            {/* CORRECCIÓN CRÍTICA: Iteramos sobre 'filasVisibles' (el slice), NUNCA sobre 'data' */}
+            {filasVisibles.length > 0 ? (
+              filasVisibles.map((item) => (
                 <TableRow key={item.item_id} className="hover:bg-amber-50 transition-colors">
                   <TableCell className="font-mono text-xs font-medium text-gray-500">
                     {item.item_id}
@@ -137,9 +151,10 @@ export default function RentabilidadTable({ data }: { data: RentabilidadItem[] }
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center">
-                  <div className="flex flex-col items-center justify-center text-gray-500">
+                  <div className="flex flex-col items-center justify-center text-gray-500 py-4">
+                    <Search className="h-8 w-8 text-gray-300 mb-2" />
                     <p>No se encontraron resultados para "{search}"</p>
-                    <Button variant="link" onClick={() => setSearch("")} className="text-amber-600">
+                    <Button variant="link" onClick={() => handleSearch("")} className="text-amber-600 mt-1">
                       Limpiar filtros
                     </Button>
                   </div>
@@ -152,16 +167,16 @@ export default function RentabilidadTable({ data }: { data: RentabilidadItem[] }
 
       {/* --- PAGINACIÓN --- */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between py-2">
+        <div className="flex items-center justify-between py-2 px-2">
           <div className="text-xs text-gray-400">
-            Página {currentPage} de {totalPages}
+            Página {page} de {totalPages}
           </div>
           <div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
               className="h-8"
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
@@ -170,8 +185,8 @@ export default function RentabilidadTable({ data }: { data: RentabilidadItem[] }
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
               className="h-8"
             >
               Siguiente

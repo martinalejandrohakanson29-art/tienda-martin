@@ -16,13 +16,14 @@ export async function getRentabilidadData() {
     const descuentosMap = new Map(descuentos.map(d => [d.mla, d]));
 
     return productos.map(p => {
+      const fee = cargosMap.get(p.mla);
       const desc = descuentosMap.get(p.mla);
       
       const precioPublicado = Number(p.precio_venta_ml || 0);
       const precioOriginal = Number(desc?.original_price || precioPublicado);
       const pctVendedor = Number(desc?.seller_percentage || 0);
 
-      // CÁLCULO DE LA FÓRMULA: Precio Original menos lo que yo descuento
+      // FÓRMULA: Precio Original menos mi parte del descuento
       const precioFinalNuestro = precioOriginal * (1 - (pctVendedor / 100));
 
       return {
@@ -34,8 +35,14 @@ export async function getRentabilidadData() {
         desc_meli_pct: Number(desc?.meli_percentage || 0),
         descuento_manual: desc?.descuento_propio || "NO",
         precio_final: Number(desc?.precio_final || precioPublicado),
-        // Nueva columna con fórmula
         precio_final_nuestro: precioFinalNuestro,
+        // NUEVOS DATOS DE ML_FEES
+        cargo_venta_fijo: Number(fee?.cargo_venta_fijo || 0),
+        cargo_venta_percent: Number(fee?.cargo_venta_percent || 0),
+        cuotas_fijo: Number(fee?.cuotas_fijo || 0),
+        cuotas_percent: Number(fee?.cuotas_percent || 0),
+        envio_costo: Number(fee?.envio_costo || 0),
+        costo_fijo_ml: Number(fee?.costo_fijo_ml || 0),
       };
     });
   } catch (error) {

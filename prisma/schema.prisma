@@ -356,3 +356,16 @@ model EtiquetaMLItem {
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
+
+model MLFees {
+  mla                   String   @id // Usamos el MLA como llave única
+  cargo_venta_fijo      Decimal? @db.Decimal(20, 2) // Cargo x Venta $
+  cargo_venta_percent   Decimal? @db.Decimal(10, 2) // Cargo x Venta %
+  cuotas_fijo           Decimal? @db.Decimal(20, 2) // $ Cuotas
+  cuotas_percent        Decimal? @db.Decimal(10, 2) // % Cuotas
+  envio_costo           Decimal? @db.Decimal(20, 2) // Envío
+  costo_fijo_ml         Decimal? @db.Decimal(20, 2) // Costo Fijo (ej. los $500 de ML)
+  ultima_actualizacion  DateTime @default(now())
+
+  @@map("ml_fees")
+}

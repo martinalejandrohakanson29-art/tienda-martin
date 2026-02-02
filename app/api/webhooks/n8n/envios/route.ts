@@ -45,21 +45,25 @@ export async function POST(req: Request) {
             }
 
             await prisma.$transaction(async (tx) => {
-                // Buscamos si ya existe para ver si tiene una fecha previa
+                // Buscamos si ya existe el registro para verificar su estado actual
                 const registroExistente = await tx.etiquetaML.findUnique({
                     where: { id: shippingId },
-                    select: { fechaPreparado: true }
+                    select: { status: true, fechaPreparado: true }
                 });
+
+                // LÓGICA DE PROTECCIÓN DE ESTADO:
+                // Si el pedido ya fue AUDITADO manualmente por vos, mantenemos ese estado.
+                // Caso contrario, usamos el estado que viene de n8n/Mercado Libre.
+                const nuevoEstado = registroExistente?.status === "AUDITADO" 
+                    ? "AUDITADO" 
+                    : (data.status || "PENDIENTE");
 
                 // LÓGICA DE FECHA (FECHA PREPARADO):
                 let nuevaFechaPreparado = registroExistente?.fechaPreparado || null;
                 
-                // Si ML nos manda la fecha real de impresión, esa manda sobre todo.
                 if (mlFirstPrinted) {
                     nuevaFechaPreparado = mlFirstPrinted;
                 } 
-                // Si no hay fecha oficial pero detectamos que está listo y no teníamos fecha, 
-                // usamos la hora actual del servidor como backup.
                 else if (!nuevaFechaPreparado && esPreparado) {
                     nuevaFechaPreparado = new Date();
                 }
@@ -69,7 +73,7 @@ export async function POST(req: Request) {
                     where: { id: shippingId },
                     update: {
                         orderId: String(data.order_id),
-                        status: data.status || "PENDIENTE", // <--- IMPORTANTE: Ahora sí actualiza el estado
+                        status: nuevoEstado, // Usamos la variable protegida
                         substatus: data.substatus || null,
                         resumen: data.resumen,
                         logisticType: data.logistic_type,
@@ -79,7 +83,7 @@ export async function POST(req: Request) {
                     create: {
                         id: shippingId,
                         orderId: String(data.order_id),
-                        status: data.status || "PENDIENTE",
+                        status: nuevoEstado,
                         substatus: data.substatus || null,
                         resumen: data.resumen,
                         logisticType: data.logistic_type,

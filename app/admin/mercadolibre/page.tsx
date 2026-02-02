@@ -5,7 +5,8 @@ import {
   ArrowLeft, 
   ArrowRight,
   MapPinned,
-  PackageCheck 
+  PackageCheck,
+  BarChart3 
 } from "lucide-react";
 import Link from "next/link";
 
@@ -24,7 +25,7 @@ export default function MercadoLibreDashboard() {
 
       <p className="text-gray-500 text-lg">Selecciona el área de trabajo operativa.</p>
 
-      {/* Grid ajustado a 3 columnas para coincidir con el diseño de /admin */}
+      {/* Grid de tarjetas */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         
         {/* TARJETA 1: GESTIÓN FULL */}
@@ -73,7 +74,7 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* NUEVA TARJETA 3: GESTIÓN DE PEDIDOS DESPACHADOS */}
+        {/* TARJETA 3: GESTIÓN DE PEDIDOS DESPACHADOS */}
         <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-emerald-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-emerald-800 text-xl">
@@ -90,6 +91,29 @@ export default function MercadoLibreDashboard() {
             </p>
             <Link href="/admin/mercadolibre/despachados">
               <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* NUEVA TARJETA 4: RENTABILIDAD */}
+        <Card className="border-l-4 border-l-amber-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-amber-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-amber-800 text-xl">
+              <BarChart3 className="h-6 w-6" />
+              Rentabilidad
+            </CardTitle>
+            <CardDescription className="text-amber-700/80 font-medium">
+              Análisis de márgenes y costos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Cálculo detallado de ganancias, comisiones y costos operativos.
+            </p>
+            <Link href="/admin/mercadolibre/rentabilidad">
+              <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-sm h-12 text-lg">
                 Entrar <ArrowRight size={18} />
               </Button>
             </Link>

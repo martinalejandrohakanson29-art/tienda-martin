@@ -126,6 +126,7 @@ model ProductosMaestros {
   nombre_publicacion   String?
   link_publicacion     String?
   estado               String?
+  precio_venta_ml      Decimal? @db.Decimal(20, 2)
   ultima_actualizacion DateTime @default(now())
 
   @@unique([mla, variation_id], name: "unique_mla_variation")

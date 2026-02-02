@@ -9,39 +9,41 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { useState, useMemo } from "react";
 
 export default function RentabilidadTable({ data }: { data: any[] }) {
   const [search, setSearch] = useState("");
 
-  // Lógica de búsqueda mejorada
-  const filteredData = data.filter(item => {
-    // 1. Limpiamos el término de búsqueda de espacios innecesarios
-    const searchTerm = search.toLowerCase().trim();
+  // Usamos useMemo para que el filtro sea ultra rápido y solo se ejecute cuando cambie la búsqueda o los datos
+  const filteredData = useMemo(() => {
+    const query = search.toLowerCase().trim();
     
-    // Si no hay nada escrito, mostramos todo
-    if (!searchTerm) return true;
+    // Si no hay nada escrito, mostramos toda la lista
+    if (!query) return data;
 
-    // 2. Preparamos los campos para comparar (evitamos errores si vienen null)
-    const nombre = (item.nombre || "").toLowerCase();
-    const mla = (item.item_id || "").toLowerCase();
-
-    // 3. Buscamos coincidencia en cualquiera de los dos campos
-    return nombre.includes(searchTerm) || mla.includes(searchTerm);
-  });
+    return data.filter((item) => {
+      // Preparamos los campos de forma segura (manejando posibles nulos)
+      const nombre = (item.nombre || "").toLowerCase();
+      const mla = (item.item_id || "").toLowerCase();
+      
+      // La búsqueda debe coincidir en el nombre O en el MLA
+      return nombre.includes(query) || mla.includes(query);
+    });
+  }, [search, data]);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-4">
         <Input
-          placeholder="Buscar por nombre o MLA (ej: MLA123...)"
+          placeholder="Buscar por MLA o Nombre (ej: MLA123...)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm border-amber-200 focus:border-amber-500 focus:ring-amber-500"
+          className="max-w-sm border-amber-200 focus:border-amber-500"
         />
         {search && (
           <span className="text-xs text-gray-400">
-            Encontrados: {filteredData.length}
+            Resultados encontrados: {filteredData.length}
           </span>
         )}
       </div>
@@ -51,53 +53,49 @@ export default function RentabilidadTable({ data }: { data: any[] }) {
           <TableHeader className="bg-gray-50">
             <TableRow>
               <TableHead className="font-bold min-w-[120px]">MLA</TableHead>
-              <TableHead className="font-bold min-w-[250px]">Producto</TableHead>
+              <TableHead className="font-bold min-w-[250px]">Nombre de Publicación</TableHead>
               <TableHead className="font-bold text-right">Precio Venta</TableHead>
+              {/* Columnas de Cargos (Fees) solicitadas anteriormente */}
               <TableHead className="font-bold text-right text-red-600">Cargo ($)</TableHead>
-              <TableHead className="font-bold text-right text-red-600">Cargo (%)</TableHead>
               <TableHead className="font-bold text-right text-orange-600">Cuotas ($)</TableHead>
-              <TableHead className="font-bold text-right text-orange-600">Cuotas (%)</TableHead>
               <TableHead className="font-bold text-right text-blue-600">Envío</TableHead>
-              <TableHead className="font-bold text-right">C. Fijo</TableHead>
+              <TableHead className="font-bold text-center">Estado</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredData.length > 0 ? (
               filteredData.map((item) => (
-                <TableRow key={item.item_id} className="hover:bg-amber-50/30 transition-colors">
-                  <TableCell className="font-mono text-[10px] text-blue-600 font-medium">
+                <TableRow key={item.item_id} className="hover:bg-amber-50/50 transition-colors">
+                  <TableCell className="font-mono text-xs text-blue-600 font-medium">
                     {item.item_id}
                   </TableCell>
-                  <TableCell className="text-xs font-medium">
+                  <TableCell className="text-xs font-medium max-w-md truncate">
                     {item.nombre}
                   </TableCell>
                   <TableCell className="text-right font-bold">
-                    ${Number(item.precio_venta).toLocaleString('es-AR')}
+                    ${Number(item.precio_venta || item.precio_original || 0).toLocaleString('es-AR')}
                   </TableCell>
-                  <TableCell className="text-right text-red-600">
-                    -${Number(item.cargo_venta_ars).toLocaleString('es-AR')}
+                  {/* Estos datos vienen de la tabla MLFees que creamos */}
+                  <TableCell className="text-right text-red-600 text-xs font-medium">
+                    -${Number(item.cargo_venta_ars || 0).toLocaleString('es-AR')}
                   </TableCell>
-                  <TableCell className="text-right text-red-500">
-                    {item.cargo_venta_porc}%
+                  <TableCell className="text-right text-orange-600 text-xs font-medium">
+                    -${Number(item.cuotas_ars || 0).toLocaleString('es-AR')}
                   </TableCell>
-                  <TableCell className="text-right text-orange-600">
-                    -${Number(item.cuotas_ars).toLocaleString('es-AR')}
+                  <TableCell className="text-right text-blue-600 text-xs font-medium">
+                    -${Number(item.envio || 0).toLocaleString('es-AR')}
                   </TableCell>
-                  <TableCell className="text-right text-orange-500">
-                    {item.cuotas_porc}%
-                  </TableCell>
-                  <TableCell className="text-right text-blue-600">
-                    -${Number(item.envio).toLocaleString('es-AR')}
-                  </TableCell>
-                  <TableCell className="text-right text-gray-500">
-                    -${Number(item.costo_fijo_ml).toLocaleString('es-AR')}
+                  <TableCell className="text-center">
+                    <Badge variant={item.estado === 'active' ? 'default' : 'secondary'} className="text-[10px]">
+                      {item.estado === 'active' ? 'Activo' : item.estado}
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center text-gray-500">
-                  No se encontraron productos que coincidan con "{search}"
+                <TableCell colSpan={7} className="h-24 text-center text-gray-500">
+                  No se encontraron resultados para "{search}".
                 </TableCell>
               </TableRow>
             )}

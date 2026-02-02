@@ -24,6 +24,7 @@ interface ProductoRentabilidad {
   desc_meli_pct: number;
   descuento_manual: string;
   precio_final: number;
+  precio_final_nuestro: number;
 }
 
 export default function RentabilidadTable({ data }: { data: ProductoRentabilidad[] }) {
@@ -43,7 +44,6 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
   return (
     <div className="flex flex-col h-full w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       
-      {/* Buscador Superior */}
       <div className="p-4 border-b border-slate-200 bg-white">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full max-w-md">
@@ -61,63 +61,49 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
             )}
           </div>
           <div className="text-xs text-slate-500 font-medium">
-            {filteredData.length} publicaciones encontradas
+            {filteredData.length} resultados
           </div>
         </div>
       </div>
 
-      {/* Contenedor de Tabla con Scroll */}
       <div className="flex-1 overflow-auto bg-slate-50">
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
             <TableRow>
-              {/* Columna de Publicación ensanchada */}
-              <TableHead className="min-w-[450px] font-bold text-slate-700">Publicación</TableHead>
+              <TableHead className="min-w-[400px] font-bold text-slate-700">Publicación</TableHead>
               <TableHead className="text-right font-bold text-slate-700">Precio Original</TableHead>
               <TableHead className="text-right font-bold text-amber-600">Dcto Total</TableHead>
               <TableHead className="text-right font-bold text-slate-600">Dcto Propio</TableHead>
               <TableHead className="text-right font-bold text-blue-600">Dcto ML</TableHead>
               <TableHead className="text-center font-bold text-slate-700">Manual</TableHead>
-              <TableHead className="text-right font-bold text-slate-900">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} 
-                  className="font-bold -mr-2"
-                >
-                  Precio Final <ArrowUpDown className="ml-1 h-3 w-3" />
-                </Button>
-              </TableHead>
+              <TableHead className="text-right font-bold text-slate-900">Precio Final</TableHead>
+              <TableHead className="text-right font-bold text-amber-700 bg-amber-50/50">Final Nuestro</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sortedData.map((item, index) => (
-              <TableRow key={`${item.item_id}-${index}`} className="hover:bg-amber-50/50 transition-colors border-slate-100 bg-white">
+              <TableRow key={`${item.item_id}-${index}`} className="hover:bg-amber-50/50 transition-colors border-slate-100 bg-white text-xs sm:text-sm">
                 <TableCell>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-semibold text-sm text-slate-800 leading-tight">
-                      {item.nombre}
-                    </span>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {item.item_id}
-                    </span>
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-slate-800 leading-tight">{item.nombre}</span>
+                    <span className="text-[10px] font-mono text-slate-400">{item.item_id}</span>
                   </div>
                 </TableCell>
-                <TableCell className="text-right text-slate-400 line-through text-xs">
+                <TableCell className="text-right text-slate-400 line-through">
                   ${item.precio_original.toLocaleString('es-AR')}
                 </TableCell>
                 <TableCell className="text-right font-bold text-amber-600">
                   {item.desc_pct_total > 0 ? `${item.desc_pct_total}%` : '-'}
                 </TableCell>
-                <TableCell className="text-right text-slate-600 text-sm">
+                <TableCell className="text-right text-slate-600">
                   {item.desc_vendedor_pct > 0 ? `${item.desc_vendedor_pct}%` : '-'}
                 </TableCell>
-                <TableCell className="text-right text-blue-600 text-sm">
+                <TableCell className="text-right text-blue-600">
                   {item.desc_meli_pct > 0 ? `${item.desc_meli_pct}%` : '-'}
                 </TableCell>
                 <TableCell className="text-center">
                   <Badge variant="outline" className={cn(
-                    "text-[10px] uppercase font-bold px-2 h-5",
+                    "text-[9px] font-bold px-1.5 h-4",
                     item.descuento_manual === "SI" 
                       ? "bg-purple-50 text-purple-700 border-purple-200" 
                       : "bg-slate-50 text-slate-400 border-slate-200"
@@ -125,8 +111,11 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                     {item.descuento_manual}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right font-black text-slate-900 text-base">
+                <TableCell className="text-right font-bold text-slate-900">
                   ${item.precio_final.toLocaleString('es-AR')}
+                </TableCell>
+                <TableCell className="text-right font-black text-amber-800 bg-amber-50/30">
+                  ${item.precio_final_nuestro.toLocaleString('es-AR')}
                 </TableCell>
               </TableRow>
             ))}

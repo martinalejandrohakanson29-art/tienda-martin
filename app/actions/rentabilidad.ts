@@ -18,22 +18,24 @@ export async function getRentabilidadData() {
     return productos.map(p => {
       const desc = descuentosMap.get(p.mla);
       
-      // Respaldo por si no hay dato en la tabla de descuentos aún
       const precioPublicado = Number(p.precio_venta_ml || 0);
+      const precioOriginal = Number(desc?.original_price || precioPublicado);
+      const pctVendedor = Number(desc?.seller_percentage || 0);
+
+      // CÁLCULO DE LA FÓRMULA: Precio Original menos lo que yo descuento
+      const precioFinalNuestro = precioOriginal * (1 - (pctVendedor / 100));
 
       return {
         item_id: p.mla,
         nombre: p.nombre_publicacion || "Sin título",
-        // 1. Precio original (el "tachado")
-        precio_original: Number(desc?.original_price || precioPublicado),
-        // 2, 3, 4. Porcentajes de descuento
+        precio_original: precioOriginal,
         desc_pct_total: Number(desc?.pct_descuento || 0),
-        desc_vendedor_pct: Number(desc?.seller_percentage || 0),
+        desc_vendedor_pct: pctVendedor,
         desc_meli_pct: Number(desc?.meli_percentage || 0),
-        // 5. ¿Es descuento manual?
         descuento_manual: desc?.descuento_propio || "NO",
-        // 6. PRECIO FINAL: Tomado directamente del campo precio_final de la DB
         precio_final: Number(desc?.precio_final || precioPublicado),
+        // Nueva columna con fórmula
+        precio_final_nuestro: precioFinalNuestro,
       };
     });
   } catch (error) {

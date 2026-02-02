@@ -5,16 +5,14 @@ import RentabilidadTable from "./rentabilidad-table";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
 
 export default async function RentabilidadPage() {
-  // Obtenemos los datos desde el servidor
   const data = await getRentabilidadData();
-
-  // Cálculos rápidos para las tarjetas de resumen
+  
+  // Stats rápidos
   const totalItems = data.length;
   const itemsConEnvio = data.filter(i => i.envio > 0).length;
 
   return (
     <div className="space-y-6 p-6 bg-gray-50/50 min-h-screen">
-      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -39,7 +37,6 @@ export default async function RentabilidadPage() {
         </Button>
       </div>
 
-      {/* Tarjetas de Resumen (Stats) */}
       <div className="grid gap-4 md:grid-cols-3">
         <div className="p-4 bg-white border border-amber-100 rounded-lg shadow-sm">
           <p className="text-xs text-amber-600 font-semibold uppercase tracking-wider mb-1">Total Publicaciones</p>
@@ -52,7 +49,6 @@ export default async function RentabilidadPage() {
         </div>
       </div>
 
-      {/* Tabla Interactiva */}
       <RentabilidadTable data={data} />
     </div>
   );

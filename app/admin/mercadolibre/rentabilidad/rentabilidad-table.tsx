@@ -10,44 +10,74 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useMemo } from "react";
 
 export default function RentabilidadTable({ data }: { data: any[] }) {
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20; // Cantidad de filas por página
 
-  // Usamos useMemo para que el filtro sea ultra rápido y solo se ejecute cuando cambie la búsqueda o los datos
+  // Función para actualizar búsqueda y resetear página
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
+    setCurrentPage(1); // Volver a la primera página al buscar
+  };
+
   const filteredData = useMemo(() => {
     const query = search.toLowerCase().trim();
     
-    // Si no hay nada escrito, mostramos toda la lista
+    // Si no hay búsqueda, devolvemos todo
     if (!query) return data;
 
+    // 1. Dividimos la búsqueda en palabras individuales (tokens)
+    const searchTerms = query.split(" ").filter(term => term.length > 0);
+
     return data.filter((item) => {
-      // Preparamos los campos de forma segura (manejando posibles nulos)
+      // Preparamos los campos de búsqueda
       const nombre = (item.nombre || "").toLowerCase();
       const mla = (item.item_id || "").toLowerCase();
       
-      // La búsqueda debe coincidir en el nombre O en el MLA
-      return nombre.includes(query) || mla.includes(query);
+      // Creamos un string gigante con todo el contenido buscable de la fila
+      const searchableContent = `${nombre} ${mla}`;
+
+      // 2. Verificamos que TODAS las palabras escritas estén en el contenido
+      // Esto permite buscar "bujia honda" y encontrar "Bujia NGK para Honda"
+      return searchTerms.every((term) => searchableContent.includes(term));
     });
   }, [search, data]);
 
+  // Lógica de Paginación
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedData = filteredData.slice(startIndex, startIndex + itemsPerPage);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4">
-        <Input
-          placeholder="Buscar por MLA o Nombre (ej: MLA123...)"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm border-amber-200 focus:border-amber-500"
-        />
-        {search && (
-          <span className="text-xs text-gray-400">
-            Resultados encontrados: {filteredData.length}
-          </span>
-        )}
+      {/* Buscador */}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 flex-1">
+            <Input
+            placeholder="Buscar por palabras clave (ej: bujia honda cg)..."
+            value={search}
+            onChange={handleSearchChange}
+            className="max-w-sm border-amber-200 focus:border-amber-500"
+            />
+            {search && (
+            <span className="text-xs text-gray-400">
+                Encontrados: {filteredData.length}
+            </span>
+            )}
+        </div>
+        
+        {/* Controles de Paginación Superiores (opcional, útil si hay muchos datos) */}
+        <div className="text-xs text-gray-500">
+            Página {currentPage} de {totalPages || 1}
+        </div>
       </div>
       
+      {/* Tabla */}
       <div className="rounded-md border bg-white shadow-sm overflow-x-auto">
         <Table>
           <TableHeader className="bg-gray-50">
@@ -55,7 +85,6 @@ export default function RentabilidadTable({ data }: { data: any[] }) {
               <TableHead className="font-bold min-w-[120px]">MLA</TableHead>
               <TableHead className="font-bold min-w-[250px]">Nombre de Publicación</TableHead>
               <TableHead className="font-bold text-right">Precio Venta</TableHead>
-              {/* Columnas de Cargos (Fees) solicitadas anteriormente */}
               <TableHead className="font-bold text-right text-red-600">Cargo ($)</TableHead>
               <TableHead className="font-bold text-right text-orange-600">Cuotas ($)</TableHead>
               <TableHead className="font-bold text-right text-blue-600">Envío</TableHead>
@@ -63,8 +92,8 @@ export default function RentabilidadTable({ data }: { data: any[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length > 0 ? (
-              filteredData.map((item) => (
+            {paginatedData.length > 0 ? (
+              paginatedData.map((item) => (
                 <TableRow key={item.item_id} className="hover:bg-amber-50/50 transition-colors">
                   <TableCell className="font-mono text-xs text-blue-600 font-medium">
                     {item.item_id}
@@ -73,9 +102,8 @@ export default function RentabilidadTable({ data }: { data: any[] }) {
                     {item.nombre}
                   </TableCell>
                   <TableCell className="text-right font-bold">
-                    ${Number(item.precio_venta || item.precio_original || 0).toLocaleString('es-AR')}
+                    ${Number(item.precio_venta || 0).toLocaleString('es-AR')}
                   </TableCell>
-                  {/* Estos datos vienen de la tabla MLFees que creamos */}
                   <TableCell className="text-right text-red-600 text-xs font-medium">
                     -${Number(item.cargo_venta_ars || 0).toLocaleString('es-AR')}
                   </TableCell>
@@ -102,6 +130,30 @@ export default function RentabilidadTable({ data }: { data: any[] }) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Footer de Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-end gap-2 py-2">
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+            >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Anterior
+            </Button>
+            <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+            >
+                Siguiente
+                <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+        </div>
+      )}
     </div>
   );
 }

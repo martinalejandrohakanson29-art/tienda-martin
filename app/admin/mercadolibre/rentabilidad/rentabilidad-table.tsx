@@ -9,17 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 
-interface RentabilidadRow {
-  item_id: string;
-  nombre: string;
-  precio_original: number;
-  estado: string;
-}
-
-export default function RentabilidadTable({ data }: { data: RentabilidadRow[] }) {
+export default function RentabilidadTable({ data }: { data: any[] }) {
   const [search, setSearch] = useState("");
 
   const filteredData = data.filter(item => 
@@ -36,39 +28,35 @@ export default function RentabilidadTable({ data }: { data: RentabilidadRow[] })
         className="max-w-sm"
       />
       
-      <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border bg-white shadow-sm overflow-x-auto">
         <Table>
           <TableHeader className="bg-gray-50">
             <TableRow>
-              <TableHead className="font-bold">Item ID (MLA)</TableHead>
-              <TableHead className="font-bold">Nombre de Publicación</TableHead>
-              <TableHead className="font-bold text-right">Precio en ML</TableHead>
-              <TableHead className="font-bold text-center">Estado</TableHead>
+              <TableHead className="font-bold min-w-[120px]">MLA</TableHead>
+              <TableHead className="font-bold min-w-[250px]">Producto</TableHead>
+              <TableHead className="font-bold text-right">Precio Venta</TableHead>
+              <TableHead className="font-bold text-right text-red-600">Cargo ($)</TableHead>
+              <TableHead className="font-bold text-right text-red-600">Cargo (%)</TableHead>
+              <TableHead className="font-bold text-right text-orange-600">Cuotas ($)</TableHead>
+              <TableHead className="font-bold text-right text-orange-600">Cuotas (%)</TableHead>
+              <TableHead className="font-bold text-right text-blue-600">Envío</TableHead>
+              <TableHead className="font-bold text-right">C. Fijo</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.length > 0 ? (
-              filteredData.map((item) => (
-                <TableRow key={item.item_id}>
-                  <TableCell className="font-mono text-blue-600 font-medium">{item.item_id}</TableCell>
-                  <TableCell className="max-w-md truncate">{item.nombre}</TableCell>
-                  <TableCell className="text-right font-semibold">
-                    ${item.precio_original.toLocaleString('es-AR')}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant={item.estado === 'active' ? 'default' : 'secondary'}>
-                      {item.estado === 'active' ? 'Activo' : item.estado}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-gray-500">
-                  No se encontraron resultados.
-                </TableCell>
+            {filteredData.map((item) => (
+              <TableRow key={item.item_id}>
+                <TableCell className="font-mono text-xs">{item.item_id}</TableCell>
+                <TableCell className="text-xs font-medium">{item.nombre}</TableCell>
+                <TableCell className="text-right font-bold">${item.precio_venta.toLocaleString()}</TableCell>
+                <TableCell className="text-right text-red-600">-${item.cargo_venta_ars.toLocaleString()}</TableCell>
+                <TableCell className="text-right text-red-500">{item.cargo_venta_porc}%</TableCell>
+                <TableCell className="text-right text-orange-600">-${item.cuotas_ars.toLocaleString()}</TableCell>
+                <TableCell className="text-right text-orange-500">{item.cuotas_porc}%</TableCell>
+                <TableCell className="text-right text-blue-600">-${item.envio.toLocaleString()}</TableCell>
+                <TableCell className="text-right text-gray-500">-${item.costo_fijo_ml.toLocaleString()}</TableCell>
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
       </div>

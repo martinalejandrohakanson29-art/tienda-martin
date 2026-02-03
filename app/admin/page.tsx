@@ -48,10 +48,10 @@ export default async function AdminDashboard() {
                 <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-primary">
                         <ClipboardList className="h-5 w-5" />
-                        Asignar Pendiente al Equipo
+                        Asignar de tareas
                     </CardTitle>
                     <CardDescription>
-                        Crea tareas específicas y asígnalas a un usuario.
+                        Crear y asignar tareas especificas por usuario
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -60,7 +60,7 @@ export default async function AdminDashboard() {
                             <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Tarea / Pendiente</label>
                             <Input 
                                 name="content" 
-                                placeholder="Ej: Limpiar el depósito o revisar etiquetas..." 
+                                placeholder="Ej: actualizar lista de precios Paolucci..." 
                                 required 
                                 className="bg-white"
                             />
@@ -256,3 +256,4 @@ export default async function AdminDashboard() {
         </div>
     )
 }
+

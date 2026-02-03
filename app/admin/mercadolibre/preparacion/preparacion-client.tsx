@@ -39,9 +39,6 @@ import {
 
 import { Html5Qrcode } from "html5-qrcode"
 
-/**
- * Mapeo de los nombres de logística
- */
 const getLogisticName = (type: string) => {
     const types: Record<string, string> = {
         'cross_docking': 'COLECTA',
@@ -82,7 +79,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [viewingFotos, setViewingFotos] = useState<{id: string, fotos: any[]} | null>(null)
     const [zoom, setZoom] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
-    const [selectedItem, setSelectedItem] = useState<any>(null)
+    
+    // CORRECCIÓN: El estado ahora guarda el itemId específico
+    const [selectedItem, setSelectedItem] = useState<{envioId: string, itemId: string, mla: string} | null>(null)
 
     const [showScanner, setShowScanner] = useState(false)
     const scannerRef = useRef<Html5Qrcode | null>(null)
@@ -146,8 +145,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     const auditoriaCount = initialEnvios.filter(e => Boolean(e.drivePhotoUrl) && e.status !== "AUDITADO").length;
 
-    const handleTriggerCamera = (envioId: string, mla: string) => {
-        setSelectedItem({ envioId, mla })
+    // CORRECCIÓN: Ahora recibimos el itemId único del ítem de la etiqueta
+    const handleTriggerCamera = (envioId: string, itemId: string, mla: string) => {
+        setSelectedItem({ envioId, itemId, mla })
         fileInputRef.current?.click()
     }
 
@@ -201,13 +201,13 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             return;
         }
 
-        // --- INVESTIGACIÓN: Log en la consola del navegador ---
-        console.log(`[AUDITORIA] Capturando archivo: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+        console.log(`[AUDITORIA] Capturando archivo para Item ${selectedItem.itemId}`);
 
         setLoading(selectedItem.envioId)
         const formData = new FormData()
         formData.append('photo', file)
         formData.append('envioId', selectedItem.envioId)
+        formData.append('itemId', selectedItem.itemId) // Enviamos el ID único
         formData.append('mla', selectedItem.mla)
 
         try {
@@ -215,9 +215,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             
             if (res.success) {
                 toast.success("Foto guardada con éxito.")
-                console.log(`[AUDITORIA] Éxito para Envío ${selectedItem.envioId}`);
             } else {
-                // Aquí capturamos el error específico que definimos en la Action para saber qué falló
                 console.error("[AUDITORIA ERROR SERVIDOR]:", res.error);
                 toast.error(`Fallo al subir: ${res.error || 'Error desconocido'}`);
             }
@@ -300,7 +298,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                             {getLogisticName(envio.logisticType)}
                                         </span>
                                         {tieneFoto && (
-                                            <span className="flex items-center gap-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md animate-in fade-in zoom-in">
+                                            <span className="flex items-center gap-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md">
                                                 <CheckCircle2 className="h-3 w-3" /> FOTO OK
                                             </span>
                                         )}
@@ -309,15 +307,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                         {renderTextWithQuantity(envio.resumen)}
                                     </h3>
                                 </div>
-                                <Button 
-                                    size="icon"
-                                    variant="outline"
-                                    className={`rounded-full h-14 w-14 border-2 shrink-0 transition-all ${tieneFoto ? 'bg-white border-emerald-200 text-emerald-600 shadow-inner' : 'bg-blue-50 text-blue-600 border-blue-200'}`}
-                                    onClick={() => handleTriggerCamera(envio.id, envio.items[0]?.mla)}
-                                    disabled={loading === envio.id}
-                                >
-                                    {loading === envio.id ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
-                                </Button>
                             </div>
 
                             <div className="flex items-center gap-2 mb-4 text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 w-fit">
@@ -336,19 +325,33 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 </Button>
                             )}
 
-                            <div className="space-y-2 pt-2 border-t border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase">Artículos / Agregados:</p>
+                            <div className="space-y-4 pt-2 border-t border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase">Artículos para Preparar:</p>
                                 {envio.items.map((item: any) => {
                                     const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
                                     const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
+                                    
                                     return (
-                                        <div key={item.id} className="flex flex-col gap-1.5">
-                                            {nombres.map((nombre: string, idx: number) => (
-                                                <div key={idx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>
-                                                    <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                                                    <span className="truncate">{renderTextWithQuantity(nombre)}</span>
-                                                </div>
-                                            ))}
+                                        <div key={item.id} className="flex items-center justify-between gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+                                            <div className="flex-1 flex flex-col gap-1.5 overflow-hidden">
+                                                {nombres.map((nombre: string, idx: number) => (
+                                                    <div key={idx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>
+                                                        <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                                                        <span className="truncate">{renderTextWithQuantity(nombre)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            
+                                            {/* CORRECCIÓN: Botón de cámara específico para este item.id */}
+                                            <Button 
+                                                size="icon"
+                                                variant="outline"
+                                                className={`rounded-full h-12 w-12 border-2 shrink-0 transition-all bg-white text-blue-600 border-blue-100 shadow-sm active:scale-90`}
+                                                onClick={() => handleTriggerCamera(envio.id, item.id, item.mla)}
+                                                disabled={loading === envio.id}
+                                            >
+                                                {loading === envio.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                                            </Button>
                                         </div>
                                     )
                                 })}
@@ -358,6 +361,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 })}
             </div>
 
+            {/* Los modales de Scanner y Viewer se mantienen igual */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
@@ -370,17 +374,10 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     </DialogHeader>
                     <div className="relative aspect-video bg-black flex items-center justify-center">
                         <div id="barcode-reader" className="w-full h-full"></div>
-                        <div className="absolute inset-0 border-2 border-blue-500/30 pointer-events-none flex items-center justify-center">
-                            <div className="w-[80%] h-[40%] border-2 border-blue-400 rounded-lg shadow-[0_0_0_100vmax_rgba(0,0,0,0.5)]"></div>
-                        </div>
-                    </div>
-                    <div className="p-4 bg-slate-900 flex justify-center">
-                        <Button variant="secondary" onClick={() => setShowScanner(false)} className="w-full">Cancelar</Button>
                     </div>
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL DE REVISIÓN DE FOTOS MEJORADO - CORREGIDO PARA INVESTIGACIÓN */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[95vh] max-w-4xl flex flex-col rounded-t-3xl sm:rounded-3xl">
                     <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">

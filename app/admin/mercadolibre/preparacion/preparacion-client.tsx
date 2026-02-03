@@ -80,7 +80,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [zoom, setZoom] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     
-    // CORRECCIÓN: El estado ahora guarda el itemId específico
     const [selectedItem, setSelectedItem] = useState<{envioId: string, itemId: string, mla: string} | null>(null)
 
     const [showScanner, setShowScanner] = useState(false)
@@ -145,7 +144,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     const auditoriaCount = initialEnvios.filter(e => Boolean(e.drivePhotoUrl) && e.status !== "AUDITADO").length;
 
-    // CORRECCIÓN: Ahora recibimos el itemId único del ítem de la etiqueta
     const handleTriggerCamera = (envioId: string, itemId: string, mla: string) => {
         setSelectedItem({ envioId, itemId, mla })
         fileInputRef.current?.click()
@@ -201,13 +199,11 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             return;
         }
 
-        console.log(`[AUDITORIA] Capturando archivo para Item ${selectedItem.itemId}`);
-
         setLoading(selectedItem.envioId)
         const formData = new FormData()
         formData.append('photo', file)
         formData.append('envioId', selectedItem.envioId)
-        formData.append('itemId', selectedItem.itemId) // Enviamos el ID único
+        formData.append('itemId', selectedItem.itemId)
         formData.append('mla', selectedItem.mla)
 
         try {
@@ -216,11 +212,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             if (res.success) {
                 toast.success("Foto guardada con éxito.")
             } else {
-                console.error("[AUDITORIA ERROR SERVIDOR]:", res.error);
                 toast.error(`Fallo al subir: ${res.error || 'Error desconocido'}`);
             }
         } catch (err) {
-            console.error("[AUDITORIA ERROR CONEXIÓN]:", err);
             toast.error("Error de red. Verifica tu señal o internet.");
         } finally {
             setLoading(null)
@@ -342,7 +336,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                                 ))}
                                             </div>
                                             
-                                            {/* CORRECCIÓN: Botón de cámara específico para este item.id */}
                                             <Button 
                                                 size="icon"
                                                 variant="outline"
@@ -361,7 +354,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 })}
             </div>
 
-            {/* Los modales de Scanner y Viewer se mantienen igual */}
+            {/* Modal de Scanner */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
@@ -378,29 +371,31 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </DialogContent>
             </Dialog>
 
+            {/* Modal de Visor de Fotos Corregido */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[95vh] max-w-4xl flex flex-col rounded-t-3xl sm:rounded-3xl">
-                    <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
+                    <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0 flex-none">
                         <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
                         <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setViewingFotos(null)}>
                             <X className="h-5 w-5" />
                         </Button>
                     </DialogHeader>
                     
-                    <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
+                    {/* Contenedor de la Imagen: Ahora usa todo el espacio vertical disponible */}
+                    <div className="flex-1 min-h-0 relative bg-black flex flex-col">
                         {viewingFotos?.fotos.length ? (
-                            <Carousel className="w-full h-full flex items-center justify-center">
-                                <CarouselContent className="h-full items-center">
+                            <Carousel className="w-full h-full">
+                                <CarouselContent className="h-full">
                                     {viewingFotos.fotos.map((foto: any) => (
-                                        <CarouselItem key={foto.id} className="flex items-center justify-center h-full">
+                                        <CarouselItem key={foto.id} className="h-full">
                                             <div 
-                                                className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center p-2 ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} 
+                                                className={`h-full w-full flex items-center justify-center p-2 transition-transform duration-300 ease-out ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} 
                                                 onClick={() => setZoom(!zoom)}
                                             >
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 
-                                                    className="max-h-full max-w-full w-auto h-auto object-contain select-none shadow-2xl rounded-md" 
+                                                    className="max-h-full max-w-full w-full h-full object-contain select-none shadow-2xl rounded-md" 
                                                 />
                                             </div>
                                         </CarouselItem>
@@ -414,14 +409,15 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 )}
                             </Carousel>
                         ) : (
-                            <div className="text-center text-white/40">
-                                <Eye className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                            <div className="flex-1 flex flex-col items-center justify-center text-white/40">
+                                <Eye className="h-10 w-10 mb-2 opacity-20 animate-pulse" />
                                 <p>Cargando fotos...</p>
                             </div>
                         )}
                     </div>
                     
-                    <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-4">
+                    {/* Footer de Acciones: Se mantiene fijo abajo */}
+                    <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-4 flex-none">
                         <Button 
                             variant="destructive" 
                             className="col-span-1 h-16 rounded-2xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all shadow-lg"

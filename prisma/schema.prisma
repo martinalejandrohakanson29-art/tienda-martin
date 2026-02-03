@@ -7,11 +7,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --- SISTEMA DE USUARIOS, ROLES Y PENDIENTES ---
+
+enum Role {
+  ADMIN
+  USER
+}
+
 model User {
   id       String @id @default(cuid())
   username String @unique
   password String
+  role     Role   @default(USER)
+  todos    Todo[] // Relación con sus pendientes personales
 }
+
+model Todo {
+  id          String   @id @default(cuid())
+  content     String   // El texto del pendiente
+  completed   Boolean  @default(false)
+  isShared    Boolean  @default(false) // Si es true, lo ven todos
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("todos")
+}
+
+// --- MODELOS DE LA TIENDA ---
 
 model Product {
   id              String   @id @default(cuid())
@@ -147,16 +171,13 @@ model ComposicionKits {
   @@map("composicion_kits")
 }
 
-// --- GESTIÓN DE IMPORTACIONES (MODULAR) ---
+// --- GESTIÓN DE IMPORTACIONES ---
 
 model SupplierProduct {
   id              String   @id @default(cuid())
   sku             String   @unique 
   name            String   
-  // ELIMINAR ESTA LÍNEA:
-  // supplier        String?  
   
-  // Relaciones con datos dinámicos
   ventas          ImportVentas?
   stock           ImportStock?
   purchaseItems   PurchaseOrderItem[] 
@@ -217,7 +238,6 @@ model KitComponent {
   mla                String          
   variation_id       String?
   variant            String?
-  
   supplierProductSku String
   supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
   
@@ -230,8 +250,8 @@ model KitComponent {
 
 model ArticulosCompuestos {
   id              Int      @id @default(autoincrement())
-  sku_padre       String   // El SKU del kit (ej: 485801)
-  sku_hijo        String   // El SKU del componente (ej: 483329)
+  sku_padre       String   
+  sku_hijo        String   
   cantidad        Int      @default(1)
   fecha_registro  DateTime @default(now())
 
@@ -245,23 +265,21 @@ model PlanningSession {
   dateTo      DateTime 
   createdAt   DateTime @default(now())
 }
-// --- GESTIÓN DE VENTAS INSTAGRAM (Versión Optimizada para Revolución Motos) ---
+
+// --- GESTIÓN DE VENTAS INSTAGRAM ---
 
 model InstagramSale {
   id                 String                      @id @default(cuid())
-  id_comprobante     String                      @unique // ID externo de Cover
+  id_comprobante     String                      @unique 
   numero_comprobante String
   fecha              DateTime                    @default(now())
   total              Decimal                     @db.Decimal(20, 2)
   cliente            String
   dni                String?
   metodo_pago        String?
-  envio              Decimal?                    @db.Decimal(20, 2) @default(0) // Captura el envío de n8n
+  envio              Decimal?                    @db.Decimal(20, 2) @default(0) 
 
-  // Relación con artículos básicos
   articulos          InstagramSaleItem[]
-  
-  // Relación con grupos de pago (para details/route.ts)
   paymentGroups      InstagramSalePaymentGroup[]
 
   createdAt          DateTime                    @default(now())
@@ -270,14 +288,13 @@ model InstagramSale {
   @@map("instagram_sales")
 }
 
-// Modelo para los grupos de pago (uno por cada venta de n8n)
 model InstagramSalePaymentGroup {
   id          String   @id @default(cuid())
   saleId      String
   sale        InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   metodo_pago String?
   monto_total Decimal  @db.Decimal(20, 2)
-  envio       Decimal  @db.Decimal(20, 2) // Guardamos el envío también aquí si es necesario
+  envio       Decimal  @db.Decimal(20, 2) 
   
   articulos   InstagramSalePaymentItem[]
 
@@ -287,7 +304,6 @@ model InstagramSalePaymentGroup {
   @@map("instagram_sale_payment_groups")
 }
 
-// Modelo para los artículos DETALLADOS (el corazón de tu nueva mejora)
 model InstagramSalePaymentItem {
   id             String                    @id @default(cuid())
   paymentGroupId String
@@ -296,7 +312,6 @@ model InstagramSalePaymentItem {
   tipo           String?
   detalle        String?
   marca          String?
-  // CAMBIO CLAVE: Todo ahora es Decimal para que Prisma lo trate como número
   cantidad       Decimal?                  @db.Decimal(20, 2)
   precio_neto    Decimal?                  @db.Decimal(20, 2)
   iva            Decimal?                  @db.Decimal(20, 2)
@@ -305,34 +320,31 @@ model InstagramSalePaymentItem {
   @@map("instagram_sale_payment_items")
 }
 
-// Modelo para artículos simples (por si tu sistema actual lo sigue usando)
 model InstagramSaleItem {
   id           String        @id @default(cuid())
   saleId       String
   sale         InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   
   detalle      String   
-  cantidad     Decimal       @db.Decimal(20, 2) // Cambiado a Decimal
-  precio_total Decimal?      @db.Decimal(20, 2) // Agregado para capturar el precio
+  cantidad     Decimal       @db.Decimal(20, 2) 
+  precio_total Decimal?      @db.Decimal(20, 2) 
 
   @@map("instagram_sale_items")
 }
 
-// --- GESTIÓN DE ETIQUETAS Y PREPARACIÓN (Proceso Nuevo) ---
+// --- GESTIÓN DE ETIQUETAS Y PREPARACIÓN ---
 
 model EtiquetaML {
-  id              String         @id // Usaremos el Shipping ID de Mercado Libre
+  id              String         @id 
   orderId         String?
-  logisticType    String?        // "self_service" (Flex), "cross_docking" (Colecta), "fulfillment"
-  status          String         @default("PENDIENTE") // PENDIENTE, IMPRESO, PREPARADO, AUDITADO
+  logisticType    String?        
+  status          String         @default("PENDIENTE") 
   substatus       String?
   resumen         String?
-  payBefore       DateTime?      // Fecha límite para despachar (Dato de ML)
+  payBefore       DateTime?      
   fechaPreparado  DateTime?
-  
-  // Auditoría y Control
   auditor         String?
-  drivePhotoUrl   String?        // Link a la foto guardada en Drive
+  drivePhotoUrl   String?        
   
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
@@ -347,24 +359,24 @@ model EtiquetaMLItem {
   etiquetaId      String
   etiqueta        EtiquetaML @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
   
-  mla             String     // Código MLA para matchear al escanear
-  title           String     // Título del producto
+  mla             String     
+  title           String     
   sku             String?
   quantity        Int
-  variation       String?    // ID de variante
+  variation       String?    
   
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
 
 model MLFees {
-  mla                   String   @id // Usamos el MLA como llave única
-  cargo_venta_fijo      Decimal? @db.Decimal(20, 2) // Cargo x Venta $
-  cargo_venta_percent   Decimal? @db.Decimal(10, 2) // Cargo x Venta %
-  cuotas_fijo           Decimal? @db.Decimal(20, 2) // $ Cuotas
-  cuotas_percent        Decimal? @db.Decimal(10, 2) // % Cuotas
-  envio_costo           Decimal? @db.Decimal(20, 2) // Envío
-  costo_fijo_ml         Decimal? @db.Decimal(20, 2) // Costo Fijo (ej. los $500 de ML)
+  mla                   String   @id 
+  cargo_venta_fijo      Decimal? @db.Decimal(20, 2) 
+  cargo_venta_percent   Decimal? @db.Decimal(10, 2) 
+  cuotas_fijo           Decimal? @db.Decimal(20, 2) 
+  cuotas_percent        Decimal? @db.Decimal(10, 2) 
+  envio_costo           Decimal? @db.Decimal(20, 2) 
+  costo_fijo_ml         Decimal? @db.Decimal(20, 2) 
   ultima_actualizacion  DateTime @default(now())
 
   @@map("ml_fees")
@@ -377,41 +389,8 @@ model MLDescuentos {
   pct_descuento     Decimal? @db.Decimal(10, 2)
   seller_percentage Decimal? @db.Decimal(10, 2)
   meli_percentage   Decimal? @db.Decimal(10, 2)
-  descuento_propio  String?  // "SI" o "NO"
+  descuento_propio  String?  
   ultima_actualizacion DateTime @default(now())
 
   @@map("ml_descuentos")
-}
-
-enum Role {
-  ADMIN
-  USER
-}
-
-model User {
-  id       String @id @default(cuid())
-  username String @unique
-  password String
-  // 2. Agregamos el campo de rol con un valor por defecto
-  role     Role   @default(USER)
-  // 3. Relación con sus pendientes personales
-  todos    Todo[]
-}
-
-model Todo {
-  id          String   @id @default(cuid())
-  content     String   // El texto del pendiente
-  completed   Boolean  @default(false)
-  
-  // 4. Gestión de visibilidad
-  isShared    Boolean  @default(false) // Si es true, lo ven todos
-  
-  // 5. Relación con el usuario que lo creó
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("todos")
 }

@@ -1,3 +1,4 @@
+// app/admin/tools/audit/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -9,15 +10,16 @@ import {
 } from "lucide-react"
 import { getAuditPendingItems, auditItem, getShipmentFolders } from "@/app/actions/audit"
 
+// 1. CORRECCIÓN: Actualizamos el tipo para que coincida con lo que devuelve el servidor
 type AuditItem = {
     itemId: string
-    driveName: string
+    mla: string          // Cambiado: driveName -> mla
     title: string
     sku: string
     quantity: number
     agregados: string[]
     referenceImageUrl: string | null
-    evidenceImageUrl: string
+    evidenceImageUrl: string | null // Cambiado: ahora puede ser null si no hay foto
     evidenceImages: string[] 
     status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | string
     envioId: string
@@ -44,13 +46,12 @@ export default function AuditPage() {
         setLoading(false)
     }
 
-    // CORRECCIÓN AQUÍ: Recibimos el ID, no el nombre
     const selectShipment = async (id: string) => {
         setEnvioId(id)
         setView('ITEM_LIST')
         setLoading(true)
-        // Buscamos en S3 usando el ID correcto
         const res = await getAuditPendingItems(id)
+        // @ts-ignore - Forzamos el casteo si hay discrepancias menores de tipo
         if (res.success) setItems(res.data || [])
         setLoading(false)
     }
@@ -101,7 +102,6 @@ export default function AuditPage() {
                             return (
                                 <Card 
                                     key={folder.id} 
-                                    // CORRECCIÓN AQUÍ: Pasamos folder.id en lugar de folder.name
                                     onClick={() => selectShipment(folder.id)} 
                                     className={`cursor-pointer border-t-8 transition-all hover:shadow-lg ${ok ? 'border-t-green-500 bg-green-50/20' : tieneRechazados ? 'border-t-red-500 bg-red-50/20' : 'border-t-orange-400 bg-orange-50/20'}`}
                                 >
@@ -141,17 +141,25 @@ export default function AuditPage() {
             <div className="max-w-3xl mx-auto p-4 space-y-4 font-sans">
                 <Button variant="ghost" onClick={() => setView('FOLDERS')} className="mb-2"><ArrowLeft className="mr-2 h-4 w-4" /> Volver</Button>
                 {loading ? <Loader2 className="animate-spin mx-auto h-10 w-10 text-blue-500" /> : items.length === 0 ? (
-                   // Mensaje de ayuda si está vacío
                    <div className="text-center py-10 text-gray-500">
-                       <p>No se encontraron imágenes para este envío.</p>
-                       <p className="text-xs">Verifica que las fotos se hayan subido a la carpeta: {envioId}</p>
+                       <p>No se encontraron artículos para este envío.</p>
+                       <p className="text-xs">Verifica que el envío {envioId} tenga artículos asignados.</p>
                    </div>
                 ) : items.map(item => (
-                    <Card key={item.itemId} onClick={() => { setSelectedItem(item); setActiveEvidenceImage(item.evidenceImages[0]); setView('ITEM_DETAIL') }} className={`cursor-pointer border-l-4 hover:shadow-md transition-all ${item.status === 'APROBADO' ? 'border-l-green-500' : item.status === 'RECHAZADO' ? 'border-l-red-500' : 'border-l-gray-300'}`}>
+                    <Card key={item.itemId} onClick={() => { setSelectedItem(item); setActiveEvidenceImage(item.evidenceImages[0] || null); setView('ITEM_DETAIL') }} className={`cursor-pointer border-l-4 hover:shadow-md transition-all ${item.status === 'APROBADO' ? 'border-l-green-500' : item.status === 'RECHAZADO' ? 'border-l-red-500' : 'border-l-gray-300'}`}>
                         <CardContent className="p-4 flex items-center gap-4">
-                            <img src={item.evidenceImageUrl} className="h-16 w-16 object-cover rounded border" alt="Thumbnail" />
+                            {/* 2. CORRECCIÓN: Manejamos si no hay imagen de evidencia todavía */}
+                            <div className="h-16 w-16 bg-gray-100 rounded border overflow-hidden flex items-center justify-center shrink-0">
+                                {item.evidenceImageUrl ? (
+                                    <img src={item.evidenceImageUrl} className="h-full w-full object-cover" alt="Thumbnail" />
+                                ) : (
+                                    <FolderOpen className="h-6 w-6 text-gray-400" />
+                                )}
+                            </div>
                             <div className="flex-1 min-w-0">
-                                <p className="font-bold truncate text-sm">{item.driveName}</p>
+                                {/* 3. CORRECCIÓN: Usamos item.mla en lugar de driveName */}
+                                <p className="font-bold truncate text-sm">{item.mla}</p>
+                                <p className="text-[10px] text-gray-500 truncate">{item.title}</p>
                                 <p className="text-[10px] text-gray-500">SKU: {item.sku} | Cant: {item.quantity}</p>
                             </div>
                             {item.status === 'APROBADO' ? <Check className="text-green-500" /> : item.status === 'RECHAZADO' ? <X className="text-red-500" /> : <div className="h-3 w-3 bg-gray-300 rounded-full" />}
@@ -169,18 +177,29 @@ export default function AuditPage() {
                 <Button variant="outline" onClick={() => setView('ITEM_LIST')}><ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista</Button>
                 <div className="grid md:grid-cols-2 gap-8">
                     <div className="space-y-4">
-                        <div className="aspect-square bg-white border rounded-2xl overflow-hidden cursor-zoom-in relative group" onClick={() => setExpandedImage(activeEvidenceImage)}>
-                            <img src={activeEvidenceImage!} className="w-full h-full object-contain" alt="Evidencia" />
-                            <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold">
-                                FOTO {selectedItem.evidenceImages.indexOf(activeEvidenceImage!) + 1} / {selectedItem.evidenceImages.length}
-                                <Maximize2 className="h-3 w-3" />
+                        {activeEvidenceImage ? (
+                            <>
+                                <div className="aspect-square bg-white border rounded-2xl overflow-hidden cursor-zoom-in relative group" onClick={() => setExpandedImage(activeEvidenceImage)}>
+                                    <img src={activeEvidenceImage} className="w-full h-full object-contain" alt="Evidencia" />
+                                    <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold">
+                                        FOTO {selectedItem.evidenceImages.indexOf(activeEvidenceImage) + 1} / {selectedItem.evidenceImages.length}
+                                        <Maximize2 className="h-3 w-3" />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                    {selectedItem.evidenceImages.map((img, i) => (
+                                        <img key={i} src={img} onClick={() => setActiveEvidenceImage(img)} className={`h-20 w-20 object-cover rounded-xl cursor-pointer border-2 transition-all ${activeEvidenceImage === img ? 'border-blue-500 scale-95' : 'border-transparent opacity-60'}`} alt="Thumbnail" />
+                                    ))}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="aspect-square bg-gray-50 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-gray-400 p-8 text-center">
+                                <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
+                                <p className="font-medium">No hay fotos de evidencia</p>
+                                <p className="text-xs">Sube una foto desde la sección de preparación para auditar este ítem.</p>
                             </div>
-                        </div>
-                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                            {selectedItem.evidenceImages.map((img, i) => (
-                                <img key={i} src={img} onClick={() => setActiveEvidenceImage(img)} className={`h-20 w-20 object-cover rounded-xl cursor-pointer border-2 transition-all ${activeEvidenceImage === img ? 'border-blue-500 scale-95' : 'border-transparent opacity-60'}`} alt="Thumbnail" />
-                            ))}
-                        </div>
+                        )}
+                        
                         <div className="grid grid-cols-2 gap-4">
                             <Button variant="outline" className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50" onClick={() => handleVote('RECHAZADO')} disabled={!!processing}><X className="mr-2 h-6 w-6" /> RECHAZAR</Button>
                             <Button className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700" onClick={() => handleVote('APROBADO')} disabled={!!processing}>{processing ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-6 w-6" />} APROBAR</Button>
@@ -191,9 +210,14 @@ export default function AuditPage() {
                             <CardContent className="p-6 space-y-6">
                                 <div>
                                     <h2 className="text-xl font-bold mb-1">{selectedItem.title}</h2>
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        SKU: {selectedItem.sku}
-                                    </span>
+                                    <div className="flex gap-2">
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            SKU: {selectedItem.sku}
+                                        </span>
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                                            MLA: {selectedItem.mla}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
@@ -210,7 +234,7 @@ export default function AuditPage() {
                                                     {selectedItem.agregados.map((a, i) => <li key={i}>{a}</li>)}
                                                 </ul>
                                             ) : (
-                                                <p className="italic opacity-60">Sin agregados adicionales</p>
+                                                <p className="italic opacity-60">Sin agregados</p>
                                             )}
                                         </div>
                                     </div>
@@ -226,7 +250,7 @@ export default function AuditPage() {
                                     </div>
                                     <div>
                                         <h4 className="font-bold text-gray-700 text-sm">Imagen de Referencia</h4>
-                                        <p className="text-xs text-gray-500">Haz clic para comparar con el producto original.</p>
+                                        <p className="text-xs text-gray-500">Compara con el producto original.</p>
                                     </div>
                                 </CardContent>
                             </Card>

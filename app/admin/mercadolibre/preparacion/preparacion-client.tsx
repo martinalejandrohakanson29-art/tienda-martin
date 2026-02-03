@@ -161,7 +161,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 toast.error("Error al cargar fotos")
             }
         } catch (err) {
-            toast.error("Fallo la conexión con Drive")
+            toast.error("Fallo la conexión con el servidor de imágenes")
         } finally {
             setIsFetchingFotos(false)
         }
@@ -194,17 +194,36 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        if (!file || !selectedItem) return
+        
+        if (!file) return;
+        if (!selectedItem) {
+            toast.error("Error: No se detectó el pedido seleccionado.");
+            return;
+        }
+
+        // --- INVESTIGACIÓN: Log en la consola del navegador ---
+        console.log(`[AUDITORIA] Capturando archivo: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
         setLoading(selectedItem.envioId)
         const formData = new FormData()
         formData.append('photo', file)
         formData.append('envioId', selectedItem.envioId)
         formData.append('mla', selectedItem.mla)
+
         try {
             const res = await subirFotoAuditoria(formData)
-            if (res.success) toast.success("Foto guardada con éxito.")
+            
+            if (res.success) {
+                toast.success("Foto guardada con éxito.")
+                console.log(`[AUDITORIA] Éxito para Envío ${selectedItem.envioId}`);
+            } else {
+                // Aquí capturamos el error específico que definimos en la Action para saber qué falló
+                console.error("[AUDITORIA ERROR SERVIDOR]:", res.error);
+                toast.error(`Fallo al subir: ${res.error || 'Error desconocido'}`);
+            }
         } catch (err) {
-            toast.error("Error al subir")
+            console.error("[AUDITORIA ERROR CONEXIÓN]:", err);
+            toast.error("Error de red. Verifica tu señal o internet.");
         } finally {
             setLoading(null)
             if (fileInputRef.current) fileInputRef.current.value = ""
@@ -361,9 +380,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </DialogContent>
             </Dialog>
 
-            {/* MODAL DE REVISIÓN DE FOTOS MEJORADO */}
+            {/* MODAL DE REVISIÓN DE FOTOS MEJORADO - CORREGIDO PARA INVESTIGACIÓN */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                {/* Aumenté el ancho a max-w-4xl y la altura a h-[95vh] para mejor visualización */}
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[95vh] max-w-4xl flex flex-col rounded-t-3xl sm:rounded-3xl">
                     <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
                         <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
@@ -382,7 +400,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                                 className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center p-2 ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} 
                                                 onClick={() => setZoom(!zoom)}
                                             >
-                                                {/* Se usa object-contain para asegurar que se vea TODO el producto sin cortes */}
                                                 <img 
                                                     src={foto.url} 
                                                     alt="Auditoría" 

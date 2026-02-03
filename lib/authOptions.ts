@@ -1,5 +1,6 @@
 import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import { prisma } from "@/lib/prisma" // Importamos tu instancia de Prisma
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -10,15 +11,23 @@ export const authOptions: NextAuthOptions = {
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
-                const username = process.env.ADMIN_USERNAME
-                const password = process.env.ADMIN_PASSWORD
+                if (!credentials?.username || !credentials?.password) return null;
 
-                if (
-                    credentials?.username === username &&
-                    credentials?.password === password
-                ) {
-                    return { id: "1", name: "Admin", email: "admin@example.com" }
+                // 1. Buscamos el usuario en la base de datos por su username
+                const user = await prisma.user.findUnique({
+                    where: { username: credentials.username }
+                });
+
+                // 2. Verificamos si existe y si la contraseña coincide
+                // Nota: Por ahora es comparación directa. Más adelante te enseño a encriptarlas.
+                if (user && user.password === credentials.password) {
+                    return {
+                        id: user.id,
+                        name: user.username,
+                        role: user.role, // Traemos el ROL (ADMIN o USER)
+                    }
                 }
+                
                 return null
             },
         }),
@@ -26,17 +35,26 @@ export const authOptions: NextAuthOptions = {
     pages: {
         signIn: "/admin/login",
     },
-    // 👇 NUEVA CONFIGURACIÓN DE SEGURIDAD
     session: {
         strategy: "jwt",
-        maxAge: 4 * 60 * 60, // 4 horas (en segundos)
+        maxAge: 4 * 60 * 60, // Sesión de 4 horas
     },
     callbacks: {
-        async session({ session, token }) {
-            return session
-        },
+        // Guardamos el ID y el ROL en el TOKEN de seguridad
         async jwt({ token, user }) {
-            return token
+            if (user) {
+                token.id = user.id;
+                token.role = (user as any).role;
+            }
+            return token;
+        },
+        // Pasamos el ID y el ROL del TOKEN a la SESIÓN de la web
+        async session({ session, token }) {
+            if (session.user) {
+                (session.user as any).id = token.id;
+                (session.user as any).role = token.role;
+            }
+            return session;
         },
     },
     secret: process.env.NEXTAUTH_SECRET,

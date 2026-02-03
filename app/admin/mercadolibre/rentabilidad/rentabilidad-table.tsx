@@ -8,10 +8,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
+} from "@/components/ui/table"; //
+import { Input } from "@/components/ui/input"; //
 import { Search, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils"; //
 
 interface ProductoRentabilidad {
   item_id: string;
@@ -20,18 +20,11 @@ interface ProductoRentabilidad {
   nombre_variante: string | null;
   precio_original: number;
   desc_pct_total: number;
-  desc_vendedor_pct: number;
-  desc_meli_pct: number;
-  descuento_manual: string;
   precio_final: number;
   precio_final_nuestro: number;
   costo_total: number;
   neto_teorico: number;
-  // Cargos ML
-  cargo_venta_fijo: number;
-  cargo_venta_percent: number;
-  cuotas_fijo: number;
-  cuotas_percent: number;
+  cargo_venta_real: number;
   envio_costo: number;
   costo_fijo_ml: number;
 }
@@ -77,76 +70,69 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
             <TableRow>
-              <TableHead className="min-w-[350px] font-bold text-slate-700">Publicación / Variante</TableHead>
-              <TableHead className="text-right font-bold text-slate-400">P. Original</TableHead>
-              <TableHead className="text-right font-bold text-amber-600">Dcto Total</TableHead>
-              <TableHead className="text-right font-bold text-slate-900">P. Final</TableHead>
-              <TableHead className="text-right font-bold text-amber-700 bg-amber-50/50">Final Nuestro</TableHead>
-              <TableHead className="text-right font-bold text-slate-700 bg-slate-100">Costo (Match)</TableHead>
-              <TableHead className="text-right font-bold text-red-500">Cargos ML $</TableHead>
-              <TableHead className="text-right font-bold text-blue-600">Envío</TableHead>
-              <TableHead className="text-right font-bold text-slate-500">Fijo</TableHead>
+              <TableHead className="min-w-[350px] font-bold text-slate-700 text-[11px]">Publicación / Variante</TableHead>
+              <TableHead className="text-right font-bold text-slate-400 text-[11px]">P. Original</TableHead>
+              <TableHead className="text-right font-bold text-amber-600 text-[11px]">Dcto Total</TableHead>
+              <TableHead className="text-right font-bold text-slate-900 text-[11px]">P. Final</TableHead>
+              <TableHead className="text-right font-bold text-amber-700 bg-amber-50/50 text-[11px]">Final Nuestro</TableHead>
+              <TableHead className="text-right font-bold text-slate-700 bg-slate-100 text-[11px]">Costo (Match)</TableHead>
+              <TableHead className="text-right font-bold text-red-500 text-[11px]">Comisión $</TableHead>
+              <TableHead className="text-right font-bold text-blue-600 text-[11px]">Envío</TableHead>
+              <TableHead className="text-right font-bold text-slate-500 text-[11px]">Fijo</TableHead>
               
-              {/* NUEVA COLUMNA: NETO TEÓRICO */}
-              <TableHead className="text-right font-bold text-white bg-slate-900 px-4">Neto Teórico</TableHead>
+              {/* COLUMNA: LO QUE RECIBÍS DE ML */}
+              <TableHead className="text-right font-bold text-white bg-slate-900 px-4 text-[11px]">Neto Recibido</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedData.map((item, index) => {
-              const isNegative = item.neto_teorico < 0;
-
-              return (
-                <TableRow key={`${item.item_id}-${item.variation_id || index}`} className="hover:bg-amber-50/50 transition-colors border-slate-100 bg-white text-[11px] sm:text-xs">
-                  <TableCell>
-                    <div className="flex flex-col leading-tight">
-                      <span className="font-semibold text-slate-800 truncate max-w-[340px]">{item.nombre}</span>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[9px] font-mono text-slate-400">{item.item_id}</span>
-                        {item.nombre_variante && (
-                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 rounded font-bold uppercase">
-                            {item.nombre_variante}
-                          </span>
-                        )}
-                      </div>
+            {sortedData.map((item, index) => (
+              <TableRow key={`${item.item_id}-${item.variation_id || index}`} className="hover:bg-amber-50/50 transition-colors border-slate-100 bg-white text-[11px]">
+                <TableCell>
+                  <div className="flex flex-col leading-tight">
+                    <span className="font-semibold text-slate-800 truncate max-w-[340px]">{item.nombre}</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[9px] font-mono text-slate-400">{item.item_id}</span>
+                      {item.nombre_variante && (
+                        <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 rounded font-bold uppercase">
+                          {item.nombre_variante}
+                        </span>
+                      )}
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right text-slate-400 line-through">
-                    ${item.precio_original.toLocaleString('es-AR')}
-                  </TableCell>
-                  <TableCell className="text-right font-bold text-amber-600">
-                    {item.desc_pct_total > 0 ? `${item.desc_pct_total}%` : '-'}
-                  </TableCell>
-                  <TableCell className="text-right font-bold text-slate-900">
-                    ${item.precio_final.toLocaleString('es-AR')}
-                  </TableCell>
-                  <TableCell className="text-right font-black text-amber-800 bg-amber-50/30">
-                    ${item.precio_final_nuestro.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </TableCell>
+                  </div>
+                </TableCell>
+                <TableCell className="text-right text-slate-400 line-through">
+                  ${item.precio_original.toLocaleString('es-AR')}
+                </TableCell>
+                <TableCell className="text-right font-bold text-amber-600">
+                  {item.desc_pct_total > 0 ? `${item.desc_pct_total}%` : '-'}
+                </TableCell>
+                <TableCell className="text-right font-bold text-slate-900">
+                  ${item.precio_final.toLocaleString('es-AR')}
+                </TableCell>
+                <TableCell className="text-right font-black text-amber-800 bg-amber-50/30">
+                  ${item.precio_final_nuestro.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </TableCell>
 
-                  <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
-                    ${item.costo_total.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </TableCell>
+                <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
+                  ${item.costo_total.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </TableCell>
 
-                  <TableCell className="text-right text-red-600">
-                    ${(item.cargo_venta_fijo + item.cuotas_fijo).toLocaleString('es-AR')}
-                  </TableCell>
-                  <TableCell className="text-right text-blue-600 font-medium">
-                    {item.envio_costo > 0 ? `$${item.envio_costo.toLocaleString('es-AR')}` : '-'}
-                  </TableCell>
-                  <TableCell className="text-right text-slate-500">
-                    ${item.costo_fijo_ml.toLocaleString('es-AR')}
-                  </TableCell>
+                <TableCell className="text-right text-red-600">
+                  ${item.cargo_venta_real.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </TableCell>
+                <TableCell className="text-right text-blue-600 font-medium">
+                  {item.envio_costo > 0 ? `$${item.envio_costo.toLocaleString('es-AR')}` : '-'}
+                </TableCell>
+                <TableCell className="text-right text-slate-500">
+                  ${item.costo_fijo_ml.toLocaleString('es-AR')}
+                </TableCell>
 
-                  {/* CELDA NETO TEÓRICO */}
-                  <TableCell className={cn(
-                    "text-right font-black px-4 text-sm",
-                    isNegative ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"
-                  )}>
-                    ${item.neto_teorico.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
+                {/* CELDA NETO RECIBIDO (Sin descontar costo propio) */}
+                <TableCell className="text-right font-black px-4 text-slate-900 bg-slate-50 border-l border-slate-200">
+                  ${item.neto_teorico.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>

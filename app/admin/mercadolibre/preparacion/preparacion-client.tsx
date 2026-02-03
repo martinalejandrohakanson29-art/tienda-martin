@@ -1,4 +1,3 @@
-// app/admin/mercadolibre/preparacion/preparacion-client.tsx
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -41,7 +40,7 @@ import {
 import { Html5Qrcode } from "html5-qrcode"
 
 /**
- * 1. Función para mapear los nombres de logística solicitados
+ * Mapeo de los nombres de logística
  */
 const getLogisticName = (type: string) => {
     const types: Record<string, string> = {
@@ -130,10 +129,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     };
 
-    /**
-     * 2. Modificación de la lógica de filtrado:
-     * En 'pendientes' ahora mostramos todo lo que no esté AUDITADO, permitiendo ver los que ya tienen foto.
-     */
     const filtered = initialEnvios.filter(e => {
         const matchesSearch = e.id.includes(search) || 
                              e.resumen?.toLowerCase().includes(search.toLowerCase()) ||
@@ -143,10 +138,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         const yaAuditado = e.status === "AUDITADO";
 
         if (activeTab === 'pendientes') {
-            // Se queda en la lista hasta que alguien lo apruebe (AUDITADO)
             return matchesSearch && !yaAuditado;
         } else {
-            // En revisión solo los que tienen foto y esperan aprobación
             return matchesSearch && tieneFoto && !yaAuditado;
         }
     })
@@ -284,25 +277,19 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                             <Hash className="h-3 w-3" />
                                             ORDEN: {envio.orderId || 'S/N'}
                                         </span>
-                                        {/* 3. Mapeo de Logística (COLECTA/FLEX) */}
                                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">
                                             {getLogisticName(envio.logisticType)}
                                         </span>
-                                        
-                                        {/* 4. Check visual si tiene foto */}
                                         {tieneFoto && (
                                             <span className="flex items-center gap-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md animate-in fade-in zoom-in">
                                                 <CheckCircle2 className="h-3 w-3" /> FOTO OK
                                             </span>
                                         )}
                                     </div>
-                                    
                                     <h3 className="text-base font-bold text-slate-900 leading-tight">
                                         {renderTextWithQuantity(envio.resumen)}
                                     </h3>
                                 </div>
-
-                                {/* 5. El botón de cámara siempre está disponible para subir más fotos */}
                                 <Button 
                                     size="icon"
                                     variant="outline"
@@ -352,7 +339,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 })}
             </div>
 
-            {/* --- RESTO DE MODALES SIN CAMBIOS --- */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
@@ -375,30 +361,41 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </DialogContent>
             </Dialog>
 
+            {/* MODAL DE REVISIÓN DE FOTOS MEJORADO */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[90vh] max-w-lg flex flex-col rounded-t-3xl sm:rounded-3xl">
+                {/* Aumenté el ancho a max-w-4xl y la altura a h-[95vh] para mejor visualización */}
+                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[95vh] max-w-4xl flex flex-col rounded-t-3xl sm:rounded-3xl">
                     <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
                         <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
                         <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setViewingFotos(null)}>
                             <X className="h-5 w-5" />
                         </Button>
                     </DialogHeader>
+                    
                     <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
                         {viewingFotos?.fotos.length ? (
-                            <Carousel className="w-full h-full flex items-center">
-                                <CarouselContent className="h-full">
+                            <Carousel className="w-full h-full flex items-center justify-center">
+                                <CarouselContent className="h-full items-center">
                                     {viewingFotos.fotos.map((foto: any) => (
                                         <CarouselItem key={foto.id} className="flex items-center justify-center h-full">
-                                            <div className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} onClick={() => setZoom(!zoom)}>
-                                                <img src={foto.url} alt="Auditoría" className="max-h-full max-w-full object-contain select-none shadow-2xl" />
+                                            <div 
+                                                className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center p-2 ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} 
+                                                onClick={() => setZoom(!zoom)}
+                                            >
+                                                {/* Se usa object-contain para asegurar que se vea TODO el producto sin cortes */}
+                                                <img 
+                                                    src={foto.url} 
+                                                    alt="Auditoría" 
+                                                    className="max-h-full max-w-full w-auto h-auto object-contain select-none shadow-2xl rounded-md" 
+                                                />
                                             </div>
                                         </CarouselItem>
                                     ))}
                                 </CarouselContent>
                                 {viewingFotos.fotos.length > 1 && !zoom && (
                                     <>
-                                        <CarouselPrevious className="left-4 bg-white/10 hover:bg-white/20 border-none text-white" />
-                                        <CarouselNext className="right-4 bg-white/10 hover:bg-white/20 border-none text-white" />
+                                        <CarouselPrevious className="left-6 bg-white/20 hover:bg-white/40 border-none text-white h-12 w-12" />
+                                        <CarouselNext className="right-6 bg-white/20 hover:bg-white/40 border-none text-white h-12 w-12" />
                                     </>
                                 )}
                             </Carousel>
@@ -409,28 +406,29 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </div>
                         )}
                     </div>
-                    <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-3">
+                    
+                    <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-4">
                         <Button 
                             variant="destructive" 
-                            className="col-span-1 h-14 rounded-2xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all"
+                            className="col-span-1 h-16 rounded-2xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all shadow-lg"
                             onClick={() => handleReject(viewingFotos?.id!)}
                             disabled={loading === viewingFotos?.id}
                         >
-                            <AlertTriangle className="h-6 w-6" />
+                            <AlertTriangle className="h-7 w-7" />
                         </Button>
                         <Button 
-                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white h-14 rounded-2xl font-bold text-lg shadow-xl transition-all active:scale-95" 
+                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white h-16 rounded-2xl font-bold text-xl shadow-xl transition-all active:scale-95" 
                             onClick={() => handleApprove(viewingFotos?.id!)} 
                             disabled={loading === viewingFotos?.id}
                         >
-                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-6 w-6" /> APROBAR</>}
+                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin" /> : <><CheckCircle2 className="mr-2 h-7 w-7" /> APROBAR</>}
                         </Button>
                         <Button 
                             variant="outline" 
-                            className="col-span-1 h-14 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10" 
+                            className="col-span-1 h-16 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10 transition-all" 
                             onClick={() => setZoom(!zoom)}
                         >
-                            <Search className="h-6 w-6" />
+                            <Search className="h-7 w-7" />
                         </Button>
                     </div>
                 </DialogContent>

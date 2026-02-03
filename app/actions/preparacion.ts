@@ -64,28 +64,26 @@ export async function rechazarPedido(envioId: string) {
     }
 }
 
-/** * ACCIÓN CORREGIDA PARA INVESTIGACIÓN
+/** * ACCIÓN CORREGIDA: Usa itemId único para evitar colisiones en pedidos multi-item
  */
 export async function subirFotoAuditoria(formData: FormData) {
     const file = formData.get('photo') as File
     const envioId = formData.get('envioId') as string
-    const mla = formData.get('mla') as string
+    const itemId = formData.get('itemId') as string // ID único del registro del ítem (EtiquetaMLItem)
+    const mla = formData.get('mla') as string      // Mantenemos el MLA para el nombre del archivo
 
-    // LOG DE INICIO
-    console.log(`[AUDITORIA] Iniciando subida: Envio ${envioId}, MLA ${mla}, File: ${file?.name} (${file?.size} bytes)`);
+    console.log(`[AUDITORIA] Iniciando subida: Envio ${envioId}, Item ${itemId}, File: ${file?.name}`);
 
     try {
-        if (!file || !envioId || !mla) {
+        if (!file || !envioId || !itemId || !mla) {
             console.error("[AUDITORIA] Faltan datos obligatorios en el FormData");
             throw new Error("Faltan datos obligatorios para la subida.");
         }
 
-        // 1. Preparar el archivo
+        // 1. Preparar el archivo para S3
         const buffer = Buffer.from(await file.arrayBuffer());
         const fileName = `auditoria/${envioId}/${mla}_${Date.now()}.jpg`;
 
-        // 2. Subir a S3 con log de confirmación
-        console.log(`[S3] Intentando subir a S3: ${fileName}...`);
         const command = new PutObjectCommand({
             Bucket: BUCKET_NAME,
             Key: fileName,
@@ -94,35 +92,34 @@ export async function subirFotoAuditoria(formData: FormData) {
         });
 
         await s3Client.send(command);
-        console.log(`[S3] Subida exitosa a S3: ${fileName}`);
 
-        // 3. Lógica de Base de Datos
-        console.log(`[DB] Actualizando base de datos para Envio ${envioId}...`);
+        // 2. Lógica de Base de Datos con Transacción
         await prisma.$transaction(async (tx) => {
-            // A. Registrar auditoría del item
+            // A. Registrar auditoría usando el itemId único del producto en la etiqueta
+            // Esto evita que variaciones del mismo MLA colisionen
             await tx.shipmentAudit.upsert({
-                where: { itemId_envioId: { itemId: mla, envioId: envioId } },
+                where: { itemId_envioId: { itemId: itemId, envioId: envioId } },
                 update: { status: "FOTO_CARGADA", createdAt: new Date() },
-                create: { itemId: mla, envioId: envioId, status: "FOTO_CARGADA" }
+                create: { itemId: itemId, envioId: envioId, status: "FOTO_CARGADA" }
             });
 
+            // B. Contar el progreso real del pedido
             const totalItems = await tx.etiquetaMLItem.count({ where: { etiquetaId: envioId } });
             const fotosCargadas = await tx.shipmentAudit.count({
                 where: { envioId: envioId, status: "FOTO_CARGADA" }
             });
 
-            console.log(`[DB] Progreso: ${fotosCargadas}/${totalItems} fotos cargadas.`);
+            console.log(`[DB] Progreso Pedido ${envioId}: ${fotosCargadas}/${totalItems}`);
 
-            // B. Si está completo, marcar pedido
+            // C. Si todos los productos tienen su foto, marcar el pedido global como PREPARADO
             if (fotosCargadas >= totalItems) {
                 await tx.etiquetaML.update({
                     where: { id: envioId },
                     data: { 
                         status: "PREPARADO",
-                        drivePhotoUrl: fileName 
+                        drivePhotoUrl: fileName // Referencia a la última foto cargada
                     }
                 });
-                console.log(`[DB] Pedido ${envioId} marcado como PREPARADO.`);
             }
         });
 
@@ -130,11 +127,10 @@ export async function subirFotoAuditoria(formData: FormData) {
         return { success: true, path: fileName }
 
     } catch (error: any) {
-        // LOG DE ERROR CRÍTICO
-        console.error("[AUDITORIA ERROR]", error);
+        console.error("[AUDITORIA ERROR SERVIDOR]", error);
         return { 
             success: false, 
-            error: error.message || "Error desconocido en el servidor" 
+            error: error.message || "Error al procesar la subida" 
         };
     }
 }

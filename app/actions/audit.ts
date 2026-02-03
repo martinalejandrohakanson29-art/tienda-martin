@@ -71,7 +71,6 @@ export async function getAuditPendingItems(envioId: string) {
     try {
         const prefix = `auditoria/${envioId}/`;
         
-        // 1. Datos de DB
         const [dbShipment, auditedItems] = await Promise.all([
             prisma.shipment.findUnique({
                 where: { id: envioId }, 
@@ -83,15 +82,15 @@ export async function getAuditPendingItems(envioId: string) {
             })
         ]);
 
+        // CAMBIO 1: Usamos el ID único de la fila como llave, no el MLA
         const dbItemsMap = new Map();
         dbShipment?.items.forEach(item => {
-            dbItemsMap.set(item.itemId, item);
+            dbItemsMap.set(item.id, item); 
         });
 
         const statusMap = new Map();
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status));
 
-        // 2. Listar archivos en S3
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
             Prefix: prefix
@@ -99,49 +98,44 @@ export async function getAuditPendingItems(envioId: string) {
         const s3Res = await s3Client.send(command);
         const files = s3Res.Contents || [];
 
-        // 3. Agrupamos y generamos URLs FIRMADAS (Aquí estaba el problema)
-        // Usamos un mapa asíncrono para generar las URLs
         const itemsGrouped = new Map<string, string[]>();
         
-        // Procesamos los archivos en paralelo para no demorar la respuesta
         await Promise.all(files.map(async (file) => {
             const fileName = file.Key?.split('/').pop() || "";
-            const itemId = fileName.split('_')[0]; // Saca el MLA
+            // CAMBIO 2: El nombre del archivo ahora empezará con el ID de DB
+            const dbId = fileName.split('_')[0]; 
 
-            if (itemId && file.Key) {
-                // GENERACIÓN DE URL FIRMADA
-                // Esto crea un link temporal que da permiso de ver el archivo privado
+            if (dbId && file.Key) {
                 const getCommand = new GetObjectCommand({
                     Bucket: BUCKET_NAME,
                     Key: file.Key,
                 });
                 
-                // Expira en 3600 segundos (1 hora)
                 const signedUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
                 
-                const existing = itemsGrouped.get(itemId) || [];
-                itemsGrouped.set(itemId, [...existing, signedUrl]);
+                const existing = itemsGrouped.get(dbId) || [];
+                itemsGrouped.set(dbId, [...existing, signedUrl]);
             }
         }));
 
-        const allItems = Array.from(itemsGrouped.keys()).map(itemId => {
-            const evidence = itemsGrouped.get(itemId) || [];
-            const dbInfo = dbItemsMap.get(itemId);
+        // CAMBIO 3: Generamos la lista basada en los IDs de la base de datos
+        const allItems = dbShipment?.items.map(item => {
+            const evidence = itemsGrouped.get(item.id) || [];
             
             return {
-                itemId: itemId,
-                driveName: itemId, 
-                title: dbInfo?.title || "No encontrado en DB",
-                sku: dbInfo?.sku || "S/D",
-                quantity: dbInfo?.quantity || 0,
-                agregados: dbInfo?.agregados ? dbInfo.agregados.split(", ") : [],
-                referenceImageUrl: dbInfo?.imageUrl || null,
-                evidenceImageUrl: evidence[0], // Usamos la URL firmada
-                evidenceImages: evidence,      // Array de URLs firmadas
-                status: (statusMap.get(itemId) || 'PENDIENTE'),
+                itemId: item.id, // Usamos el ID único para la UI
+                mla: item.itemId, // Guardamos el MLA para referencia
+                title: item.title,
+                sku: item.sku || "S/D",
+                quantity: item.quantity,
+                agregados: item.agregados ? item.agregados.split(", ") : [],
+                referenceImageUrl: item.imageUrl || null,
+                evidenceImageUrl: evidence[0] || null,
+                evidenceImages: evidence,
+                status: (statusMap.get(item.id) || 'PENDIENTE'),
                 envioId: envioId
             };
-        });
+        }) || [];
 
         return { success: true, data: allItems, envioId };
     } catch (error: any) {

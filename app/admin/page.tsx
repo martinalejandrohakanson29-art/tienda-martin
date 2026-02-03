@@ -1,13 +1,30 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { getProducts } from "@/app/actions/products"
-import { Eye, Package, Trophy, Store, ArrowRight, Instagram, Settings2 } from "lucide-react" 
+import { createTodo, getUsers } from "@/app/actions/todos" // Importamos las nuevas acciones
+import { 
+    Eye, 
+    Package, 
+    Trophy, 
+    Store, 
+    ArrowRight, 
+    Instagram, 
+    Settings2, 
+    ClipboardList,
+    AlertCircle 
+} from "lucide-react" 
 import Link from "next/link"
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-    const products = await getProducts()
+    // Cargamos datos en paralelo
+    const [products, users] = await Promise.all([
+        getProducts(),
+        getUsers()
+    ])
+
     const totalProducts = products.length
     const totalViews = products.reduce((acc, curr) => acc + (curr.views || 0), 0)
     
@@ -19,10 +36,69 @@ export default async function AdminDashboard() {
     return (
         <div className="space-y-8">
             {/* Encabezado */}
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">Hola Revolucion 👋</h1>
-                <p className="text-gray-500">Bienvenido a tu centro de control.</p>
+            <div className="flex justify-between items-center">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Hola Revolución 👋</h1>
+                    <p className="text-gray-500">Bienvenido a tu centro de control.</p>
+                </div>
             </div>
+
+            {/* SECCIÓN NUEVA: ASIGNACIÓN DE PENDIENTES */}
+            <Card className="border-2 border-primary/10 shadow-sm bg-slate-50/50">
+                <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-primary">
+                        <ClipboardList className="h-5 w-5" />
+                        Asignar Pendiente al Equipo
+                    </CardTitle>
+                    <CardDescription>
+                        Crea tareas específicas y asígnalas a un usuario.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <form action={createTodo} className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div className="md:col-span-2">
+                            <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Tarea / Pendiente</label>
+                            <Input 
+                                name="content" 
+                                placeholder="Ej: Limpiar el depósito o revisar etiquetas..." 
+                                required 
+                                className="bg-white"
+                            />
+                        </div>
+                        
+                        <div>
+                            <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Prioridad</label>
+                            <select 
+                                name="priority" 
+                                className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            >
+                                <option value="baja">Baja</option>
+                                <option value="media">Media</option>
+                                <option value="alta">Alta</option>
+                                <option value="urgente">⚠️ Urgente</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Asignar a</label>
+                            <select 
+                                name="userId" 
+                                required 
+                                className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            >
+                                <option value="">Seleccionar...</option>
+                                {users.map(user => (
+                                    <option key={user.id} value={user.id}>@{user.username}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <Button type="submit" className="w-full md:w-auto gap-2">
+                            Asignar Tarea
+                        </Button>
+                    </form>
+                </CardContent>
+            </Card>
 
             {/* SECCIÓN 1: OPERACIONES */}
             <div>

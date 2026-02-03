@@ -47,6 +47,7 @@ const getLogisticName = (type: string) => {
     return types[type] || type?.toUpperCase() || 'S/N';
 }
 
+// Colores para los agregados (estilo anterior)
 const getAgregadoColor = (index: number) => {
     const colors = [
         "bg-blue-600 text-white border-blue-800",
@@ -59,6 +60,7 @@ const getAgregadoColor = (index: number) => {
     return colors[index % colors.length];
 };
 
+// Resaltado de cantidades (x2, x3, etc)
 const renderTextWithQuantity = (text: string) => {
     if (!text) return null;
     const parts = text.split(/(\(x\d+\))/g);
@@ -189,7 +191,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     return (
         <div className="space-y-4">
-            {/* Navegación Tabs */}
+            {/* Tabs fijas compactas */}
             <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[72px] z-10 shadow-sm border border-slate-200">
                 <button 
                     onClick={() => setActiveTab('pendientes')}
@@ -210,7 +212,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </button>
             </div>
 
-            {/* Buscador y Scanner */}
+            {/* Buscador */}
             <div className="flex gap-2">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -226,7 +228,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </Button>
             </div>
 
-            {/* Listado */}
+            {/* Listado de Pedidos */}
             <div className="grid gap-3">
                 {filtered.map((envio) => {
                     const tieneFoto = Boolean(envio.drivePhotoUrl);
@@ -257,32 +259,43 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 </Button>
                             )}
 
-                            <div className="space-y-2 pt-2 border-t">
-                                {envio.items.map((item: any) => (
-                                    <div key={item.id} className="flex items-center justify-between gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                                        <span className="text-[11px] font-bold uppercase text-slate-600 truncate flex-1">
-                                            {item.agregadoInfo?.nombres_articulos || item.title}
-                                        </span>
-                                        <Button 
-                                            size="icon"
-                                            className="rounded-full h-10 w-10 shrink-0 bg-blue-600 text-white"
-                                            onClick={() => { setSelectedItem({ envioId: envio.id, itemId: item.id, mla: item.mla }); fileInputRef.current?.click(); }}
-                                            disabled={loading === envio.id}
-                                        >
-                                            {loading === envio.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                                        </Button>
-                                    </div>
-                                ))}
+                            {/* LISTA DE ARTÍCULOS CON COLORES RESTAURADOS */}
+                            <div className="space-y-3 pt-2 border-t border-slate-100">
+                                {envio.items.map((item: any) => {
+                                    const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
+                                    const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
+                                    
+                                    return (
+                                        <div key={item.id} className="flex items-center justify-between gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+                                            <div className="flex-1 flex flex-col gap-1.5 overflow-hidden">
+                                                {nombres.map((nombre: string, idx: number) => (
+                                                    <div key={idx} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border-b-4 font-black text-[10px] uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>
+                                                        <Layers className="h-3 w-3 shrink-0 opacity-80" />
+                                                        <span className="truncate">{renderTextWithQuantity(nombre)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            
+                                            <Button 
+                                                size="icon"
+                                                className="rounded-full h-11 w-11 shrink-0 bg-blue-600 text-white shadow-md active:scale-90"
+                                                onClick={() => { setSelectedItem({ envioId: envio.id, itemId: item.id, mla: item.mla }); fileInputRef.current?.click(); }}
+                                                disabled={loading === envio.id}
+                                            >
+                                                {loading === envio.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                                            </Button>
+                                        </div>
+                                    )
+                                })}
                             </div>
                         </div>
                     )
                 })}
             </div>
 
-            {/* --- VISOR DE FOTOS ULTRA COMPACTO --- */}
+            {/* VISOR DE FOTOS (Compacto h-80vh) */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none w-[96vw] max-w-2xl h-[80vh] flex flex-col rounded-2xl shadow-2xl">
-                    {/* Header Compacto */}
                     <DialogHeader className="p-2.5 bg-slate-900 border-b border-white/10 flex-row justify-between items-center space-y-0 flex-none z-20">
                         <DialogTitle className="text-white text-[11px] font-bold uppercase tracking-wider ml-2">Envío: {viewingFotos?.id}</DialogTitle>
                         <Button variant="ghost" size="icon" className="text-white h-7 w-7 hover:bg-white/10" onClick={() => setViewingFotos(null)}>
@@ -290,7 +303,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         </Button>
                     </DialogHeader>
                     
-                    {/* Área de Imagen Dinámica */}
                     <div className="flex-1 min-h-0 relative bg-black flex flex-col items-center justify-center overflow-hidden">
                         {viewingFotos?.fotos.length ? (
                             <Carousel className="w-full h-full flex items-center justify-center">
@@ -325,7 +337,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         )}
                     </div>
                     
-                    {/* Botonera Inferior Compacta */}
                     <div className="p-3 bg-slate-900/95 border-t border-white/10 grid grid-cols-4 gap-2 flex-none z-20">
                         <Button 
                             variant="destructive" 

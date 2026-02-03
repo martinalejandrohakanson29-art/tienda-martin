@@ -10,10 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Search, ArrowUpDown, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Search, X } from "lucide-react";
 
 interface ProductoRentabilidad {
   item_id: string;
@@ -25,6 +22,8 @@ interface ProductoRentabilidad {
   descuento_manual: string;
   precio_final: number;
   precio_final_nuestro: number;
+  // DATO DE LA VISTA
+  costo_total: number;
   // Cargos ML
   cargo_venta_fijo: number;
   cargo_venta_percent: number;
@@ -83,7 +82,9 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
               <TableHead className="text-right font-bold text-slate-900">P. Final</TableHead>
               <TableHead className="text-right font-bold text-amber-700 bg-amber-50/50">Final Nuestro</TableHead>
               
-              {/* NUEVAS COLUMNAS DE CARGOS */}
+              {/* COLUMNA NUEVA COSTO MLA */}
+              <TableHead className="text-right font-bold text-slate-700 bg-slate-100">Costo de MLA</TableHead>
+              
               <TableHead className="text-right font-bold text-red-500">Cargo x Venta $</TableHead>
               <TableHead className="text-right font-bold text-red-400">Cargo x Venta %</TableHead>
               <TableHead className="text-right font-bold text-red-500">$ Cuotas</TableHead>
@@ -114,7 +115,11 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                   ${item.precio_final_nuestro.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </TableCell>
 
-                {/* VALORES DE CARGOS */}
+                {/* CELDA NUEVA COSTO TOTAL */}
+                <TableCell className="text-right font-bold text-slate-600 bg-slate-50">
+                  ${item.costo_total.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </TableCell>
+
                 <TableCell className="text-right text-red-600">
                   ${item.cargo_venta_fijo.toLocaleString('es-AR')}
                 </TableCell>

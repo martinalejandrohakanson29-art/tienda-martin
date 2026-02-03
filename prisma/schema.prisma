@@ -24,9 +24,10 @@ model User {
 
 model Todo {
   id          String   @id @default(cuid())
-  content     String   // El texto del pendiente
+  content     String   
   completed   Boolean  @default(false)
-  isShared    Boolean  @default(false) // Si es true, lo ven todos
+  priority    String   @default("media") // 👈 Agregamos esto: baja, media, alta, urgente
+  isShared    Boolean  @default(false) 
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())

@@ -38,24 +38,16 @@ export async function getRentabilidadData() {
       const precioOriginal = Number(desc?.original_price || precioPublicado);
       const pctVendedor = Number(desc?.seller_percentage || 0);
 
-      // --- CÁLCULOS DE RENTABILIDAD ---
-      
-      // 1. Ingreso Real (Lo que te queda antes de comisiones ML)
+      // --- CÁLCULOS ---
       const precioFinalNuestro = precioOriginal * (1 - (pctVendedor / 100));
 
-      // 2. Sumatoria de todos los gastos de ML
-      const totalCargosML = 
-        Number(fee?.cargo_venta_fijo || 0) + 
-        Number(fee?.cuotas_fijo || 0) + 
-        Number(fee?.envio_costo || 0) + 
-        Number(fee?.costo_fijo_ml || 0);
+      const cargoVenta = Number(fee?.cargo_venta_fijo || 0);
+      const cuotas = Number(fee?.cuotas_fijo || 0);
+      const envio = Number(fee?.envio_costo || 0);
+      const fijoML = Number(fee?.costo_fijo_ml || 0);
 
-      // 3. NETO TEÓRICO (La verdad de la milanesa)
-      // Fórmula: Lo que cobrás - Cargos ML - Lo que te costó el producto
-      const netoTeorico = precioFinalNuestro - totalCargosML - costoPropio;
-
-      // 4. Margen Porcentual
-      const margenPct = precioFinalNuestro > 0 ? (netoTeorico / precioFinalNuestro) * 100 : 0;
+      // NETO TEÓRICO: Lo que cobramos - (Todos los cargos ML) - Costo del producto
+      const netoTeorico = precioFinalNuestro - (cargoVenta + cuotas + envio + fijoML) - costoPropio;
 
       return {
         item_id: p.mla,
@@ -64,17 +56,20 @@ export async function getRentabilidadData() {
         nombre_variante: p.nombre_variante,
         precio_original: precioOriginal,
         desc_pct_total: Number(desc?.pct_descuento || 0),
+        desc_vendedor_pct: pctVendedor,
+        desc_meli_pct: Number(desc?.meli_percentage || 0),
+        descuento_manual: desc?.descuento_propio || "NO",
         precio_final: Number(desc?.precio_final || precioPublicado),
         precio_final_nuestro: precioFinalNuestro,
-        // DATOS DE COSTO Y NETO
         costo_total: costoPropio,
         neto_teorico: netoTeorico,
-        margen_pct: margenPct,
-        // DESGLOSE DE CARGOS (para la tabla)
-        cargo_venta_fijo: Number(fee?.cargo_venta_fijo || 0),
-        cuotas_fijo: Number(fee?.cuotas_fijo || 0),
-        envio_costo: Number(fee?.envio_costo || 0),
-        costo_fijo_ml: Number(fee?.costo_fijo_ml || 0),
+        // DESGLOSE DE CARGOS
+        cargo_venta_fijo: cargoVenta,
+        cargo_venta_percent: Number(fee?.cargo_venta_percent || 0),
+        cuotas_fijo: cuotas,
+        cuotas_percent: Number(fee?.cuotas_percent || 0),
+        envio_costo: envio,
+        costo_fijo_ml: fijoML,
       };
     });
   } catch (error) {

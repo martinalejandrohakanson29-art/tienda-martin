@@ -3,14 +3,14 @@
 
 import { prisma } from "@/lib/prisma"
 import { s3Client } from "@/lib/s3"
-// Agregamos GetObjectCommand para poder firmar la url
 import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3" 
-// Importamos la utilidad para firmar URLs
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner" 
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
-// Esta función se mantiene casi igual, solo limpieza
+/**
+ * Obtiene las carpetas de envíos en S3 y calcula estadísticas de auditoría
+ */
 export async function getShipmentFolders() {
     try {
         const command = new ListObjectsV2Command({
@@ -45,8 +45,9 @@ export async function getShipmentFolders() {
             const uniqueItems = new Set();
             itemsRes.Contents?.forEach(obj => {
                 const fileName = obj.Key?.split('/').pop() || "";
-                const itemId = fileName.split('_')[0]; 
-                if (itemId) uniqueItems.add(itemId);
+                // Ahora usamos el ID único (cuid) que viene como prefijo en el nombre del archivo
+                const dbId = fileName.split('_')[0]; 
+                if (dbId) uniqueItems.add(dbId);
             });
 
             return {
@@ -67,10 +68,14 @@ export async function getShipmentFolders() {
     }
 }
 
+/**
+ * Obtiene todos los artículos de un envío con sus fotos de auditoría y estados
+ */
 export async function getAuditPendingItems(envioId: string) {
     try {
         const prefix = `auditoria/${envioId}/`;
         
+        // 1. Obtener datos de DB
         const [dbShipment, auditedItems] = await Promise.all([
             prisma.shipment.findUnique({
                 where: { id: envioId }, 
@@ -82,15 +87,11 @@ export async function getAuditPendingItems(envioId: string) {
             })
         ]);
 
-        // CAMBIO 1: Usamos el ID único de la fila como llave, no el MLA
-        const dbItemsMap = new Map();
-        dbShipment?.items.forEach(item => {
-            dbItemsMap.set(item.id, item); 
-        });
-
+        // Mapeamos estados por el ID único del item (itemId en ShipmentAudit ahora guardará el id de ShipmentItem)
         const statusMap = new Map();
         auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status));
 
+        // 2. Listar archivos en S3
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
             Prefix: prefix
@@ -98,11 +99,12 @@ export async function getAuditPendingItems(envioId: string) {
         const s3Res = await s3Client.send(command);
         const files = s3Res.Contents || [];
 
+        // 3. Agrupamos y generamos URLs FIRMADAS usando el ID único como llave
         const itemsGrouped = new Map<string, string[]>();
         
         await Promise.all(files.map(async (file) => {
             const fileName = file.Key?.split('/').pop() || "";
-            // CAMBIO 2: El nombre del archivo ahora empezará con el ID de DB
+            // El nombre del archivo debe empezar con el id (cuid) del ShipmentItem
             const dbId = fileName.split('_')[0]; 
 
             if (dbId && file.Key) {
@@ -111,6 +113,7 @@ export async function getAuditPendingItems(envioId: string) {
                     Key: file.Key,
                 });
                 
+                // URL válida por 1 hora
                 const signedUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
                 
                 const existing = itemsGrouped.get(dbId) || [];
@@ -118,13 +121,14 @@ export async function getAuditPendingItems(envioId: string) {
             }
         }));
 
-        // CAMBIO 3: Generamos la lista basada en los IDs de la base de datos
-        const allItems = dbShipment?.items.map(item => {
+        // 4. Construir la respuesta final basada en lo que hay en DB
+        // Esto asegura que aparezcan todos los items aunque no tengan foto
+        const allItems = (dbShipment?.items || []).map(item => {
             const evidence = itemsGrouped.get(item.id) || [];
             
             return {
-                itemId: item.id, // Usamos el ID único para la UI
-                mla: item.itemId, // Guardamos el MLA para referencia
+                itemId: item.id, // ID único (cuid) para auditoría
+                mla: item.itemId, // El código MLA original
                 title: item.title,
                 sku: item.sku || "S/D",
                 quantity: item.quantity,
@@ -135,7 +139,7 @@ export async function getAuditPendingItems(envioId: string) {
                 status: (statusMap.get(item.id) || 'PENDIENTE'),
                 envioId: envioId
             };
-        }) || [];
+        });
 
         return { success: true, data: allItems, envioId };
     } catch (error: any) {
@@ -144,8 +148,12 @@ export async function getAuditPendingItems(envioId: string) {
     }
 }
 
+/**
+ * Actualiza o crea el estado de auditoría para un ítem específico
+ */
 export async function auditItem(itemId: string, status: string, envioId: string) {
     try {
+        // 'itemId' aquí debe ser el cuid del ShipmentItem
         await prisma.shipmentAudit.upsert({
             where: { itemId_envioId: { itemId, envioId } },
             update: { status },
@@ -153,6 +161,7 @@ export async function auditItem(itemId: string, status: string, envioId: string)
         });
         return { success: true };
     } catch (error: any) {
+        console.error("Error auditItem:", error);
         return { success: false, error: error.message };
     }
 }

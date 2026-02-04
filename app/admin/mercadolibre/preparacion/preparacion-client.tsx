@@ -47,7 +47,6 @@ const getLogisticName = (type: string) => {
     return types[type] || type?.toUpperCase() || 'S/N';
 }
 
-// Colores para los agregados (estilo anterior)
 const getAgregadoColor = (index: number) => {
     const colors = [
         "bg-blue-600 text-white border-blue-800",
@@ -60,7 +59,6 @@ const getAgregadoColor = (index: number) => {
     return colors[index % colors.length];
 };
 
-// Resaltado de cantidades (x2, x3, etc)
 const renderTextWithQuantity = (text: string) => {
     if (!text) return null;
     const parts = text.split(/(\(x\d+\))/g);
@@ -89,23 +87,34 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     useEffect(() => {
         if (showScanner) {
             const startScanner = async () => {
-                await new Promise(r => setTimeout(r, 100));
+                // Pequeño delay para asegurar que el div "barcode-reader" esté en el DOM del Dialog
+                await new Promise(r => setTimeout(r, 300));
+                
+                const element = document.getElementById("barcode-reader");
+                if (!element) return;
+
                 const html5QrCode = new Html5Qrcode("barcode-reader");
                 scannerRef.current = html5QrCode;
+                
                 try {
                     await html5QrCode.start(
                         { facingMode: "environment" },
-                        { fps: 10, qrbox: { width: 280, height: 150 } },
+                        { 
+                            fps: 10, 
+                            qrbox: { width: 250, height: 150 },
+                            aspectRatio: 1.0
+                        },
                         (decodedText) => {
                             setSearch(decodedText);
                             setShowScanner(false);
-                            toast.success(`Pedido detectado: ${decodedText}`);
+                            toast.success(`Código detectado: ${decodedText}`);
                             stopScanner();
                         },
                         () => {}
                     );
                 } catch (err) {
-                    toast.error("Error de cámara");
+                    console.error("Error al iniciar scanner:", err);
+                    toast.error("No se pudo acceder a la cámara");
                     setShowScanner(false);
                 }
             };
@@ -118,15 +127,19 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     const stopScanner = async () => {
         if (scannerRef.current && scannerRef.current.isScanning) {
-            await scannerRef.current.stop();
-            scannerRef.current = null;
+            try {
+                await scannerRef.current.stop();
+                scannerRef.current = null;
+            } catch (err) {
+                console.error("Error al detener scanner:", err);
+            }
         }
     };
 
     const filtered = initialEnvios.filter(e => {
-        const matchesSearch = e.id.includes(search) || 
+        const matchesSearch = e.id.toString().includes(search) || 
                              e.resumen?.toLowerCase().includes(search.toLowerCase()) ||
-                             e.orderId?.includes(search);
+                             e.orderId?.toString().includes(search);
         const yaAuditado = e.status === "AUDITADO";
         if (activeTab === 'pendientes') return matchesSearch && !yaAuditado;
         return matchesSearch && Boolean(e.drivePhotoUrl) && !yaAuditado;
@@ -212,21 +225,49 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </button>
             </div>
 
-            {/* Buscador */}
+            {/* Buscador y Botón de Escáner */}
             <div className="flex gap-2">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input 
-                        placeholder="Buscar..." 
+                        placeholder="Buscar por Envio u Orden..." 
                         className="pl-9 h-11 rounded-xl border-slate-200 bg-white text-sm"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <Button variant="outline" className="h-11 w-11 rounded-xl bg-white" onClick={() => setShowScanner(true)}>
+                <Button 
+                    variant="outline" 
+                    className="h-11 w-11 rounded-xl bg-white border-slate-200 shadow-sm" 
+                    onClick={() => setShowScanner(true)}
+                >
                     <Barcode className="h-5 w-5 text-slate-600" />
                 </Button>
             </div>
+
+            {/* Modal del Escáner */}
+            <Dialog open={showScanner} onOpenChange={setShowScanner}>
+                <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-black border-none">
+                    <DialogHeader className="p-4 bg-slate-900 border-b border-white/10 flex-row justify-between items-center space-y-0">
+                        <DialogTitle className="text-white text-sm font-bold">Escanear Código de Barras</DialogTitle>
+                        <Button variant="ghost" size="icon" className="text-white" onClick={() => setShowScanner(false)}>
+                            <X className="h-5 w-5" />
+                        </Button>
+                    </DialogHeader>
+                    <div className="relative aspect-square sm:aspect-video bg-black flex items-center justify-center">
+                        <div id="barcode-reader" className="w-full"></div>
+                        <div className="absolute inset-0 pointer-events-none border-2 border-blue-500/30 m-12 rounded-lg">
+                            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500"></div>
+                            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500"></div>
+                            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500"></div>
+                            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500"></div>
+                        </div>
+                    </div>
+                    <div className="p-4 bg-slate-900 text-center">
+                        <p className="text-white/60 text-xs">Apunta al código de barras de la etiqueta</p>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* Listado de Pedidos */}
             <div className="grid gap-3">
@@ -259,7 +300,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 </Button>
                             )}
 
-                            {/* LISTA DE ARTÍCULOS CON COLORES RESTAURADOS */}
                             <div className="space-y-3 pt-2 border-t border-slate-100">
                                 {envio.items.map((item: any) => {
                                     const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
@@ -291,9 +331,15 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         </div>
                     )
                 })}
+                {filtered.length === 0 && (
+                    <div className="text-center py-20 text-slate-400">
+                        <Package className="h-12 w-12 mx-auto mb-2 opacity-20" />
+                        <p className="text-sm">No se encontraron pedidos</p>
+                    </div>
+                )}
             </div>
 
-            {/* VISOR DE FOTOS (Compacto h-80vh) */}
+            {/* VISOR DE FOTOS */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none w-[96vw] max-w-2xl h-[80vh] flex flex-col rounded-2xl shadow-2xl">
                     <DialogHeader className="p-2.5 bg-slate-900 border-b border-white/10 flex-row justify-between items-center space-y-0 flex-none z-20">

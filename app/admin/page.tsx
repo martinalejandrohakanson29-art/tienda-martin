@@ -1,4 +1,4 @@
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { getProducts } from "@/app/actions/products"
 import { getUsers } from "@/app/actions/todos"
@@ -13,7 +13,7 @@ import {
     ListTodo
 } from "lucide-react" 
 import Link from "next/link"
-import TaskForm from "./task-form" // Importamos el nuevo componente
+import TaskForm from "./task-form" // Importamos el componente de cliente
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,7 @@ export default async function AdminDashboard() {
                 </Link>
             </div>
 
-            {/* SECCIÓN DE TAREAS (Ahora como Componente de Cliente) */}
+            {/* SECCIÓN DE TAREAS (Componente de Cliente con animación y reset) */}
             <Card className="border-2 border-primary/10 shadow-sm bg-slate-50/50">
                 <TaskForm users={users} />
             </Card>
@@ -112,7 +112,7 @@ export default async function AdminDashboard() {
                 </div>
             </div>
 
-            {/* RÉSUMEN DE MÉTRICAS */}
+            {/* RESUMEN DE MÉTRICAS */}
             <div className="pt-4 border-t">
                 <h2 className="text-xl font-semibold mb-4 text-gray-600">Resumen de la Tienda</h2>
                 <div className="grid gap-4 md:grid-cols-3">

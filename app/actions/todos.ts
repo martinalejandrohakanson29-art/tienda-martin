@@ -2,17 +2,15 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/authOptions"
 
 export async function createTodo(formData: FormData) {
     const content = formData.get("content") as string
     const priority = formData.get("priority") as string
     const userId = formData.get("userId") as string
 
-    // Si faltan datos, salimos de la función sin devolver nada.
-    // Esto es necesario para que el build de Next.js no falle.
-    if (!content || !userId) {
-        return; 
-    }
+    if (!content || !userId) return;
 
     try {
         await prisma.todo.create({
@@ -23,9 +21,8 @@ export async function createTodo(formData: FormData) {
                 isShared: true 
             }
         })
-
-        // Esto refresca la página para que aparezca el nuevo pendiente
         revalidatePath("/admin")
+        revalidatePath("/admin/todos")
     } catch (error) {
         console.error("Error al crear el pendiente:", error)
     }
@@ -33,9 +30,29 @@ export async function createTodo(formData: FormData) {
 
 export async function getUsers() {
     return await prisma.user.findMany({
-        select: { 
-            id: true, 
-            username: true 
-        }
+        select: { id: true, username: true }
     })
+}
+
+// NUEVA ACCIÓN: Obtener todas las tareas
+export async function getTodos() {
+    return await prisma.todo.findMany({
+        include: {
+            user: { select: { username: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+    })
+}
+
+// NUEVA ACCIÓN: Alternar estado de la tarea (completar/descompletar)
+export async function toggleTodoStatus(id: string, completed: boolean) {
+    try {
+        await prisma.todo.update({
+            where: { id },
+            data: { completed }
+        })
+        revalidatePath("/admin/todos")
+    } catch (error) {
+        console.error("Error al actualizar tarea:", error)
+    }
 }

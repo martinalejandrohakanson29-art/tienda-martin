@@ -1,12 +1,13 @@
 import { getTodos, getUsers, toggleTodoStatus } from "@/app/actions/todos"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CheckCircle2, Circle, User as UserIcon } from "lucide-react"
+import { CheckCircle2, Circle, User as UserIcon, ArrowLeft } from "lucide-react"
+import Link from "next/link"
 
 export const dynamic = "force-dynamic";
 
@@ -17,25 +18,37 @@ export default async function TodosPage() {
         getUsers()
     ])
 
-    // Extraemos el usuario de la sesión de forma segura
-    const currentUser = session?.user
+    // Usamos 'as any' para evitar el error de tipos en el build
+    const currentUser = session?.user as any
 
-    // Filtros: ahora comparamos el id de forma segura
+    // Filtros de tareas
     const myPending = todos.filter(t => t.userId === currentUser?.id && !t.completed)
     const teamPending = todos.filter(t => !t.completed)
     const finished = todos.filter(t => t.completed)
 
     return (
         <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Gestión de Tareas</h1>
-                <Badge variant="outline" className="px-3 py-1 text-sm bg-slate-50">
+            {/* Encabezado con botón atrás */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                    <Link href="/admin">
+                        <Button variant="outline" size="icon" className="h-10 w-10">
+                            <ArrowLeft className="h-5 w-5" />
+                        </Button>
+                    </Link>
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Gestión de Tareas</h1>
+                        <p className="text-gray-500 text-sm">Organización y seguimiento del equipo</p>
+                    </div>
+                </div>
+                
+                <Badge variant="outline" className="px-3 py-1 text-sm bg-slate-50 w-fit">
                     <UserIcon className="h-3 w-3 mr-2" />
-                    {/* Usamos .name porque ahí guardaste el username en authOptions */}
                     Sesión: @{currentUser?.name || 'Admin'}
                 </Badge>
             </div>
 
+            {/* Sistema de Pestañas */}
             <Tabs defaultValue="propias" className="w-full">
                 <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="propias">Mis Pendientes ({myPending.length})</TabsTrigger>
@@ -84,7 +97,6 @@ function TodoTable({ tasks, showUser, isFinished = false }: { tasks: any[], show
                             tasks.map((task) => (
                                 <TableRow key={task.id} className={isFinished ? "opacity-60 bg-slate-50/30" : ""}>
                                     <TableCell>
-                                        {/* Botón para cambiar estado */}
                                         <form action={async () => {
                                             "use server"
                                             await toggleTodoStatus(task.id, !task.completed)

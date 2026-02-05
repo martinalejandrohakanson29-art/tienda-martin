@@ -50,12 +50,12 @@ export function ImportsHeader() {
             toast.loading("Sincronizando con n8n...", { id: syncToast })
 
             // 2. Ejecutamos los 3 procesos de n8n en paralelo
-            const [respVentas, respStock, respCarritos] = await Promise.all([
-                fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-ml", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ from: dates.from, to: dates.to })
-                }),
+           const [respVentas, respStock, respCarritos] = await Promise.all([
+    fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-cover", { // 👈 Cambiado de ventas-ml a ventas-cover
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: dates.from, to: dates.to })
+    }),
                 fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/actualizar-stock-proveedor", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" }

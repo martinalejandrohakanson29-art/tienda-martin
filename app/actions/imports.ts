@@ -39,12 +39,15 @@ export async function getSupplierProducts() {
         })
 
         const mappedData = products.map(p => {
-            const ventas = p.ventas?.salesLast30 || 0;
-            const velocity = Number(p.ventas?.salesVelocity || 0);
-            const stock = p.stock?.stockExternal || 0;
-            const coverage = velocity > 0 
-                ? Number((stock / velocity).toFixed(1)) 
-                : (stock > 0 ? 999 : 0);
+    const ventas = p.ventas?.salesLast30 || 0;
+    
+    // 👇 En lugar de usar p.ventas.salesVelocity, lo calculamos sobre las ventas de los últimos 30 días
+    const velocity = ventas / 1; // Asumiendo que salesLast30 es un mes de datos
+    
+    const stock = p.stock?.stockExternal || 0;
+    const coverage = velocity > 0 
+        ? Number((stock / velocity).toFixed(1)) 
+        : (stock > 0 ? 999 : 0);
 
             const futureArrivals: Record<string, { quantity: number, supplier: string }> = {};
             p.purchaseItems.forEach(item => {

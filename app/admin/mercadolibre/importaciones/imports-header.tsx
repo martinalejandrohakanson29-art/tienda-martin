@@ -7,6 +7,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DateRangePicker } from "./date-range-picker"
 import { toast } from "sonner" 
+import { clearPendingOrders } from "@/app/actions/imports" // 👈 Importamos la nueva acción
 
 export function ImportsHeader() {
     const router = useRouter()
@@ -35,10 +36,20 @@ export function ImportsHeader() {
         }
 
         setIsSyncing(true)
-        const syncToast = toast.loading("Sincronizando datos con Cover y Mercado Libre...")
+        const syncToast = toast.loading("Iniciando limpieza de datos...")
 
         try {
-            // Ejecutamos los 3 procesos de n8n en paralelo
+            // 1. Limpiamos los pedidos pendientes actuales para no tener "fantasmas"
+            const clearResult = await clearPendingOrders()
+            if (!clearResult.success) {
+                toast.error("Error al limpiar datos antiguos. Abortando.")
+                setIsSyncing(false)
+                return
+            }
+
+            toast.loading("Sincronizando con n8n...", { id: syncToast })
+
+            // 2. Ejecutamos los 3 procesos de n8n en paralelo
             const [respVentas, respStock, respCarritos] = await Promise.all([
                 fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-ml", {
                     method: "POST",
@@ -55,7 +66,7 @@ export function ImportsHeader() {
             ])
 
             if (respVentas.ok && respStock.ok && respCarritos.ok) {
-                toast.success("🚀 Sincronización completa: Ventas, Stock y Compras Futuras actualizados.", {
+                toast.success("🚀 Sincronización completa. Datos actualizados.", {
                     id: syncToast
                 })
                 router.refresh() 

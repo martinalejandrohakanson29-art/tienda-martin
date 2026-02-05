@@ -19,13 +19,12 @@ export async function POST(req: Request) {
         const salesAndStockOps = items.map((item: any) => {
             const skuVal = String(item.sku || item.SKU || item.id_articulo);
             
-            // IMPORTANTE: Primero aseguramos que el SupplierProduct existe para evitar el error de FK
             const ensureProduct = prisma.supplierProduct.upsert({
                 where: { sku: skuVal },
-                update: {}, // Si existe, no cambiamos nada
+                update: {},
                 create: { 
                     sku: skuVal, 
-                    name: item.articulo || item.name || "Producto nuevo de sincronización" 
+                    name: item.articulo || item.name || "Producto nuevo" 
                 }
             });
 
@@ -53,55 +52,68 @@ export async function POST(req: Request) {
         }).filter(Boolean).flat();
 
         // --- 2. LÓGICA PARA FUTUROS INGRESOS (PurchaseOrders) ---
-        if (items[0].carrito_id) {
-            const firstItem = items[0];
-            const [day, month, year] = firstItem.fecha_arribo.split('/');
-            const formattedDate = new Date(`${year}-${month}-${day}`);
-
-            const purchaseOrder = await prisma.purchaseOrder.upsert({
-                where: { id: firstItem.carrito_id },
-                update: {
-                    supplier: firstItem.proveedor,
-                    arrivalDate: formattedDate,
-                    status: "PENDIENTE",
-                    totalItems: items.length,
-                    updatedAt: new Date()
-                },
-                create: {
-                    id: firstItem.carrito_id,
-                    externalId: firstItem.carrito_numero,
-                    supplier: firstItem.proveedor,
-                    arrivalDate: formattedDate,
-                    status: "PENDIENTE",
-                    totalItems: items.length
-                }
+        // Agrupamos items por carrito_id por si n8n envía múltiples órdenes en una sola petición
+        const itemsWithCarrito = items.filter((i: any) => i.carrito_id);
+        
+        if (itemsWithCarrito.length > 0) {
+            const ordersMap = new Map<string, any[]>();
+            itemsWithCarrito.forEach((item: any) => {
+                if (!ordersMap.has(item.carrito_id)) ordersMap.set(item.carrito_id, []);
+                ordersMap.get(item.carrito_id)?.push(item);
             });
 
-            await prisma.purchaseOrderItem.deleteMany({
-                where: { purchaseOrderId: purchaseOrder.id }
-            });
+            for (const [carritoId, orderItems] of ordersMap.entries()) {
+                const firstItem = orderItems[0];
+                const [day, month, year] = firstItem.fecha_arribo.split('/');
+                const formattedDate = new Date(`${year}-${month}-${day}`);
 
-            // Usamos connectOrCreate para asegurar que el producto existe antes de crear el ítem
-            const itemOperations = items.map((item: any) => {
-                const skuVal = String(item.id_articulo);
-                return prisma.purchaseOrderItem.create({
-                    data: {
-                        purchaseOrder: { connect: { id: purchaseOrder.id } },
-                        supplierProduct: {
-                            connectOrCreate: {
-                                where: { sku: skuVal },
-                                create: { 
-                                    sku: skuVal, 
-                                    name: item.articulo || "Producto Importado" 
-                                }
-                            }
-                        },
-                        quantity: parseInt(item.cantidad),
+                // Creamos o actualizamos la cabecera del pedido
+                const purchaseOrder = await prisma.purchaseOrder.upsert({
+                    where: { id: carritoId },
+                    update: {
+                        supplier: firstItem.proveedor,
+                        arrivalDate: formattedDate,
+                        status: "PENDIENTE",
+                        totalItems: orderItems.length,
+                        updatedAt: new Date()
+                    },
+                    create: {
+                        id: carritoId,
+                        externalId: firstItem.carrito_numero,
+                        supplier: firstItem.proveedor,
+                        arrivalDate: formattedDate,
+                        status: "PENDIENTE",
+                        totalItems: orderItems.length
                     }
                 });
-            });
 
-            await prisma.$transaction(itemOperations);
+                // Limpiamos ítems anteriores de este pedido para evitar duplicados
+                await prisma.purchaseOrderItem.deleteMany({
+                    where: { purchaseOrderId: purchaseOrder.id }
+                });
+
+                // Creamos los nuevos ítems del pedido
+                const itemOperations = orderItems.map((item: any) => {
+                    const skuVal = String(item.id_articulo);
+                    return prisma.purchaseOrderItem.create({
+                        data: {
+                            purchaseOrder: { connect: { id: purchaseOrder.id } },
+                            supplierProduct: {
+                                connectOrCreate: {
+                                    where: { sku: skuVal },
+                                    create: { 
+                                        sku: skuVal, 
+                                        name: item.articulo || "Producto Importado" 
+                                    }
+                                }
+                            },
+                            quantity: parseInt(item.cantidad),
+                        }
+                    });
+                });
+
+                await prisma.$transaction(itemOperations);
+            }
         }
 
         if (salesAndStockOps.length > 0) {
@@ -110,7 +122,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true, message: "Datos procesados correctamente" })
     } catch (error: any) {
-        console.error("Error en webhook:", error);
+        console.error("Error en webhook de importaciones:", error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 })
     }
 }

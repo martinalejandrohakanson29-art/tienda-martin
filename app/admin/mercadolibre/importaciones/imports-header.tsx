@@ -7,7 +7,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DateRangePicker } from "./date-range-picker"
 import { toast } from "sonner" 
-import { clearPendingOrders } from "@/app/actions/imports" // 👈 Importamos la nueva acción
+import { clearPendingOrders } from "@/app/actions/imports"
 
 export function ImportsHeader() {
     const router = useRouter()
@@ -39,23 +39,16 @@ export function ImportsHeader() {
         const syncToast = toast.loading("Iniciando limpieza de datos...")
 
         try {
-            // 1. Limpiamos los pedidos pendientes actuales para no tener "fantasmas"
-            const clearResult = await clearPendingOrders()
-            if (!clearResult.success) {
-                toast.error("Error al limpiar datos antiguos. Abortando.")
-                setIsSyncing(false)
-                return
-            }
+            await clearPendingOrders()
+            toast.loading("Sincronizando con Cover (n8n)...", { id: syncToast })
 
-            toast.loading("Sincronizando con n8n...", { id: syncToast })
-
-            // 2. Ejecutamos los 3 procesos de n8n en paralelo
-           const [respVentas, respStock, respCarritos] = await Promise.all([
-    fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-cover", { // 👈 Cambiado de ventas-ml a ventas-cover
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from: dates.from, to: dates.to })
-    }),
+            const [respVentas, respStock, respCarritos] = await Promise.all([
+                // 👇 CAMBIO CLAVE: Ahora llamamos a ventas-cover
+                fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-cover", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ from: dates.from, to: dates.to })
+                }),
                 fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/actualizar-stock-proveedor", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" }
@@ -66,20 +59,14 @@ export function ImportsHeader() {
             ])
 
             if (respVentas.ok && respStock.ok && respCarritos.ok) {
-                toast.success("🚀 Sincronización completa. Datos actualizados.", {
-                    id: syncToast
-                })
+                toast.success("🚀 Datos de Cover actualizados con éxito.", { id: syncToast })
                 router.refresh() 
             } else {
-                toast.warning("Atención: Algunos procesos de n8n devolvieron error.", {
-                    id: syncToast
-                })
+                toast.warning("Atención: Algunos procesos devolvieron error.", { id: syncToast })
             }
         } catch (error) {
             console.error("Error sincronizando:", error)
-            toast.error("No se pudo conectar con el servidor de n8n.", {
-                id: syncToast
-            })
+            toast.error("Error de conexión con n8n.", { id: syncToast })
         } finally {
             setIsSyncing(false)
         }
@@ -95,21 +82,15 @@ export function ImportsHeader() {
                 </Link>
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Tablero de Importaciones</h1>
-                    <p className="text-sm text-slate-500">Detalles de ventas, stock y tiempos hasta quebrar stock </p>
+                    <p className="text-sm text-slate-500">Métricas actualizadas desde Sistema Cover</p>
                 </div>
             </div>
             
             <div className="flex items-center gap-4">
                 <DateRangePicker onRangeChange={handleRangeChange} />
-                
-                <Button 
-                    onClick={handleSync} 
-                    disabled={isSyncing}
-                    variant="default" 
-                    className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all active:scale-95"
-                >
+                <Button onClick={handleSync} disabled={isSyncing} variant="default" className="gap-2 bg-blue-600">
                     <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                    {isSyncing ? 'Sincronizando...' : 'Actualizar datos'}
+                    {isSyncing ? 'Sincronizando...' : 'Actualizar de Cover'}
                 </Button>
             </div>
         </div>

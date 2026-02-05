@@ -38,12 +38,14 @@ export async function getSupplierProducts() {
             select: { updatedAt: true }
         })
 
-        const mappedData = products.map(p => {
+       const mappedData = products.map(p => {
+    // Tomamos las ventas que n8n guardó en salesLast30
     const ventas = p.ventas?.salesLast30 || 0;
     
-    // 👇 En lugar de usar p.ventas.salesVelocity, lo calculamos sobre las ventas de los últimos 30 días
-    const velocity = ventas / 1; // Asumiendo que salesLast30 es un mes de datos
-    
+    // 👇 CAMBIO CLAVE: Calculamos la velocidad mensual directamente desde las ventas
+    // Asumimos que "ventas" representa el periodo seleccionado (ej. 30 días)
+    const velocity = ventas / 1; 
+
     const stock = p.stock?.stockExternal || 0;
     const coverage = velocity > 0 
         ? Number((stock / velocity).toFixed(1)) 

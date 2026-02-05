@@ -2,9 +2,25 @@
 "use server"
 import { prisma } from "@/lib/prisma"
 
+/**
+ * Limpia todos los pedidos de compra pendientes.
+ * Se usa antes de sincronizar con n8n para evitar pedidos duplicados o antiguos.
+ */
+export async function clearPendingOrders() {
+    try {
+        // Al borrar la PurchaseOrder, Prisma borra automáticamente los items (onDelete: Cascade)
+        await prisma.purchaseOrder.deleteMany({
+            where: { status: "PENDIENTE" }
+        })
+        return { success: true }
+    } catch (error) {
+        console.error("Error al limpiar pedidos pendientes:", error)
+        return { success: false }
+    }
+}
+
 export async function getSupplierProducts() {
     try {
-        // 1. Traemos los productos
         const products = await prisma.supplierProduct.findMany({
             include: {
                 ventas: true, 
@@ -17,7 +33,6 @@ export async function getSupplierProducts() {
             orderBy: { sku: 'asc' }
         })
 
-        // 2. Buscamos la fecha de la última actualización de ventas/stock
         const lastVentasUpdate = await prisma.importVentas.findFirst({
             orderBy: { updatedAt: 'desc' },
             select: { updatedAt: true }

@@ -52,7 +52,6 @@ export async function POST(req: Request) {
         }).filter(Boolean).flat();
 
         // --- 2. LÓGICA PARA FUTUROS INGRESOS (PurchaseOrders) ---
-        // Agrupamos items por carrito_id por si n8n envía múltiples órdenes en una sola petición
         const itemsWithCarrito = items.filter((i: any) => i.carrito_id);
         
         if (itemsWithCarrito.length > 0) {
@@ -62,12 +61,12 @@ export async function POST(req: Request) {
                 ordersMap.get(item.carrito_id)?.push(item);
             });
 
-            for (const [carritoId, orderItems] of ordersMap.entries()) {
+            // 👇 CAMBIO AQUÍ: Array.from() soluciona el error de compilación en Railway
+            for (const [carritoId, orderItems] of Array.from(ordersMap.entries())) {
                 const firstItem = orderItems[0];
                 const [day, month, year] = firstItem.fecha_arribo.split('/');
                 const formattedDate = new Date(`${year}-${month}-${day}`);
 
-                // Creamos o actualizamos la cabecera del pedido
                 const purchaseOrder = await prisma.purchaseOrder.upsert({
                     where: { id: carritoId },
                     update: {
@@ -87,12 +86,10 @@ export async function POST(req: Request) {
                     }
                 });
 
-                // Limpiamos ítems anteriores de este pedido para evitar duplicados
                 await prisma.purchaseOrderItem.deleteMany({
                     where: { purchaseOrderId: purchaseOrder.id }
                 });
 
-                // Creamos los nuevos ítems del pedido
                 const itemOperations = orderItems.map((item: any) => {
                     const skuVal = String(item.id_articulo);
                     return prisma.purchaseOrderItem.create({

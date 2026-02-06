@@ -8,7 +8,6 @@ import { prisma } from "@/lib/prisma"
  */
 export async function clearPendingOrders() {
     try {
-        // Al borrar la PurchaseOrder, Prisma borra automáticamente los items (onDelete: Cascade)
         await prisma.purchaseOrder.deleteMany({
             where: { status: "PENDIENTE" }
         })
@@ -38,18 +37,14 @@ export async function getSupplierProducts() {
             select: { updatedAt: true }
         })
 
-       const mappedData = products.map(p => {
-    // Tomamos las ventas que n8n guardó en salesLast30
-    const ventas = p.ventas?.salesLast30 || 0;
-    
-    // 👇 CAMBIO CLAVE: Calculamos la velocidad mensual directamente desde las ventas
-    // Asumimos que "ventas" representa el periodo seleccionado (ej. 30 días)
-    const velocity = ventas / 1; 
-
-    const stock = p.stock?.stockExternal || 0;
-    const coverage = velocity > 0 
-        ? Number((stock / velocity).toFixed(1)) 
-        : (stock > 0 ? 999 : 0);
+        // 1. Mapeo inicial de todos los productos
+        let mappedData = products.map(p => {
+            const ventas = p.ventas?.salesLast30 || 0;
+            const velocity = ventas / 1; 
+            const stock = p.stock?.stockExternal || 0;
+            const coverage = velocity > 0 
+                ? Number((stock / velocity).toFixed(1)) 
+                : (stock > 0 ? 999 : 0);
 
             const futureArrivals: Record<string, { quantity: number, supplier: string }> = {};
             p.purchaseItems.forEach(item => {
@@ -73,8 +68,34 @@ export async function getSupplierProducts() {
             }
         })
 
+        // 2. Lógica interna: Sumar ventas y ocultar SKUs específicos
+        const redistribucion = [
+            { origen: "485797", destino: "483329" },
+            { origen: "485801", destino: "483374" }
+        ];
+
+        redistribucion.forEach(({ origen, destino }) => {
+            const itemOrigen = mappedData.find(i => i.sku === origen);
+            const itemDestino = mappedData.find(i => i.sku === destino);
+
+            if (itemOrigen && itemDestino) {
+                // Sumamos las ventas del origen al destino
+                itemDestino.salesLast30 += itemOrigen.salesLast30;
+                
+                // Recalculamos la velocidad y la cobertura del destino con las nuevas ventas
+                itemDestino.salesVelocity = itemDestino.salesLast30 / 1;
+                itemDestino.monthsCoverage = itemDestino.salesVelocity > 0 
+                    ? Number((itemDestino.stockExternal / itemDestino.salesVelocity).toFixed(1)) 
+                    : (itemDestino.stockExternal > 0 ? 999 : 0);
+            }
+        });
+
+        // 3. Filtramos los SKUs que ya no queremos mostrar
+        const skusAOcultar = redistribucion.map(r => r.origen);
+        const finalData = mappedData.filter(item => !skusAOcultar.includes(item.sku));
+
         return {
-            data: mappedData,
+            data: finalData,
             lastUpdate: lastVentasUpdate?.updatedAt || null
         }
     } catch (error) {

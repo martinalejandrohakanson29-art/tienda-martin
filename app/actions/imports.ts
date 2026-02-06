@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma"
 
 /**
  * Limpia todos los pedidos de compra pendientes.
- * Se usa antes de sincronizar con n8n para evitar pedidos duplicados o antiguos.
  */
 export async function clearPendingOrders() {
     try {
@@ -37,7 +36,7 @@ export async function getSupplierProducts() {
             select: { updatedAt: true }
         })
 
-        // 1. Mapeo inicial de todos los productos
+        // 1. Mapeo inicial de todos los productos (tal cual vienen de la DB)
         let mappedData = products.map(p => {
             const ventas = p.ventas?.salesLast30 || 0;
             const velocity = ventas / 1; 
@@ -68,31 +67,39 @@ export async function getSupplierProducts() {
             }
         })
 
-        // 2. Lógica interna: Sumar ventas y ocultar SKUs específicos
-        const redistribucion = [
-            { origen: "485797", destino: "483329" },
-            { origen: "485801", destino: "483374" }
-        ];
+        // --- 2. LÓGICA DE SUMA CRUZADA (AJUSTE INTERNO) ---
+        
+        const skusOrigen = ["485797", "485801"];
+        const skusDestino = ["483329", "483374"];
 
-        redistribucion.forEach(({ origen, destino }) => {
-            const itemOrigen = mappedData.find(i => i.sku === origen);
-            const itemDestino = mappedData.find(i => i.sku === destino);
+        // Calculamos la suma total de ventas de los dos productos "origen"
+        const ventasExtraTotales = mappedData
+            .filter(item => skusOrigen.includes(item.sku))
+            .reduce((total, item) => total + item.salesLast30, 0);
 
-            if (itemOrigen && itemDestino) {
-                // Sumamos las ventas del origen al destino
-                itemDestino.salesLast30 += itemOrigen.salesLast30;
+        // Aplicamos esa suma a cada uno de los productos "destino"
+        mappedData = mappedData.map(item => {
+            if (skusDestino.includes(item.sku)) {
+                const nuevasVentas = item.salesLast30 + ventasExtraTotales;
+                const nuevaVelocidad = nuevasVentas / 1; // Mantenemos lógica de velocidad = ventas / 1
                 
-                // Recalculamos la velocidad y la cobertura del destino con las nuevas ventas
-                itemDestino.salesVelocity = itemDestino.salesLast30 / 1;
-                itemDestino.monthsCoverage = itemDestino.salesVelocity > 0 
-                    ? Number((itemDestino.stockExternal / itemDestino.salesVelocity).toFixed(1)) 
-                    : (itemDestino.stockExternal > 0 ? 999 : 0);
+                // Recalculamos la cobertura con las nuevas ventas
+                const nuevaCobertura = nuevaVelocidad > 0 
+                    ? Number((item.stockExternal / nuevaVelocidad).toFixed(1)) 
+                    : (item.stockExternal > 0 ? 999 : 0);
+
+                return {
+                    ...item,
+                    salesLast30: nuevasVentas,
+                    salesVelocity: nuevaVelocidad,
+                    monthsCoverage: nuevaCobertura
+                };
             }
+            return item;
         });
 
-        // 3. Filtramos los SKUs que ya no queremos mostrar
-        const skusAOcultar = redistribucion.map(r => r.origen);
-        const finalData = mappedData.filter(item => !skusAOcultar.includes(item.sku));
+        // 3. Filtramos para ocultar los SKUs de origen en la tabla
+        const finalData = mappedData.filter(item => !skusOrigen.includes(item.sku));
 
         return {
             data: finalData,

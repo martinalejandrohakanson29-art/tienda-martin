@@ -1,8 +1,7 @@
 "use server"
 
-// En el futuro, aquí podrías hacer un prisma.marketingCampaigns.findMany()
 export async function getMarketingPerformance() {
-  // Simulamos la data que trajo Martin de la API de Meta
+  // Estos son los datos reales que me pasaste de la API de Meta
   const campaigns = [
     {
       id: "120241567094910523",

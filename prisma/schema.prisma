@@ -395,3 +395,40 @@ model MLDescuentos {
 
   @@map("ml_descuentos")
 }
+
+
+
+¡Excelente, Martín! Ya tengo todo el panorama. Entiendo perfectamente lo que necesitas: queremos que los datos que tu workflow de n8n obtiene de la API de Meta (gasto, alcance, mensajes, etc.) lleguen automáticamente a la base de datos de tu aplicación para que se vean en la sección de Marketing.
+
+Como actualmente esos datos son "estáticos" (están escritos a mano en el código), vamos a crear el "puente" para que n8n los guarde de verdad.
+
+Aquí tienes la guía paso a paso para un principiante:
+
+Paso 1: Preparar la Base de Datos
+Primero debemos decirle a tu base de datos que ahora va a guardar "Campañas" y "Respuestas Automáticas". Abre tu archivo prisma/schema.prisma y agrega estos modelos al final:
+
+Fragmento de código
+// --- GESTIÓN DE MARKETING ---
+
+model MarketingCampaign {
+  id          String   @id // ID que viene de Meta (ej: 120241567...)
+  name        String
+  spend       Decimal  @db.Decimal(20, 2)
+  reach       Int
+  messages    Int      @default(0)
+  carts       Int      @default(0)
+  status      String   @default("Active")
+  updatedAt   DateTime @updatedAt
+
+  @@map("marketing_campaigns")
+}
+
+model MarketingAutoResponse {
+  id        String   @id @default(cuid())
+  adId      String   @unique
+  name      String
+  response  String
+  updatedAt DateTime @updatedAt
+
+  @@map("marketing_auto_responses")
+}

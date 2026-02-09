@@ -6,7 +6,8 @@ import {
   ArrowRight,
   MapPinned,
   PackageCheck,
-  BarChart3 
+  BarChart3,
+  LineChart 
 } from "lucide-react";
 import Link from "next/link";
 
@@ -97,7 +98,7 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* NUEVA TARJETA 4: RENTABILIDAD */}
+        {/* TARJETA 4: RENTABILIDAD */}
         <Card className="border-l-4 border-l-amber-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-amber-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-amber-800 text-xl">
@@ -114,6 +115,29 @@ export default function MercadoLibreDashboard() {
             </p>
             <Link href="/admin/mercadolibre/rentabilidad">
               <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* NUEVA TARJETA 5: SEGUIMIENTO VENTAS */}
+        <Card className="border-l-4 border-l-indigo-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-indigo-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-indigo-800 text-xl">
+              <LineChart className="h-6 w-6" />
+              Seguimiento Ventas
+            </CardTitle>
+            <CardDescription className="text-indigo-700/80 font-medium">
+              Monitoreo de ingresos y volumen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Visualización de ventas realizadas, estados de pago y métricas de crecimiento.
+            </p>
+            <Link href="/admin/mercadolibre/seguimiento-ventas">
+              <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm h-12 text-lg">
                 Entrar <ArrowRight size={18} />
               </Button>
             </Link>

@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-// Obtiene los datos calculando todo en el momento (para el admin)
+// Función para obtener y calcular los datos en tiempo real
 export async function getRentabilidadData() {
   try {
     const productos = await prisma.productosMaestros.findMany({
@@ -37,8 +37,10 @@ export async function getRentabilidadData() {
       const precioFinalML = Number(desc?.precio_final || precioPublicado);
       const pctVendedor = Number(desc?.seller_percentage || 0);
 
+      // --- CÁLCULO DE INGRESOS ---
       const precioFinalNuestro = precioOriginal * (1 - (pctVendedor / 100));
 
+      // --- CÁLCULO DE DEDUCCIONES ---
       const cargoVenta = Number(fee?.cargo_venta_fijo || 0) > 0 
         ? Number(fee?.cargo_venta_fijo) 
         : (precioFinalML * Number(fee?.cargo_venta_percent || 0) / 100);
@@ -62,6 +64,7 @@ export async function getRentabilidadData() {
         precio_original: precioOriginal,
         desc_pct_total: Number(desc?.pct_descuento || 0),
         precio_final: precioFinalML,
+        precio_final_nuestro: precioFinalNuestro, // Aseguramos incluirlo aquí
         costo_total: costoPropio,
         neto_teorico: netoTeorico,
         ganancia_neta: gananciaNeta,
@@ -77,7 +80,7 @@ export async function getRentabilidadData() {
   }
 }
 
-// NUEVA FUNCIÓN: Dispara webhooks y sincroniza la tabla física
+// Función que dispara webhooks y actualiza la tabla física (Reset y Carga)
 export async function triggerRentabilidadUpdate() {
   const webhooks = [
     "https://n8n-on-render-production-52f0.up.railway.app/webhook/publicaciones-activas",
@@ -86,15 +89,15 @@ export async function triggerRentabilidadUpdate() {
   ];
 
   try {
-    // 1. Ejecutar webhooks de n8n
+    // 1. Ejecutar webhooks
     await Promise.all(webhooks.map(url => fetch(url, { method: 'POST', cache: 'no-store' })));
 
-    // 2. Obtener los datos recién calculados
+    // 2. Obtener datos frescos calculados
     const data = await getRentabilidadData();
 
-    // 3. RESET Y CARGA: Borramos todo y cargamos lo nuevo en la tabla física
+    // 3. RESET Y CARGA: Sincronizamos con la tabla física RentabilidadCalculada
     await prisma.$transaction([
-      prisma.rentabilidadCalculada.deleteMany({}), // Limpia la tabla
+      prisma.rentabilidadCalculada.deleteMany({}), 
       prisma.rentabilidadCalculada.createMany({
         data: data.map(item => ({
           mla: item.item_id,
@@ -104,6 +107,7 @@ export async function triggerRentabilidadUpdate() {
           precio_original: item.precio_original,
           desc_pct_total: item.desc_pct_total,
           precio_final: item.precio_final,
+          precio_final_nuestro: item.precio_final_nuestro, // FIXED: Campo agregado para que el build pase
           costo_total: item.costo_total,
           neto_teorico: item.neto_teorico,
           ganancia_neta: item.ganancia_neta,

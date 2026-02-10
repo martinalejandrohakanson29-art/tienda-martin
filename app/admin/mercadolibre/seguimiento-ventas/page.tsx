@@ -3,19 +3,44 @@
 import { useState } from "react"
 import { VentasHeader } from "./ventas-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Info, BarChart3 } from "lucide-react" // <--- Agregamos BarChart3 aquí
+import { Info, BarChart3, AlertCircle } from "lucide-react"
 
 export default function SeguimientoVentasPage() {
     const [loading, setLoading] = useState(false)
     const [ranges, setRanges] = useState<any>(null)
+    const [error, setError] = useState<string | null>(null)
 
-    const handleCompare = (r1: any, r2: any) => {
+    const handleCompare = async (r1: any, r2: any) => {
         setLoading(true)
-        console.log("Comparando Periodo 1:", r1, "con Periodo 2:", r2)
-        setRanges({ r1, r2 })
+        setError(null)
         
-        // Simulación de carga
-        setTimeout(() => setLoading(false), 800)
+        try {
+            // Reemplaza esta URL con la de tu webhook de n8n (Production o Test)
+            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas"
+
+            const response = await fetch(N8N_WEBHOOK_URL, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ r1, r2 }),
+            })
+
+            if (!response.ok) {
+                throw new Error("Error en la respuesta del servidor")
+            }
+
+            const data = await response.json()
+            
+            // Guardamos los datos reales (r1 y r2 procesados por n8n)
+            setRanges(data)
+            
+        } catch (err) {
+            console.error("Error al comparar ventas:", err)
+            setError("No se pudo conectar con el servicio de análisis.")
+        } finally {
+            setLoading(false)
+        }
     }
 
     return (
@@ -23,6 +48,14 @@ export default function SeguimientoVentasPage() {
             <VentasHeader onCompare={handleCompare} isLoading={loading} />
 
             <main className="p-6 max-w-[1600px] mx-auto w-full space-y-6">
+                {/* Mensaje de Error */}
+                {error && (
+                    <div className="flex items-center gap-3 text-red-700 bg-red-50 p-4 rounded-lg border border-red-100">
+                        <AlertCircle className="h-5 w-5" />
+                        <p className="text-sm font-medium">{error}</p>
+                    </div>
+                )}
+
                 {!ranges ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                         <BarChart3 className="h-16 w-16 mb-4 opacity-20" />
@@ -38,14 +71,17 @@ export default function SeguimientoVentasPage() {
                             <CardContent>
                                 <div className="flex items-center gap-3 text-indigo-700 bg-indigo-50 p-4 rounded-lg">
                                     <Info className="h-5 w-5" />
-                                    <p className="text-sm">
-                                        Listo para procesar comparación entre 
-                                        <strong> {ranges.r1.from}</strong> y 
-                                        <strong> {ranges.r2.from}</strong>.
-                                    </p>
+                                    <div className="text-sm">
+                                        <p>Análisis completado con éxito.</p>
+                                        <p className="opacity-80">
+                                            Se procesaron {ranges.r1?.length || 0} productos en P1 y {ranges.r2?.length || 0} en P2.
+                                        </p>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Aquí es donde agregaremos la tabla comparativa más adelante */}
                     </div>
                 )}
             </main>

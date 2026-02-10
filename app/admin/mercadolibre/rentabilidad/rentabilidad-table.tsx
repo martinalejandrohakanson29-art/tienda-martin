@@ -8,10 +8,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"; //
-import { Input } from "@/components/ui/input"; //
-import { Search, X } from "lucide-react";
-import { cn } from "@/lib/utils"; //
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Search, X, TrendingDown, TrendingUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ProductoRentabilidad {
   item_id: string;
@@ -24,6 +24,8 @@ interface ProductoRentabilidad {
   precio_final_nuestro: number;
   costo_total: number;
   neto_teorico: number;
+  ganancia_neta: number;
+  ganancia_porcentaje: number;
   cargo_venta_real: number;
   envio_costo: number;
   costo_fijo_ml: number;
@@ -39,7 +41,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
            (item.nombre_variante || "").toLowerCase().includes(searchLower);
   });
 
-  const sortedData = [...filteredData].sort((a, b) => b.precio_final - a.precio_final);
+  const sortedData = [...filteredData].sort((a, b) => b.ganancia_neta - a.ganancia_neta);
 
   return (
     <div className="flex flex-col h-full w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -74,14 +76,14 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
               <TableHead className="text-right font-bold text-slate-400 text-[11px]">P. Original</TableHead>
               <TableHead className="text-right font-bold text-amber-600 text-[11px]">Dcto Total</TableHead>
               <TableHead className="text-right font-bold text-slate-900 text-[11px]">P. Final</TableHead>
-              <TableHead className="text-right font-bold text-amber-700 bg-amber-50/50 text-[11px]">Final Nuestro</TableHead>
               <TableHead className="text-right font-bold text-slate-700 bg-slate-100 text-[11px]">Costo (Match)</TableHead>
               <TableHead className="text-right font-bold text-red-500 text-[11px]">Comisión $</TableHead>
               <TableHead className="text-right font-bold text-blue-600 text-[11px]">Envío</TableHead>
-              <TableHead className="text-right font-bold text-slate-500 text-[11px]">Fijo</TableHead>
-              
-              {/* COLUMNA: LO QUE RECIBÍS DE ML */}
               <TableHead className="text-right font-bold text-white bg-slate-900 px-4 text-[11px]">Neto Recibido</TableHead>
+              
+              {/* NUEVAS COLUMNAS */}
+              <TableHead className="text-right font-bold text-white bg-green-700 px-4 text-[11px]">Ganancia Neta</TableHead>
+              <TableHead className="text-right font-bold text-white bg-green-800 px-4 text-[11px]">Ganancia %</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -109,27 +111,36 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                 <TableCell className="text-right font-bold text-slate-900">
                   ${item.precio_final.toLocaleString('es-AR')}
                 </TableCell>
-                <TableCell className="text-right font-black text-amber-800 bg-amber-50/30">
-                  ${item.precio_final_nuestro.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </TableCell>
-
                 <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
                   ${item.costo_total.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </TableCell>
-
                 <TableCell className="text-right text-red-600">
                   ${item.cargo_venta_real.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </TableCell>
                 <TableCell className="text-right text-blue-600 font-medium">
                   {item.envio_costo > 0 ? `$${item.envio_costo.toLocaleString('es-AR')}` : '-'}
                 </TableCell>
-                <TableCell className="text-right text-slate-500">
-                  ${item.costo_fijo_ml.toLocaleString('es-AR')}
+                <TableCell className="text-right font-bold px-4 text-slate-900 bg-slate-50 border-l border-slate-200">
+                  ${item.neto_teorico.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                 </TableCell>
 
-                {/* CELDA NETO RECIBIDO (Sin descontar costo propio) */}
-                <TableCell className="text-right font-black px-4 text-slate-900 bg-slate-50 border-l border-slate-200">
-                  ${item.neto_teorico.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                {/* CELDA GANANCIA NETA */}
+                <TableCell className={cn(
+                  "text-right font-black px-4 border-l",
+                  item.ganancia_neta > 0 ? "text-green-700 bg-green-50/50" : "text-red-600 bg-red-50/50"
+                )}>
+                  ${item.ganancia_neta.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </TableCell>
+
+                {/* CELDA GANANCIA % */}
+                <TableCell className={cn(
+                  "text-right font-black px-4 border-l",
+                  item.ganancia_porcentaje > 0 ? "text-green-800 bg-green-100/30" : "text-red-700 bg-red-100/30"
+                )}>
+                  <div className="flex items-center justify-end gap-1">
+                    {item.ganancia_porcentaje > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                    {item.ganancia_porcentaje.toFixed(1)}%
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

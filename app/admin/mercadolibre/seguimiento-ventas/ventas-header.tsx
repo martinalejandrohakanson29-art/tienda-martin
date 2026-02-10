@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react" // 1. Importamos useState
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, BarChart3, RefreshCw } from "lucide-react"
 import Link from "next/link"
@@ -11,12 +12,17 @@ interface VentasHeaderProps {
 }
 
 export function VentasHeader({ onCompare, isLoading }: VentasHeaderProps) {
-    // Estados locales para guardar temporalmente los rangos
-    let range1 = { from: "", to: "" }
-    let range2 = { from: "", to: "" }
+    // 2. Definimos estados para recordar los rangos de fechas
+    const [range1, setRange1] = useState({ from: "", to: "" })
+    const [range2, setRange2] = useState({ from: "", to: "" })
 
     const handleApply = () => {
-        onCompare(range1, range2)
+        // Solo llamamos a la comparación si tenemos datos
+        if (range1.from && range2.from) {
+            onCompare(range1, range2)
+        } else {
+            alert("Por favor, selecciona ambos períodos para comparar.")
+        }
     }
 
     return (
@@ -46,7 +52,7 @@ export function VentasHeader({ onCompare, isLoading }: VentasHeaderProps) {
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-400 uppercase vertical-text border-r pr-2">P1</span>
                         <DateRangePicker 
-                            onRangeChange={(from, to) => { range1 = { from, to } }} 
+                            onRangeChange={(from, to) => setRange1({ from, to })} // Actualizamos el estado
                         />
                     </div>
 
@@ -55,7 +61,7 @@ export function VentasHeader({ onCompare, isLoading }: VentasHeaderProps) {
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-400 uppercase vertical-text border-r pr-2">P2</span>
                         <DateRangePicker 
-                            onRangeChange={(from, to) => { range2 = { from, to } }} 
+                            onRangeChange={(from, to) => setRange2({ from, to })} // Actualizamos el estado
                         />
                     </div>
 

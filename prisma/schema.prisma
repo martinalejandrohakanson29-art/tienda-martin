@@ -422,3 +422,25 @@ model MarketingAutoResponse {
 
   @@map("marketing_auto_responses")
 }
+
+
+// --- TABLA DE RESULTADOS CALCULADOS ---
+
+model RentabilidadCalculada {
+  id                   String   @id @default(cuid())
+  mla                  String
+  variation_id         String?
+  nombre               String
+  nombre_variante      String?
+  precio_original      Decimal  @db.Decimal(20, 2)
+  desc_pct_total       Decimal  @db.Decimal(10, 2)
+  precio_final         Decimal  @db.Decimal(20, 2)
+  costo_total          Decimal  @db.Decimal(20, 2)
+  neto_teorico         Decimal  @db.Decimal(20, 2)
+  ganancia_neta        Decimal  @db.Decimal(20, 2)
+  ganancia_porcentaje  Decimal  @db.Decimal(10, 2)
+  fecha_actualizacion  DateTime @default(now())
+
+  @@unique([mla, variation_id])
+  @@map("rentabilidad_calculada")
+}

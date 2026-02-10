@@ -3,22 +3,20 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+// Obtiene los datos calculando todo en el momento (para el admin)
 export async function getRentabilidadData() {
   try {
-    // 1. Traemos los productos activos
     const productos = await prisma.productosMaestros.findMany({
       where: { estado: "active" },
       orderBy: { nombre_publicacion: 'asc' },
     });
 
-    // 2. Traemos cargos y descuentos
     const cargos = await prisma.mLFees.findMany();
     const cargosMap = new Map(cargos.map(c => [c.mla, c]));
 
     const descuentos = await prisma.mLDescuentos.findMany();
     const descuentosMap = new Map(descuentos.map(d => [d.mla, d]));
 
-    // 3. Traemos los costos de la VISTA
     const costosMla: any[] = await prisma.$queryRaw`
       SELECT mla, variation_id, costo_total 
       FROM vista_costos_productos
@@ -39,10 +37,8 @@ export async function getRentabilidadData() {
       const precioFinalML = Number(desc?.precio_final || precioPublicado);
       const pctVendedor = Number(desc?.seller_percentage || 0);
 
-      // --- CÁLCULO DE INGRESOS ---
       const precioFinalNuestro = precioOriginal * (1 - (pctVendedor / 100));
 
-      // --- CÁLCULO DE DEDUCCIONES DE MERCADO LIBRE ---
       const cargoVenta = Number(fee?.cargo_venta_fijo || 0) > 0 
         ? Number(fee?.cargo_venta_fijo) 
         : (precioFinalML * Number(fee?.cargo_venta_percent || 0) / 100);
@@ -54,10 +50,7 @@ export async function getRentabilidadData() {
       const envio = Number(fee?.envio_costo || 0);
       const costoFijoML = Number(fee?.costo_fijo_ml || 0);
 
-      // --- NETO TEÓRICO (Dinero que recibís de ML) ---
       const netoTeorico = precioFinalNuestro - cargoVenta - costoCuotas - envio - costoFijoML;
-
-      // --- CÁLCULOS DE GANANCIA ---
       const gananciaNeta = netoTeorico - costoPropio;
       const gananciaPorcentaje = costoPropio > 0 ? (gananciaNeta / costoPropio) * 100 : 0;
 
@@ -69,7 +62,6 @@ export async function getRentabilidadData() {
         precio_original: precioOriginal,
         desc_pct_total: Number(desc?.pct_descuento || 0),
         precio_final: precioFinalML,
-        precio_final_nuestro: precioFinalNuestro,
         costo_total: costoPropio,
         neto_teorico: netoTeorico,
         ganancia_neta: gananciaNeta,
@@ -85,7 +77,7 @@ export async function getRentabilidadData() {
   }
 }
 
-// NUEVA FUNCIÓN: Dispara los 3 webhooks de n8n
+// NUEVA FUNCIÓN: Dispara webhooks y sincroniza la tabla física
 export async function triggerRentabilidadUpdate() {
   const webhooks = [
     "https://n8n-on-render-production-52f0.up.railway.app/webhook/publicaciones-activas",
@@ -94,22 +86,36 @@ export async function triggerRentabilidadUpdate() {
   ];
 
   try {
-    // Ejecutamos los 3 en paralelo
-    await Promise.all(
-      webhooks.map(url => 
-        fetch(url, { 
-          method: 'POST',
-          cache: 'no-store' 
-        })
-      )
-    );
+    // 1. Ejecutar webhooks de n8n
+    await Promise.all(webhooks.map(url => fetch(url, { method: 'POST', cache: 'no-store' })));
 
-    // Refrescamos la ruta para ver los cambios
+    // 2. Obtener los datos recién calculados
+    const data = await getRentabilidadData();
+
+    // 3. RESET Y CARGA: Borramos todo y cargamos lo nuevo en la tabla física
+    await prisma.$transaction([
+      prisma.rentabilidadCalculada.deleteMany({}), // Limpia la tabla
+      prisma.rentabilidadCalculada.createMany({
+        data: data.map(item => ({
+          mla: item.item_id,
+          variation_id: item.variation_id,
+          nombre: item.nombre,
+          nombre_variante: item.nombre_variante,
+          precio_original: item.precio_original,
+          desc_pct_total: item.desc_pct_total,
+          precio_final: item.precio_final,
+          costo_total: item.costo_total,
+          neto_teorico: item.neto_teorico,
+          ganancia_neta: item.ganancia_neta,
+          ganancia_porcentaje: item.ganancia_porcentaje,
+        }))
+      })
+    ]);
+
     revalidatePath("/admin/mercadolibre/rentabilidad");
-    
     return { success: true };
   } catch (error) {
-    console.error("Error al conectar con n8n:", error);
+    console.error("Error en sincronización de rentabilidad:", error);
     return { success: false };
   }
 }

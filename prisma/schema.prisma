@@ -19,14 +19,14 @@ model User {
   username String @unique
   password String
   role     Role   @default(USER)
-  todos    Todo[] // Relación con sus pendientes personales
+  todos    Todo[] 
 }
 
 model Todo {
   id          String   @id @default(cuid())
   content     String   
   completed   Boolean  @default(false)
-  priority    String   @default("media") // 👈 Agregamos esto: baja, media, alta, urgente
+  priority    String   @default("media") 
   isShared    Boolean  @default(false) 
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -104,7 +104,6 @@ model ShipmentItem {
   id         String   @id @default(cuid())
   shipmentId String
   shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  
   itemId     String
   title      String
   sku        String?
@@ -112,7 +111,7 @@ model ShipmentItem {
   agregados  String?
   imageUrl   String?
   variation  String?
-  
+
   @@index([shipmentId])
 }
 
@@ -178,12 +177,10 @@ model SupplierProduct {
   id              String   @id @default(cuid())
   sku             String   @unique 
   name            String   
-  
   ventas          ImportVentas?
   stock           ImportStock?
   purchaseItems   PurchaseOrderItem[] 
   kitComponents   KitComponent[]      
-
   updatedAt       DateTime @updatedAt
 }
 
@@ -191,10 +188,8 @@ model ImportVentas {
   id              String          @id @default(cuid())
   sku             String          @unique
   product         SupplierProduct @relation(fields: [sku], references: [sku], onDelete: Cascade)
-  
   salesLast30     Int             @default(0) 
   salesVelocity   Decimal?        @db.Decimal(10, 2) 
-
   updatedAt       DateTime @updatedAt
 }
 
@@ -202,9 +197,7 @@ model ImportStock {
   id              String          @id @default(cuid())
   sku             String          @unique
   product         SupplierProduct @relation(fields: [sku], references: [sku], onDelete: Cascade)
-  
   stockExternal   Int             @default(0) 
-
   updatedAt       DateTime @updatedAt
 }
 
@@ -215,9 +208,7 @@ model PurchaseOrder {
   status          String   
   arrivalDate     DateTime?
   totalItems      Int      @default(0)
-  
   items           PurchaseOrderItem[]
-
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -226,10 +217,8 @@ model PurchaseOrderItem {
   id                 String          @id @default(cuid())
   purchaseOrderId    String
   purchaseOrder      PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  
   supplierProductSku String
   supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
-  
   quantity           Int             
   confirmed          Boolean         @default(false) 
 }
@@ -241,7 +230,6 @@ model KitComponent {
   variant            String?
   supplierProductSku String
   supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
-  
   quantityPerKit     Int             @default(1) 
   
   @@index([mla])
@@ -270,21 +258,19 @@ model PlanningSession {
 // --- GESTIÓN DE VENTAS INSTAGRAM ---
 
 model InstagramSale {
-  id                 String                      @id @default(cuid())
-  id_comprobante     String                      @unique 
+  id                 String             @id @default(cuid())
+  id_comprobante     String             @unique 
   numero_comprobante String
-  fecha              DateTime                    @default(now())
-  total              Decimal                     @db.Decimal(20, 2)
+  fecha              DateTime           @default(now())
+  total              Decimal            @db.Decimal(20, 2)
   cliente            String
   dni                String?
   metodo_pago        String?
-  envio              Decimal?                    @db.Decimal(20, 2) @default(0) 
-
+  envio              Decimal?           @db.Decimal(20, 2) @default(0) 
   articulos          InstagramSaleItem[]
   paymentGroups      InstagramSalePaymentGroup[]
-
-  createdAt          DateTime                    @default(now())
-  updatedAt          DateTime                    @updatedAt
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   @@map("instagram_sales")
 }
@@ -296,9 +282,7 @@ model InstagramSalePaymentGroup {
   metodo_pago String?
   monto_total Decimal  @db.Decimal(20, 2)
   envio       Decimal  @db.Decimal(20, 2) 
-  
   articulos   InstagramSalePaymentItem[]
-
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -309,7 +293,6 @@ model InstagramSalePaymentItem {
   id             String                    @id @default(cuid())
   paymentGroupId String
   paymentGroup   InstagramSalePaymentGroup @relation(fields: [paymentGroupId], references: [id], onDelete: Cascade)
-  
   tipo           String?
   detalle        String?
   marca          String?
@@ -325,7 +308,6 @@ model InstagramSaleItem {
   id           String        @id @default(cuid())
   saleId       String
   sale         InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  
   detalle      String   
   cantidad     Decimal       @db.Decimal(20, 2) 
   precio_total Decimal?      @db.Decimal(20, 2) 
@@ -342,14 +324,12 @@ model EtiquetaML {
   status          String         @default("PENDIENTE") 
   substatus       String?
   resumen         String?
-  payBefore       DateTime?      
+  payBefore       DateTime?
   fechaPreparado  DateTime?
   auditor         String?
-  drivePhotoUrl   String?        
-  
+  drivePhotoUrl   String?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
-
   items           EtiquetaMLItem[]
 
   @@map("etiquetas_ml")
@@ -359,13 +339,12 @@ model EtiquetaMLItem {
   id              String     @id @default(cuid())
   etiquetaId      String
   etiqueta        EtiquetaML @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
-  
   mla             String     
   title           String     
   sku             String?
   quantity        Int
-  variation       String?    
-  
+  variation       String?
+
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
@@ -390,18 +369,14 @@ model MLDescuentos {
   pct_descuento     Decimal? @db.Decimal(10, 2)
   seller_percentage Decimal? @db.Decimal(10, 2)
   meli_percentage   Decimal? @db.Decimal(10, 2)
-  descuento_propio  String?  
+  descuento_propio  String?
   ultima_actualizacion DateTime @default(now())
 
   @@map("ml_descuentos")
 }
 
-
-
-// --- GESTIÓN DE MARKETING ---
-
 model MarketingCampaign {
-  id          String   @id // ID que viene de Meta (ej: 120241567...)
+  id          String   @id 
   name        String
   spend       Decimal  @db.Decimal(20, 2)
   reach       Int
@@ -423,7 +398,6 @@ model MarketingAutoResponse {
   @@map("marketing_auto_responses")
 }
 
-
 // --- TABLA DE RESULTADOS CALCULADOS ---
 
 model RentabilidadCalculada {
@@ -435,6 +409,7 @@ model RentabilidadCalculada {
   precio_original      Decimal  @db.Decimal(20, 2)
   desc_pct_total       Decimal  @db.Decimal(10, 2)
   precio_final         Decimal  @db.Decimal(20, 2)
+  precio_final_nuestro Decimal  @db.Decimal(20, 2)
   costo_total          Decimal  @db.Decimal(20, 2)
   neto_teorico         Decimal  @db.Decimal(20, 2)
   ganancia_neta        Decimal  @db.Decimal(20, 2)

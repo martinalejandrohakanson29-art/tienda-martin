@@ -1,10 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { VentasHeader } from "./ventas-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Info, BarChart3, AlertCircle, Package } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { 
+    BarChart3, 
+    AlertCircle, 
+    TrendingUp, 
+    TrendingDown, 
+    Minus,
+    DollarSign,
+    ShoppingCart
+} from "lucide-react"
+
+// Función auxiliar para calcular porcentaje de crecimiento
+const calculateGrowth = (current: number, previous: number) => {
+    if (!previous) return current > 0 ? 100 : 0
+    return ((current - previous) / previous) * 100
+}
 
 export default function SeguimientoVentasPage() {
     const [loading, setLoading] = useState(false)
@@ -16,7 +31,7 @@ export default function SeguimientoVentasPage() {
         setError(null)
         
         try {
-            // Reemplaza con tu URL real de n8n
+            // URL de tu n8n (puedes moverla a variables de entorno luego)
             const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas"
 
             const response = await fetch(N8N_WEBHOOK_URL, {
@@ -29,7 +44,7 @@ export default function SeguimientoVentasPage() {
 
             const data = await response.json()
             
-            // CORRECCIÓN: Si n8n envía un array [{}], tomamos el primer elemento
+            // Tomamos el primer elemento si es un array
             const finalData = Array.isArray(data) ? data[0] : data
             setRanges(finalData)
             
@@ -40,6 +55,61 @@ export default function SeguimientoVentasPage() {
             setLoading(false)
         }
     }
+
+    // LÓGICA DE UNIFICACIÓN DE DATOS (Lo nuevo e importante)
+    const comparisonData = useMemo(() => {
+        if (!ranges) return []
+
+        const list1 = ranges.r1 || [] // Periodo Actual
+        const list2 = ranges.r2 || [] // Periodo Anterior
+
+        // Crear un mapa con todos los MLAs únicos de ambos periodos
+        const allMlas = new Set([
+            ...list1.map((p: any) => p.MLA), 
+            ...list2.map((p: any) => p.MLA)
+        ])
+
+        // Construir el array unificado
+        const combined = Array.from(allMlas).map(mla => {
+            const p1 = list1.find((p: any) => p.MLA === mla)
+            const p2 = list2.find((p: any) => p.MLA === mla)
+
+            // Datos base (usamos el nombre de cualquiera de los dos periodos)
+            const nombre = p1?.Nombre || p2?.Nombre || "Producto desconocido"
+            
+            // Métricas
+            const ventasP1 = p1?.Cantidad_Ventas || 0
+            const ventasP2 = p2?.Cantidad_Ventas || 0
+            const netoP1 = p1?.Total_Neto || 0
+            const netoP2 = p2?.Total_Neto || 0
+
+            return {
+                mla,
+                nombre,
+                ventasP1,
+                ventasP2,
+                diffVentas: ventasP1 - ventasP2,
+                growthVentas: calculateGrowth(ventasP1, ventasP2),
+                netoP1,
+                netoP2,
+                diffNeto: netoP1 - netoP2,
+                growthNeto: calculateGrowth(netoP1, netoP2)
+            }
+        })
+
+        // Ordenar por mayor venta en el periodo actual (P1)
+        return combined.sort((a, b) => b.netoP1 - a.netoP1)
+    }, [ranges])
+
+    // Totales Globales
+    const totals = useMemo(() => {
+        return comparisonData.reduce((acc, curr) => ({
+            netoP1: acc.netoP1 + curr.netoP1,
+            netoP2: acc.netoP2 + curr.netoP2,
+            ventasP1: acc.ventasP1 + curr.ventasP1,
+            ventasP2: acc.ventasP2 + curr.ventasP2
+        }), { netoP1: 0, netoP2: 0, ventasP1: 0, ventasP2: 0 })
+    }, [comparisonData])
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-50/50">
@@ -56,61 +126,4 @@ export default function SeguimientoVentasPage() {
                 {!ranges ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                         <BarChart3 className="h-16 w-16 mb-4 opacity-20" />
-                        <p className="text-lg font-medium">Selecciona los rangos de fechas para comenzar el análisis</p>
-                    </div>
-                ) : (
-                    <>
-                        <Card className="border-indigo-100">
-                            <CardHeader>
-                                <CardTitle className="text-sm font-medium text-slate-500 uppercase">Resumen del Análisis</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex items-center gap-3 text-indigo-700 bg-indigo-50 p-4 rounded-lg">
-                                    <Info className="h-5 w-5" />
-                                    <p className="text-sm">
-                                        Análisis completado. Se compararon <strong>{ranges.r1?.length || 0}</strong> productos en P1 
-                                        contra <strong>{ranges.r2?.length || 0}</strong> productos en P2.
-                                    </p>
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Tabla Comparativa Simple */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-lg font-bold">Detalle por Producto (Periodo 1)</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Producto</TableHead>
-                                            <TableHead className="text-right">Ventas</TableHead>
-                                            <TableHead className="text-right">Total Bruto</TableHead>
-                                            <TableHead className="text-right">Total Neto</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {ranges.r1?.map((prod: any) => (
-                                            <TableRow key={prod.MLA}>
-                                                <TableCell className="font-medium">
-                                                    <div className="flex flex-col">
-                                                        <span>{prod.Nombre}</span>
-                                                        <span className="text-[10px] text-slate-400">{prod.MLA}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">{prod.Cantidad_Ventas}</TableCell>
-                                                <TableCell className="text-right">${prod.Total_Bruto?.toLocaleString()}</TableCell>
-                                                <TableCell className="text-right text-green-600 font-medium">${prod.Total_Neto?.toLocaleString()}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    </>
-                )}
-            </main>
-        </div>
-    )
-}
+                        <p className="text-lg font-medium">

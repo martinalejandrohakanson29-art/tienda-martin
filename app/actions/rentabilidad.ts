@@ -17,7 +17,7 @@ export async function getRentabilidadData() {
     const descuentos = await prisma.mLDescuentos.findMany();
     const descuentosMap = new Map(descuentos.map(d => [d.mla, d]));
 
-    // 3. Traemos los costos de la VISTA para mantener la columna de referencia
+    // 3. Traemos los costos de la VISTA
     const costosMla: any[] = await prisma.$queryRaw`
       SELECT mla, variation_id, costo_total 
       FROM vista_costos_productos
@@ -56,7 +56,7 @@ export async function getRentabilidadData() {
       // --- NETO TEÓRICO (Dinero que recibís de ML) ---
       const netoTeorico = precioFinalNuestro - cargoVenta - costoCuotas - envio - costoFijoML;
 
-      // --- NUEVOS CÁLCULOS DE GANANCIA ---
+      // --- CÁLCULOS DE GANANCIA ---
       const gananciaNeta = netoTeorico - costoPropio;
       const gananciaPorcentaje = costoPropio > 0 ? (gananciaNeta / costoPropio) * 100 : 0;
 
@@ -73,7 +73,6 @@ export async function getRentabilidadData() {
         neto_teorico: netoTeorico,
         ganancia_neta: gananciaNeta,
         ganancia_porcentaje: gananciaPorcentaje,
-        // DESGLOSE PARA LA TABLA
         cargo_venta_real: cargoVenta + costoCuotas,
         envio_costo: envio,
         costo_fijo_ml: costoFijoML

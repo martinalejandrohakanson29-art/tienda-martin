@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { VentasHeader } from "./ventas-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Info } from "lucide-react"
+import { Info, BarChart3 } from "lucide-react" // <--- Agregamos BarChart3 aquí
 
 export default function SeguimientoVentasPage() {
     const [loading, setLoading] = useState(false)
@@ -14,7 +14,7 @@ export default function SeguimientoVentasPage() {
         console.log("Comparando Periodo 1:", r1, "con Periodo 2:", r2)
         setRanges({ r1, r2 })
         
-        // Aquí simulamos una carga. Luego lo conectaremos a tu base de datos o n8n
+        // Simulación de carga
         setTimeout(() => setLoading(false), 800)
     }
 
@@ -31,7 +31,6 @@ export default function SeguimientoVentasPage() {
                     </div>
                 ) : (
                     <div className="grid gap-6 md:grid-cols-2">
-                        {/* Placeholder para los resultados */}
                         <Card className="border-indigo-100">
                             <CardHeader>
                                 <CardTitle className="text-sm font-medium text-slate-500 uppercase">Estado del Análisis</CardTitle>

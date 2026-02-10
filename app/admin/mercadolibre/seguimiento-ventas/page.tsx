@@ -21,6 +21,15 @@ const calculateGrowth = (current: number, previous: number) => {
     return ((current - previous) / previous) * 100
 }
 
+// Función para formatear moneda
+const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('es-AR', {
+        style: 'currency',
+        currency: 'ARS',
+        minimumFractionDigits: 0
+    }).format(value)
+}
+
 export default function SeguimientoVentasPage() {
     const [loading, setLoading] = useState(false)
     const [ranges, setRanges] = useState<any>(null)
@@ -31,7 +40,6 @@ export default function SeguimientoVentasPage() {
         setError(null)
         
         try {
-            // URL de tu n8n (puedes moverla a variables de entorno luego)
             const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas"
 
             const response = await fetch(N8N_WEBHOOK_URL, {
@@ -43,8 +51,6 @@ export default function SeguimientoVentasPage() {
             if (!response.ok) throw new Error("Error en el servidor")
 
             const data = await response.json()
-            
-            // Tomamos el primer elemento si es un array
             const finalData = Array.isArray(data) ? data[0] : data
             setRanges(finalData)
             
@@ -56,28 +62,22 @@ export default function SeguimientoVentasPage() {
         }
     }
 
-    // LÓGICA DE UNIFICACIÓN DE DATOS (Lo nuevo e importante)
     const comparisonData = useMemo(() => {
         if (!ranges) return []
 
-        const list1 = ranges.r1 || [] // Periodo Actual
-        const list2 = ranges.r2 || [] // Periodo Anterior
+        const list1 = ranges.r1 || []
+        const list2 = ranges.r2 || []
 
-        // Crear un mapa con todos los MLAs únicos de ambos periodos
         const allMlas = new Set([
             ...list1.map((p: any) => p.MLA), 
             ...list2.map((p: any) => p.MLA)
         ])
 
-        // Construir el array unificado
         const combined = Array.from(allMlas).map(mla => {
             const p1 = list1.find((p: any) => p.MLA === mla)
             const p2 = list2.find((p: any) => p.MLA === mla)
 
-            // Datos base (usamos el nombre de cualquiera de los dos periodos)
             const nombre = p1?.Nombre || p2?.Nombre || "Producto desconocido"
-            
-            // Métricas
             const ventasP1 = p1?.Cantidad_Ventas || 0
             const ventasP2 = p2?.Cantidad_Ventas || 0
             const netoP1 = p1?.Total_Neto || 0
@@ -97,11 +97,9 @@ export default function SeguimientoVentasPage() {
             }
         })
 
-        // Ordenar por mayor venta en el periodo actual (P1)
         return combined.sort((a, b) => b.netoP1 - a.netoP1)
     }, [ranges])
 
-    // Totales Globales
     const totals = useMemo(() => {
         return comparisonData.reduce((acc, curr) => ({
             netoP1: acc.netoP1 + curr.netoP1,
@@ -126,4 +124,94 @@ export default function SeguimientoVentasPage() {
                 {!ranges ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                         <BarChart3 className="h-16 w-16 mb-4 opacity-20" />
-                        <p className="text-lg font-medium">
+                        <p className="text-lg font-medium">Selecciona dos periodos para comparar el rendimiento</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* TARJETAS DE RESUMEN */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-sm font-medium text-slate-500">Total Facturación (Neto)</CardTitle>
+                                    <DollarSign className="h-4 w-4 text-slate-400" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold">{formatCurrency(totals.netoP1)}</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <Badge variant={totals.netoP1 >= totals.netoP2 ? "default" : "destructive"}>
+                                            {totals.netoP1 >= totals.netoP2 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                                            {calculateGrowth(totals.netoP1, totals.netoP2).toFixed(1)}%
+                                        </Badge>
+                                        <span className="text-xs text-slate-500 text-nowrap">vs periodo anterior ({formatCurrency(totals.netoP2)})</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-sm font-medium text-slate-500">Total Unidades Vendidas</CardTitle>
+                                    <ShoppingCart className="h-4 w-4 text-slate-400" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold">{totals.ventasP1} u.</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <Badge variant={totals.ventasP1 >= totals.ventasP2 ? "default" : "destructive"}>
+                                            {totals.ventasP1 >= totals.ventasP2 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                                            {calculateGrowth(totals.ventasP1, totals.ventasP2).toFixed(1)}%
+                                        </Badge>
+                                        <span className="text-xs text-slate-500 text-nowrap">vs periodo anterior ({totals.ventasP2} u.)</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* TABLA DE DETALLE */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">Detalle por Producto</CardTitle>
+                            </CardHeader>
+                            <CardContent className="p-0">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Producto</TableHead>
+                                            <TableHead className="text-right">Ventas P1</TableHead>
+                                            <TableHead className="text-right">Ventas P2</TableHead>
+                                            <TableHead className="text-right">Dif. Ventas</TableHead>
+                                            <TableHead className="text-right">Neto P1</TableHead>
+                                            <TableHead className="text-right">Neto P2</TableHead>
+                                            <TableHead className="text-right">Crecimiento</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {comparisonData.map((item) => (
+                                            <TableRow key={item.mla}>
+                                                <TableCell className="max-w-[300px]">
+                                                    <div className="font-medium truncate">{item.nombre}</div>
+                                                    <div className="text-xs text-slate-400 font-mono">{item.mla}</div>
+                                                </TableCell>
+                                                <TableCell className="text-right font-semibold">{item.ventasP1}</TableCell>
+                                                <TableCell className="text-right text-slate-500">{item.ventasP2}</TableCell>
+                                                <TableCell className={`text-right ${item.diffVentas > 0 ? "text-green-600" : item.diffVentas < 0 ? "text-red-600" : ""}`}>
+                                                    {item.diffVentas > 0 ? `+${item.diffVentas}` : item.diffVentas}
+                                                </TableCell>
+                                                <TableCell className="text-right font-semibold">{formatCurrency(item.netoP1)}</TableCell>
+                                                <TableCell className="text-right text-slate-500">{formatCurrency(item.netoP2)}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className={`flex items-center justify-end gap-1 font-medium ${item.growthNeto > 0 ? "text-green-600" : item.growthNeto < 0 ? "text-red-600" : "text-slate-400"}`}>
+                                                        {item.growthNeto > 0 ? <TrendingUp className="h-3 w-3" /> : item.growthNeto < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                                                        {Math.abs(item.growthNeto).toFixed(1)}%
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </>
+                )}
+            </main>
+        </div>
+    )
+}

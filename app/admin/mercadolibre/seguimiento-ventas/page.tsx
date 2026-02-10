@@ -37,38 +37,48 @@ export default function SeguimientoVentasPage() {
     const [analysis, setAnalysis] = useState<string | null>(null) // Estado para la IA
     const [error, setError] = useState<string | null>(null)
 
-    const handleCompare = async (r1: any, r2: any) => {
-        setLoading(true)
-        setError(null)
-        setAnalysis(null) // Limpiar análisis previo
+   const handleCompare = async (r1: any, r2: any) => {
+    setLoading(true);
+    setError(null);
+    setAnalysis(null);
+    
+    try {
+        const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas";
+
+        const response = await fetch(N8N_WEBHOOK_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ r1, r2 }),
+        });
+
+        if (!response.ok) throw new Error("Error en el servidor");
+
+        const data = await response.json();
         
-        try {
-            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas"
+        // --- DEBUG: Agregamos esto para ver en la consola del navegador qué llega ---
+        console.log("Datos recibidos de n8n:", data);
 
-            const response = await fetch(N8N_WEBHOOK_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ r1, r2 }),
-            })
-
-            if (!response.ok) throw new Error("Error en el servidor de n8n")
-
-            const data = await response.json()
-            
-            // n8n a veces devuelve un array, tomamos el primer elemento si es necesario
-            const finalResult = Array.isArray(data) ? data[0] : data
-
-            // ASIGNAMOS LAS SALIDAS SEGÚN EL NODO "EDIT FIELDS 2"
-            setRanges(finalResult.datosTabla) // r1 y r2
-            setAnalysis(finalResult.analisisIA) // El texto del agente
-            
-        } catch (err) {
-            console.error("Error:", err)
-            setError("No se pudo conectar con el análisis. Revisá que n8n esté activo.")
-        } finally {
-            setLoading(false)
+        const result = Array.isArray(data) ? data[0] : data;
+        
+        // Verificamos si la propiedad existe antes de setear
+        if (result.datosTabla) {
+            setRanges(result.datosTabla);
+        } else if (result.r1 && result.r2) {
+            // Plan B: Si n8n envió r1 y r2 directo en la raíz
+            setRanges({ r1: result.r1, r2: result.r2 });
+        } else {
+            console.warn("No se encontró la estructura de datos esperada en la respuesta");
         }
+
+        setAnalysis(result.analisisIA || result.output || null);
+        
+    } catch (err) {
+        console.error("Error:", err);
+        setError("Error de conexión. Revisa la consola para más detalles.");
+    } finally {
+        setLoading(false);
     }
+}
 
     // LÓGICA DE UNIFICACIÓN PARA LA TABLA
     const comparisonData = useMemo(() => {

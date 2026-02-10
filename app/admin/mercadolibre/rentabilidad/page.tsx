@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, RefreshCw, TrendingUp, Zap } from "lucide-react";
+import { ArrowLeft, TrendingUp, Zap } from "lucide-react";
 import Link from "next/link";
 import RentabilidadTable from "./rentabilidad-table";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
+import RefreshButton from "./refresh-button"; // Importamos el nuevo botón
 
 export default async function RentabilidadPage() {
+  // Obtenemos los datos actualizados
   const data = await getRentabilidadData();
   
   const totalItems = data.length;
@@ -16,16 +18,18 @@ export default async function RentabilidadPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2">
             <Link href="/admin/mercadolibre">
-              <Button variant="ghost" size="icon" className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
             </Link>
             <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <TrendingUp className="h-6 w-6 text-amber-600" />
               Análisis de Rentabilidad Real
             </h1>
           </div>
-          <Button className="bg-amber-600 hover:bg-amber-700 text-white">
-            <RefreshCw className="mr-2 h-4 w-4" /> Actualizar Todo
-          </Button>
+          
+          {/* Aquí usamos nuestro nuevo componente funcional */}
+          <RefreshButton />
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">

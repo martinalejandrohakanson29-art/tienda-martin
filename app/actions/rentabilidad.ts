@@ -3,23 +3,22 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-// 1. Obtener datos para la tabla
 export async function getRentabilidadData() {
   try {
-    // Traemos los productos activos
+    // 1. Traemos los productos activos
     const productos = await prisma.productosMaestros.findMany({
       where: { estado: "active" },
       orderBy: { nombre_publicacion: 'asc' },
     });
 
-    // Traemos cargos y descuentos
+    // 2. Traemos cargos y descuentos
     const cargos = await prisma.mLFees.findMany();
     const cargosMap = new Map(cargos.map(c => [c.mla, c]));
 
     const descuentos = await prisma.mLDescuentos.findMany();
     const descuentosMap = new Map(descuentos.map(d => [d.mla, d]));
 
-    // Traemos los costos de la VISTA (Base de datos)
+    // 3. Traemos los costos de la VISTA
     const costosMla: any[] = await prisma.$queryRaw`
       SELECT mla, variation_id, costo_total 
       FROM vista_costos_productos
@@ -86,7 +85,7 @@ export async function getRentabilidadData() {
   }
 }
 
-// 2. Nueva función para disparar los 3 Workflows de n8n
+// NUEVA FUNCIÓN: Dispara los 3 webhooks de n8n
 export async function triggerRentabilidadUpdate() {
   const webhooks = [
     "https://n8n-on-render-production-52f0.up.railway.app/webhook/publicaciones-activas",
@@ -95,22 +94,22 @@ export async function triggerRentabilidadUpdate() {
   ];
 
   try {
-    // Ejecutamos los 3 llamados al mismo tiempo
+    // Ejecutamos los 3 en paralelo
     await Promise.all(
       webhooks.map(url => 
         fetch(url, { 
           method: 'POST',
-          cache: 'no-store' // Para asegurar que no use datos viejos
+          cache: 'no-store' 
         })
       )
     );
 
-    // Refrescamos la página para que se vean los nuevos datos
+    // Refrescamos la ruta para ver los cambios
     revalidatePath("/admin/mercadolibre/rentabilidad");
     
     return { success: true };
   } catch (error) {
-    console.error("Error al disparar n8n:", error);
-    return { success: false, error: "No se pudo conectar con n8n" };
+    console.error("Error al conectar con n8n:", error);
+    return { success: false };
   }
 }

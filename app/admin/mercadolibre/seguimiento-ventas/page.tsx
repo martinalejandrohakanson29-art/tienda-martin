@@ -17,7 +17,7 @@ export default function SeguimientoVentasPage() {
         
         try {
             // Reemplaza con tu URL real de n8n
-            const N8N_WEBHOOK_URL = "https://tu-n8n.railway.app/webhook/seguimiento-ventas"
+            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas"
 
             const response = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",

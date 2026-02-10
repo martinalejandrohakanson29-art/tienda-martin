@@ -3,10 +3,9 @@ import { ArrowLeft, TrendingUp, Zap } from "lucide-react";
 import Link from "next/link";
 import RentabilidadTable from "./rentabilidad-table";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
-import RefreshButton from "./refresh-button"; // Importamos el nuevo botón
+import RefreshButton from "./refresh-button"; // Importamos el nuevo componente
 
 export default async function RentabilidadPage() {
-  // Obtenemos los datos actualizados
   const data = await getRentabilidadData();
   
   const totalItems = data.length;
@@ -28,7 +27,7 @@ export default async function RentabilidadPage() {
             </h1>
           </div>
           
-          {/* Aquí usamos nuestro nuevo componente funcional */}
+          {/* Reemplazamos el Button viejo por el RefreshButton funcional */}
           <RefreshButton />
         </div>
 

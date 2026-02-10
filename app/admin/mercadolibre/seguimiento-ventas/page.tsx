@@ -12,16 +12,17 @@ import {
     TrendingDown, 
     Minus,
     DollarSign,
-    ShoppingCart
+    ShoppingCart,
+    Sparkles, // Icono para la IA
+    BrainCircuit // Otro icono opcional para el análisis
 } from "lucide-react"
 
-// Función auxiliar para calcular porcentaje de crecimiento
+// --- FUNCIONES AUXILIARES ---
 const calculateGrowth = (current: number, previous: number) => {
     if (!previous) return current > 0 ? 100 : 0
     return ((current - previous) / previous) * 100
 }
 
-// Función para formatear moneda
 const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-AR', {
         style: 'currency',
@@ -33,11 +34,13 @@ const formatCurrency = (value: number) => {
 export default function SeguimientoVentasPage() {
     const [loading, setLoading] = useState(false)
     const [ranges, setRanges] = useState<any>(null)
+    const [analysis, setAnalysis] = useState<string | null>(null) // Estado para la IA
     const [error, setError] = useState<string | null>(null)
 
     const handleCompare = async (r1: any, r2: any) => {
         setLoading(true)
         setError(null)
+        setAnalysis(null) // Limpiar análisis previo
         
         try {
             const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas"
@@ -48,26 +51,30 @@ export default function SeguimientoVentasPage() {
                 body: JSON.stringify({ r1, r2 }),
             })
 
-            if (!response.ok) throw new Error("Error en el servidor")
+            if (!response.ok) throw new Error("Error en el servidor de n8n")
 
             const data = await response.json()
-            const finalData = Array.isArray(data) ? data[0] : data
-            setRanges(finalData)
+            
+            // n8n a veces devuelve un array, tomamos el primer elemento si es necesario
+            const finalResult = Array.isArray(data) ? data[0] : data
+
+            // ASIGNAMOS LAS SALIDAS SEGÚN EL NODO "EDIT FIELDS 2"
+            setRanges(finalResult.datosTabla) // r1 y r2
+            setAnalysis(finalResult.analisisIA) // El texto del agente
             
         } catch (err) {
             console.error("Error:", err)
-            setError("No se pudo conectar con n8n. Verifica que el workflow esté activo.")
+            setError("No se pudo conectar con el análisis. Revisá que n8n esté activo.")
         } finally {
             setLoading(false)
         }
     }
 
-    // LÓGICA DE UNIFICACIÓN: R2 es Actual, R1 es Anterior
+    // LÓGICA DE UNIFICACIÓN PARA LA TABLA
     const comparisonData = useMemo(() => {
         if (!ranges) return []
-
-        const listActual = ranges.r2 || [] // Periodo Actual (R2)
-        const listAnterior = ranges.r1 || [] // Periodo Anterior (R1)
+        const listActual = ranges.r2 || []
+        const listAnterior = ranges.r1 || []
 
         const allMlas = new Set([
             ...listActual.map((p: any) => p.MLA), 
@@ -78,31 +85,21 @@ export default function SeguimientoVentasPage() {
             const pActual = listActual.find((p: any) => p.MLA === mla)
             const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
 
-            const nombre = pActual?.Nombre || pAnterior?.Nombre || "Producto desconocido"
-            const ventasActual = pActual?.Cantidad_Ventas || 0
-            const ventasAnterior = pAnterior?.Cantidad_Ventas || 0
-            const netoActual = pActual?.Total_Neto || 0
-            const netoAnterior = pAnterior?.Total_Neto || 0
-
             return {
                 mla,
-                nombre,
-                ventasActual,
-                ventasAnterior,
-                diffVentas: ventasActual - ventasAnterior,
-                growthVentas: calculateGrowth(ventasActual, ventasAnterior),
-                netoActual,
-                netoAnterior,
-                diffNeto: netoActual - netoAnterior,
-                growthNeto: calculateGrowth(netoActual, netoAnterior)
+                nombre: pActual?.Nombre || pAnterior?.Nombre || "Producto desconocido",
+                ventasActual: pActual?.Cantidad_Ventas || 0,
+                ventasAnterior: pAnterior?.Cantidad_Ventas || 0,
+                diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
+                netoActual: pActual?.Total_Neto || 0,
+                netoAnterior: pAnterior?.Total_Neto || 0,
+                growthNeto: calculateGrowth(pActual?.Total_Neto || 0, pAnterior?.Total_Neto || 0)
             }
         })
 
-        // Ordenar por mayor venta en el periodo actual (R2)
         return combined.sort((a, b) => b.netoActual - a.netoActual)
     }, [ranges])
 
-    // Totales calculados con R2 como base principal
     const totals = useMemo(() => {
         return comparisonData.reduce((acc, curr) => ({
             netoActual: acc.netoActual + curr.netoActual,
@@ -127,14 +124,35 @@ export default function SeguimientoVentasPage() {
                 {!ranges ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                         <BarChart3 className="h-16 w-16 mb-4 opacity-20" />
-                        <p className="text-lg font-medium">Selecciona dos periodos para comparar el rendimiento</p>
+                        <p className="text-lg font-medium">Seleccioná los periodos para iniciar el análisis</p>
                     </div>
                 ) : (
                     <>
+                        {/* SECCIÓN DE IA: Aparece resaltada arriba de todo */}
+                        {analysis && (
+                            <Card className="border-indigo-200 bg-indigo-50/40 shadow-sm">
+                                <CardHeader className="flex flex-row items-center gap-3 pb-2 border-b border-indigo-100 bg-white/50">
+                                    <div className="p-2 bg-indigo-600 rounded-lg">
+                                        <Sparkles className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div>
+                                        <CardTitle className="text-lg font-bold text-indigo-900">Análisis Estratégico</CardTitle>
+                                        <p className="text-xs text-indigo-500 font-medium uppercase tracking-wider">Generado por IA</p>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="pt-4">
+                                    <div className="text-slate-700 whitespace-pre-wrap text-sm leading-relaxed font-medium">
+                                        {analysis}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* TARJETAS DE TOTALES */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Total Facturación (Neto R2)</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-slate-500">Total Facturación (Neto P2)</CardTitle>
                                     <DollarSign className="h-4 w-4 text-slate-400" />
                                 </CardHeader>
                                 <CardContent>
@@ -144,14 +162,14 @@ export default function SeguimientoVentasPage() {
                                             {totals.netoActual >= totals.netoAnterior ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
                                             {calculateGrowth(totals.netoActual, totals.netoAnterior).toFixed(1)}%
                                         </Badge>
-                                        <span className="text-xs text-slate-500 text-nowrap">vs periodo R1 ({formatCurrency(totals.netoAnterior)})</span>
+                                        <span className="text-xs text-slate-500">vs anterior ({formatCurrency(totals.netoAnterior)})</span>
                                     </div>
                                 </CardContent>
                             </Card>
 
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Unidades Vendidas (Total R2)</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-slate-500">Unidades Vendidas (P2)</CardTitle>
                                     <ShoppingCart className="h-4 w-4 text-slate-400" />
                                 </CardHeader>
                                 <CardContent>
@@ -161,26 +179,26 @@ export default function SeguimientoVentasPage() {
                                             {totals.ventasActual >= totals.ventasAnterior ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
                                             {calculateGrowth(totals.ventasActual, totals.ventasAnterior).toFixed(1)}%
                                         </Badge>
-                                        <span className="text-xs text-slate-500 text-nowrap">vs periodo R1 ({totals.ventasAnterior} u.)</span>
+                                        <span className="text-xs text-slate-500">vs anterior ({totals.ventasAnterior} u.)</span>
                                     </div>
                                 </CardContent>
                             </Card>
                         </div>
 
+                        {/* TABLA DETALLADA */}
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-lg">Detalle por Producto (Comparativa R2 vs R1)</CardTitle>
+                                <CardTitle className="text-lg">Desglose por Producto</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Producto</TableHead>
-                                            <TableHead className="text-right">Ventas R2</TableHead>
-                                            <TableHead className="text-right">Ventas R1</TableHead>
+                                            <TableHead className="text-right">Ventas P2</TableHead>
+                                            <TableHead className="text-right">Ventas P1</TableHead>
                                             <TableHead className="text-right">Dif. Unid.</TableHead>
-                                            <TableHead className="text-right">Neto R2</TableHead>
-                                            <TableHead className="text-right">Neto R1</TableHead>
+                                            <TableHead className="text-right">Neto P2</TableHead>
                                             <TableHead className="text-right">Crecimiento</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -193,13 +211,12 @@ export default function SeguimientoVentasPage() {
                                                 </TableCell>
                                                 <TableCell className="text-right font-semibold">{item.ventasActual}</TableCell>
                                                 <TableCell className="text-right text-slate-500">{item.ventasAnterior}</TableCell>
-                                                <TableCell className={`text-right ${item.diffVentas > 0 ? "text-green-600" : item.diffVentas < 0 ? "text-red-600" : ""}`}>
+                                                <TableCell className={`text-right font-medium ${item.diffVentas > 0 ? "text-green-600" : item.diffVentas < 0 ? "text-red-600" : ""}`}>
                                                     {item.diffVentas > 0 ? `+${item.diffVentas}` : item.diffVentas}
                                                 </TableCell>
                                                 <TableCell className="text-right font-semibold">{formatCurrency(item.netoActual)}</TableCell>
-                                                <TableCell className="text-right text-slate-500">{formatCurrency(item.netoAnterior)}</TableCell>
                                                 <TableCell className="text-right">
-                                                    <div className={`flex items-center justify-end gap-1 font-medium ${item.growthNeto > 0 ? "text-green-600" : item.growthNeto < 0 ? "text-red-600" : "text-slate-400"}`}>
+                                                    <div className={`flex items-center justify-end gap-1 font-bold ${item.growthNeto > 0 ? "text-green-600" : item.growthNeto < 0 ? "text-red-600" : "text-slate-400"}`}>
                                                         {item.growthNeto > 0 ? <TrendingUp className="h-3 w-3" /> : item.growthNeto < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
                                                         {Math.abs(item.growthNeto).toFixed(1)}%
                                                     </div>

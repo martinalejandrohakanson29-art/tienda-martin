@@ -62,51 +62,54 @@ export default function SeguimientoVentasPage() {
         }
     }
 
+    // LÓGICA DE UNIFICACIÓN: R2 es Actual, R1 es Anterior
     const comparisonData = useMemo(() => {
         if (!ranges) return []
 
-        const list1 = ranges.r1 || []
-        const list2 = ranges.r2 || []
+        const listActual = ranges.r2 || [] // Periodo Actual (R2)
+        const listAnterior = ranges.r1 || [] // Periodo Anterior (R1)
 
         const allMlas = new Set([
-            ...list1.map((p: any) => p.MLA), 
-            ...list2.map((p: any) => p.MLA)
+            ...listActual.map((p: any) => p.MLA), 
+            ...listAnterior.map((p: any) => p.MLA)
         ])
 
         const combined = Array.from(allMlas).map(mla => {
-            const p1 = list1.find((p: any) => p.MLA === mla)
-            const p2 = list2.find((p: any) => p.MLA === mla)
+            const pActual = listActual.find((p: any) => p.MLA === mla)
+            const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
 
-            const nombre = p1?.Nombre || p2?.Nombre || "Producto desconocido"
-            const ventasP1 = p1?.Cantidad_Ventas || 0
-            const ventasP2 = p2?.Cantidad_Ventas || 0
-            const netoP1 = p1?.Total_Neto || 0
-            const netoP2 = p2?.Total_Neto || 0
+            const nombre = pActual?.Nombre || pAnterior?.Nombre || "Producto desconocido"
+            const ventasActual = pActual?.Cantidad_Ventas || 0
+            const ventasAnterior = pAnterior?.Cantidad_Ventas || 0
+            const netoActual = pActual?.Total_Neto || 0
+            const netoAnterior = pAnterior?.Total_Neto || 0
 
             return {
                 mla,
                 nombre,
-                ventasP1,
-                ventasP2,
-                diffVentas: ventasP1 - ventasP2,
-                growthVentas: calculateGrowth(ventasP1, ventasP2),
-                netoP1,
-                netoP2,
-                diffNeto: netoP1 - netoP2,
-                growthNeto: calculateGrowth(netoP1, netoP2)
+                ventasActual,
+                ventasAnterior,
+                diffVentas: ventasActual - ventasAnterior,
+                growthVentas: calculateGrowth(ventasActual, ventasAnterior),
+                netoActual,
+                netoAnterior,
+                diffNeto: netoActual - netoAnterior,
+                growthNeto: calculateGrowth(netoActual, netoAnterior)
             }
         })
 
-        return combined.sort((a, b) => b.netoP1 - a.netoP1)
+        // Ordenar por mayor venta en el periodo actual (R2)
+        return combined.sort((a, b) => b.netoActual - a.netoActual)
     }, [ranges])
 
+    // Totales calculados con R2 como base principal
     const totals = useMemo(() => {
         return comparisonData.reduce((acc, curr) => ({
-            netoP1: acc.netoP1 + curr.netoP1,
-            netoP2: acc.netoP2 + curr.netoP2,
-            ventasP1: acc.ventasP1 + curr.ventasP1,
-            ventasP2: acc.ventasP2 + curr.ventasP2
-        }), { netoP1: 0, netoP2: 0, ventasP1: 0, ventasP2: 0 })
+            netoActual: acc.netoActual + curr.netoActual,
+            netoAnterior: acc.netoAnterior + curr.netoAnterior,
+            ventasActual: acc.ventasActual + curr.ventasActual,
+            ventasAnterior: acc.ventasAnterior + curr.ventasAnterior
+        }), { netoActual: 0, netoAnterior: 0, ventasActual: 0, ventasAnterior: 0 })
     }, [comparisonData])
 
     return (
@@ -128,58 +131,56 @@ export default function SeguimientoVentasPage() {
                     </div>
                 ) : (
                     <>
-                        {/* TARJETAS DE RESUMEN */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Total Facturación (Neto)</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-slate-500">Total Facturación (Neto R2)</CardTitle>
                                     <DollarSign className="h-4 w-4 text-slate-400" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{formatCurrency(totals.netoP1)}</div>
+                                    <div className="text-2xl font-bold">{formatCurrency(totals.netoActual)}</div>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <Badge variant={totals.netoP1 >= totals.netoP2 ? "default" : "destructive"}>
-                                            {totals.netoP1 >= totals.netoP2 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                                            {calculateGrowth(totals.netoP1, totals.netoP2).toFixed(1)}%
+                                        <Badge variant={totals.netoActual >= totals.netoAnterior ? "default" : "destructive"}>
+                                            {totals.netoActual >= totals.netoAnterior ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                                            {calculateGrowth(totals.netoActual, totals.netoAnterior).toFixed(1)}%
                                         </Badge>
-                                        <span className="text-xs text-slate-500 text-nowrap">vs periodo anterior ({formatCurrency(totals.netoP2)})</span>
+                                        <span className="text-xs text-slate-500 text-nowrap">vs periodo R1 ({formatCurrency(totals.netoAnterior)})</span>
                                     </div>
                                 </CardContent>
                             </Card>
 
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Total Unidades Vendidas</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-slate-500">Unidades Vendidas (Total R2)</CardTitle>
                                     <ShoppingCart className="h-4 w-4 text-slate-400" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-bold">{totals.ventasP1} u.</div>
+                                    <div className="text-2xl font-bold">{totals.ventasActual} u.</div>
                                     <div className="flex items-center gap-2 mt-1">
-                                        <Badge variant={totals.ventasP1 >= totals.ventasP2 ? "default" : "destructive"}>
-                                            {totals.ventasP1 >= totals.ventasP2 ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                                            {calculateGrowth(totals.ventasP1, totals.ventasP2).toFixed(1)}%
+                                        <Badge variant={totals.ventasActual >= totals.ventasAnterior ? "default" : "destructive"}>
+                                            {totals.ventasActual >= totals.ventasAnterior ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
+                                            {calculateGrowth(totals.ventasActual, totals.ventasAnterior).toFixed(1)}%
                                         </Badge>
-                                        <span className="text-xs text-slate-500 text-nowrap">vs periodo anterior ({totals.ventasP2} u.)</span>
+                                        <span className="text-xs text-slate-500 text-nowrap">vs periodo R1 ({totals.ventasAnterior} u.)</span>
                                     </div>
                                 </CardContent>
                             </Card>
                         </div>
 
-                        {/* TABLA DE DETALLE */}
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-lg">Detalle por Producto</CardTitle>
+                                <CardTitle className="text-lg">Detalle por Producto (Comparativa R2 vs R1)</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Producto</TableHead>
-                                            <TableHead className="text-right">Ventas P1</TableHead>
-                                            <TableHead className="text-right">Ventas P2</TableHead>
-                                            <TableHead className="text-right">Dif. Ventas</TableHead>
-                                            <TableHead className="text-right">Neto P1</TableHead>
-                                            <TableHead className="text-right">Neto P2</TableHead>
+                                            <TableHead className="text-right">Ventas R2</TableHead>
+                                            <TableHead className="text-right">Ventas R1</TableHead>
+                                            <TableHead className="text-right">Dif. Unid.</TableHead>
+                                            <TableHead className="text-right">Neto R2</TableHead>
+                                            <TableHead className="text-right">Neto R1</TableHead>
                                             <TableHead className="text-right">Crecimiento</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -190,13 +191,13 @@ export default function SeguimientoVentasPage() {
                                                     <div className="font-medium truncate">{item.nombre}</div>
                                                     <div className="text-xs text-slate-400 font-mono">{item.mla}</div>
                                                 </TableCell>
-                                                <TableCell className="text-right font-semibold">{item.ventasP1}</TableCell>
-                                                <TableCell className="text-right text-slate-500">{item.ventasP2}</TableCell>
+                                                <TableCell className="text-right font-semibold">{item.ventasActual}</TableCell>
+                                                <TableCell className="text-right text-slate-500">{item.ventasAnterior}</TableCell>
                                                 <TableCell className={`text-right ${item.diffVentas > 0 ? "text-green-600" : item.diffVentas < 0 ? "text-red-600" : ""}`}>
                                                     {item.diffVentas > 0 ? `+${item.diffVentas}` : item.diffVentas}
                                                 </TableCell>
-                                                <TableCell className="text-right font-semibold">{formatCurrency(item.netoP1)}</TableCell>
-                                                <TableCell className="text-right text-slate-500">{formatCurrency(item.netoP2)}</TableCell>
+                                                <TableCell className="text-right font-semibold">{formatCurrency(item.netoActual)}</TableCell>
+                                                <TableCell className="text-right text-slate-500">{formatCurrency(item.netoAnterior)}</TableCell>
                                                 <TableCell className="text-right">
                                                     <div className={`flex items-center justify-end gap-1 font-medium ${item.growthNeto > 0 ? "text-green-600" : item.growthNeto < 0 ? "text-red-600" : "text-slate-400"}`}>
                                                         {item.growthNeto > 0 ? <TrendingUp className="h-3 w-3" /> : item.growthNeto < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}

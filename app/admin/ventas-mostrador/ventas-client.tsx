@@ -81,7 +81,7 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
         </div>
         <div className="text-right border-l pl-4 border-slate-100">
           <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Vendedor</p>
-          <p className="text-sm font-medium">Martin Jakson</p>
+          <p className="text-sm font-medium"></p>
         </div>
       </header>
 

@@ -1,9 +1,12 @@
 import { obtenerTodosLosArticulos } from "@/app/actions/ventas-mostrador"
 import VentasMostradorClient from "./ventas-client"
 import { ShoppingBag } from "lucide-react"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/authOptions"
 
 export default async function VentasMostradorPage() {
   const articulos = await obtenerTodosLosArticulos();
+  const session = await getServerSession(authOptions);
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-6xl">
@@ -19,7 +22,10 @@ export default async function VentasMostradorPage() {
         </div>
       </div>
 
-      <VentasMostradorClient articulosIniciales={articulos} />
+      <VentasMostradorClient 
+        articulosIniciales={articulos} 
+        vendedorNombre={session?.user?.name || "Vendedor General"} 
+      />
     </div>
   )
 }

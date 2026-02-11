@@ -76,7 +76,7 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight text-slate-900">Carga de Ventas</h1>
-            <p className="text-xs text-slate-500 font-normal">Terminal de Ventas Mostrador</p>
+            <p className="text-xs text-slate-500 font-normal"></p>
           </div>
         </div>
         <div className="text-right border-l pl-4 border-slate-100">
@@ -171,7 +171,7 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
 
       {/* MODAL DE BÚSQUEDA INSTANTÁNEA */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[700px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
+        <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="p-8 bg-white border-b relative">
             <DialogTitle className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
               <Search className="h-5 w-5 text-blue-600" />
@@ -197,7 +197,7 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
             </div>
           </div>
 
-          <div className="max-h-[450px] overflow-y-auto p-4 bg-white">
+          <div className="h-[550px] overflow-y-auto p-4 bg-white">
             {searchResults.length > 0 ? (
               <div className="grid gap-2">
                 {searchResults.map((prod) => (
@@ -211,12 +211,12 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
                         <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 group-hover:text-blue-700 transition-colors">{prod.nombre}</p>
-                        <p className="text-[11px] text-slate-400 font-mono uppercase">ID: {prod.id} • Stock: {prod.stock}</p>
+                        <p className="font-bold text-slate-900 text-sm group-hover:text-blue-700 transition-colors">{prod.nombre}</p>
+                        <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id} • Stock: {prod.stock}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-slate-900 text-lg">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                      <p className="font-black text-slate-900 text-base">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
                       <span className="text-[10px] bg-blue-600 text-white px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0 inline-block font-bold">
                         AÑADIR
                       </span>
@@ -225,8 +225,8 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
                 ))}
               </div>
             ) : (
-              <div className="py-24 text-center">
-                <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="h-full flex flex-col items-center justify-center">
+                <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mb-4">
                   <Search className="h-8 w-8 text-slate-200" />
                 </div>
                 <p className="text-slate-400 italic font-medium">

@@ -113,119 +113,125 @@ export default function VentasMostradorClient({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50/30">
-      {/* HEADER */}
-      <header className="bg-white border-b border-slate-100 px-8 py-4 flex items-center justify-between sticky top-0 z-10">
+    <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden">
+      {/* HEADER FIJO */}
+      <header className="bg-white border-b border-slate-100 px-8 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-lg text-white">
             <ShoppingCart className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900">Carga de Ventas</h1>
-            <p className="text-xs text-slate-500 font-normal">Terminal de Ventas Mostrador</p>
+            <h1 className="text-lg font-bold tracking-tight text-slate-900">Venta Mostrador</h1>
+            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Revolución Motos</p>
           </div>
         </div>
         <div className="text-right border-l pl-4 border-slate-100">
           <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Vendedor</p>
-          <p className="text-sm font-medium text-blue-600">{vendedorNombre}</p>
+          <p className="text-sm font-semibold text-blue-600">{vendedorNombre}</p>
         </div>
       </header>
 
-      <main className="flex-grow p-8 max-w-7xl mx-auto w-full space-y-6">
+      {/* CUERPO PRINCIPAL (SIN SCROLL GLOBAL) */}
+      <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
+        
         {/* TOTAL Y CLIENTE */}
-        <section className="bg-white rounded-xl border border-slate-100 p-6 flex flex-col md:flex-row gap-8 items-end shadow-sm">
-          <div className="flex-grow space-y-2 max-w-md">
-            <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cliente / Razón Social</label>
+        <section className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col md:flex-row gap-6 items-end shadow-sm flex-shrink-0">
+          <div className="flex-grow space-y-1.5 max-w-md">
+            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente / Razón Social</label>
             <div className="relative">
               <Input 
                 value={cliente}
                 onChange={(e) => setCliente(e.target.value)}
                 placeholder="Consumidor Final" 
-                className="pl-10 bg-slate-50/50" 
+                className="pl-9 h-10 bg-slate-50/50 border-slate-200" 
               />
-              <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
             </div>
           </div>
           <div className="flex-shrink-0 ml-auto text-right">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total a Cobrar</span>
-            <span className="text-4xl font-light text-slate-900 tracking-tight">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Total a Cobrar</span>
+            <span className="text-3xl font-black text-slate-900 tracking-tighter">
               $ {totalVenta.toLocaleString('es-AR')}
             </span>
           </div>
         </section>
 
-        {/* TABLA DE ARTÍCULOS SELECCIONADOS */}
-        <section className="space-y-4">
-          <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl shadow-lg transition-all active:scale-95">
-            <Plus className="h-4 w-4" />
-            <span>Añadir Artículo</span>
-          </Button>
+        {/* CONTENEDOR DE TABLA CON SCROLL INTERNO */}
+        <section className="flex-grow flex flex-col min-h-0 gap-4">
+          <div className="flex-shrink-0">
+            <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl shadow-md transition-all active:scale-95">
+              <Plus className="h-4 w-4" />
+              <span>Añadir Artículo</span>
+            </Button>
+          </div>
 
-          <div className="bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden min-h-[400px]">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-slate-50/50">
-                  <TableHead className="text-[11px] font-bold uppercase tracking-widest">Artículo</TableHead>
-                  <TableHead className="text-center text-[11px] font-bold uppercase tracking-widest">Cant.</TableHead>
-                  <TableHead className="text-right text-[11px] font-bold uppercase tracking-widest">Precio Unit.</TableHead>
-                  <TableHead className="w-16"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.length === 0 ? (
+          <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col">
+            <div className="overflow-y-auto flex-grow">
+              <Table>
+                <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                   <TableRow>
-                    <TableCell colSpan={4} className="py-32 text-center">
-                      <div className="flex flex-col items-center gap-2 text-slate-300">
-                        <Plus className="h-12 w-12 opacity-20" />
-                        <p className="text-slate-400 italic">No hay artículos cargados en esta venta</p>
-                      </div>
-                    </TableCell>
+                    <TableHead className="text-[10px] font-bold uppercase tracking-widest py-3">Artículo</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase tracking-widest py-3">Cant.</TableHead>
+                    <TableHead className="text-right text-[10px] font-bold uppercase tracking-widest py-3">Precio Unit.</TableHead>
+                    <TableHead className="w-16"></TableHead>
                   </TableRow>
-                ) : (
-                  items.map((item) => (
-                    <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
-                      <TableCell className="font-medium text-slate-700">
-                        <div className="flex flex-col">
-                          <span>{item.nombre}</span>
-                          <span className="text-[10px] text-slate-400 uppercase font-mono">{item.id}</span>
+                </TableHeader>
+                <TableBody>
+                  {items.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="py-20 text-center">
+                        <div className="flex flex-col items-center gap-2 text-slate-300">
+                          <Plus className="h-10 w-10 opacity-20" />
+                          <p className="text-sm text-slate-400 italic font-medium">No hay artículos cargados</p>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-center font-semibold">{item.cantidad}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                           <span className="text-slate-400 text-sm font-medium">$</span>
-                           <Input 
-                            type="number"
-                            value={item.precio_unit}
-                            onChange={(e) => actualizarPrecioItem(item.id, Number(e.target.value))}
-                            className="w-32 text-right h-9 bg-slate-50 border-slate-200 focus:bg-white transition-all font-bold text-slate-900"
-                           />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => eliminarItem(item.id)} className="hover:bg-red-50 group">
-                          <Trash2 className="h-4 w-4 text-slate-300 group-hover:text-red-500 transition-colors" />
-                        </Button>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    items.map((item) => (
+                      <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                        <TableCell className="font-medium text-slate-700 py-3">
+                          <div className="flex flex-col">
+                            <span className="text-sm">{item.nombre}</span>
+                            <span className="text-[9px] text-slate-400 uppercase font-mono">{item.id}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center font-bold text-sm">{item.cantidad}</TableCell>
+                        <TableCell className="text-right py-3">
+                          <div className="flex items-center justify-end gap-2">
+                             <span className="text-slate-400 text-xs font-bold">$</span>
+                             <Input 
+                              type="number"
+                              value={item.precio_unit}
+                              onChange={(e) => actualizarPrecioItem(item.id, Number(e.target.value))}
+                              className="w-28 text-right h-8 bg-slate-50 border-slate-200 focus:bg-white transition-all font-bold text-sm text-slate-900"
+                             />
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <Button variant="ghost" size="icon" onClick={() => eliminarItem(item.id)} className="h-8 w-8 hover:bg-red-50 group">
+                            <Trash2 className="h-4 w-4 text-slate-300 group-hover:text-red-500 transition-colors" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         </section>
       </main>
 
-      {/* FOOTER ACCIONES */}
-      <footer className="bg-white border-t border-slate-100 p-6 sticky bottom-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+      {/* FOOTER ACCIONES FIJO */}
+      <footer className="bg-white border-t border-slate-100 p-4 flex-shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
         <div className="max-w-7xl mx-auto flex justify-end gap-4">
-          <Button variant="ghost" onClick={() => setItems([])} disabled={isSubmitting} className="text-slate-500 hover:text-red-500">
+          <Button variant="ghost" onClick={() => setItems([])} disabled={isSubmitting} className="text-slate-500 hover:text-red-500 h-10">
             Descartar Venta
           </Button>
           <Button 
             onClick={handleFinalizarVenta}
             disabled={items.length === 0 || isSubmitting} 
-            className="px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md shadow-blue-200 transition-all disabled:opacity-50"
+            className="px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-200 h-10 transition-all disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
@@ -237,27 +243,27 @@ export default function VentasMostradorClient({
         </div>
       </footer>
 
-      {/* MODAL DE BÚSQUEDA INSTANTÁNEA */}
+      {/* MODAL DE BÚSQUEDA (MANTIENE SU TAMAÑO) */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
-          <div className="p-8 bg-white border-b relative">
-            <DialogTitle className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Search className="h-5 w-5 text-blue-600" />
+          <div className="p-6 bg-white border-b relative">
+            <DialogTitle className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
+              <Search className="h-4 w-4 text-blue-600" />
               Buscador Instantáneo
             </DialogTitle>
             <div className="relative">
-              <Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
+              <Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" />
               <Input 
                 autoFocus
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Escribe el nombre o ID del repuesto..." 
-                className="pl-12 py-7 bg-slate-50 border-2 border-transparent focus:border-blue-100 focus:bg-white rounded-2xl text-lg transition-all outline-none"
+                className="pl-12 py-6 bg-slate-50 border-2 border-transparent focus:border-blue-100 focus:bg-white rounded-xl text-base transition-all outline-none"
               />
               {searchTerm && (
                 <button 
                   onClick={() => setSearchTerm("")}
-                  className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+                  className="absolute right-4 top-3 text-slate-400 hover:text-slate-600"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -265,27 +271,27 @@ export default function VentasMostradorClient({
             </div>
           </div>
 
-          <div className="h-[550px] overflow-y-auto p-4 bg-white">
+          <div className="h-[500px] overflow-y-auto p-4 bg-white">
             {searchResults.length > 0 ? (
               <div className="grid gap-2">
                 {searchResults.map((prod) => (
                   <button
                     key={prod.id}
                     onClick={() => agregarProductoAVenta(prod)}
-                    className="flex items-center justify-between p-4 hover:bg-blue-50/50 rounded-2xl transition-all text-left group border border-transparent hover:border-blue-100"
+                    className="flex items-center justify-between p-3.5 hover:bg-blue-50/50 rounded-xl transition-all text-left group border border-transparent hover:border-blue-100"
                   >
                     <div className="flex items-center gap-4">
                       <div className="bg-slate-100 p-2 rounded-lg group-hover:bg-white transition-colors">
                         <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 text-sm group-hover:text-blue-700 transition-colors">{prod.nombre}</p>
-                        <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id} • Stock: {prod.stock}</p>
+                        <p className="font-bold text-slate-900 text-[13px] group-hover:text-blue-700 transition-colors leading-tight">{prod.nombre}</p>
+                        <p className="text-[10px] text-slate-400 font-mono uppercase mt-0.5">ID: {prod.id} • Stock: {prod.stock}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-slate-900 text-base">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
-                      <span className="text-[10px] bg-blue-600 text-white px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-all transform translate-y-1 group-hover:translate-y-0 inline-block font-bold">
+                      <p className="font-black text-slate-900 text-sm">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                      <span className="text-[9px] bg-blue-600 text-white px-2.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all font-bold">
                         AÑADIR
                       </span>
                     </div>
@@ -294,13 +300,11 @@ export default function VentasMostradorClient({
               </div>
             ) : (
               <div className="h-full flex flex-col items-center justify-center">
-                <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                  <Search className="h-8 w-8 text-slate-200" />
-                </div>
-                <p className="text-slate-400 italic font-medium">
+                <Search className="h-10 w-10 text-slate-100 mb-2" />
+                <p className="text-slate-400 text-xs italic">
                   {searchTerm.length < 2 
                     ? "Empieza a escribir el nombre del repuesto..." 
-                    : "No encontramos nada con ese nombre."}
+                    : "No se encontraron resultados."}
                 </p>
               </div>
             )}

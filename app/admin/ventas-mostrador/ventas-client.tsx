@@ -81,7 +81,6 @@ export default function VentasMostradorClient({
     ));
   };
 
-  // Nueva función para actualizar cantidad con teclado
   const actualizarCantidadItem = (id: string, nuevaCantidad: number) => {
     setItems(items.map(item => 
       item.id === id 
@@ -121,8 +120,8 @@ export default function VentasMostradorClient({
     }
   };
 
-  // Estilo común para inputs numéricos sin flechas
-  const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all font-bold text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+  // Estilo común para inputs numéricos sin flechas y sin negrita
+  const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   return (
     <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden">
@@ -203,7 +202,8 @@ export default function VentasMostradorClient({
                       <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
                         <TableCell className="font-medium text-slate-700 py-3">
                           <div className="flex flex-col">
-                            <span className="text-sm">{item.nombre}</span>
+                            {/* Nombre de artículo más grande */}
+                            <span className="text-base font-medium">{item.nombre}</span>
                             <span className="text-[9px] text-slate-400 uppercase font-mono">{item.id}</span>
                           </div>
                         </TableCell>
@@ -213,7 +213,7 @@ export default function VentasMostradorClient({
                               type="number"
                               value={item.cantidad}
                               onChange={(e) => actualizarCantidadItem(item.id, Number(e.target.value))}
-                              className={`w-16 text-center h-8 ${inputSinFlechas}`}
+                              className={`w-16 text-center h-8 font-medium ${inputSinFlechas}`}
                             />
                           </div>
                         </TableCell>
@@ -224,7 +224,7 @@ export default function VentasMostradorClient({
                               type="number"
                               value={item.precio_unit}
                               onChange={(e) => actualizarPrecioItem(item.id, Number(e.target.value))}
-                              className={`w-28 h-8 ${inputSinFlechas}`}
+                              className={`w-28 h-8 font-medium ${inputSinFlechas}`} 
                              />
                           </div>
                         </TableCell>
@@ -306,12 +306,14 @@ export default function VentasMostradorClient({
                         <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 text-[13px] group-hover:text-blue-700 transition-colors leading-tight">{prod.nombre}</p>
+                        {/* Nombre de artículo más grande */}
+                        <p className="font-bold text-slate-900 text-base group-hover:text-blue-700 transition-colors leading-tight">{prod.nombre}</p>
                         <p className="text-[10px] text-slate-400 font-mono uppercase mt-0.5">ID: {prod.id} • Stock: {prod.stock}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-slate-900 text-sm">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                      {/* Precio sin negrita */}
+                      <p className="font-medium text-slate-900 text-sm">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
                       <span className="text-[9px] bg-blue-600 text-white px-2.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all font-bold">
                         AÑADIR
                       </span>

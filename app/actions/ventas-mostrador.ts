@@ -2,18 +2,11 @@
 
 import { prisma } from "@/lib/prisma"
 
-/**
- * Trae todos los artículos del mostrador de una sola vez
- * para cargarlos en la memoria del navegador.
- */
 export async function obtenerTodosLosArticulos() {
   try {
     const articulos = await prisma.articuloMostrador.findMany({
-      orderBy: {
-        nombre: 'asc'
-      }
+      orderBy: { nombre: 'asc' }
     });
-    // Convertimos los campos Decimal a números para que el navegador no tenga problemas
     return articulos.map(art => ({
       ...art,
       precio: Number(art.precio)
@@ -21,5 +14,39 @@ export async function obtenerTodosLosArticulos() {
   } catch (error) {
     console.error("Error al obtener artículos:", error);
     return [];
+  }
+}
+
+/**
+ * Crea una nueva venta en la base de datos
+ */
+export async function crearVentaMostrador(data: {
+  cliente: string,
+  vendedor: string,
+  total: number,
+  items: any[]
+}) {
+  try {
+    const venta = await prisma.venta.create({
+      data: {
+        cliente: data.cliente,
+        vendedor: data.vendedor,
+        total: data.total,
+        metodo_pago: "Efectivo", // Valor por defecto
+        items: {
+          create: data.items.map(item => ({
+            nombre: item.nombre,
+            cantidad: item.cantidad,
+            precio_unit: item.precio_unit,
+            subtotal: item.subtotal
+          }))
+        }
+      }
+    });
+
+    return { success: true, id: venta.id };
+  } catch (error) {
+    console.error("Error al crear venta:", error);
+    return { success: false, error: "No se pudo guardar la venta" };
   }
 }

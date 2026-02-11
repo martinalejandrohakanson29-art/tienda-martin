@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { 
-  Plus, Search, User, Trash2, ShoppingCart, Loader2, X
+  Plus, Search, User, Trash2, ShoppingCart, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,12 +20,20 @@ interface Articulo {
   stock: number;
 }
 
+// Estructura para los artículos dentro del carrito de la venta
+interface ItemVenta {
+  id: string;
+  nombre: string;
+  cantidad: number;
+  precio_unit: number;
+  subtotal: number;
+}
+
 export default function VentasMostradorClient({ articulosIniciales }: { articulosIniciales: Articulo[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [items, setItems] = useState<any[]>([]); // Artículos en la venta actual
+  const [items, setItems] = useState<ItemVenta[]>([]); 
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Búsqueda instantánea en memoria
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
 
@@ -34,9 +42,8 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
     return articulosIniciales.filter(art => {
       const nombreLower = art.nombre.toLowerCase();
       const idLower = art.id.toLowerCase();
-      // Todas las palabras deben estar en el nombre o en el ID
       return palabras.every(p => nombreLower.includes(p) || idLower.includes(p));
-    }).slice(0, 15); // Limitamos a 15 para mantener el modal limpio
+    }).slice(0, 15);
   }, [searchTerm, articulosIniciales]);
 
   const agregarProductoAVenta = (prod: Articulo) => {
@@ -44,7 +51,7 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
     if (existe) {
       setItems(items.map(item => 
         item.id === prod.id 
-          ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * Number(item.precio) } 
+          ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } 
           : item
       ));
     } else {
@@ -58,6 +65,15 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
     }
     setIsModalOpen(false);
     setSearchTerm("");
+  };
+
+  // Función para modificar el precio a mano sin tocar la base de datos
+  const actualizarPrecioItem = (id: string, nuevoPrecio: number) => {
+    setItems(items.map(item => 
+      item.id === id 
+        ? { ...item, precio_unit: nuevoPrecio, subtotal: item.cantidad * nuevoPrecio } 
+        : item
+    ));
   };
 
   const eliminarItem = (id: string) => {
@@ -76,7 +92,7 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
           </div>
           <div>
             <h1 className="text-lg font-semibold tracking-tight text-slate-900">Carga de Ventas</h1>
-            <p className="text-xs text-slate-500 font-normal"></p>
+            <p className="text-xs text-slate-500 font-normal">Terminal de Ventas Mostrador</p>
           </div>
         </div>
         <div className="text-right border-l pl-4 border-slate-100">
@@ -117,14 +133,13 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
                   <TableHead className="text-[11px] font-bold uppercase tracking-widest">Artículo</TableHead>
                   <TableHead className="text-center text-[11px] font-bold uppercase tracking-widest">Cant.</TableHead>
                   <TableHead className="text-right text-[11px] font-bold uppercase tracking-widest">Precio Unit.</TableHead>
-                  <TableHead className="text-right text-[11px] font-bold uppercase tracking-widest">Subtotal</TableHead>
                   <TableHead className="w-16"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-32 text-center">
+                    <TableCell colSpan={4} className="py-32 text-center">
                       <div className="flex flex-col items-center gap-2 text-slate-300">
                         <Plus className="h-12 w-12 opacity-20" />
                         <p className="text-slate-400 italic">No hay artículos cargados en esta venta</p>
@@ -132,7 +147,7 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
                     </TableCell>
                   </TableRow>
                 ) : (
-                  items.map((item, idx) => (
+                  items.map((item) => (
                     <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
                       <TableCell className="font-medium text-slate-700">
                         <div className="flex flex-col">
@@ -141,8 +156,17 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
                         </div>
                       </TableCell>
                       <TableCell className="text-center font-semibold">{item.cantidad}</TableCell>
-                      <TableCell className="text-right text-slate-500">$ {item.precio_unit.toLocaleString('es-AR')}</TableCell>
-                      <TableCell className="text-right font-bold text-slate-900">$ {item.subtotal.toLocaleString('es-AR')}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                           <span className="text-slate-400 text-sm font-medium">$</span>
+                           <Input 
+                            type="number"
+                            value={item.precio_unit}
+                            onChange={(e) => actualizarPrecioItem(item.id, Number(e.target.value))}
+                            className="w-32 text-right h-9 bg-slate-50 border-slate-200 focus:bg-white transition-all font-bold text-slate-900"
+                           />
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => eliminarItem(item.id)} className="hover:bg-red-50 group">
                           <Trash2 className="h-4 w-4 text-slate-300 group-hover:text-red-500 transition-colors" />

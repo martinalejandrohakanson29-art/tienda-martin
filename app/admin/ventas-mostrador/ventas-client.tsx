@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { 
-  Plus, Search, User, Trash2, ShoppingCart, X
+  Plus, Search, User, Trash2, ShoppingCart, X, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
+import { crearVentaMostrador } from "@/app/actions/ventas-mostrador";
 
 interface Articulo {
   id: string;
@@ -20,7 +21,6 @@ interface Articulo {
   stock: number;
 }
 
-// Estructura para los artículos dentro del carrito de la venta
 interface ItemVenta {
   id: string;
   nombre: string;
@@ -29,16 +29,22 @@ interface ItemVenta {
   subtotal: number;
 }
 
-export default function VentasMostradorClient({ articulosIniciales }: { articulosIniciales: Articulo[] }) {
+export default function VentasMostradorClient({ 
+  articulosIniciales,
+  vendedorNombre 
+}: { 
+  articulosIniciales: Articulo[],
+  vendedorNombre: string 
+}) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [items, setItems] = useState<ItemVenta[]>([]); 
   const [searchTerm, setSearchTerm] = useState("");
+  const [cliente, setCliente] = useState("Consumidor Final");
 
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
-
     const palabras = searchTerm.toLowerCase().trim().split(/\s+/);
-
     return articulosIniciales.filter(art => {
       const nombreLower = art.nombre.toLowerCase();
       const idLower = art.id.toLowerCase();
@@ -67,7 +73,6 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
     setSearchTerm("");
   };
 
-  // Función para modificar el precio a mano sin tocar la base de datos
   const actualizarPrecioItem = (id: string, nuevoPrecio: number) => {
     setItems(items.map(item => 
       item.id === id 
@@ -81,6 +86,31 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
   };
 
   const totalVenta = items.reduce((acc, item) => acc + item.subtotal, 0);
+
+  const handleFinalizarVenta = async () => {
+    try {
+      setIsSubmitting(true);
+      const resultado = await crearVentaMostrador({
+        cliente,
+        vendedor: vendedorNombre,
+        total: totalVenta,
+        items: items
+      });
+
+      if (resultado.success) {
+        alert("¡Venta realizada con éxito!");
+        setItems([]);
+        setCliente("Consumidor Final");
+      } else {
+        alert("Error al guardar la venta: " + resultado.error);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Ocurrió un error inesperado.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50/30">
@@ -97,7 +127,7 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
         </div>
         <div className="text-right border-l pl-4 border-slate-100">
           <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Vendedor</p>
-          <p className="text-sm font-medium"></p>
+          <p className="text-sm font-medium text-blue-600">{vendedorNombre}</p>
         </div>
       </header>
 
@@ -107,7 +137,12 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
           <div className="flex-grow space-y-2 max-w-md">
             <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Cliente / Razón Social</label>
             <div className="relative">
-              <Input placeholder="Consumidor Final" className="pl-10 bg-slate-50/50" />
+              <Input 
+                value={cliente}
+                onChange={(e) => setCliente(e.target.value)}
+                placeholder="Consumidor Final" 
+                className="pl-10 bg-slate-50/50" 
+              />
               <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             </div>
           </div>
@@ -184,11 +219,20 @@ export default function VentasMostradorClient({ articulosIniciales }: { articulo
       {/* FOOTER ACCIONES */}
       <footer className="bg-white border-t border-slate-100 p-6 sticky bottom-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
         <div className="max-w-7xl mx-auto flex justify-end gap-4">
-          <Button variant="ghost" onClick={() => setItems([])} className="text-slate-500 hover:text-red-500">
+          <Button variant="ghost" onClick={() => setItems([])} disabled={isSubmitting} className="text-slate-500 hover:text-red-500">
             Descartar Venta
           </Button>
-          <Button disabled={items.length === 0} className="px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md shadow-blue-200 transition-all disabled:opacity-50">
-            Finalizar Venta
+          <Button 
+            onClick={handleFinalizarVenta}
+            disabled={items.length === 0 || isSubmitting} 
+            className="px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold shadow-md shadow-blue-200 transition-all disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Guardando...
+              </>
+            ) : "Finalizar Venta"}
           </Button>
         </div>
       </footer>

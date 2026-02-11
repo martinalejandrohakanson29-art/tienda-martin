@@ -81,6 +81,15 @@ export default function VentasMostradorClient({
     ));
   };
 
+  // Nueva función para actualizar cantidad con teclado
+  const actualizarCantidadItem = (id: string, nuevaCantidad: number) => {
+    setItems(items.map(item => 
+      item.id === id 
+        ? { ...item, cantidad: nuevaCantidad, subtotal: nuevaCantidad * item.precio_unit } 
+        : item
+    ));
+  };
+
   const eliminarItem = (id: string) => {
     setItems(items.filter(i => i.id !== id));
   };
@@ -112,6 +121,9 @@ export default function VentasMostradorClient({
     }
   };
 
+  // Estilo común para inputs numéricos sin flechas
+  const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all font-bold text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+
   return (
     <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden">
       {/* HEADER FIJO */}
@@ -131,7 +143,7 @@ export default function VentasMostradorClient({
         </div>
       </header>
 
-      {/* CUERPO PRINCIPAL (SIN SCROLL GLOBAL) */}
+      {/* CUERPO PRINCIPAL */}
       <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
         
         {/* TOTAL Y CLIENTE */}
@@ -195,7 +207,16 @@ export default function VentasMostradorClient({
                             <span className="text-[9px] text-slate-400 uppercase font-mono">{item.id}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-center font-bold text-sm">{item.cantidad}</TableCell>
+                        <TableCell className="text-center py-3">
+                          <div className="flex justify-center">
+                            <Input 
+                              type="number"
+                              value={item.cantidad}
+                              onChange={(e) => actualizarCantidadItem(item.id, Number(e.target.value))}
+                              className={`w-16 text-center h-8 ${inputSinFlechas}`}
+                            />
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right py-3">
                           <div className="flex items-center justify-end gap-2">
                              <span className="text-slate-400 text-xs font-bold">$</span>
@@ -203,7 +224,7 @@ export default function VentasMostradorClient({
                               type="number"
                               value={item.precio_unit}
                               onChange={(e) => actualizarPrecioItem(item.id, Number(e.target.value))}
-                              className="w-28 text-right h-8 bg-slate-50 border-slate-200 focus:bg-white transition-all font-bold text-sm text-slate-900"
+                              className={`w-28 h-8 ${inputSinFlechas}`}
                              />
                           </div>
                         </TableCell>
@@ -243,7 +264,7 @@ export default function VentasMostradorClient({
         </div>
       </footer>
 
-      {/* MODAL DE BÚSQUEDA (MANTIENE SU TAMAÑO) */}
+      {/* MODAL DE BÚSQUEDA */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="p-6 bg-white border-b relative">

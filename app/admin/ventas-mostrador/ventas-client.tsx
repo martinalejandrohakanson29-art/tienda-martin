@@ -120,11 +120,11 @@ export default function VentasMostradorClient({
     }
   };
 
-  // Estilo común para inputs numéricos sin flechas y sin negrita
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden">
+    // select-none evita que aparezca el cursor de texto al hacer clic en el fondo o etiquetas
+    <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none">
       {/* HEADER FIJO */}
       <header className="bg-white border-b border-slate-100 px-8 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-3">
@@ -154,7 +154,8 @@ export default function VentasMostradorClient({
                 value={cliente}
                 onChange={(e) => setCliente(e.target.value)}
                 placeholder="Consumidor Final" 
-                className="pl-9 h-10 bg-slate-50/50 border-slate-200" 
+                // select-text permite que dentro del input el cursor funcione normalmente
+                className="pl-9 h-10 bg-slate-50/50 border-slate-200 select-text" 
               />
               <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
             </div>
@@ -202,7 +203,6 @@ export default function VentasMostradorClient({
                       <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
                         <TableCell className="font-medium text-slate-700 py-3">
                           <div className="flex flex-col">
-                            {/* Nombre de artículo más grande */}
                             <span className="text-base font-medium">{item.nombre}</span>
                             <span className="text-[9px] text-slate-400 uppercase font-mono">{item.id}</span>
                           </div>
@@ -213,7 +213,7 @@ export default function VentasMostradorClient({
                               type="number"
                               value={item.cantidad}
                               onChange={(e) => actualizarCantidadItem(item.id, Number(e.target.value))}
-                              className={`w-16 text-center h-8 font-medium ${inputSinFlechas}`}
+                              className={`w-16 text-center h-8 font-medium select-text ${inputSinFlechas}`}
                             />
                           </div>
                         </TableCell>
@@ -224,7 +224,7 @@ export default function VentasMostradorClient({
                               type="number"
                               value={item.precio_unit}
                               onChange={(e) => actualizarPrecioItem(item.id, Number(e.target.value))}
-                              className={`w-28 h-8 font-medium ${inputSinFlechas}`} 
+                              className={`w-28 h-8 font-medium select-text ${inputSinFlechas}`} 
                              />
                           </div>
                         </TableCell>
@@ -266,7 +266,7 @@ export default function VentasMostradorClient({
 
       {/* MODAL DE BÚSQUEDA */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
+        <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl select-none">
           <div className="p-6 bg-white border-b relative">
             <DialogTitle className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2">
               <Search className="h-4 w-4 text-blue-600" />
@@ -279,7 +279,7 @@ export default function VentasMostradorClient({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Escribe el nombre o ID del repuesto..." 
-                className="pl-12 py-6 bg-slate-50 border-2 border-transparent focus:border-blue-100 focus:bg-white rounded-xl text-base transition-all outline-none"
+                className="pl-12 py-6 bg-slate-50 border-2 border-transparent focus:border-blue-100 focus:bg-white rounded-xl text-base transition-all outline-none select-text"
               />
               {searchTerm && (
                 <button 
@@ -306,13 +306,11 @@ export default function VentasMostradorClient({
                         <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                       </div>
                       <div>
-                        {/* Nombre de artículo más grande */}
                         <p className="font-bold text-slate-900 text-base group-hover:text-blue-700 transition-colors leading-tight">{prod.nombre}</p>
                         <p className="text-[10px] text-slate-400 font-mono uppercase mt-0.5">ID: {prod.id} • Stock: {prod.stock}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      {/* Precio sin negrita */}
                       <p className="font-medium text-slate-900 text-sm">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
                       <span className="text-[9px] bg-blue-600 text-white px-2.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all font-bold">
                         AÑADIR

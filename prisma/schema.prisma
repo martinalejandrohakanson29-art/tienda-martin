@@ -419,3 +419,32 @@ model RentabilidadCalculada {
   @@unique([mla, variation_id])
   @@map("rentabilidad_calculada")
 }
+
+
+// --- GESTIÓN DE VENTAS MOSTRADOR ---
+
+model Venta {
+  id            String      @id @default(cuid())
+  cliente       String      @default("Consumidor Final")
+  vendedor      String      @default("Martin Jakson")
+  total         Decimal     @db.Decimal(20, 2) @default(0)
+  metodo_pago   String      @default("Efectivo")
+  items         VentaItem[] // Relación con los productos vendidos
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("ventas_mostrador")
+}
+
+model VentaItem {
+  id            String   @id @default(cuid())
+  ventaId       String
+  venta         Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  productoId    String?  // Opcional, por si el producto se borra después de la base
+  nombre        String   // Guardamos el nombre por si el precio o nombre del producto original cambia
+  cantidad      Int      @default(1)
+  precio_unit   Decimal  @db.Decimal(20, 2)
+  subtotal      Decimal  @db.Decimal(20, 2)
+
+  @@map("ventas_mostrador_items")
+}

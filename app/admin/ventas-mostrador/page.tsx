@@ -1,18 +1,24 @@
 import { obtenerTodosLosArticulos } from "@/app/actions/ventas-mostrador"
 import VentasMostradorClient from "./ventas-client"
+import { ShoppingBag } from "lucide-react"
 
 export default async function VentasMostradorPage() {
-  // 1. Cargamos todos los artículos apenas el usuario entra a la página
   const articulos = await obtenerTodosLosArticulos();
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Venta de Mostrador</h1>
-        <p className="text-muted-foreground">Buscador instantáneo de repuestos.</p>
-      </header>
+    <div className="container mx-auto py-8 px-4 max-w-6xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-3">
+            <ShoppingBag className="w-8 h-8 text-primary" />
+            Venta Mostrador
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Gestión de ventas presenciales - Revolución Motos.
+          </p>
+        </div>
+      </div>
 
-      {/* 2. Le pasamos los artículos al componente que vive en el navegador */}
       <VentasMostradorClient articulosIniciales={articulos} />
     </div>
   )

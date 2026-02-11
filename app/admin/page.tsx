@@ -10,10 +10,11 @@ import {
     ArrowRight, 
     Instagram, 
     Settings2,
-    ListTodo
+    ListTodo,
+    ShoppingCart // 👈 Agregamos el icono de carrito
 } from "lucide-react" 
 import Link from "next/link"
-import TaskForm from "./task-form" // Importamos el componente de cliente
+import TaskForm from "./task-form"
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ export default async function AdminDashboard() {
                 </Link>
             </div>
 
-            {/* SECCIÓN DE TAREAS (Componente de Cliente con animación y reset) */}
+            {/* SECCIÓN DE TAREAS */}
             <Card className="border-2 border-primary/10 shadow-sm bg-slate-50/50">
                 <TaskForm users={users} />
             </Card>
@@ -59,6 +60,25 @@ export default async function AdminDashboard() {
                     🚀 Accesos Rápidos
                 </h2>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    
+                    {/* NUEVA TARJETA: REGISTRACIÓN */}
+                    <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-emerald-50/50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-emerald-800 text-xl">
+                                <ShoppingCart className="h-6 w-6" />
+                                Registración
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                            <p className="text-sm text-gray-600 mb-6">Carga de ventas por mostrador.</p>
+                            <Link href="/admin/ventas-mostrador">
+                                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm h-12 text-lg font-semibold">
+                                    Iniciar Venta <ArrowRight size={18} />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+
                     <Card className="border-l-4 border-l-yellow-400 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-yellow-50/50">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-yellow-800 text-xl">
@@ -93,6 +113,8 @@ export default async function AdminDashboard() {
                         </CardContent>
                     </Card>
 
+                    {/* Nota: Al agregar la 4ta tarjeta, el grid de Next.js las acomodará 
+                        automáticamente en una nueva fila en pantallas grandes. */}
                     <Card className="border-l-4 border-l-indigo-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-indigo-50/50">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-indigo-800 text-xl">

@@ -1,39 +1,19 @@
-"use server"
+import { obtenerTodosLosArticulos } from "@/app/actions/ventas-mostrador"
+import VentasMostradorClient from "./ventas-client"
 
-import { prisma } from "@/lib/prisma"
+export default async function VentasMostradorPage() {
+  // 1. Cargamos todos los artículos apenas el usuario entra a la página
+  const articulos = await obtenerTodosLosArticulos();
 
-/**
- * Función para buscar productos de forma flexible.
- * Ahora separa las palabras y permite encontrarlas en cualquier orden.
- */
-export async function buscarArticulosMostrador(query: string) {
-  // Si no hay texto o es muy corto, no buscamos nada para ahorrar recursos
-  if (!query || query.trim().length < 2) return [];
+  return (
+    <div className="max-w-4xl mx-auto p-6">
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">Venta de Mostrador</h1>
+        <p className="text-muted-foreground">Buscador instantáneo de repuestos.</p>
+      </header>
 
-  // 1. Limpiamos espacios de más y dividimos la búsqueda en palabras individuales
-  // Ejemplo: "leva varillero" -> ["leva", "varillero"]
-  const palabras = query.trim().split(/\s+/).filter(p => p.length > 0);
-
-  try {
-    const resultados = await prisma.articuloMostrador.findMany({
-      where: {
-        // 2. Usamos AND para que TODAS las palabras que escribas deban estar presentes
-        AND: palabras.map(palabra => ({
-          OR: [
-            // Que la palabra esté en el nombre (ej: "leva" coincide con "elevador")
-            { nombre: { contains: palabra, mode: 'insensitive' } },
-            // O que la palabra esté en el ID (por si buscás por código)
-            { id: { contains: palabra, mode: 'insensitive' } }
-          ]
-        }))
-      },
-      // Traemos 15 resultados para darte un poco más de margen visual
-      take: 15 
-    });
-
-    return resultados;
-  } catch (error) {
-    console.error("Error en la búsqueda flexible:", error);
-    return [];
-  }
+      {/* 2. Le pasamos los artículos al componente que vive en el navegador */}
+      <VentasMostradorClient articulosIniciales={articulos} />
+    </div>
+  )
 }

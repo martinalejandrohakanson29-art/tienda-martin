@@ -17,9 +17,6 @@ export async function obtenerTodosLosArticulos() {
   }
 }
 
-/**
- * Crea una nueva venta en la base de datos
- */
 export async function crearVentaMostrador(data: {
   cliente: string,
   vendedor: string,
@@ -32,7 +29,7 @@ export async function crearVentaMostrador(data: {
         cliente: data.cliente,
         vendedor: data.vendedor,
         total: data.total,
-        metodo_pago: "Efectivo", // Valor por defecto
+        metodo_pago: "Efectivo",
         items: {
           create: data.items.map(item => ({
             nombre: item.nombre,

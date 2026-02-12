@@ -430,14 +430,17 @@ model Venta {
   total         Decimal     @db.Decimal(20, 2) @default(0)
   metodo_pago   String      @default("Efectivo")
   
-  // Nuevos campos agregados
+  // Campos existentes
   dni           String?
   telefono      String?
   info          String?
-  cupon         String?     // Para tarjetas
-  transaccionId String?     // Para tarjetas (ID de cobro)
-  de            String?     // Para ventas cruzadas
-  para          String?     // Para ventas cruzadas
+  cupon         String?
+  transaccionId String?
+  de            String?
+  para          String?
+
+  // NUEVO: Para saber si ya se procesó/registró
+  registrada    Boolean     @default(false)
 
   items         VentaItem[] 
   createdAt     DateTime    @default(now())

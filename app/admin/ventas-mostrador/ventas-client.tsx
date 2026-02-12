@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { 
-  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft
+  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
+  Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,7 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,6 +42,7 @@ export default function VentasMostradorClient({
   // --- ESTADOS REGISTRAR VENTA ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
+  const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false); // <--- Nuevo: Confirmación descarte
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false); 
   const [items, setItems] = useState<ItemVenta[]>([]); 
@@ -116,21 +118,28 @@ export default function VentasMostradorClient({
 
   const handleFinalizarVenta = async () => {
     // Validación para Tarjetas
-    if ((metodoPago === "Tarjeta de Crédito" || metodoPago === "Tarjeta de Débito") && (!dni || !telefono)) {
+    if ((metodoPago.includes("Tarjeta")) && (!dni || !telefono)) {
       alert("Para pagos con tarjeta, el DNI y el Teléfono son obligatorios.");
       return;
     }
 
-    // Validación para Venta Cruzada (NUEVO)
+    // Validación para Venta Cruzada
     if (metodoPago === "Cruzada" && (!deCruzada || !paraCruzada)) {
       alert("Para ventas cruzadas, los campos 'De' y 'Para' son obligatorios.");
       return;
     }
 
+    // Lógica de Cliente: Si NO es Efectivo o Transferencia, usamos el DNI como nombre de cliente
+    const clienteFinal = (metodoPago !== "Efectivo" && metodoPago !== "Transferencia") ? dni : cliente;
+
     try {
       setIsSubmitting(true);
       const resultado = await crearVentaMostrador({
-        cliente, vendedor: vendedorNombre, total: totalVenta, items, metodo_pago: metodoPago,
+        cliente: clienteFinal, 
+        vendedor: vendedorNombre, 
+        total: totalVenta, 
+        items, 
+        metodo_pago: metodoPago,
         dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada
       });
 
@@ -152,6 +161,7 @@ export default function VentasMostradorClient({
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada("");
     setIsFinalizarModalOpen(false);
+    setIsConfirmDiscardOpen(false);
   };
 
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -260,7 +270,7 @@ export default function VentasMostradorClient({
 
           <footer className="bg-white border-t border-slate-100 p-4 flex-shrink-0 shadow-lg">
             <div className="max-w-7xl mx-auto flex justify-end gap-4">
-              <Button variant="ghost" onClick={() => setItems([])} className="text-slate-500 hover:text-red-500">Descartar Venta</Button>
+              <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(true)} className="text-slate-500 hover:text-red-500">Descartar Venta</Button>
               <Button onClick={() => setIsFinalizarModalOpen(true)} disabled={items.length === 0 || isSubmitting} className="px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">Finalizar Venta</Button>
             </div>
           </footer>
@@ -355,6 +365,7 @@ export default function VentasMostradorClient({
         </TabsContent>
       </Tabs>
 
+      {/* --- MODAL: BUSCADOR --- */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="p-6 bg-white border-b relative">
@@ -383,6 +394,7 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
+      {/* --- MODAL: CONFIRMACIÓN COBRO --- */}
       <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
         <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
           <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
@@ -391,6 +403,7 @@ export default function VentasMostradorClient({
               <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
               <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
                 <option value="Efectivo">Efectivo</option>
+                <option value="Transferencia">Transferencia</option>
                 <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                 <option value="Tarjeta de Débito">Tarjeta de Débito</option>
                 <option value="Cruzada">Cruzada</option>
@@ -398,7 +411,7 @@ export default function VentasMostradorClient({
             </div>
 
             {/* CAMPOS PARA TARJETA */}
-            {(metodoPago === "Tarjeta de Crédito" || metodoPago === "Tarjeta de Débito") && (
+            {(metodoPago.includes("Tarjeta")) && (
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-500 uppercase">DNI <span className="text-red-500">*</span></Label>
@@ -411,7 +424,7 @@ export default function VentasMostradorClient({
               </div>
             )}
 
-            {/* CAMPOS PARA VENTA CRUZADA (NUEVO) */}
+            {/* CAMPOS PARA VENTA CRUZADA */}
             {metodoPago === "Cruzada" && (
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
                 <div className="space-y-2">
@@ -459,6 +472,25 @@ export default function VentasMostradorClient({
             <Button onClick={handleFinalizarVenta} disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white px-8 rounded-xl font-bold">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar y Guardar"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- MODAL: CONFIRMACIÓN DESCARTAR (NUEVO) --- */}
+      <Dialog open={isConfirmDiscardOpen} onOpenChange={setIsConfirmDiscardOpen}>
+        <DialogContent className="sm:max-w-[400px] rounded-3xl p-6">
+          <DialogHeader>
+            <div className="mx-auto bg-red-100 text-red-600 p-3 rounded-full w-fit mb-4">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-center text-xl font-bold">¿Descartar Venta?</DialogTitle>
+            <DialogDescription className="text-center text-slate-500">
+              Esta acción borrará todos los artículos cargados actualmente. No se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col sm:flex-row gap-3 mt-4">
+            <Button variant="outline" onClick={() => setIsConfirmDiscardOpen(false)} className="w-full sm:w-1/2 rounded-xl">Mantener Venta</Button>
+            <Button onClick={resetForm} className="w-full sm:w-1/2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold">Sí, Descartar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

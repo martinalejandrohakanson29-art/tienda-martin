@@ -17,7 +17,7 @@ export async function obtenerTodosLosArticulos() {
   }
 }
 
-// Nueva función para obtener ventas por fecha
+// Función para obtener ventas por fecha con sus ítems
 export async function obtenerVentasPorFecha(fechaStr: string) {
   try {
     const inicioDia = new Date(fechaStr);
@@ -41,7 +41,6 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
       },
     });
 
-    // Formateamos para que el cliente reciba datos serializables
     return { 
       success: true, 
       data: ventas.map(v => ({
@@ -86,7 +85,7 @@ export async function crearVentaMostrador(data: {
         para: data.para,
         items: {
           create: data.items.map(item => ({
-            productoId: item.id, // <--- Ahora guardamos el ID original del artículo
+            productoId: item.id, 
             nombre: item.nombre,
             cantidad: item.cantidad,
             precio_unit: item.precio_unit,

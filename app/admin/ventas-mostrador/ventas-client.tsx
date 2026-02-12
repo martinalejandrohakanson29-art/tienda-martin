@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft, AlertTriangle,
-  RefreshCcw, Copy
+  RefreshCcw, Copy, Square, CheckSquare
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { crearVentaMostrador, obtenerVentasPorFecha } from "@/app/actions/ventas-mostrador";
+import { crearVentaMostrador, obtenerVentasPorFecha, marcarVentaComoRegistrada } from "@/app/actions/ventas-mostrador";
 
 interface Articulo {
   id: string;
@@ -40,7 +40,6 @@ export default function VentasMostradorClient({
   articulosIniciales: Articulo[],
   vendedorNombre: string 
 }) {
-  // --- ESTADOS REGISTRAR VENTA ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
@@ -59,7 +58,6 @@ export default function VentasMostradorClient({
   const [deCruzada, setDeCruzada] = useState("");
   const [paraCruzada, setParaCruzada] = useState("");
 
-  // --- ESTADOS LISTADO DE VENTAS ---
   const [ventasRealizadas, setVentasRealizadas] = useState<any[]>([]);
   const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split('T')[0]);
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
@@ -85,14 +83,23 @@ export default function VentasMostradorClient({
     cargarVentas(fechaFiltro);
   }, [fechaFiltro]);
 
-  // Función para copiar texto al portapapeles
   const copiarAlPortapapeles = (texto: string) => {
     navigator.clipboard.writeText(texto);
     setShowCopyFeedback(true);
     setTimeout(() => setShowCopyFeedback(false), 2000);
   };
 
-  // --- LÓGICA DE BÚSQUEDA MEJORADA (Búsqueda exacta para números) ---
+  const handleMarcarRegistrada = async (id: string) => {
+    // Marcamos localmente primero para que la respuesta sea instantánea
+    setVentasRealizadas(prev => prev.map(v => v.id === id ? { ...v, registrada: true } : v));
+    
+    const res = await marcarVentaComoRegistrada(id);
+    if (!res.success) {
+      alert("No se pudo actualizar en la base de datos");
+      cargarVentas(fechaFiltro); // Recargamos si falló
+    }
+  };
+
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
     const queryWords = searchTerm.toLowerCase().trim().split(/\s+/);
@@ -178,7 +185,6 @@ export default function VentasMostradorClient({
   return (
     <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none relative">
       
-      {/* Feedback de Copiado */}
       {showCopyFeedback && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-top-2 duration-300">
           <div className="bg-slate-800 text-white text-[10px] px-3 py-1 rounded-full shadow-lg border border-slate-700 flex items-center gap-2">
@@ -221,7 +227,6 @@ export default function VentasMostradorClient({
         </div>
 
         <TabsContent value="registrar" className="flex-grow flex flex-col overflow-hidden m-0">
-          {/* ... Mismo contenido del panel de registro ... */}
           <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
             <section className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col md:flex-row gap-6 items-end shadow-sm flex-shrink-0">
               <div className="flex-grow space-y-1.5 max-w-md">
@@ -310,13 +315,11 @@ export default function VentasMostradorClient({
                         className="pl-9 h-10 w-48 bg-slate-50 border-slate-200 cursor-pointer" 
                       />
                     </div>
-                    {/* BOTÓN ACTUALIZAR */}
                     <Button 
                       variant="outline" 
                       size="icon" 
                       onClick={() => cargarVentas(fechaFiltro)}
                       className={`rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all ${isLoadingVentas ? 'bg-slate-50' : ''}`}
-                      title="Actualizar listado"
                       disabled={isLoadingVentas}
                     >
                       <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
@@ -343,11 +346,13 @@ export default function VentasMostradorClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Vendedor</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total</TableHead>
+                      {/* NUEVA COLUMNA CABECERA */}
+                      <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-32">Registrada</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ventasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="py-20 text-center text-slate-400 italic">No se encontraron ventas para esta fecha</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">No se encontraron ventas</TableCell></TableRow>
                     ) : (
                       ventasRealizadas.map((v) => (
                         <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
@@ -360,21 +365,17 @@ export default function VentasMostradorClient({
                               {v.items?.map((item: any) => (
                                 <div key={item.id} className="text-[11px] bg-slate-50 p-1.5 rounded border border-slate-100 flex flex-col group relative">
                                   <div className="flex justify-between items-start gap-2">
-                                    {/* CLIC PARA COPIAR NOMBRE */}
                                     <span 
                                       onClick={() => copiarAlPortapapeles(item.nombre)}
                                       className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors"
-                                      title="Click para copiar nombre"
                                     >
                                       {item.nombre}
                                     </span>
                                     <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-black">x{item.cantidad}</span>
                                   </div>
-                                  {/* CLIC PARA COPIAR ID */}
                                   <span 
                                     onClick={() => copiarAlPortapapeles(item.productoId || 'N/A')}
                                     className="text-[9px] text-slate-400 font-mono tracking-tighter cursor-pointer hover:text-blue-500 transition-colors"
-                                    title="Click para copiar ID"
                                   >
                                     ID: {item.productoId || 'N/A'}
                                   </span>
@@ -389,14 +390,29 @@ export default function VentasMostradorClient({
                             }`}>
                               {v.metodo_pago}
                             </span>
+                            {/* LETRA AGRANDADA DE -> PARA */}
                             {v.metodo_pago === 'Cruzada' && v.de && (
-                              <div className="text-[9px] mt-1 text-slate-500 font-bold italic">
+                              <div className="text-[13px] mt-2 text-slate-600 font-black italic bg-amber-50 p-1 px-2 rounded-lg border border-amber-100">
                                 {v.de} → {v.para}
                               </div>
                             )}
                           </TableCell>
                           <TableCell className="text-right font-bold text-slate-900 py-4">
                             $ {v.total.toLocaleString('es-AR')}
+                          </TableCell>
+                          {/* NUEVA COLUMNA CELDA: TILDE PERMANENTE */}
+                          <TableCell className="py-4 text-center">
+                            <button
+                              disabled={v.registrada}
+                              onClick={() => handleMarcarRegistrada(v.id)}
+                              className={`p-2 rounded-xl transition-all ${
+                                v.registrada 
+                                  ? 'text-green-600 bg-green-50 cursor-default border border-green-100' 
+                                  : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'
+                              }`}
+                            >
+                              {v.registrada ? <CheckSquare className="h-6 w-6" /> : <Square className="h-6 w-6" />}
+                            </button>
                           </TableCell>
                         </TableRow>
                       ))
@@ -409,7 +425,7 @@ export default function VentasMostradorClient({
         </TabsContent>
       </Tabs>
 
-      {/* --- MODALES (BUSCADOR, COBRO, DESCARTAR) --- */}
+      {/* --- MODALES --- */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="p-6 bg-white border-b relative">
@@ -453,7 +469,6 @@ export default function VentasMostradorClient({
               </select>
             </div>
 
-            {/* CAMPOS TARJETA / CRUZADA (Se mantienen de la versión anterior) */}
             {(metodoPago.includes("Tarjeta")) && (
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
                 <div className="space-y-2">

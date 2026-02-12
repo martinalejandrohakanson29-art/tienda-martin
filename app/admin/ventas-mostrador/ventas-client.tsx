@@ -403,8 +403,7 @@ export default function VentasMostradorClient({
               <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
               <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
                 <option value="Efectivo">Efectivo</option>
-                <option value="Transferencia">Transferencia</option>
-                <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+               <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                 <option value="Tarjeta de Débito">Tarjeta de Débito</option>
                 <option value="Cruzada">Cruzada</option>
               </select>

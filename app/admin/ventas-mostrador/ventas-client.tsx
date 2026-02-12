@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { 
-  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, Calendar as CalendarIcon, ClipboardList, CheckCircle2
+  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +42,7 @@ export default function VentasMostradorClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false); // <--- Nuevo estado para animación
+  const [showSuccess, setShowSuccess] = useState(false); 
   const [items, setItems] = useState<ItemVenta[]>([]); 
   const [searchTerm, setSearchTerm] = useState("");
   const [cliente, setCliente] = useState("Consumidor Final");
@@ -61,7 +61,6 @@ export default function VentasMostradorClient({
   const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split('T')[0]);
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
 
-  // Efecto para ocultar el mensaje de éxito automáticamente
   useEffect(() => {
     if (showSuccess) {
       const timer = setTimeout(() => setShowSuccess(false), 3000);
@@ -69,7 +68,6 @@ export default function VentasMostradorClient({
     }
   }, [showSuccess]);
 
-  // Cargar ventas cuando cambia la fecha o la pestaña
   const cargarVentas = async (fecha: string) => {
     setIsLoadingVentas(true);
     const res = await obtenerVentasPorFecha(fecha);
@@ -83,7 +81,6 @@ export default function VentasMostradorClient({
     cargarVentas(fechaFiltro);
   }, [fechaFiltro]);
 
-  // Lógica de búsqueda de artículos
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
     const palabras = searchTerm.toLowerCase().trim().split(/\s+/);
@@ -118,8 +115,15 @@ export default function VentasMostradorClient({
   const totalVenta = items.reduce((acc, item) => acc + item.subtotal, 0);
 
   const handleFinalizarVenta = async () => {
+    // Validación para Tarjetas
     if ((metodoPago === "Tarjeta de Crédito" || metodoPago === "Tarjeta de Débito") && (!dni || !telefono)) {
       alert("Para pagos con tarjeta, el DNI y el Teléfono son obligatorios.");
+      return;
+    }
+
+    // Validación para Venta Cruzada (NUEVO)
+    if (metodoPago === "Cruzada" && (!deCruzada || !paraCruzada)) {
+      alert("Para ventas cruzadas, los campos 'De' y 'Para' son obligatorios.");
       return;
     }
 
@@ -131,7 +135,7 @@ export default function VentasMostradorClient({
       });
 
       if (resultado.success) {
-        setShowSuccess(true); // <--- Activamos la animación
+        setShowSuccess(true);
         resetForm();
         cargarVentas(fechaFiltro);
       } else {
@@ -155,7 +159,6 @@ export default function VentasMostradorClient({
   return (
     <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none relative">
       
-      {/* MENSAJE DE ÉXITO ANIMADO */}
       {showSuccess && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="bg-green-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-green-500">
@@ -165,7 +168,6 @@ export default function VentasMostradorClient({
         </div>
       )}
 
-      {/* HEADER FIJO */}
       <header className="bg-white border-b border-slate-100 px-8 py-3 flex items-center justify-between flex-shrink-0 z-20">
         <div className="flex items-center gap-3">
           <div className="bg-blue-600 p-2 rounded-lg text-white">
@@ -190,7 +192,6 @@ export default function VentasMostradorClient({
           </TabsList>
         </div>
 
-        {/* --- PESTAÑA: REGISTRAR VENTA --- */}
         <TabsContent value="registrar" className="flex-grow flex flex-col overflow-hidden m-0">
           <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
             <section className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col md:flex-row gap-6 items-end shadow-sm flex-shrink-0">
@@ -265,7 +266,6 @@ export default function VentasMostradorClient({
           </footer>
         </TabsContent>
 
-        {/* --- PESTAÑA: LISTADO DE VENTAS --- */}
         <TabsContent value="listado" className="flex-grow flex flex-col overflow-hidden m-0">
           <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
             <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
@@ -335,6 +335,11 @@ export default function VentasMostradorClient({
                             }`}>
                               {v.metodo_pago}
                             </span>
+                            {v.metodo_pago === 'Cruzada' && v.de && (
+                              <div className="text-[9px] mt-1 text-slate-500 font-bold italic">
+                                {v.de} → {v.para}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="text-right font-bold text-slate-900 py-4">
                             $ {v.total.toLocaleString('es-AR')}
@@ -350,7 +355,6 @@ export default function VentasMostradorClient({
         </TabsContent>
       </Tabs>
 
-      {/* MODALES EXISTENTES */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="p-6 bg-white border-b relative">
@@ -393,15 +397,36 @@ export default function VentasMostradorClient({
               </select>
             </div>
 
-            {metodoPago !== "Efectivo" && (
+            {/* CAMPOS PARA TARJETA */}
+            {(metodoPago === "Tarjeta de Crédito" || metodoPago === "Tarjeta de Débito") && (
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-500 uppercase">DNI {(metodoPago.includes("Tarjeta")) && <span className="text-red-500">*</span>}</Label>
+                  <Label className="text-xs font-bold text-slate-500 uppercase">DNI <span className="text-red-500">*</span></Label>
                   <div className="relative"><User className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={dni} onChange={(e) => setDni(e.target.value)} className="pl-9" placeholder="DNI cliente" /></div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-500 uppercase">Teléfono {(metodoPago.includes("Tarjeta")) && <span className="text-red-500">*</span>}</Label>
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Teléfono <span className="text-red-500">*</span></Label>
                   <div className="relative"><Phone className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="pl-9" placeholder="Celular" /></div>
+                </div>
+              </div>
+            )}
+
+            {/* CAMPOS PARA VENTA CRUZADA (NUEVO) */}
+            {metodoPago === "Cruzada" && (
+              <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-amber-700 uppercase">De <span className="text-red-500">*</span></Label>
+                  <div className="relative">
+                    <ArrowRightLeft className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
+                    <Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="pl-9 bg-white border-amber-200" placeholder="Origen" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-amber-700 uppercase">Para <span className="text-red-500">*</span></Label>
+                  <div className="relative">
+                    <ArrowRightLeft className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
+                    <Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="pl-9 bg-white border-amber-200" placeholder="Destino" />
+                  </div>
                 </div>
               </div>
             )}

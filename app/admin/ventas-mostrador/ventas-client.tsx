@@ -355,7 +355,7 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* MODAL FINALIZAR VENTA (EL NUEVO) */}
+      {/* MODAL FINALIZAR VENTA */}
       <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
         <DialogContent className="sm:max-w-[500px] rounded-3xl p-6 select-none">
           <DialogHeader>
@@ -381,25 +381,27 @@ export default function VentasMostradorClient({
               </select>
             </div>
 
-            {/* DNI e Info */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase">
-                  DNI {(metodoPago.includes("Tarjeta")) && <span className="text-red-500">*</span>}
-                </Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input value={dni} onChange={(e) => setDni(e.target.value)} className="pl-9 select-text" placeholder="DNI cliente" />
+            {/* DNI y Teléfono: Solo se muestran si NO es Efectivo */}
+            {metodoPago !== "Efectivo" && (
+              <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">
+                    DNI {(metodoPago.includes("Tarjeta")) && <span className="text-red-500">*</span>}
+                  </Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input value={dni} onChange={(e) => setDni(e.target.value)} className="pl-9 select-text" placeholder="DNI cliente" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Teléfono {(metodoPago.includes("Tarjeta")) && <span className="text-red-500">*</span>}</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="pl-9 select-text" placeholder="Celular" />
+                  </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase">Teléfono {(metodoPago.includes("Tarjeta")) && <span className="text-red-500">*</span>}</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="pl-9 select-text" placeholder="Celular" />
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Campos Condicionales: Tarjeta */}
             {(metodoPago === "Tarjeta de Crédito" || metodoPago === "Tarjeta de Débito") && (

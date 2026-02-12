@@ -86,6 +86,7 @@ export async function crearVentaMostrador(data: {
         para: data.para,
         items: {
           create: data.items.map(item => ({
+            productoId: item.id, // <--- Ahora guardamos el ID original del artículo
             nombre: item.nombre,
             cantidad: item.cantidad,
             precio_unit: item.precio_unit,

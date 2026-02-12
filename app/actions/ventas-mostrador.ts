@@ -21,7 +21,16 @@ export async function crearVentaMostrador(data: {
   cliente: string,
   vendedor: string,
   total: number,
-  items: any[]
+  items: any[],
+  // Agregamos los nuevos campos aquí
+  metodo_pago: string,
+  dni?: string,
+  telefono?: string,
+  info?: string,
+  cupon?: string,
+  transaccionId?: string,
+  de?: string,
+  para?: string
 }) {
   try {
     const venta = await prisma.venta.create({
@@ -29,7 +38,15 @@ export async function crearVentaMostrador(data: {
         cliente: data.cliente,
         vendedor: data.vendedor,
         total: data.total,
-        metodo_pago: "Efectivo",
+        metodo_pago: data.metodo_pago,
+        // Guardamos los nuevos campos
+        dni: data.dni,
+        telefono: data.telefono,
+        info: data.info,
+        cupon: data.cupon,
+        transaccionId: data.transaccionId,
+        de: data.de,
+        para: data.para,
         items: {
           create: data.items.map(item => ({
             nombre: item.nombre,

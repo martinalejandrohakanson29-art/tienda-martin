@@ -63,12 +63,10 @@ export default function VentasMostradorClient({
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
 
-  // --- NUEVA MODIFICACIÓN: ATAJO DE TECLADO "+" ---
+  // Atajo de teclado "+" para añadir artículos
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Si se presiona la tecla "+" y el buscador NO está abierto ya
       if (e.key === "+" && !isModalOpen) {
-        // Evitamos que el "+" se escriba en cualquier input que tenga el foco
         e.preventDefault();
         setIsModalOpen(true);
       }
@@ -453,10 +451,10 @@ export default function VentasMostradorClient({
                 <div className="flex items-center gap-4">
                   <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                   <div className="text-left">
-                    {/* --- MODIFICACIÓN: STOCK JUNTO AL TÍTULO --- */}
+                    {/* Stock con la misma fuente, más chico y sin negrita */}
                     <p className="font-bold text-slate-900 leading-tight">
                       {prod.nombre} 
-                      <span className="ml-2 font-normal text-slate-500 text-xs italic font-serif">
+                      <span className="ml-2 font-normal text-slate-400 text-[11px]">
                         (Stock: {prod.stock})
                       </span>
                     </p>

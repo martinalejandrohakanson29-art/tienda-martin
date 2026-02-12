@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { 
-  Plus, Search, User, Trash2, ShoppingCart, X, Loader2
+  Plus, Search, User, Trash2, ShoppingCart, X, Loader2, CreditCard, Phone, FileText, ArrowLeftRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { crearVentaMostrador } from "@/app/actions/ventas-mostrador";
 
 interface Articulo {
@@ -36,11 +37,23 @@ export default function VentasMostradorClient({
   articulosIniciales: Articulo[],
   vendedorNombre: string 
 }) {
+  // Estados para búsqueda y artículos
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [items, setItems] = useState<ItemVenta[]>([]); 
   const [searchTerm, setSearchTerm] = useState("");
   const [cliente, setCliente] = useState("Consumidor Final");
+
+  // Estados para el formulario de finalización
+  const [metodoPago, setMetodoPago] = useState("Efectivo");
+  const [dni, setDni] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [info, setInfo] = useState("");
+  const [cupon, setCupon] = useState("");
+  const [transaccionId, setTransaccionId] = useState("");
+  const [deCruzada, setDeCruzada] = useState("");
+  const [paraCruzada, setParaCruzada] = useState("");
 
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
@@ -96,19 +109,34 @@ export default function VentasMostradorClient({
   const totalVenta = items.reduce((acc, item) => acc + item.subtotal, 0);
 
   const handleFinalizarVenta = async () => {
+    // Validaciones básicas según el método de pago
+    if (metodoPago === "Tarjeta de Crédito" || metodoPago === "Tarjeta de Débito") {
+      if (!dni || !telefono) {
+        alert("Para pagos con tarjeta, el DNI y el Teléfono son obligatorios.");
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
       const resultado = await crearVentaMostrador({
         cliente,
         vendedor: vendedorNombre,
         total: totalVenta,
-        items: items
+        items: items,
+        metodo_pago: metodoPago,
+        dni,
+        telefono,
+        info,
+        cupon,
+        transaccionId,
+        de: deCruzada,
+        para: paraCruzada
       });
 
       if (resultado.success) {
         alert("¡Venta realizada con éxito!");
-        setItems([]);
-        setCliente("Consumidor Final");
+        resetForm();
       } else {
         alert("Error al guardar la venta: " + resultado.error);
       }
@@ -120,10 +148,23 @@ export default function VentasMostradorClient({
     }
   };
 
+  const resetForm = () => {
+    setItems([]);
+    setCliente("Consumidor Final");
+    setMetodoPago("Efectivo");
+    setDni("");
+    setTelefono("");
+    setInfo("");
+    setCupon("");
+    setTransaccionId("");
+    setDeCruzada("");
+    setParaCruzada("");
+    setIsFinalizarModalOpen(false);
+  };
+
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   return (
-    // select-none evita que aparezca el cursor de texto al hacer clic en el fondo o etiquetas
     <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none">
       {/* HEADER FIJO */}
       <header className="bg-white border-b border-slate-100 px-8 py-3 flex items-center justify-between flex-shrink-0">
@@ -154,7 +195,6 @@ export default function VentasMostradorClient({
                 value={cliente}
                 onChange={(e) => setCliente(e.target.value)}
                 placeholder="Consumidor Final" 
-                // select-text permite que dentro del input el cursor funcione normalmente
                 className="pl-9 h-10 bg-slate-50/50 border-slate-200 select-text" 
               />
               <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -168,7 +208,7 @@ export default function VentasMostradorClient({
           </div>
         </section>
 
-        {/* CONTENEDOR DE TABLA CON SCROLL INTERNO */}
+        {/* CONTENEDOR DE TABLA */}
         <section className="flex-grow flex flex-col min-h-0 gap-4">
           <div className="flex-shrink-0">
             <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl shadow-md transition-all active:scale-95">
@@ -243,23 +283,18 @@ export default function VentasMostradorClient({
         </section>
       </main>
 
-      {/* FOOTER ACCIONES FIJO */}
+      {/* FOOTER ACCIONES */}
       <footer className="bg-white border-t border-slate-100 p-4 flex-shrink-0 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
         <div className="max-w-7xl mx-auto flex justify-end gap-4">
           <Button variant="ghost" onClick={() => setItems([])} disabled={isSubmitting} className="text-slate-500 hover:text-red-500 h-10">
             Descartar Venta
           </Button>
           <Button 
-            onClick={handleFinalizarVenta}
+            onClick={() => setIsFinalizarModalOpen(true)}
             disabled={items.length === 0 || isSubmitting} 
-            className="px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-200 h-10 transition-all disabled:opacity-50"
+            className="px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-200 h-10 transition-all"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Guardando...
-              </>
-            ) : "Finalizar Venta"}
+            Finalizar Venta
           </Button>
         </div>
       </footer>
@@ -281,14 +316,6 @@ export default function VentasMostradorClient({
                 placeholder="Escribe el nombre o ID del repuesto..." 
                 className="pl-12 py-6 bg-slate-50 border-2 border-transparent focus:border-blue-100 focus:bg-white rounded-xl text-base transition-all outline-none select-text"
               />
-              {searchTerm && (
-                <button 
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-4 top-3 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
             </div>
           </div>
 
@@ -312,9 +339,6 @@ export default function VentasMostradorClient({
                     </div>
                     <div className="text-right">
                       <p className="font-medium text-slate-900 text-sm">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
-                      <span className="text-[9px] bg-blue-600 text-white px-2.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-all font-bold">
-                        AÑADIR
-                      </span>
                     </div>
                   </button>
                 ))}
@@ -323,13 +347,113 @@ export default function VentasMostradorClient({
               <div className="h-full flex flex-col items-center justify-center">
                 <Search className="h-10 w-10 text-slate-100 mb-2" />
                 <p className="text-slate-400 text-xs italic">
-                  {searchTerm.length < 2 
-                    ? "Empieza a escribir el nombre del repuesto..." 
-                    : "No se encontraron resultados."}
+                  {searchTerm.length < 2 ? "Empieza a escribir..." : "No se encontraron resultados."}
                 </p>
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL FINALIZAR VENTA (EL NUEVO) */}
+      <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl p-6 select-none">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-blue-600" />
+              Detalles del Cobro
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            {/* Método de Pago */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
+              <select 
+                value={metodoPago}
+                onChange={(e) => setMetodoPago(e.target.value)}
+                className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="Efectivo">Efectivo</option>
+                <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                <option value="Cruzada">Cruzada</option>
+              </select>
+            </div>
+
+            {/* DNI e Info */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">
+                  DNI {(metodoPago.includes("Tarjeta")) && <span className="text-red-500">*</span>}
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Input value={dni} onChange={(e) => setDni(e.target.value)} className="pl-9 select-text" placeholder="DNI cliente" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Teléfono {(metodoPago.includes("Tarjeta")) && <span className="text-red-500">*</span>}</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="pl-9 select-text" placeholder="Celular" />
+                </div>
+              </div>
+            </div>
+
+            {/* Campos Condicionales: Tarjeta */}
+            {(metodoPago === "Tarjeta de Crédito" || metodoPago === "Tarjeta de Débito") && (
+              <div className="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-blue-600 uppercase">N° Cupón</Label>
+                  <Input value={cupon} onChange={(e) => setCupon(e.target.value)} className="bg-white select-text" placeholder="0000" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-blue-600 uppercase">ID Transacción</Label>
+                  <Input value={transaccionId} onChange={(e) => setTransaccionId(e.target.value)} className="bg-white select-text" placeholder="ID Cobro" />
+                </div>
+              </div>
+            )}
+
+            {/* Campos Condicionales: Cruzada */}
+            {metodoPago === "Cruzada" && (
+              <div className="grid grid-cols-2 gap-3 bg-purple-50/50 p-3 rounded-xl border border-purple-100">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-purple-600 uppercase">De</Label>
+                  <Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white select-text" placeholder="Origen" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-purple-600 uppercase">Para</Label>
+                  <Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="bg-white select-text" placeholder="Destino" />
+                </div>
+              </div>
+            )}
+
+            {/* Info adicional (Siempre opcional) */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-500 uppercase">Información Extra</Label>
+              <div className="relative">
+                <FileText className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <Input value={info} onChange={(e) => setInfo(e.target.value)} className="pl-9 select-text" placeholder="Notas de la venta..." />
+              </div>
+            </div>
+
+            <div className="mt-2 p-4 bg-slate-900 rounded-2xl text-white flex justify-between items-center">
+              <span className="text-sm font-medium opacity-70">Total Final</span>
+              <span className="text-xl font-bold">$ {totalVenta.toLocaleString('es-AR')}</span>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-3">
+            <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)} className="rounded-xl">Cancelar</Button>
+            <Button 
+              onClick={handleFinalizarVenta} 
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 rounded-xl font-bold"
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar y Guardar"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

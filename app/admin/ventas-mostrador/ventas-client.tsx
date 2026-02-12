@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
-  Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft, AlertTriangle
+  Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft, AlertTriangle,
+  RefreshCcw, Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,7 @@ export default function VentasMostradorClient({
   const [ventasRealizadas, setVentasRealizadas] = useState<any[]>([]);
   const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split('T')[0]);
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
+  const [showCopyFeedback, setShowCopyFeedback] = useState(false);
 
   useEffect(() => {
     if (showSuccess) {
@@ -83,28 +85,25 @@ export default function VentasMostradorClient({
     cargarVentas(fechaFiltro);
   }, [fechaFiltro]);
 
-  // --- LÓGICA DE BÚSQUEDA MEJORADA ---
+  // Función para copiar texto al portapapeles
+  const copiarAlPortapapeles = (texto: string) => {
+    navigator.clipboard.writeText(texto);
+    setShowCopyFeedback(true);
+    setTimeout(() => setShowCopyFeedback(false), 2000);
+  };
+
+  // --- LÓGICA DE BÚSQUEDA MEJORADA (Búsqueda exacta para números) ---
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
-    
     const queryWords = searchTerm.toLowerCase().trim().split(/\s+/);
-    
     return articulosIniciales.filter(art => {
       const nombreLower = art.nombre.toLowerCase();
       const idLower = art.id.toLowerCase();
-
-      // Cada palabra de la búsqueda debe cumplir su condición
       return queryWords.every(word => {
-        // Si la palabra es puramente numérica (ej: "38")
         if (/^\d+$/.test(word)) {
-          // Usamos una Expresión Regular para asegurar que el número esté "solo"
-          // Esto evita que "38" coincida con "238", "380" o "28"
-          // Pero permite que coincida en "Keihin 38", "K-38" o "ART38"
           const regexNumerico = new RegExp(`(?:^|[^0-9])${word}(?:[^0-9]|$)`);
           return regexNumerico.test(nombreLower) || regexNumerico.test(idLower);
         }
-        
-        // Si es texto (ej: "kei"), mantenemos la flexibilidad del 'includes'
         return nombreLower.includes(word) || idLower.includes(word);
       });
     }).slice(0, 15);
@@ -138,14 +137,11 @@ export default function VentasMostradorClient({
       alert("Para pagos con tarjeta, el DNI y el Teléfono son obligatorios.");
       return;
     }
-
     if (metodoPago === "Cruzada" && (!deCruzada || !paraCruzada)) {
       alert("Para ventas cruzadas, los campos 'De' y 'Para' son obligatorios.");
       return;
     }
-
     const clienteFinal = (metodoPago !== "Efectivo" && metodoPago !== "Transferencia") ? dni : cliente;
-
     try {
       setIsSubmitting(true);
       const resultado = await crearVentaMostrador({
@@ -156,7 +152,6 @@ export default function VentasMostradorClient({
         metodo_pago: metodoPago,
         dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada
       });
-
       if (resultado.success) {
         setShowSuccess(true);
         resetForm();
@@ -183,6 +178,15 @@ export default function VentasMostradorClient({
   return (
     <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none relative">
       
+      {/* Feedback de Copiado */}
+      {showCopyFeedback && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="bg-slate-800 text-white text-[10px] px-3 py-1 rounded-full shadow-lg border border-slate-700 flex items-center gap-2">
+            <Copy className="h-3 w-3 text-blue-400" /> ¡Copiado!
+          </div>
+        </div>
+      )}
+
       {showSuccess && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="bg-green-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-green-500">
@@ -217,6 +221,7 @@ export default function VentasMostradorClient({
         </div>
 
         <TabsContent value="registrar" className="flex-grow flex flex-col overflow-hidden m-0">
+          {/* ... Mismo contenido del panel de registro ... */}
           <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
             <section className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col md:flex-row gap-6 items-end shadow-sm flex-shrink-0">
               <div className="flex-grow space-y-1.5 max-w-md">
@@ -281,7 +286,6 @@ export default function VentasMostradorClient({
               </div>
             </section>
           </main>
-
           <footer className="bg-white border-t border-slate-100 p-4 flex-shrink-0 shadow-lg">
             <div className="max-w-7xl mx-auto flex justify-end gap-4">
               <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(true)} className="text-slate-500 hover:text-red-500">Descartar Venta</Button>
@@ -293,20 +297,32 @@ export default function VentasMostradorClient({
         <TabsContent value="listado" className="flex-grow flex flex-col overflow-hidden m-0">
           <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
             <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <div className="space-y-1">
                   <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtrar por Fecha</Label>
-                  <div className="relative">
-                    <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                    <Input 
-                      type="date" 
-                      value={fechaFiltro} 
-                      onChange={(e) => setFechaFiltro(e.target.value)}
-                      className="pl-9 h-10 w-48 bg-slate-50 border-slate-200 cursor-pointer" 
-                    />
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                      <Input 
+                        type="date" 
+                        value={fechaFiltro} 
+                        onChange={(e) => setFechaFiltro(e.target.value)}
+                        className="pl-9 h-10 w-48 bg-slate-50 border-slate-200 cursor-pointer" 
+                      />
+                    </div>
+                    {/* BOTÓN ACTUALIZAR */}
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      onClick={() => cargarVentas(fechaFiltro)}
+                      className={`rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all ${isLoadingVentas ? 'bg-slate-50' : ''}`}
+                      title="Actualizar listado"
+                      disabled={isLoadingVentas}
+                    >
+                      <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
+                    </Button>
                   </div>
                 </div>
-                {isLoadingVentas && <Loader2 className="h-5 w-5 animate-spin text-blue-600 mt-5" />}
               </div>
               <div className="text-right">
                 <p className="text-[10px] text-slate-400 font-bold uppercase">Total del Día</p>
@@ -342,12 +358,26 @@ export default function VentasMostradorClient({
                           <TableCell className="py-4">
                             <div className="flex flex-col gap-1.5 min-w-[250px]">
                               {v.items?.map((item: any) => (
-                                <div key={item.id} className="text-[11px] bg-slate-50 p-1.5 rounded border border-slate-100 flex flex-col">
+                                <div key={item.id} className="text-[11px] bg-slate-50 p-1.5 rounded border border-slate-100 flex flex-col group relative">
                                   <div className="flex justify-between items-start gap-2">
-                                    <span className="font-bold text-slate-800 uppercase">{item.nombre}</span>
+                                    {/* CLIC PARA COPIAR NOMBRE */}
+                                    <span 
+                                      onClick={() => copiarAlPortapapeles(item.nombre)}
+                                      className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors"
+                                      title="Click para copiar nombre"
+                                    >
+                                      {item.nombre}
+                                    </span>
                                     <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-black">x{item.cantidad}</span>
                                   </div>
-                                  <span className="text-[9px] text-slate-400 font-mono tracking-tighter">ID: {item.productoId || 'N/A'}</span>
+                                  {/* CLIC PARA COPIAR ID */}
+                                  <span 
+                                    onClick={() => copiarAlPortapapeles(item.productoId || 'N/A')}
+                                    className="text-[9px] text-slate-400 font-mono tracking-tighter cursor-pointer hover:text-blue-500 transition-colors"
+                                    title="Click para copiar ID"
+                                  >
+                                    ID: {item.productoId || 'N/A'}
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -379,7 +409,7 @@ export default function VentasMostradorClient({
         </TabsContent>
       </Tabs>
 
-      {/* --- MODAL: BUSCADOR --- */}
+      {/* --- MODALES (BUSCADOR, COBRO, DESCARTAR) --- */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="p-6 bg-white border-b relative">
@@ -388,7 +418,7 @@ export default function VentasMostradorClient({
             </DialogTitle>
             <div className="relative">
               <Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" />
-              <Input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre o ID..." className="pl-12 py-6 bg-slate-50 border-2 rounded-xl text-base" />
+              <input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre o ID..." className="flex h-12 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-12 py-6 text-base outline-none focus:border-blue-500 transition-all" />
             </div>
           </div>
           <div className="h-[500px] overflow-y-auto p-4 bg-white">
@@ -396,7 +426,7 @@ export default function VentasMostradorClient({
               <button key={prod.id} onClick={() => agregarProductoAVenta(prod)} className="w-full flex items-center justify-between p-3.5 hover:bg-blue-50/50 rounded-xl group transition-all mb-2 border border-transparent hover:border-blue-100">
                 <div className="flex items-center gap-4">
                   <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
-                  <div>
+                  <div className="text-left">
                     <p className="font-bold text-slate-900 leading-tight">{prod.nombre}</p>
                     <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id} • Stock: {prod.stock}</p>
                   </div>
@@ -408,7 +438,6 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* --- MODAL: CONFIRMACIÓN COBRO --- */}
       <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
         <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
           <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
@@ -424,6 +453,7 @@ export default function VentasMostradorClient({
               </select>
             </div>
 
+            {/* CAMPOS TARJETA / CRUZADA (Se mantienen de la versión anterior) */}
             {(metodoPago.includes("Tarjeta")) && (
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
                 <div className="space-y-2">
@@ -441,17 +471,11 @@ export default function VentasMostradorClient({
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-amber-700 uppercase">De <span className="text-red-500">*</span></Label>
-                  <div className="relative">
-                    <ArrowRightLeft className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
-                    <Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="pl-9 bg-white border-amber-200" placeholder="Origen" />
-                  </div>
+                  <div className="relative"><ArrowRightLeft className="absolute left-3 top-3 h-4 w-4 text-amber-400" /><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="pl-9 bg-white border-amber-200" placeholder="Origen" /></div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-amber-700 uppercase">Para <span className="text-red-500">*</span></Label>
-                  <div className="relative">
-                    <ArrowRightLeft className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
-                    <Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="pl-9 bg-white border-amber-200" placeholder="Destino" />
-                  </div>
+                  <div className="relative"><ArrowRightLeft className="absolute left-3 top-3 h-4 w-4 text-amber-400" /><Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="pl-9 bg-white border-amber-200" placeholder="Destino" /></div>
                 </div>
               </div>
             )}
@@ -488,17 +512,12 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* --- MODAL: CONFIRMACIÓN DESCARTAR --- */}
       <Dialog open={isConfirmDiscardOpen} onOpenChange={setIsConfirmDiscardOpen}>
         <DialogContent className="sm:max-w-[400px] rounded-3xl p-6">
           <DialogHeader>
-            <div className="mx-auto bg-red-100 text-red-600 p-3 rounded-full w-fit mb-4">
-              <AlertTriangle className="h-6 w-6" />
-            </div>
+            <div className="mx-auto bg-red-100 text-red-600 p-3 rounded-full w-fit mb-4"><AlertTriangle className="h-6 w-6" /></div>
             <DialogTitle className="text-center text-xl font-bold">¿Descartar Venta?</DialogTitle>
-            <DialogDescription className="text-center text-slate-500">
-              Esta acción borrará todos los artículos cargados actualmente. No se puede deshacer.
-            </DialogDescription>
+            <DialogDescription className="text-center text-slate-500">Esta acción borrará todos los artículos cargados actualmente.</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col sm:flex-row gap-3 mt-4">
             <Button variant="outline" onClick={() => setIsConfirmDiscardOpen(false)} className="w-full sm:w-1/2 rounded-xl">Mantener Venta</Button>

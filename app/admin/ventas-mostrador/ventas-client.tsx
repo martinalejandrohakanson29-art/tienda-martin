@@ -42,7 +42,7 @@ export default function VentasMostradorClient({
   // --- ESTADOS REGISTRAR VENTA ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
-  const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false); // <--- Nuevo: Confirmación descarte
+  const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false); 
   const [items, setItems] = useState<ItemVenta[]>([]); 
@@ -83,13 +83,30 @@ export default function VentasMostradorClient({
     cargarVentas(fechaFiltro);
   }, [fechaFiltro]);
 
+  // --- LÓGICA DE BÚSQUEDA MEJORADA ---
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
-    const palabras = searchTerm.toLowerCase().trim().split(/\s+/);
+    
+    const queryWords = searchTerm.toLowerCase().trim().split(/\s+/);
+    
     return articulosIniciales.filter(art => {
       const nombreLower = art.nombre.toLowerCase();
       const idLower = art.id.toLowerCase();
-      return palabras.every(p => nombreLower.includes(p) || idLower.includes(p));
+
+      // Cada palabra de la búsqueda debe cumplir su condición
+      return queryWords.every(word => {
+        // Si la palabra es puramente numérica (ej: "38")
+        if (/^\d+$/.test(word)) {
+          // Usamos una Expresión Regular para asegurar que el número esté "solo"
+          // Esto evita que "38" coincida con "238", "380" o "28"
+          // Pero permite que coincida en "Keihin 38", "K-38" o "ART38"
+          const regexNumerico = new RegExp(`(?:^|[^0-9])${word}(?:[^0-9]|$)`);
+          return regexNumerico.test(nombreLower) || regexNumerico.test(idLower);
+        }
+        
+        // Si es texto (ej: "kei"), mantenemos la flexibilidad del 'includes'
+        return nombreLower.includes(word) || idLower.includes(word);
+      });
     }).slice(0, 15);
   }, [searchTerm, articulosIniciales]);
 
@@ -117,19 +134,16 @@ export default function VentasMostradorClient({
   const totalVenta = items.reduce((acc, item) => acc + item.subtotal, 0);
 
   const handleFinalizarVenta = async () => {
-    // Validación para Tarjetas
     if ((metodoPago.includes("Tarjeta")) && (!dni || !telefono)) {
       alert("Para pagos con tarjeta, el DNI y el Teléfono son obligatorios.");
       return;
     }
 
-    // Validación para Venta Cruzada
     if (metodoPago === "Cruzada" && (!deCruzada || !paraCruzada)) {
       alert("Para ventas cruzadas, los campos 'De' y 'Para' son obligatorios.");
       return;
     }
 
-    // Lógica de Cliente: Si NO es Efectivo o Transferencia, usamos el DNI como nombre de cliente
     const clienteFinal = (metodoPago !== "Efectivo" && metodoPago !== "Transferencia") ? dni : cliente;
 
     try {
@@ -403,13 +417,13 @@ export default function VentasMostradorClient({
               <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
               <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
                 <option value="Efectivo">Efectivo</option>
-               <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                <option value="Transferencia">Transferencia</option>
+                <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                 <option value="Tarjeta de Débito">Tarjeta de Débito</option>
                 <option value="Cruzada">Cruzada</option>
               </select>
             </div>
 
-            {/* CAMPOS PARA TARJETA */}
             {(metodoPago.includes("Tarjeta")) && (
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300">
                 <div className="space-y-2">
@@ -423,7 +437,6 @@ export default function VentasMostradorClient({
               </div>
             )}
 
-            {/* CAMPOS PARA VENTA CRUZADA */}
             {metodoPago === "Cruzada" && (
               <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-1 duration-300 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
                 <div className="space-y-2">
@@ -475,7 +488,7 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* --- MODAL: CONFIRMACIÓN DESCARTAR (NUEVO) --- */}
+      {/* --- MODAL: CONFIRMACIÓN DESCARTAR --- */}
       <Dialog open={isConfirmDiscardOpen} onOpenChange={setIsConfirmDiscardOpen}>
         <DialogContent className="sm:max-w-[400px] rounded-3xl p-6">
           <DialogHeader>

@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { 
-  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, Calendar as CalendarIcon, ClipboardList
+  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, Calendar as CalendarIcon, ClipboardList, CheckCircle2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,7 @@ export default function VentasMostradorClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false); // <--- Nuevo estado para animación
   const [items, setItems] = useState<ItemVenta[]>([]); 
   const [searchTerm, setSearchTerm] = useState("");
   const [cliente, setCliente] = useState("Consumidor Final");
@@ -59,6 +60,14 @@ export default function VentasMostradorClient({
   const [ventasRealizadas, setVentasRealizadas] = useState<any[]>([]);
   const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split('T')[0]);
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
+
+  // Efecto para ocultar el mensaje de éxito automáticamente
+  useEffect(() => {
+    if (showSuccess) {
+      const timer = setTimeout(() => setShowSuccess(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccess]);
 
   // Cargar ventas cuando cambia la fecha o la pestaña
   const cargarVentas = async (fecha: string) => {
@@ -122,9 +131,9 @@ export default function VentasMostradorClient({
       });
 
       if (resultado.success) {
-        alert("¡Venta realizada con éxito!");
+        setShowSuccess(true); // <--- Activamos la animación
         resetForm();
-        cargarVentas(fechaFiltro); // Recargar el listado automáticamente
+        cargarVentas(fechaFiltro);
       } else {
         alert("Error al guardar: " + resultado.error);
       }
@@ -144,7 +153,18 @@ export default function VentasMostradorClient({
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none">
+    <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none relative">
+      
+      {/* MENSAJE DE ÉXITO ANIMADO */}
+      {showSuccess && (
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-green-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-green-500">
+            <CheckCircle2 className="h-5 w-5" />
+            <span className="font-bold">¡Venta registrada con éxito!</span>
+          </div>
+        </div>
+      )}
+
       {/* HEADER FIJO */}
       <header className="bg-white border-b border-slate-100 px-8 py-3 flex items-center justify-between flex-shrink-0 z-20">
         <div className="flex items-center gap-3">
@@ -279,6 +299,7 @@ export default function VentasMostradorClient({
                     <TableRow>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Artículos Vendidos</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Vendedor</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total</TableHead>
@@ -286,23 +307,36 @@ export default function VentasMostradorClient({
                   </TableHeader>
                   <TableBody>
                     {ventasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">No se encontraron ventas para esta fecha</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="py-20 text-center text-slate-400 italic">No se encontraron ventas para esta fecha</TableCell></TableRow>
                     ) : (
                       ventasRealizadas.map((v) => (
-                        <TableRow key={v.id} className="hover:bg-slate-50/50">
-                          <TableCell className="text-xs font-mono text-slate-500">
+                        <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
+                          <TableCell className="text-xs font-mono text-slate-500 py-4">
                             {new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                           </TableCell>
-                          <TableCell className="font-medium text-slate-700">{v.cliente}</TableCell>
-                          <TableCell className="text-slate-600 text-sm">{v.vendedor}</TableCell>
-                          <TableCell>
+                          <TableCell className="font-medium text-slate-700 py-4">{v.cliente}</TableCell>
+                          <TableCell className="py-4">
+                            <div className="flex flex-col gap-1.5 min-w-[250px]">
+                              {v.items?.map((item: any) => (
+                                <div key={item.id} className="text-[11px] bg-slate-50 p-1.5 rounded border border-slate-100 flex flex-col">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <span className="font-bold text-slate-800 uppercase">{item.nombre}</span>
+                                    <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-black">x{item.cantidad}</span>
+                                  </div>
+                                  <span className="text-[9px] text-slate-400 font-mono tracking-tighter">ID: {item.productoId || 'N/A'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-slate-600 text-sm py-4">{v.vendedor}</TableCell>
+                          <TableCell className="py-4">
                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
                               v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
                             }`}>
                               {v.metodo_pago}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-bold text-slate-900">
+                          <TableCell className="text-right font-bold text-slate-900 py-4">
                             $ {v.total.toLocaleString('es-AR')}
                           </TableCell>
                         </TableRow>
@@ -316,7 +350,7 @@ export default function VentasMostradorClient({
         </TabsContent>
       </Tabs>
 
-      {/* MODALES EXISTENTES (BÚSQUEDA Y FINALIZAR) */}
+      {/* MODALES EXISTENTES */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="p-6 bg-white border-b relative">

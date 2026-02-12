@@ -17,7 +17,6 @@ export async function obtenerTodosLosArticulos() {
   }
 }
 
-// Función para obtener ventas por fecha con sus ítems
 export async function obtenerVentasPorFecha(fechaStr: string) {
   try {
     const inicioDia = new Date(fechaStr);
@@ -52,6 +51,20 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
   } catch (error) {
     console.error("Error al obtener ventas:", error);
     return { success: false, error: "Error al cargar el listado" };
+  }
+}
+
+// NUEVA FUNCIÓN: Para marcar como registrada
+export async function marcarVentaComoRegistrada(id: string) {
+  try {
+    await prisma.venta.update({
+      where: { id },
+      data: { registrada: true }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al marcar venta:", error);
+    return { success: false, error: "No se pudo actualizar la venta" };
   }
 }
 

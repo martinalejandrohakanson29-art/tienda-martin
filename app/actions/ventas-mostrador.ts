@@ -17,12 +17,50 @@ export async function obtenerTodosLosArticulos() {
   }
 }
 
+// Nueva función para obtener ventas por fecha
+export async function obtenerVentasPorFecha(fechaStr: string) {
+  try {
+    const inicioDia = new Date(fechaStr);
+    inicioDia.setHours(0, 0, 0, 0);
+
+    const finDia = new Date(fechaStr);
+    finDia.setHours(23, 59, 59, 999);
+
+    const ventas = await prisma.venta.findMany({
+      where: {
+        createdAt: {
+          gte: inicioDia,
+          lte: finDia,
+        },
+      },
+      include: {
+        items: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Formateamos para que el cliente reciba datos serializables
+    return { 
+      success: true, 
+      data: ventas.map(v => ({
+        ...v,
+        total: Number(v.total),
+        createdAt: v.createdAt.toISOString()
+      })) 
+    };
+  } catch (error) {
+    console.error("Error al obtener ventas:", error);
+    return { success: false, error: "Error al cargar el listado" };
+  }
+}
+
 export async function crearVentaMostrador(data: {
   cliente: string,
   vendedor: string,
   total: number,
   items: any[],
-  // Agregamos los nuevos campos aquí
   metodo_pago: string,
   dni?: string,
   telefono?: string,
@@ -39,7 +77,6 @@ export async function crearVentaMostrador(data: {
         vendedor: data.vendedor,
         total: data.total,
         metodo_pago: data.metodo_pago,
-        // Guardamos los nuevos campos
         dni: data.dni,
         telefono: data.telefono,
         info: data.info,

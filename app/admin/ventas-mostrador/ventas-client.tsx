@@ -63,6 +63,21 @@ export default function VentasMostradorClient({
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
 
+  // --- NUEVA MODIFICACIÓN: ATAJO DE TECLADO "+" ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Si se presiona la tecla "+" y el buscador NO está abierto ya
+      if (e.key === "+" && !isModalOpen) {
+        // Evitamos que el "+" se escriba en cualquier input que tenga el foco
+        e.preventDefault();
+        setIsModalOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isModalOpen]);
+
   useEffect(() => {
     if (showSuccess) {
       const timer = setTimeout(() => setShowSuccess(false), 3000);
@@ -90,13 +105,11 @@ export default function VentasMostradorClient({
   };
 
   const handleMarcarRegistrada = async (id: string) => {
-    // Marcamos localmente primero para que la respuesta sea instantánea
     setVentasRealizadas(prev => prev.map(v => v.id === id ? { ...v, registrada: true } : v));
-    
     const res = await marcarVentaComoRegistrada(id);
     if (!res.success) {
       alert("No se pudo actualizar en la base de datos");
-      cargarVentas(fechaFiltro); // Recargamos si falló
+      cargarVentas(fechaFiltro);
     }
   };
 
@@ -346,7 +359,6 @@ export default function VentasMostradorClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Vendedor</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total</TableHead>
-                      {/* NUEVA COLUMNA CABECERA */}
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-32">Registrada</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -390,7 +402,6 @@ export default function VentasMostradorClient({
                             }`}>
                               {v.metodo_pago}
                             </span>
-                            {/* LETRA AGRANDADA DE -> PARA */}
                             {v.metodo_pago === 'Cruzada' && v.de && (
                               <div className="text-[13px] mt-2 text-slate-600 font-black italic bg-amber-50 p-1 px-2 rounded-lg border border-amber-100">
                                 {v.de} → {v.para}
@@ -400,7 +411,6 @@ export default function VentasMostradorClient({
                           <TableCell className="text-right font-bold text-slate-900 py-4">
                             $ {v.total.toLocaleString('es-AR')}
                           </TableCell>
-                          {/* NUEVA COLUMNA CELDA: TILDE PERMANENTE */}
                           <TableCell className="py-4 text-center">
                             <button
                               disabled={v.registrada}
@@ -443,8 +453,14 @@ export default function VentasMostradorClient({
                 <div className="flex items-center gap-4">
                   <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                   <div className="text-left">
-                    <p className="font-bold text-slate-900 leading-tight">{prod.nombre}</p>
-                    <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id} • Stock: {prod.stock}</p>
+                    {/* --- MODIFICACIÓN: STOCK JUNTO AL TÍTULO --- */}
+                    <p className="font-bold text-slate-900 leading-tight">
+                      {prod.nombre} 
+                      <span className="ml-2 font-normal text-slate-500 text-xs italic font-serif">
+                        (Stock: {prod.stock})
+                      </span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id}</p>
                   </div>
                 </div>
                 <p className="font-medium text-slate-900">$ {prod.precio.toLocaleString('es-AR')}</p>

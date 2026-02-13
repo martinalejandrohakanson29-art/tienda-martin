@@ -233,9 +233,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 w-full">
             {/* Tabs fijas compactas */}
-            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[80px] z-10 shadow-sm border border-slate-200">
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[80px] z-10 shadow-sm border border-slate-200 w-full">
                 <button 
                     onClick={() => setActiveTab('pendientes')}
                     className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'pendientes' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
@@ -255,8 +255,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </button>
             </div>
 
-            {/* SECCIÓN DEL BUSCADOR MEJORADA: Tarjeta completa alineada */}
-            <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-md flex gap-2 items-center">
+            {/* SECCIÓN DEL BUSCADOR: Padding ajustado a p-4 para igualar las tarjetas */}
+            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-md flex gap-2 items-center w-full">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                     <Input 
@@ -281,7 +281,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             </div>
 
             {/* Listado de Pedidos */}
-            <div className="grid gap-3">
+            <div className="grid gap-3 w-full">
                 {filtered.length === 0 && (
                     <div className="text-center py-10 text-slate-400">
                         <Package className="h-10 w-10 mx-auto mb-2 opacity-20" />
@@ -293,10 +293,10 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     const tieneFoto = Boolean(envio.drivePhotoUrl);
                     
                     return (
-                        <div key={envio.id} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-md">
+                        <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-md w-full overflow-hidden">
                             <div className="flex justify-between items-start mb-2">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
+                                <div className="space-y-1 overflow-hidden">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <span className="bg-orange-100 text-orange-700 text-[11px] font-black px-2 py-0.5 rounded-md flex items-center gap-1">
                                             <Hash className="h-3 w-3" />
                                             ORDEN: {envio.orderId || 'S/N'}
@@ -310,7 +310,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                             </span>
                                         )}
                                     </div>
-                                    <h3 className="text-base font-bold text-slate-900 leading-tight">
+                                    <h3 className="text-base font-bold text-slate-900 leading-tight truncate">
                                         {renderTextWithQuantity(envio.resumen)}
                                     </h3>
                                 </div>
@@ -339,7 +339,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                     const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
                                     
                                     return (
-                                        <div key={item.id} className="flex items-center justify-between gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100">
+                                        <div key={item.id} className="flex items-center justify-between gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100 overflow-hidden">
                                             <div className="flex-1 flex flex-col gap-1.5 overflow-hidden">
                                                 {nombres.map((nombre: string, idx: number) => (
                                                     <div key={idx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>

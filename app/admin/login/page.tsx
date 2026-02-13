@@ -33,9 +33,7 @@ export default function LoginPage() {
                 setError("Credenciales inválidas. Intenta de nuevo.")
                 setLoading(false)
             } else {
-                // 👇 AQUÍ ESTÁ EL CAMBIO MÁGICO
-                // En lugar de usar el router de Next.js, forzamos una navegación nativa.
-                // Esto "limpia" la pantalla y asegura que el admin cargue perfecto.
+                // Forzamos la navegación para que el navegador detecte el éxito del login
                 window.location.href = "/admin"
             }
         } catch (err) {
@@ -67,7 +65,9 @@ export default function LoginPage() {
                             <Label htmlFor="username">Usuario</Label>
                             <Input 
                                 id="username" 
+                                name="username" // 👈 Clave para Chrome
                                 type="text" 
+                                autoComplete="username" // 👈 Clave para Chrome
                                 placeholder="Tu usuario de admin"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
@@ -78,7 +78,9 @@ export default function LoginPage() {
                             <Label htmlFor="password">Contraseña</Label>
                             <Input 
                                 id="password" 
+                                name="password" // 👈 Clave para Chrome
                                 type="password" 
+                                autoComplete="current-password" // 👈 Clave para Chrome
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}

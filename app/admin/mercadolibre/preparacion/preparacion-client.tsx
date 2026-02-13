@@ -295,7 +295,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     return (
                         <div key={envio.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-md w-full overflow-hidden">
                             <div className="flex justify-between items-start mb-2">
-                                <div className="space-y-1 overflow-hidden">
+                                <div className="space-y-1 overflow-hidden w-full">
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="bg-orange-100 text-orange-700 text-[11px] font-black px-2 py-0.5 rounded-md flex items-center gap-1">
                                             <Hash className="h-3 w-3" />
@@ -310,7 +310,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                             </span>
                                         )}
                                     </div>
-                                    <h3 className="text-base font-bold text-slate-900 leading-tight truncate">
+                                    {/* SE ELIMINÓ 'truncate' PARA MOSTRAR TÍTULO COMPLETO */}
+                                    <h3 className="text-base font-bold text-slate-900 leading-tight">
                                         {renderTextWithQuantity(envio.resumen)}
                                     </h3>
                                 </div>
@@ -344,7 +345,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                                 {nombres.map((nombre: string, idx: number) => (
                                                     <div key={idx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(idx)}`}>
                                                         <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
-                                                        <span className="truncate">{renderTextWithQuantity(nombre)}</span>
+                                                        {/* SE ELIMINÓ 'truncate' PARA MOSTRAR TÍTULO COMPLETO */}
+                                                        <span className="break-words">{renderTextWithQuantity(nombre)}</span>
                                                     </div>
                                                 ))}
                                             </div>

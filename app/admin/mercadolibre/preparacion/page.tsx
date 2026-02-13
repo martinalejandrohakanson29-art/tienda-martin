@@ -1,29 +1,30 @@
 // app/admin/mercadolibre/preparacion/page.tsx
 import { getEtiquetasML } from "@/app/actions/envios"
 import { PreparacionClient } from "./preparacion-client"
-import { Button } from "@/components/ui/button" // Importamos el botón
-import { ArrowLeft } from "lucide-react" // Importamos el icono de volver
-import Link from "next/link" // Importamos Link para la navegación
+import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
+import Link from "next/link"
 
 export default async function PreparacionPage() {
     const { data: envios } = await getEtiquetasML();
 
     return (
         <div className="min-h-screen bg-slate-50 pb-20">
-            {/* Header actualizado con botón Volver */}
-            <div className="p-3 bg-white border-b sticky top-0 z-10 shadow-sm flex items-center gap-4">
+            {/* Encabezado con botón Volver */}
+            <div className="p-4 bg-white border-b sticky top-0 z-20 shadow-sm flex items-center gap-4">
                 <Link href="/admin/mercadolibre">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <ArrowLeft className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-slate-100">
+                        <ArrowLeft className="h-5 w-5 text-slate-600" />
                     </Button>
                 </Link>
-                <div className="flex flex-col gap-0.5">
-                    <h1 className="text-lg font-bold text-slate-800">Preparación de Pedidos</h1>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Revolución Motos - Auditoría</p>
+                <div className="flex flex-col">
+                    <h1 className="text-xl font-bold text-slate-800">Preparación de Pedidos</h1>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Revolución Motos - Auditoría</p>
                 </div>
             </div>
             
-            <div className="p-3">
+            {/* Contenedor centrado y alineado */}
+            <div className="max-w-3xl mx-auto p-4 md:p-6">
                 <PreparacionClient initialEnvios={envios || []} />
             </div>
         </div>

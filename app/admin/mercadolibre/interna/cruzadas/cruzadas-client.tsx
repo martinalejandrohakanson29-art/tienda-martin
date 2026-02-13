@@ -12,8 +12,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button"; // Importar Button
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { ImageIcon, ExternalLink } from "lucide-react"; // Iconos
 
 interface Transferencia {
   id: string;
@@ -22,6 +24,7 @@ interface Transferencia {
   receptorImagen: string | null;
   deTexto: string | null;
   paraTexto: string | null;
+  imageUrl: string | null; // <--- Añadido a la interfaz
   procesada: boolean;
   createdAt: string;
 }
@@ -31,12 +34,10 @@ export default function CruzadasClient({ initialData }: { initialData: Transfere
   const [selectedDate, setSelectedDate] = useState("");
 
   const filteredData = initialData.filter((item) => {
-    // Buscador por receptor (imagen o texto)
     const matchesSearch = 
       (item.receptorImagen?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
       (item.paraTexto?.toLowerCase() || "").includes(searchTerm.toLowerCase());
     
-    // Filtro por fecha (formato YYYY-MM-DD)
     const itemDate = format(new Date(item.createdAt), "yyyy-MM-dd");
     const matchesDate = selectedDate ? itemDate === selectedDate : true;
 
@@ -77,6 +78,7 @@ export default function CruzadasClient({ initialData }: { initialData: Transfere
               <TableHead>Receptor (IA / Texto)</TableHead>
               <TableHead>Emisor (IA / Texto)</TableHead>
               <TableHead>Monto</TableHead>
+              <TableHead>Comprobante</TableHead> {/* NUEVA COLUMNA */}
               <TableHead>Estado</TableHead>
             </TableRow>
           </TableHeader>
@@ -99,6 +101,21 @@ export default function CruzadasClient({ initialData }: { initialData: Transfere
                     ${Number(item.monto).toLocaleString("es-AR")}
                   </TableCell>
                   <TableCell>
+                    {item.imageUrl ? (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex gap-2"
+                        onClick={() => window.open(item.imageUrl!, "_blank")}
+                      >
+                        <ImageIcon className="w-4 h-4" />
+                        Ver Foto
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-gray-400">Sin foto</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     {item.procesada ? (
                       <Badge variant="outline" className="bg-green-100 text-green-800">Procesada</Badge>
                     ) : (
@@ -109,7 +126,7 @@ export default function CruzadasClient({ initialData }: { initialData: Transfere
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                   No se encontraron transferencias con esos filtros.
                 </TableCell>
               </TableRow>

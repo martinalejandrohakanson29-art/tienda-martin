@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft, AlertTriangle,
-  RefreshCcw, Copy, Square, CheckSquare, Percent
+  RefreshCcw, Copy, Square, CheckSquare, Percent, Hash
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,10 +149,8 @@ export default function VentasMostradorClient({
 
   const totalBase = items.reduce((acc, item) => acc + item.subtotal, 0);
   
-  // Cálculo de total final (solo aplica interés si es Tarjeta de Crédito)
-  const totalConInteres = metodoPago === "Tarjeta de Crédito" 
-    ? totalBase * (1 + (interesTarjeta / 100))
-    : totalBase;
+  // Cálculo de total final (Se aplica para el visualizador si hay interés seteado)
+  const totalConInteres = totalBase * (1 + (interesTarjeta / 100));
 
   const handleFinalizarVenta = async () => {
     if (metodoPago.includes("Tarjeta")) {
@@ -178,7 +176,7 @@ export default function VentasMostradorClient({
         vendedor: vendedorNombre, 
         total: totalBase,
         interes: metodoPago === "Tarjeta de Crédito" ? interesTarjeta : 0,
-        totalFinal: totalConInteres,
+        totalFinal: metodoPago === "Tarjeta de Crédito" ? totalConInteres : totalBase,
         items, 
         metodo_pago: metodoPago,
         dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada
@@ -261,7 +259,6 @@ export default function VentasMostradorClient({
                 </div>
               </div>
 
-              {/* NUEVO: Campo de interés tarjeta */}
               <div className="space-y-1.5 w-32">
                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">% Int. Tarjeta</Label>
                 <div className="relative">
@@ -277,7 +274,12 @@ export default function VentasMostradorClient({
 
               <div className="flex-shrink-0 ml-auto text-right">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Total a Cobrar</span>
-                <span className="text-3xl font-black text-slate-900 tracking-tighter">$ {totalBase.toLocaleString('es-AR')}</span>
+                <span className="text-3xl font-black text-slate-900 tracking-tighter">
+                  $ {totalConInteres.toLocaleString('es-AR')}
+                </span>
+                {interesTarjeta > 0 && (
+                  <p className="text-[10px] text-slate-400 font-bold">Base: $ {totalBase.toLocaleString('es-AR')}</p>
+                )}
               </div>
             </section>
 
@@ -381,17 +383,18 @@ export default function VentasMostradorClient({
                     <TableRow>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-3">Artículos Vendidos</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Artículos</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-3">Observaciones</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">N° Cupón</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">ID Trans.</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Base</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total + Int.</TableHead>
-                      <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-32">Reg.</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
+                      <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-20">Reg.</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ventasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">No se encontraron ventas</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">No se encontraron ventas</TableCell></TableRow>
                     ) : (
                       ventasRealizadas.map((v) => (
                         <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
@@ -418,21 +421,20 @@ export default function VentasMostradorClient({
                               {v.metodo_pago}
                             </span>
                             {v.metodo_pago === 'Cruzada' && v.de && (
-                              <div className="text-[12px] mt-2 text-slate-600 font-black italic bg-amber-50 p-1 px-2 rounded-lg border border-amber-100 flex items-center gap-1">
+                              <div className="text-[11px] mt-2 text-slate-600 font-black italic bg-amber-50 p-1 px-2 rounded-lg border border-amber-100 flex items-center gap-1">
                                 <span onClick={() => copiarAlPortapapeles(v.de)} className="cursor-pointer hover:text-blue-600 transition-colors">{v.de}</span>
                                 <span className="text-amber-400">→</span>
                                 <span onClick={() => copiarAlPortapapeles(v.para)} className="cursor-pointer hover:text-blue-600 transition-colors">{v.para}</span>
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-slate-500 text-[11px] py-4 max-w-[150px] break-words">
-                            {v.info || "-"}
-                          </TableCell>
+                          <TableCell className="py-4 text-xs font-mono text-slate-600">{v.cupon || "-"}</TableCell>
+                          <TableCell className="py-4 text-xs font-mono text-slate-600">{v.transaccionId || "-"}</TableCell>
                           <TableCell className="text-right font-medium text-slate-400 py-4">
                             $ {v.total.toLocaleString('es-AR')}
                           </TableCell>
                           <TableCell className="text-right font-black text-slate-900 py-4">
-                            {v.metodo_pago === "Tarjeta de Crédito" ? `$ ${v.totalFinal.toLocaleString('es-AR')}` : "-"}
+                            $ {(v.totalFinal || v.total).toLocaleString('es-AR')}
                           </TableCell>
                           <TableCell className="py-4 text-center">
                             <button
@@ -550,7 +552,6 @@ export default function VentasMostradorClient({
               <div className="relative"><FileText className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={info} onChange={(e) => setInfo(e.target.value)} className="pl-9" placeholder="Notas adicionales..." /></div>
             </div>
 
-            {/* Visualización de Totales */}
             <div className="mt-2 space-y-2">
               <div className="p-3 bg-slate-100 rounded-xl text-slate-600 flex justify-between items-center text-sm">
                 <span>Total Base</span>

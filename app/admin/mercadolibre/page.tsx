@@ -9,7 +9,7 @@ import {
   PackageCheck,
   BarChart3,
   LineChart,
-  ClipboardCheck // Nuevo icono para preparación
+  ClipboardCheck
 } from "lucide-react";
 import Link from "next/link";
 
@@ -62,12 +62,12 @@ export default function MercadoLibreDashboard() {
               Gestion Etiquetas Colecta y Flex
             </CardTitle>
             <CardDescription className="text-blue-700/80 font-medium">
-              Logística Colectas y flex
+              Logística local y diaria
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-6">
-              consulta de etiquetas para imprimir
+              Gestión de etiquetas y preparación para colectas y envíos Flex.
             </p>
             <Link href="/admin/mercadolibre/envios">
               <Button className="w-full bg-blue-700 hover:bg-blue-800 text-white gap-2 shadow-sm h-12 text-lg">
@@ -77,7 +77,7 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* NUEVA TARJETA: PREPARACIÓN DE ENVÍOS (Ubicada al lado de etiquetas) */}
+        {/* TARJETA 3: PREPARACIÓN DE ENVÍOS (NUEVA) */}
         <Card className="border-l-4 border-l-cyan-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-cyan-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-cyan-800 text-xl">

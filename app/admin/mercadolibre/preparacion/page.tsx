@@ -9,7 +9,7 @@ export default async function PreparacionPage() {
     const { data: envios } = await getEtiquetasML();
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-20">
+        <div className="min-h-screen bg-slate-50 pb-20 overflow-x-hidden">
             {/* Encabezado con botón Volver */}
             <div className="p-4 bg-white border-b sticky top-0 z-20 shadow-sm flex items-center gap-4">
                 <Link href="/admin/mercadolibre">
@@ -23,8 +23,8 @@ export default async function PreparacionPage() {
                 </div>
             </div>
             
-            {/* Contenedor centrado y alineado */}
-            <div className="max-w-3xl mx-auto p-4 md:p-6">
+            {/* Contenedor centrado y alineado con ancho total controlado */}
+            <div className="w-full max-w-3xl mx-auto p-4 md:p-6">
                 <PreparacionClient initialEnvios={envios || []} />
             </div>
         </div>

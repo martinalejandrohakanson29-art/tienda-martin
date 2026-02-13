@@ -151,15 +151,26 @@ export default function VentasMostradorClient({
   const totalVenta = items.reduce((acc, item) => acc + item.subtotal, 0);
 
   const handleFinalizarVenta = async () => {
-    if ((metodoPago.includes("Tarjeta")) && (!dni || !telefono)) {
-      alert("Para pagos con tarjeta, el DNI y el Teléfono son obligatorios.");
-      return;
+    // Validaciones para Tarjetas
+    if (metodoPago.includes("Tarjeta")) {
+      if (!dni.trim() || !telefono.trim()) {
+        alert("Para pagos con tarjeta, el DNI y el Teléfono son obligatorios.");
+        return;
+      }
     }
-    if (metodoPago === "Cruzada" && (!deCruzada || !paraCruzada)) {
-      alert("Para ventas cruzadas, los campos 'De' y 'Para' son obligatorios.");
-      return;
+    
+    // Validaciones para Venta Cruzada (Campos obligatorios)
+    if (metodoPago === "Cruzada") {
+      if (!deCruzada.trim() || !paraCruzada.trim()) {
+        alert("Para ventas cruzadas, los campos 'De' y 'Para' son obligatorios.");
+        return;
+      }
     }
-    const clienteFinal = (metodoPago !== "Efectivo" && metodoPago !== "Transferencia") ? dni : cliente;
+
+    // Lógica para el nombre del cliente en la base de datos:
+    // Si es tarjeta, usamos el DNI como nombre de cliente. Si no, usamos el campo cliente.
+    const clienteFinal = metodoPago.includes("Tarjeta") ? dni : cliente;
+
     try {
       setIsSubmitting(true);
       const resultado = await crearVentaMostrador({
@@ -168,7 +179,13 @@ export default function VentasMostradorClient({
         total: totalVenta, 
         items, 
         metodo_pago: metodoPago,
-        dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada
+        dni, 
+        telefono, 
+        info, 
+        cupon, 
+        transaccionId, 
+        de: deCruzada, 
+        para: paraCruzada
       });
       if (resultado.success) {
         setShowSuccess(true);
@@ -451,7 +468,6 @@ export default function VentasMostradorClient({
                 <div className="flex items-center gap-4">
                   <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                   <div className="text-left">
-                    {/* Stock con la misma fuente, más chico y sin negrita */}
                     <p className="font-bold text-slate-900 leading-tight">
                       {prod.nombre} 
                       <span className="ml-2 font-normal text-slate-400 text-[11px]">
@@ -476,7 +492,6 @@ export default function VentasMostradorClient({
               <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
               <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
                 <option value="Efectivo">Efectivo</option>
-                <option value="Transferencia">Transferencia</option>
                 <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                 <option value="Tarjeta de Débito">Tarjeta de Débito</option>
                 <option value="Cruzada">Cruzada</option>

@@ -1,4 +1,4 @@
-// martinalejandrohakanson29-art/tienda-martin/tienda-martin-74c516625e5b3e520ecfab3363bbd72546d09026/app/admin/mercadolibre/preparacion/preparacion-client.tsx
+// app/admin/mercadolibre/preparacion/preparacion-client.tsx
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -89,9 +89,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     useEffect(() => {
         if (showScanner) {
             const startScanner = async () => {
-                // Aumentamos ligeramente el delay para asegurar que el div "barcode-reader" esté en el DOM
                 await new Promise(r => setTimeout(r, 400));
-                
                 const element = document.getElementById("barcode-reader");
                 if (!element) return;
 
@@ -138,7 +136,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     };
 
     const filtered = initialEnvios.filter(e => {
-        // Aseguramos que los IDs sean strings para evitar errores con .includes()
         const shipId = e.id?.toString() || "";
         const orderId = e.orderId?.toString() || "";
         
@@ -238,7 +235,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     return (
         <div className="space-y-4">
             {/* Tabs fijas compactas */}
-            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[72px] z-10 shadow-sm border border-slate-200">
+            <div className="flex bg-slate-100 p-1 rounded-xl gap-1 sticky top-[80px] z-10 shadow-sm border border-slate-200">
                 <button 
                     onClick={() => setActiveTab('pendientes')}
                     className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${activeTab === 'pendientes' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
@@ -258,13 +255,13 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </button>
             </div>
 
-            {/* Buscador y Botón de Escáner */}
-            <div className="flex gap-2">
+            {/* SECCIÓN DEL BUSCADOR MEJORADA: Tarjeta completa alineada */}
+            <div className="bg-white p-3 rounded-2xl border border-slate-100 shadow-md flex gap-2 items-center">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                     <Input 
                         placeholder="Escanear o buscar..." 
-                        className="pl-10 h-12 rounded-xl border-slate-200 shadow-sm bg-white focus-visible:ring-blue-500"
+                        className="pl-10 h-12 rounded-xl border-none bg-slate-50 focus-visible:ring-blue-500"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -276,7 +273,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </div>
                 <Button 
                     variant="outline"
-                    className="h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm flex items-center justify-center p-0 shrink-0"
+                    className="h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm flex items-center justify-center p-0 shrink-0 hover:bg-slate-50"
                     onClick={() => setShowScanner(true)}
                 >
                     <Barcode className="h-6 w-6 text-slate-600" />
@@ -383,7 +380,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                     </DialogHeader>
                     <div className="relative aspect-video bg-black flex items-center justify-center">
                         <div id="barcode-reader" className="w-full h-full"></div>
-                        {/* Guía visual para el usuario */}
                         <div className="absolute inset-0 pointer-events-none border-2 border-blue-500/30 m-8 rounded-lg">
                             <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-500"></div>
                             <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500"></div>
@@ -394,7 +390,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                 </DialogContent>
             </Dialog>
 
-            {/* Visor de Fotos Estético */}
+            {/* Visor de Fotos */}
             <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
                 <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[95vh] max-w-4xl flex flex-col rounded-t-3xl sm:rounded-3xl">
                     <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">

@@ -470,33 +470,22 @@ model ArticuloMostrador {
   @@map("articulos_mostrador")
 }
 
-// --- GESTIÓN DE TRANSFERENCIAS: DATOS DE LA IMAGEN (IA) ---
-model TransferenciaImagen {
+
+// --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
+
+model TransferenciaCruzada {
   id              String   @id @default(cuid())
-  whatsappId      String   // remoteJid del grupo/cliente
+  whatsappId      String   // El remoteJid del cliente (quien envía los mensajes)
   monto           Decimal? @db.Decimal(20, 2)
-  emisor          String?  // Nombre extraído de la foto
-  receptor        String?  // Nombre extraído de la foto
+  emisorImagen    String?  // Nombre extraído de la foto por la IA
+  receptorImagen  String?  // Nombre extraído de la foto por la IA
   infoExtra       String?  // CBU, IDs, hora de la foto
-  procesada       Boolean  @default(false)
+  deTexto         String?  // Lo que dice el mensaje de texto ("de pablo...")
+  paraTexto       String?  // Lo que dice el mensaje de texto ("...a martin")
+  procesada       Boolean  @default(false) // Para saber si ya la pasaste a Venta real
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([whatsappId, procesada])
-  @@map("transferencias_imagen")
-}
-
-// --- GESTIÓN DE TRANSFERENCIAS: DATOS DEL TEXTO ---
-model TransferenciaTexto {
-  id              String   @id @default(cuid())
-  whatsappId      String   // remoteJid del grupo/cliente
-  monto           Decimal? @db.Decimal(20, 2)
-  de              String?  // "de pablo..."
-  para            String?  // "...a martin"
-  procesada       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([whatsappId, procesada])
-  @@map("transferencias_texto")
+  @@map("transferencias_cruzadas")
 }

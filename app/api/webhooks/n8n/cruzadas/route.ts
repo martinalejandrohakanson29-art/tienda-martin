@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { whatsappId, monto, emisor, receptor, info_extra, de, para } = body;
+    // Agregamos imageUrl a la desestructuración
+    const { whatsappId, monto, emisor, receptor, info_extra, de, para, imageUrl } = body;
 
     if (!whatsappId) return NextResponse.json({ error: "Falta whatsappId" }, { status: 400 });
 
@@ -19,7 +20,6 @@ export async function POST(req: Request) {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Función para limpiar valores "null" o vacíos
     const clean = (val: any) => (val === "null" || val === "" || val === undefined) ? null : val;
 
     if (transferenciaExistente) {
@@ -27,13 +27,12 @@ export async function POST(req: Request) {
         where: { id: transferenciaExistente.id },
         data: {
           monto: clean(monto) ?? transferenciaExistente.monto,
-          // Si viene 'emisor', es de la imagen
           emisorImagen: clean(emisor) ?? transferenciaExistente.emisorImagen,
           receptorImagen: clean(receptor) ?? transferenciaExistente.receptorImagen,
           infoExtra: clean(info_extra) ?? transferenciaExistente.infoExtra,
-          // Si viene 'de', es del texto
           deTexto: clean(de) ?? transferenciaExistente.deTexto,
           paraTexto: clean(para) ?? transferenciaExistente.paraTexto,
+          imageUrl: clean(imageUrl) ?? transferenciaExistente.imageUrl, // <--- GUARDAR URL
         }
       });
       return NextResponse.json({ message: "Actualizada con éxito" });
@@ -47,6 +46,7 @@ export async function POST(req: Request) {
           infoExtra: clean(info_extra),
           deTexto: clean(de),
           paraTexto: clean(para),
+          imageUrl: clean(imageUrl), // <--- GUARDAR URL
         }
       });
       return NextResponse.json({ message: "Creada con éxito" });

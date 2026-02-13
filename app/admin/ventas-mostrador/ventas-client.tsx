@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft, AlertTriangle,
-  RefreshCcw, Copy, Square, CheckSquare
+  RefreshCcw, Copy, Square, CheckSquare, Percent
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,7 @@ export default function VentasMostradorClient({
   const [items, setItems] = useState<ItemVenta[]>([]); 
   const [searchTerm, setSearchTerm] = useState("");
   const [cliente, setCliente] = useState("Consumidor Final");
+  const [interesTarjeta, setInteresTarjeta] = useState<number>(0);
 
   const [metodoPago, setMetodoPago] = useState("Efectivo");
   const [dni, setDni] = useState("");
@@ -63,7 +64,6 @@ export default function VentasMostradorClient({
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
 
-  // Atajo de teclado "+" para añadir artículos
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "+" && !isModalOpen) {
@@ -71,7 +71,6 @@ export default function VentasMostradorClient({
         setIsModalOpen(true);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isModalOpen]);
@@ -148,7 +147,12 @@ export default function VentasMostradorClient({
     setSearchTerm("");
   };
 
-  const totalVenta = items.reduce((acc, item) => acc + item.subtotal, 0);
+  const totalBase = items.reduce((acc, item) => acc + item.subtotal, 0);
+  
+  // Cálculo de total final (solo aplica interés si es Tarjeta de Crédito)
+  const totalConInteres = metodoPago === "Tarjeta de Crédito" 
+    ? totalBase * (1 + (interesTarjeta / 100))
+    : totalBase;
 
   const handleFinalizarVenta = async () => {
     if (metodoPago.includes("Tarjeta")) {
@@ -172,7 +176,9 @@ export default function VentasMostradorClient({
       const resultado = await crearVentaMostrador({
         cliente: clienteFinal, 
         vendedor: vendedorNombre, 
-        total: totalVenta, 
+        total: totalBase,
+        interes: metodoPago === "Tarjeta de Crédito" ? interesTarjeta : 0,
+        totalFinal: totalConInteres,
         items, 
         metodo_pago: metodoPago,
         dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada
@@ -193,7 +199,7 @@ export default function VentasMostradorClient({
 
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
-    setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada("");
+    setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
     setIsFinalizarModalOpen(false);
     setIsConfirmDiscardOpen(false);
   };
@@ -254,9 +260,24 @@ export default function VentasMostradorClient({
                   <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                 </div>
               </div>
+
+              {/* NUEVO: Campo de interés tarjeta */}
+              <div className="space-y-1.5 w-32">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">% Int. Tarjeta</Label>
+                <div className="relative">
+                  <Input 
+                    type="number" 
+                    value={interesTarjeta} 
+                    onChange={(e) => setInteresTarjeta(Number(e.target.value))} 
+                    className="pl-8 h-10 bg-slate-50/50 border-slate-200 font-bold text-blue-600" 
+                  />
+                  <Percent className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                </div>
+              </div>
+
               <div className="flex-shrink-0 ml-auto text-right">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Total a Cobrar</span>
-                <span className="text-3xl font-black text-slate-900 tracking-tighter">$ {totalVenta.toLocaleString('es-AR')}</span>
+                <span className="text-3xl font-black text-slate-900 tracking-tighter">$ {totalBase.toLocaleString('es-AR')}</span>
               </div>
             </section>
 
@@ -317,7 +338,6 @@ export default function VentasMostradorClient({
           </footer>
         </TabsContent>
 
-        {/* --- LISTADO DE VENTAS: Se habilita la selección de texto --- */}
         <TabsContent value="listado" className="flex-grow flex flex-col overflow-hidden m-0 select-text">
           <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
             <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
@@ -347,9 +367,9 @@ export default function VentasMostradorClient({
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Total del Día</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Total del Día (Final)</p>
                 <p className="text-xl font-black text-slate-900">
-                  $ {ventasRealizadas.reduce((acc, v) => acc + Number(v.total), 0).toLocaleString('es-AR')}
+                  $ {ventasRealizadas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}
                 </p>
               </div>
             </div>
@@ -362,11 +382,11 @@ export default function VentasMostradorClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Artículos Vendidos</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-3">Vendedor</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Observaciones</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total</TableHead>
-                      <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-32">Registrada</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Base</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total + Int.</TableHead>
+                      <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-32">Reg.</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -380,29 +400,17 @@ export default function VentasMostradorClient({
                           </TableCell>
                           <TableCell className="font-medium text-slate-700 py-4">{v.cliente}</TableCell>
                           <TableCell className="py-4">
-                            <div className="flex flex-col gap-1.5 min-w-[250px]">
+                            <div className="flex flex-col gap-1.5 min-w-[200px]">
                               {v.items?.map((item: any) => (
                                 <div key={item.id} className="text-[11px] bg-slate-50 p-1.5 rounded border border-slate-100 flex flex-col group relative">
                                   <div className="flex justify-between items-start gap-2">
-                                    <span 
-                                      onClick={() => copiarAlPortapapeles(item.nombre)}
-                                      className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors"
-                                    >
-                                      {item.nombre}
-                                    </span>
+                                    <span onClick={() => copiarAlPortapapeles(item.nombre)} className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors">{item.nombre}</span>
                                     <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-black">x{item.cantidad}</span>
                                   </div>
-                                  <span 
-                                    onClick={() => copiarAlPortapapeles(item.productoId || 'N/A')}
-                                    className="text-[9px] text-slate-400 font-mono tracking-tighter cursor-pointer hover:text-blue-500 transition-colors"
-                                  >
-                                    ID: {item.productoId || 'N/A'}
-                                  </span>
                                 </div>
                               ))}
                             </div>
                           </TableCell>
-                          <TableCell className="text-slate-600 text-sm py-4">{v.vendedor}</TableCell>
                           <TableCell className="py-4">
                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
                               v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
@@ -410,28 +418,21 @@ export default function VentasMostradorClient({
                               {v.metodo_pago}
                             </span>
                             {v.metodo_pago === 'Cruzada' && v.de && (
-                              <div className="text-[13px] mt-2 text-slate-600 font-black italic bg-amber-50 p-1 px-2 rounded-lg border border-amber-100 flex items-center gap-1">
-                                <span 
-                                  onClick={() => copiarAlPortapapeles(v.de)} 
-                                  className="cursor-pointer hover:text-blue-600 transition-colors"
-                                >
-                                  {v.de}
-                                </span>
+                              <div className="text-[12px] mt-2 text-slate-600 font-black italic bg-amber-50 p-1 px-2 rounded-lg border border-amber-100 flex items-center gap-1">
+                                <span onClick={() => copiarAlPortapapeles(v.de)} className="cursor-pointer hover:text-blue-600 transition-colors">{v.de}</span>
                                 <span className="text-amber-400">→</span>
-                                <span 
-                                  onClick={() => copiarAlPortapapeles(v.para)} 
-                                  className="cursor-pointer hover:text-blue-600 transition-colors"
-                                >
-                                  {v.para}
-                                </span>
+                                <span onClick={() => copiarAlPortapapeles(v.para)} className="cursor-pointer hover:text-blue-600 transition-colors">{v.para}</span>
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-slate-500 text-xs py-4 max-w-[200px] break-words">
+                          <TableCell className="text-slate-500 text-[11px] py-4 max-w-[150px] break-words">
                             {v.info || "-"}
                           </TableCell>
-                          <TableCell className="text-right font-bold text-slate-900 py-4">
+                          <TableCell className="text-right font-medium text-slate-400 py-4">
                             $ {v.total.toLocaleString('es-AR')}
+                          </TableCell>
+                          <TableCell className="text-right font-black text-slate-900 py-4">
+                            {v.metodo_pago === "Tarjeta de Crédito" ? `$ ${v.totalFinal.toLocaleString('es-AR')}` : "-"}
                           </TableCell>
                           <TableCell className="py-4 text-center">
                             <button
@@ -549,9 +550,27 @@ export default function VentasMostradorClient({
               <div className="relative"><FileText className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input value={info} onChange={(e) => setInfo(e.target.value)} className="pl-9" placeholder="Notas adicionales..." /></div>
             </div>
 
-            <div className="mt-2 p-4 bg-slate-900 rounded-2xl text-white flex justify-between items-center">
-              <span className="text-sm font-medium opacity-70">Total Final</span>
-              <span className="text-xl font-bold">$ {totalVenta.toLocaleString('es-AR')}</span>
+            {/* Visualización de Totales */}
+            <div className="mt-2 space-y-2">
+              <div className="p-3 bg-slate-100 rounded-xl text-slate-600 flex justify-between items-center text-sm">
+                <span>Total Base</span>
+                <span className="font-bold">$ {totalBase.toLocaleString('es-AR')}</span>
+              </div>
+              {metodoPago === "Tarjeta de Crédito" && (
+                <div className="p-4 bg-blue-600 rounded-2xl text-white flex justify-between items-center shadow-lg shadow-blue-200">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold uppercase opacity-80">Total con {interesTarjeta}% Interés</span>
+                    <span className="text-xl font-black">$ {totalConInteres.toLocaleString('es-AR')}</span>
+                  </div>
+                  <Percent className="h-6 w-6 opacity-50" />
+                </div>
+              )}
+              {metodoPago !== "Tarjeta de Crédito" && (
+                <div className="p-4 bg-slate-900 rounded-2xl text-white flex justify-between items-center">
+                  <span className="text-sm font-medium opacity-70">Total Final</span>
+                  <span className="text-xl font-bold">$ {totalBase.toLocaleString('es-AR')}</span>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter className="gap-3">

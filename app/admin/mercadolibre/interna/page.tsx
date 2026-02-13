@@ -5,7 +5,8 @@ import {
   ReceiptText, 
   Package, 
   ArrowLeft, 
-  ArrowRight 
+  ArrowRight,
+  ArrowLeftRight // 👈 Nuevo icono para Cruzadas
 } from "lucide-react";
 import Link from "next/link";
 
@@ -39,6 +40,26 @@ export default function GestionInternaPage() {
             <Link href="/admin/mercadolibre/importaciones">
               <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2">
                 Ver Tablero Maestro <ArrowRight size={16} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA: TRANSFERENCIAS CRUZADAS - 🆕 NUEVA SECCIÓN */}
+        <Card className="hover:shadow-md transition-all border-l-4 border-l-emerald-500 bg-emerald-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-emerald-700">
+              <ArrowLeftRight className="h-6 w-6" />
+              Transferencias Cruzadas
+            </CardTitle>
+            <CardDescription>
+              Validación de comprobantes de WhatsApp.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/mercadolibre/interna/cruzadas">
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+                Revisar Transferencias <ArrowRight size={16} />
               </Button>
             </Link>
           </CardContent>

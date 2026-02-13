@@ -317,7 +317,8 @@ export default function VentasMostradorClient({
           </footer>
         </TabsContent>
 
-        <TabsContent value="listado" className="flex-grow flex flex-col overflow-hidden m-0">
+        {/* --- LISTADO DE VENTAS: Se habilita la selección de texto --- */}
+        <TabsContent value="listado" className="flex-grow flex flex-col overflow-hidden m-0 select-text">
           <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
             <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
               <div className="flex items-center gap-3">

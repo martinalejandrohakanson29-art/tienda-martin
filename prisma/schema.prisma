@@ -475,14 +475,15 @@ model ArticuloMostrador {
 
 model TransferenciaCruzada {
   id              String   @id @default(cuid())
-  whatsappId      String   // El remoteJid del cliente (quien envía los mensajes)
+  whatsappId      String
   monto           Decimal? @db.Decimal(20, 2)
-  emisorImagen    String?  // Nombre extraído de la foto por la IA
-  receptorImagen  String?  // Nombre extraído de la foto por la IA
-  infoExtra       String?  // CBU, IDs, hora de la foto
-  deTexto         String?  // Lo que dice el mensaje de texto ("de pablo...")
-  paraTexto       String?  // Lo que dice el mensaje de texto ("...a martin")
-  procesada       Boolean  @default(false) // Para saber si ya la pasaste a Venta real
+  emisorImagen    String?
+  receptorImagen  String?
+  infoExtra       String?
+  deTexto         String?
+  paraTexto       String?
+  imageUrl        String?  // <--- AGREGAMOS ESTA LÍNEA
+  procesada       Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

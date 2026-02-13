@@ -8,50 +8,85 @@ export async function POST(req: Request) {
 
     if (!whatsappId) return NextResponse.json({ error: "Falta whatsappId" }, { status: 400 });
 
-    const haceQuinceMinutos = new Date(Date.now() - 15 * 60 * 1000);
-
-    const transferenciaExistente = await prisma.transferenciaCruzada.findFirst({
-      where: {
-        whatsappId: whatsappId,
-        procesada: false,
-        createdAt: { gte: haceQuinceMinutos }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    // Función para limpiar valores "null" o vacíos
     const clean = (val: any) => (val === "null" || val === "" || val === undefined) ? null : val;
+    const haceQuinceMinutos = new Date(Date.now() - 3 * 60 * 1000);
 
-    if (transferenciaExistente) {
-      await prisma.transferenciaCruzada.update({
-        where: { id: transferenciaExistente.id },
-        data: {
-          monto: clean(monto) ?? transferenciaExistente.monto,
-          // Si viene 'emisor', es de la imagen
-          emisorImagen: clean(emisor) ?? transferenciaExistente.emisorImagen,
-          receptorImagen: clean(receptor) ?? transferenciaExistente.receptorImagen,
-          infoExtra: clean(info_extra) ?? transferenciaExistente.infoExtra,
-          // Si viene 'de', es del texto
-          deTexto: clean(de) ?? transferenciaExistente.deTexto,
-          paraTexto: clean(para) ?? transferenciaExistente.paraTexto,
-        }
-      });
-      return NextResponse.json({ message: "Actualizada con éxito" });
-    } else {
-      await prisma.transferenciaCruzada.create({
+    const montoLimpio = clean(monto);
+    let errorMonto = false;
+    let montoImagen: number | null = null;
+    let montoTexto: number | null = null;
+
+    // --- ESCENARIO A: VIENEN DATOS DE IMAGEN ---
+    if (emisor || receptor || info_extra) {
+      // 1. Guardamos en la tabla de imágenes
+      const nuevaImagen = await prisma.transferenciaImagen.create({
         data: {
           whatsappId,
-          monto: clean(monto),
-          emisorImagen: clean(emisor),
-          receptorImagen: clean(receptor),
+          monto: montoLimpio,
+          emisor: clean(emisor),
+          receptor: clean(receptor),
           infoExtra: clean(info_extra),
-          deTexto: clean(de),
-          paraTexto: clean(para),
         }
       });
-      return NextResponse.json({ message: "Creada con éxito" });
+
+      montoImagen = Number(nuevaImagen.monto);
+
+      // 2. Buscamos si hay un texto reciente para comparar
+      const textoReciente = await prisma.transferenciaTexto.findFirst({
+        where: { whatsappId, createdAt: { gte: haceQuinceMinutos }, procesada: false },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (textoReciente && textoReciente.monto) {
+        montoTexto = Number(textoReciente.monto);
+        if (montoImagen !== montoTexto) errorMonto = true;
+      }
+
+      return NextResponse.json({ 
+        message: "Imagen guardada", 
+        errorMonto, 
+        montoImagen, 
+        montoTexto 
+      });
     }
+
+    // --- ESCENARIO B: VIENEN DATOS DE TEXTO ---
+    if (de || para) {
+      // 1. Guardamos en la tabla de texto
+      const nuevoTexto = await prisma.transferenciaTexto.create({
+        data: {
+          whatsappId,
+          monto: montoLimpio,
+          de: clean(de),
+          para: clean(para),
+        }
+      });
+
+      montoTexto = Number(nuevoTexto.monto);
+
+      // 2. Buscamos si hay una imagen reciente para comparar
+      const imagenReciente = await prisma.transferenciaImagen.findFirst({
+        where: { whatsappId, createdAt: { gte: haceQuinceMinutos }, procesada: false },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (imagenReciente && imagenReciente.monto) {
+        montoImagen = Number(imagenReciente.monto);
+        if (montoTexto !== montoImagen) errorMonto = true;
+      }
+
+      return NextResponse.json({ 
+        message: "Texto guardado", 
+        errorMonto, 
+        montoImagen, 
+        montoTexto 
+      });
+    }
+
+    return NextResponse.json({ error: "Datos insuficientes" }, { status: 400 });
+
   } catch (error) {
-    return NextResponse.json({ error: "Error" }, { status: 500 });
+    console.error("Error en el webhook:", error);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }

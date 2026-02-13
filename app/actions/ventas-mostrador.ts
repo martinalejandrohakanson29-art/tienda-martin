@@ -45,6 +45,8 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
       data: ventas.map(v => ({
         ...v,
         total: Number(v.total),
+        interes: Number(v.interes),
+        totalFinal: Number(v.totalFinal),
         createdAt: v.createdAt.toISOString()
       })) 
     };
@@ -54,7 +56,6 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
   }
 }
 
-// NUEVA FUNCIÓN: Para marcar como registrada
 export async function marcarVentaComoRegistrada(id: string) {
   try {
     await prisma.venta.update({
@@ -72,6 +73,8 @@ export async function crearVentaMostrador(data: {
   cliente: string,
   vendedor: string,
   total: number,
+  interes: number,
+  totalFinal: number,
   items: any[],
   metodo_pago: string,
   dni?: string,
@@ -88,6 +91,8 @@ export async function crearVentaMostrador(data: {
         cliente: data.cliente,
         vendedor: data.vendedor,
         total: data.total,
+        interes: data.interes,
+        totalFinal: data.totalFinal,
         metodo_pago: data.metodo_pago,
         dni: data.dni,
         telefono: data.telefono,

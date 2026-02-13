@@ -151,7 +151,6 @@ export default function VentasMostradorClient({
   const totalVenta = items.reduce((acc, item) => acc + item.subtotal, 0);
 
   const handleFinalizarVenta = async () => {
-    // Validaciones para Tarjetas
     if (metodoPago.includes("Tarjeta")) {
       if (!dni.trim() || !telefono.trim()) {
         alert("Para pagos con tarjeta, el DNI y el Teléfono son obligatorios.");
@@ -159,7 +158,6 @@ export default function VentasMostradorClient({
       }
     }
     
-    // Validaciones para Venta Cruzada (Campos obligatorios)
     if (metodoPago === "Cruzada") {
       if (!deCruzada.trim() || !paraCruzada.trim()) {
         alert("Para ventas cruzadas, los campos 'De' y 'Para' son obligatorios.");
@@ -167,8 +165,6 @@ export default function VentasMostradorClient({
       }
     }
 
-    // Lógica para el nombre del cliente en la base de datos:
-    // Si es tarjeta, usamos el DNI como nombre de cliente. Si no, usamos el campo cliente.
     const clienteFinal = metodoPago.includes("Tarjeta") ? dni : cliente;
 
     try {
@@ -179,13 +175,7 @@ export default function VentasMostradorClient({
         total: totalVenta, 
         items, 
         metodo_pago: metodoPago,
-        dni, 
-        telefono, 
-        info, 
-        cupon, 
-        transaccionId, 
-        de: deCruzada, 
-        para: paraCruzada
+        dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada
       });
       if (resultado.success) {
         setShowSuccess(true);
@@ -373,13 +363,14 @@ export default function VentasMostradorClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Artículos Vendidos</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Vendedor</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Observaciones</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total</TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-32">Registrada</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ventasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">No se encontraron ventas</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">No se encontraron ventas</TableCell></TableRow>
                     ) : (
                       ventasRealizadas.map((v) => (
                         <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
@@ -418,10 +409,25 @@ export default function VentasMostradorClient({
                               {v.metodo_pago}
                             </span>
                             {v.metodo_pago === 'Cruzada' && v.de && (
-                              <div className="text-[13px] mt-2 text-slate-600 font-black italic bg-amber-50 p-1 px-2 rounded-lg border border-amber-100">
-                                {v.de} → {v.para}
+                              <div className="text-[13px] mt-2 text-slate-600 font-black italic bg-amber-50 p-1 px-2 rounded-lg border border-amber-100 flex items-center gap-1">
+                                <span 
+                                  onClick={() => copiarAlPortapapeles(v.de)} 
+                                  className="cursor-pointer hover:text-blue-600 transition-colors"
+                                >
+                                  {v.de}
+                                </span>
+                                <span className="text-amber-400">→</span>
+                                <span 
+                                  onClick={() => copiarAlPortapapeles(v.para)} 
+                                  className="cursor-pointer hover:text-blue-600 transition-colors"
+                                >
+                                  {v.para}
+                                </span>
                               </div>
                             )}
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-xs py-4 max-w-[200px] break-words">
+                            {v.info || "-"}
                           </TableCell>
                           <TableCell className="text-right font-bold text-slate-900 py-4">
                             $ {v.total.toLocaleString('es-AR')}

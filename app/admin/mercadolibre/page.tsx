@@ -1,3 +1,4 @@
+// app/admin/mercadolibre/page.tsx
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -7,7 +8,8 @@ import {
   MapPinned,
   PackageCheck,
   BarChart3,
-  LineChart 
+  LineChart,
+  ClipboardCheck // Nuevo icono para preparación
 } from "lucide-react";
 import Link from "next/link";
 
@@ -60,12 +62,12 @@ export default function MercadoLibreDashboard() {
               Gestion Etiquetas Colecta y Flex
             </CardTitle>
             <CardDescription className="text-blue-700/80 font-medium">
-              Logística local y diaria
+              Logística Colectas y flex
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-6">
-              Gestión de etiquetas y preparación para colectas y envíos Flex.
+              consulta de etiquetas para imprimir
             </p>
             <Link href="/admin/mercadolibre/envios">
               <Button className="w-full bg-blue-700 hover:bg-blue-800 text-white gap-2 shadow-sm h-12 text-lg">
@@ -75,7 +77,30 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* TARJETA 3: GESTIÓN DE PEDIDOS DESPACHADOS */}
+        {/* NUEVA TARJETA: PREPARACIÓN DE ENVÍOS (Ubicada al lado de etiquetas) */}
+        <Card className="border-l-4 border-l-cyan-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-cyan-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-cyan-800 text-xl">
+              <ClipboardCheck className="h-6 w-6" />
+              Preparación de Envíos
+            </CardTitle>
+            <CardDescription className="text-cyan-700/80 font-medium">
+              Auditoría y control
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Escaneo y validación de productos antes de armar el paquete.
+            </p>
+            <Link href="/admin/mercadolibre/preparacion">
+              <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 4: GESTIÓN DE PEDIDOS DESPACHADOS */}
         <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-emerald-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-emerald-800 text-xl">
@@ -98,7 +123,7 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* TARJETA 4: RENTABILIDAD */}
+        {/* TARJETA 5: RENTABILIDAD */}
         <Card className="border-l-4 border-l-amber-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-amber-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-amber-800 text-xl">
@@ -121,7 +146,7 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* NUEVA TARJETA 5: SEGUIMIENTO VENTAS */}
+        {/* TARJETA 6: SEGUIMIENTO VENTAS */}
         <Card className="border-l-4 border-l-indigo-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-indigo-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-indigo-800 text-xl">

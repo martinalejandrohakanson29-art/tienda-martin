@@ -23,8 +23,8 @@ export default async function PreparacionPage() {
                 </div>
             </div>
             
-            {/* Contenedor centrado y alineado con ancho total controlado */}
-            <div className="w-full max-w-3xl mx-auto p-4 md:p-6">
+            {/* Contenedor ampliado a max-w-5xl y ajuste de padding en móviles */}
+            <div className="w-full max-w-5xl mx-auto p-3 md:p-6">
                 <PreparacionClient initialEnvios={envios || []} />
             </div>
         </div>

@@ -4,73 +4,54 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
-    // Extraemos los datos que mandamos desde n8n
-    // n8n suele mandar la info dentro de un objeto o directamente
-    const { 
-      whatsappId, 
-      monto, 
-      emisor, 
-      receptor, 
-      info_extra, 
-      de, 
-      para 
-    } = body;
+    const { whatsappId, monto, emisor, receptor, info_extra, de, para } = body;
 
-    if (!whatsappId) {
-      return NextResponse.json({ error: "Falta whatsappId" }, { status: 400 });
-    }
+    if (!whatsappId) return NextResponse.json({ error: "Falta whatsappId" }, { status: 400 });
 
-    // Definimos una ventana de tiempo de 15 minutos para considerar que es la misma operación
-    const haceQuinceMinutos = new Date(Date.now() - 3 * 60 * 1000);
+    const haceQuinceMinutos = new Date(Date.now() - 15 * 60 * 1000);
 
-    // 1. Buscamos si ya existe una transferencia pendiente de este mismo número de WhatsApp
     const transferenciaExistente = await prisma.transferenciaCruzada.findFirst({
       where: {
         whatsappId: whatsappId,
         procesada: false,
-        createdAt: {
-          gte: haceQuinceMinutos
-        }
+        createdAt: { gte: haceQuinceMinutos }
       },
-      orderBy: {
-        createdAt: 'desc'
-      }
+      orderBy: { createdAt: 'desc' }
     });
 
+    // Función para limpiar valores "null" o vacíos
+    const clean = (val: any) => (val === "null" || val === "" || val === undefined) ? null : val;
+
     if (transferenciaExistente) {
-      // 2. Si existe, ACTUALIZAMOS (unimos la info de la foto con la del texto o viceversa)
-      const actualizada = await prisma.transferenciaCruzada.update({
+      await prisma.transferenciaCruzada.update({
         where: { id: transferenciaExistente.id },
         data: {
-          // Usamos el dato nuevo si llega, sino mantenemos el que ya teníamos
-          monto: monto !== undefined ? monto : transferenciaExistente.monto,
-          emisorImagen: emisor || transferenciaExistente.emisorImagen,
-          receptorImagen: receptor || transferenciaExistente.receptorImagen,
-          infoExtra: info_extra || transferenciaExistente.infoExtra,
-          deTexto: de || transferenciaExistente.deTexto,
-          paraTexto: para || transferenciaExistente.paraTexto,
+          monto: clean(monto) ?? transferenciaExistente.monto,
+          // Si viene 'emisor', es de la imagen
+          emisorImagen: clean(emisor) ?? transferenciaExistente.emisorImagen,
+          receptorImagen: clean(receptor) ?? transferenciaExistente.receptorImagen,
+          infoExtra: clean(info_extra) ?? transferenciaExistente.infoExtra,
+          // Si viene 'de', es del texto
+          deTexto: clean(de) ?? transferenciaExistente.deTexto,
+          paraTexto: clean(para) ?? transferenciaExistente.paraTexto,
         }
       });
-      return NextResponse.json({ message: "Transferencia actualizada", id: actualizada.id });
+      return NextResponse.json({ message: "Actualizada con éxito" });
     } else {
-      // 3. Si no existe, CREAMOS una nueva entrada
-      const nueva = await prisma.transferenciaCruzada.create({
+      await prisma.transferenciaCruzada.create({
         data: {
           whatsappId,
-          monto: monto || null,
-          emisorImagen: emisor || null,
-          receptorImagen: receptor || null,
-          infoExtra: info_extra || null,
-          deTexto: de || null,
-          paraTexto: para || null,
+          monto: clean(monto),
+          emisorImagen: clean(emisor),
+          receptorImagen: clean(receptor),
+          infoExtra: clean(info_extra),
+          deTexto: clean(de),
+          paraTexto: clean(para),
         }
       });
-      return NextResponse.json({ message: "Transferencia creada", id: nueva.id });
+      return NextResponse.json({ message: "Creada con éxito" });
     }
-
   } catch (error) {
-    console.error("Error en webhook cruzadas:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return NextResponse.json({ error: "Error" }, { status: 500 });
   }
 }

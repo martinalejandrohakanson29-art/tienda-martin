@@ -5,25 +5,23 @@ import { revalidatePath } from "next/cache";
 
 export async function guardarSeguimientoVentas(datos: any[]) {
   try {
-    // 1. Limpiamos la tabla (Sobreescribir)
-    // Usamos deleteMany sin filtros para borrar TODO
+    // Borramos lo anterior para sobreescribir con la nueva consulta
     await prisma.seguimientoVentas.deleteMany({});
 
-    // 2. Insertamos los nuevos datos en bloque
     await prisma.seguimientoVentas.createMany({
       data: datos.map(item => ({
         mla: item.mla,
         nombre: item.nombre,
-        ventasActual: item.ventasActual,
-        ventasAnterior: item.ventasAnterior,
-        diffVentas: item.diffVentas,
-        visitasActual: item.visitasActual,
-        visitasAnterior: item.visitasAnterior,
-        diffVisitas: item.diffVisitas,
-        growthVisitas: item.growthVisitas,
-        netoActual: item.netoActual,
-        netoAnterior: item.netoAnterior,
-        growthNeto: item.growthNeto,
+        ventasActual: item.ventasActual || 0,
+        ventasAnterior: item.ventasAnterior || 0,
+        diffVentas: item.diffVentas || 0,
+        visitasActual: item.visitasActual || 0,
+        visitasAnterior: item.visitasAnterior || 0,
+        diffVisitas: item.diffVisitas || 0,
+        growthVisitas: item.growthVisitas || 0,
+        netoActual: item.netoActual || 0,
+        netoAnterior: item.netoAnterior || 0,
+        growthNeto: item.growthNeto || 0,
         ultimaActualizacion: new Date()
       }))
     });
@@ -31,7 +29,19 @@ export async function guardarSeguimientoVentas(datos: any[]) {
     revalidatePath("/admin/mercadolibre/seguimiento-ventas");
     return { success: true };
   } catch (error: any) {
-    console.error("Error al guardar seguimiento:", error);
-    return { success: false, error: error.message };
+    console.error("Error al guardar:", error);
+    return { success: false };
+  }
+}
+
+// Nueva función para traer los datos una vez que n8n terminó de actualizarlos
+export async function obtenerSeguimientoVentas() {
+  try {
+    return await prisma.seguimientoVentas.findMany({
+      orderBy: { netoActual: 'desc' }
+    });
+  } catch (error) {
+    console.error("Error al obtener datos:", error);
+    return [];
   }
 }

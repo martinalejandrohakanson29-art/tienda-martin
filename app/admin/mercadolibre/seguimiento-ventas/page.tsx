@@ -51,23 +51,24 @@ export default function SeguimientoVentasPage() {
         setAnalysis(null);
         
         try {
+            // Mantenemos la URL del webhook pero eliminamos la lógica de múltiples fases
             const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas";
 
-            // --- PASO 1: CONSULTAR VENTAS ---
-            const resVentas = await fetch(N8N_WEBHOOK_URL, {
+            // --- PASO 1: CONSULTAR VENTAS AL WEBHOOK ---
+            const res = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ r1, r2, fase: "ventas" }),
+                body: JSON.stringify({ r1, r2 }), // Enviamos solo los rangos
             });
 
-            if (!resVentas.ok) throw new Error("Error obteniendo las ventas iniciales");
+            if (!res.ok) throw new Error("Error obteniendo los datos de ventas");
 
-            const dataVentas = await resVentas.json();
-            const resultVentas = Array.isArray(dataVentas) ? dataVentas[0] : dataVentas;
+            const data = await res.json();
+            const result = Array.isArray(data) ? data[0] : data;
             
-            // --- PASO 2: GUARDAR EN BASE DE DATOS ---
-            const listActual = resultVentas.r2 || resultVentas.datosTabla?.r2 || [];
-            const listAnterior = resultVentas.r1 || resultVentas.datosTabla?.r1 || [];
+            // --- PASO 2: PROCESAR Y GUARDAR EN BASE DE DATOS ---
+            const listActual = result.r2 || result.datosTabla?.r2 || [];
+            const listAnterior = result.r1 || result.datosTabla?.r1 || [];
             const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)]);
 
             const dataParaGuardar = Array.from(allMlas).map((mla: any) => {
@@ -88,19 +89,18 @@ export default function SeguimientoVentasPage() {
                 };
             });
 
+            // Guardamos en la base de datos de Railway
             await guardarSeguimientoVentas(dataParaGuardar);
 
-            // --- PASO 3: RECUPERAR DATOS Y ANALISIS ---
-            // Nota: El análisis viene en el primer llamado de ventas o puede requerir el de visitas
-            // Si has quitado el workflow de visitas, el análisis debe venir del Paso 1
+            // --- PASO 3: RECUPERAR DATOS ACTUALIZADOS Y ANALISIS ---
             const datosDB = await obtenerSeguimientoVentas();
             
             setRanges({ r2: datosDB, r1: [] });
-            setAnalysis(resultVentas.analisisIA || resultVentas.output || null);
+            setAnalysis(result.analisisIA || result.output || null);
             
         } catch (err: any) {
             console.error("Error:", err);
-            setError("Error en la secuencia: " + err.message);
+            setError("Error en el análisis: " + err.message);
         } finally {
             setLoading(false);
         }
@@ -117,64 +117,29 @@ export default function SeguimientoVentasPage() {
     const comparisonData = useMemo(() => {
         if (!ranges) return []
 
-        if (Array.isArray(ranges.r2) && (!ranges.r1 || ranges.r1.length === 0)) {
-            let combined = ranges.r2.map((item: any) => ({
-                ...item,
-                netoActual: Number(item.netoActual),
-                netoAnterior: Number(item.netoAnterior),
-                growthNeto: Number(item.growthNeto)
-            }));
-
-            if (searchQuery) {
-                const query = searchQuery.toLowerCase()
-                combined = combined.filter((item: any) => 
-                    item.nombre.toLowerCase().includes(query) || 
-                    item.mla.toLowerCase().includes(query)
-                )
-            }
-
-            combined.sort((a: any, b: any) => {
-                const aValue = a[sortConfig.key];
-                const bValue = b[sortConfig.key];
-                if (typeof aValue === 'string') return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
-                return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
-            })
-
-            return combined;
-        }
-
-        const listActual = ranges.r2 || [];
-        const listAnterior = ranges.r1 || []
-        const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)])
-
-        let combined = Array.from(allMlas).map((mla: any) => {
-            const pActual = listActual.find((p: any) => p.MLA === mla);
-            const pAnterior = listAnterior.find((p: any) => p.MLA === mla);
-            return {
-                mla,
-                nombre: pActual?.Nombre || pAnterior?.Nombre || "Producto desconocido",
-                ventasActual: pActual?.Cantidad_Ventas || 0,
-                ventasAnterior: pAnterior?.Cantidad_Ventas || 0,
-                diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
-                netoActual: pActual?.Total_Neto || 0,
-                netoAnterior: pAnterior?.Total_Neto || 0,
-                growthNeto: calculateGrowth(pActual?.Total_Neto || 0, pAnterior?.Total_Neto || 0)
-            }
-        })
+        let combined = ranges.r2.map((item: any) => ({
+            ...item,
+            netoActual: Number(item.netoActual),
+            netoAnterior: Number(item.netoAnterior),
+            growthNeto: Number(item.growthNeto)
+        }));
 
         if (searchQuery) {
             const query = searchQuery.toLowerCase()
-            combined = combined.filter((item: any) => item.nombre.toLowerCase().includes(query) || item.mla.toLowerCase().includes(query))
+            combined = combined.filter((item: any) => 
+                item.nombre.toLowerCase().includes(query) || 
+                item.mla.toLowerCase().includes(query)
+            )
         }
 
         combined.sort((a: any, b: any) => {
             const aValue = a[sortConfig.key];
-            const bValue = b[sortConfig.key]
+            const bValue = b[sortConfig.key];
             if (typeof aValue === 'string') return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
             return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
         })
 
-        return combined
+        return combined;
     }, [ranges, searchQuery, sortConfig])
 
     const totals = useMemo(() => {
@@ -213,7 +178,7 @@ export default function SeguimientoVentasPage() {
                 {!ranges ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                         <BarChart3 className="h-16 w-16 mb-4 opacity-20" />
-                        <p className="text-lg font-medium">Seleccioná los periodos para iniciar el análisis</p>
+                        <p className="text-lg font-medium">Seleccioná los periodos para iniciar el análisis de ventas</p>
                     </div>
                 ) : (
                     <>
@@ -223,7 +188,7 @@ export default function SeguimientoVentasPage() {
                                     <div className="p-2 bg-indigo-600 rounded-lg"><Sparkles className="h-5 w-5 text-white" /></div>
                                     <div>
                                         <CardTitle className="text-lg font-bold text-indigo-900">Análisis Estratégico</CardTitle>
-                                        <p className="text-xs text-indigo-500 font-medium uppercase tracking-wider">Generado por IA</p>
+                                        <p className="text-xs text-indigo-500 font-medium uppercase tracking-wider">Análisis de Mercado Libre</p>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="pt-4">
@@ -263,7 +228,7 @@ export default function SeguimientoVentasPage() {
                         <div className="relative group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input 
-                                placeholder="Buscar..." 
+                                placeholder="Buscar por producto o MLA..." 
                                 className="pl-10" 
                                 value={searchQuery} 
                                 onChange={(e) => setSearchQuery(e.target.value)}

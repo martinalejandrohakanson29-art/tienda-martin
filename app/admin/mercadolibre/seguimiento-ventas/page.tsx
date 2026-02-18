@@ -51,10 +51,8 @@ export default function SeguimientoVentasPage() {
         setAnalysis(null);
         
         try {
-            // URL actualizada para apuntar exclusivamente al proceso de ventas
             const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas";
 
-            // --- PASO 1: OBTENER DATOS DEL WEBHOOK ---
             const res = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -66,7 +64,6 @@ export default function SeguimientoVentasPage() {
             const data = await res.json();
             const result = Array.isArray(data) ? data[0] : data;
             
-            // --- PASO 2: PROCESAR Y GUARDAR ---
             const listActual = result.r2 || result.datosTabla?.r2 || [];
             const listAnterior = result.r1 || result.datosTabla?.r1 || [];
             const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)]);
@@ -90,8 +87,6 @@ export default function SeguimientoVentasPage() {
             });
 
             await guardarSeguimientoVentas(dataParaGuardar);
-
-            // --- PASO 3: REFLEJAR CAMBIOS EN LA UI ---
             const datosDB = await obtenerSeguimientoVentas();
             
             setRanges({ r2: datosDB, r1: [] });
@@ -120,6 +115,7 @@ export default function SeguimientoVentasPage() {
             ...item,
             netoActual: Number(item.netoActual),
             netoAnterior: Number(item.netoAnterior),
+            ventasAnterior: Number(item.ventasAnterior),
             growthNeto: Number(item.growthNeto)
         }));
 
@@ -241,6 +237,8 @@ export default function SeguimientoVentasPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead onClick={() => requestSort('nombre')} className="cursor-pointer">Producto <SortIcon colKey="nombre" /></TableHead>
+                                            <TableHead onClick={() => requestSort('ventasAnterior')} className="text-right cursor-pointer text-slate-400">Ventas P1 <SortIcon colKey="ventasAnterior" /></TableHead>
+                                            <TableHead onClick={() => requestSort('netoAnterior')} className="text-right cursor-pointer text-slate-400">Neto P1 <SortIcon colKey="netoAnterior" /></TableHead>
                                             <TableHead onClick={() => requestSort('ventasActual')} className="text-right cursor-pointer">Ventas P2 <SortIcon colKey="ventasActual" /></TableHead>
                                             <TableHead onClick={() => requestSort('netoActual')} className="text-right cursor-pointer">Neto P2 <SortIcon colKey="netoActual" /></TableHead>
                                             <TableHead onClick={() => requestSort('growthNeto')} className="text-right cursor-pointer">Crecimiento <SortIcon colKey="growthNeto" /></TableHead>
@@ -253,6 +251,8 @@ export default function SeguimientoVentasPage() {
                                                     <div className="font-semibold">{item.nombre}</div>
                                                     <div className="text-xs text-slate-400">{item.mla}</div>
                                                 </TableCell>
+                                                <TableCell className="text-right text-slate-500">{item.ventasAnterior}</TableCell>
+                                                <TableCell className="text-right text-slate-500">{formatCurrency(item.netoAnterior)}</TableCell>
                                                 <TableCell className="text-right font-bold">{item.ventasActual}</TableCell>
                                                 <TableCell className="text-right font-bold">{formatCurrency(item.netoActual)}</TableCell>
                                                 <TableCell className={`text-right font-bold ${item.growthNeto > 0 ? "text-green-600" : "text-red-600"}`}>

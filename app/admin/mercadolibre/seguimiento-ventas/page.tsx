@@ -115,9 +115,9 @@ export default function SeguimientoVentasPage() {
             setRanges({ r2: datosDB, r1: [] });
             setAnalysis(resultFinal.analisisIA || resultFinal.output || null);
             
-        } catch (err) {
+        } catch (err: any) {
             console.error("Error:", err);
-            setError("Error en la secuencia de análisis. Revisa la consola y n8n.");
+            setError("Error en la secuencia: " + err.message);
         } finally {
             setLoading(false);
         }
@@ -154,7 +154,8 @@ export default function SeguimientoVentasPage() {
             }
 
             combined.sort((a: any, b: any) => {
-                const aValue = a[sortConfig.key]; const bValue = b[sortConfig.key]
+                const aValue = a[sortConfig.key];
+                const bValue = b[sortConfig.key];
                 if (typeof aValue === 'string') return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
                 return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
             })
@@ -162,11 +163,13 @@ export default function SeguimientoVentasPage() {
             return combined;
         }
 
-        const listActual = ranges.r2 || []; const listAnterior = ranges.r1 || []
+        const listActual = ranges.r2 || [];
+        const listAnterior = ranges.r1 || []
         const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)])
 
         let combined = Array.from(allMlas).map((mla: any) => {
-            const pActual = listActual.find((p: any) => p.MLA === mla); const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
+            const pActual = listActual.find((p: any) => p.MLA === mla);
+            const pAnterior = listAnterior.find((p: any) => p.MLA === mla);
             return {
                 mla,
                 nombre: pActual?.Nombre || pAnterior?.Nombre || "Producto desconocido",
@@ -189,7 +192,8 @@ export default function SeguimientoVentasPage() {
         }
 
         combined.sort((a: any, b: any) => {
-            const aValue = a[sortConfig.key]; const bValue = b[sortConfig.key]
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key]
             if (typeof aValue === 'string') return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
             return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
         })
@@ -198,15 +202,23 @@ export default function SeguimientoVentasPage() {
     }, [ranges, searchQuery, sortConfig])
 
     const totals = useMemo(() => {
-        // CORRECCIÓN: Agregado (acc: any, curr: any) para evitar error de build
-        return comparisonData.reduce((acc: any, curr: any) => ({
-            netoActual: acc.netoActual + curr.netoActual,
-            netoAnterior: acc.netoAnterior + curr.netoAnterior,
-            ventasActual: acc.ventasActual + curr.ventasActual,
-            ventasAnterior: acc.ventasAnterior + curr.ventasAnterior,
-            visitasActual: acc.visitasActual + curr.visitasActual,
-            visitasAnterior: acc.visitasAnterior + curr.visitasAnterior
-        }), { netoActual: 0, netoAnterior: 0, ventasActual: 0, ventasAnterior: 0, visitasActual: 0, visitasAnterior: 0 })
+        let nAct = 0, nAnt = 0, vAct = 0, vAnt = 0, visAct = 0, visAnt = 0;
+        comparisonData.forEach((item: any) => {
+            nAct += item.netoActual;
+            nAnt += item.netoAnterior;
+            vAct += item.ventasActual;
+            vAnt += item.ventasAnterior;
+            visAct += item.visitasActual;
+            visAnt += item.visitasAnterior;
+        });
+        return {
+            netoActual: nAct,
+            netoAnterior: nAnt,
+            ventasActual: vAct,
+            ventasAnterior: vAnt,
+            visitasActual: visAct,
+            visitasAnterior: visAnt
+        };
     }, [comparisonData])
 
     const SortIcon = ({ colKey }: { colKey: string }) => {
@@ -315,7 +327,10 @@ export default function SeguimientoVentasPage() {
                                     <TableBody>
                                         {comparisonData.map((item: any) => (
                                             <TableRow key={item.mla} className="hover:bg-slate-50/50">
-                                                <TableCell><div className="font-semibold">{item.nombre}</div><div className="text-xs text-slate-400">{item.mla}</div></TableCell>
+                                                <TableCell>
+                                                    <div className="font-semibold">{item.nombre}</div>
+                                                    <div className="text-xs text-slate-400">{item.mla}</div>
+                                                </TableCell>
                                                 <TableCell className="text-right font-bold text-indigo-600">{item.visitasActual.toLocaleString()}</TableCell>
                                                 <TableCell className="text-right font-bold">{item.ventasActual}</TableCell>
                                                 <TableCell className="text-right font-bold">{formatCurrency(item.netoActual)}</TableCell>
@@ -324,7 +339,7 @@ export default function SeguimientoVentasPage() {
                                                 </TableCell>
                                             </TableRow>
                                         ))}
-                                    </Body>
+                                    </TableBody>
                                 </Table>
                             </CardContent>
                         </Card>

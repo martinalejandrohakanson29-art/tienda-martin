@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { guardarSeguimientoVentas } from "@/app/actions/seguimiento"
 import { 
     BarChart3, 
     AlertCircle, 
@@ -19,7 +20,7 @@ import {
     ArrowUpDown,
     ChevronUp,
     ChevronDown,
-    Users // Icono para las visitas
+    Users 
 } from "lucide-react"
 
 // --- FUNCIONES AUXILIARES ---
@@ -54,7 +55,6 @@ export default function SeguimientoVentasPage() {
         setAnalysis(null);
         
         try {
-            // URL actualizada al nuevo webhook de visitas
             const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas";
 
             const response = await fetch(N8N_WEBHOOK_URL, {
@@ -68,13 +68,50 @@ export default function SeguimientoVentasPage() {
             const data = await response.json();
             const result = Array.isArray(data) ? data[0] : data;
             
+            // 1. Guardamos en el estado local para la vista inmediata
             if (result.datosTabla) {
                 setRanges(result.datosTabla);
             } else if (result.r1 && result.r2) {
                 setRanges({ r1: result.r1, r2: result.r2 });
             }
-
             setAnalysis(result.analisisIA || result.output || null);
+
+            // 2. Procesar datos para persistencia en Base de Datos
+            const listActual = result.datosTabla?.r2 || result.r2 || [];
+            const listAnterior = result.datosTabla?.r1 || result.r1 || [];
+
+            const allMlas = new Set([
+                ...listActual.map((p: any) => p.MLA), 
+                ...listAnterior.map((p: any) => p.MLA)
+            ]);
+
+            const dataParaGuardar = Array.from(allMlas).map(mla => {
+                const pActual = listActual.find((p: any) => p.MLA === mla);
+                const pAnterior = listAnterior.find((p: any) => p.MLA === mla);
+                
+                const vActual = pActual?.Visitas || 0;
+                const vAnterior = pAnterior?.Visitas || 0;
+                const nActual = pActual?.Total_Neto || 0;
+                const nAnterior = pAnterior?.Total_Neto || 0;
+
+                return {
+                    mla,
+                    nombre: pActual?.Nombre || pAnterior?.Nombre || "Producto desconocido",
+                    ventasActual: pActual?.Cantidad_Ventas || 0,
+                    ventasAnterior: pAnterior?.Cantidad_Ventas || 0,
+                    diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
+                    visitasActual: vActual,
+                    visitasAnterior: vAnterior,
+                    diffVisitas: vActual - vAnterior,
+                    growthVisitas: calculateGrowth(vActual, vAnterior),
+                    netoActual: nActual,
+                    netoAnterior: nAnterior,
+                    growthNeto: calculateGrowth(nActual, nAnterior)
+                };
+            });
+
+            // Llamada a la acción para sobreescribir la tabla en PostgreSQL
+            await guardarSeguimientoVentas(dataParaGuardar);
             
         } catch (err) {
             console.error("Error:", err);
@@ -112,12 +149,10 @@ export default function SeguimientoVentasPage() {
                 ventasActual: pActual?.Cantidad_Ventas || 0,
                 ventasAnterior: pAnterior?.Cantidad_Ventas || 0,
                 diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
-                // --- PROCESAMIENTO DE VISITAS ---
                 visitasActual: pActual?.Visitas || 0,
                 visitasAnterior: pAnterior?.Visitas || 0,
                 diffVisitas: (pActual?.Visitas || 0) - (pAnterior?.Visitas || 0),
                 growthVisitas: calculateGrowth(pActual?.Visitas || 0, pAnterior?.Visitas || 0),
-                // --------------------------------
                 netoActual: pActual?.Total_Neto || 0,
                 netoAnterior: pAnterior?.Total_Neto || 0,
                 growthNeto: calculateGrowth(pActual?.Total_Neto || 0, pAnterior?.Total_Neto || 0)
@@ -152,7 +187,6 @@ export default function SeguimientoVentasPage() {
             netoAnterior: acc.netoAnterior + curr.netoAnterior,
             ventasActual: acc.ventasActual + curr.ventasActual,
             ventasAnterior: acc.ventasAnterior + curr.ventasAnterior,
-            // Sumatoria de visitas totales para las tarjetas
             visitasActual: acc.visitasActual + curr.visitasActual,
             visitasAnterior: acc.visitasAnterior + curr.visitasAnterior
         }), { netoActual: 0, netoAnterior: 0, ventasActual: 0, ventasAnterior: 0, visitasActual: 0, visitasAnterior: 0 })
@@ -234,7 +268,6 @@ export default function SeguimientoVentasPage() {
                                 </CardContent>
                             </Card>
 
-                            {/* --- TARJETA DE RESUMEN DE VISITAS --- */}
                             <Card className="border-indigo-100">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-sm font-medium text-slate-500">Visitas Totales (P2)</CardTitle>
@@ -274,7 +307,6 @@ export default function SeguimientoVentasPage() {
                                                 <div className="flex items-center">Producto <SortIcon colKey="nombre" /></div>
                                             </TableHead>
                                             
-                                            {/* --- CABECERAS DE VISITAS --- */}
                                             <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('visitasActual')}>
                                                 <div className="flex items-center justify-end">Visitas P2 <SortIcon colKey="visitasActual" /></div>
                                             </TableHead>
@@ -305,7 +337,6 @@ export default function SeguimientoVentasPage() {
                                                         <div className="text-xs text-slate-400 font-mono">{item.mla}</div>
                                                     </TableCell>
                                                     
-                                                    {/* --- CELDAS DE DATOS DE VISITAS --- */}
                                                     <TableCell className="text-right font-bold text-indigo-600">{item.visitasActual.toLocaleString()}</TableCell>
                                                     <TableCell className={`text-right font-bold ${item.diffVisitas > 0 ? "text-green-600" : item.diffVisitas < 0 ? "text-red-600" : "text-slate-400"}`}>
                                                         {item.diffVisitas > 0 ? `+${item.diffVisitas}` : item.diffVisitas}

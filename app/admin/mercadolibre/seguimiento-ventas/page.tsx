@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { guardarSeguimientoVentas } from "@/app/actions/seguimiento"
+import { guardarSeguimientoVentas, obtenerSeguimientoVentas } from "@/app/actions/seguimiento"
 import { 
     BarChart3, 
     AlertCircle, 
@@ -57,40 +57,28 @@ export default function SeguimientoVentasPage() {
         try {
             const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas";
 
-            const response = await fetch(N8N_WEBHOOK_URL, {
+            // --- PASO 1: CONSULTAR VENTAS ---
+            // Enviamos un flag 'fase: ventas' para que n8n sepa que solo debe traer ventas y nombres
+            const resVentas = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ r1, r2 }),
+                body: JSON.stringify({ r1, r2, fase: "ventas" }),
             });
 
-            if (!response.ok) throw new Error("Error en el servidor");
+            if (!resVentas.ok) throw new Error("Error obteniendo las ventas iniciales");
 
-            const data = await response.json();
-            const result = Array.isArray(data) ? data[0] : data;
+            const dataVentas = await resVentas.json();
+            const resultVentas = Array.isArray(dataVentas) ? dataVentas[0] : dataVentas;
             
-            // 1. Guardamos en el estado local para la vista inmediata
-            if (result.datosTabla) {
-                setRanges(result.datosTabla);
-            } else if (result.r1 && result.r2) {
-                setRanges({ r1: result.r1, r2: result.r2 });
-            }
-            setAnalysis(result.analisisIA || result.output || null);
-
-            // 2. Procesar datos para persistencia en Base de Datos
-            const listActual = result.datosTabla?.r2 || result.r2 || [];
-            const listAnterior = result.datosTabla?.r1 || result.r1 || [];
-
-            const allMlas = new Set([
-                ...listActual.map((p: any) => p.MLA), 
-                ...listAnterior.map((p: any) => p.MLA)
-            ]);
+            // --- PASO 2: GUARDAR EN BASE DE DATOS ---
+            // Procesamos la lista para cargar los MLAs en la tabla 'seguimiento_ventas'
+            const listActual = resultVentas.r2 || resultVentas.datosTabla?.r2 || [];
+            const listAnterior = resultVentas.r1 || resultVentas.datosTabla?.r1 || [];
+            const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)]);
 
             const dataParaGuardar = Array.from(allMlas).map(mla => {
                 const pActual = listActual.find((p: any) => p.MLA === mla);
                 const pAnterior = listAnterior.find((p: any) => p.MLA === mla);
-                
-                const vActual = pActual?.Visitas || 0;
-                const vAnterior = pAnterior?.Visitas || 0;
                 const nActual = pActual?.Total_Neto || 0;
                 const nAnterior = pAnterior?.Total_Neto || 0;
 
@@ -100,22 +88,41 @@ export default function SeguimientoVentasPage() {
                     ventasActual: pActual?.Cantidad_Ventas || 0,
                     ventasAnterior: pAnterior?.Cantidad_Ventas || 0,
                     diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
-                    visitasActual: vActual,
-                    visitasAnterior: vAnterior,
-                    diffVisitas: vActual - vAnterior,
-                    growthVisitas: calculateGrowth(vActual, vAnterior),
                     netoActual: nActual,
                     netoAnterior: nAnterior,
-                    growthNeto: calculateGrowth(nActual, nAnterior)
+                    growthNeto: calculateGrowth(nActual, nAnterior),
+                    // Inicializamos visitas en 0 para que n8n las actualice después
+                    visitasActual: 0,
+                    visitasAnterior: 0,
+                    diffVisitas: 0,
+                    growthVisitas: 0
                 };
             });
 
-            // Llamada a la acción para sobreescribir la tabla en PostgreSQL
             await guardarSeguimientoVentas(dataParaGuardar);
+
+            // --- PASO 3: DISPARAR WORKFLOW DE VISITAS ---
+            // n8n ahora puede leer de la DB porque ya cargamos los MLAs
+            const resVisitas = await fetch(N8N_WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ r1, r2, fase: "visitas" }),
+            });
+
+            if (!resVisitas.ok) throw new Error("Error en el proceso de visitas de n8n");
+            const dataFinal = await resVisitas.json();
+            const resultFinal = Array.isArray(dataFinal) ? dataFinal[0] : dataFinal;
+
+            // --- PASO 4: RECUPERAR DATOS ACTUALIZADOS ---
+            const datosDB = await obtenerSeguimientoVentas();
+            
+            // Actualizamos el estado para mostrar los resultados finales
+            setRanges({ r2: datosDB, r1: [] });
+            setAnalysis(resultFinal.analisisIA || resultFinal.output || null);
             
         } catch (err) {
             console.error("Error:", err);
-            setError("Error de conexión. Revisa la consola para más detalles.");
+            setError("Error en la secuencia de análisis. Revisa la consola y n8n.");
         } finally {
             setLoading(false);
         }
@@ -131,18 +138,42 @@ export default function SeguimientoVentasPage() {
 
     const comparisonData = useMemo(() => {
         if (!ranges) return []
-        const listActual = ranges.r2 || []
-        const listAnterior = ranges.r1 || []
 
-        const allMlas = new Set([
-            ...listActual.map((p: any) => p.MLA), 
-            ...listAnterior.map((p: any) => p.MLA)
-        ])
+        // Si los datos vienen procesados de la base de datos (formato plano)
+        if (Array.isArray(ranges.r2) && (!ranges.r1 || ranges.r1.length === 0)) {
+            let combined = ranges.r2.map((item: any) => ({
+                ...item,
+                netoActual: Number(item.netoActual),
+                netoAnterior: Number(item.netoAnterior),
+                growthNeto: Number(item.growthNeto),
+                growthVisitas: Number(item.growthVisitas),
+                visitasActual: Number(item.visitasActual),
+                visitasAnterior: Number(item.visitasAnterior)
+            }));
+
+            if (searchQuery) {
+                const query = searchQuery.toLowerCase()
+                combined = combined.filter(item => 
+                    item.nombre.toLowerCase().includes(query) || 
+                    item.mla.toLowerCase().includes(query)
+                )
+            }
+
+            combined.sort((a: any, b: any) => {
+                const aValue = a[sortConfig.key]; const bValue = b[sortConfig.key]
+                if (typeof aValue === 'string') return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
+                return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
+            })
+
+            return combined;
+        }
+
+        // Si n8n devolviera el formato original (fallback)
+        const listActual = ranges.r2 || []; const listAnterior = ranges.r1 || []
+        const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)])
 
         let combined = Array.from(allMlas).map(mla => {
-            const pActual = listActual.find((p: any) => p.MLA === mla)
-            const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
-
+            const pActual = listActual.find((p: any) => p.MLA === mla); const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
             return {
                 mla,
                 nombre: pActual?.Nombre || pAnterior?.Nombre || "Producto desconocido",
@@ -161,21 +192,13 @@ export default function SeguimientoVentasPage() {
 
         if (searchQuery) {
             const query = searchQuery.toLowerCase()
-            combined = combined.filter(item => 
-                item.nombre.toLowerCase().includes(query) || 
-                item.mla.toLowerCase().includes(query)
-            )
+            combined = combined.filter(item => item.nombre.toLowerCase().includes(query) || item.mla.toLowerCase().includes(query))
         }
 
         combined.sort((a: any, b: any) => {
-            const aValue = a[sortConfig.key]
-            const bValue = b[sortConfig.key]
-            if (typeof aValue === 'string') {
-                return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
-            }
-            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
-            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
-            return 0
+            const aValue = a[sortConfig.key]; const bValue = b[sortConfig.key]
+            if (typeof aValue === 'string') return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
+            return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
         })
 
         return combined
@@ -219,18 +242,14 @@ export default function SeguimientoVentasPage() {
                         {analysis && (
                             <Card className="border-indigo-200 bg-indigo-50/40 shadow-sm">
                                 <CardHeader className="flex flex-row items-center gap-3 pb-2 border-b border-indigo-100 bg-white/50">
-                                    <div className="p-2 bg-indigo-600 rounded-lg">
-                                        <Sparkles className="h-5 w-5 text-white" />
-                                    </div>
+                                    <div className="p-2 bg-indigo-600 rounded-lg"><Sparkles className="h-5 w-5 text-white" /></div>
                                     <div>
                                         <CardTitle className="text-lg font-bold text-indigo-900">Análisis Estratégico</CardTitle>
                                         <p className="text-xs text-indigo-500 font-medium uppercase tracking-wider">Generado por IA</p>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="pt-4">
-                                    <div className="text-slate-700 whitespace-pre-wrap text-sm leading-relaxed font-medium">
-                                        {analysis}
-                                    </div>
+                                    <div className="text-slate-700 whitespace-pre-wrap text-sm leading-relaxed font-medium">{analysis}</div>
                                 </CardContent>
                             </Card>
                         )}
@@ -238,33 +257,27 @@ export default function SeguimientoVentasPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Total Facturación (Neto P2)</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-slate-500">Facturación (P2)</CardTitle>
                                     <DollarSign className="h-4 w-4 text-slate-400" />
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold">{formatCurrency(totals.netoActual)}</div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <Badge variant={totals.netoActual >= totals.netoAnterior ? "default" : "destructive"}>
-                                            {calculateGrowth(totals.netoActual, totals.netoAnterior).toFixed(1)}%
-                                        </Badge>
-                                        <span className="text-xs text-slate-500">vs anterior</span>
-                                    </div>
+                                    <Badge variant={totals.netoActual >= totals.netoAnterior ? "default" : "destructive"}>
+                                        {calculateGrowth(totals.netoActual, totals.netoAnterior).toFixed(1)}%
+                                    </Badge>
                                 </CardContent>
                             </Card>
 
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Unidades Vendidas (P2)</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-slate-500">Unidades (P2)</CardTitle>
                                     <ShoppingCart className="h-4 w-4 text-slate-400" />
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold">{totals.ventasActual} u.</div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <Badge variant={totals.ventasActual >= totals.ventasAnterior ? "default" : "destructive"}>
-                                            {calculateGrowth(totals.ventasActual, totals.ventasAnterior).toFixed(1)}%
-                                        </Badge>
-                                        <span className="text-xs text-slate-500">vs anterior</span>
-                                    </div>
+                                    <Badge variant={totals.ventasActual >= totals.ventasAnterior ? "default" : "destructive"}>
+                                        {calculateGrowth(totals.ventasActual, totals.ventasAnterior).toFixed(1)}%
+                                    </Badge>
                                 </CardContent>
                             </Card>
 
@@ -275,93 +288,48 @@ export default function SeguimientoVentasPage() {
                                 </CardHeader>
                                 <CardContent>
                                     <div className="text-2xl font-bold text-indigo-900">{totals.visitasActual.toLocaleString()}</div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <Badge variant={totals.visitasActual >= totals.visitasAnterior ? "default" : "destructive"}>
-                                            {calculateGrowth(totals.visitasActual, totals.visitasAnterior).toFixed(1)}%
-                                        </Badge>
-                                        <span className="text-xs text-slate-500">vs anterior ({totals.visitasAnterior.toLocaleString()})</span>
-                                    </div>
+                                    <Badge variant={totals.visitasActual >= totals.visitasAnterior ? "default" : "destructive"}>
+                                        {calculateGrowth(totals.visitasActual, totals.visitasAnterior).toFixed(1)}%
+                                    </Badge>
                                 </CardContent>
                             </Card>
                         </div>
 
                         <div className="relative group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input 
-                                placeholder="Buscar por producto o MLA..." 
-                                className="pl-10 bg-white border-slate-200 focus-visible:ring-indigo-500"
-                                value={searchQuery}
+                                placeholder="Buscar..." 
+                                className="pl-10" 
+                                value={searchQuery} 
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
                         </div>
 
                         <Card>
-                            <CardHeader>
-                                <CardTitle className="text-lg font-bold">Desglose por Producto</CardTitle>
-                            </CardHeader>
+                            <CardHeader><CardTitle className="text-lg font-bold">Desglose por Producto</CardTitle></CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                                            <TableHead className="cursor-pointer hover:text-indigo-600" onClick={() => requestSort('nombre')}>
-                                                <div className="flex items-center">Producto <SortIcon colKey="nombre" /></div>
-                                            </TableHead>
-                                            
-                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('visitasActual')}>
-                                                <div className="flex items-center justify-end">Visitas P2 <SortIcon colKey="visitasActual" /></div>
-                                            </TableHead>
-                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('diffVisitas')}>
-                                                <div className="flex items-center justify-end">Dif. Visitas <SortIcon colKey="diffVisitas" /></div>
-                                            </TableHead>
-
-                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('ventasActual')}>
-                                                <div className="flex items-center justify-end">Ventas P2 <SortIcon colKey="ventasActual" /></div>
-                                            </TableHead>
-                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('diffVentas')}>
-                                                <div className="flex items-center justify-end">Dif. Unid. <SortIcon colKey="diffVentas" /></div>
-                                            </TableHead>
-                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('netoActual')}>
-                                                <div className="flex items-center justify-end">Neto P2 <SortIcon colKey="netoActual" /></div>
-                                            </TableHead>
-                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('growthNeto')}>
-                                                <div className="flex items-center justify-end">Crecimiento <SortIcon colKey="growthNeto" /></div>
-                                            </TableHead>
+                                        <TableRow>
+                                            <TableHead onClick={() => requestSort('nombre')} className="cursor-pointer">Producto <SortIcon colKey="nombre" /></TableHead>
+                                            <TableHead onClick={() => requestSort('visitasActual')} className="text-right cursor-pointer">Visitas P2 <SortIcon colKey="visitasActual" /></TableHead>
+                                            <TableHead onClick={() => requestSort('ventasActual')} className="text-right cursor-pointer">Ventas P2 <SortIcon colKey="ventasActual" /></TableHead>
+                                            <TableHead onClick={() => requestSort('netoActual')} className="text-right cursor-pointer">Neto P2 <SortIcon colKey="netoActual" /></TableHead>
+                                            <TableHead onClick={() => requestSort('growthNeto')} className="text-right cursor-pointer">Crecimiento <SortIcon colKey="growthNeto" /></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {comparisonData.length > 0 ? (
-                                            comparisonData.map((item) => (
-                                                <TableRow key={item.mla} className="hover:bg-slate-50/50 transition-colors">
-                                                    <TableCell className="max-w-[250px]">
-                                                        <div className="font-semibold text-slate-800 truncate">{item.nombre}</div>
-                                                        <div className="text-xs text-slate-400 font-mono">{item.mla}</div>
-                                                    </TableCell>
-                                                    
-                                                    <TableCell className="text-right font-bold text-indigo-600">{item.visitasActual.toLocaleString()}</TableCell>
-                                                    <TableCell className={`text-right font-bold ${item.diffVisitas > 0 ? "text-green-600" : item.diffVisitas < 0 ? "text-red-600" : "text-slate-400"}`}>
-                                                        {item.diffVisitas > 0 ? `+${item.diffVisitas}` : item.diffVisitas}
-                                                    </TableCell>
-
-                                                    <TableCell className="text-right font-bold text-slate-700">{item.ventasActual}</TableCell>
-                                                    <TableCell className={`text-right font-bold ${item.diffVentas > 0 ? "text-green-600" : item.diffVentas < 0 ? "text-red-600" : "text-slate-400"}`}>
-                                                        {item.diffVentas > 0 ? `+${item.diffVentas}` : item.diffVentas}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-bold text-slate-900">{formatCurrency(item.netoActual)}</TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className={`flex items-center justify-end gap-1 font-extrabold ${item.growthNeto > 0 ? "text-green-600" : item.growthNeto < 0 ? "text-red-600" : "text-slate-400"}`}>
-                                                            {item.growthNeto > 0 ? <TrendingUp className="h-3 w-3" /> : item.growthNeto < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-                                                            {Math.abs(item.growthNeto).toFixed(1)}%
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : (
-                                            <TableRow>
-                                                <TableCell colSpan={7} className="h-24 text-center text-slate-400">
-                                                    No se encontraron productos que coincidan con la búsqueda.
+                                        {comparisonData.map((item) => (
+                                            <TableRow key={item.mla} className="hover:bg-slate-50/50">
+                                                <TableCell><div className="font-semibold">{item.nombre}</div><div className="text-xs text-slate-400">{item.mla}</div></TableCell>
+                                                <TableCell className="text-right font-bold text-indigo-600">{item.visitasActual.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right font-bold">{item.ventasActual}</TableCell>
+                                                <TableCell className="text-right font-bold">{formatCurrency(item.netoActual)}</TableCell>
+                                                <TableCell className={`text-right font-bold ${item.growthNeto > 0 ? "text-green-600" : "text-red-600"}`}>
+                                                    {item.growthNeto.toFixed(1)}%
                                                 </TableCell>
                                             </TableRow>
-                                        )}
+                                        ))}
                                     </TableBody>
                                 </Table>
                             </CardContent>

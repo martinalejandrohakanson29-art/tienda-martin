@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState } from "react" // 1. Importamos useState
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, BarChart3, RefreshCw } from "lucide-react"
 import Link from "next/link"
@@ -12,10 +12,12 @@ interface VentasHeaderProps {
 }
 
 export function VentasHeader({ onCompare, isLoading }: VentasHeaderProps) {
+    // 2. Definimos estados para recordar los rangos de fechas
     const [range1, setRange1] = useState({ from: "", to: "" })
     const [range2, setRange2] = useState({ from: "", to: "" })
 
     const handleApply = () => {
+        // Solo llamamos a la comparación si tenemos datos
         if (range1.from && range2.from) {
             onCompare(range1, range2)
         } else {
@@ -27,6 +29,7 @@ export function VentasHeader({ onCompare, isLoading }: VentasHeaderProps) {
         <div className="bg-white border-b shadow-sm p-4 sticky top-0 z-10">
             <div className="max-w-[1600px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
                 
+                {/* Título y Navegación */}
                 <div className="flex items-center gap-4">
                     <Link href="/admin/mercadolibre">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -39,16 +42,17 @@ export function VentasHeader({ onCompare, isLoading }: VentasHeaderProps) {
                             Seguimiento de Ventas
                         </h1>
                         <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">
-                            Análisis Comparativo de Facturación
+                            Análisis Comparativo
                         </p>
                     </div>
                 </div>
 
+                {/* Controles de Fecha */}
                 <div className="flex flex-wrap items-center gap-4 bg-slate-50 p-2 rounded-xl border border-slate-200">
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-400 uppercase vertical-text border-r pr-2">P1</span>
                         <DateRangePicker 
-                            onRangeChange={(from, to) => setRange1({ from, to })}
+                            onRangeChange={(from, to) => setRange1({ from, to })} // Actualizamos el estado
                         />
                     </div>
 
@@ -57,7 +61,7 @@ export function VentasHeader({ onCompare, isLoading }: VentasHeaderProps) {
                     <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold text-slate-400 uppercase vertical-text border-r pr-2">P2</span>
                         <DateRangePicker 
-                            onRangeChange={(from, to) => setRange2({ from, to })}
+                            onRangeChange={(from, to) => setRange2({ from, to })} // Actualizamos el estado
                         />
                     </div>
 

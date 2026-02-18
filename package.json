@@ -1,0 +1,55 @@
+fetched snapshot sha256:f88f3052fbbc7782f161fdf94aaa8cbc4d49e285dcb0497e8f74a0ed82852ab8 (267 kB bytes)
+fetching snapshot
+261 KB
+379ms
+unpacking archive
+830 KB
+18ms
+using build driver railpack-v0.17.2
+                   
+╭─────────────────╮
+│ Railpack 0.17.2 │
+╰─────────────────╯
+ 
+  ⚠ Script start.sh not found
+  ✖ Railpack could not determine how to build the app.
+  
+  The following languages are supported:
+  - Php
+  - Golang
+  - Java
+  - Rust
+  - Ruby
+  - Elixir
+  - Python
+  - Deno
+  - Dotnet
+  - Node
+  - Gleam
+  - Cpp
+  - Staticfile
+  - Shell
+  
+  The app contents that Railpack analyzed contains:
+  
+  ./
+  ├── app/
+  ├── components/
+  ├── hooks/
+  ├── lib/
+  ├── prisma/
+  ├── README.md
+  ├── components.json
+  ├── middleware.ts
+  ├── next-auth.d.ts
+  ├── next-env.d.ts
+  ├── next.config.mjs
+  ├── postcss.config.mjs
+  ├── tailwind.config.ts
+  └── tsconfig.json
+  
+  Check out the docs for more information: https://railpack.com
+ 
+ 
+railpack process exited with an error
+scheduling build on Metal builder "builder-fsvvtm"

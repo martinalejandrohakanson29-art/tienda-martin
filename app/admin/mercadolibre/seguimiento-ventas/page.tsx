@@ -58,7 +58,6 @@ export default function SeguimientoVentasPage() {
             const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas";
 
             // --- PASO 1: CONSULTAR VENTAS ---
-            // Enviamos un flag 'fase: ventas' para que n8n sepa que solo debe traer ventas y nombres
             const resVentas = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -71,7 +70,6 @@ export default function SeguimientoVentasPage() {
             const resultVentas = Array.isArray(dataVentas) ? dataVentas[0] : dataVentas;
             
             // --- PASO 2: GUARDAR EN BASE DE DATOS ---
-            // Procesamos la lista para cargar los MLAs en la tabla 'seguimiento_ventas'
             const listActual = resultVentas.r2 || resultVentas.datosTabla?.r2 || [];
             const listAnterior = resultVentas.r1 || resultVentas.datosTabla?.r1 || [];
             const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)]);
@@ -91,7 +89,6 @@ export default function SeguimientoVentasPage() {
                     netoActual: nActual,
                     netoAnterior: nAnterior,
                     growthNeto: calculateGrowth(nActual, nAnterior),
-                    // Inicializamos visitas en 0 para que n8n las actualice después
                     visitasActual: 0,
                     visitasAnterior: 0,
                     diffVisitas: 0,
@@ -102,7 +99,6 @@ export default function SeguimientoVentasPage() {
             await guardarSeguimientoVentas(dataParaGuardar);
 
             // --- PASO 3: DISPARAR WORKFLOW DE VISITAS ---
-            // n8n ahora puede leer de la DB porque ya cargamos los MLAs
             const resVisitas = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -116,7 +112,6 @@ export default function SeguimientoVentasPage() {
             // --- PASO 4: RECUPERAR DATOS ACTUALIZADOS ---
             const datosDB = await obtenerSeguimientoVentas();
             
-            // Actualizamos el estado para mostrar los resultados finales
             setRanges({ r2: datosDB, r1: [] });
             setAnalysis(resultFinal.analisisIA || resultFinal.output || null);
             
@@ -139,7 +134,6 @@ export default function SeguimientoVentasPage() {
     const comparisonData = useMemo(() => {
         if (!ranges) return []
 
-        // Si los datos vienen procesados de la base de datos (formato plano)
         if (Array.isArray(ranges.r2) && (!ranges.r1 || ranges.r1.length === 0)) {
             let combined = ranges.r2.map((item: any) => ({
                 ...item,
@@ -153,7 +147,8 @@ export default function SeguimientoVentasPage() {
 
             if (searchQuery) {
                 const query = searchQuery.toLowerCase()
-                combined = combined.filter(item => 
+                // FIX: Agregado (item: any) para evitar error de compilación
+                combined = combined.filter((item: any) => 
                     item.nombre.toLowerCase().includes(query) || 
                     item.mla.toLowerCase().includes(query)
                 )
@@ -168,7 +163,6 @@ export default function SeguimientoVentasPage() {
             return combined;
         }
 
-        // Si n8n devolviera el formato original (fallback)
         const listActual = ranges.r2 || []; const listAnterior = ranges.r1 || []
         const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)])
 
@@ -192,7 +186,8 @@ export default function SeguimientoVentasPage() {
 
         if (searchQuery) {
             const query = searchQuery.toLowerCase()
-            combined = combined.filter(item => item.nombre.toLowerCase().includes(query) || item.mla.toLowerCase().includes(query))
+            // FIX: Agregado (item: any) para evitar error de compilación
+            combined = combined.filter((item: any) => item.nombre.toLowerCase().includes(query) || item.mla.toLowerCase().includes(query))
         }
 
         combined.sort((a: any, b: any) => {

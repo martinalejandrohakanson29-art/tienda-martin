@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo } from "react"
@@ -5,6 +6,7 @@ import { VentasHeader } from "./ventas-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input" // Componente para el buscador
 import { 
     BarChart3, 
     AlertCircle, 
@@ -13,8 +15,11 @@ import {
     Minus,
     DollarSign,
     ShoppingCart,
-    Sparkles, // Icono para la IA
-    BrainCircuit // Otro icono opcional para el análisis
+    Sparkles,
+    Search, // Icono de lupa
+    ArrowUpDown, // Icono de estado neutral de orden
+    ChevronUp, // Icono orden ascendente
+    ChevronDown // Icono orden descendente
 } from "lucide-react"
 
 // --- FUNCIONES AUXILIARES ---
@@ -34,53 +39,61 @@ const formatCurrency = (value: number) => {
 export default function SeguimientoVentasPage() {
     const [loading, setLoading] = useState(false)
     const [ranges, setRanges] = useState<any>(null)
-    const [analysis, setAnalysis] = useState<string | null>(null) // Estado para la IA
+    const [analysis, setAnalysis] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
 
-   const handleCompare = async (r1: any, r2: any) => {
-    setLoading(true);
-    setError(null);
-    setAnalysis(null);
-    
-    try {
-        const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas";
+    // --- NUEVOS ESTADOS PARA BUSCADOR Y ORDENAMIENTO ---
+    const [searchQuery, setSearchQuery] = useState("")
+    const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({
+        key: 'netoActual', // Orden inicial por facturación
+        direction: 'desc'
+    })
 
-        const response = await fetch(N8N_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ r1, r2 }),
-        });
-
-        if (!response.ok) throw new Error("Error en el servidor");
-
-        const data = await response.json();
+    const handleCompare = async (r1: any, r2: any) => {
+        setLoading(true);
+        setError(null);
+        setAnalysis(null);
         
-        // --- DEBUG: Agregamos esto para ver en la consola del navegador qué llega ---
-        console.log("Datos recibidos de n8n:", data);
+        try {
+            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas";
 
-        const result = Array.isArray(data) ? data[0] : data;
-        
-        // Verificamos si la propiedad existe antes de setear
-        if (result.datosTabla) {
-            setRanges(result.datosTabla);
-        } else if (result.r1 && result.r2) {
-            // Plan B: Si n8n envió r1 y r2 directo en la raíz
-            setRanges({ r1: result.r1, r2: result.r2 });
-        } else {
-            console.warn("No se encontró la estructura de datos esperada en la respuesta");
+            const response = await fetch(N8N_WEBHOOK_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ r1, r2 }),
+            });
+
+            if (!response.ok) throw new Error("Error en el servidor");
+
+            const data = await response.json();
+            const result = Array.isArray(data) ? data[0] : data;
+            
+            if (result.datosTabla) {
+                setRanges(result.datosTabla);
+            } else if (result.r1 && result.r2) {
+                setRanges({ r1: result.r1, r2: result.r2 });
+            }
+
+            setAnalysis(result.analisisIA || result.output || null);
+            
+        } catch (err) {
+            console.error("Error:", err);
+            setError("Error de conexión. Revisa la consola para más detalles.");
+        } finally {
+            setLoading(false);
         }
-
-        setAnalysis(result.analisisIA || result.output || null);
-        
-    } catch (err) {
-        console.error("Error:", err);
-        setError("Error de conexión. Revisa la consola para más detalles.");
-    } finally {
-        setLoading(false);
     }
-}
 
-    // LÓGICA DE UNIFICACIÓN PARA LA TABLA
+    // --- FUNCIÓN PARA MANEJAR EL CAMBIO DE ORDEN ---
+    const requestSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc'
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc'
+        }
+        setSortConfig({ key, direction })
+    }
+
+    // LÓGICA DE UNIFICACIÓN, FILTRADO Y ORDENAMIENTO
     const comparisonData = useMemo(() => {
         if (!ranges) return []
         const listActual = ranges.r2 || []
@@ -91,7 +104,8 @@ export default function SeguimientoVentasPage() {
             ...listAnterior.map((p: any) => p.MLA)
         ])
 
-        const combined = Array.from(allMlas).map(mla => {
+        // 1. Unificar datos de los dos periodos
+        let combined = Array.from(allMlas).map(mla => {
             const pActual = listActual.find((p: any) => p.MLA === mla)
             const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
 
@@ -107,9 +121,37 @@ export default function SeguimientoVentasPage() {
             }
         })
 
-        return combined.sort((a, b) => b.netoActual - a.netoActual)
-    }, [ranges])
+        // 2. Filtrar por el buscador (Nombre o MLA)
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase()
+            combined = combined.filter(item => 
+                item.nombre.toLowerCase().includes(query) || 
+                item.mla.toLowerCase().includes(query)
+            )
+        }
 
+        // 3. Ordenar dinámicamente según la columna seleccionada
+        combined.sort((a: any, b: any) => {
+            const aValue = a[sortConfig.key]
+            const bValue = b[sortConfig.key]
+
+            // Si es texto, usamos localeCompare para un orden natural
+            if (typeof aValue === 'string') {
+                return sortConfig.direction === 'asc' 
+                    ? aValue.localeCompare(bValue) 
+                    : bValue.localeCompare(aValue)
+            }
+
+            // Si es número
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
+            return 0
+        })
+
+        return combined
+    }, [ranges, searchQuery, sortConfig])
+
+    // Totales calculados en base a lo que se ve en la tabla (incluyendo filtros)
     const totals = useMemo(() => {
         return comparisonData.reduce((acc, curr) => ({
             netoActual: acc.netoActual + curr.netoActual,
@@ -118,6 +160,12 @@ export default function SeguimientoVentasPage() {
             ventasAnterior: acc.ventasAnterior + curr.ventasAnterior
         }), { netoActual: 0, netoAnterior: 0, ventasActual: 0, ventasAnterior: 0 })
     }, [comparisonData])
+
+    // Icono que indica si la columna está siendo ordenada
+    const SortIcon = ({ colKey }: { colKey: string }) => {
+        if (sortConfig.key !== colKey) return <ArrowUpDown className="ml-2 h-4 w-4 opacity-30" />
+        return sortConfig.direction === 'asc' ? <ChevronUp className="ml-2 h-4 w-4 text-indigo-600" /> : <ChevronDown className="ml-2 h-4 w-4 text-indigo-600" />
+    }
 
     return (
         <div className="flex flex-col min-h-screen bg-slate-50/50">
@@ -138,7 +186,6 @@ export default function SeguimientoVentasPage() {
                     </div>
                 ) : (
                     <>
-                        {/* SECCIÓN DE IA: Aparece resaltada arriba de todo */}
                         {analysis && (
                             <Card className="border-indigo-200 bg-indigo-50/40 shadow-sm">
                                 <CardHeader className="flex flex-row items-center gap-3 pb-2 border-b border-indigo-100 bg-white/50">
@@ -158,7 +205,6 @@ export default function SeguimientoVentasPage() {
                             </Card>
                         )}
 
-                        {/* TARJETAS DE TOTALES */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -195,44 +241,111 @@ export default function SeguimientoVentasPage() {
                             </Card>
                         </div>
 
-                        {/* TABLA DETALLADA */}
+                        {/* --- BUSCADOR --- */}
+                        <div className="relative group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                            <Input 
+                                placeholder="Buscar por producto o MLA..." 
+                                className="pl-10 bg-white border-slate-200 focus-visible:ring-indigo-500"
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                            />
+                        </div>
+
                         <Card>
                             <CardHeader>
-                                <CardTitle className="text-lg">Desglose por Producto</CardTitle>
+                                <CardTitle className="text-lg font-bold">Desglose por Producto</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Producto</TableHead>
-                                            <TableHead className="text-right">Ventas P2</TableHead>
-                                            <TableHead className="text-right">Ventas P1</TableHead>
-                                            <TableHead className="text-right">Dif. Unid.</TableHead>
-                                            <TableHead className="text-right">Neto P2</TableHead>
-                                            <TableHead className="text-right">Crecimiento</TableHead>
+                                        <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
+                                            {/* Cabeceras con click para ordenar */}
+                                            <TableHead 
+                                                className="cursor-pointer transition-colors hover:text-indigo-600"
+                                                onClick={() => requestSort('nombre')}
+                                            >
+                                                <div className="flex items-center">
+                                                    Producto
+                                                    <SortIcon colKey="nombre" />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead 
+                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
+                                                onClick={() => requestSort('ventasActual')}
+                                            >
+                                                <div className="flex items-center justify-end">
+                                                    Ventas P2
+                                                    <SortIcon colKey="ventasActual" />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead 
+                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
+                                                onClick={() => requestSort('ventasAnterior')}
+                                            >
+                                                <div className="flex items-center justify-end">
+                                                    Ventas P1
+                                                    <SortIcon colKey="ventasAnterior" />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead 
+                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
+                                                onClick={() => requestSort('diffVentas')}
+                                            >
+                                                <div className="flex items-center justify-end">
+                                                    Dif. Unid.
+                                                    <SortIcon colKey="diffVentas" />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead 
+                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
+                                                onClick={() => requestSort('netoActual')}
+                                            >
+                                                <div className="flex items-center justify-end">
+                                                    Neto P2
+                                                    <SortIcon colKey="netoActual" />
+                                                </div>
+                                            </TableHead>
+                                            <TableHead 
+                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
+                                                onClick={() => requestSort('growthNeto')}
+                                            >
+                                                <div className="flex items-center justify-end">
+                                                    Crecimiento
+                                                    <SortIcon colKey="growthNeto" />
+                                                </div>
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {comparisonData.map((item) => (
-                                            <TableRow key={item.mla}>
-                                                <TableCell className="max-w-[300px]">
-                                                    <div className="font-medium truncate">{item.nombre}</div>
-                                                    <div className="text-xs text-slate-400 font-mono">{item.mla}</div>
-                                                </TableCell>
-                                                <TableCell className="text-right font-semibold">{item.ventasActual}</TableCell>
-                                                <TableCell className="text-right text-slate-500">{item.ventasAnterior}</TableCell>
-                                                <TableCell className={`text-right font-medium ${item.diffVentas > 0 ? "text-green-600" : item.diffVentas < 0 ? "text-red-600" : ""}`}>
-                                                    {item.diffVentas > 0 ? `+${item.diffVentas}` : item.diffVentas}
-                                                </TableCell>
-                                                <TableCell className="text-right font-semibold">{formatCurrency(item.netoActual)}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className={`flex items-center justify-end gap-1 font-bold ${item.growthNeto > 0 ? "text-green-600" : item.growthNeto < 0 ? "text-red-600" : "text-slate-400"}`}>
-                                                        {item.growthNeto > 0 ? <TrendingUp className="h-3 w-3" /> : item.growthNeto < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-                                                        {Math.abs(item.growthNeto).toFixed(1)}%
-                                                    </div>
+                                        {comparisonData.length > 0 ? (
+                                            comparisonData.map((item) => (
+                                                <TableRow key={item.mla} className="hover:bg-slate-50/50 transition-colors">
+                                                    <TableCell className="max-w-[300px]">
+                                                        <div className="font-semibold text-slate-800 truncate">{item.nombre}</div>
+                                                        <div className="text-xs text-slate-400 font-mono">{item.mla}</div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-slate-700">{item.ventasActual}</TableCell>
+                                                    <TableCell className="text-right text-slate-500">{item.ventasAnterior}</TableCell>
+                                                    <TableCell className={`text-right font-bold ${item.diffVentas > 0 ? "text-green-600" : item.diffVentas < 0 ? "text-red-600" : "text-slate-400"}`}>
+                                                        {item.diffVentas > 0 ? `+${item.diffVentas}` : item.diffVentas}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-slate-900">{formatCurrency(item.netoActual)}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className={`flex items-center justify-end gap-1 font-extrabold ${item.growthNeto > 0 ? "text-green-600" : item.growthNeto < 0 ? "text-red-600" : "text-slate-400"}`}>
+                                                            {item.growthNeto > 0 ? <TrendingUp className="h-3 w-3" /> : item.growthNeto < 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                                                            {Math.abs(item.growthNeto).toFixed(1)}%
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="h-24 text-center text-slate-400">
+                                                    No se encontraron productos que coincidan con la búsqueda.
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
+                                        )}
                                     </TableBody>
                                 </Table>
                             </CardContent>

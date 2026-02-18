@@ -5,9 +5,10 @@ import { revalidatePath } from "next/cache";
 
 export async function guardarSeguimientoVentas(datos: any[]) {
   try {
-    // Borramos lo anterior para sobreescribir con la nueva consulta
+    // 1. Limpiamos la tabla antes de guardar los nuevos resultados
     await prisma.seguimientoVentas.deleteMany({});
 
+    // 2. Guardamos los nuevos datos (solo ventas y neto)
     await prisma.seguimientoVentas.createMany({
       data: datos.map(item => ({
         mla: item.mla,
@@ -25,12 +26,11 @@ export async function guardarSeguimientoVentas(datos: any[]) {
     revalidatePath("/admin/mercadolibre/seguimiento-ventas");
     return { success: true };
   } catch (error: any) {
-    console.error("Error al guardar:", error);
+    console.error("Error al guardar en base de datos:", error);
     return { success: false };
   }
 }
 
-// Función para traer los datos ordenados por facturación neta
 export async function obtenerSeguimientoVentas() {
   try {
     return await prisma.seguimientoVentas.findMany({

@@ -1,55 +1,53 @@
-fetched snapshot sha256:f88f3052fbbc7782f161fdf94aaa8cbc4d49e285dcb0497e8f74a0ed82852ab8 (267 kB bytes)
-fetching snapshot
-261 KB
-379ms
-unpacking archive
-830 KB
-18ms
-using build driver railpack-v0.17.2
-                   
-╭─────────────────╮
-│ Railpack 0.17.2 │
-╰─────────────────╯
- 
-  ⚠ Script start.sh not found
-  ✖ Railpack could not determine how to build the app.
-  
-  The following languages are supported:
-  - Php
-  - Golang
-  - Java
-  - Rust
-  - Ruby
-  - Elixir
-  - Python
-  - Deno
-  - Dotnet
-  - Node
-  - Gleam
-  - Cpp
-  - Staticfile
-  - Shell
-  
-  The app contents that Railpack analyzed contains:
-  
-  ./
-  ├── app/
-  ├── components/
-  ├── hooks/
-  ├── lib/
-  ├── prisma/
-  ├── README.md
-  ├── components.json
-  ├── middleware.ts
-  ├── next-auth.d.ts
-  ├── next-env.d.ts
-  ├── next.config.mjs
-  ├── postcss.config.mjs
-  ├── tailwind.config.ts
-  └── tsconfig.json
-  
-  Check out the docs for more information: https://railpack.com
- 
- 
-railpack process exited with an error
-scheduling build on Metal builder "builder-fsvvtm"
+{
+  "name": "temp_setup",
+  "version": "0.1.0",
+  "private": true,
+ "scripts": {
+  "postinstall": "prisma generate",
+  "dev": "next dev",
+  "build": "prisma generate && prisma db push && next build",
+  "start": "next start",
+  "lint": "next lint"
+},
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.525.0",
+    "@aws-sdk/s3-request-presigner": "^3.525.0",
+    "@tanstack/react-table": "^8.10.0",
+    "@prisma/client": "^5.10.0",
+    "mercadopago": "^2.0.9",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "embla-carousel-react": "^8.6.0",
+    "lucide-react": "^0.556.0",
+    "next": "14.2.35",
+    "next-auth": "^4.24.13",
+    "prisma": "^5.10.0",
+    "react": "^18",
+    "react-dom": "^18",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
+    "googleapis": "^126.0.1",
+    "axios": "^1.6.2",
+    "papaparse": "^5.4.1",
+    "embla-carousel-autoplay": "^8.5.1",
+    "sonner": "^1.5.0",
+    "date-fns": "^3.6.0",
+    "html-to-image": "^1.11.11",
+    "html5-qrcode": "^2.3.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "@types/papaparse": "^5.3.14",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.33",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
+  }
+}

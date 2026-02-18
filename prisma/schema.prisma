@@ -490,3 +490,21 @@ model TransferenciaCruzada {
   @@index([whatsappId, procesada])
   @@map("transferencias_cruzadas")
 }
+
+model SeguimientoVentas {
+  mla               String   @id
+  nombre            String
+  ventasActual      Int      @default(0)
+  ventasAnterior    Int      @default(0)
+  diffVentas        Int      @default(0)
+  visitasActual     Int      @default(0)
+  visitasAnterior   Int      @default(0)
+  diffVisitas       Int      @default(0)
+  growthVisitas     Decimal  @db.Decimal(10, 2) @default(0)
+  netoActual        Decimal  @db.Decimal(20, 2) @default(0)
+  netoAnterior      Decimal  @db.Decimal(20, 2) @default(0)
+  growthNeto        Decimal  @db.Decimal(10, 2) @default(0)
+  ultimaActualizacion DateTime @default(now())
+
+  @@map("seguimiento_ventas")
+}

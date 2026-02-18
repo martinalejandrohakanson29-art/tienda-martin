@@ -5,10 +5,10 @@ import { revalidatePath } from "next/cache";
 
 export async function guardarSeguimientoVentas(datos: any[]) {
   try {
-    // 1. Limpiamos la tabla antes de guardar los nuevos resultados del análisis actual
+    // 1. Limpiamos los datos del análisis anterior
     await prisma.seguimientoVentas.deleteMany({});
 
-    // 2. Guardamos los nuevos datos de ventas y facturación
+    // 2. Guardamos la nueva comparativa de ventas y facturación
     await prisma.seguimientoVentas.createMany({
       data: datos.map(item => ({
         mla: item.mla,
@@ -26,7 +26,7 @@ export async function guardarSeguimientoVentas(datos: any[]) {
     revalidatePath("/admin/mercadolibre/seguimiento-ventas");
     return { success: true };
   } catch (error: any) {
-    console.error("Error al guardar seguimiento de ventas:", error);
+    console.error("Error al guardar datos de ventas:", error);
     return { success: false };
   }
 }
@@ -37,7 +37,7 @@ export async function obtenerSeguimientoVentas() {
       orderBy: { netoActual: 'desc' }
     });
   } catch (error) {
-    console.error("Error al obtener datos de seguimiento:", error);
+    console.error("Error al recuperar datos de ventas:", error);
     return [];
   }
 }

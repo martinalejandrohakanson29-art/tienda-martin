@@ -19,7 +19,7 @@ import {
     ArrowUpDown,
     ChevronUp,
     ChevronDown,
-    Users // Nuevo icono para visitas
+    Users // Icono para las visitas
 } from "lucide-react"
 
 // --- FUNCIONES AUXILIARES ---
@@ -54,7 +54,8 @@ export default function SeguimientoVentasPage() {
         setAnalysis(null);
         
         try {
-            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas";
+            // URL actualizada al nuevo webhook de visitas
+            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas";
 
             const response = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",
@@ -111,7 +112,7 @@ export default function SeguimientoVentasPage() {
                 ventasActual: pActual?.Cantidad_Ventas || 0,
                 ventasAnterior: pAnterior?.Cantidad_Ventas || 0,
                 diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
-                // --- NUEVOS CAMPOS DE VISITAS ---
+                // --- PROCESAMIENTO DE VISITAS ---
                 visitasActual: pActual?.Visitas || 0,
                 visitasAnterior: pAnterior?.Visitas || 0,
                 diffVisitas: (pActual?.Visitas || 0) - (pAnterior?.Visitas || 0),
@@ -151,7 +152,7 @@ export default function SeguimientoVentasPage() {
             netoAnterior: acc.netoAnterior + curr.netoAnterior,
             ventasActual: acc.ventasActual + curr.ventasActual,
             ventasAnterior: acc.ventasAnterior + curr.ventasAnterior,
-            // Sumamos visitas totales
+            // Sumatoria de visitas totales para las tarjetas
             visitasActual: acc.visitasActual + curr.visitasActual,
             visitasAnterior: acc.visitasAnterior + curr.visitasAnterior
         }), { netoActual: 0, netoAnterior: 0, ventasActual: 0, ventasAnterior: 0, visitasActual: 0, visitasAnterior: 0 })
@@ -212,7 +213,7 @@ export default function SeguimientoVentasPage() {
                                         <Badge variant={totals.netoActual >= totals.netoAnterior ? "default" : "destructive"}>
                                             {calculateGrowth(totals.netoActual, totals.netoAnterior).toFixed(1)}%
                                         </Badge>
-                                        <span className="text-xs text-slate-500">vs anterior ({formatCurrency(totals.netoAnterior)})</span>
+                                        <span className="text-xs text-slate-500">vs anterior</span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -228,13 +229,13 @@ export default function SeguimientoVentasPage() {
                                         <Badge variant={totals.ventasActual >= totals.ventasAnterior ? "default" : "destructive"}>
                                             {calculateGrowth(totals.ventasActual, totals.ventasAnterior).toFixed(1)}%
                                         </Badge>
-                                        <span className="text-xs text-slate-500">vs anterior ({totals.ventasAnterior} u.)</span>
+                                        <span className="text-xs text-slate-500">vs anterior</span>
                                     </div>
                                 </CardContent>
                             </Card>
 
-                            {/* --- NUEVA TARJETA DE VISITAS --- */}
-                            <Card className="border-indigo-100 bg-white">
+                            {/* --- TARJETA DE RESUMEN DE VISITAS --- */}
+                            <Card className="border-indigo-100">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-sm font-medium text-slate-500">Visitas Totales (P2)</CardTitle>
                                     <Users className="h-4 w-4 text-indigo-500" />
@@ -273,7 +274,7 @@ export default function SeguimientoVentasPage() {
                                                 <div className="flex items-center">Producto <SortIcon colKey="nombre" /></div>
                                             </TableHead>
                                             
-                                            {/* --- COLUMNA DE VISITAS --- */}
+                                            {/* --- CABECERAS DE VISITAS --- */}
                                             <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('visitasActual')}>
                                                 <div className="flex items-center justify-end">Visitas P2 <SortIcon colKey="visitasActual" /></div>
                                             </TableHead>
@@ -304,7 +305,7 @@ export default function SeguimientoVentasPage() {
                                                         <div className="text-xs text-slate-400 font-mono">{item.mla}</div>
                                                     </TableCell>
                                                     
-                                                    {/* --- CELDAS DE VISITAS --- */}
+                                                    {/* --- CELDAS DE DATOS DE VISITAS --- */}
                                                     <TableCell className="text-right font-bold text-indigo-600">{item.visitasActual.toLocaleString()}</TableCell>
                                                     <TableCell className={`text-right font-bold ${item.diffVisitas > 0 ? "text-green-600" : item.diffVisitas < 0 ? "text-red-600" : "text-slate-400"}`}>
                                                         {item.diffVisitas > 0 ? `+${item.diffVisitas}` : item.diffVisitas}

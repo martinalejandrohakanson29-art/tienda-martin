@@ -51,22 +51,23 @@ export default function SeguimientoVentasPage() {
         setAnalysis(null);
         
         try {
-            // Mantenemos la URL del webhook pero eliminamos la lógica de múltiples fases
-            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas";
+            // HEMOS CAMBIADO EL NOMBRE DEL WEBHOOK A "seguimiento-ventas"
+            // Recordá actualizar el "Path" del webhook en tu n8n
+            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas";
 
             // --- PASO 1: CONSULTAR VENTAS AL WEBHOOK ---
             const res = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ r1, r2 }), // Enviamos solo los rangos
+                body: JSON.stringify({ r1, r2 }), // Enviamos solo los rangos de fechas
             });
 
-            if (!res.ok) throw new Error("Error obteniendo los datos de ventas");
+            if (!res.ok) throw new Error("No se pudo conectar con el servidor de análisis");
 
             const data = await res.json();
             const result = Array.isArray(data) ? data[0] : data;
             
-            // --- PASO 2: PROCESAR Y GUARDAR EN BASE DE DATOS ---
+            // --- PASO 2: PROCESAR Y GUARDAR EN RAILWAY ---
             const listActual = result.r2 || result.datosTabla?.r2 || [];
             const listAnterior = result.r1 || result.datosTabla?.r1 || [];
             const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)]);
@@ -89,10 +90,10 @@ export default function SeguimientoVentasPage() {
                 };
             });
 
-            // Guardamos en la base de datos de Railway
+            // Acción de servidor para persistir los datos
             await guardarSeguimientoVentas(dataParaGuardar);
 
-            // --- PASO 3: RECUPERAR DATOS ACTUALIZADOS Y ANALISIS ---
+            // --- PASO 3: ACTUALIZAR LA VISTA ---
             const datosDB = await obtenerSeguimientoVentas();
             
             setRanges({ r2: datosDB, r1: [] });
@@ -100,7 +101,7 @@ export default function SeguimientoVentasPage() {
             
         } catch (err: any) {
             console.error("Error:", err);
-            setError("Error en el análisis: " + err.message);
+            setError("Error en el análisis de ventas: " + err.message);
         } finally {
             setLoading(false);
         }
@@ -178,7 +179,7 @@ export default function SeguimientoVentasPage() {
                 {!ranges ? (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                         <BarChart3 className="h-16 w-16 mb-4 opacity-20" />
-                        <p className="text-lg font-medium">Seleccioná los periodos para iniciar el análisis de ventas</p>
+                        <p className="text-lg font-medium">Seleccioná los periodos para analizar el rendimiento de ventas</p>
                     </div>
                 ) : (
                     <>
@@ -187,8 +188,8 @@ export default function SeguimientoVentasPage() {
                                 <CardHeader className="flex flex-row items-center gap-3 pb-2 border-b border-indigo-100 bg-white/50">
                                     <div className="p-2 bg-indigo-600 rounded-lg"><Sparkles className="h-5 w-5 text-white" /></div>
                                     <div>
-                                        <CardTitle className="text-lg font-bold text-indigo-900">Análisis Estratégico</CardTitle>
-                                        <p className="text-xs text-indigo-500 font-medium uppercase tracking-wider">Análisis de Mercado Libre</p>
+                                        <CardTitle className="text-lg font-bold text-indigo-900">Análisis Estratégico de Ventas</CardTitle>
+                                        <p className="text-xs text-indigo-500 font-medium uppercase tracking-wider">Generado por el sistema</p>
                                     </div>
                                 </CardHeader>
                                 <CardContent className="pt-4">
@@ -200,7 +201,7 @@ export default function SeguimientoVentasPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Facturación (P2)</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-slate-500">Facturación (Periodo 2)</CardTitle>
                                     <DollarSign className="h-4 w-4 text-slate-400" />
                                 </CardHeader>
                                 <CardContent>
@@ -213,7 +214,7 @@ export default function SeguimientoVentasPage() {
 
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Unidades (P2)</CardTitle>
+                                    <CardTitle className="text-sm font-medium text-slate-500">Unidades Vendidas (Periodo 2)</CardTitle>
                                     <ShoppingCart className="h-4 w-4 text-slate-400" />
                                 </CardHeader>
                                 <CardContent>
@@ -228,7 +229,7 @@ export default function SeguimientoVentasPage() {
                         <div className="relative group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input 
-                                placeholder="Buscar por producto o MLA..." 
+                                placeholder="Buscar por producto o código MLA..." 
                                 className="pl-10" 
                                 value={searchQuery} 
                                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -236,14 +237,14 @@ export default function SeguimientoVentasPage() {
                         </div>
 
                         <Card>
-                            <CardHeader><CardTitle className="text-lg font-bold">Desglose por Producto</CardTitle></CardHeader>
+                            <CardHeader><CardTitle className="text-lg font-bold">Rendimiento por Artículo</CardTitle></CardHeader>
                             <CardContent className="p-0">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead onClick={() => requestSort('nombre')} className="cursor-pointer">Producto <SortIcon colKey="nombre" /></TableHead>
                                             <TableHead onClick={() => requestSort('ventasActual')} className="text-right cursor-pointer">Ventas P2 <SortIcon colKey="ventasActual" /></TableHead>
-                                            <TableHead onClick={() => requestSort('netoActual')} className="text-right cursor-pointer">Neto P2 <SortIcon colKey="netoActual" /></TableHead>
+                                            <TableHead onClick={() => requestSort('netoActual')} className="text-right cursor-pointer">Facturación P2 <SortIcon colKey="netoActual" /></TableHead>
                                             <TableHead onClick={() => requestSort('growthNeto')} className="text-right cursor-pointer">Crecimiento <SortIcon colKey="growthNeto" /></TableHead>
                                         </TableRow>
                                     </TableHeader>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from "react"
@@ -6,7 +5,7 @@ import { VentasHeader } from "./ventas-header"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input" // Componente para el buscador
+import { Input } from "@/components/ui/input"
 import { 
     BarChart3, 
     AlertCircle, 
@@ -16,10 +15,11 @@ import {
     DollarSign,
     ShoppingCart,
     Sparkles,
-    Search, // Icono de lupa
-    ArrowUpDown, // Icono de estado neutral de orden
-    ChevronUp, // Icono orden ascendente
-    ChevronDown // Icono orden descendente
+    Search,
+    ArrowUpDown,
+    ChevronUp,
+    ChevronDown,
+    Users // Nuevo icono para visitas
 } from "lucide-react"
 
 // --- FUNCIONES AUXILIARES ---
@@ -42,10 +42,9 @@ export default function SeguimientoVentasPage() {
     const [analysis, setAnalysis] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
 
-    // --- NUEVOS ESTADOS PARA BUSCADOR Y ORDENAMIENTO ---
     const [searchQuery, setSearchQuery] = useState("")
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({
-        key: 'netoActual', // Orden inicial por facturación
+        key: 'netoActual',
         direction: 'desc'
     })
 
@@ -84,7 +83,6 @@ export default function SeguimientoVentasPage() {
         }
     }
 
-    // --- FUNCIÓN PARA MANEJAR EL CAMBIO DE ORDEN ---
     const requestSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc'
         if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -93,7 +91,6 @@ export default function SeguimientoVentasPage() {
         setSortConfig({ key, direction })
     }
 
-    // LÓGICA DE UNIFICACIÓN, FILTRADO Y ORDENAMIENTO
     const comparisonData = useMemo(() => {
         if (!ranges) return []
         const listActual = ranges.r2 || []
@@ -104,7 +101,6 @@ export default function SeguimientoVentasPage() {
             ...listAnterior.map((p: any) => p.MLA)
         ])
 
-        // 1. Unificar datos de los dos periodos
         let combined = Array.from(allMlas).map(mla => {
             const pActual = listActual.find((p: any) => p.MLA === mla)
             const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
@@ -115,13 +111,18 @@ export default function SeguimientoVentasPage() {
                 ventasActual: pActual?.Cantidad_Ventas || 0,
                 ventasAnterior: pAnterior?.Cantidad_Ventas || 0,
                 diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
+                // --- NUEVOS CAMPOS DE VISITAS ---
+                visitasActual: pActual?.Visitas || 0,
+                visitasAnterior: pAnterior?.Visitas || 0,
+                diffVisitas: (pActual?.Visitas || 0) - (pAnterior?.Visitas || 0),
+                growthVisitas: calculateGrowth(pActual?.Visitas || 0, pAnterior?.Visitas || 0),
+                // --------------------------------
                 netoActual: pActual?.Total_Neto || 0,
                 netoAnterior: pAnterior?.Total_Neto || 0,
                 growthNeto: calculateGrowth(pActual?.Total_Neto || 0, pAnterior?.Total_Neto || 0)
             }
         })
 
-        // 2. Filtrar por el buscador (Nombre o MLA)
         if (searchQuery) {
             const query = searchQuery.toLowerCase()
             combined = combined.filter(item => 
@@ -130,19 +131,12 @@ export default function SeguimientoVentasPage() {
             )
         }
 
-        // 3. Ordenar dinámicamente según la columna seleccionada
         combined.sort((a: any, b: any) => {
             const aValue = a[sortConfig.key]
             const bValue = b[sortConfig.key]
-
-            // Si es texto, usamos localeCompare para un orden natural
             if (typeof aValue === 'string') {
-                return sortConfig.direction === 'asc' 
-                    ? aValue.localeCompare(bValue) 
-                    : bValue.localeCompare(aValue)
+                return sortConfig.direction === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue)
             }
-
-            // Si es número
             if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
             return 0
@@ -151,17 +145,18 @@ export default function SeguimientoVentasPage() {
         return combined
     }, [ranges, searchQuery, sortConfig])
 
-    // Totales calculados en base a lo que se ve en la tabla (incluyendo filtros)
     const totals = useMemo(() => {
         return comparisonData.reduce((acc, curr) => ({
             netoActual: acc.netoActual + curr.netoActual,
             netoAnterior: acc.netoAnterior + curr.netoAnterior,
             ventasActual: acc.ventasActual + curr.ventasActual,
-            ventasAnterior: acc.ventasAnterior + curr.ventasAnterior
-        }), { netoActual: 0, netoAnterior: 0, ventasActual: 0, ventasAnterior: 0 })
+            ventasAnterior: acc.ventasAnterior + curr.ventasAnterior,
+            // Sumamos visitas totales
+            visitasActual: acc.visitasActual + curr.visitasActual,
+            visitasAnterior: acc.visitasAnterior + curr.visitasAnterior
+        }), { netoActual: 0, netoAnterior: 0, ventasActual: 0, ventasAnterior: 0, visitasActual: 0, visitasAnterior: 0 })
     }, [comparisonData])
 
-    // Icono que indica si la columna está siendo ordenada
     const SortIcon = ({ colKey }: { colKey: string }) => {
         if (sortConfig.key !== colKey) return <ArrowUpDown className="ml-2 h-4 w-4 opacity-30" />
         return sortConfig.direction === 'asc' ? <ChevronUp className="ml-2 h-4 w-4 text-indigo-600" /> : <ChevronDown className="ml-2 h-4 w-4 text-indigo-600" />
@@ -205,7 +200,7 @@ export default function SeguimientoVentasPage() {
                             </Card>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-sm font-medium text-slate-500">Total Facturación (Neto P2)</CardTitle>
@@ -215,7 +210,6 @@ export default function SeguimientoVentasPage() {
                                     <div className="text-2xl font-bold">{formatCurrency(totals.netoActual)}</div>
                                     <div className="flex items-center gap-2 mt-1">
                                         <Badge variant={totals.netoActual >= totals.netoAnterior ? "default" : "destructive"}>
-                                            {totals.netoActual >= totals.netoAnterior ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
                                             {calculateGrowth(totals.netoActual, totals.netoAnterior).toFixed(1)}%
                                         </Badge>
                                         <span className="text-xs text-slate-500">vs anterior ({formatCurrency(totals.netoAnterior)})</span>
@@ -232,16 +226,31 @@ export default function SeguimientoVentasPage() {
                                     <div className="text-2xl font-bold">{totals.ventasActual} u.</div>
                                     <div className="flex items-center gap-2 mt-1">
                                         <Badge variant={totals.ventasActual >= totals.ventasAnterior ? "default" : "destructive"}>
-                                            {totals.ventasActual >= totals.ventasAnterior ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
                                             {calculateGrowth(totals.ventasActual, totals.ventasAnterior).toFixed(1)}%
                                         </Badge>
                                         <span className="text-xs text-slate-500">vs anterior ({totals.ventasAnterior} u.)</span>
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            {/* --- NUEVA TARJETA DE VISITAS --- */}
+                            <Card className="border-indigo-100 bg-white">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-sm font-medium text-slate-500">Visitas Totales (P2)</CardTitle>
+                                    <Users className="h-4 w-4 text-indigo-500" />
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-bold text-indigo-900">{totals.visitasActual.toLocaleString()}</div>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <Badge variant={totals.visitasActual >= totals.visitasAnterior ? "default" : "destructive"}>
+                                            {calculateGrowth(totals.visitasActual, totals.visitasAnterior).toFixed(1)}%
+                                        </Badge>
+                                        <span className="text-xs text-slate-500">vs anterior ({totals.visitasAnterior.toLocaleString()})</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
 
-                        {/* --- BUSCADOR --- */}
                         <div className="relative group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                             <Input 
@@ -260,60 +269,29 @@ export default function SeguimientoVentasPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                                            {/* Cabeceras con click para ordenar */}
-                                            <TableHead 
-                                                className="cursor-pointer transition-colors hover:text-indigo-600"
-                                                onClick={() => requestSort('nombre')}
-                                            >
-                                                <div className="flex items-center">
-                                                    Producto
-                                                    <SortIcon colKey="nombre" />
-                                                </div>
+                                            <TableHead className="cursor-pointer hover:text-indigo-600" onClick={() => requestSort('nombre')}>
+                                                <div className="flex items-center">Producto <SortIcon colKey="nombre" /></div>
                                             </TableHead>
-                                            <TableHead 
-                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
-                                                onClick={() => requestSort('ventasActual')}
-                                            >
-                                                <div className="flex items-center justify-end">
-                                                    Ventas P2
-                                                    <SortIcon colKey="ventasActual" />
-                                                </div>
+                                            
+                                            {/* --- COLUMNA DE VISITAS --- */}
+                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('visitasActual')}>
+                                                <div className="flex items-center justify-end">Visitas P2 <SortIcon colKey="visitasActual" /></div>
                                             </TableHead>
-                                            <TableHead 
-                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
-                                                onClick={() => requestSort('ventasAnterior')}
-                                            >
-                                                <div className="flex items-center justify-end">
-                                                    Ventas P1
-                                                    <SortIcon colKey="ventasAnterior" />
-                                                </div>
+                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('diffVisitas')}>
+                                                <div className="flex items-center justify-end">Dif. Visitas <SortIcon colKey="diffVisitas" /></div>
                                             </TableHead>
-                                            <TableHead 
-                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
-                                                onClick={() => requestSort('diffVentas')}
-                                            >
-                                                <div className="flex items-center justify-end">
-                                                    Dif. Unid.
-                                                    <SortIcon colKey="diffVentas" />
-                                                </div>
+
+                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('ventasActual')}>
+                                                <div className="flex items-center justify-end">Ventas P2 <SortIcon colKey="ventasActual" /></div>
                                             </TableHead>
-                                            <TableHead 
-                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
-                                                onClick={() => requestSort('netoActual')}
-                                            >
-                                                <div className="flex items-center justify-end">
-                                                    Neto P2
-                                                    <SortIcon colKey="netoActual" />
-                                                </div>
+                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('diffVentas')}>
+                                                <div className="flex items-center justify-end">Dif. Unid. <SortIcon colKey="diffVentas" /></div>
                                             </TableHead>
-                                            <TableHead 
-                                                className="text-right cursor-pointer transition-colors hover:text-indigo-600"
-                                                onClick={() => requestSort('growthNeto')}
-                                            >
-                                                <div className="flex items-center justify-end">
-                                                    Crecimiento
-                                                    <SortIcon colKey="growthNeto" />
-                                                </div>
+                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('netoActual')}>
+                                                <div className="flex items-center justify-end">Neto P2 <SortIcon colKey="netoActual" /></div>
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer hover:text-indigo-600" onClick={() => requestSort('growthNeto')}>
+                                                <div className="flex items-center justify-end">Crecimiento <SortIcon colKey="growthNeto" /></div>
                                             </TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -321,12 +299,18 @@ export default function SeguimientoVentasPage() {
                                         {comparisonData.length > 0 ? (
                                             comparisonData.map((item) => (
                                                 <TableRow key={item.mla} className="hover:bg-slate-50/50 transition-colors">
-                                                    <TableCell className="max-w-[300px]">
+                                                    <TableCell className="max-w-[250px]">
                                                         <div className="font-semibold text-slate-800 truncate">{item.nombre}</div>
                                                         <div className="text-xs text-slate-400 font-mono">{item.mla}</div>
                                                     </TableCell>
+                                                    
+                                                    {/* --- CELDAS DE VISITAS --- */}
+                                                    <TableCell className="text-right font-bold text-indigo-600">{item.visitasActual.toLocaleString()}</TableCell>
+                                                    <TableCell className={`text-right font-bold ${item.diffVisitas > 0 ? "text-green-600" : item.diffVisitas < 0 ? "text-red-600" : "text-slate-400"}`}>
+                                                        {item.diffVisitas > 0 ? `+${item.diffVisitas}` : item.diffVisitas}
+                                                    </TableCell>
+
                                                     <TableCell className="text-right font-bold text-slate-700">{item.ventasActual}</TableCell>
-                                                    <TableCell className="text-right text-slate-500">{item.ventasAnterior}</TableCell>
                                                     <TableCell className={`text-right font-bold ${item.diffVentas > 0 ? "text-green-600" : item.diffVentas < 0 ? "text-red-600" : "text-slate-400"}`}>
                                                         {item.diffVentas > 0 ? `+${item.diffVentas}` : item.diffVentas}
                                                     </TableCell>
@@ -341,7 +325,7 @@ export default function SeguimientoVentasPage() {
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="h-24 text-center text-slate-400">
+                                                <TableCell colSpan={7} className="h-24 text-center text-slate-400">
                                                     No se encontraron productos que coincidan con la búsqueda.
                                                 </TableCell>
                                             </TableRow>

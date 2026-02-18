@@ -10,17 +10,13 @@ import { guardarSeguimientoVentas, obtenerSeguimientoVentas } from "@/app/action
 import { 
     BarChart3, 
     AlertCircle, 
-    TrendingUp, 
-    TrendingDown, 
-    Minus,
     DollarSign,
     ShoppingCart,
     Sparkles,
     Search, 
     ArrowUpDown,
     ChevronUp,
-    ChevronDown,
-    Users 
+    ChevronDown
 } from "lucide-react"
 
 // --- FUNCIONES AUXILIARES ---
@@ -88,32 +84,19 @@ export default function SeguimientoVentasPage() {
                     diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
                     netoActual: nActual,
                     netoAnterior: nAnterior,
-                    growthNeto: calculateGrowth(nActual, nAnterior),
-                    visitasActual: 0,
-                    visitasAnterior: 0,
-                    diffVisitas: 0,
-                    growthVisitas: 0
+                    growthNeto: calculateGrowth(nActual, nAnterior)
                 };
             });
 
             await guardarSeguimientoVentas(dataParaGuardar);
 
-            // --- PASO 3: DISPARAR WORKFLOW DE VISITAS ---
-            const resVisitas = await fetch(N8N_WEBHOOK_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ r1, r2, fase: "visitas" }),
-            });
-
-            if (!resVisitas.ok) throw new Error("Error en el proceso de visitas de n8n");
-            const dataFinal = await resVisitas.json();
-            const resultFinal = Array.isArray(dataFinal) ? dataFinal[0] : dataFinal;
-
-            // --- PASO 4: RECUPERAR DATOS ACTUALIZADOS ---
+            // --- PASO 3: RECUPERAR DATOS Y ANALISIS ---
+            // Nota: El análisis viene en el primer llamado de ventas o puede requerir el de visitas
+            // Si has quitado el workflow de visitas, el análisis debe venir del Paso 1
             const datosDB = await obtenerSeguimientoVentas();
             
             setRanges({ r2: datosDB, r1: [] });
-            setAnalysis(resultFinal.analisisIA || resultFinal.output || null);
+            setAnalysis(resultVentas.analisisIA || resultVentas.output || null);
             
         } catch (err: any) {
             console.error("Error:", err);
@@ -139,10 +122,7 @@ export default function SeguimientoVentasPage() {
                 ...item,
                 netoActual: Number(item.netoActual),
                 netoAnterior: Number(item.netoAnterior),
-                growthNeto: Number(item.growthNeto),
-                growthVisitas: Number(item.growthVisitas),
-                visitasActual: Number(item.visitasActual),
-                visitasAnterior: Number(item.visitasAnterior)
+                growthNeto: Number(item.growthNeto)
             }));
 
             if (searchQuery) {
@@ -176,10 +156,6 @@ export default function SeguimientoVentasPage() {
                 ventasActual: pActual?.Cantidad_Ventas || 0,
                 ventasAnterior: pAnterior?.Cantidad_Ventas || 0,
                 diffVentas: (pActual?.Cantidad_Ventas || 0) - (pAnterior?.Cantidad_Ventas || 0),
-                visitasActual: pActual?.Visitas || 0,
-                visitasAnterior: pAnterior?.Visitas || 0,
-                diffVisitas: (pActual?.Visitas || 0) - (pAnterior?.Visitas || 0),
-                growthVisitas: calculateGrowth(pActual?.Visitas || 0, pAnterior?.Visitas || 0),
                 netoActual: pActual?.Total_Neto || 0,
                 netoAnterior: pAnterior?.Total_Neto || 0,
                 growthNeto: calculateGrowth(pActual?.Total_Neto || 0, pAnterior?.Total_Neto || 0)
@@ -202,22 +178,18 @@ export default function SeguimientoVentasPage() {
     }, [ranges, searchQuery, sortConfig])
 
     const totals = useMemo(() => {
-        let nAct = 0, nAnt = 0, vAct = 0, vAnt = 0, visAct = 0, visAnt = 0;
+        let nAct = 0, nAnt = 0, vAct = 0, vAnt = 0;
         comparisonData.forEach((item: any) => {
             nAct += item.netoActual;
             nAnt += item.netoAnterior;
             vAct += item.ventasActual;
             vAnt += item.ventasAnterior;
-            visAct += item.visitasActual;
-            visAnt += item.visitasAnterior;
         });
         return {
             netoActual: nAct,
             netoAnterior: nAnt,
             ventasActual: vAct,
-            ventasAnterior: vAnt,
-            visitasActual: visAct,
-            visitasAnterior: visAnt
+            ventasAnterior: vAnt
         };
     }, [comparisonData])
 
@@ -260,7 +232,7 @@ export default function SeguimientoVentasPage() {
                             </Card>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-sm font-medium text-slate-500">Facturación (P2)</CardTitle>
@@ -286,19 +258,6 @@ export default function SeguimientoVentasPage() {
                                     </Badge>
                                 </CardContent>
                             </Card>
-
-                            <Card className="border-indigo-100">
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-sm font-medium text-slate-500">Visitas Totales (P2)</CardTitle>
-                                    <Users className="h-4 w-4 text-indigo-500" />
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="text-2xl font-bold text-indigo-900">{totals.visitasActual.toLocaleString()}</div>
-                                    <Badge variant={totals.visitasActual >= totals.visitasAnterior ? "default" : "destructive"}>
-                                        {calculateGrowth(totals.visitasActual, totals.visitasAnterior).toFixed(1)}%
-                                    </Badge>
-                                </CardContent>
-                            </Card>
                         </div>
 
                         <div className="relative group">
@@ -318,7 +277,6 @@ export default function SeguimientoVentasPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead onClick={() => requestSort('nombre')} className="cursor-pointer">Producto <SortIcon colKey="nombre" /></TableHead>
-                                            <TableHead onClick={() => requestSort('visitasActual')} className="text-right cursor-pointer">Visitas P2 <SortIcon colKey="visitasActual" /></TableHead>
                                             <TableHead onClick={() => requestSort('ventasActual')} className="text-right cursor-pointer">Ventas P2 <SortIcon colKey="ventasActual" /></TableHead>
                                             <TableHead onClick={() => requestSort('netoActual')} className="text-right cursor-pointer">Neto P2 <SortIcon colKey="netoActual" /></TableHead>
                                             <TableHead onClick={() => requestSort('growthNeto')} className="text-right cursor-pointer">Crecimiento <SortIcon colKey="growthNeto" /></TableHead>
@@ -331,7 +289,6 @@ export default function SeguimientoVentasPage() {
                                                     <div className="font-semibold">{item.nombre}</div>
                                                     <div className="text-xs text-slate-400">{item.mla}</div>
                                                 </TableCell>
-                                                <TableCell className="text-right font-bold text-indigo-600">{item.visitasActual.toLocaleString()}</TableCell>
                                                 <TableCell className="text-right font-bold">{item.ventasActual}</TableCell>
                                                 <TableCell className="text-right font-bold">{formatCurrency(item.netoActual)}</TableCell>
                                                 <TableCell className={`text-right font-bold ${item.growthNeto > 0 ? "text-green-600" : "text-red-600"}`}>

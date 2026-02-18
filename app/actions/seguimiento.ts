@@ -15,10 +15,6 @@ export async function guardarSeguimientoVentas(datos: any[]) {
         ventasActual: item.ventasActual || 0,
         ventasAnterior: item.ventasAnterior || 0,
         diffVentas: item.diffVentas || 0,
-        visitasActual: item.visitasActual || 0,
-        visitasAnterior: item.visitasAnterior || 0,
-        diffVisitas: item.diffVisitas || 0,
-        growthVisitas: item.growthVisitas || 0,
         netoActual: item.netoActual || 0,
         netoAnterior: item.netoAnterior || 0,
         growthNeto: item.growthNeto || 0,
@@ -34,7 +30,7 @@ export async function guardarSeguimientoVentas(datos: any[]) {
   }
 }
 
-// Nueva función para traer los datos una vez que n8n terminó de actualizarlos
+// Función para traer los datos ordenados por facturación neta
 export async function obtenerSeguimientoVentas() {
   try {
     return await prisma.seguimientoVentas.findMany({

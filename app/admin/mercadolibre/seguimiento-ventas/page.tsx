@@ -16,7 +16,7 @@ import {
     DollarSign,
     ShoppingCart,
     Sparkles,
-    Search,
+    Search, 
     ArrowUpDown,
     ChevronUp,
     ChevronDown,
@@ -74,7 +74,7 @@ export default function SeguimientoVentasPage() {
             const listAnterior = resultVentas.r1 || resultVentas.datosTabla?.r1 || [];
             const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)]);
 
-            const dataParaGuardar = Array.from(allMlas).map(mla => {
+            const dataParaGuardar = Array.from(allMlas).map((mla: any) => {
                 const pActual = listActual.find((p: any) => p.MLA === mla);
                 const pAnterior = listAnterior.find((p: any) => p.MLA === mla);
                 const nActual = pActual?.Total_Neto || 0;
@@ -147,7 +147,6 @@ export default function SeguimientoVentasPage() {
 
             if (searchQuery) {
                 const query = searchQuery.toLowerCase()
-                // FIX: Agregado (item: any) para evitar error de compilación
                 combined = combined.filter((item: any) => 
                     item.nombre.toLowerCase().includes(query) || 
                     item.mla.toLowerCase().includes(query)
@@ -166,7 +165,7 @@ export default function SeguimientoVentasPage() {
         const listActual = ranges.r2 || []; const listAnterior = ranges.r1 || []
         const allMlas = new Set([...listActual.map((p: any) => p.MLA), ...listAnterior.map((p: any) => p.MLA)])
 
-        let combined = Array.from(allMlas).map(mla => {
+        let combined = Array.from(allMlas).map((mla: any) => {
             const pActual = listActual.find((p: any) => p.MLA === mla); const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
             return {
                 mla,
@@ -186,7 +185,6 @@ export default function SeguimientoVentasPage() {
 
         if (searchQuery) {
             const query = searchQuery.toLowerCase()
-            // FIX: Agregado (item: any) para evitar error de compilación
             combined = combined.filter((item: any) => item.nombre.toLowerCase().includes(query) || item.mla.toLowerCase().includes(query))
         }
 
@@ -200,7 +198,8 @@ export default function SeguimientoVentasPage() {
     }, [ranges, searchQuery, sortConfig])
 
     const totals = useMemo(() => {
-        return comparisonData.reduce((acc, curr) => ({
+        // CORRECCIÓN: Agregado (acc: any, curr: any) para evitar error de build
+        return comparisonData.reduce((acc: any, curr: any) => ({
             netoActual: acc.netoActual + curr.netoActual,
             netoAnterior: acc.netoAnterior + curr.netoAnterior,
             ventasActual: acc.ventasActual + curr.ventasActual,
@@ -314,7 +313,7 @@ export default function SeguimientoVentasPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {comparisonData.map((item) => (
+                                        {comparisonData.map((item: any) => (
                                             <TableRow key={item.mla} className="hover:bg-slate-50/50">
                                                 <TableCell><div className="font-semibold">{item.nombre}</div><div className="text-xs text-slate-400">{item.mla}</div></TableCell>
                                                 <TableCell className="text-right font-bold text-indigo-600">{item.visitasActual.toLocaleString()}</TableCell>
@@ -325,7 +324,7 @@ export default function SeguimientoVentasPage() {
                                                 </TableCell>
                                             </TableRow>
                                         ))}
-                                    </TableBody>
+                                    </Body>
                                 </Table>
                             </CardContent>
                         </Card>

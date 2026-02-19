@@ -5,35 +5,35 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { mla, visitas } = body; 
-    // 'visitas' será el array que nos manda n8n con { date, quantity }
 
-    if (!mla || !visitas) {
-      return NextResponse.json({ error: "Faltan datos" }, { status: 400 });
+    if (!mla || !visitas || !Array.isArray(visitas)) {
+      return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
     }
 
-    // Usamos una transacción para guardar todos los días de una vez
-    await Promise.all(
-      visitas.map((v: any) =>
-        prisma.itemVisitaDiaria.upsert({
-          where: {
-            mla_fecha: {
-              mla: mla,
-              fecha: new Date(v.date),
-            },
-          },
-          update: { visitas: v.quantity },
-          create: {
+    // Usamos un bucle para guardar cada día
+    for (const v of visitas) {
+      // Mercado Libre manda el dato en 'v.total'
+      const cantidadVisitas = v.total || 0;
+      
+      await prisma.itemVisitaDiaria.upsert({
+        where: {
+          mla_fecha: {
             mla: mla,
             fecha: new Date(v.date),
-            visitas: v.quantity,
           },
-        })
-      )
-    );
+        },
+        update: { visitas: cantidadVisitas },
+        create: {
+          mla: mla,
+          fecha: new Date(v.date),
+          visitas: cantidadVisitas,
+        },
+      });
+    }
 
-    return NextResponse.json({ message: "Visitas actualizadas correctamente" });
+    return NextResponse.json({ message: "Visitas guardadas correctamente" });
   } catch (error) {
-    console.error("Error al guardar visitas:", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    console.error("Error detallado:", error);
+    return NextResponse.json({ error: "Error interno al guardar" }, { status: 500 });
   }
 }

@@ -13,16 +13,11 @@ interface VisitaComparativa {
   growth: string
 }
 
-interface VisitasClientProps {
-  data: VisitaComparativa[]
-}
-
-export default function VisitasClient({ data = [] }: VisitasClientProps) {
+export default function VisitasClient({ data = [] }: { data: VisitaComparativa[] }) {
   const [searchTerm, setSearchTerm] = useState("")
-  const [sortConfig, setSortConfig] = useState<{ key: keyof VisitaComparativa; direction: 'asc' | 'desc' } | null>(null)
+  const [sortConfig, setSortConfig] = useState<{ key: keyof VisitaComparativa; direction: 'asc' | 'desc' } | null>({ key: 'totalR2', direction: 'desc' })
 
   const filteredData = useMemo(() => {
-    if (!searchTerm) return data
     const lowerTerm = searchTerm.toLowerCase()
     return data.filter((item) => 
       item.nombre.toLowerCase().includes(lowerTerm) || 
@@ -42,85 +37,64 @@ export default function VisitasClient({ data = [] }: VisitasClientProps) {
   }, [filteredData, sortConfig])
 
   const handleSort = (key: keyof VisitaComparativa) => {
-    let direction: 'asc' | 'desc' = 'asc'
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc'
-    }
-    setSortConfig({ key, direction })
-  }
-
-  const getSortIcon = (key: keyof VisitaComparativa) => {
-    if (sortConfig?.key !== key) return <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
-    return sortConfig.direction === 'asc' 
-      ? <ArrowUp className="ml-2 h-4 w-4 text-blue-600" /> 
-      : <ArrowDown className="ml-2 h-4 w-4 text-blue-600" />
+    setSortConfig(prev => ({
+      key,
+      direction: prev?.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }))
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="relative w-full md:w-1/3">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por Título o MLA..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
-          />
-        </div>
+    <div className="space-y-4">
+      <div className="relative max-w-sm">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+        <Input
+          placeholder="Buscar producto..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
-      <div className="rounded-md border shadow-sm overflow-hidden bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-gray-100 text-muted-foreground uppercase text-xs">
+      <div className="rounded-lg border bg-white shadow-sm">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b">
+            <tr>
+              <th className="p-3 text-left font-semibold cursor-pointer" onClick={() => handleSort('nombre')}>Producto</th>
+              <th className="p-3 text-center font-semibold cursor-pointer" onClick={() => handleSort('totalR1')}>Rango 1</th>
+              <th className="p-3 text-center font-semibold cursor-pointer" onClick={() => handleSort('totalR2')}>Rango 2</th>
+              <th className="p-3 text-center font-semibold cursor-pointer" onClick={() => handleSort('growth')}>Growth</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {sortedData.length > 0 ? (
+              sortedData.map((item) => {
+                const isPos = parseFloat(item.growth) >= 0;
+                return (
+                  <tr key={item.mla} className="hover:bg-gray-50">
+                    <td className="p-3">
+                      <div className="font-medium text-gray-900">{item.nombre}</div>
+                      <div className="text-xs text-gray-500 font-mono">{item.mla}</div>
+                    </td>
+                    <td className="p-3 text-center font-semibold text-gray-600">{item.totalR1}</td>
+                    <td className="p-3 text-center font-bold text-gray-900">{item.totalR2}</td>
+                    <td className={`p-3 text-center font-bold ${isPos ? 'text-green-600' : 'text-red-600'}`}>
+                      <div className="flex items-center justify-center gap-1">
+                        {isPos ? <TrendingUp size={14}/> : <TrendingDown size={14}/>}
+                        {item.growth}%
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
+            ) : (
               <tr>
-                <th className="px-4 py-3 font-medium cursor-pointer" onClick={() => handleSort('mla')}>
-                  <div className="flex items-center">MLA {getSortIcon('mla')}</div>
-                </th>
-                <th className="px-4 py-3 font-medium cursor-pointer" onClick={() => handleSort('nombre')}>
-                  <div className="flex items-center">Producto {getSortIcon('nombre')}</div>
-                </th>
-                <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('totalR1')}>
-                  <div className="flex items-center justify-center">Periodo 1 {getSortIcon('totalR1')}</div>
-                </th>
-                <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('totalR2')}>
-                  <div className="flex items-center justify-center">Periodo 2 {getSortIcon('totalR2')}</div>
-                </th>
-                <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('growth')}>
-                  <div className="flex items-center justify-center">Crecimiento {getSortIcon('growth')}</div>
-                </th>
+                <td colSpan={4} className="p-8 text-center text-gray-500 italic">
+                  No se encontraron datos para estos periodos.
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {sortedData.length > 0 ? (
-                sortedData.map((item) => {
-                  const isPositive = Number(item.growth) >= 0;
-                  return (
-                    <tr key={item.mla} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs">{item.mla}</td>
-                      <td className="px-4 py-3 font-medium">{item.nombre}</td>
-                      <td className="px-4 py-3 text-center font-bold">{item.totalR1}</td>
-                      <td className="px-4 py-3 text-center font-bold">{item.totalR2}</td>
-                      <td className="px-4 py-3 text-center">
-                        <div className={`flex items-center justify-center font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                          {isPositive ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
-                          {item.growth}%
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <tr>
-                  <td colSpan={5} className="h-24 text-center text-muted-foreground">
-                    No hay datos para estos periodos.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   )

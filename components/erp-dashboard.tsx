@@ -86,7 +86,7 @@ export function ErpDashboard() {
                 dataset
               </span>
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                Compras y Pagos
+                Compras y Ventas
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -132,7 +132,7 @@ export function ErpDashboard() {
                 account_balance
               </span>
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                cobros y Pagos
+                Cobros y Pagos
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -260,54 +260,6 @@ export function ErpDashboard() {
                   Órdenes en proceso
                 </p>
               </a>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 w-full max-w-6xl border-t border-slate-200 dark:border-slate-800 pt-12">
-          <div className="flex items-center gap-4 px-6 py-4 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800">
-            <div className="p-3 bg-green-500/10 rounded-full">
-              <span className="material-symbols-outlined text-green-500">
-                trending_up
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                Flujo de Caja
-              </p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white">
-                +$12.450,00
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 px-6 py-4 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800">
-            <div className="p-3 bg-amber-500/10 rounded-full">
-              <span className="material-symbols-outlined text-amber-500">
-                pending_actions
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                Tareas Pendientes
-              </p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white">
-                14 Avisos
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 px-6 py-4 bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-100 dark:border-slate-800">
-            <div className="p-3 bg-[#2b8cee]/10 rounded-full">
-              <span className="material-symbols-outlined text-[#2b8cee]">
-                verified_user
-              </span>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
-                Estado de Sistema
-              </p>
-              <p className="text-xl font-bold text-slate-900 dark:text-white text-[#2b8cee]">
-                100% Operativo
-              </p>
             </div>
           </div>
         </div>

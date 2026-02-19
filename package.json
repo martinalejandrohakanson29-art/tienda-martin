@@ -2,13 +2,13 @@
   "name": "temp_setup",
   "version": "0.1.0",
   "private": true,
- "scripts": {
-  "postinstall": "prisma generate",
-  "dev": "next dev",
-  "build": "prisma generate && prisma db push && next build",
-  "start": "next start",
-  "lint": "next lint"
-},
+  "scripts": {
+    "postinstall": "prisma generate",
+    "dev": "next dev",
+    "build": "prisma generate && prisma db push && next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.525.0",
     "@aws-sdk/s3-request-presigner": "^3.525.0",
@@ -37,7 +37,8 @@
     "sonner": "^1.5.0",
     "date-fns": "^3.6.0",
     "html-to-image": "^1.11.11",
-    "html5-qrcode": "^2.3.8"
+    "html5-qrcode": "^2.3.8",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@types/node": "^20",

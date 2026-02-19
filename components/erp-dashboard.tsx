@@ -73,8 +73,7 @@ export function ErpDashboard() {
             ¡Hola, Martín! 👋
           </h1>
           <p className="text-slate-500 dark:text-slate-400 text-lg max-w-2xl mx-auto">
-            Bienvenido a tu panel de gestión. Selecciona un módulo para
-            comenzar tu jornada.
+            Panel de gestión.
           </p>
         </div>
         
@@ -87,7 +86,7 @@ export function ErpDashboard() {
                 dataset
               </span>
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                Transacciones Principales
+                Compras y Pagos
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -133,7 +132,7 @@ export function ErpDashboard() {
                 account_balance
               </span>
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                Gestión de Tesorería
+                cobros y Pagos
               </h2>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -193,7 +192,7 @@ export function ErpDashboard() {
                   </span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
-                  Historial de Pagos
+                  Gestion de pagos
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Registro de egresos
@@ -209,7 +208,7 @@ export function ErpDashboard() {
                   </span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1">
-                  Historial de Cobros
+                  Gestion de Cobros
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Archivo de ingresos

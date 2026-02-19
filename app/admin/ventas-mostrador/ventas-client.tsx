@@ -249,7 +249,8 @@ export default function VentasMostradorClient({
         </div>
 
         <TabsContent value="registrar" className="flex-grow flex flex-col overflow-hidden m-0">
-          <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
+          {/* AQUÍ AGRANDAMOS EL CONTENEDOR a max-w-[1800px] */}
+          <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden">
             <section className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col md:flex-row gap-6 items-end shadow-sm flex-shrink-0">
               <div className="flex-grow space-y-1.5 max-w-md">
                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente / Razón Social</Label>
@@ -333,7 +334,8 @@ export default function VentasMostradorClient({
             </section>
           </main>
           <footer className="bg-white border-t border-slate-100 p-4 flex-shrink-0 shadow-lg">
-            <div className="max-w-7xl mx-auto flex justify-end gap-4">
+            {/* AQUÍ TAMBIÉN AGRANDAMOS EL CONTENEDOR a max-w-[1800px] */}
+            <div className="max-w-[1800px] mx-auto flex justify-end gap-4">
               <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(true)} className="text-slate-500 hover:text-red-500">Descartar Venta</Button>
               <Button onClick={() => setIsFinalizarModalOpen(true)} disabled={items.length === 0 || isSubmitting} className="px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold">Finalizar Venta</Button>
             </div>
@@ -341,7 +343,8 @@ export default function VentasMostradorClient({
         </TabsContent>
 
         <TabsContent value="listado" className="flex-grow flex flex-col overflow-hidden m-0 select-text">
-          <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full gap-4 overflow-hidden">
+          {/* AQUÍ AGRANDAMOS EL CONTENEDOR a max-w-[1800px] PARA EL LISTADO DE VENTAS */}
+          <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden">
             <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="space-y-1">

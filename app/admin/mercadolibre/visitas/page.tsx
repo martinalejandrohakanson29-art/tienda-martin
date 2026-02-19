@@ -9,38 +9,34 @@ export const metadata: Metadata = {
 }
 
 export default async function VisitasPage() {
-  // AQUÍ PODÉS CAMBIAR LAS FECHAS MANUALMENTE
-  // Formato: AAAA-MM-DD (Año-Mes-Día)
-
-  // Periodo 1: (Ejemplo: 1 al 17 de Enero)
+  // CONFIGURA TUS RANGOS AQUÍ MANUALMENTE
   const r1 = { 
-    from: '2025-01-01', 
-    to: '2025-01-17' 
+    from: '2026-01-01', 
+    to: '2026-01-17' 
   };
   
-  // Periodo 2: (Ejemplo: 1 al 17 de Febrero)
   const r2 = { 
-    from: '2025-02-01', 
-    to: '2025-02-17' 
+    from: '2026-02-01', 
+    to: '2026-02-17' 
   };
 
-  // Traemos la comparativa real usando esos rangos
   const { comparativa } = await getVisitasComparativas(r1, r2);
 
   return (
-    <div className="hidden h-full flex-1 flex-col space-y-8 p-8 md:flex">
-      <div className="flex items-center justify-between space-y-2">
+    <div className="flex h-full flex-1 flex-col space-y-8 p-8">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            MercadoLibre Visitas
+          <h2 className="text-2xl font-bold tracking-tight text-blue-700">
+            Comparativa de Visitas
           </h2>
-          <p className="text-muted-foreground">
-            Comparando: {r1.from} al {r1.to} VS {r2.from} al {r2.to}
+          <p className="text-muted-foreground text-sm">
+            Rango 1: <span className="font-bold text-gray-800">{r1.from} al {r1.to}</span>
+            <span className="mx-2">vs</span> 
+            Rango 2: <span className="font-bold text-gray-800">{r2.from} al {r2.to}</span>
           </p>
         </div>
       </div>
       
-      {/* Pasamos los datos al componente cliente */}
       <VisitasClient data={comparativa} />
     </div>
   )

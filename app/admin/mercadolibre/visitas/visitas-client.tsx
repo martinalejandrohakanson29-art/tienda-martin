@@ -2,57 +2,49 @@
 
 import { useState, useMemo } from "react"
 import { Input } from "@/components/ui/input"
-import { Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown } from "lucide-react"
 
-// DEFINICIÓN DE TIPO (Ajusta esto según los datos reales que recibe tu componente)
-interface ProductVisit {
-  id: string
-  title: string
-  price: number
-  available_quantity: number
-  sold_quantity: number
-  permalink: string
-  thumbnail: string
-  // Agrega aquí cualquier otro campo que venga de tu base de datos
+// Definimos la estructura exacta que viene de la base de datos
+interface VisitaComparativa {
+  mla: string
+  nombre: string
+  totalR1: number
+  totalR2: number
+  diff: number
+  growth: string
 }
 
 interface VisitasClientProps {
-  data: ProductVisit[] // Asumimos que recibes los datos como prop 'data'
+  data: VisitaComparativa[]
 }
 
 export default function VisitasClient({ data = [] }: VisitasClientProps) {
-  // Estado para el buscador
   const [searchTerm, setSearchTerm] = useState("")
-  
-  // Estado para el ordenamiento: { clave, dirección }
-  const [sortConfig, setSortConfig] = useState<{ key: keyof ProductVisit; direction: 'asc' | 'desc' } | null>(null)
+  const [sortConfig, setSortConfig] = useState<{ key: keyof VisitaComparativa; direction: 'asc' | 'desc' } | null>(null)
 
-  // 1. LÓGICA DE FILTRADO (Buscador)
+  // Filtro por nombre o MLA
   const filteredData = useMemo(() => {
     if (!searchTerm) return data
     const lowerTerm = searchTerm.toLowerCase()
     return data.filter((item) => 
-      item.title.toLowerCase().includes(lowerTerm) || 
-      item.id.toLowerCase().includes(lowerTerm)
+      item.nombre.toLowerCase().includes(lowerTerm) || 
+      item.mla.toLowerCase().includes(lowerTerm)
     )
   }, [data, searchTerm])
 
-  // 2. LÓGICA DE ORDENAMIENTO
+  // Lógica de ordenamiento
   const sortedData = useMemo(() => {
     if (!sortConfig) return filteredData
-
     return [...filteredData].sort((a, b) => {
       const aValue = a[sortConfig.key]
       const bValue = b[sortConfig.key]
-
       if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
       return 0
     })
   }, [filteredData, sortConfig])
 
-  // Función para manejar el clic en los encabezados
-  const handleSort = (key: keyof ProductVisit) => {
+  const handleSort = (key: keyof VisitaComparativa) => {
     let direction: 'asc' | 'desc' = 'asc'
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc'
@@ -60,19 +52,16 @@ export default function VisitasClient({ data = [] }: VisitasClientProps) {
     setSortConfig({ key, direction })
   }
 
-  // Icono dinámico para el encabezado
-  const getSortIcon = (key: keyof ProductVisit) => {
+  const getSortIcon = (key: keyof VisitaComparativa) => {
     if (sortConfig?.key !== key) return <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
     return sortConfig.direction === 'asc' 
-      ? <ArrowUp className="ml-2 h-4 w-4 text-primary" /> 
-      : <ArrowDown className="ml-2 h-4 w-4 text-primary" />
+      ? <ArrowUp className="ml-2 h-4 w-4 text-blue-600" /> 
+      : <ArrowDown className="ml-2 h-4 w-4 text-blue-600" />
   }
 
   return (
-    <div className="space-y-6 p-4">
-      {/* SECCIÓN BUSCADOR */}
+    <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">Visitas y Estadísticas</h2>
         <div className="relative w-full md:w-1/3">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -84,106 +73,57 @@ export default function VisitasClient({ data = [] }: VisitasClientProps) {
         </div>
       </div>
 
-      {/* SECCIÓN TABLA COMPARATIVA */}
-      <div className="rounded-md border shadow-sm overflow-hidden">
+      <div className="rounded-md border shadow-sm overflow-hidden bg-white">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground uppercase bg-gray-100">
+            <thead className="bg-gray-100 text-muted-foreground uppercase text-xs">
               <tr>
-                {/* Columna IMAGEN (No ordenable) */}
-                <th className="px-4 py-3 font-medium">Imagen</th>
-
-                {/* Columna MLA (Ordenable) */}
-                <th 
-                  className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 transition-colors"
-                  onClick={() => handleSort('id')}
-                >
-                  <div className="flex items-center">MLA {getSortIcon('id')}</div>
+                <th className="px-4 py-3 font-medium cursor-pointer" onClick={() => handleSort('mla')}>
+                  <div className="flex items-center">MLA {getSortIcon('mla')}</div>
                 </th>
-
-                {/* Columna TÍTULO (Ordenable) */}
-                <th 
-                  className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 transition-colors"
-                  onClick={() => handleSort('title')}
-                >
-                  <div className="flex items-center">Producto {getSortIcon('title')}</div>
+                <th className="px-4 py-3 font-medium cursor-pointer" onClick={() => handleSort('nombre')}>
+                  <div className="flex items-center">Producto {getSortIcon('nombre')}</div>
                 </th>
-
-                {/* Columna PRECIO (Ordenable) */}
-                <th 
-                  className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 transition-colors"
-                  onClick={() => handleSort('price')}
-                >
-                  <div className="flex items-center">Precio {getSortIcon('price')}</div>
+                <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('totalR1')}>
+                  <div className="flex items-center justify-center">V. Sem. Pasada {getSortIcon('totalR1')}</div>
                 </th>
-
-                {/* Columna VENDIDOS (Ordenable) */}
-                <th 
-                  className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 transition-colors"
-                  onClick={() => handleSort('sold_quantity')}
-                >
-                  <div className="flex items-center">Vendidos {getSortIcon('sold_quantity')}</div>
+                <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('totalR2')}>
+                  <div className="flex items-center justify-center">V. Esta Sem. {getSortIcon('totalR2')}</div>
                 </th>
-                
-                 {/* Columna DISPONIBLES (Ordenable) */}
-                 <th 
-                  className="px-4 py-3 font-medium cursor-pointer hover:bg-muted/80 transition-colors"
-                  onClick={() => handleSort('available_quantity')}
-                >
-                  <div className="flex items-center">Stock {getSortIcon('available_quantity')}</div>
+                <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('growth')}>
+                  <div className="flex items-center justify-center">Crecimiento {getSortIcon('growth')}</div>
                 </th>
-                
-                <th className="px-4 py-3 font-medium text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border bg-white">
+            <tbody className="divide-y divide-border">
               {sortedData.length > 0 ? (
-                sortedData.map((product) => (
-                  <tr key={product.id} className="hover:bg-muted/50 transition-colors">
-                    <td className="px-4 py-3">
-                      {product.thumbnail && (
-                        <img 
-                          src={product.thumbnail} 
-                          alt={product.title} 
-                          className="h-10 w-10 object-contain rounded-md border" 
-                        />
-                      )}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">{product.id}</td>
-                    <td className="px-4 py-3 max-w-[300px] truncate" title={product.title}>
-                      {product.title}
-                    </td>
-                    <td className="px-4 py-3 font-medium">
-                      ${product.price?.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-3">{product.sold_quantity}</td>
-                    <td className="px-4 py-3">{product.available_quantity}</td>
-                    <td className="px-4 py-3 text-right">
-                      <a 
-                        href={product.permalink} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="text-primary hover:underline text-blue-600"
-                      >
-                        Ver
-                      </a>
-                    </td>
-                  </tr>
-                ))
+                sortedData.map((item) => {
+                  const isPositive = Number(item.growth) >= 0;
+                  return (
+                    <tr key={item.mla} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs">{item.mla}</td>
+                      <td className="px-4 py-3 font-medium">{item.nombre}</td>
+                      <td className="px-4 py-3 text-center">{item.totalR1}</td>
+                      <td className="px-4 py-3 text-center">{item.totalR2}</td>
+                      <td className="px-4 py-3 text-center">
+                        <div className={`flex items-center justify-center font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                          {isPositive ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
+                          {item.growth}%
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               ) : (
                 <tr>
-                  <td colSpan={7} className="h-24 text-center text-muted-foreground">
-                    No se encontraron productos con "{searchTerm}"
+                  <td colSpan={5} className="h-24 text-center text-muted-foreground">
+                    No hay datos suficientes para mostrar la comparativa.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
-      
-      <div className="text-xs text-muted-foreground text-center mt-4">
-        Mostrando {sortedData.length} productos
       </div>
     </div>
   )

@@ -9,27 +9,22 @@ export const metadata: Metadata = {
 }
 
 export default async function VisitasPage() {
-  // Calculamos los rangos de fechas: últimos 7 días vs los 7 anteriores
-  const hoy = new Date();
-  const hace7Dias = new Date();
-  hace7Dias.setDate(hoy.getDate() - 7);
-  
-  const hace14Dias = new Date();
-  hace14Dias.setDate(hoy.getDate() - 14);
+  // AQUÍ PODÉS CAMBIAR LAS FECHAS MANUALMENTE
+  // Formato: AAAA-MM-DD (Año-Mes-Día)
 
-  // Periodo 1: (hace 14 días al día 7)
+  // Periodo 1: (Ejemplo: 1 al 17 de Enero)
   const r1 = { 
-    from: hace14Dias.toISOString().split('T')[0], 
-    to: hace7Dias.toISOString().split('T')[0] 
+    from: '2025-01-01', 
+    to: '2025-01-17' 
   };
   
-  // Periodo 2: (hace 7 días a hoy)
+  // Periodo 2: (Ejemplo: 1 al 17 de Febrero)
   const r2 = { 
-    from: hace7Dias.toISOString().split('T')[0], 
-    to: hoy.toISOString().split('T')[0] 
+    from: '2025-02-01', 
+    to: '2025-02-17' 
   };
 
-  // Traemos la comparativa real de la base de datos
+  // Traemos la comparativa real usando esos rangos
   const { comparativa } = await getVisitasComparativas(r1, r2);
 
   return (
@@ -40,12 +35,12 @@ export default async function VisitasPage() {
             MercadoLibre Visitas
           </h2>
           <p className="text-muted-foreground">
-            Comparativa de rendimiento: Últimos 7 días vs Periodo Anterior.
+            Comparando: {r1.from} al {r1.to} VS {r2.from} al {r2.to}
           </p>
         </div>
       </div>
       
-      {/* Pasamos los datos exactos que espera el cliente */}
+      {/* Pasamos los datos al componente cliente */}
       <VisitasClient data={comparativa} />
     </div>
   )

@@ -505,3 +505,13 @@ model SeguimientoVentas {
   @@map("seguimiento_ventas")
 }
 
+// Agrega esto al final de schema.prisma
+model ItemVisitaDiaria {
+  id        String   @id @default(cuid())
+  mla       String
+  fecha     DateTime
+  visitas   Int
+  
+  @@unique([mla, fecha]) // Esto evita que se dupliquen datos del mismo día
+  @@map("item_visitas_diarias")
+}

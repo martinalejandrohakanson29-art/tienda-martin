@@ -37,7 +37,8 @@ export default async function VisitasPage() {
         </div>
       </div>
       
-      <VisitasClient data={comparativa} />
+      {/* Pasamos también r1 y r2 para usar esas fechas en los gráficos */}
+      <VisitasClient data={comparativa} r1={r1} r2={r2} />
     </div>
   )
 }

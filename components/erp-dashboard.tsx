@@ -67,20 +67,12 @@ export function ErpDashboard() {
         </div>
       </header>
 
-      <main className="flex-grow flex flex-col items-center justify-start px-4 py-12 max-w-7xl mx-auto w-full">
-        <div className="text-center mb-12 space-y-2">
-          <h1 className="text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            ¡Hola, Martín! 👋
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-lg max-w-2xl mx-auto">
-            Panel de gestión centralizado.
-          </p>
-        </div>
-
-        <div className="w-full max-w-6xl space-y-12">
+      <main className="flex-grow flex flex-col items-center justify-start px-4 py-8 max-w-7xl mx-auto w-full">
+        
+        <div className="w-full max-w-6xl space-y-10">
           
           {/* SECCIÓN 1: COMPRAS Y VENTAS */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
             {/* Lado Izquierdo: Acción */}
             <div className="grid grid-cols-2 gap-4">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
@@ -88,18 +80,18 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">sell</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Ventas</h3>
-                <p className="text-xs text-slate-500">Registrar Ventas</p>
+                <p className="text-xs text-slate-500">Facturación directa</p>
               </a>
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">shopping_cart</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Compras</h3>
-                <p className="text-xs text-slate-500">Cargar Compras</p>
+                <p className="text-xs text-slate-500">Cargar facturas</p>
               </a>
             </div>
-            {/* Lado Derecho: Consultas (Separadas) */}
-            <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-12">
+            {/* Lado Derecho: Consultas */}
+            <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-slate-600 dark:text-slate-400 group-hover:text-[#2b8cee]">search</span>
@@ -118,7 +110,7 @@ export function ErpDashboard() {
           </div>
 
           {/* SECCIÓN 2: TESORERÍA */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
             {/* Lado Izquierdo: Gestión */}
             <div className="grid grid-cols-2 gap-4">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
@@ -126,24 +118,24 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">payments</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Pagos</h3>
-                <p className="text-xs text-slate-500">Registrar Cobros</p>
+                <p className="text-xs text-slate-500">Registrar egresos</p>
               </a>
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">account_balance_wallet</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Cobros</h3>
-                <p className="text-xs text-slate-500">Registrar cobros</p>
+                <p className="text-xs text-slate-500">Registrar ingresos</p>
               </a>
             </div>
             {/* Lado Derecho: Consultas */}
-            <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-12">
+            <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-slate-600 dark:text-slate-400 group-hover:text-[#2b8cee]">receipt</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Consultar Cobros</h3>
-                <p className="text-xs text-slate-500">consulta de cobros</p>
+                <p className="text-xs text-slate-500">Archivo de ingresos</p>
               </a>
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
@@ -156,7 +148,7 @@ export function ErpDashboard() {
           </div>
 
           {/* SECCIÓN 3: PEDIDOS */}
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="pt-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
@@ -178,9 +170,9 @@ export function ErpDashboard() {
         </div>
       </main>
 
-      <footer className="w-full py-8 px-4 text-center border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#101922]">
+      <footer className="w-full py-6 px-4 text-center border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-[#101922]">
         <p className="text-sm text-slate-500 dark:text-slate-500">
-          © 2026 ERP Revolución Motos. Sistema gestionado por Martin
+          © 2026 ERP Revolución Motos.
         </p>
       </footer>
     </div>

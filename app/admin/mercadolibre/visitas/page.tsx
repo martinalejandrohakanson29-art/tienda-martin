@@ -1,14 +1,39 @@
-import VisitasClient from "./visitas-client";
+import { Metadata } from "next"
+import VisitasClient from "./visitas-client"
 
-export default function VisitasPage() {
+export const metadata: Metadata = {
+  title: "Visitas MercadoLibre",
+  description: "Monitor de visitas y estadísticas de productos",
+}
+
+// Aquí simulamos o traemos los datos.
+// En el futuro, reemplaza "getData" con tu llamada real a la base de datos o API.
+async function getData() {
+  // TODO: Reemplazar esto con tu lógica real de base de datos (Prisma) o API de ML
+  // const productos = await prisma.producto.findMany(...)
+  
+  // Retornamos array vacío para que el build funcione por ahora
+  return [] 
+}
+
+export default async function VisitasPage() {
+  const data = await getData()
+
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
+    <div className="hidden h-full flex-1 flex-col space-y-8 p-8 md:flex">
       <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Análisis de Tráfico</h2>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">
+            MercadoLibre Visitas
+          </h2>
+          <p className="text-muted-foreground">
+            Listado de publicaciones y seguimiento de métricas.
+          </p>
+        </div>
       </div>
-      <div className="grid gap-4">
-        <VisitasClient />
-      </div>
+      
+      {/* Aquí pasamos la data obligatoria al componente cliente */}
+      <VisitasClient data={data} />
     </div>
-  );
+  )
 }

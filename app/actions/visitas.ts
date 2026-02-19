@@ -4,10 +4,12 @@
 import { prisma } from "@/lib/prisma";
 
 export async function getVisitasComparativas(r1: { from: string; to: string }, r2: { from: string; to: string }) {
+  // Corregido: Usamos gte (desde) y lte (hasta) para el rango de fechas
   const visitas = await prisma.itemVisitaDiaria.findMany({
     where: {
       fecha: {
-        intermediate: [new Date(r1.from), new Date(r2.to)], // Buscamos todo el rango
+        gte: new Date(r1.from),
+        lte: new Date(r2.to),
       },
     },
     orderBy: { fecha: 'asc' }
@@ -24,8 +26,19 @@ export async function getVisitasComparativas(r1: { from: string; to: string }, r
   const mlas = Array.from(new Set(visitas.map(v => v.mla)));
   
   const comparativa = mlas.map(mla => {
-    const vR1 = visitas.filter(v => v.mla === mla && v.fecha >= new Date(r1.from) && v.fecha <= new Date(r1.to));
-    const vR2 = visitas.filter(v => v.mla === mla && v.fecha >= new Date(r2.from) && v.fecha <= new Date(r2.to));
+    // Filtramos para el Periodo 1
+    const vR1 = visitas.filter(v => 
+      v.mla === mla && 
+      v.fecha >= new Date(r1.from) && 
+      v.fecha <= new Date(r1.to)
+    );
+    
+    // Filtramos para el Periodo 2
+    const vR2 = visitas.filter(v => 
+      v.mla === mla && 
+      v.fecha >= new Date(r2.from) && 
+      v.fecha <= new Date(r2.to)
+    );
 
     const totalR1 = vR1.reduce((acc, curr) => acc + curr.visitas, 0);
     const totalR2 = vR2.reduce((acc, curr) => acc + curr.visitas, 0);

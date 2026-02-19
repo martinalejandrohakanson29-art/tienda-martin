@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 }
 
 export default async function VisitasPage() {
-  // 1. Definimos los rangos de fecha para comparar (Semana actual vs Semana anterior)
+  // Calculamos los rangos de fechas: últimos 7 días vs los 7 anteriores
   const hoy = new Date();
   const hace7Dias = new Date();
   hace7Dias.setDate(hoy.getDate() - 7);
@@ -17,19 +17,19 @@ export default async function VisitasPage() {
   const hace14Dias = new Date();
   hace14Dias.setDate(hoy.getDate() - 14);
 
-  // Periodo 1: De hace 14 días a hace 7 días
+  // Periodo 1: (hace 14 días al día 7)
   const r1 = { 
     from: hace14Dias.toISOString().split('T')[0], 
     to: hace7Dias.toISOString().split('T')[0] 
   };
   
-  // Periodo 2: De hace 7 días a hoy
+  // Periodo 2: (hace 7 días a hoy)
   const r2 = { 
     from: hace7Dias.toISOString().split('T')[0], 
     to: hoy.toISOString().split('T')[0] 
   };
 
-  // 2. Llamamos a tu acción que ya tiene la lógica de Prisma
+  // Traemos la comparativa real de la base de datos
   const { comparativa } = await getVisitasComparativas(r1, r2);
 
   return (
@@ -40,12 +40,12 @@ export default async function VisitasPage() {
             MercadoLibre Visitas
           </h2>
           <p className="text-muted-foreground">
-            Comparativa de rendimiento: Últimos 7 días vs. Periodo anterior.
+            Comparativa de rendimiento: Últimos 7 días vs Periodo Anterior.
           </p>
         </div>
       </div>
       
-      {/* Pasamos los datos reales al componente cliente */}
+      {/* Pasamos los datos exactos que espera el cliente */}
       <VisitasClient data={comparativa} />
     </div>
   )

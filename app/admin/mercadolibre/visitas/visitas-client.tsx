@@ -4,7 +4,6 @@ import { useState, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown } from "lucide-react"
 
-// Definimos la estructura exacta que viene de la base de datos
 interface VisitaComparativa {
   mla: string
   nombre: string
@@ -22,7 +21,6 @@ export default function VisitasClient({ data = [] }: VisitasClientProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [sortConfig, setSortConfig] = useState<{ key: keyof VisitaComparativa; direction: 'asc' | 'desc' } | null>(null)
 
-  // Filtro por nombre o MLA
   const filteredData = useMemo(() => {
     if (!searchTerm) return data
     const lowerTerm = searchTerm.toLowerCase()
@@ -32,7 +30,6 @@ export default function VisitasClient({ data = [] }: VisitasClientProps) {
     )
   }, [data, searchTerm])
 
-  // Lógica de ordenamiento
   const sortedData = useMemo(() => {
     if (!sortConfig) return filteredData
     return [...filteredData].sort((a, b) => {
@@ -85,10 +82,10 @@ export default function VisitasClient({ data = [] }: VisitasClientProps) {
                   <div className="flex items-center">Producto {getSortIcon('nombre')}</div>
                 </th>
                 <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('totalR1')}>
-                  <div className="flex items-center justify-center">V. Sem. Pasada {getSortIcon('totalR1')}</div>
+                  <div className="flex items-center justify-center">Periodo 1 {getSortIcon('totalR1')}</div>
                 </th>
                 <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('totalR2')}>
-                  <div className="flex items-center justify-center">V. Esta Sem. {getSortIcon('totalR2')}</div>
+                  <div className="flex items-center justify-center">Periodo 2 {getSortIcon('totalR2')}</div>
                 </th>
                 <th className="px-4 py-3 font-medium cursor-pointer text-center" onClick={() => handleSort('growth')}>
                   <div className="flex items-center justify-center">Crecimiento {getSortIcon('growth')}</div>
@@ -103,8 +100,8 @@ export default function VisitasClient({ data = [] }: VisitasClientProps) {
                     <tr key={item.mla} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs">{item.mla}</td>
                       <td className="px-4 py-3 font-medium">{item.nombre}</td>
-                      <td className="px-4 py-3 text-center">{item.totalR1}</td>
-                      <td className="px-4 py-3 text-center">{item.totalR2}</td>
+                      <td className="px-4 py-3 text-center font-bold">{item.totalR1}</td>
+                      <td className="px-4 py-3 text-center font-bold">{item.totalR2}</td>
                       <td className="px-4 py-3 text-center">
                         <div className={`flex items-center justify-center font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
                           {isPositive ? <TrendingUp className="mr-1 h-4 w-4" /> : <TrendingDown className="mr-1 h-4 w-4" />}
@@ -117,7 +114,7 @@ export default function VisitasClient({ data = [] }: VisitasClientProps) {
               ) : (
                 <tr>
                   <td colSpan={5} className="h-24 text-center text-muted-foreground">
-                    No hay datos suficientes para mostrar la comparativa.
+                    No hay datos para estos periodos.
                   </td>
                 </tr>
               )}

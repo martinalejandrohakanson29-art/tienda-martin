@@ -88,14 +88,14 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">sell</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Ventas</h3>
-                <p className="text-xs text-slate-500">Facturación directa</p>
+                <p className="text-xs text-slate-500">Registrar Ventas</p>
               </a>
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">shopping_cart</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Compras</h3>
-                <p className="text-xs text-slate-500">Cargar facturas</p>
+                <p className="text-xs text-slate-500">Cargar Compras</p>
               </a>
             </div>
             {/* Lado Derecho: Consultas (Separadas) */}
@@ -126,14 +126,14 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">payments</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Pagos</h3>
-                <p className="text-xs text-slate-500">Registrar egresos</p>
+                <p className="text-xs text-slate-500">Registrar Cobros</p>
               </a>
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">account_balance_wallet</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Cobros</h3>
-                <p className="text-xs text-slate-500">Registrar ingresos</p>
+                <p className="text-xs text-slate-500">Registrar cobros</p>
               </a>
             </div>
             {/* Lado Derecho: Consultas */}
@@ -143,7 +143,7 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-slate-600 dark:text-slate-400 group-hover:text-[#2b8cee]">receipt</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Consultar Cobros</h3>
-                <p className="text-xs text-slate-500">Archivo de ingresos</p>
+                <p className="text-xs text-slate-500">consulta de cobros</p>
               </a>
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">

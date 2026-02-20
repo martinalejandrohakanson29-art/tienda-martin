@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft, AlertTriangle,
-  RefreshCcw, Copy, Square, CheckSquare, Percent, Hash, Edit, History, Save
+  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,18 +88,15 @@ export default function VentasMostradorClient({
   const [editTransaccionId, setEditTransaccionId] = useState("");
   const [editDeCruzada, setEditDeCruzada] = useState("");
   const [editParaCruzada, setEditParaCruzada] = useState("");
-  // Guardamos la venta original para comparar qué cambió
   const [ventaOriginalParaComparar, setVentaOriginalParaComparar] = useState<any>(null);
 
   // --- EFECTOS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Abre buscador de Nueva Venta (si no hay modales de edición abiertos)
       if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen) {
         e.preventDefault();
         setIsModalOpen(true);
       }
-      // Abre buscador de Edición (si el modal de edición está abierto)
       if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen) {
         e.preventDefault();
         setIsSearchEditModalOpen(true);
@@ -246,7 +243,10 @@ export default function VentasMostradorClient({
   };
 
   const handleGuardarEdicion = async () => {
-    // Armar un resumen básico de qué se modificó
+    // Validaciones idénticas a la creación de venta
+    if (editMetodoPago.includes("Tarjeta") && (!editDni.trim() || !editTelefono.trim())) { alert("DNI y Teléfono son obligatorios para pagos con Tarjeta."); return; }
+    if (editMetodoPago === "Cruzada" && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
+
     let cambios = [];
     if (ventaOriginalParaComparar.cliente !== editCliente) cambios.push(`Cliente: ${ventaOriginalParaComparar.cliente} -> ${editCliente}`);
     if (ventaOriginalParaComparar.metodo_pago !== editMetodoPago) cambios.push(`Método: ${ventaOriginalParaComparar.metodo_pago} -> ${editMetodoPago}`);
@@ -261,7 +261,7 @@ export default function VentasMostradorClient({
       const resultado = await actualizarVentaMostrador(
         editVentaId,
         {
-          cliente: editCliente,
+          cliente: editMetodoPago.includes("Tarjeta") ? editDni : editCliente,
           total: totalBaseEdit,
           interes: editMetodoPago === "Tarjeta de Crédito" ? editInteresTarjeta : 0,
           totalFinal: editMetodoPago === "Tarjeta de Crédito" ? totalConInteresEdit : totalBaseEdit,
@@ -340,7 +340,6 @@ export default function VentasMostradorClient({
           <TabsList className="bg-slate-100/50 p-1 w-full flex justify-start relative">
             <TabsTrigger value="registrar" className="gap-2 px-6"><ShoppingCart className="h-4 w-4" /> Registrar Venta</TabsTrigger>
             <TabsTrigger value="listado" className="gap-2 px-6"><ClipboardList className="h-4 w-4" /> Listado de Ventas</TabsTrigger>
-            {/* PESTAÑA NUEVA: Alejada visualmente usando ml-auto */}
             <TabsTrigger value="gestion" className="gap-2 px-6 ml-auto bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
               <Edit className="h-4 w-4" /> Gestión y Edición
             </TabsTrigger>
@@ -603,7 +602,6 @@ export default function VentasMostradorClient({
         <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
           <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
-             {/* Componentes del formulario ya existentes: Metodo, DNI, Telefono, Cruzada, Extra... */}
              <div className="space-y-2">
               <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
               <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
@@ -638,45 +636,90 @@ export default function VentasMostradorClient({
 
       {/* --- MODALES NUEVOS: EDICIÓN Y AUDITORÍA --- */}
       
-      {/* 1. Modal Principal de Edición */}
+      {/* 1. Modal Principal de Edición (AHORA INCLUYE LOS CAMPOS CONDICIONALES) */}
       <Dialog open={isEditMainModalOpen} onOpenChange={setIsEditMainModalOpen}>
         <DialogContent className="max-w-[1200px] h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-2 border-amber-200 shadow-2xl">
           <DialogHeader className="p-6 bg-amber-50 border-b border-amber-100 flex-shrink-0">
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-amber-900">
               <Edit className="h-5 w-5" /> Editando Venta
             </DialogTitle>
-            <DialogDescription className="text-amber-700">Modifica los artículos, el cliente o el método de pago de esta venta.</DialogDescription>
+            <DialogDescription className="text-amber-700">Modifica los artículos, el cliente o la forma de pago detallada.</DialogDescription>
           </DialogHeader>
           
           <div className="flex-grow overflow-y-auto p-6 flex flex-col gap-6 bg-slate-50/50">
-            {/* Cabecera Edicion */}
-            <section className="bg-white rounded-xl border border-slate-200 p-4 flex gap-4 items-end shadow-sm flex-wrap">
-              <div className="space-y-1.5 flex-grow min-w-[200px]">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase">Cliente / Razón Social</Label>
-                <Input value={editCliente} onChange={(e) => setEditCliente(e.target.value)} className="bg-slate-50" />
+            
+            {/* --- CABECERA EDICIÓN: CAMPOS COMUNES Y CONDICIONALES --- */}
+            <section className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-4 shadow-sm">
+              <div className="flex gap-4 items-end flex-wrap">
+                <div className="space-y-1.5 flex-grow min-w-[200px]">
+                  <Label className="text-[10px] font-bold text-slate-400 uppercase">Cliente / Razón Social</Label>
+                  <Input value={editCliente} onChange={(e) => setEditCliente(e.target.value)} className="bg-slate-50" />
+                </div>
+                <div className="space-y-1.5 w-48">
+                  <Label className="text-[10px] font-bold text-slate-400 uppercase">Método Pago</Label>
+                  <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm">
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                    <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                    <option value="Cruzada">Cruzada</option>
+                  </select>
+                </div>
+                {editMetodoPago === "Tarjeta de Crédito" && (
+                  <div className="space-y-1.5 w-32">
+                    <Label className="text-[10px] font-bold text-slate-400 uppercase">% Interés</Label>
+                    <Input type="number" value={editInteresTarjeta} onChange={(e) => setEditInteresTarjeta(Number(e.target.value))} className="font-bold text-blue-600 bg-slate-50" />
+                  </div>
+                )}
+                <div className="text-right bg-amber-50 p-2 px-4 rounded-xl border border-amber-100 ml-auto">
+                  <span className="text-[10px] font-bold text-amber-700 uppercase block mb-0.5">Total Actualizado</span>
+                  <span className="text-2xl font-black text-amber-900">$ {(editMetodoPago === "Tarjeta de Crédito" ? totalConInteresEdit : totalBaseEdit).toLocaleString('es-AR')}</span>
+                </div>
               </div>
-              <div className="space-y-1.5 w-40">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase">Método Pago</Label>
-                <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm">
-                  <option value="Efectivo">Efectivo</option>
-                  <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                  <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                  <option value="Cruzada">Cruzada</option>
-                </select>
-              </div>
-              {editMetodoPago === "Tarjeta de Crédito" && (
-                <div className="space-y-1.5 w-32">
-                  <Label className="text-[10px] font-bold text-slate-400 uppercase">% Interés</Label>
-                  <Input type="number" value={editInteresTarjeta} onChange={(e) => setEditInteresTarjeta(Number(e.target.value))} className="font-bold text-blue-600 bg-slate-50" />
+
+              {/* CAMPOS CONDICIONALES PARA TARJETA EN EDICIÓN */}
+              {(editMetodoPago.includes("Tarjeta")) && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label>
+                    <Input value={editDni} onChange={(e) => setEditDni(e.target.value)} className="bg-white border-blue-200" placeholder="Obligatorio" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-blue-700">Teléfono <span className="text-red-500">*</span></Label>
+                    <Input value={editTelefono} onChange={(e) => setEditTelefono(e.target.value)} className="bg-white border-blue-200" placeholder="Obligatorio" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-blue-700">N° Cupón</Label>
+                    <Input value={editCupon} onChange={(e) => setEditCupon(e.target.value)} className="bg-white border-blue-200" placeholder="Opcional" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-blue-700">ID Transacción</Label>
+                    <Input value={editTransaccionId} onChange={(e) => setEditTransaccionId(e.target.value)} className="bg-white border-blue-200" placeholder="Opcional" />
+                  </div>
                 </div>
               )}
-              <div className="text-right bg-amber-50 p-2 px-4 rounded-xl border border-amber-100 ml-auto">
-                <span className="text-[10px] font-bold text-amber-700 uppercase block mb-0.5">Total Actualizado</span>
-                <span className="text-2xl font-black text-amber-900">$ {(editMetodoPago === "Tarjeta de Crédito" ? totalConInteresEdit : totalBaseEdit).toLocaleString('es-AR')}</span>
+
+              {/* CAMPOS CONDICIONALES PARA CRUZADA EN EDICIÓN */}
+              {editMetodoPago === "Cruzada" && (
+                <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-200 animate-in fade-in">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-amber-800">De <span className="text-red-500">*</span></Label>
+                    <Input value={editDeCruzada} onChange={(e) => setEditDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-amber-800">Para <span className="text-red-500">*</span></Label>
+                    <Input value={editParaCruzada} onChange={(e) => setEditParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" />
+                  </div>
+                </div>
+              )}
+
+              {/* CAMPO EXTRA INFO */}
+              <div className="space-y-1.5 w-full">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase">Información Extra / Notas</Label>
+                <Input value={editInfo} onChange={(e) => setEditInfo(e.target.value)} className="bg-slate-50" placeholder="Agregar alguna nota sobre esta venta o edición..." />
               </div>
             </section>
 
-            {/* Articulos Edicion */}
+            {/* --- ARTÍCULOS EDICIÓN --- */}
             <section className="flex-grow flex flex-col gap-3 min-h-[300px]">
               <Button onClick={() => setIsSearchEditModalOpen(true)} className="bg-amber-500 hover:bg-amber-600 text-white gap-2 px-6 rounded-xl w-fit">
                 <Plus className="h-4 w-4" /> Añadir Artículo a esta Venta
@@ -714,7 +757,7 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* 2. Buscador exclusivo para el modo edición (Para no mezclar estados) */}
+      {/* 2. Buscador exclusivo para el modo edición */}
       <Dialog open={isSearchEditModalOpen} onOpenChange={setIsSearchEditModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-2 border-amber-400 shadow-2xl">
           <div className="p-6 bg-amber-50 border-b border-amber-200">

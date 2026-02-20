@@ -41,18 +41,16 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
   });
 
   // ESTADO TEMPORAL PARA SIMULACIONES
-  // Aquí guardamos los cambios que haces a mano, sin tocar la base de datos
-  const [overrides, setOverrides] = useState<Record<string, { desc_pct_total?: number; costo_total?: number }>>({});
+  // Ahora guardamos el valor como "string" (texto) para que no haya conflictos al borrar
+  const [overrides, setOverrides] = useState<Record<string, { desc_pct_total?: string; costo_total?: string }>>({});
 
-  // Función para guardar lo que escribes en la caja de texto
+  // Función para guardar lo que escribes exactamente como lo tipeaste
   const handleOverride = (id: string, field: 'desc_pct_total' | 'costo_total', value: string) => {
-    // Si borras todo, vuelve a ser "undefined" y la tabla usa el valor real de la base de datos
-    const numValue = value === "" ? undefined : Number(value);
     setOverrides((prev) => ({
       ...prev,
       [id]: {
         ...(prev[id] || {}),
-        [field]: numValue,
+        [field]: value,
       },
     }));
   };
@@ -71,21 +69,23 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     const id = `${item.item_id}-${item.variation_id || ""}`;
     const override = overrides[id];
 
-    // Si no modificaste nada de este producto, devolvemos el original
     if (!override) return item;
 
-    // Tomamos el valor simulado, o el real si no simulaste ese campo específico
-    const simulatedDesc = override.desc_pct_total !== undefined ? override.desc_pct_total : item.desc_pct_total;
-    const simulatedCosto = override.costo_total !== undefined ? override.costo_total : item.costo_total;
+    // Si tipeaste algo, lo convertimos a número. Si borraste todo (""), lo tratamos como 0 para la matemática.
+    const simulatedDesc = override.desc_pct_total !== undefined 
+      ? (override.desc_pct_total === "" ? 0 : Number(override.desc_pct_total)) 
+      : item.desc_pct_total;
 
-    // Si el valor es exactamente igual al de la base de datos, no hacemos matemática extra
+    const simulatedCosto = override.costo_total !== undefined 
+      ? (override.costo_total === "" ? 0 : Number(override.costo_total)) 
+      : item.costo_total;
+
+    // Si los valores terminan siendo iguales a la base de datos, no hacemos matemática extra
     if (simulatedDesc === item.desc_pct_total && simulatedCosto === item.costo_total) return item;
 
     // MATEMÁTICA DE SIMULACIÓN
-    // Calculamos el % de comisión que nos cobra ML actualmente para aplicarlo al nuevo precio
     const fee_rate = item.precio_final > 0 ? item.cargo_venta_real / item.precio_final : 0;
     
-    // Recalculamos el nuevo escenario
     const nuevo_precio_final = item.precio_original * (1 - simulatedDesc / 100);
     const nuevo_cargo_venta = nuevo_precio_final * fee_rate;
     
@@ -105,7 +105,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     };
   });
 
-  // 2. LUEGO FILTRAMOS (USANDO LOS DATOS SIMULADOS)
+  // 2. LUEGO FILTRAMOS
   const filteredData = simulatedData.filter((item) => {
     const searchLower = filter.toLowerCase().trim();
     return (item.nombre || "").toLowerCase().includes(searchLower) || 
@@ -113,7 +113,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
            (item.nombre_variante || "").toLowerCase().includes(searchLower);
   });
 
-  // 3. LUEGO ORDENAMOS (USANDO LOS DATOS SIMULADOS)
+  // 3. LUEGO ORDENAMOS
   const sortedData = [...filteredData].sort((a, b) => {
     const aValue = a[sortConfig.key] ?? 0;
     const bValue = b[sortConfig.key] ?? 0;
@@ -129,15 +129,13 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
       : (bValue as number) - (aValue as number);
   });
 
-  // Lógica de colores personalizada para Ganancia %
   const getPorcentajeStyle = (pct: number) => {
     if (pct <= 40) return "text-red-600 font-black";
     if (pct > 40 && pct <= 50) return "text-amber-500 font-black";
     if (pct > 50 && pct <= 60) return "text-green-600 font-black";
-    return "text-[#d413c3] font-black"; // El color magenta solicitado
+    return "text-[#d413c3] font-black";
   };
 
-  // Componente para el encabezado de columna ordenable
   const SortableHead = ({ label, sortKey, className }: { label: string; sortKey: SortKey; className?: string }) => (
     <TableHead 
       className={cn("cursor-pointer hover:bg-slate-200 transition-colors select-none", className)}
@@ -203,7 +201,6 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
           <TableBody>
             {sortedData.map((item, index) => {
               const id = `${item.item_id}-${item.variation_id || ''}`;
-              // Verificamos si este ítem está siendo simulado para pintarlo levemente distinto (opcional)
               const isSimulated = overrides[id] !== undefined;
 
               return (
@@ -225,7 +222,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                     ${item.precio_original.toLocaleString('es-AR')}
                   </TableCell>
                   
-                  {/* CELDA EDITABLE DE DESCUENTO */}
+                  {/* CELDA EDITABLE DE DESCUENTO CON CLASES PARA OCULTAR FLECHAS */}
                   <TableCell className="text-right font-bold text-amber-600">
                     <div className="flex justify-end items-center gap-1">
                       <Input 
@@ -233,8 +230,8 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                         min="0"
                         max="100"
                         placeholder="0"
-                        className="h-6 w-14 text-right text-[11px] px-1 font-bold text-amber-600 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm"
-                        value={overrides[id]?.desc_pct_total ?? item.desc_pct_total}
+                        className="h-6 w-14 text-right text-[11px] px-1 font-bold text-amber-600 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={overrides[id]?.desc_pct_total !== undefined ? overrides[id].desc_pct_total : item.desc_pct_total}
                         onChange={(e) => handleOverride(id, 'desc_pct_total', e.target.value)}
                       />
                       <span>%</span>
@@ -245,7 +242,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                     ${item.precio_final.toLocaleString('es-AR')}
                   </TableCell>
 
-                  {/* CELDA EDITABLE DE COSTO */}
+                  {/* CELDA EDITABLE DE COSTO CON CLASES PARA OCULTAR FLECHAS */}
                   <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
                     <div className="flex justify-end items-center gap-1">
                       <span className="text-slate-400">$</span>
@@ -253,8 +250,8 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                         type="number"
                         min="0"
                         placeholder="0"
-                        className="h-6 w-20 text-right text-[11px] px-1 font-bold text-slate-700 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm"
-                        value={overrides[id]?.costo_total ?? item.costo_total}
+                        className="h-6 w-20 text-right text-[11px] px-1 font-bold text-slate-700 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={overrides[id]?.costo_total !== undefined ? overrides[id].costo_total : item.costo_total}
                         onChange={(e) => handleOverride(id, 'costo_total', e.target.value)}
                       />
                     </div>

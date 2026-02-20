@@ -119,3 +119,73 @@ export async function crearVentaMostrador(data: {
     return { success: false, error: "No se pudo guardar la venta" };
   }
 }
+
+// --- NUEVAS FUNCIONES PARA EDICIÓN Y AUDITORÍA ---
+
+export async function actualizarVentaMostrador(ventaId: string, data: any, usuario: string, detalleCambios: string) {
+  try {
+    // Usamos una transacción para asegurar que si algo falla, no se guarde a medias
+    await prisma.$transaction(async (tx) => {
+      // 1. Borramos los items actuales para reemplazarlos limpios por los nuevos
+      await tx.ventaItem.deleteMany({
+        where: { ventaId: ventaId }
+      });
+
+      // 2. Actualizamos la venta y creamos los nuevos items
+      await tx.venta.update({
+        where: { id: ventaId },
+        data: {
+          cliente: data.cliente,
+          total: data.total,
+          interes: data.interes,
+          totalFinal: data.totalFinal,
+          metodo_pago: data.metodo_pago,
+          dni: data.dni,
+          telefono: data.telefono,
+          info: data.info,
+          cupon: data.cupon,
+          transaccionId: data.transaccionId,
+          de: data.de,
+          para: data.para,
+          items: {
+            create: data.items.map((item: any) => ({
+              productoId: item.id, 
+              nombre: item.nombre,
+              cantidad: item.cantidad,
+              precio_unit: item.precio_unit,
+              subtotal: item.subtotal
+            }))
+          }
+        }
+      });
+
+      // 3. Dejamos el registro de qué se cambió
+      await tx.ventaAuditoria.create({
+        data: {
+          ventaId: ventaId,
+          usuario: usuario,
+          accion: "EDICION_VENTA",
+          detalle: detalleCambios
+        }
+      });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar venta:", error);
+    return { success: false, error: "No se pudo modificar la venta" };
+  }
+}
+
+export async function obtenerHistorialVenta(ventaId: string) {
+  try {
+    const historial = await prisma.ventaAuditoria.findMany({
+      where: { ventaId: ventaId },
+      orderBy: { createdAt: 'desc' }
+    });
+    return { success: true, data: historial };
+  } catch (error) {
+    console.error("Error al obtener historial:", error);
+    return { success: false, error: "No se pudo cargar el historial" };
+  }
+}

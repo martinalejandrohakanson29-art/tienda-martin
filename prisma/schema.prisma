@@ -423,28 +423,7 @@ model RentabilidadCalculada {
 
 // --- GESTIÓN DE VENTAS MOSTRADOR ---
 
-model Venta {
-  id            String      @id @default(cuid())
-  cliente       String      @default("Consumidor Final")
-  vendedor      String      @default("Martin Jakson")
-  total         Decimal     @db.Decimal(20, 2) @default(0) // Total base
-  interes       Decimal     @db.Decimal(10, 2) @default(0) // % de interés aplicado
-  totalFinal    Decimal     @db.Decimal(20, 2) @default(0) // Total con interés
-  metodo_pago   String      @default("Efectivo")
-  dni           String?
-  telefono      String?
-  info          String?
-  cupon         String?
-  transaccionId String?
-  de            String?
-  para          String?
-  registrada    Boolean     @default(false)
-  items         VentaItem[] 
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  @@map("ventas_mostrador")
-}
+// --- GESTIÓN DE VENTAS MOSTRADOR ---
 
 model Venta {
   id            String      @id @default(cuid())
@@ -463,21 +442,33 @@ model Venta {
   para          String?
   registrada    Boolean     @default(false)
   items         VentaItem[] 
-  auditorias    VentaAuditoria[] // <-- NUEVA LÍNEA AGREGADA
+  auditorias    VentaAuditoria[] 
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
   @@map("ventas_mostrador")
 }
 
-// --- NUEVO MODELO PARA EL HISTORIAL DE CAMBIOS ---
+model VentaItem {
+  id            String   @id @default(cuid())
+  ventaId       String
+  venta         Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+  productoId    String?
+  nombre        String   
+  cantidad      Int      @default(1)
+  precio_unit   Decimal  @db.Decimal(20, 2)
+  subtotal      Decimal  @db.Decimal(20, 2)
+
+  @@map("ventas_mostrador_items")
+}
+
 model VentaAuditoria {
   id          String   @id @default(cuid())
   ventaId     String
   venta       Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
   usuario     String
   accion      String   
-  detalle     String?  // Aquí guardaremos qué se modificó exactamente
+  detalle     String?  
   createdAt   DateTime @default(now())
 
   @@map("ventas_auditoria")
@@ -490,10 +481,12 @@ model ArticuloMostrador {
   precio      Decimal  @db.Decimal(20, 2) @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  
   @@index([nombre])
   @@map("articulos_mostrador")
 }
 
+// --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
 
 // --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
 

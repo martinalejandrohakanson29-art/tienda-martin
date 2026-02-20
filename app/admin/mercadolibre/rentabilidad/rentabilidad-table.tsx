@@ -29,6 +29,9 @@ interface ProductoRentabilidad {
   cargo_venta_real: number;
   envio_costo: number;
   costo_fijo_ml: number;
+  // Añadimos estas dos propiedades opcionales para que TypeScript no se queje al calcularlas
+  desc_pct_nuestro?: number;
+  desc_pct_ml?: number;
 }
 
 type SortKey = keyof ProductoRentabilidad;
@@ -41,11 +44,10 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
   });
 
   // ESTADO TEMPORAL PARA SIMULACIONES
-  // Ahora guardamos el valor como "string" (texto) para que no haya conflictos al borrar
-  const [overrides, setOverrides] = useState<Record<string, { desc_pct_total?: string; costo_total?: string }>>({});
+  // Ahora guardamos el "Dcto Nuestro" en lugar del total
+  const [overrides, setOverrides] = useState<Record<string, { desc_pct_nuestro?: string; costo_total?: string }>>({});
 
-  // Función para guardar lo que escribes exactamente como lo tipeaste
-  const handleOverride = (id: string, field: 'desc_pct_total' | 'costo_total', value: string) => {
+  const handleOverride = (id: string, field: 'desc_pct_nuestro' | 'costo_total', value: string) => {
     setOverrides((prev) => ({
       ...prev,
       [id]: {
@@ -55,7 +57,6 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     }));
   };
 
-  // Función para cambiar el orden
   const handleSort = (key: SortKey) => {
     let direction: "asc" | "desc" = "asc";
     if (sortConfig.key === key && sortConfig.direction === "asc") {
@@ -64,40 +65,58 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     setSortConfig({ key, direction });
   };
 
-  // 1. PRIMERO APLICAMOS LA SIMULACIÓN A LOS DATOS
+  // 1. APLICAMOS LA SIMULACIÓN Y CALCULAMOS LOS DESCUENTOS DESGLOSADOS
   const simulatedData = data.map((item) => {
     const id = `${item.item_id}-${item.variation_id || ""}`;
     const override = overrides[id];
 
-    if (!override) return item;
+    // Deducimos el % nuestro real usando el precio_final_nuestro y el precio_original
+    const desc_pct_nuestro_real = item.precio_original > 0 
+      ? (1 - (item.precio_final_nuestro / item.precio_original)) * 100 
+      : 0;
+    
+    // El % de ML es el total menos el nuestro (con Math.max para evitar números negativos raros)
+    const desc_pct_ml = Math.max(0, item.desc_pct_total - desc_pct_nuestro_real);
 
-    // Si tipeaste algo, lo convertimos a número. Si borraste todo (""), lo tratamos como 0 para la matemática.
-    const simulatedDesc = override.desc_pct_total !== undefined 
-      ? (override.desc_pct_total === "" ? 0 : Number(override.desc_pct_total)) 
-      : item.desc_pct_total;
+    // Si tipeaste algo, lo usamos. Si no, usamos el real calculado arriba.
+    const simulatedDescNuestro = override?.desc_pct_nuestro !== undefined 
+      ? (override.desc_pct_nuestro === "" ? 0 : Number(override.desc_pct_nuestro)) 
+      : desc_pct_nuestro_real;
 
-    const simulatedCosto = override.costo_total !== undefined 
+    const simulatedCosto = override?.costo_total !== undefined 
       ? (override.costo_total === "" ? 0 : Number(override.costo_total)) 
       : item.costo_total;
 
-    // Si los valores terminan siendo iguales a la base de datos, no hacemos matemática extra
-    if (simulatedDesc === item.desc_pct_total && simulatedCosto === item.costo_total) return item;
+    // Si no cambiaste nada, devolvemos el item original pero agregándole los % desglosados
+    if (simulatedDescNuestro === desc_pct_nuestro_real && simulatedCosto === item.costo_total) {
+      return {
+        ...item,
+        desc_pct_nuestro: desc_pct_nuestro_real,
+        desc_pct_ml: desc_pct_ml
+      };
+    }
 
     // MATEMÁTICA DE SIMULACIÓN
+    // Calculamos qué porcentaje de comisión nos cobra ML hoy sobre el precio de venta público
     const fee_rate = item.precio_final > 0 ? item.cargo_venta_real / item.precio_final : 0;
     
-    const nuevo_precio_final = item.precio_original * (1 - simulatedDesc / 100);
-    const nuevo_cargo_venta = nuevo_precio_final * fee_rate;
+    // Recalculamos los precios
+    const nuevo_precio_final_nuestro = item.precio_original * (1 - simulatedDescNuestro / 100);
+    const nuevo_precio_final_publico = item.precio_original * (1 - (simulatedDescNuestro + desc_pct_ml) / 100);
     
-    const nuevo_neto = nuevo_precio_final - nuevo_cargo_venta - item.envio_costo - item.costo_fijo_ml;
+    const nuevo_cargo_venta = nuevo_precio_final_publico * fee_rate;
+    
+    const nuevo_neto = nuevo_precio_final_nuestro - nuevo_cargo_venta - item.envio_costo - item.costo_fijo_ml;
     const nueva_ganancia = nuevo_neto - simulatedCosto;
     const nuevo_pct = simulatedCosto > 0 ? (nueva_ganancia / simulatedCosto) * 100 : 0;
 
     return {
       ...item,
-      desc_pct_total: simulatedDesc,
+      desc_pct_nuestro: simulatedDescNuestro,
+      desc_pct_ml: desc_pct_ml,
       costo_total: simulatedCosto,
-      precio_final: nuevo_precio_final,
+      precio_final: nuevo_precio_final_publico,
+      precio_final_nuestro: nuevo_precio_final_nuestro,
       cargo_venta_real: nuevo_cargo_venta,
       neto_teorico: nuevo_neto,
       ganancia_neta: nueva_ganancia,
@@ -105,7 +124,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     };
   });
 
-  // 2. LUEGO FILTRAMOS
+  // 2. FILTRAMOS
   const filteredData = simulatedData.filter((item) => {
     const searchLower = filter.toLowerCase().trim();
     return (item.nombre || "").toLowerCase().includes(searchLower) || 
@@ -113,7 +132,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
            (item.nombre_variante || "").toLowerCase().includes(searchLower);
   });
 
-  // 3. LUEGO ORDENAMOS
+  // 3. ORDENAMOS
   const sortedData = [...filteredData].sort((a, b) => {
     const aValue = a[sortConfig.key] ?? 0;
     const bValue = b[sortConfig.key] ?? 0;
@@ -182,16 +201,18 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
           <TableHeader className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
             <TableRow>
               <TableHead 
-                className="min-w-[350px] font-bold text-slate-700 text-[11px] cursor-pointer"
+                className="min-w-[300px] font-bold text-slate-700 text-[11px] cursor-pointer"
                 onClick={() => handleSort("nombre")}
               >
                 Publicación / Variante
               </TableHead>
               <SortableHead label="P. Original" sortKey="precio_original" className="text-slate-400" />
-              <SortableHead label="Dcto Total" sortKey="desc_pct_total" className="text-amber-600" />
-              <SortableHead label="P. Final" sortKey="precio_final" className="text-slate-900" />
+              <SortableHead label="Dcto ML" sortKey="desc_pct_ml" className="text-slate-400" />
+              <SortableHead label="Dcto Nuestro" sortKey="desc_pct_nuestro" className="text-amber-600" />
+              <SortableHead label="P. Público" sortKey="precio_final" className="text-slate-500" />
+              <SortableHead label="P. Nuestro" sortKey="precio_final_nuestro" className="text-slate-900 bg-slate-100" />
               <SortableHead label="Costo" sortKey="costo_total" className="text-slate-700 bg-slate-100" />
-              <SortableHead label="Comisión $" sortKey="cargo_venta_real" className="text-red-500" />
+              <SortableHead label="Comisión" sortKey="cargo_venta_real" className="text-red-500" />
               <SortableHead label="Envío" sortKey="envio_costo" className="text-blue-600" />
               <SortableHead label="Neto Recibido" sortKey="neto_teorico" className="text-white bg-slate-900 px-4" />
               <SortableHead label="Ganancia Neta" sortKey="ganancia_neta" className="text-white bg-green-700 px-4" />
@@ -207,7 +228,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                 <TableRow key={`${id}-${index}`} className={cn("transition-colors border-slate-100 text-[11px]", isSimulated ? "bg-amber-50/30 hover:bg-amber-50/60" : "bg-white hover:bg-slate-50/80")}>
                   <TableCell>
                     <div className="flex flex-col leading-tight">
-                      <span className="font-semibold text-slate-800 truncate max-w-[340px]">{item.nombre}</span>
+                      <span className="font-semibold text-slate-800 truncate max-w-[280px]">{item.nombre}</span>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[9px] font-mono text-slate-400">{item.item_id}</span>
                         {item.nombre_variante && (
@@ -222,7 +243,12 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                     ${item.precio_original.toLocaleString('es-AR')}
                   </TableCell>
                   
-                  {/* CELDA EDITABLE DE DESCUENTO CON CLASES PARA OCULTAR FLECHAS */}
+                  {/* CELDA SOLO LECTURA: DESCUENTO DE MERCADO LIBRE */}
+                  <TableCell className="text-right font-medium text-slate-400">
+                    {item.desc_pct_ml ? `${item.desc_pct_ml.toFixed(1)}%` : '-'}
+                  </TableCell>
+
+                  {/* CELDA EDITABLE: DESCUENTO NUESTRO */}
                   <TableCell className="text-right font-bold text-amber-600">
                     <div className="flex justify-end items-center gap-1">
                       <Input 
@@ -231,18 +257,24 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                         max="100"
                         placeholder="0"
                         className="h-6 w-14 text-right text-[11px] px-1 font-bold text-amber-600 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        value={overrides[id]?.desc_pct_total !== undefined ? overrides[id].desc_pct_total : item.desc_pct_total}
-                        onChange={(e) => handleOverride(id, 'desc_pct_total', e.target.value)}
+                        value={overrides[id]?.desc_pct_nuestro !== undefined ? overrides[id].desc_pct_nuestro : (item.desc_pct_nuestro?.toFixed(1) || 0)}
+                        onChange={(e) => handleOverride(id, 'desc_pct_nuestro', e.target.value)}
                       />
                       <span>%</span>
                     </div>
                   </TableCell>
 
-                  <TableCell className="text-right font-bold text-slate-900">
-                    ${item.precio_final.toLocaleString('es-AR')}
+                  {/* PRECIO FINAL AL PÚBLICO */}
+                  <TableCell className="text-right font-medium text-slate-500">
+                    ${item.precio_final.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </TableCell>
 
-                  {/* CELDA EDITABLE DE COSTO CON CLASES PARA OCULTAR FLECHAS */}
+                  {/* NUEVA COLUMNA: PRECIO FINAL NUESTRO (BASE DE GANANCIA) */}
+                  <TableCell className="text-right font-bold text-slate-900 bg-slate-50">
+                    ${item.precio_final_nuestro.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </TableCell>
+
+                  {/* CELDA EDITABLE: COSTO */}
                   <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
                     <div className="flex justify-end items-center gap-1">
                       <span className="text-slate-400">$</span>
@@ -250,8 +282,8 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                         type="number"
                         min="0"
                         placeholder="0"
-                        className="h-6 w-20 text-right text-[11px] px-1 font-bold text-slate-700 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        value={overrides[id]?.costo_total !== undefined ? overrides[id].costo_total : item.costo_total}
+                        className="h-6 w-16 text-right text-[11px] px-1 font-bold text-slate-700 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={overrides[id]?.costo_total !== undefined ? overrides[id].costo_total : Math.round(item.costo_total)}
                         onChange={(e) => handleOverride(id, 'costo_total', e.target.value)}
                       />
                     </div>

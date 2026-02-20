@@ -34,20 +34,25 @@ export async function getRentabilidadData() {
       
       const precioPublicado = Number(p.precio_venta_ml || 0);
       const precioOriginal = Number(desc?.original_price || precioPublicado);
-      const precioFinalML = Number(desc?.precio_final || precioPublicado);
+      const precioFinalML = Number(desc?.precio_final || precioPublicado); // PRECIO AL PÚBLICO
       const pctVendedor = Number(desc?.seller_percentage || 0);
 
       // --- CÁLCULO DE INGRESOS ---
+      // Lo que te corresponde a vos antes de comisiones
       const precioFinalNuestro = precioOriginal * (1 - (pctVendedor / 100));
 
-      // --- CÁLCULO DE DEDUCCIONES ---
-      const cargoVenta = Number(fee?.cargo_venta_fijo || 0) > 0 
-        ? Number(fee?.cargo_venta_fijo) 
-        : (precioFinalML * Number(fee?.cargo_venta_percent || 0) / 100);
+      // --- CÁLCULO DE DEDUCCIONES (CORREGIDO) ---
+      // Ahora forzamos a que si existe el porcentaje (percentage_fee), calcule sobre el Precio Público
+      const pctCargoVenta = Number(fee?.cargo_venta_percent || 0);
+      const cargoVenta = pctCargoVenta > 0 
+        ? (precioFinalML * pctCargoVenta / 100)
+        : Number(fee?.cargo_venta_fijo || 0);
 
-      const costoCuotas = Number(fee?.cuotas_fijo || 0) > 0 
-        ? Number(fee?.cuotas_fijo) 
-        : (precioFinalML * Number(fee?.cuotas_percent || 0) / 100);
+      // Lo mismo para el costo de las cuotas (ej: el 4% de plan clásico)
+      const pctCuotas = Number(fee?.cuotas_percent || 0);
+      const costoCuotas = pctCuotas > 0 
+        ? (precioFinalML * pctCuotas / 100)
+        : Number(fee?.cuotas_fijo || 0);
 
       const envio = Number(fee?.envio_costo || 0);
       const costoFijoML = Number(fee?.costo_fijo_ml || 0);
@@ -64,7 +69,7 @@ export async function getRentabilidadData() {
         precio_original: precioOriginal,
         desc_pct_total: Number(desc?.pct_descuento || 0),
         precio_final: precioFinalML,
-        precio_final_nuestro: precioFinalNuestro, // Aseguramos incluirlo aquí
+        precio_final_nuestro: precioFinalNuestro,
         costo_total: costoPropio,
         neto_teorico: netoTeorico,
         ganancia_neta: gananciaNeta,
@@ -80,7 +85,7 @@ export async function getRentabilidadData() {
   }
 }
 
-// Función que dispara webhooks y actualiza la tabla física (Reset y Carga)
+// Función que dispara webhooks y actualiza la tabla física
 export async function triggerRentabilidadUpdate() {
   const webhooks = [
     "https://n8n-on-render-production-52f0.up.railway.app/webhook/publicaciones-activas",
@@ -107,7 +112,7 @@ export async function triggerRentabilidadUpdate() {
           precio_original: item.precio_original,
           desc_pct_total: item.desc_pct_total,
           precio_final: item.precio_final,
-          precio_final_nuestro: item.precio_final_nuestro, // FIXED: Campo agregado para que el build pase
+          precio_final_nuestro: item.precio_final_nuestro,
           costo_total: item.costo_total,
           neto_teorico: item.neto_teorico,
           ganancia_neta: item.ganancia_neta,

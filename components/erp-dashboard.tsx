@@ -4,11 +4,10 @@ import Link from "next/link";
 export function ErpDashboard() {
   return (
     <div className="w-full bg-[#f6f7f8] dark:bg-[#101922] text-slate-900 dark:text-slate-100 flex flex-col rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl">
-      {/* Importamos los íconos de Google Material Symbols */}
-      <link
-        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-        rel="stylesheet"
-      />
+      
+      {/* NOTA: Hemos eliminado el <link> de Google Fonts de aquí. 
+        Ahora se carga globalmente desde app/globals.css para evitar parpadeos.
+      */}
 
       <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-[#101922]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

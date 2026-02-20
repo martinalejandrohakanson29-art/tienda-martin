@@ -11,8 +11,7 @@ import {
     Instagram, 
     Settings2,
     ListTodo,
-    ShoppingCart,
-    LayoutDashboard // 👈 Agregamos el icono para el ERP
+    LayoutDashboard 
 } from "lucide-react" 
 import Link from "next/link"
 import TaskForm from "./task-form"
@@ -62,7 +61,7 @@ export default async function AdminDashboard() {
                 </h2>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     
-                    {/* NUEVA TARJETA: SISTEMA REVOLUCIÓN MOTOS (ERP) */}
+                    {/* TARJETA: SISTEMA REVOLUCIÓN MOTOS (ERP) */}
                     <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-blue-50/50">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-blue-800 text-xl">
@@ -72,28 +71,9 @@ export default async function AdminDashboard() {
                         </CardHeader>
                         <CardContent className="pt-0">
                             <p className="text-sm text-gray-600 mb-6">Panel de control ERP integrado.</p>
-                            {/* Nota: Asegurate de tener creada la ruta /admin/erp donde pongamos el componente */}
                             <Link href="/admin/erp">
                                 <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-sm h-12 text-lg font-semibold">
                                     Abrir ERP <ArrowRight size={18} />
-                                </Button>
-                            </Link>
-                        </CardContent>
-                    </Card>
-
-                    {/* TARJETA: REGISTRACIÓN */}
-                    <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-emerald-50/50">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-emerald-800 text-xl">
-                                <ShoppingCart className="h-6 w-6" />
-                                Registración
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="pt-0">
-                            <p className="text-sm text-gray-600 mb-6">Carga de ventas por mostrador.</p>
-                            <Link href="/admin/ventas-mostrador">
-                                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm h-12 text-lg font-semibold">
-                                    Iniciar Venta <ArrowRight size={18} />
                                 </Button>
                             </Link>
                         </CardContent>

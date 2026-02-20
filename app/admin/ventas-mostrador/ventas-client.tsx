@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
-  Calendar as CalendarIcon, ClipboardList, CheckCircle2, ArrowRightLeft, AlertTriangle,
+  Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -172,7 +172,9 @@ export default function VentasMostradorClient({
   const totalConInteres = totalBase * (1 + (interesTarjeta / 100));
 
   const handleFinalizarVenta = async () => {
-    if (metodoPago.includes("Tarjeta") && (!dni.trim() || !telefono.trim())) { alert("DNI y Teléfono obligatorios."); return; }
+    if (metodoPago.includes("Tarjeta") && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) { 
+      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return; 
+    }
     if (metodoPago === "Cruzada" && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios."); return; }
 
     const clienteFinal = metodoPago.includes("Tarjeta") ? dni : cliente;
@@ -243,13 +245,14 @@ export default function VentasMostradorClient({
   };
 
   const handleGuardarEdicion = async () => {
-    // Validaciones idénticas a la creación de venta
-    if (editMetodoPago.includes("Tarjeta") && (!editDni.trim() || !editTelefono.trim())) { alert("DNI y Teléfono son obligatorios para pagos con Tarjeta."); return; }
+    if (editMetodoPago.includes("Tarjeta") && (!editDni.trim() || !editTelefono.trim() || !editCupon.trim() || !editTransaccionId.trim())) { 
+      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return; 
+    }
     if (editMetodoPago === "Cruzada" && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
 
     let cambios = [];
-    if (ventaOriginalParaComparar.cliente !== editCliente) cambios.push(`Cliente: ${ventaOriginalParaComparar.cliente} -> ${editCliente}`);
-    if (ventaOriginalParaComparar.metodo_pago !== editMetodoPago) cambios.push(`Método: ${ventaOriginalParaComparar.metodo_pago} -> ${editMetodoPago}`);
+    if (ventaOriginalParaComparar.cliente !== editCliente) cambios.push(`Cliente modificado`);
+    if (ventaOriginalParaComparar.metodo_pago !== editMetodoPago) cambios.push(`Método modificado`);
     if (Number(ventaOriginalParaComparar.totalFinal) !== (editMetodoPago === "Tarjeta de Crédito" ? totalConInteresEdit : totalBaseEdit)) {
         cambios.push(`Total alterado`);
     }
@@ -463,14 +466,15 @@ export default function VentasMostradorClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Artículos</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-3">N° Cupón</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-20">Reg.</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ventasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">No se encontraron ventas</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">No se encontraron ventas</TableCell></TableRow>
                     ) : (
                       ventasRealizadas.map((v) => (
                         <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
@@ -491,7 +495,12 @@ export default function VentasMostradorClient({
                           <TableCell className="py-4">
                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{v.metodo_pago}</span>
                           </TableCell>
-                          <TableCell className="py-4 text-xs font-mono text-slate-600">{v.cupon || "-"}</TableCell>
+                          <TableCell className="py-4 text-xs font-mono text-slate-600">
+                             {v.metodo_pago === 'Cruzada' ? (v.de || "-") : (v.cupon || "-")}
+                          </TableCell>
+                          <TableCell className="py-4 text-xs font-mono text-slate-600">
+                             {v.metodo_pago === 'Cruzada' ? (v.para || "-") : (v.transaccionId || "-")}
+                          </TableCell>
                           <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                           <TableCell className="py-4 text-center">
                             <button disabled={v.registrada} onClick={() => handleMarcarRegistrada(v.id)} className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}>
@@ -539,6 +548,9 @@ export default function VentasMostradorClient({
                     <TableRow>
                       <TableHead className="text-[10px] font-bold uppercase py-3">ID / Hora</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Total Final</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Vendedor</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Acciones Administrativas</TableHead>
@@ -546,7 +558,7 @@ export default function VentasMostradorClient({
                   </TableHeader>
                   <TableBody>
                     {ventasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">No hay ventas para gestionar en esta fecha</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">No hay ventas para gestionar en esta fecha</TableCell></TableRow>
                     ) : (
                       ventasRealizadas.map((v) => (
                         <TableRow key={v.id} className="hover:bg-slate-50/50">
@@ -557,9 +569,18 @@ export default function VentasMostradorClient({
                             </div>
                           </TableCell>
                           <TableCell className="font-bold text-slate-700 py-4">{v.cliente}</TableCell>
+                          <TableCell className="py-4">
+                            <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{v.metodo_pago}</span>
+                          </TableCell>
+                          <TableCell className="py-4 text-xs font-mono text-slate-600">
+                             {v.metodo_pago === 'Cruzada' ? (v.de || "-") : (v.cupon || "-")}
+                          </TableCell>
+                          <TableCell className="py-4 text-xs font-mono text-slate-600">
+                             {v.metodo_pago === 'Cruzada' ? (v.para || "-") : (v.transaccionId || "-")}
+                          </TableCell>
                           <TableCell className="font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                           <TableCell className="text-xs text-slate-500 py-4">{v.vendedor}</TableCell>
-                          <TableCell className="py-4 text-right space-x-2">
+                          <TableCell className="py-4 text-right space-x-2 whitespace-nowrap">
                              <Button size="sm" variant="outline" onClick={() => abrirModalEdicion(v)} className="border-amber-200 text-amber-700 hover:bg-amber-50">
                                <Edit className="h-4 w-4 mr-2" /> Editar Venta
                              </Button>
@@ -611,12 +632,23 @@ export default function VentasMostradorClient({
                 <option value="Cruzada">Cruzada</option>
               </select>
             </div>
+            
             {(metodoPago.includes("Tarjeta")) && (
-              <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label className="text-xs font-bold">DNI *</Label><Input value={dni} onChange={(e) => setDni(e.target.value)} /></div><div className="space-y-2"><Label className="text-xs font-bold">Teléfono *</Label><Input value={telefono} onChange={(e) => setTelefono(e.target.value)} /></div></div>
+              <div className="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
+                <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label><Input value={dni} onChange={(e) => setDni(e.target.value)} className="bg-white border-blue-200" /></div>
+                <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">Teléfono <span className="text-red-500">*</span></Label><Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="bg-white border-blue-200" /></div>
+                <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">N° Cupón <span className="text-red-500">*</span></Label><Input value={cupon} onChange={(e) => setCupon(e.target.value)} className="bg-white border-blue-200" /></div>
+                <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">ID Transacción <span className="text-red-500">*</span></Label><Input value={transaccionId} onChange={(e) => setTransaccionId(e.target.value)} className="bg-white border-blue-200" /></div>
+              </div>
             )}
+
             {metodoPago === "Cruzada" && (
-              <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100"><div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De *</Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} /></div><div className="space-y-2"><Label className="text-xs font-bold text-amber-700">Para *</Label><Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} /></div></div>
+              <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
+                <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
+                <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">Para <span className="text-red-500">*</span></Label><Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" /></div>
+              </div>
             )}
+            
             <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Información Extra</Label><Input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Notas..." /></div>
           </div>
           <DialogFooter className="gap-3">
@@ -636,7 +668,7 @@ export default function VentasMostradorClient({
 
       {/* --- MODALES NUEVOS: EDICIÓN Y AUDITORÍA --- */}
       
-      {/* 1. Modal Principal de Edición (AHORA INCLUYE LOS CAMPOS CONDICIONALES) */}
+      {/* 1. Modal Principal de Edición */}
       <Dialog open={isEditMainModalOpen} onOpenChange={setIsEditMainModalOpen}>
         <DialogContent className="max-w-[1200px] h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-2 border-amber-200 shadow-2xl">
           <DialogHeader className="p-6 bg-amber-50 border-b border-amber-100 flex-shrink-0">
@@ -688,12 +720,12 @@ export default function VentasMostradorClient({
                     <Input value={editTelefono} onChange={(e) => setEditTelefono(e.target.value)} className="bg-white border-blue-200" placeholder="Obligatorio" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-blue-700">N° Cupón</Label>
-                    <Input value={editCupon} onChange={(e) => setEditCupon(e.target.value)} className="bg-white border-blue-200" placeholder="Opcional" />
+                    <Label className="text-xs font-bold text-blue-700">N° Cupón <span className="text-red-500">*</span></Label>
+                    <Input value={editCupon} onChange={(e) => setEditCupon(e.target.value)} className="bg-white border-blue-200" placeholder="Obligatorio" />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-blue-700">ID Transacción</Label>
-                    <Input value={editTransaccionId} onChange={(e) => setEditTransaccionId(e.target.value)} className="bg-white border-blue-200" placeholder="Opcional" />
+                    <Label className="text-xs font-bold text-blue-700">ID Transacción <span className="text-red-500">*</span></Label>
+                    <Input value={editTransaccionId} onChange={(e) => setEditTransaccionId(e.target.value)} className="bg-white border-blue-200" placeholder="Obligatorio" />
                   </div>
                 </div>
               )}

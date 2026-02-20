@@ -37,7 +37,8 @@ export const authOptions: NextAuthOptions = {
     },
     session: {
         strategy: "jwt",
-        maxAge: 4 * 60 * 60, // Sesión de 4 horas
+        // Aquí está el cambio: 24 horas * 60 minutos * 60 segundos
+        maxAge: 24 * 60 * 60, // Sesión de 24 horas (1 día completo)
     },
     callbacks: {
         // Guardamos el ID y el ROL en el TOKEN de seguridad

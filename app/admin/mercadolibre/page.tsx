@@ -9,7 +9,8 @@ import {
   PackageCheck,
   BarChart3,
   LineChart,
-  ClipboardCheck
+  ClipboardCheck,
+  PlusSquare // Agregamos este nuevo ícono para la tarjeta
 } from "lucide-react";
 import Link from "next/link";
 
@@ -77,7 +78,7 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* TARJETA 3: PREPARACIÓN DE ENVÍOS (NUEVA) */}
+        {/* TARJETA 3: PREPARACIÓN DE ENVÍOS */}
         <Card className="border-l-4 border-l-cyan-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-cyan-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-cyan-800 text-xl">
@@ -163,6 +164,29 @@ export default function MercadoLibreDashboard() {
             </p>
             <Link href="/admin/mercadolibre/seguimiento-ventas">
               <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 7: CREAR PUBLICACIONES (NUEVA) */}
+        <Card className="border-l-4 border-l-rose-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-rose-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-rose-800 text-xl">
+              <PlusSquare className="h-6 w-6" />
+              Crear Publicaciones
+            </CardTitle>
+            <CardDescription className="text-rose-700/80 font-medium">
+              Generación con IA
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Crea títulos, descripciones y características optimizadas para Mercado Libre usando Inteligencia Artificial.
+            </p>
+            <Link href="/admin/mercadolibre/crear-publicaciones">
+              <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white gap-2 shadow-sm h-12 text-lg">
                 Entrar <ArrowRight size={18} />
               </Button>
             </Link>

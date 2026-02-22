@@ -24,6 +24,7 @@ export default function CrearPublicacionesPage() {
   const [resMarca, setResMarca] = useState("");
   const [resDescripcion, setResDescripcion] = useState("");
   const [resCategoria, setResCategoria] = useState(""); // Ej: MLA3530
+  const [nombreCategoria, setNombreCategoria] = useState(""); // Ej: Cilindros
   const [resStock, setResStock] = useState("1"); // Por defecto 1 unidad
 
   // 3. ESTADOS DE CONTROL DE PANTALLA
@@ -65,6 +66,8 @@ export default function CrearPublicacionesPage() {
       setResPrecio(data.price || "");
       setResMarca(data.brand || "");
       setResDescripcion(data.description || "");
+      setResCategoria(data.category_id || ""); // Se llena con el código MLA de la API
+      setNombreCategoria(data.category_name || ""); // Se llena con el nombre de la categoría
       
       setIaTermino(true); // Cambiamos la pantalla para mostrar los inputs
 
@@ -260,8 +263,10 @@ export default function CrearPublicacionesPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <Label className="text-xs font-bold text-orange-600 uppercase">ID Categoría ML *</Label>
-                    <Input placeholder="Ej: MLA3530" className="border-orange-200 focus-visible:ring-orange-500" value={resCategoria} onChange={(e) => setResCategoria(e.target.value)} />
+                    <Label className="text-xs font-bold text-orange-600 uppercase">
+                      ID Categoría ML * {nombreCategoria && <span className="text-gray-500 normal-case ml-2">({nombreCategoria})</span>}
+                    </Label>
+                    <Input placeholder="Ej: MLA3530" className="border-orange-200 focus-visible:ring-orange-500 font-medium" value={resCategoria} onChange={(e) => setResCategoria(e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-bold text-gray-500 uppercase">Stock Inicial</Label>

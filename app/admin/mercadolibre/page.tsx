@@ -10,7 +10,8 @@ import {
   BarChart3,
   LineChart,
   ClipboardCheck,
-  PlusSquare // Agregamos este nuevo ícono para la tarjeta
+  PlusSquare,
+  Calculator // Importamos el nuevo ícono para la calculadora
 } from "lucide-react";
 import Link from "next/link";
 
@@ -32,6 +33,29 @@ export default function MercadoLibreDashboard() {
       {/* Grid de tarjetas */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         
+        {/* TARJETA 0: CÁLCULO DE PRECIO (NUEVA) */}
+        <Card className="border-l-4 border-l-yellow-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-yellow-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-yellow-800 text-xl">
+              <Calculator className="h-6 w-6" />
+              Cálculo de Precio
+            </CardTitle>
+            <CardDescription className="text-yellow-700/80 font-medium">
+              Calculadora de rentabilidad
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Simula y calcula el precio ideal de publicación en base a costos, comisiones y ganancias.
+            </p>
+            <Link href="/admin/mercadolibre/calculo-precio">
+              <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         {/* TARJETA 1: GESTIÓN FULL */}
         <Card className="border-l-4 border-l-purple-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-purple-50/50">
           <CardHeader className="pb-3">

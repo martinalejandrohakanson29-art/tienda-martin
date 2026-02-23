@@ -481,12 +481,15 @@ export default function VentasMostradorClient({
                           <TableCell className="text-xs font-mono text-slate-500 py-4">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
                           <TableCell className="font-medium text-slate-700 py-4">{v.cliente}</TableCell>
                           <TableCell className="py-4">
-                            <div className="flex flex-col gap-1.5 min-w-[200px]">
+                            <div className="flex flex-col gap-1.5 min-w-[250px]">
                               {v.items?.map((item: any) => (
-                                <div key={item.id} className="text-[11px] bg-slate-50 p-1.5 rounded border border-slate-100 flex flex-col group relative">
-                                  <div className="flex justify-between items-start gap-2">
-                                    <span onClick={() => copiarAlPortapapeles(item.nombre)} className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600">{item.nombre}</span>
-                                    <span className="bg-blue-100 text-blue-700 px-1.5 rounded font-black">x{item.cantidad}</span>
+                                <div key={item.id} className="text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col group relative">
+                                  <div className="flex justify-between items-center gap-3">
+                                    <span onClick={() => copiarAlPortapapeles(item.nombre)} className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 flex-grow pr-2">{item.nombre}</span>
+                                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                      <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black text-[10px]">x{item.cantidad}</span>
+                                      <span className="text-slate-700 font-bold whitespace-nowrap">$ {Number(item.subtotal || 0).toLocaleString('es-AR')}</span>
+                                    </div>
                                   </div>
                                 </div>
                               ))}

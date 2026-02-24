@@ -429,9 +429,9 @@ model Venta {
   id            String      @id @default(cuid())
   cliente       String      @default("Consumidor Final")
   vendedor      String      @default("Martin Jakson")
-  total         Decimal     @db.Decimal(20, 2) @default(0) // Total base
-  interes       Decimal     @db.Decimal(10, 2) @default(0) // % de interés aplicado
-  totalFinal    Decimal     @db.Decimal(20, 2) @default(0) // Total con interés
+  total         Decimal     @db.Decimal(20, 2) @default(0)
+  interes       Decimal     @db.Decimal(10, 2) @default(0)
+  totalFinal    Decimal     @db.Decimal(20, 2) @default(0)
   metodo_pago   String      @default("Efectivo")
   dni           String?
   telefono      String?
@@ -440,6 +440,8 @@ model Venta {
   transaccionId String?
   de            String?
   para          String?
+  email         String?     // <--- AGREGAR ESTA LÍNEA
+  eventoOffline Boolean     @default(false) // <--- AGREGAR ESTA LÍNEA
   registrada    Boolean     @default(false)
   items         VentaItem[] 
   auditorias    VentaAuditoria[] 

@@ -162,10 +162,12 @@ export async function getEtiquetasPreparadas(fecha: string) {
                             lte: endOfDay 
                         } 
                     },
-                    // 3. NUEVO FILTRO: Excluir explícitamente si dice 'ready_to_print'
-                    // (Esto evita mostrar pedidos que quizás tuvieron fecha pero volvieron atrás)
+                    // 3. FILTRO CORREGIDO: Excluir 'ready_to_print' pero PERMITIR los nulos
                     {
-                        substatus: { not: 'ready_to_print' }
+                        OR: [
+                            { substatus: { not: 'ready_to_print' } },
+                            { substatus: null }
+                        ]
                     }
                 ]
             },

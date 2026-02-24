@@ -68,6 +68,8 @@ export default function VentasMostradorClient({
   const [transaccionId, setTransaccionId] = useState("");
   const [deCruzada, setDeCruzada] = useState("");
   const [paraCruzada, setParaCruzada] = useState("");
+  
+  // Nuevos estados para Meta
   const [email, setEmail] = useState("");
   const [eventoOffline, setEventoOffline] = useState(false);
 
@@ -90,9 +92,14 @@ export default function VentasMostradorClient({
   const [editTransaccionId, setEditTransaccionId] = useState("");
   const [editDeCruzada, setEditDeCruzada] = useState("");
   const [editParaCruzada, setEditParaCruzada] = useState("");
+  
+  // Nuevos estados para edición de Meta
   const [editEmail, setEditEmail] = useState("");
   const [editEventoOffline, setEditEventoOffline] = useState(false);
   const [ventaOriginalParaComparar, setVentaOriginalParaComparar] = useState<any>(null);
+
+  // --- ESTADO PARA FILTRO OFFLINE ---
+  const [mostrarSoloOffline, setMostrarSoloOffline] = useState(false);
 
   // --- EFECTOS ---
   useEffect(() => {
@@ -157,6 +164,11 @@ export default function VentasMostradorClient({
       });
     }).slice(0, 15);
   }, [searchTerm, articulosIniciales]);
+
+  // Lista de ventas filtrada según el interruptor
+  const ventasFiltradas = ventasRealizadas.filter(v => 
+    mostrarSoloOffline ? v.eventoOffline === true : true
+  );
 
   // --- FUNCIONES NUEVA VENTA ---
   const agregarProductoAVenta = (prod: Articulo) => {
@@ -460,12 +472,26 @@ export default function VentasMostradorClient({
                     <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaFiltro)} disabled={isLoadingVentas} className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
                       <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
                     </Button>
+                    
+                    {/* --- NUEVO: CHECKBOX DE FILTRO OFFLINE --- */}
+                    <div className="flex items-center space-x-2 border-l pl-4 border-slate-200 ml-2 h-10">
+                      <input 
+                        type="checkbox" 
+                        id="filterOffline" 
+                        checked={mostrarSoloOffline} 
+                        onChange={(e) => setMostrarSoloOffline(e.target.checked)} 
+                        className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-600"
+                      />
+                      <Label htmlFor="filterOffline" className="text-xs font-bold text-slate-600 cursor-pointer">
+                        Solo Offline
+                      </Label>
+                    </div>
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Total del Día (Final)</p>
-                <p className="text-xl font-black text-slate-900">$ {ventasRealizadas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Total Filtrado (Final)</p>
+                <p className="text-xl font-black text-slate-900">$ {ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
               </div>
             </div>
 
@@ -485,13 +511,20 @@ export default function VentasMostradorClient({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ventasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">No se encontraron ventas</TableCell></TableRow>
+                    {ventasFiltradas.length === 0 ? (
+                      <TableRow><TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
                     ) : (
-                      ventasRealizadas.map((v) => (
+                      ventasFiltradas.map((v) => (
                         <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
                           <TableCell className="text-xs font-mono text-slate-500 py-4">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                          <TableCell className="font-medium text-slate-700 py-4">{v.cliente}</TableCell>
+                          
+                          {/* Etiqueta visual para Offline y Email */}
+                          <TableCell className="font-medium text-slate-700 py-4">
+                            {v.cliente}
+                            {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
+                            {v.eventoOffline && <span className="mt-1 inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span>}
+                          </TableCell>
+                          
                           <TableCell className="py-4">
                             <div className="flex flex-col gap-1.5 min-w-[250px]">
                               {v.items?.map((item: any) => (

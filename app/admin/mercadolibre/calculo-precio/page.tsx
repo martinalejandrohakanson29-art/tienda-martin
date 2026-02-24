@@ -44,6 +44,9 @@ export default function CalculoPrecioPage() {
   // --- ESTADOS PARA EL NUEVO MODAL DE AGREGAR ARTÍCULO ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // NUEVO: Estado para controlar si el SKU se genera automáticamente
+  const [autoSku, setAutoSku] = useState(true); 
   const [newSku, setNewSku] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [newCostoUsd, setNewCostoUsd] = useState<number | "">("");
@@ -113,9 +116,18 @@ export default function CalculoPrecioPage() {
     });
   };
 
-  // 7. --- NUEVA FUNCIÓN: GUARDAR ARTÍCULO EN LA BASE DE DATOS ---
+  // 7. --- FUNCIÓN: GUARDAR ARTÍCULO EN LA BASE DE DATOS ---
   const handleSaveNewArticulo = async () => {
-    if (!newSku.trim()) {
+    // Definimos qué SKU vamos a usar (el inventado o el manual)
+    let skuToSave = newSku.trim();
+
+    if (autoSku) {
+      // Generamos un SKU automático único basado en la fecha/hora. Ej: ART-845123
+      const timestampDigits = Date.now().toString().slice(-6);
+      skuToSave = `ART-${timestampDigits}`;
+    }
+
+    if (!skuToSave) {
       alert("El código (SKU) es obligatorio.");
       return;
     }
@@ -124,25 +136,26 @@ export default function CalculoPrecioPage() {
     try {
       // Llamamos a tu función existente para guardar/actualizar
       const result = await upsertArticulo({
-        id_articulo: newSku,
+        id_articulo: skuToSave,
         descripcion: newDesc,
         costo_usd: Number(newCostoUsd) || 0,
         es_dolar: newEsDolar
       });
 
       if (result.success) {
-        // Si se guardó bien, recargamos la lista de repuestos
+        // Recargamos la lista
         await fetchArticulos();
         
-        // Cerramos el modal y limpiamos los campos
+        // Cerramos modal y limpiamos todo
         setIsModalOpen(false);
         setNewSku("");
         setNewDesc("");
         setNewCostoUsd("");
         setNewEsDolar(true);
+        setAutoSku(true); // Volvemos a dejarlo automático para la próxima vez
         
-        // Un pequeño detalle: ponemos lo que buscaste en el buscador para que lo encuentres rápido
-        setSearchTerm(newSku);
+        // Ponemos el SKU recién creado en el buscador para encontrarlo al toque
+        setSearchTerm(skuToSave);
       } else {
         alert("Hubo un error al guardar: " + result.error);
       }
@@ -433,13 +446,30 @@ export default function CalculoPrecioPage() {
           </DialogHeader>
           
           <div className="grid gap-4 py-4">
+            {/* CAMPO SKU CON CHECKBOX DE AUTO-GENERACIÓN */}
             <div className="space-y-2">
-              <Label htmlFor="newSku">Código / SKU <span className="text-red-500">*</span></Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="newSku">Código / SKU <span className="text-red-500">*</span></Label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    id="autoSku" 
+                    checked={autoSku} 
+                    onChange={(e) => setAutoSku(e.target.checked)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <Label htmlFor="autoSku" className="text-xs text-slate-500 cursor-pointer font-normal">
+                    Generar automático
+                  </Label>
+                </div>
+              </div>
               <Input 
                 id="newSku" 
-                placeholder="Ej: M12345" 
-                value={newSku} 
-                onChange={(e) => setNewSku(e.target.value.toUpperCase())} // Lo pasamos a mayúsculas para mantener el orden
+                placeholder={autoSku ? "Automático (ej: ART-123456)" : "Ej: M12345"} 
+                value={autoSku ? "" : newSku} 
+                onChange={(e) => setNewSku(e.target.value.toUpperCase())}
+                disabled={autoSku} // Se deshabilita si está en modo automático
+                className={autoSku ? "bg-slate-100 text-slate-500" : ""}
               />
             </div>
             
@@ -485,7 +515,8 @@ export default function CalculoPrecioPage() {
             <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
               Cancelar
             </Button>
-            <Button onClick={handleSaveNewArticulo} disabled={isSubmitting || !newSku}>
+            {/* El botón se deshabilita si está cargando, o si NO es automático y el campo está vacío */}
+            <Button onClick={handleSaveNewArticulo} disabled={isSubmitting || (!autoSku && !newSku.trim())}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

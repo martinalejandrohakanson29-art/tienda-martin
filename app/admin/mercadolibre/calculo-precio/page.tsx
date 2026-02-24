@@ -1,16 +1,32 @@
 // app/admin/mercadolibre/calculo-precio/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Calculator, DollarSign, Percent, Info } from "lucide-react";
+import { ArrowLeft, Calculator, DollarSign, Percent, Info, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { getArticulos } from "@/app/actions/costos"; // Traemos tu acción de la base de datos
+
+// Definimos cómo luce un Artículo para TypeScript
+interface Articulo {
+  id: number;
+  id_articulo: string;
+  descripcion: string | null;
+  costo_usd: number;
+  costo_final_ars: number;
+  isKit: boolean;
+}
+
+// Un artículo seleccionado incluye también la "cantidad"
+interface SelectedItem extends Articulo {
+  cantidad: number;
+}
 
 export default function CalculoPrecioPage() {
-  // Estados para los valores ingresados (con tus valores por defecto)
+  // --- ESTADOS ORIGINALES ---
   const [costo, setCosto] = useState<number>(0);
   const [ganancia, setGanancia] = useState<number>(50); // 50%
   const [cargoML, setCargoML] = useState<number>(14.54); // 14.54%
@@ -19,26 +35,84 @@ export default function CalculoPrecioPage() {
   const [envio, setEnvio] = useState<number>(8000); // $8.000
   const [descuento, setDescuento] = useState<number>(5); // 5%
 
-  // --- LÓGICA DE CÁLCULO ---
-  
-  // 1. ¿Cuánto dinero limpio queremos que nos quede en el bolsillo? (Costo + % de Ganancia)
+  // --- NUEVOS ESTADOS PARA BÚSQUEDA DE ARTÍCULOS ---
+  const [articulosDb, setArticulosDb] = useState<Articulo[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
+
+  // 1. Cargamos todos los artículos de la base de datos al abrir la página
+  useEffect(() => {
+    getArticulos().then((data) => {
+      setArticulosDb(data as Articulo[]);
+    });
+  }, []);
+
+  // 2. Filtramos la lista según lo que escribas en el buscador (máximo 10 para no saturar la pantalla)
+  const filteredArticulos = searchTerm.trim() === "" 
+    ? [] 
+    : articulosDb.filter(art => 
+        (art.descripcion?.toLowerCase().includes(searchTerm.toLowerCase()) || false) || 
+        art.id_articulo.toLowerCase().includes(searchTerm.toLowerCase())
+      ).slice(0, 10);
+
+  // 3. Función para actualizar el COSTO TOTAL en base a lo seleccionado
+  const updateCostoTotal = (items: SelectedItem[]) => {
+    const total = items.reduce((acc, item) => acc + (item.costo_final_ars * item.cantidad), 0);
+    setCosto(total); // ¡Aquí se actualiza el input a mano automáticamente!
+  };
+
+  // 4. Agregar un artículo a la lista temporal
+  const handleAddItem = (articulo: Articulo) => {
+    setSelectedItems(prev => {
+      const existing = prev.find(p => p.id_articulo === articulo.id_articulo);
+      let newItems;
+      if (existing) {
+        // Si ya está en la lista, le sumamos 1 a la cantidad
+        newItems = prev.map(p => p.id_articulo === articulo.id_articulo ? { ...p, cantidad: p.cantidad + 1 } : p);
+      } else {
+        // Si es nuevo, lo agregamos con cantidad 1
+        newItems = [...prev, { ...articulo, cantidad: 1 }];
+      }
+      updateCostoTotal(newItems);
+      return newItems;
+    });
+    setSearchTerm(""); // Limpiamos el buscador para que sigas buscando otros
+  };
+
+  // 5. Quitar un artículo de la lista
+  const handleRemoveItem = (sku: string) => {
+    setSelectedItems(prev => {
+      const newItems = prev.filter(p => p.id_articulo !== sku);
+      updateCostoTotal(newItems);
+      return newItems;
+    });
+  };
+
+  // 6. Subir o bajar la cantidad de un repuesto (+ y -)
+  const handleUpdateQty = (sku: string, delta: number) => {
+    setSelectedItems(prev => {
+      const newItems = prev.map(p => {
+        if (p.id_articulo === sku) {
+          const newQty = Math.max(1, p.cantidad + delta); // Evita que baje de 1
+          return { ...p, cantidad: newQty };
+        }
+        return p;
+      });
+      updateCostoTotal(newItems);
+      return newItems;
+    });
+  };
+
+  // Calculamos el subtotal en tiempo real para mostrarlo abajito
+  const subtotalSeleccionados = selectedItems.reduce((acc, item) => acc + (item.costo_final_ars * item.cantidad), 0);
+
+  // --- LÓGICA DE CÁLCULO ORIGINAL ---
   const gananciaNetaTeorica = costo * (1 + ganancia / 100);
   const gananciaEnPesos = gananciaNetaTeorica - costo;
-
-  // 2. Sumamos todos los porcentajes de retención que nos aplicará Mercado Libre
   const retencionesPorcentaje = (cargoML + cargoCuotas + impuesto) / 100;
-
-  // 3. Calculamos el Precio Final (el que paga el comprador) para que, tras restar comisiones y envío fijo, nos quede la Ganancia Neta Teórica.
-  // Fórmula: Precio = (NetoEsperado + GastoFijo) / (1 - %Retenciones)
-  // Evitamos dividir por cero o números negativos si los porcentajes suman más de 100%
   const divisor = 1 - retencionesPorcentaje;
   const precioFinalSinDescuento = divisor > 0 ? (gananciaNetaTeorica + envio) / divisor : 0;
-
-  // 4. Si queremos publicar con un descuento visible (Ej: "Tachado 5% OFF"), 
-  // tenemos que inflar el precio de lista para que al restarle el descuento lleguemos al Precio Final
-  const precioListaConDescuento = descuento < 100 
-    ? precioFinalSinDescuento / (1 - descuento / 100) 
-    : 0;
+  const precioListaConDescuento = descuento < 100 ? precioFinalSinDescuento / (1 - descuento / 100) : 0;
 
   // Formateador de moneda
   const formatCurrency = (value: number) => {
@@ -74,10 +148,88 @@ export default function CalculoPrecioPage() {
               <Calculator className="h-5 w-5 text-slate-600" />
               Variables del Artículo
             </CardTitle>
-            <CardDescription>Modifica los valores según corresponda</CardDescription>
+            <CardDescription>Modifica los valores o busca repuestos para armar un costo compuesto</CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
             
+            {/* --- NUEVA SECCIÓN: BÚSQUEDA Y ARMADO DE COSTO --- */}
+            <div className="p-4 bg-slate-50 border rounded-lg space-y-3">
+              <Label className="text-slate-700 font-semibold flex items-center gap-2">
+                <Search className="h-4 w-4 text-blue-600" /> 
+                Componer Costo con Artículos (Opcional)
+              </Label>
+              <p className="text-xs text-slate-500">
+                Busca repuestos para sumarlos automáticamente. También puedes ingresar el costo manual más abajo.
+              </p>
+              
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  placeholder="Ej: Carburador CG 125..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 bg-white"
+                />
+                
+                {/* Desplegable de Resultados */}
+                {filteredArticulos.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-xl max-h-60 overflow-y-auto">
+                    {filteredArticulos.map(art => (
+                      <div 
+                        key={art.id_articulo} 
+                        onClick={() => handleAddItem(art)} 
+                        className="p-3 hover:bg-blue-50 cursor-pointer border-b last:border-b-0 flex justify-between items-center transition-colors"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-800">{art.id_articulo}</span>
+                          <span className="text-xs text-slate-500 line-clamp-1">{art.descripcion}</span>
+                        </div>
+                        <span className="text-sm font-bold text-emerald-600 whitespace-nowrap ml-2">
+                          {formatCurrency(art.costo_final_ars)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Lista de Seleccionados */}
+              {selectedItems.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {selectedItems.map(item => (
+                    <div key={item.id_articulo} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-3 rounded-md border shadow-sm text-sm gap-2">
+                      <div className="flex-1">
+                        <span className="font-bold text-slate-700">{item.id_articulo}</span>
+                        <p className="text-xs text-slate-500 truncate">{item.descripcion}</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 justify-between sm:justify-end">
+                        <span className="text-slate-500 font-medium">
+                          {formatCurrency(item.costo_final_ars)} <span className="text-xs font-normal">c/u</span>
+                        </span>
+                        
+                        <div className="flex items-center bg-slate-100 rounded-md border">
+                          <button onClick={() => handleUpdateQty(item.id_articulo, -1)} className="px-3 py-1 hover:bg-slate-200 rounded-l-md transition-colors">-</button>
+                          <span className="px-3 font-semibold text-slate-700">{item.cantidad}</span>
+                          <button onClick={() => handleUpdateQty(item.id_articulo, 1)} className="px-3 py-1 hover:bg-slate-200 rounded-r-md transition-colors">+</button>
+                        </div>
+                        
+                        <button onClick={() => handleRemoveItem(item.id_articulo)} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <div className="flex justify-between items-center pt-3 border-t mt-2">
+                    <span className="text-sm text-slate-600 font-medium">Suma de repuestos seleccionados:</span>
+                    <span className="text-lg font-bold text-blue-600">{formatCurrency(subtotalSeleccionados)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* --- FIN NUEVA SECCIÓN --- */}
+
             {/* Fila 1: Costo y Ganancia */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -88,12 +240,17 @@ export default function CalculoPrecioPage() {
                     id="costo"
                     type="number"
                     min="0"
-                    className="pl-9"
-                    value={costo || ""}
+                    className="pl-9 font-bold text-lg text-slate-800"
+                    value={costo === 0 ? "" : costo} // Si es 0 lo mostramos vacío para que sea fácil escribir
                     onChange={(e) => setCosto(Number(e.target.value))}
-                    placeholder="Ej: 22000"
+                    placeholder="Costo manual o suma"
                   />
                 </div>
+                {selectedItems.length > 0 && costo !== subtotalSeleccionados && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                    <Info className="h-3 w-3" /> Costo manual diferente a la suma de repuestos.
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="ganancia" className="text-slate-700 font-semibold">Ganancia Esperada (%)</Label>
@@ -116,7 +273,7 @@ export default function CalculoPrecioPage() {
             {/* Fila 2: Comisiones ML */}
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="cargoML" className="text-xs font-semibold text-slate-600">Cargo por Vender (%)</Label>
+                <Label htmlFor="cargoML" className="text-xs font-semibold text-slate-600">Cargo Venta (%)</Label>
                 <Input
                   id="cargoML"
                   type="number"
@@ -126,7 +283,7 @@ export default function CalculoPrecioPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="cargoCuotas" className="text-xs font-semibold text-slate-600">Ofrecer Cuotas (%)</Label>
+                <Label htmlFor="cargoCuotas" className="text-xs font-semibold text-slate-600">Cargo Cuotas (%)</Label>
                 <Input
                   id="cargoCuotas"
                   type="number"
@@ -185,7 +342,6 @@ export default function CalculoPrecioPage() {
         {/* PANEL DE RESULTADOS */}
         <div className="md:col-span-5 space-y-6">
           
-          {/* Tarjeta de Resumen Neto */}
           <Card className="bg-emerald-50 border-emerald-200">
             <CardContent className="p-6">
               <h3 className="text-sm font-bold text-emerald-800 uppercase tracking-wider mb-1">
@@ -201,7 +357,6 @@ export default function CalculoPrecioPage() {
             </CardContent>
           </Card>
 
-          {/* Tarjeta de Precios de Publicación */}
           <Card className="border-blue-200 shadow-md">
             <CardHeader className="bg-blue-600 text-white rounded-t-lg pb-4">
               <CardTitle className="text-xl">Precios a Publicar</CardTitle>
@@ -211,7 +366,6 @@ export default function CalculoPrecioPage() {
             </CardHeader>
             <CardContent className="p-0">
               
-              {/* Bloque SIN descuento */}
               <div className="p-6 border-b border-gray-100">
                 <div className="flex justify-between items-center mb-2">
                   <h4 className="font-semibold text-gray-700">Sin Descuento (Normal)</h4>
@@ -224,7 +378,6 @@ export default function CalculoPrecioPage() {
                 </p>
               </div>
 
-              {/* Bloque CON descuento */}
               <div className="p-6 bg-slate-50 rounded-b-lg">
                 <div className="flex justify-between items-center mb-2">
                   <h4 className="font-semibold text-blue-700 flex items-center gap-2">

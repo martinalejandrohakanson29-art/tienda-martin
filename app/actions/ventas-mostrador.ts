@@ -84,8 +84,8 @@ export async function crearVentaMostrador(data: {
   transaccionId?: string,
   de?: string,
   para?: string,
-  email?: string,         // <--- NUEVO
-  eventoOffline?: boolean // <--- NUEVO
+  email?: string,
+  eventoOffline?: boolean
 }) {
   try {
     const venta = await prisma.venta.create({
@@ -103,8 +103,8 @@ export async function crearVentaMostrador(data: {
         transaccionId: data.transaccionId,
         de: data.de,
         para: data.para,
-        email: data.email,                       // <--- NUEVO
-        eventoOffline: data.eventoOffline ?? false, // <--- NUEVO
+        email: data.email,
+        eventoOffline: data.eventoOffline ?? false,
         items: {
           create: data.items.map(item => ({
             productoId: item.id, 
@@ -151,6 +151,8 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           transaccionId: data.transaccionId,
           de: data.de,
           para: data.para,
+          email: data.email,
+          eventoOffline: data.eventoOffline,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.id, 

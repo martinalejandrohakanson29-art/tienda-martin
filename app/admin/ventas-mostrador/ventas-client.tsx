@@ -68,6 +68,8 @@ export default function VentasMostradorClient({
   const [transaccionId, setTransaccionId] = useState("");
   const [deCruzada, setDeCruzada] = useState("");
   const [paraCruzada, setParaCruzada] = useState("");
+  const [email, setEmail] = useState("");
+  const [eventoOffline, setEventoOffline] = useState(false);
 
   // --- ESTADOS PARA EDICIÓN Y AUDITORÍA ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
@@ -88,6 +90,8 @@ export default function VentasMostradorClient({
   const [editTransaccionId, setEditTransaccionId] = useState("");
   const [editDeCruzada, setEditDeCruzada] = useState("");
   const [editParaCruzada, setEditParaCruzada] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editEventoOffline, setEditEventoOffline] = useState(false);
   const [ventaOriginalParaComparar, setVentaOriginalParaComparar] = useState<any>(null);
 
   // --- EFECTOS ---
@@ -185,7 +189,8 @@ export default function VentasMostradorClient({
         cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
         interes: metodoPago === "Tarjeta de Crédito" ? interesTarjeta : 0,
         totalFinal: metodoPago === "Tarjeta de Crédito" ? totalConInteres : totalBase,
-        items, metodo_pago: metodoPago, dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada
+        items, metodo_pago: metodoPago, dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+        email, eventoOffline
       });
       if (resultado.success) {
         mostrarMensajeExito("¡Venta registrada con éxito!");
@@ -198,6 +203,7 @@ export default function VentasMostradorClient({
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
+    setEmail(""); setEventoOffline(false);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
   };
 
@@ -224,6 +230,8 @@ export default function VentasMostradorClient({
     setEditTransaccionId(venta.transaccionId || "");
     setEditDeCruzada(venta.de || "");
     setEditParaCruzada(venta.para || "");
+    setEditEmail(venta.email || "");
+    setEditEventoOffline(venta.eventoOffline || false);
     setEditItems(venta.items.map((i: any) => ({
       id: i.productoId, nombre: i.nombre, cantidad: i.cantidad,
       precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal)
@@ -253,6 +261,8 @@ export default function VentasMostradorClient({
     let cambios = [];
     if (ventaOriginalParaComparar.cliente !== editCliente) cambios.push(`Cliente modificado`);
     if (ventaOriginalParaComparar.metodo_pago !== editMetodoPago) cambios.push(`Método modificado`);
+    if (ventaOriginalParaComparar.email !== editEmail) cambios.push(`Email modificado`);
+    if (ventaOriginalParaComparar.eventoOffline !== editEventoOffline) cambios.push(`Evento offline modificado`);
     if (Number(ventaOriginalParaComparar.totalFinal) !== (editMetodoPago === "Tarjeta de Crédito" ? totalConInteresEdit : totalBaseEdit)) {
         cambios.push(`Total alterado`);
     }
@@ -271,6 +281,8 @@ export default function VentasMostradorClient({
           metodo_pago: editMetodoPago,
           dni: editDni, telefono: editTelefono, info: editInfo, cupon: editCupon, 
           transaccionId: editTransaccionId, de: editDeCruzada, para: editParaCruzada,
+          email: editEmail,
+          eventoOffline: editEventoOffline,
           items: editItems
         },
         vendedorNombre,
@@ -652,6 +664,26 @@ export default function VentasMostradorClient({
               </div>
             )}
             
+            {/* --- NUEVO: CAMPOS PARA META --- */}
+            <div className="grid grid-cols-1 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-600 uppercase">Email (Opcional)</Label>
+                <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@correo.com" className="bg-white border-slate-200" />
+              </div>
+              <div className="flex items-center space-x-3 pt-1">
+                <input 
+                  type="checkbox" 
+                  id="eventoOffline" 
+                  checked={eventoOffline} 
+                  onChange={(e) => setEventoOffline(e.target.checked)} 
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                />
+                <Label htmlFor="eventoOffline" className="text-sm font-bold text-slate-700 cursor-pointer">
+                  Marcar como Evento Offline (Meta Ads)
+                </Label>
+              </div>
+            </div>
+            
             <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Información Extra</Label><Input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Notas..." /></div>
           </div>
           <DialogFooter className="gap-3">
@@ -751,6 +783,26 @@ export default function VentasMostradorClient({
               <div className="space-y-1.5 w-full">
                 <Label className="text-[10px] font-bold text-slate-400 uppercase">Información Extra / Notas</Label>
                 <Input value={editInfo} onChange={(e) => setEditInfo(e.target.value)} className="bg-slate-50" placeholder="Agregar alguna nota sobre esta venta o edición..." />
+              </div>
+
+              {/* --- NUEVO: CAMPOS PARA META EN EDICIÓN --- */}
+              <div className="flex flex-col md:flex-row gap-4 items-center w-full bg-slate-100/50 p-3 rounded-xl border border-slate-200 mt-2">
+                <div className="space-y-1.5 flex-grow w-full md:w-auto">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase">Email (Opcional)</Label>
+                  <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="bg-white" placeholder="cliente@correo.com" />
+                </div>
+                <div className="flex items-center space-x-3 w-full md:w-auto mt-4 md:mt-0 px-2">
+                  <input 
+                    type="checkbox" 
+                    id="editEventoOffline" 
+                    checked={editEventoOffline} 
+                    onChange={(e) => setEditEventoOffline(e.target.checked)} 
+                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
+                  />
+                  <Label htmlFor="editEventoOffline" className="text-xs font-bold text-slate-700 cursor-pointer whitespace-nowrap">
+                    Evento Offline (Meta Ads)
+                  </Label>
+                </div>
               </div>
             </section>
 

@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Calculator, DollarSign, Percent, Info, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Calculator, DollarSign, Percent, Info, Search, Trash2, Plus, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { getArticulos } from "@/app/actions/costos"; // Traemos tu acción de la base de datos
+import { getArticulos, upsertArticulo } from "@/app/actions/costos";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 // Definimos cómo luce un Artículo para TypeScript
 interface Articulo {
@@ -35,19 +36,30 @@ export default function CalculoPrecioPage() {
   const [envio, setEnvio] = useState<number>(8000); // $8.000
   const [descuento, setDescuento] = useState<number>(5); // 5%
 
-  // --- NUEVOS ESTADOS PARA BÚSQUEDA DE ARTÍCULOS ---
+  // --- ESTADOS PARA BÚSQUEDA DE ARTÍCULOS ---
   const [articulosDb, setArticulosDb] = useState<Articulo[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
 
+  // --- ESTADOS PARA EL NUEVO MODAL DE AGREGAR ARTÍCULO ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [newSku, setNewSku] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [newCostoUsd, setNewCostoUsd] = useState<number | "">("");
+  const [newEsDolar, setNewEsDolar] = useState(true);
+
   // 1. Cargamos todos los artículos de la base de datos al abrir la página
+  const fetchArticulos = async () => {
+    const data = await getArticulos();
+    setArticulosDb(data as Articulo[]);
+  };
+
   useEffect(() => {
-    getArticulos().then((data) => {
-      setArticulosDb(data as Articulo[]);
-    });
+    fetchArticulos();
   }, []);
 
-  // 2. Filtramos la lista según lo que escribas en el buscador (máximo 10 para no saturar la pantalla)
+  // 2. Filtramos la lista según lo que escribas en el buscador
   const filteredArticulos = searchTerm.trim() === "" 
     ? [] 
     : articulosDb.filter(art => 
@@ -58,7 +70,7 @@ export default function CalculoPrecioPage() {
   // 3. Función para actualizar el COSTO TOTAL en base a lo seleccionado
   const updateCostoTotal = (items: SelectedItem[]) => {
     const total = items.reduce((acc, item) => acc + (item.costo_final_ars * item.cantidad), 0);
-    setCosto(total); // ¡Aquí se actualiza el input a mano automáticamente!
+    setCosto(total);
   };
 
   // 4. Agregar un artículo a la lista temporal
@@ -67,16 +79,14 @@ export default function CalculoPrecioPage() {
       const existing = prev.find(p => p.id_articulo === articulo.id_articulo);
       let newItems;
       if (existing) {
-        // Si ya está en la lista, le sumamos 1 a la cantidad
         newItems = prev.map(p => p.id_articulo === articulo.id_articulo ? { ...p, cantidad: p.cantidad + 1 } : p);
       } else {
-        // Si es nuevo, lo agregamos con cantidad 1
         newItems = [...prev, { ...articulo, cantidad: 1 }];
       }
       updateCostoTotal(newItems);
       return newItems;
     });
-    setSearchTerm(""); // Limpiamos el buscador para que sigas buscando otros
+    setSearchTerm("");
   };
 
   // 5. Quitar un artículo de la lista
@@ -88,12 +98,12 @@ export default function CalculoPrecioPage() {
     });
   };
 
-  // 6. Subir o bajar la cantidad de un repuesto (+ y -)
+  // 6. Subir o bajar la cantidad
   const handleUpdateQty = (sku: string, delta: number) => {
     setSelectedItems(prev => {
       const newItems = prev.map(p => {
         if (p.id_articulo === sku) {
-          const newQty = Math.max(1, p.cantidad + delta); // Evita que baje de 1
+          const newQty = Math.max(1, p.cantidad + delta);
           return { ...p, cantidad: newQty };
         }
         return p;
@@ -103,7 +113,47 @@ export default function CalculoPrecioPage() {
     });
   };
 
-  // Calculamos el subtotal en tiempo real para mostrarlo abajito
+  // 7. --- NUEVA FUNCIÓN: GUARDAR ARTÍCULO EN LA BASE DE DATOS ---
+  const handleSaveNewArticulo = async () => {
+    if (!newSku.trim()) {
+      alert("El código (SKU) es obligatorio.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      // Llamamos a tu función existente para guardar/actualizar
+      const result = await upsertArticulo({
+        id_articulo: newSku,
+        descripcion: newDesc,
+        costo_usd: Number(newCostoUsd) || 0,
+        es_dolar: newEsDolar
+      });
+
+      if (result.success) {
+        // Si se guardó bien, recargamos la lista de repuestos
+        await fetchArticulos();
+        
+        // Cerramos el modal y limpiamos los campos
+        setIsModalOpen(false);
+        setNewSku("");
+        setNewDesc("");
+        setNewCostoUsd("");
+        setNewEsDolar(true);
+        
+        // Un pequeño detalle: ponemos lo que buscaste en el buscador para que lo encuentres rápido
+        setSearchTerm(newSku);
+      } else {
+        alert("Hubo un error al guardar: " + result.error);
+      }
+    } catch (error) {
+      alert("Error de conexión al guardar el artículo.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Calculamos el subtotal
   const subtotalSeleccionados = selectedItems.reduce((acc, item) => acc + (item.costo_final_ars * item.cantidad), 0);
 
   // --- LÓGICA DE CÁLCULO ORIGINAL ---
@@ -141,7 +191,7 @@ export default function CalculoPrecioPage() {
       </p>
 
       <div className="grid gap-6 md:grid-cols-12">
-        {/* PANEL DE VARIABLES (Formulario) */}
+        {/* PANEL DE VARIABLES */}
         <Card className="md:col-span-7 shadow-sm">
           <CardHeader className="bg-slate-50 border-b">
             <CardTitle className="flex items-center gap-2 text-slate-800">
@@ -152,14 +202,27 @@ export default function CalculoPrecioPage() {
           </CardHeader>
           <CardContent className="p-6 space-y-6">
             
-            {/* --- NUEVA SECCIÓN: BÚSQUEDA Y ARMADO DE COSTO --- */}
+            {/* SECCIÓN: BÚSQUEDA Y ARMADO DE COSTO */}
             <div className="p-4 bg-slate-50 border rounded-lg space-y-3">
-              <Label className="text-slate-700 font-semibold flex items-center gap-2">
-                <Search className="h-4 w-4 text-blue-600" /> 
-                Componer Costo con Artículos (Opcional)
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-slate-700 font-semibold flex items-center gap-2">
+                  <Search className="h-4 w-4 text-blue-600" /> 
+                  Componer Costo con Artículos
+                </Label>
+                {/* BOTÓN MAGICO PARA AGREGAR NUEVO ARTICULO */}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                  onClick={() => setIsModalOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Agregar Artículo
+                </Button>
+              </div>
+              
               <p className="text-xs text-slate-500">
-                Busca repuestos para sumarlos automáticamente. También puedes ingresar el costo manual más abajo.
+                Busca repuestos para sumarlos. Si no existe, créalo con el botón de arriba.
               </p>
               
               <div className="relative">
@@ -171,7 +234,6 @@ export default function CalculoPrecioPage() {
                   className="pl-9 bg-white"
                 />
                 
-                {/* Desplegable de Resultados */}
                 {filteredArticulos.length > 0 && (
                   <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-xl max-h-60 overflow-y-auto">
                     {filteredArticulos.map(art => (
@@ -193,7 +255,6 @@ export default function CalculoPrecioPage() {
                 )}
               </div>
 
-              {/* Lista de Seleccionados */}
               {selectedItems.length > 0 && (
                 <div className="mt-4 space-y-2">
                   {selectedItems.map(item => (
@@ -222,13 +283,12 @@ export default function CalculoPrecioPage() {
                   ))}
                   
                   <div className="flex justify-between items-center pt-3 border-t mt-2">
-                    <span className="text-sm text-slate-600 font-medium">Suma de repuestos seleccionados:</span>
+                    <span className="text-sm text-slate-600 font-medium">Suma de repuestos:</span>
                     <span className="text-lg font-bold text-blue-600">{formatCurrency(subtotalSeleccionados)}</span>
                   </div>
                 </div>
               )}
             </div>
-            {/* --- FIN NUEVA SECCIÓN --- */}
 
             {/* Fila 1: Costo y Ganancia */}
             <div className="grid grid-cols-2 gap-4">
@@ -241,14 +301,14 @@ export default function CalculoPrecioPage() {
                     type="number"
                     min="0"
                     className="pl-9 font-bold text-lg text-slate-800"
-                    value={costo === 0 ? "" : costo} // Si es 0 lo mostramos vacío para que sea fácil escribir
+                    value={costo === 0 ? "" : costo}
                     onChange={(e) => setCosto(Number(e.target.value))}
                     placeholder="Costo manual o suma"
                   />
                 </div>
                 {selectedItems.length > 0 && costo !== subtotalSeleccionados && (
                   <p className="text-xs text-amber-600 flex items-center gap-1">
-                    <Info className="h-3 w-3" /> Costo manual diferente a la suma de repuestos.
+                    <Info className="h-3 w-3" /> Costo manual diferente a suma.
                   </p>
                 )}
               </div>
@@ -274,33 +334,15 @@ export default function CalculoPrecioPage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="cargoML" className="text-xs font-semibold text-slate-600">Cargo Venta (%)</Label>
-                <Input
-                  id="cargoML"
-                  type="number"
-                  step="0.01"
-                  value={cargoML || ""}
-                  onChange={(e) => setCargoML(Number(e.target.value))}
-                />
+                <Input id="cargoML" type="number" step="0.01" value={cargoML || ""} onChange={(e) => setCargoML(Number(e.target.value))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="cargoCuotas" className="text-xs font-semibold text-slate-600">Cargo Cuotas (%)</Label>
-                <Input
-                  id="cargoCuotas"
-                  type="number"
-                  step="0.01"
-                  value={cargoCuotas || ""}
-                  onChange={(e) => setCargoCuotas(Number(e.target.value))}
-                />
+                <Input id="cargoCuotas" type="number" step="0.01" value={cargoCuotas || ""} onChange={(e) => setCargoCuotas(Number(e.target.value))} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="impuesto" className="text-xs font-semibold text-slate-600">Impuestos (%)</Label>
-                <Input
-                  id="impuesto"
-                  type="number"
-                  step="0.01"
-                  value={impuesto || ""}
-                  onChange={(e) => setImpuesto(Number(e.target.value))}
-                />
+                <Input id="impuesto" type="number" step="0.01" value={impuesto || ""} onChange={(e) => setImpuesto(Number(e.target.value))} />
               </div>
             </div>
 
@@ -310,28 +352,14 @@ export default function CalculoPrecioPage() {
                 <Label htmlFor="envio" className="text-slate-700 font-semibold">Costo de Envío ($ Fijo)</Label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
-                  <Input
-                    id="envio"
-                    type="number"
-                    min="0"
-                    className="pl-9"
-                    value={envio || ""}
-                    onChange={(e) => setEnvio(Number(e.target.value))}
-                  />
+                  <Input id="envio" type="number" min="0" className="pl-9" value={envio || ""} onChange={(e) => setEnvio(Number(e.target.value))} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="descuento" className="text-slate-700 font-semibold">Descuento a Ofrecer (%)</Label>
                 <div className="relative">
                   <Percent className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
-                  <Input
-                    id="descuento"
-                    type="number"
-                    min="0"
-                    className="pl-9"
-                    value={descuento || ""}
-                    onChange={(e) => setDescuento(Number(e.target.value))}
-                  />
+                  <Input id="descuento" type="number" min="0" className="pl-9" value={descuento || ""} onChange={(e) => setDescuento(Number(e.target.value))} />
                 </div>
               </div>
             </div>
@@ -341,7 +369,6 @@ export default function CalculoPrecioPage() {
 
         {/* PANEL DE RESULTADOS */}
         <div className="md:col-span-5 space-y-6">
-          
           <Card className="bg-emerald-50 border-emerald-200">
             <CardContent className="p-6">
               <h3 className="text-sm font-bold text-emerald-800 uppercase tracking-wider mb-1">
@@ -352,7 +379,7 @@ export default function CalculoPrecioPage() {
               </p>
               <p className="text-sm text-emerald-700 mt-2 flex items-center gap-1">
                 <Info className="h-4 w-4" />
-                Tu costo recuperado + {formatCurrency(gananciaEnPesos)} de ganancia pura.
+                Costo recuperado + {formatCurrency(gananciaEnPesos)} de ganancia pura.
               </p>
             </CardContent>
           </Card>
@@ -365,16 +392,12 @@ export default function CalculoPrecioPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              
               <div className="p-6 border-b border-gray-100">
                 <div className="flex justify-between items-center mb-2">
                   <h4 className="font-semibold text-gray-700">Sin Descuento (Normal)</h4>
                 </div>
                 <p className="text-3xl font-bold text-slate-800">
                   {formatCurrency(precioFinalSinDescuento)}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Publica a este precio si NO vas a ofrecer el {descuento}% de descuento.
                 </p>
               </div>
 
@@ -391,18 +414,92 @@ export default function CalculoPrecioPage() {
                   {formatCurrency(precioListaConDescuento)}
                 </p>
                 <p className="text-sm text-gray-600">
-                  Precio final pagado por el cliente: <span className="font-bold">{formatCurrency(precioFinalSinDescuento)}</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  Publica al precio grande y aplícale la campaña de descuento del {descuento}%. Te quedará exactamente la ganancia neta teórica.
+                  Precio final pagado: <span className="font-bold">{formatCurrency(precioFinalSinDescuento)}</span>
                 </p>
               </div>
-
             </CardContent>
           </Card>
-
         </div>
       </div>
+
+      {/* --- MODAL PARA CREAR UN NUEVO ARTÍCULO --- */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Crear Nuevo Artículo</DialogTitle>
+            <CardDescription>
+              Agrega rápidamente un repuesto a tu base de datos de costos.
+            </CardDescription>
+          </DialogHeader>
+          
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newSku">Código / SKU <span className="text-red-500">*</span></Label>
+              <Input 
+                id="newSku" 
+                placeholder="Ej: M12345" 
+                value={newSku} 
+                onChange={(e) => setNewSku(e.target.value.toUpperCase())} // Lo pasamos a mayúsculas para mantener el orden
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="newDesc">Descripción</Label>
+              <Input 
+                id="newDesc" 
+                placeholder="Ej: Espejo Derecho" 
+                value={newDesc} 
+                onChange={(e) => setNewDesc(e.target.value)} 
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="newCosto">Costo Base</Label>
+                <Input 
+                  id="newCosto" 
+                  type="number" 
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00" 
+                  value={newCostoUsd} 
+                  onChange={(e) => setNewCostoUsd(Number(e.target.value))} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="newEsDolar">Moneda</Label>
+                <select 
+                  id="newEsDolar"
+                  className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  value={newEsDolar ? "true" : "false"}
+                  onChange={(e) => setNewEsDolar(e.target.value === "true")}
+                >
+                  <option value="true">Dólar (USD)</option>
+                  <option value="false">Pesos (ARS)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSubmitting}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveNewArticulo} disabled={isSubmitting || !newSku}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                "Guardar Artículo"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* --- FIN MODAL --- */}
+
     </div>
   );
 }

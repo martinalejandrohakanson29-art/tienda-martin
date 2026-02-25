@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 
-// Importamos tu cliente de S3 configurado en lib/s3
+// Importamos el cliente de S3
 import { s3Client } from "@/lib/s3"; 
 
 export async function GET(req: NextRequest) {
@@ -10,41 +10,50 @@ export async function GET(req: NextRequest) {
   const file = searchParams.get("file");
 
   if (!file) {
-    return NextResponse.json({ error: "Falta el nombre del archivo" }, { status: 400 });
+    return new Response(JSON.stringify({ error: "Falta el nombre del archivo" }), { 
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   try {
     // 2. Preparamos la orden para S3
     const command = new GetObjectCommand({
-      Bucket: "customizable-cart-gdywtci", // El nombre exacto de tu bucket
+      Bucket: "customizable-cart-gdywtci",
       Key: file,
     });
     
     // 3. Ejecutamos la petición a S3
     const response = await s3Client.send(command);
     
-    // 4. Usamos un Web Stream (flujo de datos web). 
-    // Esto es compatible 100% con NextResponse y TypeScript no se queja.
-    const stream = response.Body?.transformToWebStream();
+    // 4. Transformamos la respuesta en un arreglo de bytes
+    const byteArray = await response.Body?.transformToByteArray();
 
-    if (!stream) {
-      return NextResponse.json({ error: "No se pudo generar el stream de la imagen" }, { status: 500 });
+    if (!byteArray) {
+      return new Response(JSON.stringify({ error: "No se pudo leer la imagen" }), { 
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      });
     }
 
-    // 5. Identificamos el tipo de archivo
-    const contentType = response.ContentType || "image/jpeg";
-    
-    // 6. Retornamos el archivo directo a Mercado Libre
-    return new NextResponse(stream, {
+    // 5. ¡LA CLAVE!: Empaquetamos todo en un Buffer
+    const buffer = Buffer.from(byteArray);
+
+    // 6. Retornamos usando "Response" (para evitar el error de TypeScript) y le damos el peso exacto (Content-Length)
+    return new Response(buffer, {
       status: 200,
       headers: {
-        "Content-Type": contentType,
-        "Cache-Control": "public, max-age=86400", // Caché por 24 horas
+        "Content-Type": response.ContentType || "image/jpeg",
+        "Content-Length": buffer.length.toString(), // ¡Mercado Libre necesita esto sí o sí!
+        "Cache-Control": "public, max-age=86400",
       },
     });
 
   } catch (error) {
     console.error("Error al obtener la imagen de S3:", error);
-    return NextResponse.json({ error: "Error interno o archivo no encontrado" }, { status: 500 });
+    return new Response(JSON.stringify({ error: "Error interno o no encontrada" }), { 
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 }

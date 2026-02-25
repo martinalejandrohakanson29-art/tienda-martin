@@ -15,7 +15,12 @@ export default function CrearPublicacionesPage() {
   // ==========================================
   const [foto1, setFoto1] = useState("");
   const [foto2, setFoto2] = useState("");
-  const [urlFoto, setUrlFoto] = useState(""); // Esta es la foto FINAL que se usará
+  const [urlFoto, setUrlFoto] = useState(""); // Esta es la foto PRINCIPAL/PORTADA
+  
+  // NUEVO: Estados para las fotos adicionales opcionales
+  const [fotoExtra1, setFotoExtra1] = useState(""); 
+  const [fotoExtra2, setFotoExtra2] = useState("");
+
   const [isProcessingImage, setIsProcessingImage] = useState(false);
 
   // ==========================================
@@ -65,7 +70,6 @@ export default function CrearPublicacionesPage() {
       const data = await response.json();
       
       // Asumimos que n8n nos devuelve un JSON con { "url_final": "https://..." }
-      // (Asegúrate de configurar el nodo "Respond to Webhook" en n8n para devolver esto)
       if (data.url_final) {
         setUrlFoto(data.url_final);
         alert("¡Foto procesada con éxito!");
@@ -96,7 +100,7 @@ export default function CrearPublicacionesPage() {
       borrador_titulo: borrador_titulo,
       costo_producto: Number(costo),
       rentabilidad_esperada_porcentaje: Number(rentabilidad),
-      url_foto: urlFoto, // Usamos la foto final (ya sea pegada a mano o procesada)
+      url_foto: urlFoto, // Usamos la foto principal
     };
 
     try {
@@ -139,6 +143,20 @@ export default function CrearPublicacionesPage() {
     setIsPublishing(true);
     const WEBHOOK_PUBLICAR = "https://n8n-on-render-production-52f0.up.railway.app/webhook/subir_publicaciones";
 
+    // NUEVO: Armamos el arreglo de imágenes dinámicamente
+    // Siempre incluimos la de portada primero
+    const arregloImagenes = [{ source: urlFoto }];
+    
+    // Si llenaste la foto extra 1, la agregamos
+    if (fotoExtra1.trim() !== "") {
+      arregloImagenes.push({ source: fotoExtra1.trim() });
+    }
+    
+    // Si llenaste la foto extra 2, la agregamos
+    if (fotoExtra2.trim() !== "") {
+      arregloImagenes.push({ source: fotoExtra2.trim() });
+    }
+
     const payloadFinal = {
       title: resTitulo,
       price: Number(resPrecio),
@@ -146,7 +164,7 @@ export default function CrearPublicacionesPage() {
       description: resDescripcion,
       category_id: resCategoria,
       available_quantity: Number(resStock),
-      pictures: [{ source: urlFoto }]
+      pictures: arregloImagenes // Enviamos el arreglo completo con 1, 2 o 3 fotos
     };
 
     try {
@@ -200,14 +218,14 @@ export default function CrearPublicacionesPage() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2">
                 <ImageIcon className="h-5 w-5 text-blue-500" /> 
-                Paso 1: Preparar la Imagen
+                Paso 1: Preparar las Imágenes
               </CardTitle>
-              <CardDescription>Pega una URL lista, o procesa dos imágenes con n8n.</CardDescription>
+              <CardDescription>Pega una URL lista, procesa con n8n, y agrega fotos extra.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               
               <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 space-y-4">
-                <Label className="text-blue-800 font-semibold">Opción A: Procesar y Unir 2 Fotos (Workflow 2)</Label>
+                <Label className="text-blue-800 font-semibold">Herramienta: Unir 2 Fotos (Workflow 2)</Label>
                 <div className="grid grid-cols-2 gap-4">
                   <Input placeholder="URL Foto 1..." value={foto1} onChange={(e) => setFoto1(e.target.value)} />
                   <Input placeholder="URL Foto 2..." value={foto2} onChange={(e) => setFoto2(e.target.value)} />
@@ -221,15 +239,41 @@ export default function CrearPublicacionesPage() {
                 </Button>
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-gray-100">
-                <Label className="font-semibold">Opción B: URL Final de la Imagen (Directa)</Label>
-                <p className="text-xs text-gray-500">Si procesaste las fotos arriba, este campo se llenará solo. Si ya tienes una foto lista, simplemente pégala aquí.</p>
-                <Input 
-                  placeholder="Ej: https://misitio.com/foto-lista.jpg" 
-                  className="h-12 border-blue-200 focus-visible:ring-blue-500 font-medium" 
-                  value={urlFoto} 
-                  onChange={(e) => setUrlFoto(e.target.value)} 
-                />
+              {/* SECCIÓN DE FOTOS FINALES */}
+              <div className="space-y-4 pt-2 border-t border-gray-100">
+                
+                {/* FOTO PRINCIPAL */}
+                <div className="space-y-2">
+                  <Label className="font-bold text-gray-800">Foto de Portada (Principal) *</Label>
+                  <p className="text-xs text-gray-500">Si uniste fotos arriba, esto se llenará solo. Sino, pega tu URL aquí.</p>
+                  <Input 
+                    placeholder="Ej: https://misitio.com/foto-portada.jpg" 
+                    className="h-12 border-blue-200 focus-visible:ring-blue-500 font-medium" 
+                    value={urlFoto} 
+                    onChange={(e) => setUrlFoto(e.target.value)} 
+                  />
+                </div>
+
+                {/* FOTOS EXTRA */}
+                <div className="space-y-3 bg-gray-50 p-3 rounded-md border border-gray-200">
+                  <Label className="font-semibold text-gray-700">Fotos Adicionales (Opcionales)</Label>
+                  <p className="text-xs text-gray-500">Mercado Libre pide hasta 3 fotos. Agrega URLs extra aquí para acompañar la portada.</p>
+                  <div className="grid grid-cols-1 gap-3">
+                    <Input 
+                      placeholder="URL Foto extra 1..." 
+                      className="bg-white"
+                      value={fotoExtra1} 
+                      onChange={(e) => setFotoExtra1(e.target.value)} 
+                    />
+                    <Input 
+                      placeholder="URL Foto extra 2..." 
+                      className="bg-white"
+                      value={fotoExtra2} 
+                      onChange={(e) => setFotoExtra2(e.target.value)} 
+                    />
+                  </div>
+                </div>
+
               </div>
 
             </CardContent>

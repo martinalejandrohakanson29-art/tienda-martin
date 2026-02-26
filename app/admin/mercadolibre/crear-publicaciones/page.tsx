@@ -6,10 +6,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Sparkles, Send, Loader2, UploadCloud, CheckCircle2, Image as ImageIcon, Layers } from "lucide-react";
+import { 
+  ArrowLeft, 
+  ArrowRight, 
+  Sparkles, 
+  Loader2, 
+  UploadCloud, 
+  CheckCircle2, 
+  Image as ImageIcon, 
+  Layers 
+} from "lucide-react";
 import Link from "next/link";
 
 export default function CrearPublicacionesPage() {
+  // ==========================================
+  // ESTADO NUEVO: CONTROL DE PANTALLAS (PASOS)
+  // ==========================================
+  const [currentStep, setCurrentStep] = useState(1);
+
   // ==========================================
   // 1. ESTADOS: PASO 1 (IMÁGENES)
   // ==========================================
@@ -17,7 +31,6 @@ export default function CrearPublicacionesPage() {
   const [foto2, setFoto2] = useState("");
   const [urlFoto, setUrlFoto] = useState(""); // Esta es la foto PRINCIPAL/PORTADA
   
-  // NUEVO: Estados para las fotos adicionales opcionales
   const [fotoExtra1, setFotoExtra1] = useState(""); 
   const [fotoExtra2, setFotoExtra2] = useState("");
 
@@ -54,14 +67,12 @@ export default function CrearPublicacionesPage() {
   // ==========================================
   const handleProcesarFotos = async () => {
     setIsProcessingImage(true);
-    // URL de tu webhook de Edición de Fotos en n8n
     const WEBHOOK_FOTOS = "https://n8n-on-render-production-52f0.up.railway.app/webhook/prueba-imagenes"; 
 
     try {
       const response = await fetch(WEBHOOK_FOTOS, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Enviamos las dos fotos para que n8n las una/procese
         body: JSON.stringify({ foto_1: foto1, foto_2: foto2 }),
       });
 
@@ -69,7 +80,6 @@ export default function CrearPublicacionesPage() {
 
       const data = await response.json();
       
-      // Asumimos que n8n nos devuelve un JSON con { "url_final": "https://..." }
       if (data.url_final) {
         setUrlFoto(data.url_final);
         alert("¡Foto procesada con éxito!");
@@ -89,6 +99,8 @@ export default function CrearPublicacionesPage() {
   // FUNCIÓN: WORKFLOW 1 (GENERAR BORRADOR)
   // ==========================================
   const handleGenerarConIA = async () => {
+    // Al apretar generar, pasamos automáticamente a la pantalla 3 para ver la carga
+    setCurrentStep(3); 
     setIsLoading(true);
     setIaTermino(false);
     setPublicacionExitosa(false);
@@ -100,7 +112,7 @@ export default function CrearPublicacionesPage() {
       borrador_titulo: borrador_titulo,
       costo_producto: Number(costo),
       rentabilidad_esperada_porcentaje: Number(rentabilidad),
-      url_foto: urlFoto, // Usamos la foto principal
+      url_foto: urlFoto,
     };
 
     try {
@@ -126,6 +138,7 @@ export default function CrearPublicacionesPage() {
     } catch (error) {
       console.error("Hubo un error:", error);
       alert("Error al generar los textos. Revisa n8n.");
+      setCurrentStep(2); // Si hay error, volvemos al paso 2
     } finally {
       setIsLoading(false);
     }
@@ -143,16 +156,12 @@ export default function CrearPublicacionesPage() {
     setIsPublishing(true);
     const WEBHOOK_PUBLICAR = "https://n8n-on-render-production-52f0.up.railway.app/webhook/subir_publicaciones";
 
-    // NUEVO: Armamos el arreglo de imágenes dinámicamente
-    // Siempre incluimos la de portada primero
     const arregloImagenes = [{ source: urlFoto }];
     
-    // Si llenaste la foto extra 1, la agregamos
     if (fotoExtra1.trim() !== "") {
       arregloImagenes.push({ source: fotoExtra1.trim() });
     }
     
-    // Si llenaste la foto extra 2, la agregamos
     if (fotoExtra2.trim() !== "") {
       arregloImagenes.push({ source: fotoExtra2.trim() });
     }
@@ -164,7 +173,7 @@ export default function CrearPublicacionesPage() {
       description: resDescripcion,
       category_id: resCategoria,
       available_quantity: Number(resStock),
-      pictures: arregloImagenes // Enviamos el arreglo completo con 1, 2 o 3 fotos
+      pictures: arregloImagenes 
     };
 
     try {
@@ -186,8 +195,8 @@ export default function CrearPublicacionesPage() {
   };
 
   return (
-    <div className="space-y-6 p-6 max-w-7xl mx-auto">
-      {/* CABECERA */}
+    <div className="space-y-6 p-6 max-w-4xl mx-auto">
+      {/* CABECERA GENERAL */}
       <div className="flex items-center gap-4">
         <Link href="/admin/mercadolibre">
           <Button variant="ghost" size="sm" className="gap-2">
@@ -197,241 +206,293 @@ export default function CrearPublicacionesPage() {
         </Link>
       </div>
       
-      <div className="flex items-center gap-4 mt-2">
-        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+      <div className="flex flex-col items-center text-center mt-2 mb-8">
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 justify-center">
           <Sparkles className="h-8 w-8 text-rose-500" />
           Fábrica de Publicaciones
         </h1>
+        <p className="text-gray-500 text-lg mt-2">
+          Paso {currentStep} de 3
+        </p>
       </div>
-      <p className="text-gray-500 text-lg">
-        Sigue los 3 pasos para procesar tu imagen, generar los textos con IA y publicar en Mercado Libre.
-      </p>
 
-      {/* CONTENEDOR PRINCIPAL: GRID */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mt-4">
+      {/* INDICADOR DE PROGRESO (STEPPER) */}
+      <div className="flex items-center justify-center mb-10">
+        <div className={`flex items-center ${currentStep >= 1 ? 'text-blue-600 font-bold' : 'text-gray-400'}`}>
+          <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${currentStep >= 1 ? 'border-blue-600 bg-blue-50' : 'border-gray-300'}`}>1</div>
+          <span className="ml-2 hidden sm:block">Imágenes</span>
+        </div>
+        <div className={`w-12 sm:w-24 h-1 mx-2 ${currentStep >= 2 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
         
-        {/* COLUMNA IZQUIERDA: PASOS 1 Y 2 */}
-        <div className="space-y-6">
-          
-          {/* --- PASO 1: LA IMAGEN --- */}
-          <Card className="border-t-4 border-t-blue-500 shadow-md">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2">
-                <ImageIcon className="h-5 w-5 text-blue-500" /> 
-                Paso 1: Preparar las Imágenes
-              </CardTitle>
-              <CardDescription>Pega una URL lista, procesa con n8n, y agrega fotos extra.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              
-              <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 space-y-4">
-                <Label className="text-blue-800 font-semibold">Herramienta: Unir 2 Fotos (Workflow 2)</Label>
-                <div className="grid grid-cols-2 gap-4">
-                  <Input placeholder="URL Foto 1..." value={foto1} onChange={(e) => setFoto1(e.target.value)} />
-                  <Input placeholder="URL Foto 2..." value={foto2} onChange={(e) => setFoto2(e.target.value)} />
-                </div>
-                <Button 
-                  onClick={handleProcesarFotos} 
-                  disabled={isProcessingImage || (!foto1 && !foto2)}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
-                >
-                  {isProcessingImage ? <><Loader2 className="h-4 w-4 animate-spin" /> Procesando en n8n...</> : <><Layers className="h-4 w-4" /> Unir fotos con n8n</>}
-                </Button>
-              </div>
+        <div className={`flex items-center ${currentStep >= 2 ? 'text-rose-600 font-bold' : 'text-gray-400'}`}>
+          <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${currentStep >= 2 ? 'border-rose-600 bg-rose-50' : 'border-gray-300'}`}>2</div>
+          <span className="ml-2 hidden sm:block">Datos</span>
+        </div>
+        <div className={`w-12 sm:w-24 h-1 mx-2 ${currentStep >= 3 ? 'bg-green-600' : 'bg-gray-200'}`}></div>
+        
+        <div className={`flex items-center ${currentStep >= 3 ? 'text-green-600 font-bold' : 'text-gray-400'}`}>
+          <div className={`rounded-full h-8 w-8 flex items-center justify-center border-2 ${currentStep >= 3 ? 'border-green-600 bg-green-50' : 'border-gray-300'}`}>3</div>
+          <span className="ml-2 hidden sm:block">Revisión</span>
+        </div>
+      </div>
 
-              {/* SECCIÓN DE FOTOS FINALES */}
-              <div className="space-y-4 pt-2 border-t border-gray-100">
+
+      {/* CONTENEDOR DE PANTALLAS */}
+      <div className="mt-4">
+        
+        {/* ==============================================
+            PANTALLA 1: PREPARAR IMÁGENES
+            ============================================== */}
+        {currentStep === 1 && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Card className="border-t-4 border-t-blue-500 shadow-md">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5 text-blue-500" /> 
+                  Paso 1: Preparar las Imágenes
+                </CardTitle>
+                <CardDescription>Pega una URL lista, procesa con n8n, y agrega fotos extra.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
                 
-                {/* FOTO PRINCIPAL */}
-                <div className="space-y-2">
-                  <Label className="font-bold text-gray-800">Foto de Portada (Principal) *</Label>
-                  <p className="text-xs text-gray-500">Si uniste fotos arriba, esto se llenará solo. Sino, pega tu URL aquí.</p>
-                  <Input 
-                    placeholder="Ej: https://misitio.com/foto-portada.jpg" 
-                    className="h-12 border-blue-200 focus-visible:ring-blue-500 font-medium" 
-                    value={urlFoto} 
-                    onChange={(e) => setUrlFoto(e.target.value)} 
-                  />
-                </div>
-
-                {/* FOTOS EXTRA */}
-                <div className="space-y-3 bg-gray-50 p-3 rounded-md border border-gray-200">
-                  <Label className="font-semibold text-gray-700">Fotos Adicionales (Opcionales)</Label>
-                  <p className="text-xs text-gray-500">Mercado Libre pide hasta 3 fotos. Agrega URLs extra aquí para acompañar la portada.</p>
-                  <div className="grid grid-cols-1 gap-3">
-                    <Input 
-                      placeholder="URL Foto extra 1..." 
-                      className="bg-white"
-                      value={fotoExtra1} 
-                      onChange={(e) => setFotoExtra1(e.target.value)} 
-                    />
-                    <Input 
-                      placeholder="URL Foto extra 2..." 
-                      className="bg-white"
-                      value={fotoExtra2} 
-                      onChange={(e) => setFotoExtra2(e.target.value)} 
-                    />
+                <div className="bg-blue-50/50 p-4 rounded-lg border border-blue-100 space-y-4">
+                  <Label className="text-blue-800 font-semibold">Herramienta: Unir 2 Fotos (Workflow 2)</Label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input placeholder="URL Foto 1..." value={foto1} onChange={(e) => setFoto1(e.target.value)} />
+                    <Input placeholder="URL Foto 2..." value={foto2} onChange={(e) => setFoto2(e.target.value)} />
                   </div>
-                </div>
-
-              </div>
-
-            </CardContent>
-          </Card>
-
-          {/* --- PASO 2: LOS DATOS BASE --- */}
-          <Card className="border-t-4 border-t-rose-500 shadow-md">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-rose-500" />
-                Paso 2: Datos del Producto
-              </CardTitle>
-              <CardDescription>Información para crear el borrador (Workflow 1).</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              
-              <div className="space-y-2">
-                <Label>¿Qué producto es?</Label>
-                <Input placeholder="Ej: Casco Moto Integral..." className="h-12" value={producto} onChange={(e) => setProducto(e.target.value)} />
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Marca y Modelo</Label>
-                <Input placeholder="Ej: LS2 FF352..." className="h-12" value={marca} onChange={(e) => setMarca(e.target.value)} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Costo de compra ($)</Label>
-                  <Input type="number" placeholder="Ej: 50000" className="h-12" value={costo} onChange={(e) => setCosto(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Rentabilidad (%)</Label>
-                  <Input type="number" placeholder="Ej: 60" className="h-12" value={rentabilidad} onChange={(e) => setRentabilidad(e.target.value)} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Características Claves / Extras</Label>
-                <Textarea placeholder="Ej: Color negro mate, talle L..." rows={3} className="resize-none" value={caracteristicas} onChange={(e) => setCaracteristicas(e.target.value)} />
-              </div>
-
-              <Button 
-                onClick={handleGenerarConIA}
-                disabled={isLoading || !producto || !costo || !urlFoto}
-                className="w-full bg-gray-800 hover:bg-gray-900 text-white gap-2 h-12 text-lg mt-4 disabled:bg-gray-400"
-              >
-                {isLoading ? <><Loader2 className="h-5 w-5 animate-spin" /> Pensando...</> : <><Sparkles className="h-5 w-5" /> Generar Textos con IA</>}
-              </Button>
-              
-            </CardContent>
-          </Card>
-
-        </div>
-
-        {/* COLUMNA DERECHA: PASO 3 (RESULTADOS) */}
-        <div>
-          <Card className="shadow-md border-gray-200 h-full">
-            <CardHeader className="pb-3 border-b border-gray-100 mb-4 bg-gray-50 rounded-t-lg">
-              <CardTitle className="flex items-center gap-2">
-                <UploadCloud className="h-5 w-5 text-green-600" />
-                Paso 3: Revisión y Publicación
-              </CardTitle>
-              <CardDescription>Corrige los textos generados y sube a ML (Workflow 3).</CardDescription>
-            </CardHeader>
-            <CardContent>
-              
-              {/* ESTADOS DE ESPERA Y ÉXITO */}
-              {!iaTermino && !isLoading && !publicacionExitosa && (
-                <div className="flex flex-col items-center justify-center h-[500px] text-gray-400 border-2 border-dashed border-gray-200 rounded-lg">
-                  <Sparkles className="h-14 w-14 mb-4 text-gray-300" />
-                  <p className="text-center px-8 text-lg">Completa los pasos 1 y 2 para ver los resultados aquí.</p>
-                </div>
-              )}
-
-              {isLoading && (
-                <div className="flex flex-col items-center justify-center h-[500px] text-gray-500">
-                  <Loader2 className="h-14 w-14 mb-4 animate-spin text-rose-500" />
-                  <p className="text-center px-8 text-lg">La IA está redactando tu publicación...</p>
-                </div>
-              )}
-
-              {publicacionExitosa && (
-                <div className="flex flex-col items-center justify-center h-[500px] text-green-600 bg-green-50 rounded-lg border border-green-200">
-                  <CheckCircle2 className="h-16 w-16 mb-4 text-green-500" />
-                  <h3 className="text-2xl font-bold mb-2">¡Enviado a n8n!</h3>
-                  <p className="text-center px-8 text-lg text-green-700">
-                    Tu publicación está en camino a Mercado Libre.
-                  </p>
-                  <Button variant="outline" className="mt-6 border-green-600 text-green-700 hover:bg-green-100" onClick={() => window.location.reload()}>
-                    Crear otra publicación
-                  </Button>
-                </div>
-              )}
-
-              {/* RESULTADOS (INPUTS EDITABLES) */}
-              {iaTermino && !isLoading && !publicacionExitosa && (
-                <div className="space-y-5 animate-in fade-in zoom-in duration-300">
-                  
-                  {urlFoto && (
-                    <div className="flex justify-center mb-4">
-                      <img src={urlFoto} alt="Preview Final" className="h-32 object-contain rounded-md border p-1 bg-white shadow-sm" />
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-gray-500 uppercase">Título (Máx 60 car.)</Label>
-                    <Input className="font-medium text-blue-900 bg-blue-50/50 border-blue-200" value={resTitulo} onChange={(e) => setResTitulo(e.target.value)} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-bold text-gray-500 uppercase">Precio Final ($)</Label>
-                      <Input type="number" className="font-bold text-green-700 bg-green-50/50 border-green-200" value={resPrecio} onChange={(e) => setResPrecio(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-bold text-gray-500 uppercase">Marca</Label>
-                      <Input className="font-medium text-gray-900 bg-gray-50" value={resMarca} onChange={(e) => setResMarca(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs font-bold text-orange-600 uppercase">
-                        Categoría ML * {nombreCategoria && <span className="text-gray-500 normal-case ml-2">({nombreCategoria})</span>}
-                      </Label>
-                      <Input placeholder="Ej: MLA3530" className="border-orange-200 focus-visible:ring-orange-500 font-medium" value={resCategoria} onChange={(e) => setResCategoria(e.target.value)} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs font-bold text-gray-500 uppercase">Stock Inicial</Label>
-                      <Input type="number" value={resStock} onChange={(e) => setResStock(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-xs font-bold text-gray-500 uppercase">Descripción Vendedora</Label>
-                    <Textarea rows={8} className="bg-gray-50 resize-y" value={resDescripcion} onChange={(e) => setResDescripcion(e.target.value)} />
-                  </div>
-
-                  {/* BOTÓN DE PUBLICACIÓN */}
                   <Button 
-                    onClick={handlePublicar}
-                    disabled={isPublishing || !resTitulo || !resPrecio}
-                    className="w-full bg-rose-600 hover:bg-rose-700 text-white gap-2 h-14 text-xl mt-6 shadow-lg disabled:bg-rose-300 transition-all"
+                    onClick={handleProcesarFotos} 
+                    disabled={isProcessingImage || (!foto1 && !foto2)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2"
                   >
-                    {isPublishing ? (
-                      <><Loader2 className="h-6 w-6 animate-spin" /> Subiendo a ML...</>
-                    ) : (
-                      <><UploadCloud className="h-6 w-6" /> Aprobar y Publicar en ML</>
-                    )}
+                    {isProcessingImage ? <><Loader2 className="h-4 w-4 animate-spin" /> Procesando en n8n...</> : <><Layers className="h-4 w-4" /> Unir fotos con n8n</>}
+                  </Button>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-gray-100">
+                  <div className="space-y-2">
+                    <Label className="font-bold text-gray-800 text-base">Foto de Portada (Principal) *</Label>
+                    <p className="text-sm text-gray-500">Si uniste fotos arriba, esto se llenará solo. Sino, pega tu URL aquí.</p>
+                    <Input 
+                      placeholder="Ej: https://misitio.com/foto-portada.jpg" 
+                      className="h-12 border-blue-200 focus-visible:ring-blue-500 font-medium text-lg" 
+                      value={urlFoto} 
+                      onChange={(e) => setUrlFoto(e.target.value)} 
+                    />
+                  </div>
+
+                  <div className="space-y-3 bg-gray-50 p-4 rounded-md border border-gray-200 mt-4">
+                    <Label className="font-semibold text-gray-700">Fotos Adicionales (Opcionales)</Label>
+                    <p className="text-sm text-gray-500">Mercado Libre pide hasta 3 fotos. Agrega URLs extra aquí para acompañar la portada.</p>
+                    <div className="grid grid-cols-1 gap-3">
+                      <Input 
+                        placeholder="URL Foto extra 1..." 
+                        className="bg-white h-12"
+                        value={fotoExtra1} 
+                        onChange={(e) => setFotoExtra1(e.target.value)} 
+                      />
+                      <Input 
+                        placeholder="URL Foto extra 2..." 
+                        className="bg-white h-12"
+                        value={fotoExtra2} 
+                        onChange={(e) => setFotoExtra2(e.target.value)} 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-6">
+                  <Button 
+                    onClick={() => setCurrentStep(2)} 
+                    className="bg-gray-900 hover:bg-gray-800 text-white h-12 px-8 text-lg"
+                  >
+                    Siguiente: Datos del Producto <ArrowRight className="ml-2 h-5 w-5" />
+                  </Button>
+                </div>
+
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* ==============================================
+            PANTALLA 2: DATOS DEL PRODUCTO
+            ============================================== */}
+        {currentStep === 2 && (
+          <div className="animate-in fade-in slide-in-from-right-8 duration-500">
+            <Card className="border-t-4 border-t-rose-500 shadow-md">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-rose-500" />
+                  Paso 2: Datos del Producto
+                </CardTitle>
+                <CardDescription>Información detallada para que la IA arme la publicación.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                
+                <div className="space-y-2">
+                  <Label className="text-base">¿Qué producto es?</Label>
+                  <Input placeholder="Ej: Casco Moto Integral..." className="h-12 text-lg" value={producto} onChange={(e) => setProducto(e.target.value)} />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-base">Marca y Modelo</Label>
+                  <Input placeholder="Ej: LS2 FF352..." className="h-12 text-lg" value={marca} onChange={(e) => setMarca(e.target.value)} />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-base">Costo de compra ($)</Label>
+                    <Input type="number" placeholder="Ej: 50000" className="h-12 text-lg" value={costo} onChange={(e) => setCosto(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-base">Rentabilidad (%)</Label>
+                    <Input type="number" placeholder="Ej: 60" className="h-12 text-lg" value={rentabilidad} onChange={(e) => setRentabilidad(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-base">Características Claves / Extras</Label>
+                  <Textarea placeholder="Ej: Color negro mate, talle L..." rows={4} className="resize-none text-lg" value={caracteristicas} onChange={(e) => setCaracteristicas(e.target.value)} />
+                </div>
+
+                <div className="flex items-center justify-between pt-6 border-t border-gray-100">
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentStep(1)} 
+                    className="h-12 px-6"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Atrás
                   </Button>
 
+                  <Button 
+                    onClick={handleGenerarConIA}
+                    disabled={!producto || !costo || !urlFoto}
+                    className="bg-rose-600 hover:bg-rose-700 text-white gap-2 h-12 px-8 text-lg shadow-md disabled:bg-gray-300"
+                  >
+                    <Sparkles className="h-5 w-5" /> Generar con IA y Continuar
+                  </Button>
                 </div>
-              )}
+                
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-            </CardContent>
-          </Card>
-        </div>
+        {/* ==============================================
+            PANTALLA 3: REVISIÓN Y PUBLICACIÓN
+            ============================================== */}
+        {currentStep === 3 && (
+          <div className="animate-in fade-in slide-in-from-right-8 duration-500">
+            <Card className="shadow-md border-t-4 border-t-green-500 h-full">
+              <CardHeader className="pb-3 border-b border-gray-100 mb-4 bg-gray-50 rounded-t-lg">
+                <CardTitle className="flex items-center gap-2">
+                  <UploadCloud className="h-5 w-5 text-green-600" />
+                  Paso 3: Revisión y Publicación
+                </CardTitle>
+                <CardDescription>Corrige los textos generados y sube a ML (Workflow 3).</CardDescription>
+              </CardHeader>
+              <CardContent>
+                
+                {/* ESTADOS DE ESPERA Y ÉXITO */}
+                {isLoading && (
+                  <div className="flex flex-col items-center justify-center h-[400px] text-gray-500">
+                    <Loader2 className="h-14 w-14 mb-4 animate-spin text-rose-500" />
+                    <h3 className="text-xl font-bold mb-2">La IA está trabajando...</h3>
+                    <p className="text-center px-8">Redactando título, descripción y calculando precios. Esto tomará unos segundos.</p>
+                  </div>
+                )}
+
+                {publicacionExitosa && (
+                  <div className="flex flex-col items-center justify-center h-[400px] text-green-600 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle2 className="h-16 w-16 mb-4 text-green-500" />
+                    <h3 className="text-2xl font-bold mb-2">¡Enviado a n8n!</h3>
+                    <p className="text-center px-8 text-lg text-green-700">
+                      Tu publicación está en camino a Mercado Libre.
+                    </p>
+                    <Button 
+                      className="mt-6 bg-green-600 text-white hover:bg-green-700" 
+                      onClick={() => window.location.reload()}
+                    >
+                      Crear nueva publicación
+                    </Button>
+                  </div>
+                )}
+
+                {/* RESULTADOS (INPUTS EDITABLES) */}
+                {iaTermino && !isLoading && !publicacionExitosa && (
+                  <div className="space-y-6 animate-in fade-in zoom-in duration-300">
+                    
+                    {urlFoto && (
+                      <div className="flex justify-center mb-6">
+                        <img src={urlFoto} alt="Preview Final" className="h-40 object-contain rounded-md border p-1 bg-white shadow-sm" />
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-gray-500 uppercase">Título (Máx 60 car.)</Label>
+                      <Input className="h-12 text-lg font-medium text-blue-900 bg-blue-50/50 border-blue-200" value={resTitulo} onChange={(e) => setResTitulo(e.target.value)} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-gray-500 uppercase">Precio Final ($)</Label>
+                        <Input type="number" className="h-12 text-lg font-bold text-green-700 bg-green-50/50 border-green-200" value={resPrecio} onChange={(e) => setResPrecio(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-gray-500 uppercase">Marca</Label>
+                        <Input className="h-12 text-lg font-medium text-gray-900 bg-gray-50" value={resMarca} onChange={(e) => setResMarca(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-orange-600 uppercase">
+                          Categoría ML * {nombreCategoria && <span className="text-gray-500 normal-case ml-2">({nombreCategoria})</span>}
+                        </Label>
+                        <Input placeholder="Ej: MLA3530" className="h-12 text-lg border-orange-200 focus-visible:ring-orange-500 font-medium" value={resCategoria} onChange={(e) => setResCategoria(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-gray-500 uppercase">Stock Inicial</Label>
+                        <Input type="number" className="h-12 text-lg" value={resStock} onChange={(e) => setResStock(e.target.value)} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-gray-500 uppercase">Descripción Vendedora</Label>
+                      <Textarea rows={10} className="bg-gray-50 resize-y text-base p-4" value={resDescripcion} onChange={(e) => setResDescripcion(e.target.value)} />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-6 mt-6 border-t border-gray-200">
+                      <Button 
+                        variant="outline"
+                        onClick={() => setCurrentStep(2)} 
+                        className="h-14 px-6 text-lg"
+                      >
+                        <ArrowLeft className="mr-2 h-5 w-5" /> Volver a Datos
+                      </Button>
+
+                      <Button 
+                        onClick={handlePublicar}
+                        disabled={isPublishing || !resTitulo || !resPrecio}
+                        className="bg-green-600 hover:bg-green-700 text-white gap-2 h-14 px-8 text-xl shadow-lg disabled:bg-green-300 transition-all"
+                      >
+                        {isPublishing ? (
+                          <><Loader2 className="h-6 w-6 animate-spin" /> Subiendo a ML...</>
+                        ) : (
+                          <><UploadCloud className="h-6 w-6" /> Aprobar y Publicar en ML</>
+                        )}
+                      </Button>
+                    </div>
+
+                  </div>
+                )}
+
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
       </div>
     </div>

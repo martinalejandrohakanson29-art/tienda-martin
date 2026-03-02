@@ -7,7 +7,9 @@ export async function POST(req: Request) {
     const { mla, visitas } = body; 
 
     if (!mla || !visitas || !Array.isArray(visitas)) {
-      return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
+      // CAMBIO CLAVE: Respondemos con 200 (OK) en lugar de 400 (Bad Request).
+      // De esta forma, n8n ignora este producto de forma segura y continúa el bucle.
+      return NextResponse.json({ message: "Datos omitidos: Publicación inactiva o sin visitas" }, { status: 200 });
     }
 
     // Usamos un bucle para guardar cada día

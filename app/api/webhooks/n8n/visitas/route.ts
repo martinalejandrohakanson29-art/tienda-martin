@@ -12,17 +12,20 @@ export async function POST(req: Request) {
         // Validamos que exista el artículo
         if (!item_id) continue;
 
-        // Si n8n nos envía el array de días del Rango 1, lo guardamos
+        // Procesar días del Rango 1
         if (Array.isArray(visits_detail1)) {
           for (const v of visits_detail1) {
-            await upsertVisita(item_id, v.date, v.quantity || 0);
+            // Mercado Libre envía el campo "visits", lo buscamos correctamente
+            const cantidad = v.visits || v.quantity || v.total || 0;
+            await upsertVisita(item_id, v.date, cantidad);
           }
         }
 
-        // Hacemos lo mismo con los días del Rango 2
+        // Procesar días del Rango 2
         if (Array.isArray(visits_detail2)) {
           for (const v of visits_detail2) {
-            await upsertVisita(item_id, v.date, v.quantity || 0);
+            const cantidad = v.visits || v.quantity || v.total || 0;
+            await upsertVisita(item_id, v.date, cantidad);
           }
         }
       }
@@ -37,9 +40,10 @@ export async function POST(req: Request) {
   }
 }
 
-// Función que crea el registro si no existe, o lo actualiza si ya existe para ese día
+// Función que crea el registro si no existe, o lo actualiza si ya existe
 async function upsertVisita(mla: string, fechaStr: string, cantidad: number) {
-  // Aseguramos que la fecha tenga el formato universal correcto
+  if (!fechaStr) return; // Evitamos errores si alguna fecha viene vacía
+  
   const fechaString = fechaStr.includes('T') ? fechaStr : `${fechaStr}T00:00:00Z`;
   const fecha = new Date(fechaString);
   

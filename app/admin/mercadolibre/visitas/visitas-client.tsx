@@ -94,16 +94,15 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
   // --------------------------------------------------------
   // ACCIÓN 2: Llamar al Webhook de n8n
   // --------------------------------------------------------
-  const handleCallN8n = async () => {
+ const handleCallN8n = async () => {
     setIsLoadingN8n(true)
     try {
       // AQUÍ PONES LA URL DE TU WEBHOOK DE N8N
-      const WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas"
+      const WEBHOOK_URL = "https://TU_URL_DE_N8N_AQUI"
       
       const response = await fetch(WEBHOOK_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Le enviamos a n8n las fechas que elegimos por si el workflow las necesita
         body: JSON.stringify({
           rango1: { from: r1From, to: r1To },
           rango2: { from: r2From, to: r2To }
@@ -111,7 +110,12 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
       })
 
       if (response.ok) {
-        alert("¡Solicitud enviada a n8n correctamente! Espera unos momentos y vuelve a 'Buscar en BD'.")
+        // ¡Aquí está la magia! ✨
+        // Como n8n ya terminó, forzamos a la tabla a buscar los datos nuevos en la base de datos
+        await handleFetchDB()
+        
+        // Y le mostramos al usuario que todo salió perfecto
+        alert("¡Sincronización con n8n completada y pantalla actualizada!")
       } else {
         alert("Error al contactar n8n. Revisa la URL del webhook.")
       }

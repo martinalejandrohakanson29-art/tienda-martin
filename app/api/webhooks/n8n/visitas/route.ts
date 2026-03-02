@@ -5,34 +5,39 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // 1. DETECTAMOS SI ES EL FORMATO DE LISTA (ARRAY) DEL WORKFLOW
+    // 1. DETECTAMOS SI ES EL FORMATO DE LISTA (ARRAY) DEL WORKFLOW DE N8N
     if (Array.isArray(body)) {
       for (const item of body) {
-        const { item_id, total_visits1, total_visits2, body: dates } = item;
+        // Ahora recibimos el array de detalle diario en lugar de solo el total
+        const { item_id, visits_detail1, visits_detail2 } = item;
 
         // Validamos que tenga la info mínima
-        if (!item_id || !dates) continue;
+        if (!item_id) continue;
 
-        // Guardamos el total del Rango 1 en su fecha de cierre (to)
-        if (total_visits1 !== undefined) {
-          await upsertVisita(item_id, dates.r1.to, total_visits1);
+        // Guardamos el detalle diario del Rango 1
+        if (Array.isArray(visits_detail1)) {
+          for (const v of visits_detail1) {
+            await upsertVisita(item_id, v.date, v.quantity || 0);
+          }
         }
 
-        // Guardamos el total del Rango 2 en su fecha de cierre (to)
-        if (total_visits2 !== undefined) {
-          await upsertVisita(item_id, dates.r2.to, total_visits2);
+        // Guardamos el detalle diario del Rango 2
+        if (Array.isArray(visits_detail2)) {
+          for (const v of visits_detail2) {
+            await upsertVisita(item_id, v.date, v.quantity || 0);
+          }
         }
       }
-      return NextResponse.json({ message: "Lista de totales procesada correctamente" });
+      return NextResponse.json({ message: "Detalle de visitas diario procesado correctamente" });
     }
 
-    // 2. MANTENEMOS COMPATIBILIDAD CON EL FORMATO ANTERIOR (UN SOLO MLA CON DÍAS)
+    // 2. MANTENEMOS COMPATIBILIDAD CON EL FORMATO ANTERIOR (POR SI ACASO)
     const { mla, visitas } = body; 
     if (mla && Array.isArray(visitas)) {
       for (const v of visitas) {
-        await upsertVisita(mla, v.date, v.total || 0);
+        await upsertVisita(mla, v.date, v.total || v.quantity || 0);
       }
-      return NextResponse.json({ message: "Visitas diarias guardadas correctamente" });
+      return NextResponse.json({ message: "Visitas diarias antiguas guardadas correctamente" });
     }
 
     return NextResponse.json({ message: "Formato de datos no reconocido" }, { status: 200 });
@@ -45,8 +50,9 @@ export async function POST(req: Request) {
 
 // Función auxiliar para realizar el guardado o actualización (upsert)
 async function upsertVisita(mla: string, fechaStr: string, cantidad: number) {
-  // Convertimos el string a objeto Date
-  const fecha = new Date(fechaStr);
+  // Aseguramos que la fecha tenga formato válido, agregando la hora UTC si no la trae
+  const fechaString = fechaStr.includes('T') ? fechaStr : `${fechaStr}T00:00:00Z`;
+  const fecha = new Date(fechaString);
   
   await prisma.itemVisitaDiaria.upsert({
     where: {

@@ -98,7 +98,7 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
     setIsLoadingN8n(true)
     try {
       // AQUÍ PONES LA URL DE TU WEBHOOK DE N8N
-      const WEBHOOK_URL = "https://TU_URL_DE_N8N_AQUI"
+      const WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas"
       
       const response = await fetch(WEBHOOK_URL, {
         method: "POST",

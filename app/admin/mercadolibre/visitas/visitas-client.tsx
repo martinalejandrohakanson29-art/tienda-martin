@@ -30,7 +30,6 @@ interface VisitasClientProps {
   initialR2: { from: string; to: string }
 }
 
-// Tooltip personalizado para el gráfico
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
@@ -53,31 +52,22 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function VisitasClient({ initialData = [], initialR1, initialR2 }: VisitasClientProps) {
-  // Estado para los datos de la tabla
   const [data, setData] = useState<VisitaComparativa[]>(initialData)
-
-  // Estados para las fechas seleccionadas
   const [r1From, setR1From] = useState(initialR1.from)
   const [r1To, setR1To] = useState(initialR1.to)
   const [r2From, setR2From] = useState(initialR2.from)
   const [r2To, setR2To] = useState(initialR2.to)
-
-  // Estados de carga (loaders) para los botones
+  
   const [isLoadingDB, setIsLoadingDB] = useState(false)
   const [isLoadingN8n, setIsLoadingN8n] = useState(false)
-
-  // Estados para búsqueda y ordenamiento
+  
   const [searchTerm, setSearchTerm] = useState("")
   const [sortConfig, setSortConfig] = useState<{ key: keyof VisitaComparativa; direction: 'asc' | 'desc' } | null>({ key: 'totalR2', direction: 'desc' })
   const [selectedProduct, setSelectedProduct] = useState<VisitaComparativa | null>(null)
 
-  // --------------------------------------------------------
-  // ACCIÓN 1: Buscar en la Base de Datos
-  // --------------------------------------------------------
   const handleFetchDB = async () => {
     setIsLoadingDB(true)
     try {
-      // Llamamos al Server Action pasándole las fechas seleccionadas
       const { comparativa } = await getVisitasComparativas(
         { from: r1From, to: r1To },
         { from: r2From, to: r2To }
@@ -91,13 +81,9 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
     }
   }
 
-  // --------------------------------------------------------
-  // ACCIÓN 2: Llamar al Webhook de n8n
-  // --------------------------------------------------------
- const handleCallN8n = async () => {
+  const handleCallN8n = async () => {
     setIsLoadingN8n(true)
     try {
-      // AQUÍ PONES LA URL DE TU WEBHOOK DE N8N
       const WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-visitas"
       
       const response = await fetch(WEBHOOK_URL, {
@@ -110,24 +96,23 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
       })
 
       if (response.ok) {
-        // ¡Aquí está la magia! ✨
-        // Como n8n ya terminó, forzamos a la tabla a buscar los datos nuevos en la base de datos
-        await handleFetchDB()
-        
-        // Y le mostramos al usuario que todo salió perfecto
-        alert("¡Sincronización con n8n completada y pantalla actualizada!")
+        // Damos un pequeño margen para que n8n termine de procesar e insertar en la BD
+        setTimeout(async () => {
+            await handleFetchDB()
+            setIsLoadingN8n(false)
+            alert("¡Sincronización con n8n completada y pantalla actualizada!")
+        }, 3000)
       } else {
+        setIsLoadingN8n(false)
         alert("Error al contactar n8n. Revisa la URL del webhook.")
       }
     } catch (error) {
       console.error("Error al llamar a n8n:", error)
-      alert("No se pudo conectar con n8n.")
-    } finally {
       setIsLoadingN8n(false)
+      alert("No se pudo conectar con n8n.")
     }
   }
 
-  // Lógica de filtrado y ordenamiento
   const filteredData = useMemo(() => {
     const lowerTerm = searchTerm.toLowerCase()
     return data.filter((item) => 
@@ -154,7 +139,6 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
     }))
   }
 
-  // Preparamos los datos fusionados para el gráfico
   const chartData = useMemo(() => {
     if (!selectedProduct) return [];
     
@@ -176,11 +160,7 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
 
   return (
     <div className="space-y-6">
-      
-      {/* PANEL SUPERIOR DE CONTROLES (Fechas y Botones) */}
       <div className="bg-white p-5 rounded-lg border shadow-sm flex flex-col xl:flex-row gap-6 xl:items-end">
-        
-        {/* Rango 1 */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-bold text-gray-700">Rango 1 (Base)</label>
           <div className="flex items-center gap-2">
@@ -190,7 +170,6 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
           </div>
         </div>
 
-        {/* Rango 2 */}
         <div className="flex flex-col gap-2">
           <label className="text-sm font-bold text-gray-700">Rango 2 (A comparar)</label>
           <div className="flex items-center gap-2">
@@ -200,41 +179,28 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
           </div>
         </div>
 
-        {/* Botones de Acción */}
         <div className="flex gap-3 ml-auto w-full xl:w-auto mt-2 xl:mt-0">
-          <Button 
-            onClick={handleFetchDB} 
-            disabled={isLoadingDB}
-            className="bg-blue-600 hover:bg-blue-700 text-white flex-1 xl:flex-none transition-all"
-          >
+          <Button onClick={handleFetchDB} disabled={isLoadingDB} className="bg-blue-600 hover:bg-blue-700 text-white flex-1 xl:flex-none transition-all">
             <Search className={`mr-2 h-4 w-4 ${isLoadingDB ? "animate-spin" : ""}`} />
             {isLoadingDB ? "Buscando..." : "Consultar BD"}
           </Button>
-          
-          <Button 
-            onClick={handleCallN8n} 
-            disabled={isLoadingN8n}
-            variant="outline"
-            className="border-green-600 text-green-700 hover:bg-green-50 flex-1 xl:flex-none transition-all"
-          >
+          <Button onClick={handleCallN8n} disabled={isLoadingN8n} variant="outline" className="border-green-600 text-green-700 hover:bg-green-50 flex-1 xl:flex-none transition-all">
             <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingN8n ? "animate-spin" : ""}`} />
             {isLoadingN8n ? "Sincronizando..." : "Actualizar vía n8n"}
           </Button>
         </div>
       </div>
 
-      {/* BUSCADOR DE LA TABLA */}
       <div className="relative max-w-sm">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
         <Input
-          placeholder="Buscar producto por nombre o MLA..."
+          placeholder="Buscar producto..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-9"
         />
       </div>
 
-      {/* TABLA DE RESULTADOS */}
       <div className="rounded-lg border bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
@@ -265,11 +231,7 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
                       </div>
                     </td>
                     <td className="p-3 text-center">
-                      <button 
-                        onClick={() => setSelectedProduct(item)}
-                        className="p-2 text-blue-600 hover:bg-blue-100 hover:text-blue-800 rounded-full transition-colors inline-flex"
-                        title="Ver gráfico de evolución"
-                      >
+                      <button onClick={() => setSelectedProduct(item)} className="p-2 text-blue-600 hover:bg-blue-100 hover:text-blue-800 rounded-full transition-colors inline-flex">
                         <BarChart2 size={20} />
                       </button>
                     </td>
@@ -277,17 +239,12 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
                 )
               })
             ) : (
-              <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500 italic">
-                  No se encontraron datos para estos periodos o la búsqueda.
-                </td>
-              </tr>
+              <tr><td colSpan={5} className="p-8 text-center text-gray-500 italic">No se encontraron datos.</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* VENTANA MODAL DEL GRÁFICO */}
       <Dialog open={!!selectedProduct} onOpenChange={(open) => !open && setSelectedProduct(null)}>
         <DialogContent className="max-w-4xl w-full">
           <DialogHeader>
@@ -295,7 +252,6 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
               Evolución de Visitas: <span className="font-normal text-gray-700">{selectedProduct?.nombre}</span>
             </DialogTitle>
           </DialogHeader>
-          
           <div className="h-[400px] mt-6 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -304,25 +260,8 @@ export default function VisitasClient({ initialData = [], initialR1, initialR2 }
                 <YAxis fontSize={12} tickLine={false} axisLine={false} tickMargin={10} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                
-                <Line 
-                  type="monotone" 
-                  dataKey="rango1" 
-                  name={`Rango 1 (${r1From} al ${r1To})`} 
-                  stroke="#9CA3AF" 
-                  strokeWidth={2} 
-                  dot={{ r: 4, strokeWidth: 2 }} 
-                  activeDot={{ r: 6 }} 
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="rango2" 
-                  name={`Rango 2 (${r2From} al ${r2To})`} 
-                  stroke="#2563EB" 
-                  strokeWidth={3} 
-                  dot={{ r: 4, strokeWidth: 2 }} 
-                  activeDot={{ r: 6 }} 
-                />
+                <Line type="monotone" dataKey="rango1" name={`Rango 1 (${r1From} al ${r1To})`} stroke="#9CA3AF" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="rango2" name={`Rango 2 (${r2From} al ${r2To})`} stroke="#2563EB" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

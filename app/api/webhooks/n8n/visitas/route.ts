@@ -6,8 +6,9 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     if (Array.isArray(body)) {
-      // 1. Creamos una "caja" vacía donde iremos metiendo todas las operaciones juntas
-      const operacionesDB = [];
+      // 1. Creamos una "caja" vacía donde iremos metiendo todas las operaciones juntas.
+      // Le decimos a TypeScript que será un array de cualquier tipo (any[]) para evitar advertencias.
+      const operacionesDB: any[] = [];
 
       for (const item of body) {
         const { item_id, visits_detail1, visits_detail2 } = item;
@@ -19,7 +20,12 @@ export async function POST(req: Request) {
         if (Array.isArray(visits_detail1)) {
           for (const v of visits_detail1) {
             const cantidad = v.visits || v.quantity || v.total || 0;
-            operacionesDB.push(prepararUpsert(item_id, v.date, cantidad));
+            const operacion = prepararUpsert(item_id, v.date, cantidad);
+            
+            // Validamos: Solo lo guardamos en la caja si la operación no es undefined
+            if (operacion) {
+              operacionesDB.push(operacion);
+            }
           }
         }
 
@@ -27,13 +33,18 @@ export async function POST(req: Request) {
         if (Array.isArray(visits_detail2)) {
           for (const v of visits_detail2) {
             const cantidad = v.visits || v.quantity || v.total || 0;
-            operacionesDB.push(prepararUpsert(item_id, v.date, cantidad));
+            const operacion = prepararUpsert(item_id, v.date, cantidad);
+            
+            // Validamos: Solo lo guardamos en la caja si la operación no es undefined
+            if (operacion) {
+              operacionesDB.push(operacion);
+            }
           }
         }
       }
 
       // 2. MAGIA: Ejecutamos TODA la caja de operaciones de un solo golpe (Transacción)
-      // Esto hace que pase de tardar minutos a tardar milisegundos
+      // Como ya filtramos los "undefined", Prisma funcionará perfectamente.
       await prisma.$transaction(operacionesDB);
 
       return NextResponse.json({ message: "Detalle de visitas diario procesado súper rápido" });
@@ -50,7 +61,7 @@ export async function POST(req: Request) {
 // Esta función ya no guarda en la base de datos inmediatamente,
 // sino que solo "escribe" la instrucción para que la ejecutemos toda junta arriba.
 function prepararUpsert(mla: string, fechaStr: string, cantidad: number) {
-  if (!fechaStr) return; 
+  if (!fechaStr) return undefined; 
   
   const fechaString = fechaStr.includes('T') ? fechaStr : `${fechaStr}T00:00:00Z`;
   const fecha = new Date(fechaString);

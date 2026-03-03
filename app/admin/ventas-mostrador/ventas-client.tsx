@@ -413,12 +413,13 @@ export default function VentasMostradorClient({
                         <TableHead className="text-[10px] font-bold uppercase py-3">Artículo</TableHead>
                         <TableHead className="text-center text-[10px] font-bold uppercase py-3">Cant.</TableHead>
                         <TableHead className="text-right text-[10px] font-bold uppercase py-3">Precio Unit.</TableHead>
+                        <TableHead className="text-right text-[10px] font-bold uppercase py-3">Subtotal</TableHead>
                         <TableHead className="w-16"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {items.length === 0 ? (
-                        <TableRow><TableCell colSpan={4} className="py-20 text-center text-slate-400 italic">No hay artículos cargados</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">No hay artículos cargados</TableCell></TableRow>
                       ) : (
                         items.map((item) => (
                           <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
@@ -436,6 +437,9 @@ export default function VentasMostradorClient({
                                 <span className="text-slate-400 text-xs">$</span>
                                 <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
                               </div>
+                            </TableCell>
+                            <TableCell className="text-right py-3 font-bold text-slate-700">
+                              $ {item.subtotal.toLocaleString('es-AR')}
                             </TableCell>
                             <TableCell className="py-3 text-center">
                               <Button variant="ghost" size="icon" onClick={() => setItems(items.filter(i => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button>
@@ -506,13 +510,14 @@ export default function VentasMostradorClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Info Extra</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-20">Reg.</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {ventasFiltradas.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
                     ) : (
                       ventasFiltradas.map((v) => (
                         <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
@@ -548,6 +553,9 @@ export default function VentasMostradorClient({
                           </TableCell>
                           <TableCell className="py-4 text-xs font-mono text-slate-600">
                              {v.metodo_pago === 'Cruzada' ? (v.para || "-") : (v.transaccionId || "-")}
+                          </TableCell>
+                          <TableCell className="py-4 text-xs text-slate-500 max-w-[150px] truncate" title={v.info || ""}>
+                             {v.info || "-"}
                           </TableCell>
                           <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                           <TableCell className="py-4 text-center">
@@ -599,6 +607,7 @@ export default function VentasMostradorClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Info Extra</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Total Final</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Vendedor</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Acciones Administrativas</TableHead>
@@ -606,7 +615,7 @@ export default function VentasMostradorClient({
                   </TableHeader>
                   <TableBody>
                     {ventasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">No hay ventas para gestionar en esta fecha</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">No hay ventas para gestionar en esta fecha</TableCell></TableRow>
                     ) : (
                       ventasRealizadas.map((v) => (
                         <TableRow key={v.id} className="hover:bg-slate-50/50">
@@ -625,6 +634,9 @@ export default function VentasMostradorClient({
                           </TableCell>
                           <TableCell className="py-4 text-xs font-mono text-slate-600">
                              {v.metodo_pago === 'Cruzada' ? (v.para || "-") : (v.transaccionId || "-")}
+                          </TableCell>
+                          <TableCell className="py-4 text-xs text-slate-500 max-w-[150px] truncate" title={v.info || ""}>
+                             {v.info || "-"}
                           </TableCell>
                           <TableCell className="font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                           <TableCell className="text-xs text-slate-500 py-4">{v.vendedor}</TableCell>
@@ -847,7 +859,13 @@ export default function VentasMostradorClient({
               <div className="flex-grow bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                 <Table>
                   <TableHeader className="bg-slate-100">
-                    <TableRow><TableHead>Artículo</TableHead><TableHead className="text-center">Cant.</TableHead><TableHead className="text-right">Precio Unit.</TableHead><TableHead></TableHead></TableRow>
+                    <TableRow>
+                      <TableHead>Artículo</TableHead>
+                      <TableHead className="text-center">Cant.</TableHead>
+                      <TableHead className="text-right">Precio Unit.</TableHead>
+                      <TableHead className="text-right">Subtotal</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
                   </TableHeader>
                   <TableBody>
                     {editItems.map((item) => (
@@ -858,6 +876,9 @@ export default function VentasMostradorClient({
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2"><span className="text-slate-400 text-xs">$</span><Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} /></div>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-slate-700">
+                          $ {item.subtotal.toLocaleString('es-AR')}
                         </TableCell>
                         <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter(i => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
                       </TableRow>

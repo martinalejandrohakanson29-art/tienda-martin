@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Contacto } from "@prisma/client"
 import { createContacto, updateContacto, deleteContacto, ContactoInput } from "@/app/actions/contactos"
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Edit, Plus, Trash2 } from "lucide-react"
+import { Edit, Plus, Trash2, Search } from "lucide-react"
 
 interface ContactosClientProps {
   initialContactos: Contacto[];
@@ -23,6 +23,9 @@ export default function ContactosClient({ initialContactos }: ContactosClientPro
   const [isLoading, setIsLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   
+  // Nuevo estado para guardar el texto del buscador
+  const [searchTerm, setSearchTerm] = useState("")
+
   // Estado del formulario
   const [formData, setFormData] = useState<ContactoInput>({
     razonSocial: "",
@@ -93,57 +96,92 @@ export default function ContactosClient({ initialContactos }: ContactosClientPro
     setIsLoading(false)
   }
 
+  // Lógica de filtrado dinámico
+  const filteredContactos = useMemo(() => {
+    // Si no hay nada escrito en el buscador, devolvemos todos los contactos
+    if (!searchTerm) return contactos;
+    
+    // Pasamos la búsqueda a minúsculas para que sea insensible a mayúsculas/minúsculas
+    const lowerCaseSearch = searchTerm.toLowerCase();
+    
+    return contactos.filter((contacto) => {
+      return (
+        (contacto.razonSocial?.toLowerCase().includes(lowerCaseSearch)) ||
+        (contacto.nombreFantasia?.toLowerCase().includes(lowerCaseSearch)) ||
+        (contacto.nombre?.toLowerCase().includes(lowerCaseSearch)) ||
+        (contacto.apellido?.toLowerCase().includes(lowerCaseSearch)) ||
+        (contacto.cuit?.toLowerCase().includes(lowerCaseSearch)) ||
+        (contacto.email?.toLowerCase().includes(lowerCaseSearch)) ||
+        (contacto.telefono?.toLowerCase().includes(lowerCaseSearch))
+      );
+    });
+  }, [contactos, searchTerm]);
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Gestión de Contactos</h2>
         
-        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-          <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> Nuevo Contacto</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Editar Contacto" : "Nuevo Contacto"}</DialogTitle>
-            </DialogHeader>
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 mt-4">
-              <div className="space-y-2">
-                <Label htmlFor="razonSocial">Razón Social</Label>
-                <Input id="razonSocial" value={formData.razonSocial} onChange={(e) => setFormData({...formData, razonSocial: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nombreFantasia">Nombre de Fantasía</Label>
-                <Input id="nombreFantasia" value={formData.nombreFantasia} onChange={(e) => setFormData({...formData, nombreFantasia: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nombre">Nombre</Label>
-                <Input id="nombre" value={formData.nombre} onChange={(e) => setFormData({...formData, nombre: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="apellido">Apellido</Label>
-                <Input id="apellido" value={formData.apellido} onChange={(e) => setFormData({...formData, apellido: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cuit">CUIT</Label>
-                <Input id="cuit" value={formData.cuit} onChange={(e) => setFormData({...formData, cuit: e.target.value})} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="telefono">Teléfono</Label>
-                <Input id="telefono" value={formData.telefono} onChange={(e) => setFormData({...formData, telefono: e.target.value})} />
-              </div>
-              <div className="space-y-2 col-span-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
-              </div>
-              
-              <div className="col-span-2 flex justify-end mt-4">
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Guardando..." : "Guardar"}
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
+        {/* Contenedor de Búsqueda y Botón */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* El Buscador */}
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar contacto..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-8"
+            />
+          </div>
+
+          <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+            <DialogTrigger asChild>
+              <Button className="shrink-0"><Plus className="mr-2 h-4 w-4" /> Nuevo Contacto</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>{editingId ? "Editar Contacto" : "Nuevo Contacto"}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 mt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="razonSocial">Razón Social</Label>
+                  <Input id="razonSocial" value={formData.razonSocial} onChange={(e) => setFormData({...formData, razonSocial: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nombreFantasia">Nombre de Fantasía</Label>
+                  <Input id="nombreFantasia" value={formData.nombreFantasia} onChange={(e) => setFormData({...formData, nombreFantasia: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nombre">Nombre</Label>
+                  <Input id="nombre" value={formData.nombre} onChange={(e) => setFormData({...formData, nombre: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="apellido">Apellido</Label>
+                  <Input id="apellido" value={formData.apellido} onChange={(e) => setFormData({...formData, apellido: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="cuit">CUIT</Label>
+                  <Input id="cuit" value={formData.cuit} onChange={(e) => setFormData({...formData, cuit: e.target.value})} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="telefono">Teléfono</Label>
+                  <Input id="telefono" value={formData.telefono} onChange={(e) => setFormData({...formData, telefono: e.target.value})} />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input id="email" type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                </div>
+                
+                <div className="col-span-2 flex justify-end mt-4">
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "Guardando..." : "Guardar"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="border rounded-md">
@@ -158,14 +196,15 @@ export default function ContactosClient({ initialContactos }: ContactosClientPro
             </TableRow>
           </TableHeader>
           <TableBody>
-            {contactos.length === 0 ? (
+            {/* Iteramos sobre filteredContactos en vez de la lista completa */}
+            {filteredContactos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                  No hay contactos registrados.
+                  {searchTerm ? "No se encontraron resultados para tu búsqueda." : "No hay contactos registrados."}
                 </TableCell>
               </TableRow>
             ) : (
-              contactos.map((contacto) => (
+              filteredContactos.map((contacto) => (
                 <TableRow key={contacto.id}>
                   <TableCell>
                     <div className="font-medium">{contacto.razonSocial || "---"}</div>

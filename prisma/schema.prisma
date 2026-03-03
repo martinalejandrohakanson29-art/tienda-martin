@@ -82,13 +82,13 @@ model Config {
 }
 
 model CarouselItem {
-  id             String   @id @default(cuid())
-  mediaUrl       String   @default("")
-  mediaUrlMobile String   @default("")
-  mediaType      String   @default("image")
-  order          Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id              String   @id @default(cuid())
+  mediaUrl        String   @default("")
+  mediaUrlMobile  String   @default("")
+  mediaType       String   @default("image")
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 // --- MODELOS DE AUDITORÍA Y ENVÍOS ---
@@ -344,7 +344,7 @@ model EtiquetaMLItem {
   sku             String?
   quantity        Int
   variation       String?
-
+  
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
@@ -417,11 +417,10 @@ model RentabilidadCalculada {
   fecha_actualizacion  DateTime @default(now())
 
   @@unique([mla, variation_id])
+  
   @@map("rentabilidad_calculada")
 }
 
-
-// --- GESTIÓN DE VENTAS MOSTRADOR ---
 
 // --- GESTIÓN DE VENTAS MOSTRADOR ---
 
@@ -440,8 +439,8 @@ model Venta {
   transaccionId String?
   de            String?
   para          String?
-  email         String?     // <--- AGREGAR ESTA LÍNEA
-  eventoOffline Boolean     @default(false) // <--- AGREGAR ESTA LÍNEA
+  email         String?
+  eventoOffline Boolean     @default(false) 
   registrada    Boolean     @default(false)
   items         VentaItem[] 
   auditorias    VentaAuditoria[] 
@@ -470,7 +469,7 @@ model VentaAuditoria {
   venta       Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
   usuario     String
   accion      String   
-  detalle     String?  
+  detalle     String?
   createdAt   DateTime @default(now())
 
   @@map("ventas_auditoria")
@@ -490,8 +489,6 @@ model ArticuloMostrador {
 
 // --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
 
-// --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
-
 model TransferenciaCruzada {
   id              String   @id @default(cuid())
   whatsappId      String
@@ -501,7 +498,7 @@ model TransferenciaCruzada {
   infoExtra       String?
   deTexto         String?
   paraTexto       String?
-  imageUrl        String?  // <--- AGREGAMOS ESTA LÍNEA
+  imageUrl        String?  
   procesada       Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -524,13 +521,42 @@ model SeguimientoVentas {
   @@map("seguimiento_ventas")
 }
 
-// Agrega esto al final de schema.prisma
 model ItemVisitaDiaria {
   id        String   @id @default(cuid())
   mla       String
   fecha     DateTime
   visitas   Int
   
-  @@unique([mla, fecha]) // Esto evita que se dupliquen datos del mismo día
+  @@unique([mla, fecha]) 
   @@map("item_visitas_diarias")
+}
+
+// --- NUEVO: GESTIÓN DE COMPRAS (INGRESO DE STOCK) ---
+
+model Compra {
+  id            String       @id @default(cuid())
+  proveedor     String       @default("Proveedor General")
+  comprador     String       @default("Usuario General")
+  total         Decimal      @db.Decimal(20, 2) @default(0)
+  metodo_pago   String       @default("Efectivo")
+  info          String?
+  comprobante   String?
+  items         CompraItem[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("compras_mostrador")
+}
+
+model CompraItem {
+  id            String   @id @default(cuid())
+  compraId      String
+  compra        Compra   @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  productoId    String?
+  nombre        String
+  cantidad      Int      @default(1)
+  costo_unit    Decimal  @db.Decimal(20, 2)
+  subtotal      Decimal  @db.Decimal(20, 2)
+
+  @@map("compras_mostrador_items")
 }

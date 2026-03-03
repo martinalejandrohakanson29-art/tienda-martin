@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Contacto } from "@prisma/client"
 import { createContacto, updateContacto, deleteContacto, ContactoInput } from "@/app/actions/contactos"
@@ -23,8 +23,10 @@ export default function ContactosClient({ initialContactos }: ContactosClientPro
   const [isLoading, setIsLoading] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   
-  // Nuevo estado para guardar el texto del buscador
+  // Estado para lo que el usuario escribe al instante
   const [searchTerm, setSearchTerm] = useState("")
+  // Estado para la búsqueda que realmente se aplica a la tabla (con retraso)
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("")
 
   // Estado del formulario
   const [formData, setFormData] = useState<ContactoInput>({
@@ -36,6 +38,19 @@ export default function ContactosClient({ initialContactos }: ContactosClientPro
     cuit: "",
     email: ""
   })
+
+  // Efecto que crea el "Debounce" (retraso intencional para no saturar)
+  useEffect(() => {
+    // Configuramos un temporizador de 300 milisegundos
+    const manejador = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
+
+    // Si el usuario presiona otra tecla antes de los 300ms, limpiamos el temporizador anterior
+    return () => {
+      clearTimeout(manejador)
+    }
+  }, [searchTerm])
 
   const resetForm = () => {
     setFormData({ razonSocial: "", apellido: "", nombre: "", nombreFantasia: "", telefono: "", cuit: "", email: "" })
@@ -96,13 +111,12 @@ export default function ContactosClient({ initialContactos }: ContactosClientPro
     setIsLoading(false)
   }
 
-  // Lógica de filtrado dinámico
+  // Lógica de filtrado dinámico (ahora usa debouncedSearchTerm)
   const filteredContactos = useMemo(() => {
-    // Si no hay nada escrito en el buscador, devolvemos todos los contactos
-    if (!searchTerm) return contactos;
+    // Si la búsqueda con retraso está vacía, mostramos todo
+    if (!debouncedSearchTerm) return contactos;
     
-    // Pasamos la búsqueda a minúsculas para que sea insensible a mayúsculas/minúsculas
-    const lowerCaseSearch = searchTerm.toLowerCase();
+    const lowerCaseSearch = debouncedSearchTerm.toLowerCase();
     
     return contactos.filter((contacto) => {
       return (
@@ -115,14 +129,13 @@ export default function ContactosClient({ initialContactos }: ContactosClientPro
         (contacto.telefono?.toLowerCase().includes(lowerCaseSearch))
       );
     });
-  }, [contactos, searchTerm]);
+  }, [contactos, debouncedSearchTerm]); // Atento aquí: ahora depende de debouncedSearchTerm
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Gestión de Contactos</h2>
         
-        {/* Contenedor de Búsqueda y Botón */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
           {/* El Buscador */}
           <div className="relative w-full sm:w-64">
@@ -196,11 +209,10 @@ export default function ContactosClient({ initialContactos }: ContactosClientPro
             </TableRow>
           </TableHeader>
           <TableBody>
-            {/* Iteramos sobre filteredContactos en vez de la lista completa */}
             {filteredContactos.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                  {searchTerm ? "No se encontraron resultados para tu búsqueda." : "No hay contactos registrados."}
+                  {debouncedSearchTerm ? "No se encontraron resultados para tu búsqueda." : "No hay contactos registrados."}
                 </TableCell>
               </TableRow>
             ) : (

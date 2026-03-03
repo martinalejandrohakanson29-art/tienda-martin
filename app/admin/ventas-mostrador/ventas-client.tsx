@@ -437,7 +437,8 @@ export default function VentasMostradorClient({
                                 {/* AQUÍ AGREGAMOS LA REGLA DE COLORES DE STOCK JUNTO AL NOMBRE */}
                                 <div className="flex items-center gap-2">
                                   <span className="text-base">{item.nombre}</span>
-                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                                  {/* APLICAMOS TEXT-XS Y PX-2 PY-1 PARA AGRANDARLO */}
+                                  <span className={`text-xs font-black px-2 py-1 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                                     Stock: {item.stock}
                                   </span>
                                 </div>
@@ -901,7 +902,8 @@ export default function VentasMostradorClient({
                            <div className="flex flex-col gap-1">
                              <div className="flex items-center gap-2">
                                <span className="text-sm">{item.nombre}</span>
-                               <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                               {/* APLICAMOS TEXT-XS Y PX-2 PY-1 PARA AGRANDARLO */}
+                               <span className={`text-xs font-black px-2 py-1 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                                  Stock: {item.stock}
                                </span>
                              </div>

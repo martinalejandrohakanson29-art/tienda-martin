@@ -87,7 +87,6 @@ export function ErpDashboard() {
             {/* Lado Izquierdo: Acción */}
             <div className="grid grid-cols-2 gap-4">
               
-              {/* === AQUÍ ESTÁ EL ENLACE AL MOSTRADOR === */}
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/ventas-mostrador">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">sell</span>
@@ -95,15 +94,16 @@ export function ErpDashboard() {
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Ventas</h3>
                 <p className="text-xs text-slate-500">Registrar Ventas (Mostrador)</p>
               </Link>
-              {/* ======================================= */}
 
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
+              {/* === AQUÍ ACTUALIZAMOS EL ENLACE A COMPRAS === */}
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/compras">
                 <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">shopping_cart</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Compras</h3>
                 <p className="text-xs text-slate-500">Registrar compras</p>
-              </a>
+              </Link>
+              {/* ============================================== */}
             </div>
             {/* Lado Derecho: Consultas */}
             <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">

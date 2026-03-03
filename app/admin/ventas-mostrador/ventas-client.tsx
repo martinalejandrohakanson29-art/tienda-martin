@@ -670,7 +670,18 @@ export default function VentasMostradorClient({
           <div className="h-[500px] overflow-y-auto p-4 bg-white">
             {searchResults.map((prod) => (
               <button key={prod.id} onClick={() => agregarProductoAVenta(prod)} className="w-full flex items-center justify-between p-3.5 hover:bg-blue-50/50 rounded-xl group transition-all mb-2 border border-transparent hover:border-blue-100">
-                <div className="flex items-center gap-4"><Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" /><div className="text-left"><p className="font-bold text-slate-900 leading-tight">{prod.nombre} <span className="ml-2 font-normal text-slate-400 text-[11px]">(Stock: {prod.stock})</span></p><p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id}</p></div></div>
+                <div className="flex items-center gap-4">
+                  <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
+                  <div className="text-left flex flex-col gap-1.5">
+                    <div className="flex items-center gap-3">
+                      <p className="font-bold text-slate-900 leading-tight">{prod.nombre}</p>
+                      <span className={`text-sm font-black px-2 py-0.5 rounded-md border ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                        Stock: {prod.stock}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id}</p>
+                  </div>
+                </div>
                 <p className="font-medium text-slate-900">$ {prod.precio.toLocaleString('es-AR')}</p>
               </button>
             ))}
@@ -908,7 +919,18 @@ export default function VentasMostradorClient({
           <div className="h-[400px] overflow-y-auto p-4 bg-white">
             {searchResults.map((prod) => (
               <button key={prod.id} onClick={() => agregarProductoEdicion(prod)} className="w-full flex items-center justify-between p-3.5 hover:bg-amber-50 rounded-xl group border border-transparent hover:border-amber-200 mb-2">
-                <div className="flex items-center gap-4"><Plus className="h-4 w-4 text-slate-400 group-hover:text-amber-600" /><div className="text-left"><p className="font-bold text-slate-900">{prod.nombre}</p><p className="text-[10px] text-slate-400 font-mono">ID: {prod.id}</p></div></div>
+                <div className="flex items-center gap-4">
+                  <Plus className="h-4 w-4 text-slate-400 group-hover:text-amber-600" />
+                  <div className="text-left flex flex-col gap-1.5">
+                    <div className="flex items-center gap-3">
+                      <p className="font-bold text-slate-900 leading-tight">{prod.nombre}</p>
+                      <span className={`text-sm font-black px-2 py-0.5 rounded-md border ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                        Stock: {prod.stock}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id}</p>
+                  </div>
+                </div>
                 <p className="font-medium text-slate-900">$ {prod.precio.toLocaleString('es-AR')}</p>
               </button>
             ))}

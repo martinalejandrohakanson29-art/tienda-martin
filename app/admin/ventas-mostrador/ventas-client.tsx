@@ -34,6 +34,7 @@ interface ItemVenta {
   cantidad: number;
   precio_unit: number;
   subtotal: number;
+  stock: number; // Agregamos la propiedad stock aquí
 }
 
 export default function VentasMostradorClient({ 
@@ -178,7 +179,8 @@ export default function VentasMostradorClient({
         item.id === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
       ));
     } else {
-      setItems([...items, { id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unit: Number(prod.precio), subtotal: Number(prod.precio) }]);
+      // Pasamos también el stock del producto al crear el item
+      setItems([...items, { id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unit: Number(prod.precio), subtotal: Number(prod.precio), stock: prod.stock }]);
     }
     setIsModalOpen(false);
     setSearchTerm("");
@@ -244,10 +246,16 @@ export default function VentasMostradorClient({
     setEditParaCruzada(venta.para || "");
     setEditEmail(venta.email || "");
     setEditEventoOffline(venta.eventoOffline || false);
-    setEditItems(venta.items.map((i: any) => ({
-      id: i.productoId, nombre: i.nombre, cantidad: i.cantidad,
-      precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal)
-    })));
+    
+    // Mapeamos los items buscando su stock actual en los articulosIniciales
+    setEditItems(venta.items.map((i: any) => {
+      const articuloBase = articulosIniciales.find(a => a.id === i.productoId);
+      return {
+        id: i.productoId, nombre: i.nombre, cantidad: i.cantidad,
+        precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal),
+        stock: articuloBase ? articuloBase.stock : 0
+      };
+    }));
     setIsEditMainModalOpen(true);
   };
 
@@ -258,7 +266,8 @@ export default function VentasMostradorClient({
         item.id === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
       ));
     } else {
-      setEditItems([...editItems, { id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unit: Number(prod.precio), subtotal: Number(prod.precio) }]);
+      // Pasamos también el stock del producto al agregar en edición
+      setEditItems([...editItems, { id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unit: Number(prod.precio), subtotal: Number(prod.precio), stock: prod.stock }]);
     }
     setIsSearchEditModalOpen(false);
     setSearchTerm("");
@@ -424,8 +433,14 @@ export default function VentasMostradorClient({
                         items.map((item) => (
                           <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
                             <TableCell className="font-medium text-slate-700 py-3">
-                              <div className="flex flex-col">
-                                <span className="text-base">{item.nombre}</span>
+                              <div className="flex flex-col gap-1">
+                                {/* AQUÍ AGREGAMOS LA REGLA DE COLORES DE STOCK JUNTO AL NOMBRE */}
+                                <div className="flex items-center gap-2">
+                                  <span className="text-base">{item.nombre}</span>
+                                  <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                                    Stock: {item.stock}
+                                  </span>
+                                </div>
                                 <span className="text-[9px] text-slate-400 font-mono uppercase">{item.id}</span>
                               </div>
                             </TableCell>
@@ -881,7 +896,17 @@ export default function VentasMostradorClient({
                   <TableBody>
                     {editItems.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-medium text-slate-700">{item.nombre}</TableCell>
+                        <TableCell className="font-medium text-slate-700 py-3">
+                           {/* AGREGAMOS LA REGLA DE COLORES DE STOCK EN LA EDICIÓN TAMBIÉN */}
+                           <div className="flex flex-col gap-1">
+                             <div className="flex items-center gap-2">
+                               <span className="text-sm">{item.nombre}</span>
+                               <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                                 Stock: {item.stock}
+                               </span>
+                             </div>
+                           </div>
+                        </TableCell>
                         <TableCell className="text-center">
                           <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                         </TableCell>

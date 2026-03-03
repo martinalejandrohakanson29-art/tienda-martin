@@ -560,3 +560,17 @@ model CompraItem {
 
   @@map("compras_mostrador_items")
 }
+
+model Contacto {
+  id             String   @id @default(cuid())
+  razonSocial    String?
+  apellido       String?
+  nombre         String?
+  nombreFantasia String?
+  telefono       String?
+  cuit           String?
+  email          String?
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

@@ -94,9 +94,9 @@ model CarouselItem {
 // --- MODELOS DE AUDITORÍA Y ENVÍOS ---
 
 model Shipment {
-  id        String         @id @default(cuid())
-  name      String         @unique
-  createdAt DateTime       @default(now())
+  id        String          @id @default(cuid())
+  name      String          @unique
+  createdAt DateTime        @default(now())
   items     ShipmentItem[]
 }
 
@@ -111,7 +111,6 @@ model ShipmentItem {
   agregados  String?
   imageUrl   String?
   variation  String?
-
   @@index([shipmentId])
 }
 
@@ -344,7 +343,6 @@ model EtiquetaMLItem {
   sku             String?
   quantity        Int
   variation       String?
-  
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
@@ -417,7 +415,6 @@ model RentabilidadCalculada {
   fecha_actualizacion  DateTime @default(now())
 
   @@unique([mla, variation_id])
-  
   @@map("rentabilidad_calculada")
 }
 
@@ -475,16 +472,31 @@ model VentaAuditoria {
   @@map("ventas_auditoria")
 }
 
+// --- NUEVO: TABLAS PARA MODIFICAR ARTÍCULOS ---
+
 model ArticuloMostrador {
   id          String   @id
   nombre      String
   stock       Int      @default(0)
   precio      Decimal  @db.Decimal(20, 2) @default(0)
+  auditorias  ArticuloAuditoria[] 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   @@index([nombre])
   @@map("articulos_mostrador")
+}
+
+model ArticuloAuditoria {
+  id          String            @id @default(cuid())
+  articuloId  String
+  articulo    ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
+  usuario     String
+  accion      String   
+  detalle     String?
+  createdAt   DateTime          @default(now())
+
+  @@map("articulos_auditoria")
 }
 
 // --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
@@ -570,7 +582,6 @@ model Contacto {
   telefono       String?
   cuit           String?
   email          String?
-  
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

@@ -390,15 +390,15 @@ export default function VentasMostradorClient({
     setIsUpdatingDbPrice(false);
   };
 
-  // --- NUEVAS FUNCIONES: ACTUALIZACIÓN RÁPIDA DE PRECIO (BOTÓN DERECHO) ---
+  // --- FUNCIONES: ACTUALIZACIÓN RÁPIDA DE PRECIO (BOTÓN DERECHO) ---
   const abrirModalFastUpdate = (idArticulo: string, precioInputActual: number) => {
     const articulo = articulos.find(a => a.id === idArticulo);
     if (articulo) {
       setFastUpdateData({
         id: articulo.id,
         nombre: articulo.nombre,
-        oldPrice: articulo.precio, // El precio que actualmente está en la DB
-        newPrice: precioInputActual // El precio que acabamos de tipear
+        oldPrice: articulo.precio,
+        newPrice: precioInputActual
       });
       setIsFastUpdateDbModalOpen(true);
     }
@@ -408,14 +408,10 @@ export default function VentasMostradorClient({
     if (!fastUpdateData) return;
     setIsUpdatingDbPrice(true);
     
-    // Llamamos a la misma función del backend que ya usábamos
     const res = await actualizarPrecioArticuloDB(fastUpdateData.id, fastUpdateData.newPrice, vendedorNombre);
     
     if (res.success) {
-      // Actualizamos el estado general de los artículos
       setArticulos(prev => prev.map(a => a.id === fastUpdateData.id ? { ...a, precio: fastUpdateData.newPrice } : a));
-      
-      // Aseguramos que los carritos reflejen el precio y actualicen su subtotal
       setItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice } : i));
       setEditItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice } : i));
       
@@ -530,12 +526,26 @@ export default function VentasMostradorClient({
                             <TableCell className="font-medium text-slate-700 py-3">
                               <div className="flex flex-col gap-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-base">{item.nombre}</span>
+                                  {/* APLICAMOS CLICK AL NOMBRE */}
+                                  <span 
+                                    onClick={() => copiarAlPortapapeles(item.nombre)} 
+                                    className="text-base cursor-pointer hover:text-blue-600 transition-colors" 
+                                    title="Copiar Nombre"
+                                  >
+                                    {item.nombre}
+                                  </span>
                                   <span className={`text-xs font-black px-2 py-1 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                                     Stock: {item.stock}
                                   </span>
                                 </div>
-                                <span className="text-[9px] text-slate-400 font-mono uppercase">{item.id}</span>
+                                {/* APLICAMOS CLICK AL ID */}
+                                <span 
+                                  onClick={() => copiarAlPortapapeles(item.id)} 
+                                  className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 transition-colors w-fit block" 
+                                  title="Copiar ID"
+                                >
+                                  {item.id}
+                                </span>
                               </div>
                             </TableCell>
                             <TableCell className="text-center py-3">
@@ -555,7 +565,6 @@ export default function VentasMostradorClient({
                                 <span className="text-slate-400 text-xs ml-1">$</span>
                                 <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
                                 
-                                {/* NUEVO BOTÓN: Actualización Rápida DB */}
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
@@ -661,8 +670,25 @@ export default function VentasMostradorClient({
                             <div className="flex flex-col gap-1.5 min-w-[250px]">
                               {v.items?.map((item: any) => (
                                 <div key={item.id} className="text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col group relative">
-                                  <div className="flex justify-between items-center gap-3">
-                                    <span onClick={() => copiarAlPortapapeles(item.nombre)} className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 flex-grow pr-2">{item.nombre}</span>
+                                  <div className="flex justify-between items-start gap-3">
+                                    <div className="flex flex-col flex-grow">
+                                      {/* CLICK EN NOMBRE (LISTADO) */}
+                                      <span 
+                                        onClick={() => copiarAlPortapapeles(item.nombre)} 
+                                        className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors block" 
+                                        title="Copiar Nombre"
+                                      >
+                                        {item.nombre}
+                                      </span>
+                                      {/* CLICK EN ID (LISTADO) */}
+                                      <span 
+                                        onClick={() => copiarAlPortapapeles(item.productoId)} 
+                                        className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 mt-0.5 w-fit block transition-colors" 
+                                        title="Copiar ID"
+                                      >
+                                        {item.productoId}
+                                      </span>
+                                    </div>
                                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                                       <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black text-[10px]">x{item.cantidad}</span>
                                       <span className="text-slate-700 font-bold whitespace-nowrap">$ {Number(item.subtotal || 0).toLocaleString('es-AR')}</span>
@@ -999,11 +1025,26 @@ export default function VentasMostradorClient({
                         <TableCell className="font-medium text-slate-700 py-3">
                            <div className="flex flex-col gap-1">
                              <div className="flex items-center gap-2">
-                               <span className="text-sm">{item.nombre}</span>
+                               {/* CLICK EN NOMBRE (MODO EDICIÓN) */}
+                               <span 
+                                 onClick={() => copiarAlPortapapeles(item.nombre)} 
+                                 className="text-sm cursor-pointer hover:text-amber-600 transition-colors"
+                                 title="Copiar Nombre"
+                               >
+                                 {item.nombre}
+                               </span>
                                <span className={`text-xs font-black px-2 py-1 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                                  Stock: {item.stock}
                                </span>
                              </div>
+                             {/* CLICK EN ID (MODO EDICIÓN) */}
+                             <span 
+                               onClick={() => copiarAlPortapapeles(item.id)} 
+                               className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-amber-600 transition-colors w-fit block" 
+                               title="Copiar ID"
+                             >
+                               {item.id}
+                             </span>
                            </div>
                         </TableCell>
                         <TableCell className="text-center">
@@ -1023,7 +1064,6 @@ export default function VentasMostradorClient({
                             <span className="text-slate-400 text-xs ml-1">$</span>
                             <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
                             
-                            {/* NUEVO BOTÓN: Actualización Rápida DB (Modo Edición) */}
                             <Button 
                               variant="ghost" 
                               size="icon" 

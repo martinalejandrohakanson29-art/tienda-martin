@@ -5,11 +5,20 @@ import { prisma } from "@/lib/prisma"
 export async function obtenerTodosLosArticulos() {
   try {
     const articulos = await prisma.articuloMostrador.findMany({
-      orderBy: { nombre: 'asc' }
+      orderBy: { nombre: 'asc' },
+      include: {
+        auditorias: {
+          where: { accion: "MODIFICACION_PRECIO_BASE" },
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        }
+      }
     });
+    
     return articulos.map(art => ({
       ...art,
-      precio: Number(art.precio)
+      precio: Number(art.precio),
+      ultimaModificacion: art.auditorias && art.auditorias.length > 0 ? art.auditorias[0].createdAt.toISOString() : null
     }));
   } catch (error) {
     console.error("Error al obtener artículos:", error);

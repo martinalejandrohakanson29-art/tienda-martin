@@ -34,7 +34,7 @@ interface ItemVenta {
   cantidad: number;
   precio_unit: number;
   subtotal: number;
-  stock: number; // Agregamos la propiedad stock aquí
+  stock: number; 
 }
 
 export default function VentasMostradorClient({ 
@@ -45,6 +45,9 @@ export default function VentasMostradorClient({
   vendedorNombre: string 
 }) {
   // --- ESTADOS GENERALES ---
+  // NUEVO: Estado local para manejar el stock visualmente al instante sin recargar la página
+  const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false); 
   const [successMessage, setSuccessMessage] = useState("");
@@ -70,7 +73,6 @@ export default function VentasMostradorClient({
   const [deCruzada, setDeCruzada] = useState("");
   const [paraCruzada, setParaCruzada] = useState("");
   
-  // Nuevos estados para Meta
   const [email, setEmail] = useState("");
   const [eventoOffline, setEventoOffline] = useState(false);
 
@@ -80,7 +82,6 @@ export default function VentasMostradorClient({
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
   const [historialActual, setHistorialActual] = useState<any[]>([]);
   
-  // Datos temporales de la venta que se está editando
   const [editVentaId, setEditVentaId] = useState("");
   const [editCliente, setEditCliente] = useState("");
   const [editMetodoPago, setEditMetodoPago] = useState("");
@@ -94,7 +95,6 @@ export default function VentasMostradorClient({
   const [editDeCruzada, setEditDeCruzada] = useState("");
   const [editParaCruzada, setEditParaCruzada] = useState("");
   
-  // Nuevos estados para edición de Meta
   const [editEmail, setEditEmail] = useState("");
   const [editEventoOffline, setEditEventoOffline] = useState(false);
   const [ventaOriginalParaComparar, setVentaOriginalParaComparar] = useState<any>(null);
@@ -103,6 +103,11 @@ export default function VentasMostradorClient({
   const [mostrarSoloOffline, setMostrarSoloOffline] = useState(false);
 
   // --- EFECTOS ---
+  // Sincronizar artículos si vienen props nuevas del servidor
+  useEffect(() => {
+    setArticulos(articulosIniciales);
+  }, [articulosIniciales]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen) {
@@ -150,10 +155,11 @@ export default function VentasMostradorClient({
     setShowSuccess(true);
   }
 
+  // NUEVO: Usamos el estado local "articulos" en lugar de articulosIniciales
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
     const queryWords = searchTerm.toLowerCase().trim().split(/\s+/);
-    return articulosIniciales.filter(art => {
+    return articulos.filter(art => {
       const nombreLower = art.nombre.toLowerCase();
       const idLower = art.id.toLowerCase();
       return queryWords.every(word => {
@@ -164,9 +170,8 @@ export default function VentasMostradorClient({
         return nombreLower.includes(word) || idLower.includes(word);
       });
     }).slice(0, 15);
-  }, [searchTerm, articulosIniciales]);
+  }, [searchTerm, articulos]);
 
-  // Lista de ventas filtrada según el interruptor
   const ventasFiltradas = ventasRealizadas.filter(v => 
     mostrarSoloOffline ? v.eventoOffline === true : true
   );
@@ -179,7 +184,6 @@ export default function VentasMostradorClient({
         item.id === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
       ));
     } else {
-      // Pasamos también el stock del producto al crear el item
       setItems([...items, { id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unit: Number(prod.precio), subtotal: Number(prod.precio), stock: prod.stock }]);
     }
     setIsModalOpen(false);
@@ -208,6 +212,16 @@ export default function VentasMostradorClient({
       });
       if (resultado.success) {
         mostrarMensajeExito("¡Venta registrada con éxito!");
+        
+        // --- NUEVO: Actualizamos el stock visual localmente para no hacer recargas ---
+        setArticulos(prev => prev.map(art => {
+          const itemVendido = items.find(i => i.id === art.id);
+          if (itemVendido) {
+            return { ...art, stock: art.stock - itemVendido.cantidad };
+          }
+          return art;
+        }));
+
         resetForm();
         cargarVentas(fechaFiltro);
       } else { alert("Error al guardar: " + resultado.error); }
@@ -247,9 +261,9 @@ export default function VentasMostradorClient({
     setEditEmail(venta.email || "");
     setEditEventoOffline(venta.eventoOffline || false);
     
-    // Mapeamos los items buscando su stock actual en los articulosIniciales
+    // Mapeamos los items buscando su stock actual en el estado local "articulos"
     setEditItems(venta.items.map((i: any) => {
-      const articuloBase = articulosIniciales.find(a => a.id === i.productoId);
+      const articuloBase = articulos.find(a => a.id === i.productoId);
       return {
         id: i.productoId, nombre: i.nombre, cantidad: i.cantidad,
         precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal),
@@ -266,7 +280,6 @@ export default function VentasMostradorClient({
         item.id === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
       ));
     } else {
-      // Pasamos también el stock del producto al agregar en edición
       setEditItems([...editItems, { id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unit: Number(prod.precio), subtotal: Number(prod.precio), stock: prod.stock }]);
     }
     setIsSearchEditModalOpen(false);
@@ -312,6 +325,22 @@ export default function VentasMostradorClient({
       
       if (resultado.success) {
         mostrarMensajeExito("¡Venta modificada con éxito!");
+        
+        // --- NUEVO: Actualizamos el stock localmente tras la edición ---
+        setArticulos(prev => prev.map(art => {
+          let nuevoStock = art.stock;
+          
+          // Sumamos la cantidad de la venta antigua
+          const oldItem = ventaOriginalParaComparar.items.find((i: any) => i.productoId === art.id);
+          if (oldItem) nuevoStock += oldItem.cantidad;
+          
+          // Restamos la cantidad de la venta editada
+          const newItem = editItems.find(i => i.id === art.id);
+          if (newItem) nuevoStock -= newItem.cantidad;
+          
+          return { ...art, stock: nuevoStock };
+        }));
+
         setIsEditMainModalOpen(false);
         cargarVentas(fechaFiltro);
       } else {
@@ -434,10 +463,8 @@ export default function VentasMostradorClient({
                           <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
                             <TableCell className="font-medium text-slate-700 py-3">
                               <div className="flex flex-col gap-1">
-                                {/* AQUÍ AGREGAMOS LA REGLA DE COLORES DE STOCK JUNTO AL NOMBRE */}
                                 <div className="flex items-center gap-2">
                                   <span className="text-base">{item.nombre}</span>
-                                  {/* APLICAMOS TEXT-XS Y PX-2 PY-1 PARA AGRANDARLO */}
                                   <span className={`text-xs font-black px-2 py-1 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                                     Stock: {item.stock}
                                   </span>
@@ -493,7 +520,6 @@ export default function VentasMostradorClient({
                       <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
                     </Button>
                     
-                    {/* --- NUEVO: CHECKBOX DE FILTRO OFFLINE --- */}
                     <div className="flex items-center space-x-2 border-l pl-4 border-slate-200 ml-2 h-10">
                       <input 
                         type="checkbox" 
@@ -539,7 +565,6 @@ export default function VentasMostradorClient({
                         <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
                           <TableCell className="text-xs font-mono text-slate-500 py-4">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
                           
-                          {/* Etiqueta visual para Offline y Email */}
                           <TableCell className="font-medium text-slate-700 py-4">
                             {v.cliente}
                             {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
@@ -589,7 +614,7 @@ export default function VentasMostradorClient({
           </main>
         </TabsContent>
 
-        {/* --- PESTAÑA NUEVA: GESTIÓN Y EDICIÓN --- */}
+        {/* --- PESTAÑA: GESTIÓN Y EDICIÓN --- */}
         <TabsContent value="gestion" className="flex-grow flex flex-col overflow-hidden m-0 select-text">
           <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden">
             <div className="flex items-center justify-between bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-sm flex-shrink-0">
@@ -676,7 +701,6 @@ export default function VentasMostradorClient({
       </Tabs>
 
       {/* --- MODALES COMUNES --- */}
-      {/* Buscador para Nueva Venta */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="p-6 bg-white border-b relative">
@@ -705,7 +729,6 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* Modal Finalizar Nueva Venta */}
       <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
         <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
           <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
@@ -736,7 +759,6 @@ export default function VentasMostradorClient({
               </div>
             )}
             
-            {/* --- NUEVO: CAMPOS PARA META --- */}
             <div className="grid grid-cols-1 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase">Email (Opcional)</Label>
@@ -774,8 +796,6 @@ export default function VentasMostradorClient({
 
 
       {/* --- MODALES NUEVOS: EDICIÓN Y AUDITORÍA --- */}
-      
-      {/* 1. Modal Principal de Edición */}
       <Dialog open={isEditMainModalOpen} onOpenChange={setIsEditMainModalOpen}>
         <DialogContent className="max-w-[1200px] h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-2 border-amber-200 shadow-2xl">
           <DialogHeader className="p-6 bg-amber-50 border-b border-amber-100 flex-shrink-0">
@@ -786,8 +806,6 @@ export default function VentasMostradorClient({
           </DialogHeader>
           
           <div className="flex-grow overflow-y-auto p-6 flex flex-col gap-6 bg-slate-50/50">
-            
-            {/* --- CABECERA EDICIÓN: CAMPOS COMUNES Y CONDICIONALES --- */}
             <section className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-4 shadow-sm">
               <div className="flex gap-4 items-end flex-wrap">
                 <div className="space-y-1.5 flex-grow min-w-[200px]">
@@ -815,7 +833,6 @@ export default function VentasMostradorClient({
                 </div>
               </div>
 
-              {/* CAMPOS CONDICIONALES PARA TARJETA EN EDICIÓN */}
               {(editMetodoPago.includes("Tarjeta")) && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
                   <div className="space-y-2">
@@ -837,7 +854,6 @@ export default function VentasMostradorClient({
                 </div>
               )}
 
-              {/* CAMPOS CONDICIONALES PARA CRUZADA EN EDICIÓN */}
               {editMetodoPago === "Cruzada" && (
                 <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-200 animate-in fade-in">
                   <div className="space-y-2">
@@ -851,13 +867,11 @@ export default function VentasMostradorClient({
                 </div>
               )}
 
-              {/* CAMPO EXTRA INFO */}
               <div className="space-y-1.5 w-full">
                 <Label className="text-[10px] font-bold text-slate-400 uppercase">Información Extra / Notas</Label>
                 <Input value={editInfo} onChange={(e) => setEditInfo(e.target.value)} className="bg-slate-50" placeholder="Agregar alguna nota sobre esta venta o edición..." />
               </div>
 
-              {/* --- NUEVO: CAMPOS PARA META EN EDICIÓN --- */}
               <div className="flex flex-col md:flex-row gap-4 items-center w-full bg-slate-100/50 p-3 rounded-xl border border-slate-200 mt-2">
                 <div className="space-y-1.5 flex-grow w-full md:w-auto">
                   <Label className="text-[10px] font-bold text-slate-500 uppercase">Email (Opcional)</Label>
@@ -878,7 +892,6 @@ export default function VentasMostradorClient({
               </div>
             </section>
 
-            {/* --- ARTÍCULOS EDICIÓN --- */}
             <section className="flex-grow flex flex-col gap-3 min-h-[300px]">
               <Button onClick={() => setIsSearchEditModalOpen(true)} className="bg-amber-500 hover:bg-amber-600 text-white gap-2 px-6 rounded-xl w-fit">
                 <Plus className="h-4 w-4" /> Añadir Artículo a esta Venta
@@ -898,11 +911,9 @@ export default function VentasMostradorClient({
                     {editItems.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium text-slate-700 py-3">
-                           {/* AGREGAMOS LA REGLA DE COLORES DE STOCK EN LA EDICIÓN TAMBIÉN */}
                            <div className="flex flex-col gap-1">
                              <div className="flex items-center gap-2">
                                <span className="text-sm">{item.nombre}</span>
-                               {/* APLICAMOS TEXT-XS Y PX-2 PY-1 PARA AGRANDARLO */}
                                <span className={`text-xs font-black px-2 py-1 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                                  Stock: {item.stock}
                                </span>
@@ -936,7 +947,6 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* 2. Buscador exclusivo para el modo edición */}
       <Dialog open={isSearchEditModalOpen} onOpenChange={setIsSearchEditModalOpen}>
         <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-2 border-amber-400 shadow-2xl">
           <div className="p-6 bg-amber-50 border-b border-amber-200">
@@ -965,7 +975,6 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* 3. Modal Historial de Auditoría */}
       <Dialog open={isHistorialModalOpen} onOpenChange={setIsHistorialModalOpen}>
         <DialogContent className="sm:max-w-[600px] rounded-3xl p-6">
           <DialogHeader>

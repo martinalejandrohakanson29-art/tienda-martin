@@ -107,6 +107,10 @@ export default function VentasMostradorClient({
   const [newDbPrice, setNewDbPrice] = useState<number>(0);
   const [isUpdatingDbPrice, setIsUpdatingDbPrice] = useState(false);
 
+  // --- NUEVOS ESTADOS PARA ACTUALIZACIÓN RÁPIDA DE PRECIO ---
+  const [isFastUpdateDbModalOpen, setIsFastUpdateDbModalOpen] = useState(false);
+  const [fastUpdateData, setFastUpdateData] = useState<{id: string, nombre: string, oldPrice: number, newPrice: number} | null>(null);
+
   // --- EFECTOS ---
   useEffect(() => {
     setArticulos(articulosIniciales);
@@ -114,18 +118,18 @@ export default function VentasMostradorClient({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen) {
+      if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen && !isFastUpdateDbModalOpen) {
         e.preventDefault();
         setIsModalOpen(true);
       }
-      if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen) {
+      if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen && !isFastUpdateDbModalOpen) {
         e.preventDefault();
         setIsSearchEditModalOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isModalOpen, isEditMainModalOpen, isSearchEditModalOpen, isPriceDbModalOpen]);
+  }, [isModalOpen, isEditMainModalOpen, isSearchEditModalOpen, isPriceDbModalOpen, isFastUpdateDbModalOpen]);
 
   useEffect(() => {
     if (showSuccess) {
@@ -355,7 +359,7 @@ export default function VentasMostradorClient({
     }
   };
 
-  // --- FUNCIONES: MODIFICAR PRECIO EN BASE DE DATOS ---
+  // --- FUNCIONES: MODIFICAR PRECIO EN BASE DE DATOS (MODAL CLÁSICO) ---
 
   const abrirModalPrecioDB = (idArticulo: string, precioInputActual: number) => {
     const articulo = articulos.find(a => a.id === idArticulo);
@@ -379,6 +383,44 @@ export default function VentasMostradorClient({
       
       mostrarMensajeExito("¡Precio base guardado en la Base de Datos!");
       setIsPriceDbModalOpen(false);
+    } else {
+      alert("No se pudo guardar el precio: " + res.error);
+    }
+    
+    setIsUpdatingDbPrice(false);
+  };
+
+  // --- NUEVAS FUNCIONES: ACTUALIZACIÓN RÁPIDA DE PRECIO (BOTÓN DERECHO) ---
+  const abrirModalFastUpdate = (idArticulo: string, precioInputActual: number) => {
+    const articulo = articulos.find(a => a.id === idArticulo);
+    if (articulo) {
+      setFastUpdateData({
+        id: articulo.id,
+        nombre: articulo.nombre,
+        oldPrice: articulo.precio, // El precio que actualmente está en la DB
+        newPrice: precioInputActual // El precio que acabamos de tipear
+      });
+      setIsFastUpdateDbModalOpen(true);
+    }
+  };
+
+  const handleFastUpdateDbPrice = async () => {
+    if (!fastUpdateData) return;
+    setIsUpdatingDbPrice(true);
+    
+    // Llamamos a la misma función del backend que ya usábamos
+    const res = await actualizarPrecioArticuloDB(fastUpdateData.id, fastUpdateData.newPrice, vendedorNombre);
+    
+    if (res.success) {
+      // Actualizamos el estado general de los artículos
+      setArticulos(prev => prev.map(a => a.id === fastUpdateData.id ? { ...a, precio: fastUpdateData.newPrice } : a));
+      
+      // Aseguramos que los carritos reflejen el precio y actualicen su subtotal
+      setItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice } : i));
+      setEditItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice } : i));
+      
+      mostrarMensajeExito("¡Precio actualizado en la Base de Datos con éxito!");
+      setIsFastUpdateDbModalOpen(false);
     } else {
       alert("No se pudo guardar el precio: " + res.error);
     }
@@ -474,7 +516,7 @@ export default function VentasMostradorClient({
                       <TableRow>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Artículo</TableHead>
                         <TableHead className="text-center text-[10px] font-bold uppercase py-3">Cant.</TableHead>
-                        <TableHead className="text-right text-[10px] font-bold uppercase py-3">Precio Unit.</TableHead>
+                        <TableHead className="text-center text-[10px] font-bold uppercase py-3">Precio Unit.</TableHead>
                         <TableHead className="text-right text-[10px] font-bold uppercase py-3">Subtotal</TableHead>
                         <TableHead className="w-16"></TableHead>
                       </TableRow>
@@ -499,12 +541,12 @@ export default function VentasMostradorClient({
                             <TableCell className="text-center py-3">
                               <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                             </TableCell>
-                            <TableCell className="text-right py-3">
-                              <div className="flex items-center justify-end gap-1">
+                            <TableCell className="text-center py-3">
+                              <div className="flex items-center justify-center gap-1">
                                 <Button 
                                   variant="ghost" 
                                   size="icon" 
-                                  className="h-7 w-7 text-slate-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" 
+                                  className="h-7 w-7 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" 
                                   title="Editar precio base en el sistema" 
                                   onClick={() => abrirModalPrecioDB(item.id, item.precio_unit)}
                                 >
@@ -512,6 +554,17 @@ export default function VentasMostradorClient({
                                 </Button>
                                 <span className="text-slate-400 text-xs ml-1">$</span>
                                 <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                                
+                                {/* NUEVO BOTÓN: Actualización Rápida DB */}
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-7 w-7 text-slate-300 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
+                                  title="Guardar este precio en la Base de Datos" 
+                                  onClick={() => abrirModalFastUpdate(item.id, item.precio_unit)}
+                                >
+                                  <Save className="h-4 w-4" />
+                                </Button>
                               </div>
                             </TableCell>
                             <TableCell className="text-right py-3 font-bold text-slate-700">
@@ -935,7 +988,7 @@ export default function VentasMostradorClient({
                     <TableRow>
                       <TableHead>Artículo</TableHead>
                       <TableHead className="text-center">Cant.</TableHead>
-                      <TableHead className="text-right">Precio Unit.</TableHead>
+                      <TableHead className="text-center">Precio Unit.</TableHead>
                       <TableHead className="text-right">Subtotal</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
@@ -956,12 +1009,12 @@ export default function VentasMostradorClient({
                         <TableCell className="text-center">
                           <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="h-7 w-7 text-slate-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" 
+                              className="h-7 w-7 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" 
                               title="Editar precio base en el sistema" 
                               onClick={() => abrirModalPrecioDB(item.id, item.precio_unit)}
                             >
@@ -969,6 +1022,17 @@ export default function VentasMostradorClient({
                             </Button>
                             <span className="text-slate-400 text-xs ml-1">$</span>
                             <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                            
+                            {/* NUEVO BOTÓN: Actualización Rápida DB (Modo Edición) */}
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-slate-300 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
+                              title="Guardar este precio en la Base de Datos" 
+                              onClick={() => abrirModalFastUpdate(item.id, item.precio_unit)}
+                            >
+                              <Save className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-bold text-slate-700">
@@ -1049,7 +1113,7 @@ export default function VentasMostradorClient({
         </DialogContent>
       </Dialog>
 
-      {/* --- NUEVO MODAL: EDICIÓN DE PRECIO BASE EN DB --- */}
+      {/* --- MODAL CLÁSICO: EDICIÓN DE PRECIO BASE EN DB --- */}
       <Dialog open={isPriceDbModalOpen} onOpenChange={setIsPriceDbModalOpen}>
         <DialogContent className="sm:max-w-[400px] rounded-3xl p-6 border-2 border-indigo-400 shadow-2xl">
           <DialogHeader>
@@ -1066,8 +1130,6 @@ export default function VentasMostradorClient({
               <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider mb-1">Artículo Seleccionado</p>
               <p className="text-sm font-bold text-slate-900">{priceDbItem?.nombre}</p>
               <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {priceDbItem?.id}</p>
-              
-              {/* AQUÍ ESTÁ EL CAMBIO SOLICITADO */}
               <p className="text-sm font-bold text-slate-900 mt-2">Precio Viejo: ${priceDbItem?.precio.toLocaleString('es-AR')}</p>
             </div>
             
@@ -1087,6 +1149,50 @@ export default function VentasMostradorClient({
             <Button variant="ghost" onClick={() => setIsPriceDbModalOpen(false)} className="text-slate-500">Cancelar</Button>
             <Button onClick={handleUpdateDbPrice} disabled={isUpdatingDbPrice} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold px-6 shadow-md">
               {isUpdatingDbPrice ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar en Sistema"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- NUEVO MODAL: ACTUALIZACIÓN RÁPIDA DE PRECIO DESDE EL INPUT --- */}
+      <Dialog open={isFastUpdateDbModalOpen} onOpenChange={setIsFastUpdateDbModalOpen}>
+        <DialogContent className="sm:max-w-[420px] rounded-3xl p-6 border-2 border-green-400 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-green-900">
+              <Save className="h-5 w-5 text-green-600" /> Confirmar Cambio de Precio
+            </DialogTitle>
+            <DialogDescription className="text-slate-600">
+              ¿Estás seguro que deseas actualizar el precio de este artículo en la <b>Base de Datos</b> de forma definitiva?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            <div className="p-4 bg-green-50/50 rounded-xl border border-green-100 flex flex-col items-center text-center">
+              <p className="text-sm font-bold text-slate-900 mb-4">{fastUpdateData?.nombre}</p>
+              
+              <div className="flex items-center justify-center gap-6 w-full">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase mb-1">Anterior DB</span>
+                  <span className="text-lg font-medium text-slate-500 line-through">${fastUpdateData?.oldPrice.toLocaleString('es-AR')}</span>
+                </div>
+                
+                <div className="bg-green-200 text-green-800 p-1.5 rounded-full">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-green-700 font-bold uppercase mb-1">Nuevo DB</span>
+                  <span className="text-2xl font-black text-green-700">${fastUpdateData?.newPrice.toLocaleString('es-AR')}</span>
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-center text-slate-400 px-4">Esta acción registrará el cambio de precio en la auditoría del sistema.</p>
+          </div>
+
+          <DialogFooter className="gap-3 mt-2">
+            <Button variant="ghost" onClick={() => setIsFastUpdateDbModalOpen(false)} className="text-slate-500">Cancelar</Button>
+            <Button onClick={handleFastUpdateDbPrice} disabled={isUpdatingDbPrice} className="bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold px-8 shadow-md">
+              {isUpdatingDbPrice ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sí, Actualizar"}
             </Button>
           </DialogFooter>
         </DialogContent>

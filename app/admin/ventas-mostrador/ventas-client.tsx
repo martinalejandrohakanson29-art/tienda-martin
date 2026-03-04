@@ -1063,7 +1063,7 @@ export default function VentasMostradorClient({
               <Database className="h-5 w-5 text-indigo-600" /> Modificar Precio Base
             </DialogTitle>
             <DialogDescription className="text-slate-600">
-              Cambiarás el precio del artículo en la <b>Base de Datos</b> para futuras ventas. Se dejará registro de este cambio.
+              Modificar stock en la <b>Base de Datos</b> este cambio deja registros.
             </DialogDescription>
           </DialogHeader>
           

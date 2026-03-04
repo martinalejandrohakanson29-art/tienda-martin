@@ -88,54 +88,85 @@ export async function crearVentaMostrador(data: {
   eventoOffline?: boolean
 }) {
   try {
-    const venta = await prisma.venta.create({
-      data: {
-        cliente: data.cliente,
-        vendedor: data.vendedor,
-        total: data.total,
-        interes: data.interes,
-        totalFinal: data.totalFinal,
-        metodo_pago: data.metodo_pago,
-        dni: data.dni,
-        telefono: data.telefono,
-        info: data.info,
-        cupon: data.cupon,
-        transaccionId: data.transaccionId,
-        de: data.de,
-        para: data.para,
-        email: data.email,
-        eventoOffline: data.eventoOffline ?? false,
-        items: {
-          create: data.items.map(item => ({
-            productoId: item.id, 
-            nombre: item.nombre,
-            cantidad: item.cantidad,
-            precio_unit: item.precio_unit,
-            subtotal: item.subtotal
-          }))
+    // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
+    const result = await prisma.$transaction(async (tx) => {
+      const venta = await tx.venta.create({
+        data: {
+          cliente: data.cliente,
+          vendedor: data.vendedor,
+          total: data.total,
+          interes: data.interes,
+          totalFinal: data.totalFinal,
+          metodo_pago: data.metodo_pago,
+          dni: data.dni,
+          telefono: data.telefono,
+          info: data.info,
+          cupon: data.cupon,
+          transaccionId: data.transaccionId,
+          de: data.de,
+          para: data.para,
+          email: data.email,
+          eventoOffline: data.eventoOffline ?? false,
+          items: {
+            create: data.items.map(item => ({
+              productoId: item.id, 
+              nombre: item.nombre,
+              cantidad: item.cantidad,
+              precio_unit: item.precio_unit,
+              subtotal: item.subtotal
+            }))
+          }
         }
+      });
+
+      // --- NUEVO: Descontar stock de los artículos vendidos ---
+      for (const item of data.items) {
+        await tx.articuloMostrador.updateMany({
+          where: { id: item.id },
+          data: {
+            stock: {
+              decrement: item.cantidad
+            }
+          }
+        });
       }
+
+      return venta;
     });
 
-    return { success: true, id: venta.id };
+    return { success: true, id: result.id };
   } catch (error) {
     console.error("Error al crear venta:", error);
     return { success: false, error: "No se pudo guardar la venta" };
   }
 }
 
-// --- NUEVAS FUNCIONES PARA EDICIÓN Y AUDITORÍA ---
+// --- FUNCIONES PARA EDICIÓN Y AUDITORÍA ---
 
 export async function actualizarVentaMostrador(ventaId: string, data: any, usuario: string, detalleCambios: string) {
   try {
-    // Usamos una transacción para asegurar que si algo falla, no se guarde a medias
     await prisma.$transaction(async (tx) => {
-      // 1. Borramos los items actuales para reemplazarlos limpios por los nuevos
+      // --- NUEVO: 1. Obtener los items actuales para revertir el stock ---
+      const oldItems = await tx.ventaItem.findMany({
+        where: { ventaId: ventaId }
+      });
+
+      // Revertir el stock (sumar lo que se había restado originalmente)
+      for (const oldItem of oldItems) {
+        if (oldItem.productoId) {
+          await tx.articuloMostrador.updateMany({
+            where: { id: oldItem.productoId },
+            data: { stock: { increment: oldItem.cantidad } }
+          });
+        }
+      }
+
+      // 2. Borramos los items actuales para reemplazarlos limpios por los nuevos
       await tx.ventaItem.deleteMany({
         where: { ventaId: ventaId }
       });
 
-      // 2. Actualizamos la venta y creamos los nuevos items
+      // 3. Actualizamos la venta y creamos los nuevos items
       await tx.venta.update({
         where: { id: ventaId },
         data: {
@@ -165,7 +196,15 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
         }
       });
 
-      // 3. Dejamos el registro de qué se cambió
+      // --- NUEVO: 4. Descontar el stock de los nuevos items ---
+      for (const newItem of data.items) {
+        await tx.articuloMostrador.updateMany({
+          where: { id: newItem.id },
+          data: { stock: { decrement: newItem.cantidad } }
+        });
+      }
+
+      // 5. Dejamos el registro de qué se cambió
       await tx.ventaAuditoria.create({
         data: {
           ventaId: ventaId,

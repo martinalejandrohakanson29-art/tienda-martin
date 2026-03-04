@@ -234,3 +234,45 @@ export async function obtenerHistorialVenta(ventaId: string) {
     return { success: false, error: "No se pudo cargar el historial" };
   }
 }
+
+// --- NUEVO: ACTUALIZAR PRECIO BASE DEL ARTÍCULO ---
+
+export async function actualizarPrecioArticuloDB(articuloId: string, nuevoPrecio: number, usuario: string) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // 1. Buscamos el artículo para saber el precio anterior
+      const articulo = await tx.articuloMostrador.findUnique({
+        where: { id: articuloId }
+      });
+
+      if (!articulo) {
+        throw new Error("El artículo no existe en la base de datos.");
+      }
+
+      const precioAnterior = Number(articulo.precio);
+
+      // 2. Modificamos el precio
+      await tx.articuloMostrador.update({
+        where: { id: articuloId },
+        data: {
+          precio: nuevoPrecio
+        }
+      });
+
+      // 3. Dejamos registro en la tabla de auditoría del artículo
+      await tx.articuloAuditoria.create({
+        data: {
+          articuloId: articuloId,
+          usuario: usuario,
+          accion: "MODIFICACION_PRECIO_BASE",
+          detalle: `Se cambió el precio de $${precioAnterior.toLocaleString('es-AR')} a $${nuevoPrecio.toLocaleString('es-AR')}`
+        }
+      });
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al actualizar precio base:", error);
+    return { success: false, error: error.message || "Error al conectar con la base de datos" };
+  }
+}

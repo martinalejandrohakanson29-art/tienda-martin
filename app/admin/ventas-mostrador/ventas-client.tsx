@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle,
-  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save
+  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   crearVentaMostrador, obtenerVentasPorFecha, marcarVentaComoRegistrada,
-  actualizarVentaMostrador, obtenerHistorialVenta 
+  actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB
 } from "@/app/actions/ventas-mostrador";
 
 interface Articulo {
@@ -45,7 +45,6 @@ export default function VentasMostradorClient({
   vendedorNombre: string 
 }) {
   // --- ESTADOS GENERALES ---
-  // NUEVO: Estado local para manejar el stock visualmente al instante sin recargar la página
   const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -102,26 +101,31 @@ export default function VentasMostradorClient({
   // --- ESTADO PARA FILTRO OFFLINE ---
   const [mostrarSoloOffline, setMostrarSoloOffline] = useState(false);
 
+  // --- NUEVO: ESTADOS PARA EDICIÓN DE PRECIO EN BASE DE DATOS ---
+  const [isPriceDbModalOpen, setIsPriceDbModalOpen] = useState(false);
+  const [priceDbItem, setPriceDbItem] = useState<Articulo | null>(null);
+  const [newDbPrice, setNewDbPrice] = useState<number>(0);
+  const [isUpdatingDbPrice, setIsUpdatingDbPrice] = useState(false);
+
   // --- EFECTOS ---
-  // Sincronizar artículos si vienen props nuevas del servidor
   useEffect(() => {
     setArticulos(articulosIniciales);
   }, [articulosIniciales]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen) {
+      if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen) {
         e.preventDefault();
         setIsModalOpen(true);
       }
-      if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen) {
+      if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen) {
         e.preventDefault();
         setIsSearchEditModalOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isModalOpen, isEditMainModalOpen, isSearchEditModalOpen]);
+  }, [isModalOpen, isEditMainModalOpen, isSearchEditModalOpen, isPriceDbModalOpen]);
 
   useEffect(() => {
     if (showSuccess) {
@@ -155,7 +159,6 @@ export default function VentasMostradorClient({
     setShowSuccess(true);
   }
 
-  // NUEVO: Usamos el estado local "articulos" en lugar de articulosIniciales
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
     const queryWords = searchTerm.toLowerCase().trim().split(/\s+/);
@@ -212,8 +215,6 @@ export default function VentasMostradorClient({
       });
       if (resultado.success) {
         mostrarMensajeExito("¡Venta registrada con éxito!");
-        
-        // --- NUEVO: Actualizamos el stock visual localmente para no hacer recargas ---
         setArticulos(prev => prev.map(art => {
           const itemVendido = items.find(i => i.id === art.id);
           if (itemVendido) {
@@ -261,7 +262,6 @@ export default function VentasMostradorClient({
     setEditEmail(venta.email || "");
     setEditEventoOffline(venta.eventoOffline || false);
     
-    // Mapeamos los items buscando su stock actual en el estado local "articulos"
     setEditItems(venta.items.map((i: any) => {
       const articuloBase = articulos.find(a => a.id === i.productoId);
       return {
@@ -325,19 +325,12 @@ export default function VentasMostradorClient({
       
       if (resultado.success) {
         mostrarMensajeExito("¡Venta modificada con éxito!");
-        
-        // --- NUEVO: Actualizamos el stock localmente tras la edición ---
         setArticulos(prev => prev.map(art => {
           let nuevoStock = art.stock;
-          
-          // Sumamos la cantidad de la venta antigua
           const oldItem = ventaOriginalParaComparar.items.find((i: any) => i.productoId === art.id);
           if (oldItem) nuevoStock += oldItem.cantidad;
-          
-          // Restamos la cantidad de la venta editada
           const newItem = editItems.find(i => i.id === art.id);
           if (newItem) nuevoStock -= newItem.cantidad;
-          
           return { ...art, stock: nuevoStock };
         }));
 
@@ -360,6 +353,43 @@ export default function VentasMostradorClient({
     if (res.success && res.data) {
       setHistorialActual(res.data);
     }
+  };
+
+  // --- NUEVAS FUNCIONES: MODIFICAR PRECIO EN BASE DE DATOS ---
+
+  const abrirModalPrecioDB = (idArticulo: string, precioInputActual: number) => {
+    const articulo = articulos.find(a => a.id === idArticulo);
+    if (articulo) {
+      setPriceDbItem(articulo);
+      // Sugerimos por defecto el precio que ya haya escrito en el input (o el actual si no modificó nada)
+      setNewDbPrice(precioInputActual); 
+      setIsPriceDbModalOpen(true);
+    }
+  };
+
+  const handleUpdateDbPrice = async () => {
+    if (!priceDbItem) return;
+    setIsUpdatingDbPrice(true);
+    
+    const res = await actualizarPrecioArticuloDB(priceDbItem.id, newDbPrice, vendedorNombre);
+    
+    if (res.success) {
+      // 1. Actualizamos el catálogo principal en memoria
+      setArticulos(prev => prev.map(a => a.id === priceDbItem.id ? { ...a, precio: newDbPrice } : a));
+      
+      // 2. Si el artículo está en el carrito actual de nueva venta, le actualizamos el precio
+      setItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice } : i));
+      
+      // 3. Si el artículo está en el carrito de edición, también
+      setEditItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice } : i));
+      
+      mostrarMensajeExito("¡Precio base guardado en la Base de Datos!");
+      setIsPriceDbModalOpen(false);
+    } else {
+      alert("No se pudo guardar el precio: " + res.error);
+    }
+    
+    setIsUpdatingDbPrice(false);
   };
 
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -476,8 +506,17 @@ export default function VentasMostradorClient({
                               <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                             </TableCell>
                             <TableCell className="text-right py-3">
-                              <div className="flex items-center justify-end gap-2">
-                                <span className="text-slate-400 text-xs">$</span>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-7 w-7 text-slate-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" 
+                                  title="Editar precio base en el sistema" 
+                                  onClick={() => abrirModalPrecioDB(item.id, item.precio_unit)}
+                                >
+                                  <Database className="h-4 w-4" />
+                                </Button>
+                                <span className="text-slate-400 text-xs ml-1">$</span>
                                 <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
                               </div>
                             </TableCell>
@@ -795,7 +834,7 @@ export default function VentasMostradorClient({
       </Dialog>
 
 
-      {/* --- MODALES NUEVOS: EDICIÓN Y AUDITORÍA --- */}
+      {/* --- MODALES DE EDICIÓN Y AUDITORÍA --- */}
       <Dialog open={isEditMainModalOpen} onOpenChange={setIsEditMainModalOpen}>
         <DialogContent className="max-w-[1200px] h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-2 border-amber-200 shadow-2xl">
           <DialogHeader className="p-6 bg-amber-50 border-b border-amber-100 flex-shrink-0">
@@ -862,7 +901,7 @@ export default function VentasMostradorClient({
                   </div>
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-amber-800">Para <span className="text-red-500">*</span></Label>
-                    <Input value={editParaCruzada} onChange={(e) => setEditParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" />
+                    <Input value={editParaCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" />
                   </div>
                 </div>
               )}
@@ -924,7 +963,19 @@ export default function VentasMostradorClient({
                           <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2"><span className="text-slate-400 text-xs">$</span><Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} /></div>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-slate-300 hover:text-amber-600 hover:bg-amber-50 rounded-lg" 
+                              title="Editar precio base en el sistema" 
+                              onClick={() => abrirModalPrecioDB(item.id, item.precio_unit)}
+                            >
+                              <Database className="h-4 w-4" />
+                            </Button>
+                            <span className="text-slate-400 text-xs ml-1">$</span>
+                            <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                          </div>
                         </TableCell>
                         <TableCell className="text-right font-bold text-slate-700">
                           $ {item.subtotal.toLocaleString('es-AR')}
@@ -1001,6 +1052,47 @@ export default function VentasMostradorClient({
             )}
           </div>
           <DialogFooter><Button onClick={() => setIsHistorialModalOpen(false)}>Cerrar</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- NUEVO MODAL: EDICIÓN DE PRECIO BASE EN DB --- */}
+      <Dialog open={isPriceDbModalOpen} onOpenChange={setIsPriceDbModalOpen}>
+        <DialogContent className="sm:max-w-[400px] rounded-3xl p-6 border-2 border-indigo-400 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-indigo-900">
+              <Database className="h-5 w-5 text-indigo-600" /> Modificar Precio Base
+            </DialogTitle>
+            <DialogDescription className="text-slate-600">
+              Cambiarás el precio del artículo en la <b>Base de Datos</b> para futuras ventas. Se dejará registro de este cambio.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-5">
+            <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+              <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider mb-1">Artículo Seleccionado</p>
+              <p className="text-sm font-bold text-slate-900">{priceDbItem?.nombre}</p>
+              <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {priceDbItem?.id}</p>
+              <p className="text-[10px] text-slate-500 font-mono mt-0.5">Precio Viejo: ${priceDbItem?.precio.toLocaleString('es-AR')}</p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-600 uppercase">Nuevo Precio Base ($)</Label>
+              <Input 
+                type="number" 
+                autoFocus
+                value={newDbPrice} 
+                onChange={(e) => setNewDbPrice(Number(e.target.value))} 
+                className="font-black text-xl h-12 border-indigo-200 focus-visible:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-3 mt-2">
+            <Button variant="ghost" onClick={() => setIsPriceDbModalOpen(false)} className="text-slate-500">Cancelar</Button>
+            <Button onClick={handleUpdateDbPrice} disabled={isUpdatingDbPrice} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold px-6 shadow-md">
+              {isUpdatingDbPrice ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar en Sistema"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

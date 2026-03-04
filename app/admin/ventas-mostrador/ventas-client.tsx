@@ -1320,11 +1320,7 @@ function TicketImpresion({ items, total }: { items: ItemVenta[], total: number }
         `}
       </style>
 
-      {/* Cabecera Genérica Hardcodeada */}
-      <div className="text-center mb-2">
-        <h1 className="text-lg font-bold leading-none mb-1">LA DESPENSA</h1>
-        <p className="text-[10px] leading-none">AV. COLÓN 123 - CORDOBA</p>
-      </div>
+    
 
       <p className="text-center text-xs mb-1">--------------------------------</p>
 
@@ -1367,11 +1363,7 @@ function TicketImpresion({ items, total }: { items: ItemVenta[], total: number }
 
       <p className="text-center text-xs mb-2">--------------------------------</p>
 
-      {/* Pie de Ticket Genérico */}
-      <div className="text-center text-[10px] mt-2 mb-8 leading-tight">
-        <p>GRACIAS POR SU VISITA!</p>
-        <p>VOLVE PRONTO</p>
-      </div>
+     
     </div>
   );
 }

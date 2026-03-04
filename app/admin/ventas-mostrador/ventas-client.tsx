@@ -1333,8 +1333,8 @@ function TicketImpresion({
 
   return (
     // Se oculta en pantalla (hidden) y se activa en modo impresión (print:flex).
-    // Usamos uppercase y font-mono para imitar la térmica.
-   <div className="hidden print:flex flex-col w-[48mm] mx-auto font-mono text-black bg-white text-[10px] uppercase leading-tight" style={{ margin: 0, padding: 0 }}>
+    // Ancho 48mm centrado, fuente bajada a text-[9px] para que rinda el espacio
+    <div className="hidden print:flex flex-col w-[48mm] mx-auto font-mono text-black bg-white text-[9px] uppercase leading-tight" style={{ margin: 0, padding: 0 }}>
       {/* Estilos específicos para impresoras de ticket */}
       <style type="text/css" media="print">
         {`
@@ -1369,19 +1369,22 @@ function TicketImpresion({
 
       {/* --- 2. INFORMACIÓN DEL CLIENTE --- */}
       <div className="text-left w-full mb-2">
-        <p className="font-bold text-[11px]">{clienteFinalStr}</p>
+        <p className="font-bold text-[10px]">{clienteFinalStr}</p>
         <p>CORDOBA</p>
         <p>{metodoPago.toUpperCase()}</p>
       </div>
 
       {/* --- 3. CUERPO DE LA VENTA --- */}
       <div className="w-full border-t border-print-black border-black my-1"></div>
-      <table className="w-full text-[10px] leading-tight text-left border-collapse table-fixed">
-      <thead>
+      
+      {/* TABLA MODIFICADA: 
+        Quitamos el UNIT para dar más aire a la DESCRIPCIÓN y al TOTAL. 
+      */}
+      <table className="w-full text-[9px] leading-tight text-left border-collapse table-fixed">
+        <thead>
           <tr>
-            <th className="font-normal w-[12%] pb-1 pt-1 align-bottom">CANT.</th>
-            <th className="font-normal w-[43%] pb-1 pt-1 align-bottom">DESC.</th>
-            <th className="font-normal w-[20%] pb-1 pt-1 text-right align-bottom">UNIT</th>
+            <th className="font-normal w-[12%] pb-1 pt-1 align-bottom">CANT</th>
+            <th className="font-normal w-[63%] pb-1 pt-1 align-bottom">DESC.</th>
             <th className="font-normal w-[25%] pb-1 pt-1 text-right align-bottom">TOTAL</th>
           </tr>
         </thead>
@@ -1391,12 +1394,12 @@ function TicketImpresion({
               <td className="pt-0.5">{item.cantidad}</td>
               {/* break-words permite el salto de línea manteniendo la alineación en su columna */}
               <td className="pt-0.5 pr-1 break-words whitespace-normal">{item.nombre}</td>
-              <td className="pt-0.5 text-right">{formatPrecio(item.precio_unit)}</td>
               <td className="pt-0.5 text-right">{formatPrecio(item.subtotal)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      
       <div className="w-full border-t border-print-black border-black my-1 mt-2"></div>
 
       {/* --- 4. PIE DE PÁGINA Y TOTALES --- */}
@@ -1405,7 +1408,7 @@ function TicketImpresion({
         <span>{formatPrecio(total)}</span>
       </div>
       
-      <div className="flex justify-between items-center w-full font-bold text-[11px] mb-2">
+      <div className="flex justify-between items-center w-full font-bold text-[10px] mb-2">
         <span>TOTAL:</span>
         <span>{formatPrecio(total)}</span>
       </div>

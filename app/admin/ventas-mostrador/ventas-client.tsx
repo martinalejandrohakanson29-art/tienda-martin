@@ -1334,7 +1334,7 @@ function TicketImpresion({
   return (
     // Se oculta en pantalla (hidden) y se activa en modo impresión (print:flex).
     // Usamos uppercase y font-mono para imitar la térmica.
-    <div className="hidden print:flex flex-col w-[58mm] font-mono text-black bg-white text-[10px] uppercase leading-tight" style={{ margin: 0, padding: 0 }}>
+   <div className="hidden print:flex flex-col w-[48mm] mx-auto font-mono text-black bg-white text-[10px] uppercase leading-tight" style={{ margin: 0, padding: 0 }}>
       {/* Estilos específicos para impresoras de ticket */}
       <style type="text/css" media="print">
         {`
@@ -1377,12 +1377,12 @@ function TicketImpresion({
       {/* --- 3. CUERPO DE LA VENTA --- */}
       <div className="w-full border-t border-print-black border-black my-1"></div>
       <table className="w-full text-[10px] leading-tight text-left border-collapse table-fixed">
-        <thead>
+      <thead>
           <tr>
-            <th className="font-normal w-[15%] pb-1 pt-1 align-bottom">CANT.</th>
-            <th className="font-normal w-[45%] pb-1 pt-1 align-bottom">DESC.</th>
-            <th className="font-normal w-[18%] pb-1 pt-1 text-right align-bottom">UNIT</th>
-            <th className="font-normal w-[22%] pb-1 pt-1 text-right align-bottom">IMP. TOTAL</th>
+            <th className="font-normal w-[12%] pb-1 pt-1 align-bottom">CANT.</th>
+            <th className="font-normal w-[43%] pb-1 pt-1 align-bottom">DESC.</th>
+            <th className="font-normal w-[20%] pb-1 pt-1 text-right align-bottom">UNIT</th>
+            <th className="font-normal w-[25%] pb-1 pt-1 text-right align-bottom">TOTAL</th>
           </tr>
         </thead>
         <tbody className="before:content-[''] before:block before:h-1">

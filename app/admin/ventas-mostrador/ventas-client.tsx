@@ -101,7 +101,7 @@ export default function VentasMostradorClient({
   // --- ESTADO PARA FILTRO OFFLINE ---
   const [mostrarSoloOffline, setMostrarSoloOffline] = useState(false);
 
-  // --- NUEVO: ESTADOS PARA EDICIÓN DE PRECIO EN BASE DE DATOS ---
+  // --- ESTADOS PARA EDICIÓN DE PRECIO EN BASE DE DATOS ---
   const [isPriceDbModalOpen, setIsPriceDbModalOpen] = useState(false);
   const [priceDbItem, setPriceDbItem] = useState<Articulo | null>(null);
   const [newDbPrice, setNewDbPrice] = useState<number>(0);
@@ -355,13 +355,12 @@ export default function VentasMostradorClient({
     }
   };
 
-  // --- NUEVAS FUNCIONES: MODIFICAR PRECIO EN BASE DE DATOS ---
+  // --- FUNCIONES: MODIFICAR PRECIO EN BASE DE DATOS ---
 
   const abrirModalPrecioDB = (idArticulo: string, precioInputActual: number) => {
     const articulo = articulos.find(a => a.id === idArticulo);
     if (articulo) {
       setPriceDbItem(articulo);
-      // Sugerimos por defecto el precio que ya haya escrito en el input (o el actual si no modificó nada)
       setNewDbPrice(precioInputActual); 
       setIsPriceDbModalOpen(true);
     }
@@ -374,13 +373,8 @@ export default function VentasMostradorClient({
     const res = await actualizarPrecioArticuloDB(priceDbItem.id, newDbPrice, vendedorNombre);
     
     if (res.success) {
-      // 1. Actualizamos el catálogo principal en memoria
       setArticulos(prev => prev.map(a => a.id === priceDbItem.id ? { ...a, precio: newDbPrice } : a));
-      
-      // 2. Si el artículo está en el carrito actual de nueva venta, le actualizamos el precio
       setItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice } : i));
-      
-      // 3. Si el artículo está en el carrito de edición, también
       setEditItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice } : i));
       
       mostrarMensajeExito("¡Precio base guardado en la Base de Datos!");
@@ -1063,16 +1057,18 @@ export default function VentasMostradorClient({
               <Database className="h-5 w-5 text-indigo-600" /> Modificar Precio Base
             </DialogTitle>
             <DialogDescription className="text-slate-600">
-              Modificar stock en la <b>Base de Datos</b> este cambio deja registros.
+              Cambiarás el precio del artículo en la <b>Base de Datos</b> para futuras ventas. Se dejará registro de este cambio.
             </DialogDescription>
           </DialogHeader>
           
           <div className="py-4 space-y-5">
-            <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100">
+            <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 flex flex-col">
               <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider mb-1">Artículo Seleccionado</p>
               <p className="text-sm font-bold text-slate-900">{priceDbItem?.nombre}</p>
               <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {priceDbItem?.id}</p>
-              <p className="text-[10px] text-slate-500 font-mono mt-0.5">Precio actual: ${priceDbItem?.precio.toLocaleString('es-AR')}</p>
+              
+              {/* AQUÍ ESTÁ EL CAMBIO SOLICITADO */}
+              <p className="text-sm font-bold text-slate-900 mt-2">Precio Viejo: ${priceDbItem?.precio.toLocaleString('es-AR')}</p>
             </div>
             
             <div className="space-y-2">

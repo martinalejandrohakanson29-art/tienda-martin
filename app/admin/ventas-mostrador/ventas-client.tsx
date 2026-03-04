@@ -455,6 +455,8 @@ export default function VentasMostradorClient({
       <TicketImpresion 
         items={items} 
         total={metodoPago === "Tarjeta de Crédito" ? totalConInteres : totalBase} 
+        cliente={metodoPago.includes("Tarjeta") && dni ? dni : cliente}
+        metodoPago={metodoPago}
       />
 
       {/* 2. TU INTERFAZ NORMAL (Se oculta al imprimir con print:hidden) */}
@@ -1305,64 +1307,169 @@ export default function VentasMostradorClient({
   );
 }
 
-// --- NUEVO: COMPONENTE DE TICKET DE IMPRESIÓN (Solo visible al imprimir) ---
-function TicketImpresion({ items, total }: { items: ItemVenta[], total: number }) {
-  const fechaActual = new Date().toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' });
+// ========================================================================
+// --- COMPONENTE DE TICKET DE IMPRESIÓN "X" PARA IMPRESORA TÉRMICA ---
+// ========================================================================
+function TicketImpresion({ 
+  items, 
+  total, 
+  cliente, 
+  metodoPago 
+}: { 
+  items: ItemVenta[], 
+  total: number, 
+  cliente: string, 
+  metodoPago: string 
+}) {
+  const fechaActual = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const ticketId = String(Date.now()).slice(-8); // Simulamos un número de ticket
+  
+  // Función auxiliar para forzar el formato 28,000.00 exacto
+  const formatPrecio = (num: number) => {
+    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const clienteFinalStr = cliente && cliente !== "Consumidor Final" ? cliente.toUpperCase() : "CONSUMIDOR FINAL";
 
   return (
-    // Solo visible al imprimir (print:block) y con fuente monoespaciada
-    <div className="hidden print:block w-[58mm] font-mono text-black bg-white" style={{ margin: 0, padding: 0 }}>
-      {/* Estilos específicos para resetear los márgenes de la impresora web */}
+    // Se oculta en pantalla (hidden) y se activa en modo impresión (print:flex).
+    // Usamos uppercase y font-mono para imitar la térmica.
+    <div className="hidden print:flex flex-col w-[58mm] font-mono text-black bg-white text-[10px] uppercase leading-tight" style={{ margin: 0, padding: 0 }}>
+      {/* Estilos específicos para impresoras de ticket */}
       <style type="text/css" media="print">
         {`
           @page { margin: 0; size: 58mm auto; }
-          body { margin: 0; -webkit-print-color-adjust: exact; }
+          body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; color-adjust: exact; background-color: white;}
+          /* Forzar bordes negros al imprimir */
+          .border-print-black { border-color: black !important; }
         `}
       </style>
 
-    
-
-    
-      {/* Datos dinámicos de la venta */}
-      <div className="text-[10px] mb-2 leading-tight">
-        <p>FECHA: {fechaActual}</p>
-        <p className="font-bold text-center mt-1">*** PRESUPUESTO ***</p>
+      {/* --- 1. ENCABEZADO --- */}
+      <div className="text-center w-full mb-1">
+        <p>NO VALIDO COMO FACTURA</p>
+        <p>{fechaActual}</p>
+        <p>NRO: 00099-{ticketId}</p>
       </div>
 
-      <p className="text-center text-xs mb-1">--------------------------------</p>
+      {/* Icono Central "X" */}
+      <div className="flex justify-center my-2">
+        <div className="border-[1.5px] border-print-black border-black w-8 h-8 flex items-center justify-center font-bold text-xl">
+          X
+        </div>
+      </div>
 
-      {/* Tabla de Artículos */}
-      <table className="w-full text-[10px] leading-tight text-left border-collapse">
+      <div className="text-left w-full mb-1">
+        <p>CUIT: 30-00000000-0</p>
+      </div>
+
+      <div className="text-center w-full mb-2">
+        <p>//</p>
+      </div>
+
+      {/* --- 2. INFORMACIÓN DEL CLIENTE --- */}
+      <div className="text-left w-full mb-2">
+        <p className="font-bold text-[11px]">{clienteFinalStr}</p>
+        <p>CORDOBA</p>
+        <p>{metodoPago.toUpperCase()}</p>
+      </div>
+
+      {/* --- 3. CUERPO DE LA VENTA --- */}
+      <div className="w-full border-t border-print-black border-black my-1"></div>
+      <table className="w-full text-[10px] leading-tight text-left border-collapse table-fixed">
         <thead>
           <tr>
-            <th className="font-normal w-8 pb-1">CANT</th>
-            <th className="font-normal pb-1">DETALLE</th>
-            <th className="font-normal text-right pb-1">SUBTOT</th>
+            <th className="font-normal w-[15%] pb-1 pt-1 align-bottom">CANT.</th>
+            <th className="font-normal w-[45%] pb-1 pt-1 align-bottom">DESC.</th>
+            <th className="font-normal w-[18%] pb-1 pt-1 text-right align-bottom">UNIT</th>
+            <th className="font-normal w-[22%] pb-1 pt-1 text-right align-bottom">IMP. TOTAL</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody className="before:content-[''] before:block before:h-1">
           {items.map((item, idx) => (
             <tr key={idx} className="align-top">
-              <td className="pt-1">{item.cantidad}</td>
-              {/* pr-1 y break-words aseguran que el nombre largo se ajuste y no empuje el precio */}
-              <td className="pt-1 pr-1 break-words">{item.nombre}</td>
-              <td className="pt-1 text-right">${item.subtotal.toLocaleString('es-AR')}</td>
+              <td className="pt-0.5">{item.cantidad}</td>
+              {/* break-words permite el salto de línea manteniendo la alineación en su columna */}
+              <td className="pt-0.5 pr-1 break-words whitespace-normal">{item.nombre}</td>
+              <td className="pt-0.5 text-right">{formatPrecio(item.precio_unit)}</td>
+              <td className="pt-0.5 text-right">{formatPrecio(item.subtotal)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      <div className="w-full border-t border-print-black border-black my-1 mt-2"></div>
 
-      <p className="text-center text-xs mt-1 mb-1">--------------------------------</p>
-
-      {/* Total Dinámico */}
-      <div className="flex justify-between items-center font-bold text-sm mb-2">
-        <span>TOTAL</span>
-        <span>${total.toLocaleString('es-AR')}</span>
+      {/* --- 4. PIE DE PÁGINA Y TOTALES --- */}
+      <div className="flex justify-between items-center w-full mt-1 mb-1">
+        <span>SUBTOTAL:</span>
+        <span>{formatPrecio(total)}</span>
+      </div>
+      
+      <div className="flex justify-between items-center w-full font-bold text-[11px] mb-2">
+        <span>TOTAL:</span>
+        <span>{formatPrecio(total)}</span>
       </div>
 
-      <p className="text-center text-xs mb-2">--------------------------------</p>
+      <div className="text-left w-full mb-2">
+        <p>SON PESOS:</p>
+        <p className="break-words">{numeroALetras(total)}</p>
+      </div>
 
-     
+      <div className="text-left w-full mt-2 mb-2">
+        <p>SALDO ANTERIOR: 0.00</p>
+      </div>
+
+      <div className="text-center w-full mt-2 pb-6">
+        <p>//</p>
+      </div>
+
     </div>
   );
+}
+
+// ========================================================================
+// --- UTILIDAD: NÚMERO A LETRAS (HASTA 999.999 PARA TICKET) ---
+// ========================================================================
+function numeroALetras(num: number): string {
+  const Unidades = (n: number) => {
+    switch(n) {
+      case 1: return "UN"; case 2: return "DOS"; case 3: return "TRES"; case 4: return "CUATRO"; case 5: return "CINCO"; case 6: return "SEIS"; case 7: return "SIETE"; case 8: return "OCHO"; case 9: return "NUEVE"; default: return "";
+    }
+  };
+  const Decenas = (n: number) => {
+    const decena = Math.floor(n/10); const unidad = n - (decena * 10);
+    switch(decena) {
+      case 1: switch(unidad) { case 0: return "DIEZ"; case 1: return "ONCE"; case 2: return "DOCE"; case 3: return "TRECE"; case 4: return "CATORCE"; case 5: return "QUINCE"; default: return "DIECI" + Unidades(unidad); }
+      case 2: return unidad === 0 ? "VEINTE" : "VEINTI" + Unidades(unidad);
+      case 3: return DecenasY("TREINTA", unidad); case 4: return DecenasY("CUARENTA", unidad); case 5: return DecenasY("CINCUENTA", unidad);
+      case 6: return DecenasY("SESENTA", unidad); case 7: return DecenasY("SETENTA", unidad); case 8: return DecenasY("OCHENTA", unidad);
+      case 9: return DecenasY("NOVENTA", unidad); case 0: return Unidades(unidad); default: return "";
+    }
+  };
+  const DecenasY = (strSin: string, numUnidades: number) => numUnidades > 0 ? strSin + " Y " + Unidades(numUnidades) : strSin;
+  const Centenas = (n: number) => {
+    const centenas = Math.floor(n / 100); const decenas = n - (centenas * 100);
+    switch(centenas) {
+      case 1: return decenas > 0 ? "CIENTO " + Decenas(decenas) : "CIEN"; case 2: return "DOSCIENTOS " + Decenas(decenas); case 3: return "TRESCIENTOS " + Decenas(decenas);
+      case 4: return "CUATROCIENTOS " + Decenas(decenas); case 5: return "QUINIENTOS " + Decenas(decenas); case 6: return "SEISCIENTOS " + Decenas(decenas);
+      case 7: return "SETECIENTOS " + Decenas(decenas); case 8: return "OCHOCIENTOS " + Decenas(decenas); case 9: return "NOVECIENTOS " + Decenas(decenas); default: return Decenas(decenas);
+    }
+  };
+  const Miles = (n: number) => {
+    const divisor = 1000; const cientos = Math.floor(n / divisor); const resto = n - (cientos * divisor);
+    let strMiles = "";
+    if (cientos > 0) strMiles = cientos > 1 ? Centenas(cientos) + " MIL" : "UN MIL";
+    return strMiles === "" ? Centenas(resto) : strMiles + " " + Centenas(resto);
+  };
+  const Millones = (n: number) => {
+    const divisor = 1000000; const cientos = Math.floor(n / divisor); const resto = n - (cientos * divisor);
+    let strMillones = "";
+    if (cientos > 0) strMillones = cientos > 1 ? Centenas(cientos) + " MILLONES" : "UN MILLON";
+    return strMillones === "" ? Miles(resto) : strMillones + " " + Miles(resto);
+  };
+
+  const enteros = Math.floor(num); 
+  const centavos = Math.round((num - enteros) * 100).toString().padStart(2, '0');
+  if (enteros === 0) return `CERO CON ${centavos}/100`;
+  return `${Millones(enteros).trim()} CON ${centavos}/100`;
 }

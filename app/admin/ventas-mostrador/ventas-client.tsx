@@ -26,6 +26,7 @@ interface Articulo {
   nombre: string;
   precio: number;
   stock: number;
+  ultimaModificacion?: string | null;
 }
 
 interface ItemVenta {
@@ -35,6 +36,7 @@ interface ItemVenta {
   precio_unit: number;
   subtotal: number;
   stock: number; 
+  ultimaModificacion?: string | null;
 }
 
 export default function VentasMostradorClient({ 
@@ -191,7 +193,15 @@ export default function VentasMostradorClient({
         item.id === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
       ));
     } else {
-      setItems([...items, { id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unit: Number(prod.precio), subtotal: Number(prod.precio), stock: prod.stock }]);
+      setItems([...items, { 
+        id: prod.id, 
+        nombre: prod.nombre, 
+        cantidad: 1, 
+        precio_unit: Number(prod.precio), 
+        subtotal: Number(prod.precio), 
+        stock: prod.stock,
+        ultimaModificacion: prod.ultimaModificacion 
+      }]);
     }
     setIsModalOpen(false);
     setSearchTerm("");
@@ -271,7 +281,8 @@ export default function VentasMostradorClient({
       return {
         id: i.productoId, nombre: i.nombre, cantidad: i.cantidad,
         precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal),
-        stock: articuloBase ? articuloBase.stock : 0
+        stock: articuloBase ? articuloBase.stock : 0,
+        ultimaModificacion: articuloBase?.ultimaModificacion || null
       };
     }));
     setIsEditMainModalOpen(true);
@@ -284,7 +295,15 @@ export default function VentasMostradorClient({
         item.id === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
       ));
     } else {
-      setEditItems([...editItems, { id: prod.id, nombre: prod.nombre, cantidad: 1, precio_unit: Number(prod.precio), subtotal: Number(prod.precio), stock: prod.stock }]);
+      setEditItems([...editItems, { 
+        id: prod.id, 
+        nombre: prod.nombre, 
+        cantidad: 1, 
+        precio_unit: Number(prod.precio), 
+        subtotal: Number(prod.precio), 
+        stock: prod.stock,
+        ultimaModificacion: prod.ultimaModificacion
+      }]);
     }
     setIsSearchEditModalOpen(false);
     setSearchTerm("");
@@ -377,9 +396,11 @@ export default function VentasMostradorClient({
     const res = await actualizarPrecioArticuloDB(priceDbItem.id, newDbPrice, vendedorNombre);
     
     if (res.success) {
-      setArticulos(prev => prev.map(a => a.id === priceDbItem.id ? { ...a, precio: newDbPrice } : a));
-      setItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice } : i));
-      setEditItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice } : i));
+      const nowStr = new Date().toISOString(); // Actualizamos la fecha de modificación al momento
+      
+      setArticulos(prev => prev.map(a => a.id === priceDbItem.id ? { ...a, precio: newDbPrice, ultimaModificacion: nowStr } : a));
+      setItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
+      setEditItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
       
       mostrarMensajeExito("¡Precio base guardado en la Base de Datos!");
       setIsPriceDbModalOpen(false);
@@ -411,9 +432,11 @@ export default function VentasMostradorClient({
     const res = await actualizarPrecioArticuloDB(fastUpdateData.id, fastUpdateData.newPrice, vendedorNombre);
     
     if (res.success) {
-      setArticulos(prev => prev.map(a => a.id === fastUpdateData.id ? { ...a, precio: fastUpdateData.newPrice } : a));
-      setItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice } : i));
-      setEditItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice } : i));
+      const nowStr = new Date().toISOString(); // Actualizamos la fecha de modificación al momento
+
+      setArticulos(prev => prev.map(a => a.id === fastUpdateData.id ? { ...a, precio: fastUpdateData.newPrice, ultimaModificacion: nowStr } : a));
+      setItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice, ultimaModificacion: nowStr } : i));
+      setEditItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice, ultimaModificacion: nowStr } : i));
       
       mostrarMensajeExito("¡Precio actualizado en la Base de Datos con éxito!");
       setIsFastUpdateDbModalOpen(false);
@@ -574,6 +597,16 @@ export default function VentasMostradorClient({
                                 >
                                   <Save className="h-4 w-4" />
                                 </Button>
+
+                                {/* NUEVO: FECHA DE ÚLTIMA MODIFICACIÓN */}
+                                {item.ultimaModificacion && (
+                                  <div className="flex flex-col items-center ml-2 border-l border-slate-200 pl-2">
+                                    <span className="text-[8px] text-slate-400 font-bold uppercase mb-0.5">Modificado</span>
+                                    <span className="text-[10px] text-slate-600 font-mono bg-slate-100 px-1 rounded" title="Última actualización de precio en DB">
+                                      {new Date(item.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell className="text-right py-3 font-bold text-slate-700">
@@ -1073,6 +1106,16 @@ export default function VentasMostradorClient({
                             >
                               <Save className="h-4 w-4" />
                             </Button>
+
+                            {/* NUEVO: FECHA DE ÚLTIMA MODIFICACIÓN */}
+                            {item.ultimaModificacion && (
+                              <div className="flex flex-col items-center ml-2 border-l border-slate-200 pl-2">
+                                <span className="text-[8px] text-slate-400 font-bold uppercase mb-0.5">Modificado</span>
+                                <span className="text-[10px] text-slate-600 font-mono bg-slate-100 px-1 rounded" title="Última actualización de precio en DB">
+                                  {new Date(item.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-bold text-slate-700">

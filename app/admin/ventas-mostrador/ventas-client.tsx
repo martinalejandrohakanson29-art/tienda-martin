@@ -1212,7 +1212,7 @@ export default function VentasMostradorClient({
               
               <div className="flex items-center justify-center gap-6 w-full">
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase mb-1">Anterior DB</span>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase mb-1">Precio anterior</span>
                   <span className="text-lg font-medium text-slate-500 line-through">${fastUpdateData?.oldPrice.toLocaleString('es-AR')}</span>
                 </div>
                 
@@ -1221,7 +1221,7 @@ export default function VentasMostradorClient({
                 </div>
                 
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-green-700 font-bold uppercase mb-1">Nuevo DB</span>
+                  <span className="text-[10px] text-green-700 font-bold uppercase mb-1">Precio nuevo</span>
                   <span className="text-2xl font-black text-green-700">${fastUpdateData?.newPrice.toLocaleString('es-AR')}</span>
                 </div>
               </div>

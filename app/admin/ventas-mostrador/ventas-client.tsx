@@ -1322,8 +1322,7 @@ function TicketImpresion({ items, total }: { items: ItemVenta[], total: number }
 
     
 
-      <p className="text-center text-xs mb-1">--------------------------------</p>
-
+    
       {/* Datos dinámicos de la venta */}
       <div className="text-[10px] mb-2 leading-tight">
         <p>FECHA: {fechaActual}</p>

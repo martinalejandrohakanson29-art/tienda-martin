@@ -1072,7 +1072,7 @@ export default function VentasMostradorClient({
               <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider mb-1">Artículo Seleccionado</p>
               <p className="text-sm font-bold text-slate-900">{priceDbItem?.nombre}</p>
               <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {priceDbItem?.id}</p>
-              <p className="text-[10px] text-slate-500 font-mono mt-0.5">Precio Viejo: ${priceDbItem?.precio.toLocaleString('es-AR')}</p>
+              <p className="text-[10px] text-slate-500 font-mono mt-0.5">Precio actual: ${priceDbItem?.precio.toLocaleString('es-AR')}</p>
             </div>
             
             <div className="space-y-2">

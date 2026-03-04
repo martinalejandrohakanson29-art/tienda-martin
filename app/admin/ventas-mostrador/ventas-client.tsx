@@ -1202,7 +1202,7 @@ export default function VentasMostradorClient({
               <Save className="h-5 w-5 text-green-600" /> Confirmar Cambio de Precio
             </DialogTitle>
             <DialogDescription className="text-slate-600">
-              ¿Estás seguro que deseas actualizar el precio de este artículo en la <b>Base de Datos</b> de forma definitiva?
+              Confirmar modificacion del precio en <b>Base de Datos</b>?
             </DialogDescription>
           </DialogHeader>
           

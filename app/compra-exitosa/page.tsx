@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,18 +9,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Send, CheckCircle2, AlertCircle } from "lucide-react";
 import { useCart } from "@/hooks/use-cart";
+// Importamos nuestras nuevas acciones
+import { updateVentaWebStatus, updateVentaWebCliente } from "@/app/actions/ventas-web";
 
 function CompraExitosaContent() {
   const searchParams = useSearchParams();
-  // Extraemos cart y clearCart del hook
   const { cart, clearCart } = useCart();
   
   const paymentId = searchParams.get("payment_id") || "No disponible";
+  const mpStatus = searchParams.get("status") || "";
+  const externalReference = searchParams.get("external_reference") || "";
   
   const [productNames, setProductNames] = useState("");
   const [error, setError] = useState("");
 
-  // 1. Guardamos los nombres de los productos para WhatsApp
+  // 1. Guardamos el pago en BD apenas entra a la página (Por si cierra antes del formulario)
+  useEffect(() => {
+    if (externalReference && paymentId !== "No disponible") {
+      const nuevoEstado = mpStatus === "approved" ? "APROBADO" : "PENDIENTE";
+      updateVentaWebStatus(externalReference, paymentId, nuevoEstado);
+    }
+  }, [externalReference, paymentId, mpStatus]);
+
+  // 2. Guardamos los nombres de los productos para WhatsApp
   useEffect(() => {
     if (cart && cart.length > 0) {
       const names = cart.map((item) => `${item.quantity}x ${item.product.title}`).join(", ");
@@ -29,30 +39,26 @@ function CompraExitosaContent() {
     }
   }, [cart]);
 
-  // 2. 👇 LÓGICA DE META PIXEL: Evento "Purchase" (Compra)
+  // 3. Lógica Meta Pixel
   useEffect(() => {
-    // Verificamos que existan window, fbq, items en el carrito y un ID de pago válido
     if (
         typeof window !== "undefined" && 
         (window as any).fbq && 
         cart.length > 0 && 
         paymentId !== "No disponible"
     ) {
-        // Calculamos el valor total de la compra
         const totalValue = cart.reduce((acc, item) => {
             return acc + (Number(item.product.price) * item.quantity);
         }, 0);
 
-        // Obtenemos los IDs de los productos comprados
         const contentIds = cart.map((item) => item.product.id);
 
-        // Disparamos el evento
         (window as any).fbq('track', 'Purchase', {
             value: totalValue,
             currency: 'ARS',
             content_ids: contentIds,
             content_type: 'product',
-            order_id: paymentId // Usamos el ID de MercadoPago para evitar duplicados
+            order_id: paymentId
         });
     }
   }, [cart, paymentId]);
@@ -75,13 +81,17 @@ function CompraExitosaContent() {
     if (error) setError("");
   };
 
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     const { nombre, dni, domicilio, ciudad, provincia, telefono, email, cp, referencias } = formData;
 
-    // Validación de campos obligatorios
     if (!nombre || !dni || !domicilio || !ciudad || !provincia || !telefono || !email || !cp) {
       setError("Por favor completa todos los campos obligatorios para poder coordinar el envío.");
       return;
+    }
+
+    // ¡NUEVO! Guardamos los datos de envío silenciosamente en la Base de Datos
+    if (externalReference) {
+      await updateVentaWebCliente(externalReference, formData);
     }
 
     // Armado del mensaje profesional
@@ -104,10 +114,7 @@ ID de Pago MP: ${paymentId}
     const phoneNumber = "5493512404003"; 
     const url = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
     
-    // Abrimos WhatsApp
     window.open(url, "_blank");
-
-    // Limpiamos el carrito DESPUÉS de abrir el link para que el proceso quede finalizado
     clearCart();
   };
 

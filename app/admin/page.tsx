@@ -11,7 +11,8 @@ import {
     Instagram, 
     Settings2,
     ListTodo,
-    LayoutDashboard 
+    LayoutDashboard,
+    Globe // Importamos este icono nuevo
 } from "lucide-react" 
 import Link from "next/link"
 import TaskForm from "./task-form"
@@ -19,7 +20,6 @@ import TaskForm from "./task-form"
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
-    // Cargamos datos en paralelo
     const [products, users] = await Promise.all([
         getProducts(),
         getUsers()
@@ -34,7 +34,6 @@ export default async function AdminDashboard() {
 
     return (
         <div className="space-y-8">
-            {/* Encabezado */}
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Hola Revolución 👋</h1>
@@ -49,19 +48,16 @@ export default async function AdminDashboard() {
                 </Link>
             </div>
 
-            {/* SECCIÓN DE TAREAS */}
             <Card className="border-2 border-primary/10 shadow-sm bg-slate-50/50">
                 <TaskForm users={users} />
             </Card>
 
-            {/* ACCESOS RÁPIDOS */}
             <div>
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                     🚀 Accesos Rápidos
                 </h2>
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     
-                    {/* TARJETA: SISTEMA REVOLUCIÓN MOTOS (ERP) */}
                     <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-blue-50/50">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-blue-800 text-xl">
@@ -74,6 +70,24 @@ export default async function AdminDashboard() {
                             <Link href="/admin/erp">
                                 <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white gap-2 shadow-sm h-12 text-lg font-semibold">
                                     Abrir ERP <ArrowRight size={18} />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+
+                    {/* ¡AQUÍ ESTÁ LA NUEVA TARJETA! */}
+                    <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-emerald-50/50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-emerald-800 text-xl">
+                                <Globe className="h-6 w-6" />
+                                Ventas de la Página
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                            <p className="text-sm text-gray-600 mb-6">Historial de carritos y pagos web.</p>
+                            <Link href="/admin/ventas-web">
+                                <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-sm h-12 text-lg">
+                                    Ver Ventas <ArrowRight size={18} />
                                 </Button>
                             </Link>
                         </CardContent>
@@ -132,7 +146,6 @@ export default async function AdminDashboard() {
                 </div>
             </div>
 
-            {/* RESUMEN DE MÉTRICAS */}
             <div className="pt-4 border-t">
                 <h2 className="text-xl font-semibold mb-4 text-gray-600">Resumen de la Tienda</h2>
                 <div className="grid gap-4 md:grid-cols-3">

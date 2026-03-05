@@ -94,9 +94,9 @@ model CarouselItem {
 // --- MODELOS DE AUDITORÍA Y ENVÍOS ---
 
 model Shipment {
-  id        String          @id @default(cuid())
-  name      String          @unique
-  createdAt DateTime        @default(now())
+  id        String         @id @default(cuid())
+  name      String         @unique
+  createdAt DateTime       @default(now())
   items     ShipmentItem[]
 }
 
@@ -111,6 +111,7 @@ model ShipmentItem {
   agregados  String?
   imageUrl   String?
   variation  String?
+
   @@index([shipmentId])
 }
 
@@ -343,6 +344,7 @@ model EtiquetaMLItem {
   sku             String?
   quantity        Int
   variation       String?
+
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
@@ -584,4 +586,43 @@ model Contacto {
   email          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// --- GESTIÓN DE VENTAS PÁGINA WEB ---
+
+model WebSale {
+  id            String   @id @default(cuid())
+  paymentId     String?  // ID de MercadoPago
+  status        String   @default("PENDIENTE") // PENDIENTE, APROBADO, CANCELADO
+  total         Decimal  @db.Decimal(20, 2)
+  
+  // Datos del cliente
+  nombre        String?
+  dni           String?
+  email         String?
+  telefono      String?
+  domicilio     String?
+  ciudad        String?
+  provincia     String?
+  cp            String?
+  referencias   String?
+  
+  items         WebSaleItem[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("ventas_web")
+}
+
+model WebSaleItem {
+  id            String   @id @default(cuid())
+  webSaleId     String
+  webSale       WebSale  @relation(fields: [webSaleId], references: [id], onDelete: Cascade)
+  productoId    String?
+  nombre        String
+  cantidad      Int      @default(1)
+  precio_unit   Decimal  @db.Decimal(20, 2)
+  subtotal      Decimal  @db.Decimal(20, 2)
+
+  @@map("ventas_web_items")
 }

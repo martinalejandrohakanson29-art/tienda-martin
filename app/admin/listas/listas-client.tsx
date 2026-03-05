@@ -25,6 +25,11 @@ interface Articulo {
   stock: number;
 }
 
+// Función auxiliar que quita los acentos (ej: "cigüeñal" -> "ciguenal", "árbol" -> "arbol")
+const quitarAcentos = (texto: string) => {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+};
+
 export default function ListasClient({ 
   articulosIniciales 
 }: { 
@@ -33,34 +38,47 @@ export default function ListasClient({
   const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
   const [searchTerm, setSearchTerm] = useState("");
   
-  // --- NUEVO: ESTADOS PARA PAGINACIÓN ---
+  // Estados para Paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50; // Cantidad de filas por página para mantenerlo fluido
+  const itemsPerPage = 50; 
   
   // Estados para el Modal de Edición
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editData, setEditData] = useState<Articulo | null>(null);
 
-  // Buscador en tiempo real (Súper rápido porque no renderiza la vista todavía)
+  // --- NUEVO BUSCADOR INTELIGENTE Y FLEXIBLE ---
   const articulosFiltrados = useMemo(() => {
+    // Si no hay nada escrito, devolvemos toda la lista
     if (!searchTerm.trim()) return articulos;
-    const term = searchTerm.toLowerCase();
-    return articulos.filter(art => 
-      art.nombre.toLowerCase().includes(term) || art.id.toLowerCase().includes(term)
-    );
+    
+    // 1. Limpiamos la búsqueda: minúsculas, sin acentos y quitamos espacios a los lados
+    const busquedaLimpia = quitarAcentos(searchTerm.toLowerCase().trim());
+    
+    // 2. Dividimos la búsqueda en palabras sueltas. Ej: "leva 110" -> ["leva", "110"]
+    const palabrasBuscadas = busquedaLimpia.split(/\s+/);
+    
+    return articulos.filter(art => {
+      // Limpiamos también el nombre y el ID del artículo de la base de datos para compararlos justamente
+      const nombreLimpio = quitarAcentos(art.nombre.toLowerCase());
+      const idLimpio = quitarAcentos(art.id.toLowerCase());
+      
+      // 3. Verificamos que TODAS las palabras buscadas existan en el nombre o en el ID (sin importar el orden)
+      // El método .every() se asegura de que todas las condiciones se cumplan
+      return palabrasBuscadas.every(palabra => {
+        return nombreLimpio.includes(palabra) || idLimpio.includes(palabra);
+      });
+    });
   }, [searchTerm, articulos]);
 
-  // --- NUEVO: EFECTO PARA REINICIAR LA PÁGINA ---
-  // Si el usuario escribe algo en el buscador, lo devolvemos a la página 1
+  // Si el usuario escribe algo, lo devolvemos a la página 1
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // --- NUEVO: LÓGICA DE PAGINACIÓN ---
+  // Lógica de Paginación
   const totalPages = Math.ceil(articulosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  // Solo cortamos (slice) el pedacito de la lista que vamos a mostrar
   const paginatedArticulos = articulosFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
   // Funciones de Edición
@@ -128,11 +146,11 @@ export default function ListasClient({
             
             {/* Barra de Búsqueda */}
             <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
-              <div className="relative w-full max-w-md">
+              <div className="relative w-full max-w-xl">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                 <input 
                   type="text" 
-                  placeholder="Buscar por nombre o ID de artículo..." 
+                  placeholder="Ej: 'leva 110', 'cigueñal titan', etc..." 
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
@@ -165,7 +183,6 @@ export default function ListasClient({
                         </TableCell>
                       </TableRow>
                     ) : (
-                      // --- NUEVO: Iteramos sobre paginatedArticulos en lugar de todos ---
                       paginatedArticulos.map((art) => (
                         <TableRow key={art.id} className="hover:bg-indigo-50/30 transition-colors">
                           <TableCell className="text-xs font-mono text-slate-400 py-3">{art.id}</TableCell>
@@ -195,7 +212,7 @@ export default function ListasClient({
                 </Table>
               </div>
               
-              {/* --- NUEVO: CONTROLES DE PAGINACIÓN (FOOTER DE LA TABLA) --- */}
+              {/* CONTROLES DE PAGINACIÓN */}
               {articulosFiltrados.length > 0 && (
                 <div className="bg-slate-50 border-t border-slate-200 p-3 flex items-center justify-between flex-shrink-0">
                   <div className="text-xs text-slate-500">

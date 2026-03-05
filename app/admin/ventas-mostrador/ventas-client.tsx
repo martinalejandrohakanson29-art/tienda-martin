@@ -77,6 +77,9 @@ export default function VentasMostradorClient({
   const [email, setEmail] = useState("");
   const [eventoOffline, setEventoOffline] = useState(false);
 
+  // --- ESTADO PARA IMPRESIÓN ---
+  const [ventaParaImprimir, setVentaParaImprimir] = useState<any>(null);
+
   // --- ESTADOS PARA EDICIÓN Y AUDITORÍA ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
   const [isSearchEditModalOpen, setIsSearchEditModalOpen] = useState(false);
@@ -184,6 +187,23 @@ export default function VentasMostradorClient({
   const ventasFiltradas = ventasRealizadas.filter(v => 
     mostrarSoloOffline ? v.eventoOffline === true : true
   );
+
+  // --- FUNCIONES PARA IMPRESIÓN ---
+  const handleImprimirPresupuesto = () => {
+    setVentaParaImprimir(null); // Nos aseguramos de imprimir lo que está en el carrito actual
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
+  const handleImprimirVentaHistorial = (venta: any) => {
+    setVentaParaImprimir(venta); // Cargamos la venta específica
+    setTimeout(() => {
+      window.print();
+      // Limpiamos el estado después de imprimir para no afectar el carrito
+      setTimeout(() => setVentaParaImprimir(null), 1000); 
+    }, 100);
+  };
 
   // --- FUNCIONES NUEVA VENTA ---
   const agregarProductoAVenta = (prod: Articulo) => {
@@ -453,10 +473,10 @@ export default function VentasMostradorClient({
     <>
       {/* 1. EL TICKET (Solo visible al momento de imprimir con print:block) */}
       <TicketImpresion 
-        items={items} 
-        total={metodoPago === "Tarjeta de Crédito" ? totalConInteres : totalBase} 
-        cliente={metodoPago.includes("Tarjeta") && dni ? dni : cliente}
-        metodoPago={metodoPago}
+        items={ventaParaImprimir ? ventaParaImprimir.items.map((i: any) => ({ ...i, id: i.productoId || i.id })) : items} 
+        total={ventaParaImprimir ? Number(ventaParaImprimir.totalFinal || ventaParaImprimir.total) : (metodoPago === "Tarjeta de Crédito" ? totalConInteres : totalBase)} 
+        cliente={ventaParaImprimir ? (ventaParaImprimir.dni || ventaParaImprimir.cliente) : (metodoPago.includes("Tarjeta") && dni ? dni : cliente)}
+        metodoPago={ventaParaImprimir ? ventaParaImprimir.metodo_pago : metodoPago}
       />
 
       {/* 2. TU INTERFAZ NORMAL (Se oculta al imprimir con print:hidden) */}
@@ -638,10 +658,9 @@ export default function VentasMostradorClient({
               <div className="max-w-[1800px] mx-auto flex justify-end gap-4">
                 <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(true)} className="text-slate-500 hover:text-red-500">Descartar Venta</Button>
                 
-                {/* --- NUEVO BOTÓN PARA IMPRIMIR PRESUPUESTO --- */}
                 <Button 
                   variant="outline" 
-                  onClick={() => window.print()} 
+                  onClick={handleImprimirPresupuesto} 
                   disabled={items.length === 0} 
                   className="gap-2 text-slate-700 border-slate-300 hover:bg-slate-50 rounded-xl"
                 >
@@ -703,7 +722,7 @@ export default function VentasMostradorClient({
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Info Extra</TableHead>
                         <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
-                        <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-20">Reg.</TableHead>
+                        <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-28">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -766,9 +785,23 @@ export default function VentasMostradorClient({
                             </TableCell>
                             <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                             <TableCell className="py-4 text-center">
-                              <button disabled={v.registrada} onClick={() => handleMarcarRegistrada(v.id)} className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}>
-                                {v.registrada ? <CheckSquare className="h-6 w-6" /> : <Square className="h-6 w-6" />}
-                              </button>
+                              <div className="flex items-center justify-center gap-1">
+                                <button 
+                                  onClick={() => handleImprimirVentaHistorial(v)}
+                                  className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all border border-transparent"
+                                  title="Imprimir Ticket"
+                                >
+                                  <Printer className="h-5 w-5" />
+                                </button>
+                                <button 
+                                  disabled={v.registrada} 
+                                  onClick={() => handleMarcarRegistrada(v.id)} 
+                                  className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}
+                                  title={v.registrada ? "Registrada" : "Marcar como Registrada"}
+                                >
+                                  {v.registrada ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                                </button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))
@@ -1325,8 +1358,8 @@ function TicketImpresion({
   const ticketId = String(Date.now()).slice(-8); // Simulamos un número de ticket
   
   // Función auxiliar para forzar el formato 28,000.00 exacto
-  const formatPrecio = (num: number) => {
-    return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatPrecio = (num: any) => {
+    return Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
   const clienteFinalStr = cliente && cliente !== "Consumidor Final" ? cliente.toUpperCase() : "CONSUMIDOR FINAL";
@@ -1377,9 +1410,7 @@ function TicketImpresion({
       {/* --- 3. CUERPO DE LA VENTA --- */}
       <div className="w-full border-t border-print-black border-black my-1"></div>
       
-      {/* TABLA MODIFICADA: 
-        Quitamos el UNIT para dar más aire a la DESCRIPCIÓN y al TOTAL. 
-      */}
+      {/* TABLA MODIFICADA */}
       <table className="w-full text-[9px] leading-tight text-left border-collapse table-fixed">
         <thead>
           <tr>
@@ -1392,7 +1423,6 @@ function TicketImpresion({
           {items.map((item, idx) => (
             <tr key={idx} className="align-top">
               <td className="pt-0.5">{item.cantidad}</td>
-              {/* break-words permite el salto de línea manteniendo la alineación en su columna */}
               <td className="pt-0.5 pr-1 break-words whitespace-normal">{item.nombre}</td>
               <td className="pt-0.5 text-right">{formatPrecio(item.subtotal)}</td>
             </tr>
@@ -1415,7 +1445,7 @@ function TicketImpresion({
 
       <div className="text-left w-full mb-2">
         <p>SON PESOS:</p>
-        <p className="break-words">{numeroALetras(total)}</p>
+        <p className="break-words">{numeroALetras(Number(total))}</p>
       </div>
 
       <div className="text-left w-full mt-2 mb-2">

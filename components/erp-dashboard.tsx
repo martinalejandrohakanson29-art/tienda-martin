@@ -5,16 +5,10 @@ export function ErpDashboard() {
   return (
     <div className="w-full bg-[#f6f7f8] dark:bg-[#101922] text-slate-900 dark:text-slate-100 flex flex-col rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-xl">
       
-      {/* NOTA: Hemos eliminado el <link> de Google Fonts de aquí. 
-        Ahora se carga globalmente desde app/globals.css para evitar parpadeos.
-      */}
-
       <header className="sticky top-0 z-50 w-full border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-[#101922]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              
-              {/* --- BOTÓN DE ATRÁS --- */}
               <Link 
                 href="/admin" 
                 className="p-2 mr-1 text-slate-500 hover:text-[#2b8cee] dark:hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all flex items-center justify-center"
@@ -22,8 +16,6 @@ export function ErpDashboard() {
               >
                 <span className="material-symbols-outlined">arrow_back</span>
               </Link>
-              {/* ----------------------- */}
-
               <div className="bg-[#2b8cee] p-2 rounded-lg flex items-center justify-center text-white">
                 <span className="material-symbols-outlined text-2xl">
                   account_balance
@@ -79,14 +71,11 @@ export function ErpDashboard() {
       </header>
 
       <main className="flex-grow flex flex-col items-center justify-start px-4 py-8 max-w-7xl mx-auto w-full">
-        
         <div className="w-full max-w-6xl space-y-10">
           
           {/* SECCIÓN 1: COMPRAS Y VENTAS */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* Lado Izquierdo: Acción */}
             <div className="grid grid-cols-2 gap-4">
-              
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/ventas-mostrador">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">sell</span>
@@ -95,7 +84,6 @@ export function ErpDashboard() {
                 <p className="text-xs text-slate-500">Registrar Ventas (Mostrador)</p>
               </Link>
 
-              {/* === AQUÍ ACTUALIZAMOS EL ENLACE A COMPRAS === */}
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/compras">
                 <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">shopping_cart</span>
@@ -103,9 +91,7 @@ export function ErpDashboard() {
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Compras</h3>
                 <p className="text-xs text-slate-500">Registrar compras</p>
               </Link>
-              {/* ============================================== */}
             </div>
-            {/* Lado Derecho: Consultas */}
             <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
@@ -126,7 +112,6 @@ export function ErpDashboard() {
 
           {/* SECCIÓN 2: TESORERÍA */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* Lado Izquierdo: Gestión */}
             <div className="grid grid-cols-2 gap-4">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-100 transition-colors">
@@ -143,7 +128,6 @@ export function ErpDashboard() {
                 <p className="text-xs text-slate-500">Registrar cobros</p>
               </a>
             </div>
-            {/* Lado Derecho: Consultas */}
             <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
@@ -162,9 +146,9 @@ export function ErpDashboard() {
             </div>
           </div>
 
-          {/* SECCIÓN 3: PEDIDOS */}
+          {/* SECCIÓN 3: PEDIDOS Y LISTAS */}
           <div className="pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mx-auto">
               <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
                 <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">assignment</span>
@@ -179,6 +163,16 @@ export function ErpDashboard() {
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos de Compras</h3>
                 <p className="text-xs text-slate-500">Solicitudes pendientes</p>
               </a>
+              
+              {/* === NUEVA TARJETA: CONSULTAR LISTAS === */}
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-sm" href="/admin/listas">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mb-4 group-hover:bg-indigo-100 transition-colors">
+                  <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400">database</span>
+                </div>
+                <h3 className="text-base font-bold text-indigo-900 dark:text-indigo-400">Consultar Listas</h3>
+                <p className="text-xs text-slate-500">Artículos, stock y catálogos</p>
+              </Link>
+              {/* ======================================= */}
             </div>
           </div>
 

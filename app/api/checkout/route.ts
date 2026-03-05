@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, Preference } from "mercadopago";
-import prisma from "@/lib/prisma"; // IMPORTAMOS PRISMA PARA GUARDAR EN BD
+// 👇 AQUÍ ESTÁ EL CAMBIO: agregamos las llaves { } alrededor de prisma
+import { prisma } from "@/lib/prisma";
 
 // Inicializamos el cliente con tu token
 const client = new MercadoPagoConfig({ 

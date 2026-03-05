@@ -1,6 +1,7 @@
 "use server"
 
-import prisma from "@/lib/prisma"
+// 👇 AQUÍ ESTÁ EL CAMBIO: agregamos las llaves { } alrededor de prisma
+import { prisma } from "@/lib/prisma"
 
 export async function getVentasWeb() {
     try {

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { 
-  Search, Database, ArrowLeft, Edit, Save, Loader2, PackageSearch
+  Search, Database, ArrowLeft, Edit, Save, Loader2, PackageSearch,
+  ChevronLeft, ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,12 +33,16 @@ export default function ListasClient({
   const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
   const [searchTerm, setSearchTerm] = useState("");
   
+  // --- NUEVO: ESTADOS PARA PAGINACIÓN ---
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50; // Cantidad de filas por página para mantenerlo fluido
+  
   // Estados para el Modal de Edición
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editData, setEditData] = useState<Articulo | null>(null);
 
-  // Buscador en tiempo real
+  // Buscador en tiempo real (Súper rápido porque no renderiza la vista todavía)
   const articulosFiltrados = useMemo(() => {
     if (!searchTerm.trim()) return articulos;
     const term = searchTerm.toLowerCase();
@@ -45,6 +50,18 @@ export default function ListasClient({
       art.nombre.toLowerCase().includes(term) || art.id.toLowerCase().includes(term)
     );
   }, [searchTerm, articulos]);
+
+  // --- NUEVO: EFECTO PARA REINICIAR LA PÁGINA ---
+  // Si el usuario escribe algo en el buscador, lo devolvemos a la página 1
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // --- NUEVO: LÓGICA DE PAGINACIÓN ---
+  const totalPages = Math.ceil(articulosFiltrados.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  // Solo cortamos (slice) el pedacito de la lista que vamos a mostrar
+  const paginatedArticulos = articulosFiltrados.slice(startIndex, startIndex + itemsPerPage);
 
   // Funciones de Edición
   const abrirModalEdicion = (articulo: Articulo) => {
@@ -64,7 +81,6 @@ export default function ListasClient({
     );
 
     if (res.success) {
-      // Actualizamos el estado local para que se refleje inmediatamente
       setArticulos(prev => prev.map(a => a.id === editData.id ? editData : a));
       setIsEditModalOpen(false);
     } else {
@@ -95,18 +111,14 @@ export default function ListasClient({
 
       {/* SISTEMA DE PESTAÑAS (TABS) */}
       <Tabs defaultValue="mostrador" className="flex-grow flex flex-col overflow-hidden">
-        <div className="bg-white border-b border-slate-200 px-6 py-0">
+        <div className="bg-white border-b border-slate-200 px-6 py-0 flex-shrink-0">
           <TabsList className="bg-transparent h-14 p-0 w-full flex justify-start gap-6 rounded-none">
-            {/* Pestaña actual */}
             <TabsTrigger 
               value="mostrador" 
               className="gap-2 px-0 py-4 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-700 data-[state=active]:shadow-none data-[state=active]:bg-transparent font-bold text-slate-500 hover:text-slate-700"
             >
               <PackageSearch className="h-4 w-4" /> Artículos Mostrador
             </TabsTrigger>
-            
-            {/* Aquí en el futuro puedes agregar más TabsTrigger para otras tablas */}
-            {/* <TabsTrigger value="clientes">Clientes</TabsTrigger> */}
           </TabsList>
         </div>
 
@@ -146,14 +158,15 @@ export default function ListasClient({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {articulosFiltrados.length === 0 ? (
+                    {paginatedArticulos.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">
                           No se encontraron artículos con esa búsqueda.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      articulosFiltrados.map((art) => (
+                      // --- NUEVO: Iteramos sobre paginatedArticulos en lugar de todos ---
+                      paginatedArticulos.map((art) => (
                         <TableRow key={art.id} className="hover:bg-indigo-50/30 transition-colors">
                           <TableCell className="text-xs font-mono text-slate-400 py-3">{art.id}</TableCell>
                           <TableCell className="font-bold text-slate-800 py-3">{art.nombre}</TableCell>
@@ -181,6 +194,41 @@ export default function ListasClient({
                   </TableBody>
                 </Table>
               </div>
+              
+              {/* --- NUEVO: CONTROLES DE PAGINACIÓN (FOOTER DE LA TABLA) --- */}
+              {articulosFiltrados.length > 0 && (
+                <div className="bg-slate-50 border-t border-slate-200 p-3 flex items-center justify-between flex-shrink-0">
+                  <div className="text-xs text-slate-500">
+                    Mostrando <span className="font-bold text-slate-700">{startIndex + 1}</span> a <span className="font-bold text-slate-700">{Math.min(startIndex + itemsPerPage, articulosFiltrados.length)}</span> de <span className="font-bold text-slate-700">{articulosFiltrados.length}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="h-8 border-slate-300 text-slate-600"
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+                    </Button>
+                    
+                    <span className="text-xs font-bold text-slate-600">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage >= totalPages}
+                      className="h-8 border-slate-300 text-slate-600"
+                    >
+                      Siguiente <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </main>
         </TabsContent>

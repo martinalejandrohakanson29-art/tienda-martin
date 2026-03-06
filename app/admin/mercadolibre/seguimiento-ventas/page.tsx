@@ -277,7 +277,12 @@ export default function SeguimientoVentasPage() {
                                             >
                                                 <div className="flex items-center justify-end">Ventas P2 <SortIcon column="ventasActual" /></div>
                                             </TableHead>
-                                            <TableHead className="text-right">Ventas P1</TableHead>
+                                            <TableHead 
+                                                className="text-right cursor-pointer hover:text-indigo-600 transition-colors"
+                                                onClick={() => requestSort('ventasAnterior')}
+                                            >
+                                                <div className="flex items-center justify-end">Ventas P1 <SortIcon column="ventasAnterior" /></div>
+                                            </TableHead>
                                             <TableHead 
                                                 className="text-right cursor-pointer hover:text-indigo-600 transition-colors"
                                                 onClick={() => requestSort('diffVentas')}

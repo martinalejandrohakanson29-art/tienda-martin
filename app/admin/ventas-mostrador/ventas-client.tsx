@@ -65,7 +65,12 @@ export default function VentasMostradorClient({
   const [items, setItems] = useState<ItemVenta[]>([]); 
   const [cliente, setCliente] = useState("Consumidor Final");
   const [interesTarjeta, setInteresTarjeta] = useState<number>(0);
+  
   const [metodoPago, setMetodoPago] = useState("Efectivo");
+  const [isPagoMixto, setIsPagoMixto] = useState(false);
+  const [montoPago1, setMontoPago1] = useState<number>(0);
+  const [metodoPago2, setMetodoPago2] = useState("Tarjeta de Crédito");
+
   const [dni, setDni] = useState("");
   const [telefono, setTelefono] = useState("");
   const [info, setInfo] = useState("");
@@ -88,8 +93,13 @@ export default function VentasMostradorClient({
   
   const [editVentaId, setEditVentaId] = useState("");
   const [editCliente, setEditCliente] = useState("");
-  const [editMetodoPago, setEditMetodoPago] = useState("");
   const [editInteresTarjeta, setEditInteresTarjeta] = useState<number>(0);
+  
+  const [editMetodoPago, setEditMetodoPago] = useState("");
+  const [isEditPagoMixto, setIsEditPagoMixto] = useState(false);
+  const [editMontoPago1, setEditMontoPago1] = useState<number>(0);
+  const [editMetodoPago2, setEditMetodoPago2] = useState("Tarjeta de Crédito");
+
   const [editItems, setEditItems] = useState<ItemVenta[]>([]);
   const [editDni, setEditDni] = useState("");
   const [editTelefono, setEditTelefono] = useState("");
@@ -188,19 +198,35 @@ export default function VentasMostradorClient({
     mostrarSoloOffline ? v.eventoOffline === true : true
   );
 
+  // --- CALCULOS NUEVA VENTA (LÓGICA MIXTA) ---
+  const totalBase = items.reduce((acc, item) => acc + item.subtotal, 0);
+
+  const base1 = isPagoMixto ? montoPago1 : totalBase;
+  const base2 = isPagoMixto ? Math.max(0, totalBase - montoPago1) : 0;
+  
+  const isCredito1 = metodoPago === "Tarjeta de Crédito";
+  const isCredito2 = isPagoMixto && metodoPago2 === "Tarjeta de Crédito";
+
+  const final1 = isCredito1 ? base1 * (1 + (interesTarjeta / 100)) : base1;
+  const final2 = isCredito2 ? base2 * (1 + (interesTarjeta / 100)) : base2;
+
+  const totalFinalCalculado = isPagoMixto ? (final1 + final2) : final1;
+  
+  const requiereTarjeta = (isPagoMixto && (isCredito1 || isCredito2)) || (!isPagoMixto && isCredito1);
+  const requiereCruzada = (isPagoMixto && (metodoPago === "Cruzada" || metodoPago2 === "Cruzada")) || (!isPagoMixto && metodoPago === "Cruzada");
+
   // --- FUNCIONES PARA IMPRESIÓN ---
   const handleImprimirPresupuesto = () => {
-    setVentaParaImprimir(null); // Nos aseguramos de imprimir lo que está en el carrito actual
+    setVentaParaImprimir(null); 
     setTimeout(() => {
       window.print();
     }, 100);
   };
 
   const handleImprimirVentaHistorial = (venta: any) => {
-    setVentaParaImprimir(venta); // Cargamos la venta específica
+    setVentaParaImprimir(venta); 
     setTimeout(() => {
       window.print();
-      // Limpiamos el estado después de imprimir para no afectar el carrito
       setTimeout(() => setVentaParaImprimir(null), 1000); 
     }, 100);
   };
@@ -227,24 +253,29 @@ export default function VentasMostradorClient({
     setSearchTerm("");
   };
 
-  const totalBase = items.reduce((acc, item) => acc + item.subtotal, 0);
-  const totalConInteres = totalBase * (1 + (interesTarjeta / 100));
-
   const handleFinalizarVenta = async () => {
-    if (metodoPago.includes("Tarjeta") && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) { 
+    if (requiereTarjeta && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) { 
       alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return; 
     }
-    if (metodoPago === "Cruzada" && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios."); return; }
+    if (requiereCruzada && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para pagos Cruzados."); return; }
 
-    const clienteFinal = metodoPago.includes("Tarjeta") ? dni : cliente;
+    const clienteFinal = requiereTarjeta ? dni : cliente;
+
+    let metodoPagoFinal = isPagoMixto ? "Mixto" : metodoPago;
+    let infoFinal = info;
+    
+    if (isPagoMixto) {
+        const det = `[Mixto -> ${metodoPago}: $${final1.toLocaleString('es-AR')} | ${metodoPago2}: $${final2.toLocaleString('es-AR')}]`;
+        infoFinal = info ? `${det} - ${info}` : det;
+    }
 
     try {
       setIsSubmitting(true);
       const resultado = await crearVentaMostrador({
         cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
-        interes: metodoPago === "Tarjeta de Crédito" ? interesTarjeta : 0,
-        totalFinal: metodoPago === "Tarjeta de Crédito" ? totalConInteres : totalBase,
-        items, metodo_pago: metodoPago, dni, telefono, info, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+        interes: interesTarjeta, // Guardamos el interés general aplicado a tarjetas
+        totalFinal: totalFinalCalculado,
+        items, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
         email, eventoOffline
       });
       if (resultado.success) {
@@ -266,7 +297,7 @@ export default function VentasMostradorClient({
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
-    setEmail(""); setEventoOffline(false);
+    setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
   };
 
@@ -276,25 +307,45 @@ export default function VentasMostradorClient({
     if (!res.success) { alert("No se pudo actualizar"); cargarVentas(fechaFiltro); }
   };
 
-  // --- FUNCIONES EDICIÓN DE VENTA ---
+  // --- CALCULOS EDICIÓN VENTA (LÓGICA MIXTA) ---
   const totalBaseEdit = editItems.reduce((acc, item) => acc + item.subtotal, 0);
-  const totalConInteresEdit = totalBaseEdit * (1 + (editInteresTarjeta / 100));
+
+  const editBase1 = isEditPagoMixto ? editMontoPago1 : totalBaseEdit;
+  const editBase2 = isEditPagoMixto ? Math.max(0, totalBaseEdit - editMontoPago1) : 0;
+  
+  const isEditCredito1 = editMetodoPago === "Tarjeta de Crédito";
+  const isEditCredito2 = isEditPagoMixto && editMetodoPago2 === "Tarjeta de Crédito";
+
+  const editFinal1 = isEditCredito1 ? editBase1 * (1 + (editInteresTarjeta / 100)) : editBase1;
+  const editFinal2 = isEditCredito2 ? editBase2 * (1 + (editInteresTarjeta / 100)) : editBase2;
+
+  const editTotalFinalCalculado = isEditPagoMixto ? (editFinal1 + editFinal2) : editFinal1;
+  
+  const requiereTarjetaEdit = (isEditPagoMixto && (isEditCredito1 || isEditCredito2)) || (!isEditPagoMixto && isEditCredito1);
+  const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
 
   const abrirModalEdicion = (venta: any) => {
     setVentaOriginalParaComparar(venta);
     setEditVentaId(venta.id);
     setEditCliente(venta.cliente || "");
-    setEditMetodoPago(venta.metodo_pago || "Efectivo");
+    setEditMetodoPago(venta.metodo_pago === "Mixto" ? "Efectivo" : (venta.metodo_pago || "Efectivo"));
+    setIsEditPagoMixto(venta.metodo_pago === "Mixto");
+    setEditMontoPago1(venta.total / 2); // default
+    setEditMetodoPago2("Tarjeta de Crédito"); // default
+    
     setEditInteresTarjeta(Number(venta.interes) || 0);
     setEditDni(venta.dni || "");
     setEditTelefono(venta.telefono || "");
-    setEditInfo(venta.info || "");
     setEditCupon(venta.cupon || "");
     setEditTransaccionId(venta.transaccionId || "");
     setEditDeCruzada(venta.de || "");
     setEditParaCruzada(venta.para || "");
     setEditEmail(venta.email || "");
     setEditEventoOffline(venta.eventoOffline || false);
+    
+    // Limpiamos la marca de mixto vieja del info para no duplicarla si se guarda de nuevo
+    const cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
+    setEditInfo(cleanInfo);
     
     setEditItems(venta.items.map((i: any) => {
       const articuloBase = articulos.find(a => a.id === i.productoId);
@@ -330,33 +381,40 @@ export default function VentasMostradorClient({
   };
 
   const handleGuardarEdicion = async () => {
-    if (editMetodoPago.includes("Tarjeta") && (!editDni.trim() || !editTelefono.trim() || !editCupon.trim() || !editTransaccionId.trim())) { 
+    if (requiereTarjetaEdit && (!editDni.trim() || !editTelefono.trim() || !editCupon.trim() || !editTransaccionId.trim())) { 
       alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return; 
     }
-    if (editMetodoPago === "Cruzada" && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
+    if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
 
     let cambios = [];
     if (ventaOriginalParaComparar.cliente !== editCliente) cambios.push(`Cliente modificado`);
-    if (ventaOriginalParaComparar.metodo_pago !== editMetodoPago) cambios.push(`Método modificado`);
+    if (ventaOriginalParaComparar.metodo_pago !== (isEditPagoMixto ? "Mixto" : editMetodoPago)) cambios.push(`Método modificado`);
     if (ventaOriginalParaComparar.email !== editEmail) cambios.push(`Email modificado`);
     if (ventaOriginalParaComparar.eventoOffline !== editEventoOffline) cambios.push(`Evento offline modificado`);
-    if (Number(ventaOriginalParaComparar.totalFinal) !== (editMetodoPago === "Tarjeta de Crédito" ? totalConInteresEdit : totalBaseEdit)) {
+    if (Number(ventaOriginalParaComparar.totalFinal) !== editTotalFinalCalculado) {
         cambios.push(`Total alterado`);
     }
     if (cambios.length === 0) cambios.push("Se actualizaron artículos o datos menores.");
     const resumenCambios = cambios.join(" | ");
+
+    let editMetodoPagoFinal = isEditPagoMixto ? "Mixto" : editMetodoPago;
+    let editInfoFinal = editInfo;
+    if (isEditPagoMixto) {
+        const det = `[Mixto -> ${editMetodoPago}: $${editFinal1.toLocaleString('es-AR')} | ${editMetodoPago2}: $${editFinal2.toLocaleString('es-AR')}]`;
+        editInfoFinal = editInfo ? `${det} - ${editInfo}` : det;
+    }
 
     try {
       setIsSubmitting(true);
       const resultado = await actualizarVentaMostrador(
         editVentaId,
         {
-          cliente: editMetodoPago.includes("Tarjeta") ? editDni : editCliente,
+          cliente: requiereTarjetaEdit ? editDni : editCliente,
           total: totalBaseEdit,
-          interes: editMetodoPago === "Tarjeta de Crédito" ? editInteresTarjeta : 0,
-          totalFinal: editMetodoPago === "Tarjeta de Crédito" ? totalConInteresEdit : totalBaseEdit,
-          metodo_pago: editMetodoPago,
-          dni: editDni, telefono: editTelefono, info: editInfo, cupon: editCupon, 
+          interes: editInteresTarjeta,
+          totalFinal: editTotalFinalCalculado,
+          metodo_pago: editMetodoPagoFinal,
+          dni: editDni, telefono: editTelefono, info: editInfoFinal, cupon: editCupon, 
           transaccionId: editTransaccionId, de: editDeCruzada, para: editParaCruzada,
           email: editEmail,
           eventoOffline: editEventoOffline,
@@ -471,15 +529,15 @@ export default function VentasMostradorClient({
 
   return (
     <>
-      {/* 1. EL TICKET (Solo visible al momento de imprimir con print:block) */}
+      {/* 1. EL TICKET */}
       <TicketImpresion 
         items={ventaParaImprimir ? ventaParaImprimir.items.map((i: any) => ({ ...i, id: i.productoId || i.id })) : items} 
-        total={ventaParaImprimir ? Number(ventaParaImprimir.totalFinal || ventaParaImprimir.total) : (metodoPago === "Tarjeta de Crédito" ? totalConInteres : totalBase)} 
-        cliente={ventaParaImprimir ? (ventaParaImprimir.dni || ventaParaImprimir.cliente) : (metodoPago.includes("Tarjeta") && dni ? dni : cliente)}
-        metodoPago={ventaParaImprimir ? ventaParaImprimir.metodo_pago : metodoPago}
+        total={ventaParaImprimir ? Number(ventaParaImprimir.totalFinal || ventaParaImprimir.total) : totalFinalCalculado} 
+        cliente={ventaParaImprimir ? (ventaParaImprimir.dni || ventaParaImprimir.cliente) : (requiereTarjeta && dni ? dni : cliente)}
+        metodoPago={ventaParaImprimir ? ventaParaImprimir.metodo_pago : (isPagoMixto ? "MIXTO" : metodoPago)}
       />
 
-      {/* 2. TU INTERFAZ NORMAL (Se oculta al imprimir con print:hidden) */}
+      {/* 2. INTERFAZ NORMAL */}
       <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none relative print:hidden">
         
         {showCopyFeedback && (
@@ -547,9 +605,9 @@ export default function VentasMostradorClient({
                 </div>
 
                 <div className="flex-shrink-0 ml-auto text-right">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Total a Cobrar</span>
-                  <span className="text-3xl font-black text-slate-900 tracking-tighter">$ {totalConInteres.toLocaleString('es-AR')}</span>
-                  {interesTarjeta > 0 && <p className="text-[10px] text-slate-400 font-bold">Base: $ {totalBase.toLocaleString('es-AR')}</p>}
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Total Base Gral.</span>
+                  <span className="text-3xl font-black text-slate-900 tracking-tighter">$ {totalBase.toLocaleString('es-AR')}</span>
+                  {interesTarjeta > 0 && <p className="text-[10px] text-slate-400 font-bold">Ref. c/Tarjeta (+{interesTarjeta}%): $ {(totalBase * (1 + interesTarjeta / 100)).toLocaleString('es-AR')}</p>}
                 </div>
               </section>
 
@@ -579,7 +637,6 @@ export default function VentasMostradorClient({
                               <TableCell className="font-medium text-slate-700 py-3">
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center gap-2">
-                                    {/* APLICAMOS CLICK AL NOMBRE */}
                                     <span 
                                       onClick={() => copiarAlPortapapeles(item.nombre)} 
                                       className="text-base cursor-pointer hover:text-blue-600 transition-colors" 
@@ -591,7 +648,6 @@ export default function VentasMostradorClient({
                                       Stock: {item.stock}
                                     </span>
                                   </div>
-                                  {/* APLICAMOS CLICK AL ID */}
                                   <span 
                                     onClick={() => copiarAlPortapapeles(item.id)} 
                                     className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 transition-colors w-fit block" 
@@ -628,7 +684,6 @@ export default function VentasMostradorClient({
                                     <Save className="h-4 w-4" />
                                   </Button>
 
-                                  {/* NUEVO: FECHA DE ÚLTIMA MODIFICACIÓN */}
                                   {item.ultimaModificacion && (
                                     <div className="flex flex-col items-center ml-2 border-l border-slate-200 pl-2">
                                       <span className="text-[8px] text-slate-400 font-bold uppercase mb-0.5">Modificado</span>
@@ -745,7 +800,6 @@ export default function VentasMostradorClient({
                                   <div key={item.id} className="text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col group relative">
                                     <div className="flex justify-between items-start gap-3">
                                       <div className="flex flex-col flex-grow">
-                                        {/* CLICK EN NOMBRE (LISTADO) */}
                                         <span 
                                           onClick={() => copiarAlPortapapeles(item.nombre)} 
                                           className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors block" 
@@ -753,7 +807,6 @@ export default function VentasMostradorClient({
                                         >
                                           {item.nombre}
                                         </span>
-                                        {/* CLICK EN ID (LISTADO) */}
                                         <span 
                                           onClick={() => copiarAlPortapapeles(item.productoId)} 
                                           className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 mt-0.5 w-fit block transition-colors" 
@@ -772,15 +825,17 @@ export default function VentasMostradorClient({
                               </div>
                             </TableCell>
                             <TableCell className="py-4">
-                              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{v.metodo_pago}</span>
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {v.metodo_pago}
+                              </span>
                             </TableCell>
                             <TableCell className="py-4 text-xs font-mono text-slate-600">
-                               {v.metodo_pago === 'Cruzada' ? (v.de || "-") : (v.cupon || "-")}
+                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
                             </TableCell>
                             <TableCell className="py-4 text-xs font-mono text-slate-600">
-                               {v.metodo_pago === 'Cruzada' ? (v.para || "-") : (v.transaccionId || "-")}
+                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
                             </TableCell>
-                            <TableCell className="py-4 text-xs text-slate-500 max-w-[150px] truncate" title={v.info || ""}>
+                            <TableCell className="py-4 text-xs text-slate-500 max-w-[200px]" title={v.info || ""}>
                                {v.info || "-"}
                             </TableCell>
                             <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
@@ -867,15 +922,17 @@ export default function VentasMostradorClient({
                             </TableCell>
                             <TableCell className="font-bold text-slate-700 py-4">{v.cliente}</TableCell>
                             <TableCell className="py-4">
-                              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>{v.metodo_pago}</span>
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {v.metodo_pago}
+                              </span>
                             </TableCell>
                             <TableCell className="py-4 text-xs font-mono text-slate-600">
-                               {v.metodo_pago === 'Cruzada' ? (v.de || "-") : (v.cupon || "-")}
+                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
                             </TableCell>
                             <TableCell className="py-4 text-xs font-mono text-slate-600">
-                               {v.metodo_pago === 'Cruzada' ? (v.para || "-") : (v.transaccionId || "-")}
+                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
                             </TableCell>
-                            <TableCell className="py-4 text-xs text-slate-500 max-w-[150px] truncate" title={v.info || ""}>
+                            <TableCell className="py-4 text-xs text-slate-500 max-w-[200px]" title={v.info || ""}>
                                {v.info || "-"}
                             </TableCell>
                             <TableCell className="font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
@@ -929,20 +986,87 @@ export default function VentasMostradorClient({
         </Dialog>
 
         <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
-          <DialogContent className="sm:max-w-[500px] rounded-3xl p-6">
+          <DialogContent className="sm:max-w-[550px] rounded-3xl p-6">
             <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
-               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
-                <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
-                  <option value="Efectivo">Efectivo</option>
-                  <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                  <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                  <option value="Cruzada">Cruzada</option>
-                </select>
-              </div>
               
-              {(metodoPago.includes("Tarjeta")) && (
+              {/* SELECTOR DE PAGO MIXTO */}
+              <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <input 
+                  type="checkbox" 
+                  id="pagoMixto" 
+                  checked={isPagoMixto} 
+                  onChange={(e) => { 
+                    setIsPagoMixto(e.target.checked); 
+                    if(e.target.checked && montoPago1 === 0) setMontoPago1(totalBase/2); 
+                  }} 
+                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                />
+                <Label htmlFor="pagoMixto" className="text-sm font-bold text-slate-700 cursor-pointer">
+                  Pago Mixto (Dividir en 2 métodos de pago)
+                </Label>
+              </div>
+
+              {isPagoMixto ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-200 animate-in fade-in">
+                  <div className="space-y-3">
+                    <Label className="text-xs font-bold text-purple-800 uppercase">Pago 1 (Principal)</Label>
+                    <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                      <option value="Efectivo">Efectivo</option>
+                      <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                      <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                      <option value="Cruzada">Cruzada</option>
+                    </select>
+                    <div>
+                      <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base a pagar 1</Label>
+                      <Input type="number" value={montoPago1} onChange={(e) => setMontoPago1(Number(e.target.value))} className="font-bold border-purple-200 h-10 text-base" />
+                    </div>
+                    {isCredito1 && (
+                      <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
+                        Total P1 (+{interesTarjeta}%): <span className="text-sm block">$ {final1.toLocaleString('es-AR')}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-xs font-bold text-purple-800 uppercase">Pago 2 (Restante)</Label>
+                    <select value={metodoPago2} onChange={(e) => setMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                      <option value="Efectivo">Efectivo</option>
+                      <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                      <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                      <option value="Cruzada">Cruzada</option>
+                    </select>
+                    <div>
+                      <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
+                      <div className="h-10 bg-purple-100/50 rounded-xl border border-purple-200 flex items-center px-3 font-bold text-purple-900">
+                        $ {base2.toLocaleString('es-AR')}
+                      </div>
+                    </div>
+                    {isCredito2 && (
+                      <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
+                        Total P2 (+{interesTarjeta}%): <span className="text-sm block">$ {final2.toLocaleString('es-AR')}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="col-span-1 md:col-span-2 mt-2 bg-purple-700 text-white p-4 rounded-xl flex justify-between items-center shadow-md">
+                    <span className="text-xs font-bold uppercase tracking-wider">Total Final Calculado</span>
+                    <span className="text-2xl font-black">$ {totalFinalCalculado.toLocaleString('es-AR')}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
+                  <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                    <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                    <option value="Cruzada">Cruzada</option>
+                  </select>
+                </div>
+              )}
+              
+              {requiereTarjeta && (
                 <div className="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
                   <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label><Input value={dni} onChange={(e) => setDni(e.target.value)} className="bg-white border-blue-200" /></div>
                   <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">Teléfono <span className="text-red-500">*</span></Label><Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="bg-white border-blue-200" /></div>
@@ -951,7 +1075,7 @@ export default function VentasMostradorClient({
                 </div>
               )}
 
-              {metodoPago === "Cruzada" && (
+              {requiereCruzada && (
                 <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
                   <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
                   <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">Para <span className="text-red-500">*</span></Label><Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" /></div>
@@ -977,7 +1101,7 @@ export default function VentasMostradorClient({
                 </div>
               </div>
               
-              <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Información Extra</Label><Input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Notas..." /></div>
+              <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Información Extra</Label><Input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Notas adicionales..." /></div>
             </div>
             <DialogFooter className="gap-3">
               <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)}>Cancelar</Button>
@@ -1006,33 +1130,100 @@ export default function VentasMostradorClient({
             
             <div className="flex-grow overflow-y-auto p-6 flex flex-col gap-6 bg-slate-50/50">
               <section className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-4 shadow-sm">
-                <div className="flex gap-4 items-end flex-wrap">
+                
+                <div className="flex gap-4 items-end flex-wrap mb-2">
                   <div className="space-y-1.5 flex-grow min-w-[200px]">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase">Cliente / Razón Social</Label>
                     <Input value={editCliente} onChange={(e) => setEditCliente(e.target.value)} className="bg-slate-50" />
                   </div>
-                  <div className="space-y-1.5 w-48">
-                    <Label className="text-[10px] font-bold text-slate-400 uppercase">Método Pago</Label>
-                    <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-md border border-slate-200 bg-slate-50 px-3 text-sm">
-                      <option value="Efectivo">Efectivo</option>
-                      <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                      <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                      <option value="Cruzada">Cruzada</option>
-                    </select>
+                  <div className="space-y-1.5 w-32">
+                    <Label className="text-[10px] font-bold text-slate-400 uppercase">% Interés Gral.</Label>
+                    <Input type="number" value={editInteresTarjeta} onChange={(e) => setEditInteresTarjeta(Number(e.target.value))} className="font-bold text-blue-600 bg-slate-50" />
                   </div>
-                  {editMetodoPago === "Tarjeta de Crédito" && (
-                    <div className="space-y-1.5 w-32">
-                      <Label className="text-[10px] font-bold text-slate-400 uppercase">% Interés</Label>
-                      <Input type="number" value={editInteresTarjeta} onChange={(e) => setEditInteresTarjeta(Number(e.target.value))} className="font-bold text-blue-600 bg-slate-50" />
-                    </div>
-                  )}
                   <div className="text-right bg-amber-50 p-2 px-4 rounded-xl border border-amber-100 ml-auto">
-                    <span className="text-[10px] font-bold text-amber-700 uppercase block mb-0.5">Total Actualizado</span>
-                    <span className="text-2xl font-black text-amber-900">$ {(editMetodoPago === "Tarjeta de Crédito" ? totalConInteresEdit : totalBaseEdit).toLocaleString('es-AR')}</span>
+                    <span className="text-[10px] font-bold text-amber-700 uppercase block mb-0.5">Total Base Gral.</span>
+                    <span className="text-2xl font-black text-amber-900">$ {totalBaseEdit.toLocaleString('es-AR')}</span>
                   </div>
                 </div>
 
-                {(editMetodoPago.includes("Tarjeta")) && (
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <input 
+                      type="checkbox" 
+                      id="editPagoMixto" 
+                      checked={isEditPagoMixto} 
+                      onChange={(e) => { 
+                        setIsEditPagoMixto(e.target.checked); 
+                        if(e.target.checked && editMontoPago1 === 0) setEditMontoPago1(totalBaseEdit/2); 
+                      }} 
+                      className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
+                    />
+                    <Label htmlFor="editPagoMixto" className="text-sm font-bold text-slate-700 cursor-pointer">
+                      Pago Mixto (Dividir en 2 métodos de pago)
+                    </Label>
+                  </div>
+
+                  {isEditPagoMixto ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-200 animate-in fade-in">
+                      <div className="space-y-3">
+                        <Label className="text-xs font-bold text-purple-800 uppercase">Pago 1 (Principal)</Label>
+                        <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                          <option value="Efectivo">Efectivo</option>
+                          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                          <option value="Cruzada">Cruzada</option>
+                        </select>
+                        <div>
+                          <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base a pagar 1</Label>
+                          <Input type="number" value={editMontoPago1} onChange={(e) => setEditMontoPago1(Number(e.target.value))} className="font-bold border-purple-200 h-10 text-base" />
+                        </div>
+                        {isEditCredito1 && (
+                          <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
+                            Total P1 (+{editInteresTarjeta}%): <span className="text-sm block">$ {editFinal1.toLocaleString('es-AR')}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label className="text-xs font-bold text-purple-800 uppercase">Pago 2 (Restante)</Label>
+                        <select value={editMetodoPago2} onChange={(e) => setEditMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                          <option value="Efectivo">Efectivo</option>
+                          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                          <option value="Cruzada">Cruzada</option>
+                        </select>
+                        <div>
+                          <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
+                          <div className="h-10 bg-purple-100/50 rounded-xl border border-purple-200 flex items-center px-3 font-bold text-purple-900">
+                            $ {editBase2.toLocaleString('es-AR')}
+                          </div>
+                        </div>
+                        {isEditCredito2 && (
+                          <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
+                            Total P2 (+{editInteresTarjeta}%): <span className="text-sm block">$ {editFinal2.toLocaleString('es-AR')}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="col-span-1 md:col-span-2 mt-2 bg-purple-700 text-white p-4 rounded-xl flex justify-between items-center shadow-md">
+                        <span className="text-xs font-bold uppercase tracking-wider">Total Final Calculado</span>
+                        <span className="text-2xl font-black">$ {editTotalFinalCalculado.toLocaleString('es-AR')}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 w-64">
+                      <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago Única</Label>
+                      <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none">
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                        <option value="Cruzada">Cruzada</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+
+                {requiereTarjetaEdit && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label>
@@ -1053,7 +1244,7 @@ export default function VentasMostradorClient({
                   </div>
                 )}
 
-                {editMetodoPago === "Cruzada" && (
+                {requiereCruzadaEdit && (
                   <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-200 animate-in fade-in">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-amber-800">De <span className="text-red-500">*</span></Label>
@@ -1112,7 +1303,6 @@ export default function VentasMostradorClient({
                           <TableCell className="font-medium text-slate-700 py-3">
                              <div className="flex flex-col gap-1">
                                <div className="flex items-center gap-2">
-                                 {/* CLICK EN NOMBRE (MODO EDICIÓN) */}
                                  <span 
                                    onClick={() => copiarAlPortapapeles(item.nombre)} 
                                    className="text-sm cursor-pointer hover:text-amber-600 transition-colors"
@@ -1124,7 +1314,6 @@ export default function VentasMostradorClient({
                                    Stock: {item.stock}
                                  </span>
                                </div>
-                               {/* CLICK EN ID (MODO EDICIÓN) */}
                                <span 
                                  onClick={() => copiarAlPortapapeles(item.id)} 
                                  className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-amber-600 transition-colors w-fit block" 
@@ -1161,7 +1350,6 @@ export default function VentasMostradorClient({
                                 <Save className="h-4 w-4" />
                               </Button>
 
-                              {/* NUEVO: FECHA DE ÚLTIMA MODIFICACIÓN */}
                               {item.ultimaModificacion && (
                                 <div className="flex flex-col items-center ml-2 border-l border-slate-200 pl-2">
                                   <span className="text-[8px] text-slate-400 font-bold uppercase mb-0.5">Modificado</span>
@@ -1355,9 +1543,8 @@ function TicketImpresion({
   metodoPago: string 
 }) {
   const fechaActual = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const ticketId = String(Date.now()).slice(-8); // Simulamos un número de ticket
+  const ticketId = String(Date.now()).slice(-8);
   
-  // Función auxiliar para forzar el formato 28,000.00 exacto
   const formatPrecio = (num: any) => {
     return Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
@@ -1365,27 +1552,21 @@ function TicketImpresion({
   const clienteFinalStr = cliente && cliente !== "Consumidor Final" ? cliente.toUpperCase() : "CONSUMIDOR FINAL";
 
   return (
-    // Se oculta en pantalla (hidden) y se activa en modo impresión (print:flex).
-    // Ancho 48mm centrado, fuente bajada a text-[9px] para que rinda el espacio
     <div className="hidden print:flex flex-col w-[48mm] mx-auto font-mono text-black bg-white text-[9px] uppercase leading-tight" style={{ margin: 0, padding: 0 }}>
-      {/* Estilos específicos para impresoras de ticket */}
       <style type="text/css" media="print">
         {`
           @page { margin: 0; size: 58mm auto; }
           body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; color-adjust: exact; background-color: white;}
-          /* Forzar bordes negros al imprimir */
           .border-print-black { border-color: black !important; }
         `}
       </style>
 
-      {/* --- 1. ENCABEZADO --- */}
       <div className="text-center w-full mb-1">
         <p>NO VALIDO COMO FACTURA</p>
         <p>{fechaActual}</p>
         <p>NRO: 00099-{ticketId}</p>
       </div>
 
-      {/* Icono Central "X" */}
       <div className="flex justify-center my-2">
         <div className="border-[1.5px] border-print-black border-black w-8 h-8 flex items-center justify-center font-bold text-xl">
           X
@@ -1400,17 +1581,14 @@ function TicketImpresion({
         <p>//</p>
       </div>
 
-      {/* --- 2. INFORMACIÓN DEL CLIENTE --- */}
       <div className="text-left w-full mb-2">
         <p className="font-bold text-[10px]">{clienteFinalStr}</p>
         <p>CORDOBA</p>
         <p>{metodoPago.toUpperCase()}</p>
       </div>
 
-      {/* --- 3. CUERPO DE LA VENTA --- */}
       <div className="w-full border-t border-print-black border-black my-1"></div>
       
-      {/* TABLA MODIFICADA */}
       <table className="w-full text-[9px] leading-tight text-left border-collapse table-fixed">
         <thead>
           <tr>
@@ -1432,7 +1610,6 @@ function TicketImpresion({
       
       <div className="w-full border-t border-print-black border-black my-1 mt-2"></div>
 
-      {/* --- 4. PIE DE PÁGINA Y TOTALES --- */}
       <div className="flex justify-between items-center w-full mt-1 mb-1">
         <span>SUBTOTAL:</span>
         <span>{formatPrecio(total)}</span>
@@ -1460,9 +1637,6 @@ function TicketImpresion({
   );
 }
 
-// ========================================================================
-// --- UTILIDAD: NÚMERO A LETRAS (HASTA 999.999 PARA TICKET) ---
-// ========================================================================
 function numeroALetras(num: number): string {
   const Unidades = (n: number) => {
     switch(n) {

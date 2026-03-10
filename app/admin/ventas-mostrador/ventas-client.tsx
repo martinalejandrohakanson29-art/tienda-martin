@@ -1010,7 +1010,7 @@ export default function VentasMostradorClient({
               {isPagoMixto ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-200 animate-in fade-in">
                   <div className="space-y-3">
-                    <Label className="text-xs font-bold text-purple-800 uppercase">Pago 1 (Principal)</Label>
+                    <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 1</Label>
                     <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
                       <option value="Efectivo">Efectivo</option>
                       <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
@@ -1029,7 +1029,7 @@ export default function VentasMostradorClient({
                   </div>
 
                   <div className="space-y-3">
-                    <Label className="text-xs font-bold text-purple-800 uppercase">Pago 2 (Restante)</Label>
+                    <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 2</Label>
                     <select value={metodoPago2} onChange={(e) => setMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
                       <option value="Efectivo">Efectivo</option>
                       <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
@@ -1174,7 +1174,7 @@ export default function VentasMostradorClient({
                           <option value="Cruzada">Cruzada</option>
                         </select>
                         <div>
-                          <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base a pagar 1</Label>
+                          <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto 1</Label>
                           <Input type="number" value={editMontoPago1} onChange={(e) => setEditMontoPago1(Number(e.target.value))} className="font-bold border-purple-200 h-10 text-base" />
                         </div>
                         {isEditCredito1 && (
@@ -1193,20 +1193,20 @@ export default function VentasMostradorClient({
                           <option value="Cruzada">Cruzada</option>
                         </select>
                         <div>
-                          <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
+                          <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto 2</Label>
                           <div className="h-10 bg-purple-100/50 rounded-xl border border-purple-200 flex items-center px-3 font-bold text-purple-900">
                             $ {editBase2.toLocaleString('es-AR')}
                           </div>
                         </div>
                         {isEditCredito2 && (
                           <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
-                            Total P2 (+{editInteresTarjeta}%): <span className="text-sm block">$ {editFinal2.toLocaleString('es-AR')}</span>
+                            Total P2 + interes (+{editInteresTarjeta}%): <span className="text-sm block">$ {editFinal2.toLocaleString('es-AR')}</span>
                           </p>
                         )}
                       </div>
 
                       <div className="col-span-1 md:col-span-2 mt-2 bg-purple-700 text-white p-4 rounded-xl flex justify-between items-center shadow-md">
-                        <span className="text-xs font-bold uppercase tracking-wider">Total Final Calculado</span>
+                        <span className="text-xs font-bold uppercase tracking-wider">Total Final</span>
                         <span className="text-2xl font-black">$ {editTotalFinalCalculado.toLocaleString('es-AR')}</span>
                       </div>
                     </div>

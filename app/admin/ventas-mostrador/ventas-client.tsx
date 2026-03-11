@@ -573,7 +573,7 @@ export default function VentasMostradorClient({
           </div>
         </header>
 
-        <Tabs defaultValue="registrar" className="flex-grow flex flex-col overflow-hidden">
+        <Tabs defaultValue="registrar" className="flex-grow flex flex-col overflow-hidden h-full w-full">
           <div className="bg-white border-b border-slate-100 px-8 py-1">
             <TabsList className="bg-slate-100/50 p-1 w-full flex justify-start relative">
               <TabsTrigger value="registrar" className="gap-2 px-6"><ShoppingCart className="h-4 w-4" /> Registrar Venta</TabsTrigger>
@@ -585,16 +585,16 @@ export default function VentasMostradorClient({
           </div>
 
           {/* --- PESTAÑA: REGISTRAR VENTA --- */}
-          <TabsContent value="registrar" className="flex-grow flex flex-col overflow-hidden m-0">
-            <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden">
+          <TabsContent value="registrar" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
+            <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
               
               <section className="flex-grow flex flex-col min-h-0 gap-4">
-                <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md">
+                <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
                   <Plus className="h-4 w-4" /> Añadir Artículo ( + )
                 </Button>
 
                 <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col">
-                  <div className="overflow-y-auto flex-grow">
+                  <div className="overflow-y-auto flex-grow h-full">
                     <Table>
                       <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                         <TableRow>
@@ -733,8 +733,8 @@ export default function VentasMostradorClient({
           </TabsContent>
 
           {/* --- PESTAÑA: LISTADO DE VENTAS --- */}
-          <TabsContent value="listado" className="flex-grow flex flex-col overflow-hidden m-0 select-text">
-            <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden">
+          <TabsContent value="listado" className="flex-grow overflow-hidden m-0 select-text data-[state=active]:flex data-[state=active]:flex-col h-full">
+            <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
               <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="space-y-1">
@@ -769,8 +769,8 @@ export default function VentasMostradorClient({
                 </div>
               </div>
 
-              <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
-                <div className="overflow-y-auto h-full">
+              <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div className="overflow-y-auto flex-grow h-full">
                   <Table>
                     <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                       <TableRow>
@@ -874,8 +874,8 @@ export default function VentasMostradorClient({
           </TabsContent>
 
           {/* --- PESTAÑA: GESTIÓN Y EDICIÓN --- */}
-          <TabsContent value="gestion" className="flex-grow flex flex-col overflow-hidden m-0 select-text">
-            <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden">
+          <TabsContent value="gestion" className="flex-grow overflow-hidden m-0 select-text data-[state=active]:flex data-[state=active]:flex-col h-full">
+            <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
               <div className="flex items-center justify-between bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-sm flex-shrink-0">
                 <div className="flex items-center gap-3">
                   <div className="space-y-1">
@@ -897,8 +897,8 @@ export default function VentasMostradorClient({
                 </div>
               </div>
 
-              <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
-                <div className="overflow-y-auto h-full">
+              <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col">
+                <div className="overflow-y-auto flex-grow h-full">
                   <Table>
                     <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                       <TableRow>

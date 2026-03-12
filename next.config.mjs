@@ -26,7 +26,12 @@ const nextConfig = {
             },
         ],
     },
-    // Si necesitas habilitar acciones de servidor o transpilación de paquetes específicos, puedes sumarlos aquí
+    // Aquí agregamos la regla para que los celulares puedan subir fotos pesadas sin error
+    experimental: {
+        serverActions: {
+            bodySizeLimit: '10mb',
+        },
+    },
 };
 
 export default nextConfig;

@@ -1,9 +1,9 @@
+// martinalejandrohakanson29-art/tienda-martin/app/admin/mercadolibre/full/page.tsx
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   PackageCheck, 
   FileSpreadsheet, 
-  ExternalLink, 
   ArrowLeft, 
   ArrowRight, 
   Truck 
@@ -25,7 +25,7 @@ export default function GestionFullPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         
-        {/* TARJETA 1: Railway */}
+        {/* TARJETA 1: Guía Interna */}
         <Card className="hover:shadow-md transition-all border-l-4 border-l-purple-500">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-purple-700">
@@ -33,17 +33,13 @@ export default function GestionFullPage() {
               Preparación envíos FULL
             </CardTitle>
             <CardDescription>
-              Fotos, etiquetado y evidencia (Sistema Externo).
+              Buscador, fotos y auditoría de stock (Interno).
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link 
-                href="https://guia-pedidos-ml-production.up.railway.app/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-            >
+            <Link href="/admin/mercadolibre/full/preparacion">
               <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white gap-2">
-                Abrir Sistema <ExternalLink size={16} />
+                Abrir Guía <ArrowRight size={16} />
               </Button>
             </Link>
           </CardContent>

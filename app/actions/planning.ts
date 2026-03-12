@@ -3,8 +3,8 @@
 import { prisma } from "@/lib/prisma"
 
 // URLs de los webhooks de n8n
-const N8N_PROCESS_WORKFLOW_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/obtener-fotos-planning";
-const N8N_SALES_WORKFLOW_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/3ac81569-93e4-4e90-9a64-025b79a727c5";
+const N8N_PROCESS_WORKFLOW_URL = "https://n8n.revolucionmotos.tech/webhook/obtener-fotos-planning";
+const N8N_SALES_WORKFLOW_URL = "https://n8n.revolucionmotos.tech/webhook/3ac81569-93e4-4e90-9a64-025b79a727c5";
 const SHEETS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR7Pa9ql-kdfGt_kQReLGEzFGaqVcex55VydptBQhV2EI0DTLhXFvzxukPbtZ6YCiprd8D7HKF80sWL/pub?gid=0&single=true&output=csv";
 
 /**

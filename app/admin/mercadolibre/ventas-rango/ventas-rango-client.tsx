@@ -19,14 +19,14 @@ import {
 // Interface para los datos de n8n
 interface VentaRango {
   mla: string;
-  costo_total: string;
-  envio: number;
-  neto_recibido: number;
-  Impuestos: string;
-  comision: number;
+  costo_total: string | number;
+  envio: string | number;
+  neto_recibido: string | number;
+  Impuestos: string | number;
+  comision: string | number;
   external_reference: string;
   titulo: string;
-  "monto bruto": string;
+  "monto bruto": string | number;
 }
 
 export default function VentasRangoClient() {
@@ -36,10 +36,19 @@ export default function VentasRangoClient() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Formateadores auxiliares
-  const formatMoney = (amount: string | number) => {
-    const num = typeof amount === "string" ? parseFloat(amount) : amount;
-    if (isNaN(num)) return "$0,00";
+  // Función de limpieza de números ultra segura
+  const parseNum = (val: any): number => {
+    if (val === null || val === undefined) return 0;
+    if (typeof val === "number") return val;
+    // Si es string, quitamos cualquier cosa que no sea número, punto o guión
+    const cleaned = String(val).replace(/[^0-9.-]/g, "");
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  // Formateador de moneda
+  const formatMoney = (amount: any) => {
+    const num = parseNum(amount);
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
@@ -60,20 +69,13 @@ export default function VentasRangoClient() {
 
     const count = data.length;
     const totals = data.reduce((acc, v) => {
-      const bruto = parseFloat(v["monto bruto"]) || 0;
-      const comision = v.comision || 0;
-      const envio = v.envio || 0;
-      const impuestos = parseFloat(v.Impuestos) || 0;
-      const costo = parseFloat(v.costo_total) || 0;
-      const neto = v.neto_recibido || 0;
-
       return {
-        bruto: acc.bruto + bruto,
-        comision: acc.comision + comision,
-        envio: acc.envio + envio,
-        impuestos: acc.impuestos + impuestos,
-        costo: acc.costo + costo,
-        neto: acc.neto + neto,
+        bruto: acc.bruto + parseNum(v["monto bruto"]),
+        comision: acc.comision + parseNum(v.comision),
+        envio: acc.envio + parseNum(v.envio),
+        impuestos: acc.impuestos + parseNum(v.Impuestos),
+        costo: acc.costo + parseNum(v.costo_total),
+        neto: acc.neto + parseNum(v.neto_recibido),
       };
     }, { bruto: 0, comision: 0, envio: 0, impuestos: 0, costo: 0, neto: 0 });
 
@@ -101,18 +103,17 @@ export default function VentasRangoClient() {
     }
     setIsLoading(true);
     setError(null);
-
     try {
       const res = await fetch("/api/webhooks/n8n/ventas-rango", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ startDate, endDate }),
       });
-      if (!res.ok) throw new Error("Error al consultar n8n");
+      if (!res.ok) throw new Error("Error en n8n");
       const jsonData = await res.json();
       setData(jsonData);
     } catch (err) {
-      setError("Error de conexión con n8n.");
+      setError("Error al traer datos. Revisar n8n.");
     } finally {
       setIsLoading(false);
     }
@@ -219,9 +220,8 @@ export default function VentasRangoClient() {
               </TableHeader>
               <TableBody>
                 {data.map((venta, index) => {
-                  const bruto = parseFloat(venta["monto bruto"]) || 0;
-                  const costo = parseFloat(venta.costo_total) || 0;
-                  // Cálculo corregido: (bruto / costo) * 100
+                  const bruto = parseNum(venta["monto bruto"]);
+                  const costo = parseNum(venta.costo_total);
                   const pctMarkup = costo > 0 ? (bruto / costo) * 100 : 0;
 
                   return (
@@ -239,7 +239,6 @@ export default function VentasRangoClient() {
                       <TableCell className="text-right text-orange-700 font-bold bg-orange-50/50">
                         {formatPercent(pctMarkup)}
                       </TableCell>
-                      {/* Corregido: solo usamos venta.neto_recibido para evitar errores de tipo */}
                       <TableCell className="text-right text-green-600 font-bold">{formatMoney(venta.neto_recibido)}</TableCell>
                     </TableRow>
                   );

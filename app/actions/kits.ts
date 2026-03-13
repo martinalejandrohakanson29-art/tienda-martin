@@ -20,22 +20,18 @@ export async function getComposicionKits() {
 }
 
 /**
- * Agregar o editar un componente en un kit.
- * Se encarga de limpiar los IDs para que coincidan con la tabla de costos.
+ * Agregar o editar un componente en un kit de forma individual.
  */
 export async function upsertKitComponent(data: any) {
   try {
     const { id, mla, variation_id, nombre_variante, id_articulo, cantidad, nombre_articulo } = data;
 
-    // Limpiamos los datos: quitamos espacios en blanco y normalizamos
     const cleanMla = mla?.trim().toUpperCase() || "";
-    // Si variation_id está vacío o es solo espacios, lo guardamos como null
     const cleanVariationId = (variation_id && variation_id.trim() !== "") ? variation_id.trim() : null;
     const cleanNombreVariante = (nombre_variante && nombre_variante.trim() !== "") ? nombre_variante.trim() : "0";
     const cleanIdArticulo = id_articulo?.trim() || "";
 
     if (id) {
-      // Actualizar registro existente
       await prisma.composicionKits.update({
         where: { id },
         data: { 
@@ -48,7 +44,6 @@ export async function upsertKitComponent(data: any) {
         },
       });
     } else {
-      // Crear nuevo registro
       await prisma.composicionKits.create({
         data: { 
           mla: cleanMla, 
@@ -61,7 +56,6 @@ export async function upsertKitComponent(data: any) {
       });
     }
 
-    // Refrescamos las rutas para que los cambios se vean en ambas tablas
     revalidatePath("/admin/mercadolibre/composicion");
     revalidatePath("/admin/mercadolibre/costos");
     
@@ -72,6 +66,40 @@ export async function upsertKitComponent(data: any) {
       success: false, 
       error: error.message || "Error al guardar el componente del kit" 
     };
+  }
+}
+
+// NUEVO: Guardar una receta completa (Múltiples Variantes con Múltiples Items)
+export async function saveBulkKitComponents(payload: { mla: string, variantes: any[] }) {
+  try {
+    const cleanMla = payload.mla.trim().toUpperCase();
+    
+    for (const variant of payload.variantes) {
+      const cleanVariationId = (variant.variation_id && variant.variation_id.trim() !== "") ? variant.variation_id.trim() : null;
+      const cleanNombreVariante = (variant.nombre_variante && variant.nombre_variante.trim() !== "") ? variant.nombre_variante.trim() : "0";
+      
+      for (const comp of variant.componentes) {
+        if (!comp.id_articulo) continue; // Saltamos los campos vacíos
+        
+        await prisma.composicionKits.create({
+          data: {
+            mla: cleanMla,
+            variation_id: cleanVariationId,
+            nombre_variante: cleanNombreVariante,
+            id_articulo: comp.id_articulo.trim(),
+            cantidad: Number(comp.cantidad) || 1,
+            nombre_articulo: comp.nombre_articulo?.trim() || ""
+          }
+        });
+      }
+    }
+    
+    revalidatePath("/admin/mercadolibre/composicion");
+    revalidatePath("/admin/mercadolibre/costos");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al guardar receta masiva:", error);
+    return { success: false, error: error.message };
   }
 }
 

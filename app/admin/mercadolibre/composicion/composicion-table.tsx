@@ -7,21 +7,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2 } from "lucide-react"; // <--- Agregamos Loader2
+import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2, X } from "lucide-react"; 
 import { upsertKitComponent, deleteKitComponent } from "@/app/actions/kits";
 import { createManualProduct } from "@/app/actions/ml-maestros";
 
 export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: any[] }) {
   const [filter, setFilter] = useState("");
   
-  // MODAL DE RECETAS (El habitual)
+  // MODAL DE RECETAS
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   
-  // NUEVO MODAL: ALTA DE PRODUCTO MAESTRO
+  // NUEVO MODAL: ALTA DE PRODUCTO MAESTRO (MULTIPLE)
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState({ mla: "", titulo: "", nombre_variante: "", variation_id: "" });
-  const [isSubmitting, setIsSubmitting] = useState(false); // <--- NUEVO ESTADO DE CARGA
+  const [masterData, setMasterData] = useState({ 
+    mla: "", 
+    titulo: "", 
+    variantes: [{ nombre_variante: "", variation_id: "" }] 
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false); 
   
   const [searchArticulo, setSearchArticulo] = useState("");
 
@@ -86,28 +90,53 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
     }
   };
 
-  // --- NUEVOS HANDLERS: ALTA DE PRODUCTO MAESTRO (CORREGIDO) ---
+  // --- LÓGICA MULTI-VARIANTE PARA ALTA CATÁLOGO ---
+  const addVariantRow = () => {
+    setMasterData({
+      ...masterData,
+      variantes: [...masterData.variantes, { nombre_variante: "", variation_id: "" }]
+    });
+  };
+
+  const removeVariantRow = (index: number) => {
+    const updated = [...masterData.variantes];
+    updated.splice(index, 1);
+    setMasterData({ ...masterData, variantes: updated });
+  };
+
+  const updateVariant = (index: number, field: string, value: string) => {
+    const updated = [...masterData.variantes];
+    updated[index] = { ...updated[index], [field]: value };
+    setMasterData({ ...masterData, variantes: updated });
+  };
+
   const handleSaveMaster = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true); // 1. Bloqueamos botón
+    setIsSubmitting(true);
     try {
-        const res = await createManualProduct(newProduct);
-        if (res.success) {
-          setIsMasterModalOpen(false); // 2. Cerramos el modal limpiamente
-          setNewProduct({ mla: "", titulo: "", nombre_variante: "", variation_id: "" });
-          
-          // 3. ELIMINAMOS LA APERTURA AUTOMÁTICA para evitar el conflicto visual
-          // handleOpenModal(...)  <--- ESTA LINEA ERA LA CULPABLE
-          
-          alert("¡Producto creado correctamente! Ahora búscalo en la lista y agrégale su receta.");
-        } else {
-          alert(res.error);
+        // Enviamos cada variante como un registro individual a la acción
+        for (const variant of masterData.variantes) {
+          const payload = {
+            mla: masterData.mla,
+            titulo: masterData.titulo,
+            nombre_variante: variant.nombre_variante,
+            variation_id: variant.variation_id
+          };
+          const res = await createManualProduct(payload);
+          if (!res.success) {
+            alert(`Error en variante ${variant.nombre_variante}: ${res.error}`);
+            // Podrías elegir detener el bucle aquí o seguir
+          }
         }
+        
+        setIsMasterModalOpen(false);
+        setMasterData({ mla: "", titulo: "", variantes: [{ nombre_variante: "", variation_id: "" }] });
+        alert("¡Proceso finalizado! Los productos se han creado correctamente.");
     } catch (error) {
         console.error(error);
-        alert("Ocurrió un error inesperado al crear el producto.");
+        alert("Ocurrió un error inesperado.");
     } finally {
-        setIsSubmitting(false); // 4. Desbloqueamos siempre
+        setIsSubmitting(false);
     }
   };
 
@@ -115,8 +144,6 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
     <div className="space-y-4">
       {/* BARRA SUPERIOR DE ACCIONES */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-end md:items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
-        
-        {/* Buscador */}
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
@@ -127,9 +154,7 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
           />
         </div>
 
-        {/* Botones de Acción */}
         <div className="flex gap-2 w-full md:w-auto">
-          {/* Botón 1: Crear Producto en Catálogo */}
           <Button 
             onClick={() => setIsMasterModalOpen(true)} 
             variant="outline"
@@ -138,8 +163,6 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
             <PackagePlus className="h-4 w-4 text-purple-600" /> 
             Alta Catálogo ML
           </Button>
-
-          {/* Botón 2: Crear Receta Directa */}
           <Button 
             onClick={() => handleOpenModal()} 
             className="bg-blue-600 hover:bg-blue-700 gap-2 shadow-sm flex-1 md:flex-none"
@@ -200,7 +223,7 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
         </Table>
       </div>
 
-      {/* MODAL 1: GESTIÓN DE RECETA (KIT) */}
+      {/* MODAL 1: GESTIÓN DE RECETA */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
@@ -292,78 +315,113 @@ export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: 
         </DialogContent>
       </Dialog>
 
-      {/* MODAL 2: ALTA DE PRODUCTO MAESTRO (CORREGIDO CON LOADING) */}
+      {/* MODAL 2: ALTA DE PRODUCTO MAESTRO (MULTI-VARIANTE) */}
       <Dialog open={isMasterModalOpen} onOpenChange={setIsMasterModalOpen}>
-        <DialogContent className="sm:max-w-[500px] border-l-4 border-l-purple-500">
+        <DialogContent className="sm:max-w-[650px] border-l-4 border-l-purple-500 overflow-hidden flex flex-col max-h-[90vh]">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-purple-700 flex items-center gap-2">
               <PackagePlus className="h-5 w-5" />
-              Alta de Producto en Catálogo
+              Alta de Producto y Variantes
             </DialogTitle>
             <DialogDescription>
-              Esto crea el producto en la base para que aparezca en la tabla de costos y vistas.
+              Define el MLA y agrega todas sus variantes de una sola vez.
             </DialogDescription>
           </DialogHeader>
           
-          <form onSubmit={handleSaveMaster} className="space-y-5 pt-4">
-            <div className="space-y-2">
-              <Label className="font-bold text-slate-700">MLA (Mercado Libre ID)</Label>
-              <Input 
-                value={newProduct.mla} 
-                onChange={e => setNewProduct({...newProduct, mla: e.target.value})}
-                placeholder="Ej: MLA12345678"
-                className="font-mono uppercase border-purple-200 focus:ring-purple-500"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-bold text-slate-700">Título de la Publicación</Label>
-              <Input 
-                value={newProduct.titulo} 
-                onChange={e => setNewProduct({...newProduct, titulo: e.target.value})}
-                placeholder="Ej: Kit Carburador 150cc Completo"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
+          <form onSubmit={handleSaveMaster} className="space-y-5 pt-4 overflow-y-auto pr-2">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500">Nombre Variante (Opcional)</Label>
+                <Label className="font-bold text-slate-700">MLA Principal</Label>
                 <Input 
-                  value={newProduct.nombre_variante} 
-                  onChange={e => setNewProduct({...newProduct, nombre_variante: e.target.value})}
-                  placeholder="Ej: Rojo / 28mm"
-                  className="text-sm"
+                  value={masterData.mla} 
+                  onChange={e => setMasterData({...masterData, mla: e.target.value})}
+                  placeholder="MLA12345678"
+                  className="font-mono uppercase border-purple-200 focus:ring-purple-500"
+                  required
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500">ID Variante (Opcional)</Label>
+                <Label className="font-bold text-slate-700">Título General</Label>
                 <Input 
-                  value={newProduct.variation_id} 
-                  onChange={e => setNewProduct({...newProduct, variation_id: e.target.value})}
-                  placeholder="Ej: 174680..."
-                  className="text-sm font-mono"
+                  value={masterData.titulo} 
+                  onChange={e => setMasterData({...masterData, titulo: e.target.value})}
+                  placeholder="Título de la publicación"
+                  required
                 />
               </div>
             </div>
 
-            <DialogFooter className="pt-2">
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <Label className="font-bold text-slate-600">Configuración de Variantes</Label>
+                <Button 
+                  type="button" 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={addVariantRow}
+                  className="h-7 text-xs border-purple-200 text-purple-600 hover:bg-purple-50"
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Agregar Variante
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                {masterData.variantes.map((v, idx) => (
+                  <div key={idx} className="flex gap-3 items-end bg-slate-50 p-3 rounded-lg border border-slate-100 relative group">
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400">Nombre Variante</Label>
+                      <Input 
+                        value={v.nombre_variante} 
+                        onChange={e => updateVariant(idx, "nombre_variante", e.target.value)}
+                        placeholder="Ej: Rojo / 28mm"
+                        className="h-8 text-sm"
+                        required
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400">ID Variante (ML)</Label>
+                      <Input 
+                        value={v.variation_id} 
+                        onChange={e => updateVariant(idx, "variation_id", e.target.value)}
+                        placeholder="Ej: 174680..."
+                        className="h-8 text-sm font-mono"
+                      />
+                    </div>
+                    {masterData.variantes.length > 1 && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="icon" 
+                        onClick={() => removeVariantRow(idx)}
+                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter className="pt-4 border-t sticky bottom-0 bg-white pb-2">
               <Button type="button" variant="ghost" onClick={() => setIsMasterModalOpen(false)} disabled={isSubmitting}>
                 Cancelar
               </Button>
               <Button 
                 type="submit" 
-                className="bg-purple-600 hover:bg-purple-700 text-white shadow-md"
-                disabled={isSubmitting} // Deshabilitamos si está cargando
+                className="bg-purple-600 hover:bg-purple-700 text-white shadow-md min-w-[140px]"
+                disabled={isSubmitting}
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creando...
+                    Procesando...
                   </>
                 ) : (
-                  "Crear Producto"
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Crear {masterData.variantes.length} Productos
+                  </>
                 )}
               </Button>
             </DialogFooter>

@@ -11,7 +11,8 @@ import {
   LineChart,
   ClipboardCheck,
   PlusSquare,
-  Calculator // Importamos el nuevo ícono para la calculadora
+  Calculator,
+  CalendarRange // Importamos el ícono para la nueva sección
 } from "lucide-react";
 import Link from "next/link";
 
@@ -33,7 +34,7 @@ export default function MercadoLibreDashboard() {
       {/* Grid de tarjetas */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         
-        {/* TARJETA 0: CÁLCULO DE PRECIO (NUEVA) */}
+        {/* TARJETA 0: CÁLCULO DE PRECIO */}
         <Card className="border-l-4 border-l-yellow-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-yellow-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-yellow-800 text-xl">
@@ -194,7 +195,7 @@ export default function MercadoLibreDashboard() {
           </CardContent>
         </Card>
 
-        {/* TARJETA 7: CREAR PUBLICACIONES (NUEVA) */}
+        {/* TARJETA 7: CREAR PUBLICACIONES */}
         <Card className="border-l-4 border-l-rose-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-rose-50/50">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-rose-800 text-xl">
@@ -211,6 +212,29 @@ export default function MercadoLibreDashboard() {
             </p>
             <Link href="/admin/mercadolibre/crear-publicaciones">
               <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 8: VENTAS POR RANGO (NUEVA) */}
+        <Card className="border-l-4 border-l-teal-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-teal-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-teal-800 text-xl">
+              <CalendarRange className="h-6 w-6" />
+              Ventas por Rango
+            </CardTitle>
+            <CardDescription className="text-teal-700/80 font-medium">
+              Consulta por fechas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Consulta las ventas de Mercado Libre filtrando por una fecha de inicio y una fecha de fin.
+            </p>
+            <Link href="/admin/mercadolibre/ventas-rango">
+              <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm h-12 text-lg">
                 Entrar <ArrowRight size={18} />
               </Button>
             </Link>

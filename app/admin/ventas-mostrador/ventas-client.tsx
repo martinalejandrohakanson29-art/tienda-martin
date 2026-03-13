@@ -212,8 +212,8 @@ export default function VentasMostradorClient({
 
   const totalFinalCalculado = isPagoMixto ? (final1 + final2) : final1;
   
-  // AHORA SIEMPRE SE REQUIEREN LOS DATOS PARA CUALQUIER MÉTODO DE PAGO
-  const requiereTarjeta = true; 
+  // SOLAMENTE SE REQUIEREN DATOS EXTRA SI EL MÉTODO NO ES EFECTIVO PURO
+  const requiereTarjeta = isPagoMixto ? (metodoPago !== "Efectivo" || metodoPago2 !== "Efectivo") : (metodoPago !== "Efectivo"); 
   const requiereCruzada = (isPagoMixto && (metodoPago === "Cruzada" || metodoPago2 === "Cruzada")) || (!isPagoMixto && metodoPago === "Cruzada");
 
   // --- FUNCIONES PARA IMPRESIÓN ---
@@ -256,7 +256,7 @@ export default function VentasMostradorClient({
 
   const handleFinalizarVenta = async () => {
     if (requiereTarjeta && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) { 
-      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para registrar la venta."); return; 
+      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para este método de pago."); return; 
     }
     if (requiereCruzada && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para pagos Cruzados."); return; }
 
@@ -322,8 +322,8 @@ export default function VentasMostradorClient({
 
   const editTotalFinalCalculado = isEditPagoMixto ? (editFinal1 + editFinal2) : editFinal1;
   
-  // AHORA SIEMPRE SE REQUIEREN LOS DATOS PARA LA EDICIÓN TAMBIÉN
-  const requiereTarjetaEdit = true;
+  // SOLAMENTE SE REQUIEREN DATOS EXTRA SI EL MÉTODO NO ES EFECTIVO PURO
+  const requiereTarjetaEdit = isEditPagoMixto ? (editMetodoPago !== "Efectivo" || editMetodoPago2 !== "Efectivo") : (editMetodoPago !== "Efectivo");
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
 
   const abrirModalEdicion = (venta: any) => {
@@ -384,7 +384,7 @@ export default function VentasMostradorClient({
 
   const handleGuardarEdicion = async () => {
     if (requiereTarjetaEdit && (!editDni.trim() || !editTelefono.trim() || !editCupon.trim() || !editTransaccionId.trim())) { 
-      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para registrar la venta."); return; 
+      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para este método de pago."); return; 
     }
     if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
 

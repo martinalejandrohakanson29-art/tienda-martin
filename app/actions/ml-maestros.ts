@@ -1,7 +1,7 @@
 // app/actions/ml-maestros.ts
 "use server";
 
-import { prisma } from "@/lib/prisma"; //
+import { prisma } from "@/lib/prisma"; 
 import { revalidatePath } from "next/cache";
 
 export async function createManualProduct(data: {
@@ -25,7 +25,6 @@ export async function createManualProduct(data: {
     const cleanVarId = variation_id?.trim() || null;
 
     // 3. Lógica CORREGIDA: Check-then-Act
-    // En lugar de upsert, buscamos primero usando findFirst (que sí acepta nulls en la búsqueda)
     const existingProduct = await prisma.productosMaestros.findFirst({
       where: {
         mla: cleanMla,
@@ -66,5 +65,17 @@ export async function createManualProduct(data: {
   } catch (error: any) {
     console.error("Error al crear producto maestro:", error);
     return { success: false, error: "Error de base de datos: " + error.message };
+  }
+}
+
+// NUEVO: Obtener todos los productos maestros para poblar las variantes al crear recetas
+export async function getProductosMaestros() {
+  try {
+    return await prisma.productosMaestros.findMany({
+      orderBy: { mla: 'asc' }
+    });
+  } catch (error) {
+    console.error("Error al obtener productos maestros:", error);
+    return [];
   }
 }

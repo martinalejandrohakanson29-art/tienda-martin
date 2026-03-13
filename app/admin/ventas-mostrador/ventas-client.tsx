@@ -1257,7 +1257,7 @@ export default function VentasMostradorClient({
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-amber-800">Para <span className="text-red-500">*</span></Label>
-                      <Input value={editParaCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" />
+                      <Input value={editParaCruzada} onChange={(e) => setEditParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" />
                     </div>
                   </div>
                 )}

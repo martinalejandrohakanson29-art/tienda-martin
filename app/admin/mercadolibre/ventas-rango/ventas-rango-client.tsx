@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Search, Loader2, TrendingUp, DollarSign, Percent } from "lucide-react";
+import { Search, Loader2, TrendingUp, DollarSign } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -54,7 +54,7 @@ export default function VentasRangoClient() {
     }).format(value / 100);
   };
 
-  // CÁLCULOS DEL RESUMEN (Memoized para rendimiento)
+  // CÁLCULOS DEL RESUMEN
   const stats = useMemo(() => {
     if (data.length === 0) return null;
 
@@ -80,7 +80,7 @@ export default function VentasRangoClient() {
     const getMetrics = (totalValue: number) => ({
       total: totalValue,
       promedio: totalValue / count,
-      porcentaje: (totalValue / totals.bruto) * 100
+      porcentaje: totals.bruto > 0 ? (totalValue / totals.bruto) * 100 : 0
     });
 
     return {
@@ -96,7 +96,7 @@ export default function VentasRangoClient() {
 
   const handleConsultar = async () => {
     if (!startDate || !endDate) {
-      setError("Por favor, selecciona la fecha de inicio y de fin.");
+      setError("Por favor, selecciona las fechas.");
       return;
     }
     setIsLoading(true);
@@ -108,12 +108,11 @@ export default function VentasRangoClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ startDate, endDate }),
       });
-      if (!res.ok) throw new Error("Error al consultar los datos");
+      if (!res.ok) throw new Error("Error al consultar n8n");
       const jsonData = await res.json();
       setData(jsonData);
     } catch (err) {
-      console.error(err);
-      setError("Hubo un problema al traer las ventas. Revisa tu conexión con n8n.");
+      setError("Error de conexión con n8n.");
     } finally {
       setIsLoading(false);
     }
@@ -121,54 +120,35 @@ export default function VentasRangoClient() {
 
   return (
     <div className="space-y-6">
-      {/* TARJETA DE FILTROS */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Filtros de Búsqueda</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-xl">Filtros de Búsqueda</CardTitle></CardHeader>
         <CardContent>
           <div className="flex flex-col md:flex-row gap-6 items-end">
             <div className="space-y-2 w-full md:w-1/3">
-              <Label htmlFor="startDate">Fecha de Inicio</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+              <Label>Fecha Inicio</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             </div>
             <div className="space-y-2 w-full md:w-1/3">
-              <Label htmlFor="endDate">Fecha de Fin</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+              <Label>Fecha Fin</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
             </div>
-            <Button 
-              onClick={handleConsultar} 
-              disabled={isLoading}
-              className="w-full md:w-auto bg-teal-600 hover:bg-teal-700 text-white gap-2"
-            >
-              {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              {isLoading ? "Consultando..." : "Consultar Ventas"}
+            <Button onClick={handleConsultar} disabled={isLoading} className="bg-teal-600 hover:bg-teal-700 text-white gap-2">
+              {isLoading ? <Loader2 className="animate-spin h-4 w-4" /> : <Search className="h-4 w-4" />}
+              Consultar
             </Button>
           </div>
           {error && <p className="text-red-500 mt-4 text-sm font-medium">{error}</p>}
         </CardContent>
       </Card>
 
-      {/* BLOQUE DE RESUMEN FINANCIERO */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="bg-slate-50 border-slate-200">
             <CardContent className="pt-6">
               <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Ventas Totales</p>
-                  <h3 className="text-3xl font-bold text-slate-900">{stats.count}</h3>
-                  <p className="text-xs text-slate-400 mt-1">Operaciones realizadas</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase">Cantidad Ventas</p>
+                  <h3 className="text-3xl font-bold">{stats.count}</h3>
                 </div>
                 <TrendingUp className="text-slate-400 h-5 w-5" />
               </div>
@@ -177,75 +157,63 @@ export default function VentasRangoClient() {
 
           <Card className="bg-blue-50 border-blue-100">
             <CardContent className="pt-6">
-              <p className="text-sm font-medium text-blue-600 uppercase tracking-wider">Bruto Total</p>
-              <h3 className="text-2xl font-bold text-blue-900">{formatMoney(stats.bruto.total)}</h3>
-              <p className="text-xs text-blue-500 mt-1">Prom: {formatMoney(stats.bruto.promedio)} /venta</p>
+              <p className="text-xs font-bold text-blue-600 uppercase">Bruto Total</p>
+              <h3 className="text-2xl font-bold">{formatMoney(stats.bruto.total)}</h3>
+              <p className="text-xs text-blue-500 font-medium">Prom: {formatMoney(stats.bruto.promedio)}</p>
             </CardContent>
           </Card>
 
           <Card className="bg-green-50 border-green-100">
             <CardContent className="pt-6">
-              <p className="text-sm font-medium text-green-600 uppercase tracking-wider">Neto Recibido</p>
-              <h3 className="text-2xl font-bold text-green-900">{formatMoney(stats.neto.total)}</h3>
-              <div className="flex gap-2 text-xs text-green-600 mt-1 font-medium">
-                <span>{formatPercent(stats.neto.porcentaje)} del bruto</span>
-                <span>•</span>
-                <span>Prom: {formatMoney(stats.neto.promedio)}</span>
-              </div>
+              <p className="text-xs font-bold text-green-600 uppercase">Neto Total</p>
+              <h3 className="text-2xl font-bold">{formatMoney(stats.neto.total)}</h3>
+              <p className="text-xs text-green-600 font-medium">{formatPercent(stats.neto.porcentaje)} del bruto • Prom: {formatMoney(stats.neto.promedio)}</p>
             </CardContent>
           </Card>
 
           <Card className="bg-orange-50 border-orange-100">
             <CardContent className="pt-6">
-              <p className="text-sm font-medium text-orange-600 uppercase tracking-wider">Costo Mercadería</p>
-              <h3 className="text-2xl font-bold text-orange-900">{formatMoney(stats.costo.total)}</h3>
-              <div className="flex gap-2 text-xs text-orange-600 mt-1 font-medium">
-                <span>{formatPercent(stats.costo.porcentaje)} del bruto</span>
-                <span>•</span>
-                <span>Prom: {formatMoney(stats.costo.promedio)}</span>
-              </div>
+              <p className="text-xs font-bold text-orange-600 uppercase">Costo Total</p>
+              <h3 className="text-2xl font-bold">{formatMoney(stats.costo.total)}</h3>
+              <p className="text-xs text-orange-600 font-medium">{formatPercent(stats.costo.porcentaje)} del bruto • Prom: {formatMoney(stats.costo.promedio)}</p>
             </CardContent>
           </Card>
 
-          {/* Segunda fila de costos detallados */}
-          <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-            <div className="p-4 rounded-lg bg-red-50 border border-red-100 flex flex-col">
-              <span className="text-xs font-bold text-red-600 uppercase">Comisiones ML</span>
-              <span className="text-lg font-bold">{formatMoney(stats.comision.total)}</span>
-              <span className="text-xs text-red-500">{formatPercent(stats.comision.porcentaje)} del total • Prom: {formatMoney(stats.comision.promedio)}</span>
+          <div className="lg:col-span-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-lg bg-red-50 border border-red-100">
+              <span className="text-xs font-bold text-red-600 uppercase">Comisiones</span>
+              <div className="text-lg font-bold">{formatMoney(stats.comision.total)}</div>
+              <div className="text-xs text-red-500 font-medium">{formatPercent(stats.comision.porcentaje)} del bruto • Prom: {formatMoney(stats.comision.promedio)}</div>
             </div>
-            <div className="p-4 rounded-lg bg-red-50 border border-red-100 flex flex-col">
-              <span className="text-xs font-bold text-red-600 uppercase">Gastos Envío</span>
-              <span className="text-lg font-bold">{formatMoney(stats.envio.total)}</span>
-              <span className="text-xs text-red-500">{formatPercent(stats.envio.porcentaje)} del total • Prom: {formatMoney(stats.envio.promedio)}</span>
+            <div className="p-4 rounded-lg bg-red-50 border border-red-100">
+              <span className="text-xs font-bold text-red-600 uppercase">Envíos</span>
+              <div className="text-lg font-bold">{formatMoney(stats.envio.total)}</div>
+              <div className="text-xs text-red-500 font-medium">{formatPercent(stats.envio.porcentaje)} del bruto • Prom: {formatMoney(stats.envio.promedio)}</div>
             </div>
-            <div className="p-4 rounded-lg bg-red-50 border border-red-100 flex flex-col">
-              <span className="text-xs font-bold text-red-600 uppercase">Impuestos (Ret/Per)</span>
-              <span className="text-lg font-bold">{formatMoney(stats.impuestos.total)}</span>
-              <span className="text-xs text-red-500">{formatPercent(stats.impuestos.porcentaje)} del total • Prom: {formatMoney(stats.impuestos.promedio)}</span>
+            <div className="p-4 rounded-lg bg-red-50 border border-red-100">
+              <span className="text-xs font-bold text-red-600 uppercase">Impuestos</span>
+              <div className="text-lg font-bold">{formatMoney(stats.impuestos.total)}</div>
+              <div className="text-xs text-red-500 font-medium">{formatPercent(stats.impuestos.porcentaje)} del bruto • Prom: {formatMoney(stats.impuestos.promedio)}</div>
             </div>
           </div>
         </div>
       )}
 
-      {/* TARJETA DE RESULTADOS (LA TABLA) */}
       {data.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Detalle de Ventas ({data.length})</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="text-xl">Detalle de Operaciones</CardTitle></CardHeader>
           <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>MLA / Ref</TableHead>
                   <TableHead className="min-w-[200px]">Título</TableHead>
-                  <TableHead className="text-right">Monto Bruto</TableHead>
+                  <TableHead className="text-right">Bruto</TableHead>
                   <TableHead className="text-right text-red-600">Comisión</TableHead>
                   <TableHead className="text-right text-red-600">Envío</TableHead>
                   <TableHead className="text-right text-red-600">Impuestos</TableHead>
                   <TableHead className="text-right text-orange-600">Costo</TableHead>
-                  <TableHead className="text-right text-orange-600 font-bold">% Costo/Púb</TableHead>
+                  <TableHead className="text-right text-orange-700 font-bold">% Costo/Púb</TableHead>
                   <TableHead className="text-right text-green-600 font-bold">Neto Recibido</TableHead>
                 </TableRow>
               </TableHeader>
@@ -253,7 +221,8 @@ export default function VentasRangoClient() {
                 {data.map((venta, index) => {
                   const bruto = parseFloat(venta["monto bruto"]) || 0;
                   const costo = parseFloat(venta.costo_total) || 0;
-                  const pctCostoPublico = bruto > 0 ? (costo / bruto) * 100 : 0;
+                  // Cálculo solicitado: (bruto / costo) * 100
+                  const pctMarkup = costo > 0 ? (bruto / costo) * 100 : 0;
 
                   return (
                     <TableRow key={index}>
@@ -267,10 +236,10 @@ export default function VentasRangoClient() {
                       <TableCell className="text-right text-red-600">{formatMoney(venta.envio)}</TableCell>
                       <TableCell className="text-right text-red-600">{formatMoney(venta.Impuestos)}</TableCell>
                       <TableCell className="text-right text-orange-600">{formatMoney(venta.costo_total)}</TableCell>
-                      <TableCell className="text-right text-orange-700 font-semibold bg-orange-50/50">
-                        {formatPercent(pctCostoPublico)}
+                      <TableCell className="text-right text-orange-700 font-bold bg-orange-50/50">
+                        {formatPercent(pctMarkup)}
                       </TableCell>
-                      <TableCell className="text-right text-green-600 font-bold">{formatMoney(venta.neto_recibido)}</TableCell>
+                      <TableCell className="text-right text-green-600 font-bold">{formatMoney(venta.neto_received || venta.neto_recibido)}</TableCell>
                     </TableRow>
                   );
                 })}

@@ -1,16 +1,18 @@
 // app/admin/mercadolibre/composicion/page.tsx
 import { getComposicionKits } from "@/app/actions/kits";
 import { getArticulos } from "@/app/actions/costos";
+import { getProductosMaestros } from "@/app/actions/ml-maestros";
 import { ComposicionTable } from "./composicion-table";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default async function ComposicionPage() {
-  // Traemos los datos de los kits y la lista de artículos para el buscador/selector
-  const [kits, articulos] = await Promise.all([
+  // Traemos los datos de los kits, la lista de artículos y TODOS los maestros para poder autocompletar variantes
+  const [kits, articulos, maestros] = await Promise.all([
     getComposicionKits(),
-    getArticulos()
+    getArticulos(),
+    getProductosMaestros()
   ]);
 
   return (
@@ -28,7 +30,7 @@ export default async function ComposicionPage() {
       </div>
 
       <div className="flex-1 overflow-auto p-8 pt-4">
-        <ComposicionTable kits={kits} articulos={articulos} />
+        <ComposicionTable kits={kits} articulos={articulos} maestros={maestros} />
       </div>
     </div>
   );

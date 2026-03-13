@@ -13,7 +13,7 @@ export async function POST(req: Request) {
 
     // AQUÍ PONES LA URL DEL WEBHOOK DE TU N8N (Asegúrate de que sea un webhook POST)
     // Por ahora ponemos un placeholder, luego lo cambias por el real
-    const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_VENTAS_RANGO || "AQUI_PONDREMOS_LA_URL_DE_N8N_MAS_ADELANTE";
+    const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_VENTAS_RANGO || "https://n8n.revolucionmotos.tech/webhook/ventas-rango";
 
     // Si todavía no configuraste el webhook, devolvemos datos de prueba simulados
     if (N8N_WEBHOOK_URL === "AQUI_PONDREMOS_LA_URL_DE_N8N_MAS_ADELANTE") {

@@ -212,7 +212,8 @@ export default function VentasMostradorClient({
 
   const totalFinalCalculado = isPagoMixto ? (final1 + final2) : final1;
   
-  const requiereTarjeta = (isPagoMixto && (isCredito1 || isCredito2)) || (!isPagoMixto && isCredito1);
+  // AHORA SIEMPRE SE REQUIEREN LOS DATOS PARA CUALQUIER MÉTODO DE PAGO
+  const requiereTarjeta = true; 
   const requiereCruzada = (isPagoMixto && (metodoPago === "Cruzada" || metodoPago2 === "Cruzada")) || (!isPagoMixto && metodoPago === "Cruzada");
 
   // --- FUNCIONES PARA IMPRESIÓN ---
@@ -255,7 +256,7 @@ export default function VentasMostradorClient({
 
   const handleFinalizarVenta = async () => {
     if (requiereTarjeta && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) { 
-      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return; 
+      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para registrar la venta."); return; 
     }
     if (requiereCruzada && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para pagos Cruzados."); return; }
 
@@ -321,7 +322,8 @@ export default function VentasMostradorClient({
 
   const editTotalFinalCalculado = isEditPagoMixto ? (editFinal1 + editFinal2) : editFinal1;
   
-  const requiereTarjetaEdit = (isEditPagoMixto && (isEditCredito1 || isEditCredito2)) || (!isEditPagoMixto && isEditCredito1);
+  // AHORA SIEMPRE SE REQUIEREN LOS DATOS PARA LA EDICIÓN TAMBIÉN
+  const requiereTarjetaEdit = true;
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
 
   const abrirModalEdicion = (venta: any) => {
@@ -382,7 +384,7 @@ export default function VentasMostradorClient({
 
   const handleGuardarEdicion = async () => {
     if (requiereTarjetaEdit && (!editDni.trim() || !editTelefono.trim() || !editCupon.trim() || !editTransaccionId.trim())) { 
-      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return; 
+      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para registrar la venta."); return; 
     }
     if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
 

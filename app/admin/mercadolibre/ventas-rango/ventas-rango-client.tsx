@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Search, Loader2, TrendingUp, DollarSign } from "lucide-react";
+import { Search, Loader2, TrendingUp } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -221,7 +221,7 @@ export default function VentasRangoClient() {
                 {data.map((venta, index) => {
                   const bruto = parseFloat(venta["monto bruto"]) || 0;
                   const costo = parseFloat(venta.costo_total) || 0;
-                  // Cálculo solicitado: (bruto / costo) * 100
+                  // Cálculo corregido: (bruto / costo) * 100
                   const pctMarkup = costo > 0 ? (bruto / costo) * 100 : 0;
 
                   return (
@@ -239,7 +239,8 @@ export default function VentasRangoClient() {
                       <TableCell className="text-right text-orange-700 font-bold bg-orange-50/50">
                         {formatPercent(pctMarkup)}
                       </TableCell>
-                      <TableCell className="text-right text-green-600 font-bold">{formatMoney(venta.neto_received || venta.neto_recibido)}</TableCell>
+                      {/* Corregido: solo usamos venta.neto_recibido para evitar errores de tipo */}
+                      <TableCell className="text-right text-green-600 font-bold">{formatMoney(venta.neto_recibido)}</TableCell>
                     </TableRow>
                   );
                 })}

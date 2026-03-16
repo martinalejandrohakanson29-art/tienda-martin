@@ -6,14 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-// Agregamos Filter para el ícono del nuevo filtro
-import { RefreshCw, Search, Plus, Pencil, Trash2, Boxes, Trash, Filter } from "lucide-react";
+import { RefreshCw, Search, Plus, Pencil, Trash2, Boxes, Trash, Filter, PackageOpen } from "lucide-react";
 import { upsertArticulo, deleteArticulo, getComponentes, updateComponentes, recalculateAllArticulos } from "@/app/actions/costos";
 import { updateConfig } from "@/app/actions/config";
 
 export function ArticulosTable({ data, initialConfig }: { data: any[], initialConfig: any }) {
   const [filter, setFilter] = useState("");
-  // NUEVO: Estado para filtrar por Dólar (all, dolar, pesos)
   const [dolarFilter, setDolarFilter] = useState<"all" | "dolar" | "pesos">("all");
   
   const [tempDolar, setTempDolar] = useState(Number(initialConfig?.dolarCotizacion || 1530));
@@ -77,7 +75,15 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
   };
 
   const handleOpenModal = (articulo = null) => {
-    setEditingArticulo(articulo || { id_articulo: "", descripcion: "", costo_usd: 0, es_dolar: true });
+    // NUEVO: Agregamos user_product_id y family_id a los valores por defecto
+    setEditingArticulo(articulo || { 
+      id_articulo: "", 
+      descripcion: "", 
+      costo_usd: 0, 
+      es_dolar: true,
+      user_product_id: "",
+      family_id: ""
+    });
     setIsModalOpen(true);
   };
 
@@ -87,10 +93,13 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     if (res?.success) setIsModalOpen(false);
   };
 
-  // LÓGICA DE FILTRADO ACTUALIZADA (Buscador + Filtro Dólar)
+  // NUEVO: Mejoramos el buscador para que también busque por Familia y User Product
   const filteredData = data.filter(item => {
-    const matchesSearch = item.descripcion?.toLowerCase().includes(filter.toLowerCase()) ||
-                         item.id_articulo?.toLowerCase().includes(filter.toLowerCase());
+    const term = filter.toLowerCase();
+    const matchesSearch = item.descripcion?.toLowerCase().includes(term) ||
+                          item.id_articulo?.toLowerCase().includes(term) ||
+                          item.user_product_id?.toLowerCase().includes(term) ||
+                          item.family_id?.toLowerCase().includes(term);
     
     const matchesDolar = dolarFilter === "all" || 
                         (dolarFilter === "dolar" && item.es_dolar) || 
@@ -113,14 +122,13 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
-                placeholder="Buscar descripción o ID..."
+                placeholder="Buscar por ID, Descripción, Familia o UP..."
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
                 className="pl-10 bg-white border-slate-200"
               />
             </div>
 
-            {/* NUEVO SELECT DE FILTRO POR MONEDA */}
             <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 h-10 shadow-sm">
               <Filter className="h-4 w-4 text-slate-400" />
               <select 
@@ -164,13 +172,17 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
         <Table>
           <TableHeader className="bg-slate-50">
             <TableRow>
-              <TableHead className="w-[150px] font-bold">Cód. Artículo</TableHead>
+              <TableHead className="w-[120px] font-bold">Cód. Artículo</TableHead>
+              {/* NUEVAS COLUMNAS */}
+              <TableHead className="w-[130px] font-bold text-blue-600">User Product</TableHead>
+              <TableHead className="w-[130px] font-bold text-purple-600">Familia</TableHead>
+              
               <TableHead className="font-bold">Descripción</TableHead>
-              <TableHead className="w-[80px] text-center">Kit</TableHead>
-              <TableHead className="w-[100px] text-center font-bold">Es Dólar</TableHead>
-              <TableHead className="w-[140px] text-center font-bold">Precio Base</TableHead>
-              <TableHead className="w-[180px] text-right pr-8 font-bold">Final ARS (Preview)</TableHead>
-              <TableHead className="w-[140px] text-center font-bold">Acciones</TableHead>
+              <TableHead className="w-[70px] text-center">Kit</TableHead>
+              <TableHead className="w-[80px] text-center font-bold">Moneda</TableHead>
+              <TableHead className="w-[120px] text-center font-bold">Costo</TableHead>
+              <TableHead className="w-[150px] text-right pr-8 font-bold">Final ARS</TableHead>
+              <TableHead className="w-[100px] text-center font-bold">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -189,8 +201,29 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
 
               return (
                 <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors">
-                  <TableCell className="font-mono text-blue-600">{item.id_articulo}</TableCell>
-                  <TableCell className="font-medium uppercase text-[11px]">{item.descripcion}</TableCell>
+                  <TableCell className="font-mono font-semibold text-slate-700">{item.id_articulo}</TableCell>
+                  
+                  {/* NUEVAS CELDAS CON ESTILOS VISUALES CLAROS */}
+                  <TableCell>
+                    {item.user_product_id ? (
+                      <Badge variant="outline" className="font-mono text-[10px] text-blue-600 bg-blue-50 border-blue-200">
+                        {item.user_product_id}
+                      </Badge>
+                    ) : (
+                      <span className="text-slate-300 text-xs">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {item.family_id ? (
+                      <span className="font-mono text-[10px] text-purple-600 max-w-[120px] truncate block" title={item.family_id}>
+                        {item.family_id}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 text-xs">-</span>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="font-medium uppercase text-[11px] text-slate-600">{item.descripcion}</TableCell>
                   <TableCell className="text-center">
                     <Button 
                       variant="ghost" 
@@ -202,12 +235,12 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
                     </Button>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge variant={item.es_dolar ? "default" : "secondary"}>{item.es_dolar ? "SÍ" : "NO"}</Badge>
+                    <Badge variant={item.es_dolar ? "default" : "secondary"} className="text-[10px]">{item.es_dolar ? "USD" : "ARS"}</Badge>
                   </TableCell>
-                  <TableCell className="text-center font-semibold text-slate-500">
+                  <TableCell className="text-center font-semibold text-slate-500 text-xs">
                     {item.es_dolar ? 'U$S ' : '$ '} {Number(item.costo_usd).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </TableCell>
-                  <TableCell className="text-right pr-8 font-extrabold text-green-700 text-lg">
+                  <TableCell className="text-right pr-8 font-extrabold text-green-700 text-sm">
                     ${finalArs.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-center">
@@ -227,18 +260,31 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
         * Vista Previa &rarr; Dólar: ${tempDolar.toLocaleString('es-AR')} | FOB: x{tempFob.toFixed(2)} | Financ: {tempFinanc}%
       </div>
 
-      {/* MODAL 1: EDICIÓN / CREACIÓN SIMPLE */}
+      {/* MODAL 1: EDICIÓN / CREACIÓN */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader><DialogTitle className="text-xl font-bold">{editingArticulo?.id ? "Editar Artículo" : "Nuevo Artículo"}</DialogTitle></DialogHeader>
           <form onSubmit={handleSave} className="space-y-4 pt-4">
             <div className="grid gap-2">
-              <Label htmlFor="sku">ID de Artículo (SKU)</Label>
-              <Input id="sku" value={editingArticulo?.id_articulo || ""} onChange={e => setEditingArticulo({...editingArticulo, id_articulo: e.target.value})} required className="bg-slate-50" />
+              <Label htmlFor="sku">ID de Artículo (SKU/MLA)</Label>
+              <Input id="sku" value={editingArticulo?.id_articulo || ""} onChange={e => setEditingArticulo({...editingArticulo, id_articulo: e.target.value})} required className="bg-slate-50 font-mono" />
             </div>
+            
+            {/* NUEVOS CAMPOS EN EL FORMULARIO */}
+            <div className="grid grid-cols-2 gap-4 border-y border-slate-100 py-3 my-2">
+              <div className="grid gap-2">
+                <Label htmlFor="up_id" className="text-blue-600 flex items-center gap-1"><PackageOpen className="w-3 h-3"/> User Product ID</Label>
+                <Input id="up_id" placeholder="Ej: MLAU12345" value={editingArticulo?.user_product_id || ""} onChange={e => setEditingArticulo({...editingArticulo, user_product_id: e.target.value})} className="font-mono text-sm" />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fam_id" className="text-purple-600">Familia</Label>
+                <Input id="fam_id" placeholder="Nombre de familia..." value={editingArticulo?.family_id || ""} onChange={e => setEditingArticulo({...editingArticulo, family_id: e.target.value})} className="font-mono text-sm" />
+              </div>
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="desc">Descripción</Label>
-              <Input id="desc" value={editingArticulo?.descripcion || ""} onChange={e => setEditingArticulo({...editingArticulo, descripcion: e.target.value})} required className="bg-slate-50 uppercase" />
+              <Input id="desc" value={editingArticulo?.descripcion || ""} onChange={e => setEditingArticulo({...editingArticulo, descripcion: e.target.value})} required className="uppercase" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -253,12 +299,12 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
                 </select>
               </div>
             </div>
-            <DialogFooter className="pt-4"><Button type="submit" className="bg-blue-600 hover:bg-blue-700 px-8">Guardar Cambios</Button></DialogFooter>
+            <DialogFooter className="pt-4"><Button type="submit" className="bg-blue-600 hover:bg-blue-700 px-8 w-full">Guardar Cambios</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* MODAL 2: COMPOSICIÓN DE KIT */}
+      {/* MODAL 2: COMPOSICIÓN DE KIT (Sin cambios) */}
       <Dialog open={isKitModalOpen} onOpenChange={setIsKitModalOpen}>
         <DialogContent className="sm:max-w-[550px]">
           <DialogHeader>

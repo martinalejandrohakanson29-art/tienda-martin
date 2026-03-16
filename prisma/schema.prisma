@@ -146,6 +146,11 @@ model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
   mla                  String   
   variation_id         String?
+  
+  // --- NUEVOS CAMPOS ---
+  user_product_id      String?  @index // El "DNI" del producto real
+  family_id            String?  @index // El ID del grupo (ej: Familia de Levas)
+  
   nombre_variante      String?
   nombre_publicacion   String?
   link_publicacion     String?

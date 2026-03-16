@@ -16,7 +16,7 @@ export async function getComposicionKits() {
     });
 
     // 2. Extraemos los MLAs únicos para no saturar la base de datos
-    const mlasUnicos = [...new Set(kits.map(k => k.mla))];
+    const mlasUnicos = Array.from(new Set(kits.map(k => k.mla)));
 
     // 3. Buscamos en el "Diccionario" (productos_maestros) esos MLAs específicos
     const maestros = await prisma.productosMaestros.findMany({

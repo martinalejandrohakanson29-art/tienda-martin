@@ -12,7 +12,7 @@ import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2, Pa
 import { upsertKitComponent, deleteKitComponent } from "@/app/actions/kits";
 import { createManualProduct } from "@/app/actions/ml-maestros";
 
-export function ComposicionTable({ kits, articulos }: { kits: any[], articulos: any[] }) {
+export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], articulos: any[], maestros: any[] }) {
   const [filter, setFilter] = useState("");
   
   // MODAL DE RECETAS (El habitual)

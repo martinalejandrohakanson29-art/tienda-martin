@@ -4,15 +4,44 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-// Obtener todas las composiciones de kits
+// Obtener todas las composiciones de kits ENRIQUECIDAS con los datos Maestros
 export async function getComposicionKits() {
   try {
-    return await prisma.composicionKits.findMany({
+    // 1. Traemos todas las recetas base
+    const kits = await prisma.composicionKits.findMany({
       orderBy: [
         { mla: 'asc' },
         { nombre_variante: 'asc' }
       ]
     });
+
+    // 2. Extraemos los MLAs únicos para no saturar la base de datos
+    const mlasUnicos = [...new Set(kits.map(k => k.mla))];
+
+    // 3. Buscamos en el "Diccionario" (productos_maestros) esos MLAs específicos
+    const maestros = await prisma.productosMaestros.findMany({
+      where: { mla: { in: mlasUnicos } },
+      select: { mla: true, variation_id: true, user_product_id: true, family_id: true }
+    });
+
+    // 4. Cruzamos los datos: Le pegamos la Familia y el User Product a cada Kit
+    const kitsEnriquecidos = kits.map(kit => {
+      // Intentamos coincidencia exacta (MLA + Variación)
+      let maestro = maestros.find(m => m.mla === kit.mla && m.variation_id === kit.variation_id);
+      
+      // Si no encuentra la variación exacta, hace fallback al MLA genérico
+      if (!maestro) {
+        maestro = maestros.find(m => m.mla === kit.mla);
+      }
+
+      return {
+        ...kit,
+        user_product_id: maestro?.user_product_id || null,
+        family_id: maestro?.family_id || null
+      };
+    });
+
+    return kitsEnriquecidos;
   } catch (error) {
     console.error("Error al obtener composiciones:", error);
     return [];

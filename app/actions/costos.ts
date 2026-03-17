@@ -115,22 +115,21 @@ export async function getArticulos() {
 // ESTA ES LA FUNCIÓN QUE FALTABA Y CAUSABA EL ERROR DE BUILD
 export async function getCostosKits() {
   try {
-    // Nota: Asegúrate de tener la vista 'vista_costos_productos' creada en tu DB
-    const costos = await prisma.$queryRaw`SELECT * FROM vista_costos_productos ORDER BY costo_total DESC`;
+    // Nota: Le decimos a TypeScript (<any[]>) que el resultado es un array para que no tire error
+    const costos = await prisma.$queryRaw<any[]>`SELECT * FROM vista_costos_productos ORDER BY costo_total DESC`;
     
     // AQUÍ ESTÁ LA MAGIA: Convertimos UP y Familia a Texto para que Next.js no los borre
     return costos.map((item: any) => ({
       ...item,
       user_product_id: item.user_product_id ? String(item.user_product_id) : "",
       family_id: item.family_id ? String(item.family_id) : "",
-    })) as any[];
+    }));
 
   } catch (error) { 
     console.error("Error en getCostosKits:", error);
     return []; 
   }
 }
-
 // --- FUNCIONES DE GESTIÓN (CRUD) ---
 
 // app/actions/costos.ts

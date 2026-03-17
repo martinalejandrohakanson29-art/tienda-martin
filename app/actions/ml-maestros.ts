@@ -9,9 +9,11 @@ export async function createManualProduct(data: {
   titulo: string;
   nombre_variante?: string;
   variation_id?: string;
+  user_product_id?: string; // NUEVO CAMPO
+  family_id?: string;       // NUEVO CAMPO
 }) {
   try {
-    const { mla, titulo, nombre_variante, variation_id } = data;
+    const { mla, titulo, nombre_variante, variation_id, user_product_id, family_id } = data;
 
     // 1. Validaciones básicas
     if (!mla || !titulo) {
@@ -23,6 +25,9 @@ export async function createManualProduct(data: {
     const cleanTitle = titulo.trim();
     const cleanVarName = nombre_variante?.trim() || null;
     const cleanVarId = variation_id?.trim() || null;
+    // Forzamos mayúsculas para el UP para mantener consistencia
+    const cleanUP = user_product_id?.trim().toUpperCase() || null; 
+    const cleanFamily = family_id?.trim() || null;
 
     // 3. Lógica CORREGIDA: Check-then-Act
     const existingProduct = await prisma.productosMaestros.findFirst({
@@ -39,6 +44,8 @@ export async function createManualProduct(data: {
         data: {
           nombre_publicacion: cleanTitle,
           nombre_variante: cleanVarName,
+          user_product_id: cleanUP, // GUARDAMOS EL UP
+          family_id: cleanFamily,   // GUARDAMOS LA FAMILIA
           estado: "active",
           ultima_actualizacion: new Date()
         }
@@ -51,6 +58,8 @@ export async function createManualProduct(data: {
           nombre_publicacion: cleanTitle,
           nombre_variante: cleanVarName,
           variation_id: cleanVarId,
+          user_product_id: cleanUP, // GUARDAMOS EL UP
+          family_id: cleanFamily,   // GUARDAMOS LA FAMILIA
           estado: "active",
           link_publicacion: `https://articulo.mercadolibre.com.ar/${cleanMla}`
         }

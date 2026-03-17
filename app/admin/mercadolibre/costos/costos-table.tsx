@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-// Importamos iconos para el feedback de copiado
 import { ExternalLink, ArrowUpDown, Search, Copy, Check } from "lucide-react"; 
 import { cn } from "@/lib/utils";
 
@@ -14,17 +13,14 @@ export function CostosTable({ data }: { data: any[] }) {
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<'active' | 'paused' | 'all'>('active');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  // Estado para el feedback visual de copiado
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  // Función para copiar al portapapeles
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedText(text);
-    setTimeout(() => setCopiedText(null), 2000); // El icono vuelve a la normalidad en 2 seg
+    setTimeout(() => setCopiedText(null), 2000); 
   };
 
-  // Lógica de filtrado (AHORA INCLUYE UP Y FAMILIA)
   const filteredData = data.filter(item => {
     if (statusFilter !== 'all' && item.estado?.toLowerCase() !== statusFilter) return false;
     const searchLower = filter.toLowerCase();
@@ -48,14 +44,16 @@ export function CostosTable({ data }: { data: any[] }) {
 
   const renderEstadoBadge = (estado: string) => {
     switch (estado?.toLowerCase()) {
-      case 'active':
-        return <Badge className="bg-green-100 text-green-700 border-green-200 font-bold uppercase text-[9px]">Activo</Badge>;
-      case 'paused':
-        return <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 font-bold uppercase text-[9px]">Pausado</Badge>;
-      default:
-        return <Badge variant="secondary" className="text-slate-500 text-[9px]">{estado || 'S/D'}</Badge>;
+      case 'active': return <Badge className="bg-green-100 text-green-700 border-green-200 font-bold uppercase text-[9px]">Activo</Badge>;
+      case 'paused': return <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 font-bold uppercase text-[9px]">Pausado</Badge>;
+      default: return <Badge variant="secondary" className="text-slate-500 text-[9px]">{estado || 'S/D'}</Badge>;
     }
   };
+
+  // --- LÓGICA DE DEBUG PARA PANTALLA ---
+  // Buscamos uno de los MLAs que sabemos que tiene familia en la Base de Datos, 
+  // o agarramos el primero de la lista si no lo encuentra.
+  const debugItem = data.find(item => item.mla === 'MLA1392129319' || item.mla === 'MLA884526852') || data[0];
 
   return (
     <div className="flex flex-col h-full w-full bg-slate-50">
@@ -74,20 +72,13 @@ export function CostosTable({ data }: { data: any[] }) {
           </div>
 
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-            {[
-              { id: 'active', label: 'Activos' },
-              { id: 'paused', label: 'Pausados' },
-              { id: 'all', label: 'Todos' }
-            ].map((btn) => (
+            {[{ id: 'active', label: 'Activos' }, { id: 'paused', label: 'Pausados' }, { id: 'all', label: 'Todos' }].map((btn) => (
               <Button
                 key={btn.id}
                 variant={statusFilter === btn.id ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setStatusFilter(btn.id as any)}
-                className={cn(
-                  "h-8 px-4 text-xs font-bold transition-all",
-                  statusFilter === btn.id ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-white"
-                )}
+                className={cn("h-8 px-4 text-xs font-bold transition-all", statusFilter === btn.id ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-white")}
               >
                 {btn.label}
               </Button>
@@ -96,6 +87,21 @@ export function CostosTable({ data }: { data: any[] }) {
         </div>
       </div>
 
+      {/* --- CAJA DE DEBUG ROJA (NUEVO) --- */}
+      <div className="max-w-[1600px] mx-auto w-full px-4 mt-4">
+        <div className="bg-red-50 border-2 border-red-400 p-4 rounded-xl shadow-sm">
+          <h3 className="font-black text-red-800 text-sm mb-1">🕵️ MODO DETECTIVE: Datos crudos recibidos en el Front-End</h3>
+          <p className="text-xs text-red-600 mb-3">
+            Analizando exactamente qué llegó desde el servidor para el artículo: <span className="font-bold">{debugItem?.mla || 'Ninguno'}</span>
+          </p>
+          <pre className="bg-slate-900 text-green-400 p-4 rounded-lg text-[11px] overflow-auto max-h-[250px] font-mono shadow-inner">
+            {/* Convertimos el objeto a texto, manejando BigInt por si acaso para que no rompa */}
+            {JSON.stringify(debugItem, (key, value) => typeof value === 'bigint' ? value.toString() + ' (BigInt)' : value, 2)}
+          </pre>
+        </div>
+      </div>
+      {/* --- FIN CAJA DE DEBUG --- */}
+
       {/* 2. CONTENEDOR DE LA TABLA */}
       <div className="flex-1 overflow-auto p-4 pt-0"> 
         <div className="max-w-[1600px] mx-auto rounded-xl border border-slate-200 bg-white shadow-sm mt-4">
@@ -103,21 +109,15 @@ export function CostosTable({ data }: { data: any[] }) {
             <TableHeader className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
               <TableRow className="hover:bg-transparent border-none">
                 <TableHead className="font-bold text-slate-700 py-4 h-12">MLA</TableHead>
-                {/* NUEVAS COLUMNAS */}
                 <TableHead className="font-bold text-blue-700 h-12">User Product</TableHead>
                 <TableHead className="font-bold text-purple-700 h-12">Familia</TableHead>
-                
                 <TableHead className="w-[250px] font-bold text-slate-700 h-12">Publicación</TableHead>
                 <TableHead className="font-bold text-slate-700 h-12">Variante / ID</TableHead>
                 <TableHead className="font-bold text-slate-700 h-12">Estado</TableHead>
                 <TableHead className="font-bold text-slate-700 h-12 min-w-[120px]">IDs Agregados</TableHead>
                 <TableHead className="w-[250px] font-bold text-slate-700 h-12">Agregados</TableHead>
                 <TableHead className="h-12">
-                  <Button 
-                    variant="ghost" 
-                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                    className="hover:bg-slate-200 p-2 font-bold text-blue-700 -ml-2 h-8"
-                  >
+                  <Button variant="ghost" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="hover:bg-slate-200 p-2 font-bold text-blue-700 -ml-2 h-8">
                     Costo Total <ArrowUpDown className="ml-2 h-4 w-4" />
                   </Button>
                 </TableHead>
@@ -133,81 +133,56 @@ export function CostosTable({ data }: { data: any[] }) {
                   const linkML = `https://articulo.mercadolibre.com.ar/${item.mla}`;
 
                   return (
-                    <TableRow 
-                      key={`${item.mla}-${item.variation_id || index}`} 
-                      className="hover:bg-blue-50/30 transition-colors border-slate-100"
-                    >
+                    <TableRow key={`${item.mla}-${item.variation_id || index}`} className="hover:bg-blue-50/30 transition-colors border-slate-100">
                       <TableCell className="font-mono text-slate-500 text-xs font-bold">{item.mla}</TableCell>
                       
-                      {/* NUEVAS CELDAS DE UP Y FAMILIA */}
                       <TableCell>
                         {item.user_product_id ? (
                           <Badge variant="outline" className="font-mono text-[10px] text-blue-700 bg-blue-50 border-blue-200">
                             {item.user_product_id}
                           </Badge>
-                        ) : (
-                          <span className="text-slate-300 text-xs">-</span>
-                        )}
+                        ) : <span className="text-slate-300 text-xs">-</span>}
                       </TableCell>
+                      
                       <TableCell>
                         {item.family_id ? (
                           <span className="font-mono text-[10px] text-purple-600 max-w-[130px] truncate block" title={item.family_id}>
                             {item.family_id}
                           </span>
-                        ) : (
-                          <span className="text-slate-300 text-xs">-</span>
-                        )}
+                        ) : <span className="text-slate-300 text-xs">-</span>}
                       </TableCell>
 
                       <TableCell className="py-4">
-                        <div className="font-bold text-[11px] leading-tight uppercase text-slate-800">
-                          {item.titulo || "Sin Título"}
-                        </div>
+                        <div className="font-bold text-[11px] leading-tight uppercase text-slate-800">{item.titulo || "Sin Título"}</div>
                       </TableCell>
 
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-[10px] font-bold text-indigo-700 uppercase">
-                            {item.variante_ml === "0" || !item.variante_ml ? "Único" : item.variante_ml}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-mono italic">
-                            {item.variation_id || "Base"}
-                          </span>
+                          <span className="text-[10px] font-bold text-indigo-700 uppercase">{item.variante_ml === "0" || !item.variante_ml ? "Único" : item.variante_ml}</span>
+                          <span className="text-[9px] text-slate-400 font-mono italic">{item.variation_id || "Base"}</span>
                         </div>
                       </TableCell>
 
                       <TableCell>{renderEstadoBadge(item.estado)}</TableCell>
 
-                      {/* --- COLUMNA IDs (CON COPIADO) --- */}
                       <TableCell>
                         <div className="flex flex-col gap-1 py-1">
                           {listaIds.map((id: string, idx: number) => (
                             <button 
-                              key={idx} 
-                              onClick={() => handleCopy(id)}
-                              className={cn(
-                                "group flex items-center gap-2 text-[9px] font-mono font-black border px-2 py-0.5 rounded transition-all w-fit h-[18px]",
-                                copiedText === id 
-                                  ? "bg-green-100 border-green-300 text-green-700" 
-                                  : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700"
-                              )}
+                              key={idx} onClick={() => handleCopy(id)}
+                              className={cn("group flex items-center gap-2 text-[9px] font-mono font-black border px-2 py-0.5 rounded transition-all w-fit h-[18px]", copiedText === id ? "bg-green-100 border-green-300 text-green-700" : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700")}
                               title="Click para copiar SKU"
                             >
-                              {id}
-                              {copiedText === id ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100" />}
+                              {id}{copiedText === id ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100" />}
                             </button>
                           ))}
                         </div>
                       </TableCell>
 
-                      {/* --- COLUMNA AGREGADOS (NOMBRES) ALINEADA --- */}
                       <TableCell>
                         <div className="flex flex-col gap-1 py-1">
                           {listaReceta.map((r: string, idx: number) => (
-                            <div 
-                              key={idx} 
-                              className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]"
-                            >
+                            <div key={idx} className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]">
                               {r}
                             </div>
                           ))}
@@ -216,9 +191,7 @@ export function CostosTable({ data }: { data: any[] }) {
 
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="text-base font-black text-green-700">
-                            ${Number(item.costo_total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                          </span>
+                          <span className="text-base font-black text-green-700">${Number(item.costo_total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                           <span className="text-[8px] text-slate-400 uppercase font-bold tracking-tighter">Costo Total</span>
                         </div>
                       </TableCell>
@@ -235,9 +208,7 @@ export function CostosTable({ data }: { data: any[] }) {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={10} className="h-32 text-center text-slate-400 italic">
-                    No se encontraron resultados.
-                  </TableCell>
+                  <TableCell colSpan={10} className="h-32 text-center text-slate-400 italic">No se encontraron resultados.</TableCell>
                 </TableRow>
               )}
             </TableBody>

@@ -3,6 +3,7 @@
 
 import { prisma } from "@/lib/prisma"; 
 import { revalidatePath } from "next/cache";
+import { unstable_noStore as noStore } from "next/cache";
 
 /**
  * RECALCULAR PRECIO DE UN ARTÍCULO
@@ -113,9 +114,9 @@ export async function getArticulos() {
 }
 
 export async function getCostosKits() {
+  noStore(); // ¡ESTO DESTRUYE EL CACHÉ DE NEXT.JS! Garantiza datos 100% en vivo.
+  
   try {
-    // MAGIA SQL: Le pedimos a PostgreSQL que convierta (CAST) los BigInt a Texto (VARCHAR)
-    // Así evitamos cualquier pérdida de datos al pasar a Next.js
     const costos = await prisma.$queryRaw<any[]>`
       SELECT 
         mla,
@@ -132,7 +133,6 @@ export async function getCostosKits() {
       ORDER BY costo_total DESC
     `;
     
-    // Devolvemos los datos asegurándonos de que costo_total sea un número
     return costos.map((item: any) => ({
       ...item,
       costo_total: item.costo_total ? Number(item.costo_total) : 0,
@@ -143,7 +143,6 @@ export async function getCostosKits() {
     return []; 
   }
 }
-
 // --- FUNCIONES DE GESTIÓN (CRUD) ---
 
 export async function upsertArticulo(data: any) {

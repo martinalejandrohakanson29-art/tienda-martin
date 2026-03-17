@@ -2,8 +2,6 @@
 "use server";
 
 import { prisma } from "@/lib/prisma"; 
-import { revalidatePath } from "next/cache";
-import { unstable_noStore as noStore } from "next/cache";
 import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
 /**
@@ -135,8 +133,7 @@ export async function getCostosKits() {
     `;
     
     // --- MAGIA ANTI-DUPLICADOS ---
-    // Si la base de datos devuelve un MLA partido en dos (uno con estado y otro con familia),
-    // los fusionamos en un solo renglón perfecto.
+    // Fusiona renglones separados para el mismo MLA
     const unificados = new Map();
     
     for (const item of costos) {
@@ -146,7 +143,6 @@ export async function getCostosKits() {
         unificados.set(key, { ...item });
       } else {
         const existente = unificados.get(key);
-        // Rescatamos los datos que falten
         if (!existente.family_id && item.family_id) existente.family_id = item.family_id;
         if (!existente.user_product_id && item.user_product_id) existente.user_product_id = item.user_product_id;
         if (!existente.estado && item.estado) existente.estado = item.estado;
@@ -154,7 +150,6 @@ export async function getCostosKits() {
       }
     }
 
-    // Convertimos el mapa fusionado de vuelta a un Array
     const resultadoFinal = Array.from(unificados.values());
 
     return resultadoFinal.map((item: any) => ({
@@ -167,6 +162,7 @@ export async function getCostosKits() {
     return []; 
   }
 }
+
 // --- FUNCIONES DE GESTIÓN (CRUD) ---
 
 export async function upsertArticulo(data: any) {

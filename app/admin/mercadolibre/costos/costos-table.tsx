@@ -1,230 +1,226 @@
-// app/actions/costos.ts
-"use server";
+// app/admin/mercadolibre/costos/costos-table.tsx
+"use client";
 
-import { prisma } from "@/lib/prisma"; 
-import { revalidatePath, unstable_noStore as noStore } from "next/cache";
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ExternalLink, ArrowUpDown, Search, Copy, Check } from "lucide-react"; 
+import { cn } from "@/lib/utils";
 
-/**
- * RECALCULAR PRECIO DE UN ARTÍCULO
- * Si es kit: Suma los VALORES FINALES EN PESOS de cada componente.
- * Si es simple: Aplica factores de conversión (Dólar/FOB/Financ).
- */
-export async function recalculateProductCost(sku: string) {
-  const config = await prisma.config.findFirst();
-  const dolar = Number(config?.dolarCotizacion || 1);
-  const fob = Number(config?.factorFob || 1);
-  const financ = Number(config?.recargoFinanciacion || 0);
+export function CostosTable({ data }: { data: any[] }) {
+  const [filter, setFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<'active' | 'paused' | 'all'>('active');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [copiedText, setCopiedText] = useState<string | null>(null);
 
-  const artActual = await prisma.costosArticulos.findUnique({ 
-    where: { id_articulo: sku } 
-  });
-  
-  if (!artActual) return;
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    setTimeout(() => setCopiedText(null), 2000); 
+  };
 
-  const componentes = await prisma.articulosCompuestos.findMany({
-    where: { sku_padre: sku }
-  });
-
-  let nuevoCostoUsd = 0;
-  let nuevoCostoFinalArs = 0;
-
-  if (componentes.length > 0) {
-    let totalArs = 0;
-    let totalBaseUsd = 0;
-
-    for (const comp of componentes) {
-      const hijo = await prisma.costosArticulos.findUnique({
-        where: { id_articulo: comp.sku_hijo }
-      });
-      if (hijo) {
-        totalArs += Number(hijo.costo_final_ars || 0) * comp.cantidad;
-        totalBaseUsd += Number(hijo.costo_usd || 0) * comp.cantidad;
-      }
-    }
-    nuevoCostoUsd = totalBaseUsd;
-    nuevoCostoFinalArs = totalArs; 
-  } else {
-    nuevoCostoUsd = Number(artActual.costo_usd || 0);
-    if (artActual.es_dolar) {
-        const subtotal = nuevoCostoUsd * dolar * fob;
-        nuevoCostoFinalArs = subtotal * (1 + (financ / 100));
-    } else {
-        nuevoCostoFinalArs = nuevoCostoUsd;
-    }
-  }
-
-  await prisma.costosArticulos.update({
-    where: { id_articulo: sku },
-    data: {
-      costo_usd: nuevoCostoUsd,
-      costo_final_ars: nuevoCostoFinalArs,
-      fecha_actualizacion: new Date()
-    }
+  const filteredData = data.filter(item => {
+    if (statusFilter !== 'all' && item.estado?.toLowerCase() !== statusFilter) return false;
+    const searchLower = filter.toLowerCase();
+    return (
+      item.titulo?.toLowerCase().includes(searchLower) ||
+      item.mla?.includes(filter) ||
+      item.receta_detallada?.toLowerCase().includes(searchLower) ||
+      item.variante_ml?.toLowerCase().includes(searchLower) ||
+      item.variation_id?.includes(filter) ||
+      item.ids_articulos?.toLowerCase().includes(searchLower) ||
+      item.user_product_id?.toLowerCase().includes(searchLower) ||
+      item.family_id?.toLowerCase().includes(searchLower)
+    );
   });
 
-  const relacionesComoHijo = await prisma.articulosCompuestos.findMany({
-    where: { sku_hijo: sku }
-  });
+  const sortedData = [...filteredData].sort((a, b) => 
+    sortOrder === 'asc' 
+      ? Number(a.costo_total) - Number(b.costo_total) 
+      : Number(b.costo_total) - Number(a.costo_total)
+  );
 
-  for (const rel of relacionesComoHijo) {
-    await recalculateProductCost(rel.sku_padre);
-  }
-}
-
-/**
- * RECALCULAR TODO EL CATÁLOGO
- */
-export async function recalculateAllArticulos() {
-  try {
-    const todos = await prisma.costosArticulos.findMany({
-      select: { id_articulo: true }
-    });
-    for (const art of todos) {
-      await recalculateProductCost(art.id_articulo);
+  const renderEstadoBadge = (estado: string) => {
+    switch (estado?.toLowerCase()) {
+      case 'active': return <Badge className="bg-green-100 text-green-700 border-green-200 font-bold uppercase text-[9px]">Activo</Badge>;
+      case 'paused': return <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 font-bold uppercase text-[9px]">Pausado</Badge>;
+      default: return <Badge variant="secondary" className="text-slate-500 text-[9px]">{estado || 'S/D'}</Badge>;
     }
-    revalidatePath("/admin/mercadolibre/articulos");
-    revalidatePath("/admin/mercadolibre/costos");
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: "No se pudo actualizar el catálogo." };
-  }
-}
+  };
 
-// --- FUNCIONES DE OBTENCIÓN DE DATOS ---
+  // --- LÓGICA DE DEBUG 2.0 ---
+  const itemsConFamilia = data.filter(item => item.family_id && item.family_id !== "null" && item.family_id !== "");
+  const debugItems = data.filter(item => item.mla === 'MLA1392129319');
 
-export async function getArticulos() {
-  try {
-    const articulos = await prisma.costosArticulos.findMany({ orderBy: { descripcion: 'asc' } });
-    
-    // Identificamos cuáles son kits para que la tabla sepa cómo calcular la vista previa
-    const kits = await prisma.articulosCompuestos.findMany({
-      select: { sku_padre: true },
-      distinct: ['sku_padre']
-    });
-    const kitSkus = new Set(kits.map(k => k.sku_padre));
+  return (
+    <div className="flex flex-col h-full w-full bg-slate-50">
+      
+      {/* 1. SECCIÓN FIJA SUPERIOR */}
+      <div className="p-4 bg-white border-b border-slate-200 z-30 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-4 items-center justify-between max-w-[1600px] mx-auto w-full">
+          <div className="relative w-full max-w-xl">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Buscar por MLA, título, variante, SKU, UP o Familia..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="pl-10 bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
+            />
+          </div>
 
-    return articulos.map(art => ({
-      ...art,
-      isKit: kitSkus.has(art.id_articulo),
-      costo_usd: art.costo_usd ? Number(art.costo_usd) : 0,
-      costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0
-    }));
-  } catch (error) { return []; }
-}
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+            {[{ id: 'active', label: 'Activos' }, { id: 'paused', label: 'Pausados' }, { id: 'all', label: 'Todos' }].map((btn) => (
+              <Button
+                key={btn.id}
+                variant={statusFilter === btn.id ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setStatusFilter(btn.id as any)}
+                className={cn("h-8 px-4 text-xs font-bold transition-all", statusFilter === btn.id ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-white")}
+              >
+                {btn.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-export async function getCostosKits() {
-  // ¡ESTO DESTRUYE EL CACHÉ DE NEXT.JS! Garantiza datos 100% en vivo.
-  noStore(); 
-  
-  try {
-    // MAGIA SQL: Le pedimos a PostgreSQL que convierta (CAST) los BigInt a Texto (VARCHAR)
-    const costos = await prisma.$queryRaw<any[]>`
-      SELECT 
-        mla,
-        titulo,
-        variation_id,
-        variante_ml,
-        estado,
-        CAST(user_product_id AS VARCHAR) as user_product_id,
-        CAST(family_id AS VARCHAR) as family_id,
-        ids_articulos,
-        receta_detallada,
-        costo_total
-      FROM vista_costos_productos 
-      ORDER BY costo_total DESC
-    `;
-    
-    return costos.map((item: any) => ({
-      ...item,
-      costo_total: item.costo_total ? Number(item.costo_total) : 0,
-    }));
+      {/* --- CAJA DE DEBUG ROJA 2.0 --- */}
+      <div className="max-w-[1600px] mx-auto w-full px-4 mt-4">
+        <div className="bg-red-50 border-2 border-red-400 p-4 rounded-xl shadow-sm flex flex-col md:flex-row gap-6">
+          <div className="flex-1">
+            <h3 className="font-black text-red-800 text-sm mb-1">🕵️ ESTADO GLOBAL DE DATOS</h3>
+            <p className="text-xl text-red-600 font-bold mb-1">
+              Total de Familias recibidas en pantalla: {itemsConFamilia.length}
+            </p>
+            <p className="text-xs text-red-600">
+              (Si este número es 194, los datos llegaron perfecto y ya puedes verlos en la tabla).
+            </p>
+          </div>
+          <div className="flex-1">
+            <h3 className="font-black text-red-800 text-sm mb-1">🔍 DETALLE DE MLA1392129319 ({debugItems.length} renglones)</h3>
+            <pre className="bg-slate-900 text-green-400 p-4 rounded-lg text-[10px] overflow-auto max-h-[150px] font-mono shadow-inner">
+              {JSON.stringify(debugItems, null, 2)}
+            </pre>
+          </div>
+        </div>
+      </div>
+      {/* --- FIN CAJA DE DEBUG --- */}
 
-  } catch (error) { 
-    console.error("Error en getCostosKits:", error);
-    return []; 
-  }
-}
+      {/* 2. CONTENEDOR DE LA TABLA */}
+      <div className="flex-1 overflow-auto p-4 pt-0"> 
+        <div className="max-w-[1600px] mx-auto rounded-xl border border-slate-200 bg-white shadow-sm mt-4">
+          <Table>
+            <TableHeader className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
+              <TableRow className="hover:bg-transparent border-none">
+                <TableHead className="font-bold text-slate-700 py-4 h-12">MLA</TableHead>
+                <TableHead className="font-bold text-blue-700 h-12">User Product</TableHead>
+                <TableHead className="font-bold text-purple-700 h-12">Familia</TableHead>
+                <TableHead className="w-[250px] font-bold text-slate-700 h-12">Publicación</TableHead>
+                <TableHead className="font-bold text-slate-700 h-12">Variante / ID</TableHead>
+                <TableHead className="font-bold text-slate-700 h-12">Estado</TableHead>
+                <TableHead className="font-bold text-slate-700 h-12 min-w-[120px]">IDs Agregados</TableHead>
+                <TableHead className="w-[250px] font-bold text-slate-700 h-12">Agregados</TableHead>
+                <TableHead className="h-12">
+                  <Button variant="ghost" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')} className="hover:bg-slate-200 p-2 font-bold text-blue-700 -ml-2 h-8">
+                    Costo Total <ArrowUpDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </TableHead>
+                <TableHead className="text-right pr-6 font-bold text-slate-700 h-12">Link</TableHead>
+              </TableRow>
+            </TableHeader>
 
-// --- FUNCIONES DE GESTIÓN (CRUD) ---
+            <TableBody>
+              {sortedData.length > 0 ? (
+                sortedData.map((item, index) => {
+                  const listaReceta = item.receta_detallada?.split(' + ') || [];
+                  const listaIds = item.ids_articulos?.split(' + ') || [];
+                  const linkML = `https://articulo.mercadolibre.com.ar/${item.mla}`;
 
-export async function upsertArticulo(data: any) {
-  try {
-    const { id, id_articulo, descripcion, costo_usd, es_dolar } = data;
-    
-    // FORZAMOS MAYÚSCULAS Y LIMPIAMOS ESPACIOS AQUÍ
-    const cleanSku = id_articulo.trim().toUpperCase();
-    const cleanDesc = descripcion?.trim().toUpperCase(); 
+                  return (
+                    <TableRow key={`${item.mla}-${item.variation_id || index}`} className="hover:bg-blue-50/30 transition-colors border-slate-100">
+                      <TableCell className="font-mono text-slate-500 text-xs font-bold">{item.mla}</TableCell>
+                      
+                      <TableCell>
+                        {item.user_product_id ? (
+                          <Badge variant="outline" className="font-mono text-[10px] text-blue-700 bg-blue-50 border-blue-200">
+                            {item.user_product_id}
+                          </Badge>
+                        ) : <span className="text-slate-300 text-xs">-</span>}
+                      </TableCell>
+                      
+                      <TableCell>
+                        {item.family_id ? (
+                          <span className="font-mono text-[10px] text-purple-600 max-w-[130px] truncate block" title={item.family_id}>
+                            {item.family_id}
+                          </span>
+                        ) : <span className="text-slate-300 text-xs">-</span>}
+                      </TableCell>
 
-    const updateData = {
-      id_articulo: cleanSku,
-      descripcion: cleanDesc,
-      costo_usd: Number(costo_usd),
-      es_dolar: Boolean(es_dolar),
-      fecha_actualizacion: new Date()
-    };
+                      <TableCell className="py-4">
+                        <div className="font-bold text-[11px] leading-tight uppercase text-slate-800">{item.titulo || "Sin Título"}</div>
+                      </TableCell>
 
-    if (id) {
-      // 1. Buscamos el registro actual para comparar
-      const articuloViejo = await prisma.costosArticulos.findUnique({
-        where: { id: Number(id) }
-      });
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-[10px] font-bold text-indigo-700 uppercase">{item.variante_ml === "0" || !item.variante_ml ? "Único" : item.variante_ml}</span>
+                          <span className="text-[9px] text-slate-400 font-mono italic">{item.variation_id || "Base"}</span>
+                        </div>
+                      </TableCell>
 
-      // 2. Actualizamos la tabla principal (costos_articulos)
-      await prisma.costosArticulos.update({ 
-        where: { id: Number(id) }, 
-        data: updateData 
-      });
+                      <TableCell>{renderEstadoBadge(item.estado)}</TableCell>
 
-      // 3. PROPAGACIÓN: Si cambió el nombre, lo actualizamos en ComposicionKits
-      if (articuloViejo && articuloViejo.descripcion !== cleanDesc) {
-        await prisma.composicionKits.updateMany({
-          where: { id_articulo: cleanSku },
-          data: { nombre_articulo: cleanDesc }
-        });
-      }
+                      <TableCell>
+                        <div className="flex flex-col gap-1 py-1">
+                          {listaIds.map((id: string, idx: number) => (
+                            <button 
+                              key={idx} onClick={() => handleCopy(id)}
+                              className={cn("group flex items-center gap-2 text-[9px] font-mono font-black border px-2 py-0.5 rounded transition-all w-fit h-[18px]", copiedText === id ? "bg-green-100 border-green-300 text-green-700" : "bg-slate-100 border-slate-200 text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700")}
+                              title="Click para copiar SKU"
+                            >
+                              {id}{copiedText === id ? <Check className="h-2.5 w-2.5" /> : <Copy className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100" />}
+                            </button>
+                          ))}
+                        </div>
+                      </TableCell>
 
-    } else {
-      // Si es nuevo, también se guarda en MAYÚSCULAS
-      await prisma.costosArticulos.create({ data: updateData });
-    }
+                      <TableCell>
+                        <div className="flex flex-col gap-1 py-1">
+                          {listaReceta.map((r: string, idx: number) => (
+                            <div key={idx} className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]">
+                              {r}
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
 
-    // Recalcular costos
-    await recalculateProductCost(cleanSku);
-    
-    revalidatePath("/admin/mercadolibre/articulos");
-    revalidatePath("/admin/mercadolibre/composicion");
-    
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error en upsertArticulo:", error);
-    return { success: false, error: error.message };
-  }
-}
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="text-base font-black text-green-700">${Number(item.costo_total).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                          <span className="text-[8px] text-slate-400 uppercase font-bold tracking-tighter">Costo Total</span>
+                        </div>
+                      </TableCell>
 
-export async function deleteArticulo(id: number) {
-  try {
-    await prisma.costosArticulos.delete({ where: { id } });
-    revalidatePath("/admin/mercadolibre/articulos");
-    return { success: true };
-  } catch (error) { return { success: false, error: "Error al eliminar." }; }
-}
-
-export async function getComponentes(skuPadre: string) {
-  try {
-    return await prisma.articulosCompuestos.findMany({ where: { sku_padre: skuPadre } });
-  } catch (error) { return []; }
-}
-
-export async function updateComponentes(skuPadre: string, componentes: { sku_hijo: string, cantidad: number }[]) {
-  try {
-    await prisma.articulosCompuestos.deleteMany({ where: { sku_padre: skuPadre } });
-    if (componentes.length > 0) {
-      await prisma.articulosCompuestos.createMany({
-        data: componentes.map(c => ({ sku_padre: skuPadre, sku_hijo: c.sku_hijo, cantidad: c.cantidad }))
-      });
-    }
-    await recalculateProductCost(skuPadre);
-    revalidatePath("/admin/mercadolibre/articulos");
-    return { success: true };
-  } catch (error: any) { return { success: false, error: error.message }; }
+                      <TableCell className="text-right pr-6">
+                        <a href={linkML} target="_blank" rel="noreferrer">
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-300 hover:text-blue-600 hover:bg-blue-50">
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </a>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={10} className="h-32 text-center text-slate-400 italic">No se encontraron resultados.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+    </div>
+  );
 }

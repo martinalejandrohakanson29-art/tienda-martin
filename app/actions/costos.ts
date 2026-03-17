@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/prisma"; 
 import { revalidatePath } from "next/cache";
 import { unstable_noStore as noStore } from "next/cache";
+import { revalidatePath, unstable_noStore as noStore } from "next/cache";
 
 /**
  * RECALCULAR PRECIO DE UN ARTÍCULO
@@ -114,7 +115,7 @@ export async function getArticulos() {
 }
 
 export async function getCostosKits() {
-  noStore(); // ¡ESTO DESTRUYE EL CACHÉ DE NEXT.JS! Garantiza datos 100% en vivo.
+  noStore(); 
   
   try {
     const costos = await prisma.$queryRaw<any[]>`
@@ -133,7 +134,30 @@ export async function getCostosKits() {
       ORDER BY costo_total DESC
     `;
     
-    return costos.map((item: any) => ({
+    // --- MAGIA ANTI-DUPLICADOS ---
+    // Si la base de datos devuelve un MLA partido en dos (uno con estado y otro con familia),
+    // los fusionamos en un solo renglón perfecto.
+    const unificados = new Map();
+    
+    for (const item of costos) {
+      const key = `${item.mla}-${item.variation_id || 'base'}`;
+      
+      if (!unificados.has(key)) {
+        unificados.set(key, { ...item });
+      } else {
+        const existente = unificados.get(key);
+        // Rescatamos los datos que falten
+        if (!existente.family_id && item.family_id) existente.family_id = item.family_id;
+        if (!existente.user_product_id && item.user_product_id) existente.user_product_id = item.user_product_id;
+        if (!existente.estado && item.estado) existente.estado = item.estado;
+        if (!existente.variante_ml && item.variante_ml) existente.variante_ml = item.variante_ml;
+      }
+    }
+
+    // Convertimos el mapa fusionado de vuelta a un Array
+    const resultadoFinal = Array.from(unificados.values());
+
+    return resultadoFinal.map((item: any) => ({
       ...item,
       costo_total: item.costo_total ? Number(item.costo_total) : 0,
     }));

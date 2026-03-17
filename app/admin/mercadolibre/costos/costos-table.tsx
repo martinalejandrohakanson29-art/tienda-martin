@@ -24,7 +24,7 @@ export function CostosTable({ data }: { data: any[] }) {
     setTimeout(() => setCopiedText(null), 2000); // El icono vuelve a la normalidad en 2 seg
   };
 
-  // Lógica de filtrado
+  // Lógica de filtrado (AHORA INCLUYE UP Y FAMILIA)
   const filteredData = data.filter(item => {
     if (statusFilter !== 'all' && item.estado?.toLowerCase() !== statusFilter) return false;
     const searchLower = filter.toLowerCase();
@@ -34,7 +34,9 @@ export function CostosTable({ data }: { data: any[] }) {
       item.receta_detallada?.toLowerCase().includes(searchLower) ||
       item.variante_ml?.toLowerCase().includes(searchLower) ||
       item.variation_id?.includes(filter) ||
-      item.ids_articulos?.toLowerCase().includes(searchLower)
+      item.ids_articulos?.toLowerCase().includes(searchLower) ||
+      item.user_product_id?.toLowerCase().includes(searchLower) ||
+      item.family_id?.toLowerCase().includes(searchLower)
     );
   });
 
@@ -64,7 +66,7 @@ export function CostosTable({ data }: { data: any[] }) {
           <div className="relative w-full max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
-              placeholder="Buscar por MLA, título, variante o SKU..."
+              placeholder="Buscar por MLA, título, variante, SKU, UP o Familia..."
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               className="pl-10 bg-slate-50 border-slate-200 focus-visible:ring-blue-500"
@@ -101,12 +103,15 @@ export function CostosTable({ data }: { data: any[] }) {
             <TableHeader className="sticky top-0 z-20 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
               <TableRow className="hover:bg-transparent border-none">
                 <TableHead className="font-bold text-slate-700 py-4 h-12">MLA</TableHead>
-                <TableHead className="w-[300px] font-bold text-slate-700 h-12">Publicación</TableHead>
+                {/* NUEVAS COLUMNAS */}
+                <TableHead className="font-bold text-blue-700 h-12">User Product</TableHead>
+                <TableHead className="font-bold text-purple-700 h-12">Familia</TableHead>
+                
+                <TableHead className="w-[250px] font-bold text-slate-700 h-12">Publicación</TableHead>
                 <TableHead className="font-bold text-slate-700 h-12">Variante / ID</TableHead>
                 <TableHead className="font-bold text-slate-700 h-12">Estado</TableHead>
-                {/* Ajustamos ancho para que no bailen las columnas */}
                 <TableHead className="font-bold text-slate-700 h-12 min-w-[120px]">IDs Agregados</TableHead>
-                <TableHead className="w-[300px] font-bold text-slate-700 h-12">Agregados</TableHead>
+                <TableHead className="w-[250px] font-bold text-slate-700 h-12">Agregados</TableHead>
                 <TableHead className="h-12">
                   <Button 
                     variant="ghost" 
@@ -132,8 +137,28 @@ export function CostosTable({ data }: { data: any[] }) {
                       key={`${item.mla}-${item.variation_id || index}`} 
                       className="hover:bg-blue-50/30 transition-colors border-slate-100"
                     >
-                      <TableCell className="font-mono text-slate-500 text-xs">{item.mla}</TableCell>
+                      <TableCell className="font-mono text-slate-500 text-xs font-bold">{item.mla}</TableCell>
                       
+                      {/* NUEVAS CELDAS DE UP Y FAMILIA */}
+                      <TableCell>
+                        {item.user_product_id ? (
+                          <Badge variant="outline" className="font-mono text-[10px] text-blue-700 bg-blue-50 border-blue-200">
+                            {item.user_product_id}
+                          </Badge>
+                        ) : (
+                          <span className="text-slate-300 text-xs">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {item.family_id ? (
+                          <span className="font-mono text-[10px] text-purple-600 max-w-[130px] truncate block" title={item.family_id}>
+                            {item.family_id}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">-</span>
+                        )}
+                      </TableCell>
+
                       <TableCell className="py-4">
                         <div className="font-bold text-[11px] leading-tight uppercase text-slate-800">
                           {item.titulo || "Sin Título"}
@@ -210,7 +235,7 @@ export function CostosTable({ data }: { data: any[] }) {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="h-32 text-center text-slate-400 italic">
+                  <TableCell colSpan={10} className="h-32 text-center text-slate-400 italic">
                     No se encontraron resultados.
                   </TableCell>
                 </TableRow>

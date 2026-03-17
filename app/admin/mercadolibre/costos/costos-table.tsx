@@ -50,10 +50,6 @@ export function CostosTable({ data }: { data: any[] }) {
     }
   };
 
-  // --- LÓGICA DE DEBUG 2.0 ---
-  const itemsConFamilia = data.filter(item => item.family_id && item.family_id !== "null" && item.family_id !== "");
-  const debugItems = data.filter(item => item.mla === 'MLA1392129319');
-
   return (
     <div className="flex flex-col h-full w-full bg-slate-50">
       
@@ -85,28 +81,6 @@ export function CostosTable({ data }: { data: any[] }) {
           </div>
         </div>
       </div>
-
-      {/* --- CAJA DE DEBUG ROJA 2.0 --- */}
-      <div className="max-w-[1600px] mx-auto w-full px-4 mt-4">
-        <div className="bg-red-50 border-2 border-red-400 p-4 rounded-xl shadow-sm flex flex-col md:flex-row gap-6">
-          <div className="flex-1">
-            <h3 className="font-black text-red-800 text-sm mb-1">🕵️ ESTADO GLOBAL DE DATOS</h3>
-            <p className="text-xl text-red-600 font-bold mb-1">
-              Total de Familias recibidas en pantalla: {itemsConFamilia.length}
-            </p>
-            <p className="text-xs text-red-600">
-              (Si este número es 194, los datos llegaron perfecto y ya puedes verlos en la tabla).
-            </p>
-          </div>
-          <div className="flex-1">
-            <h3 className="font-black text-red-800 text-sm mb-1">🔍 DETALLE DE MLA1392129319 ({debugItems.length} renglones)</h3>
-            <pre className="bg-slate-900 text-green-400 p-4 rounded-lg text-[10px] overflow-auto max-h-[150px] font-mono shadow-inner">
-              {JSON.stringify(debugItems, null, 2)}
-            </pre>
-          </div>
-        </div>
-      </div>
-      {/* --- FIN CAJA DE DEBUG --- */}
 
       {/* 2. CONTENEDOR DE LA TABLA */}
       <div className="flex-1 overflow-auto p-4 pt-0"> 

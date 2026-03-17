@@ -113,23 +113,30 @@ export async function getArticulos() {
 }
 
 // ESTA ES LA FUNCIÓN QUE FALTABA Y CAUSABA EL ERROR DE BUILD
+// ESTA ES LA FUNCIÓN QUE FALTABA Y CAUSABA EL ERROR DE BUILD
 export async function getCostosKits() {
   try {
-    const costos = await prisma.$queryRaw<any[]>`SELECT * FROM vista_costos_productos ORDER BY costo_total DESC`;
+    // MAGIA SQL: Le pedimos a PostgreSQL que convierta (CAST) los BigInt a Texto (VARCHAR)
+    // antes de enviárselos a Prisma. Así evitamos cualquier pérdida de datos.
+    const costos = await prisma.$queryRaw<any[]>`
+      SELECT 
+        mla,
+        titulo,
+        variation_id,
+        variante_ml,
+        estado,
+        CAST(user_product_id AS VARCHAR) as user_product_id,
+        CAST(family_id AS VARCHAR) as family_id,
+        ids_articulos,
+        receta_detallada,
+        costo_total
+      FROM vista_costos_productos 
+      ORDER BY costo_total DESC
+    `;
     
-    // --- INICIO DE DEBUG ---
-    // Buscamos el MLA específico que sabemos que tiene datos
-    const itemPrueba = costos.find((c: any) => c.mla === 'MLA884526852');
-    console.log("=== DEBUG PRISMA MLA884526852 ===");
-    console.log(itemPrueba);
-    console.log("=================================");
-    // --- FIN DE DEBUG ---
-
+    // Devolvemos los datos asegurándonos de que costo_total sea un número
     return costos.map((item: any) => ({
       ...item,
-      // Usamos una comprobación más estricta por si el dato viene como null
-      user_product_id: item.user_product_id !== null && item.user_product_id !== undefined ? String(item.user_product_id) : "",
-      family_id: item.family_id !== null && item.family_id !== undefined ? String(item.family_id) : "",
       costo_total: item.costo_total ? Number(item.costo_total) : 0,
     }));
 

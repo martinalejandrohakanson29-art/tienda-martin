@@ -88,9 +88,9 @@ export async function getRentabilidadData() {
 // Función que dispara webhooks y actualiza la tabla física
 export async function triggerRentabilidadUpdate() {
   const webhooks = [
-    "https://n8n-on-render-production-52f0.up.railway.app/webhook/publicaciones-activas",
-    "https://n8n-on-render-production-52f0.up.railway.app/webhook/descuentos_ml",
-    "https://n8n-on-render-production-52f0.up.railway.app/webhook/cargo_ventas"
+    "https://n8n.revolucionmotos.tech/webhook/publicaciones-activas",
+    "https://n8n.revolucionmotos.tech/webhook/descuentos_ml",
+    "https://n8n.revolucionmotos.tech/webhook/cargo_ventas"
   ];
 
   try {

@@ -2,10 +2,12 @@
 import { getCostosKits } from "@/app/actions/costos";
 import { CostosTable } from "./costos-table";
 
+// ESTA LÍNEA OBLIGA A RECARGAR LOS DATOS EN TIEMPO REAL
+export const dynamic = "force-dynamic";
+
 export default async function CostosMLPage() {
   const data = await getCostosKits();
 
-  // Cambiamos el diseño a flex-col h-full para que la tabla use todo el alto
   return (
     <div className="flex flex-col h-full bg-slate-50">
       <div className="flex items-center justify-between px-8 py-4 bg-white border-b border-slate-200">

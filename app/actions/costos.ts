@@ -115,14 +115,22 @@ export async function getArticulos() {
 // ESTA ES LA FUNCIÓN QUE FALTABA Y CAUSABA EL ERROR DE BUILD
 export async function getCostosKits() {
   try {
-    // Nota: Le decimos a TypeScript (<any[]>) que el resultado es un array para que no tire error
     const costos = await prisma.$queryRaw<any[]>`SELECT * FROM vista_costos_productos ORDER BY costo_total DESC`;
     
-    // AQUÍ ESTÁ LA MAGIA: Convertimos UP y Familia a Texto para que Next.js no los borre
+    // --- INICIO DE DEBUG ---
+    // Buscamos el MLA específico que sabemos que tiene datos
+    const itemPrueba = costos.find((c: any) => c.mla === 'MLA884526852');
+    console.log("=== DEBUG PRISMA MLA884526852 ===");
+    console.log(itemPrueba);
+    console.log("=================================");
+    // --- FIN DE DEBUG ---
+
     return costos.map((item: any) => ({
       ...item,
-      user_product_id: item.user_product_id ? String(item.user_product_id) : "",
-      family_id: item.family_id ? String(item.family_id) : "",
+      // Usamos una comprobación más estricta por si el dato viene como null
+      user_product_id: item.user_product_id !== null && item.user_product_id !== undefined ? String(item.user_product_id) : "",
+      family_id: item.family_id !== null && item.family_id !== undefined ? String(item.family_id) : "",
+      costo_total: item.costo_total ? Number(item.costo_total) : 0,
     }));
 
   } catch (error) { 
@@ -130,7 +138,6 @@ export async function getCostosKits() {
     return []; 
   }
 }
-// --- FUNCIONES DE GESTIÓN (CRUD) ---
 
 // app/actions/costos.ts
 

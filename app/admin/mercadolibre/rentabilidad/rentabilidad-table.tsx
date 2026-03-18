@@ -29,9 +29,11 @@ interface ProductoRentabilidad {
   cargo_venta_real: number;
   envio_costo: number;
   costo_fijo_ml: number;
-  // Añadimos estas dos propiedades opcionales para que TypeScript no se queje al calcularlas
+  // Propiedades calculadas para UI y Simulación
   desc_pct_nuestro?: number;
   desc_pct_ml?: number;
+  comision_pct?: number;
+  impuesto_pct?: number;
 }
 
 type SortKey = keyof ProductoRentabilidad;
@@ -43,8 +45,6 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     direction: "desc",
   });
 
-  // ESTADO TEMPORAL PARA SIMULACIONES
-  // Ahora guardamos el "Dcto Nuestro" en lugar del total
   const [overrides, setOverrides] = useState<Record<string, { desc_pct_nuestro?: string; costo_total?: string }>>({});
 
   const handleOverride = (id: string, field: 'desc_pct_nuestro' | 'costo_total', value: string) => {
@@ -65,20 +65,16 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     setSortConfig({ key, direction });
   };
 
-  // 1. APLICAMOS LA SIMULACIÓN Y CALCULAMOS LOS DESCUENTOS DESGLOSADOS
   const simulatedData = data.map((item) => {
     const id = `${item.item_id}-${item.variation_id || ""}`;
     const override = overrides[id];
 
-    // Deducimos el % nuestro real usando el precio_final_nuestro y el precio_original
+    // 1. CÁLCULO DE DESCUENTOS BASE
     const desc_pct_nuestro_real = item.precio_original > 0 
       ? (1 - (item.precio_final_nuestro / item.precio_original)) * 100 
       : 0;
-    
-    // El % de ML es el total menos el nuestro (con Math.max para evitar números negativos raros)
     const desc_pct_ml = Math.max(0, item.desc_pct_total - desc_pct_nuestro_real);
 
-    // Si tipeaste algo, lo usamos. Si no, usamos el real calculado arriba.
     const simulatedDescNuestro = override?.desc_pct_nuestro !== undefined 
       ? (override.desc_pct_nuestro === "" ? 0 : Number(override.desc_pct_nuestro)) 
       : desc_pct_nuestro_real;
@@ -87,26 +83,20 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
       ? (override.costo_total === "" ? 0 : Number(override.costo_total)) 
       : item.costo_total;
 
-    // Si no cambiaste nada, devolvemos el item original pero agregándole los % desglosados
-    if (simulatedDescNuestro === desc_pct_nuestro_real && simulatedCosto === item.costo_total) {
-      return {
-        ...item,
-        desc_pct_nuestro: desc_pct_nuestro_real,
-        desc_pct_ml: desc_pct_ml
-      };
-    }
-
-    // MATEMÁTICA DE SIMULACIÓN
-    // Calculamos qué porcentaje de comisión nos cobra ML hoy sobre el precio de venta público
+    // 2. LÓGICA DE COMISIÓN E IMPUESTOS
+    // Calculamos el % de comisión que ML cobra (incluyendo cuotas) sobre el precio público
     const fee_rate = item.precio_final > 0 ? item.cargo_venta_real / item.precio_final : 0;
-    
-    // Recalculamos los precios
+    const TAX_RATE = 0.02; // El 2% pedido
+
+    // Recalculamos precios basados en la simulación
     const nuevo_precio_final_nuestro = item.precio_original * (1 - simulatedDescNuestro / 100);
     const nuevo_precio_final_publico = item.precio_original * (1 - (simulatedDescNuestro + desc_pct_ml) / 100);
     
     const nuevo_cargo_venta = nuevo_precio_final_publico * fee_rate;
+    const nuevo_impuesto = nuevo_precio_final_publico * TAX_RATE;
     
-    const nuevo_neto = nuevo_precio_final_nuestro - nuevo_cargo_venta - item.envio_costo - item.costo_fijo_ml;
+    // El Neto Recibido ahora descuenta también el nuevo 2%
+    const nuevo_neto = nuevo_precio_final_nuestro - nuevo_cargo_venta - item.envio_costo - item.costo_fijo_ml - nuevo_impuesto;
     const nueva_ganancia = nuevo_neto - simulatedCosto;
     const nuevo_pct = simulatedCosto > 0 ? (nueva_ganancia / simulatedCosto) * 100 : 0;
 
@@ -118,13 +108,14 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
       precio_final: nuevo_precio_final_publico,
       precio_final_nuestro: nuevo_precio_final_nuestro,
       cargo_venta_real: nuevo_cargo_venta,
+      comision_pct: fee_rate * 100,
+      impuesto_pct: TAX_RATE * 100,
       neto_teorico: nuevo_neto,
       ganancia_neta: nueva_ganancia,
       ganancia_porcentaje: nuevo_pct,
     };
   });
 
-  // 2. FILTRAMOS
   const filteredData = simulatedData.filter((item) => {
     const searchLower = filter.toLowerCase().trim();
     return (item.nombre || "").toLowerCase().includes(searchLower) || 
@@ -132,20 +123,13 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
            (item.nombre_variante || "").toLowerCase().includes(searchLower);
   });
 
-  // 3. ORDENAMOS
   const sortedData = [...filteredData].sort((a, b) => {
     const aValue = a[sortConfig.key] ?? 0;
     const bValue = b[sortConfig.key] ?? 0;
-
     if (typeof aValue === "string" && typeof bValue === "string") {
-      return sortConfig.direction === "asc" 
-        ? aValue.localeCompare(bValue) 
-        : bValue.localeCompare(aValue);
+      return sortConfig.direction === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
     }
-    
-    return sortConfig.direction === "asc" 
-      ? (aValue as number) - (bValue as number) 
-      : (bValue as number) - (aValue as number);
+    return sortConfig.direction === "asc" ? (aValue as number) - (bValue as number) : (bValue as number) - (aValue as number);
   });
 
   const getPorcentajeStyle = (pct: number) => {
@@ -173,7 +157,6 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
 
   return (
     <div className="flex flex-col h-full w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-      
       <div className="p-4 border-b border-slate-200 bg-white">
         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
           <div className="relative w-full max-w-md">
@@ -200,10 +183,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
             <TableRow>
-              <TableHead 
-                className="min-w-[300px] font-bold text-slate-700 text-[11px] cursor-pointer"
-                onClick={() => handleSort("nombre")}
-              >
+              <TableHead className="min-w-[300px] font-bold text-slate-700 text-[11px] cursor-pointer" onClick={() => handleSort("nombre")}>
                 Publicación / Variante
               </TableHead>
               <SortableHead label="P. Original" sortKey="precio_original" className="text-slate-400" />
@@ -212,7 +192,8 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
               <SortableHead label="P. Público" sortKey="precio_final" className="text-slate-500" />
               <SortableHead label="P. Nuestro" sortKey="precio_final_nuestro" className="text-slate-900 bg-slate-100" />
               <SortableHead label="Costo" sortKey="costo_total" className="text-slate-700 bg-slate-100" />
-              <SortableHead label="Comisión" sortKey="cargo_venta_real" className="text-red-500" />
+              <SortableHead label="Comisión %" sortKey="comision_pct" className="text-red-500" />
+              <SortableHead label="Impuesto" sortKey="impuesto_pct" className="text-orange-600" />
               <SortableHead label="Envío" sortKey="envio_costo" className="text-blue-600" />
               <SortableHead label="Neto Recibido" sortKey="neto_teorico" className="text-white bg-slate-900 px-4" />
               <SortableHead label="Ganancia Neta" sortKey="ganancia_neta" className="text-white bg-green-700 px-4" />
@@ -242,64 +223,58 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                   <TableCell className="text-right text-slate-400 line-through">
                     ${item.precio_original.toLocaleString('es-AR')}
                   </TableCell>
-                  
-                  {/* CELDA SOLO LECTURA: DESCUENTO DE MERCADO LIBRE */}
                   <TableCell className="text-right font-medium text-slate-400">
                     {item.desc_pct_ml ? `${item.desc_pct_ml.toFixed(1)}%` : '-'}
                   </TableCell>
-
-                  {/* CELDA EDITABLE: DESCUENTO NUESTRO */}
                   <TableCell className="text-right font-bold text-amber-600">
                     <div className="flex justify-end items-center gap-1">
                       <Input 
                         type="number"
                         min="0"
                         max="100"
-                        placeholder="0"
-                        className="h-6 w-14 text-right text-[11px] px-1 font-bold text-amber-600 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="h-6 w-14 text-right text-[11px] px-1 font-bold text-amber-600 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white"
                         value={overrides[id]?.desc_pct_nuestro !== undefined ? overrides[id].desc_pct_nuestro : (item.desc_pct_nuestro?.toFixed(1) || 0)}
                         onChange={(e) => handleOverride(id, 'desc_pct_nuestro', e.target.value)}
                       />
                       <span>%</span>
                     </div>
                   </TableCell>
-
-                  {/* PRECIO FINAL AL PÚBLICO */}
                   <TableCell className="text-right font-medium text-slate-500">
-                    ${item.precio_final.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    ${item.precio_final.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                   </TableCell>
-
-                  {/* NUEVA COLUMNA: PRECIO FINAL NUESTRO (BASE DE GANANCIA) */}
                   <TableCell className="text-right font-bold text-slate-900 bg-slate-50">
-                    ${item.precio_final_nuestro.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    ${item.precio_final_nuestro.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                   </TableCell>
-
-                  {/* CELDA EDITABLE: COSTO */}
                   <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
                     <div className="flex justify-end items-center gap-1">
                       <span className="text-slate-400">$</span>
                       <Input 
                         type="number"
-                        min="0"
-                        placeholder="0"
-                        className="h-6 w-16 text-right text-[11px] px-1 font-bold text-slate-700 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="h-6 w-16 text-right text-[11px] px-1 font-bold text-slate-700 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white"
                         value={overrides[id]?.costo_total !== undefined ? overrides[id].costo_total : Math.round(item.costo_total)}
                         onChange={(e) => handleOverride(id, 'costo_total', e.target.value)}
                       />
                     </div>
                   </TableCell>
 
-                  <TableCell className="text-right text-red-600">
-                    ${item.cargo_venta_real.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  {/* COMISIÓN EXPRESADA EN % */}
+                  <TableCell className="text-right text-red-600 font-bold">
+                    {item.comision_pct?.toFixed(1)}%
                   </TableCell>
+
+                  {/* NUEVA COLUMNA: IMPUESTO 2% */}
+                  <TableCell className="text-right text-orange-600 font-bold">
+                    {item.impuesto_pct?.toFixed(1)}%
+                  </TableCell>
+
                   <TableCell className="text-right text-blue-600 font-medium">
                     {item.envio_costo > 0 ? `$${item.envio_costo.toLocaleString('es-AR')}` : '-'}
                   </TableCell>
                   <TableCell className="text-right font-bold px-4 text-slate-900 bg-slate-50 border-l border-slate-200">
-                    ${item.neto_teorico.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    ${item.neto_teorico.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell className="text-right font-black px-4 border-l text-green-700 bg-green-50/30">
-                    ${item.ganancia_neta.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    ${item.ganancia_neta.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell className={cn("text-right px-4 border-l bg-slate-50", getPorcentajeStyle(item.ganancia_porcentaje))}>
                     {item.ganancia_porcentaje.toFixed(1)}%

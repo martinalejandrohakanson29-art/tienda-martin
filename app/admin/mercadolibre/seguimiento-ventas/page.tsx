@@ -68,7 +68,7 @@ export default function SeguimientoVentasPage() {
         setAnalysis(null);
         
         try {
-            const N8N_WEBHOOK_URL = "https://n8n-on-render-production-52f0.up.railway.app/webhook/seguimiento-ventas";
+            const N8N_WEBHOOK_URL = "https://n8n.revolucionmotos.tech/webhook/seguimiento-ventas";
             const response = await fetch(N8N_WEBHOOK_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

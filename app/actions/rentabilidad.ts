@@ -88,7 +88,7 @@ export async function getRentabilidadData() {
 // Función que dispara webhooks y actualiza la tabla física
 export async function triggerRentabilidadUpdate() {
   const webhooks = [
-  //  "https://n8n.revolucionmotos.tech/webhook/publicaciones-activas",
+  "https://n8n.revolucionmotos.tech/webhook/publicaciones-activas",
    // "https://n8n.revolucionmotos.tech/webhook/descuentos_ml",
     "https://n8n.revolucionmotos.tech/webhook/cargo_ventas"
   ];

@@ -655,3 +655,14 @@ model NumerosMayoristas {
   telefono  String   @unique
   createdAt DateTime @default(now())
 }
+
+// --- NUEVO: MODELO PARA RAG ---
+
+model DocumentSection {
+  id        Int                 @id @default(autoincrement())
+  content   String              @db.Text
+  metadata  Json?
+  embedding Unsupported("vector(1536)")? // Para OpenAI (1536 dimensiones)
+
+  @@map("document_sections")
+}

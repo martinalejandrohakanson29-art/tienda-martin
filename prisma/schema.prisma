@@ -645,3 +645,9 @@ model ConversacionRespondida {
 
   @@map("conversaciones_respondidas")
 }
+model Numeros Mayoristas {
+  id        Int      @id @default(autoincrement())
+  nombre    String?
+  telefono  String   @unique
+  createdAt DateTime @default(now())
+}

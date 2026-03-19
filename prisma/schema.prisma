@@ -111,7 +111,7 @@ model ShipmentItem {
   agregados  String?
   imageUrl   String?
   variation  String?
-
+  
   @@index([shipmentId])
 }
 
@@ -146,10 +146,9 @@ model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
   mla                  String   
   variation_id         String?
-  
   // --- NUEVOS CAMPOS ---
-  user_product_id      String?  // Se deja sin el decorador aquí
-  family_id            String?  // Se deja sin el decorador aquí
+  user_product_id      String?
+  family_id            String?
   
   nombre_variante      String?
   nombre_publicacion   String?
@@ -352,7 +351,7 @@ model EtiquetaMLItem {
   sku             String?
   quantity        Int
   variation       String?
-
+  
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
@@ -425,6 +424,7 @@ model RentabilidadCalculada {
   fecha_actualizacion  DateTime @default(now())
 
   @@unique([mla, variation_id])
+  
   @@map("rentabilidad_calculada")
 }
 
@@ -498,7 +498,7 @@ model ArticuloMostrador {
 }
 
 model ArticuloAuditoria {
-  id          String            @id @default(cuid())
+  id            String            @id @default(cuid())
   articuloId  String
   articulo    ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
   usuario     String
@@ -514,7 +514,7 @@ model ArticuloAuditoria {
 model TransferenciaCruzada {
   id              String   @id @default(cuid())
   whatsappId      String
-  monto           Decimal? @db.Decimal(20, 2)
+  monto           Decimal?  @db.Decimal(20, 2)
   emisorImagen    String?
   receptorImagen  String?
   infoExtra       String?
@@ -600,7 +600,8 @@ model Contacto {
 
 model WebSale {
   id            String   @id @default(cuid())
-  paymentId     String?  // ID de MercadoPago
+  paymentId     String?
+  // ID de MercadoPago
   status        String   @default("PENDIENTE") // PENDIENTE, APROBADO, CANCELADO
   total         Decimal  @db.Decimal(20, 2)
   
@@ -633,4 +634,14 @@ model WebSaleItem {
   subtotal      Decimal  @db.Decimal(20, 2)
 
   @@map("ventas_web_items")
+}
+
+// --- NUEVO: GESTIÓN DE BOT CHATWOOT ---
+
+model ConversacionRespondida {
+  id              String   @id @default(cuid())
+  conversation_id String   @unique
+  createdAt       DateTime @default(now())
+
+  @@map("conversaciones_respondidas")
 }

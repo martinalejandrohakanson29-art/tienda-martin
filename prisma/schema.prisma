@@ -645,7 +645,7 @@ model ConversacionRespondida {
 
   @@map("conversaciones_respondidas")
 }
-model Numeros Mayoristas {
+model NumerosMayoristas {
   id        Int      @id @default(autoincrement())
   nombre    String?
   telefono  String   @unique

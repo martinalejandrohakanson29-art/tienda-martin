@@ -1,6 +1,7 @@
 "use server"
 
-import prisma from "@/lib/prisma"
+// IMPORTANTE: prisma debe importarse entre llaves
+import { prisma } from "@/lib/prisma" 
 import { revalidatePath } from "next/cache"
 
 // 1. Función para obtener todos los registros de la tabla NumerosMayoristas
@@ -8,7 +9,7 @@ export async function getMayoristas() {
     try {
         const mayoristas = await prisma.numerosMayoristas.findMany({
             orderBy: {
-                createdAt: 'desc' // Ordena del más nuevo al más viejo
+                createdAt: 'desc' // Ordena del más nuevo al más viejo para ver los últimos arriba
             }
         })
         return mayoristas
@@ -28,7 +29,7 @@ export async function createMayorista(data: { nombre: string; telefono: string }
             }
         })
         
-        // Refrescamos la ruta para que la tabla visual se actualice
+        // Refrescamos la ruta para que la tabla visual se actualice automáticamente
         revalidatePath('/admin/chatwoot') 
         return { success: true, mayorista: nuevoMayorista }
     } catch (error) {

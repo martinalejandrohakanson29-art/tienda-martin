@@ -2,36 +2,52 @@
 
 import prisma from '@/lib/prisma';
 
-// 1. Definimos la estructura de nuestros metadatos para tener autocompletado
-interface MetadatosProducto {
-  tipo: string;
-  categoria: string;
-  marca: string;
-  sku?: string;
-  link_compra?: string;
+// 1. Función para conectarnos a tu servidor local de LM Studio
+async function obtenerEmbedding1536Local(texto: string): Promise<number[]> {
+  try {
+    // LM Studio por defecto corre en el puerto 1234 de tu PC
+    const response = await fetch('http://localhost:1234/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        input: texto,
+        // En LM Studio, si tienes un solo modelo cargado, suele ignorar el nombre, 
+        // pero por convención ponemos "local-model".
+        model: "local-model", 
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Fallo al conectar con el servidor local de IA');
+    }
+
+    const data = await response.json();
+    
+    // La estructura de respuesta de LM Studio es un clon de OpenAI
+    // Esto te devolverá tus 1536 números exactos
+    return data.data[0].embedding; 
+  } catch (error) {
+    console.error("Error obteniendo embedding local:", error);
+    throw error;
+  }
 }
 
-export async function guardarConocimientoCasco() {
+// 2. Función para inyectar el conocimiento en tu base de datos
+export async function guardarConocimientoLocal() {
+  // Preparamos un texto de ejemplo súper útil para tus clientes
+  const texto = "En Revolución Motos realizamos envíos en 24 horas a toda la provincia de Córdoba mediante cadetería propia. Para el resto del país, despachamos por Correo Argentino.";
+  const metadata = { categoria: "envios", tipo: "informacion_general" };
+
   try {
-    // 2. Preparamos los datos exactos del ejemplo
-    const texto = "El casco LS2 FF352 es un casco integral fabricado en policarbonato de alta resistencia. Cuenta con visor anti-rayas, interior hipoalergénico, desmontable y lavable. Tiene certificación DOT. En Revolución Motos ofrecemos envío gratis para este producto a todo el país a través de Correo Argentino.";
-    
-    const metadata: MetadatosProducto = {
-      tipo: "producto",
-      categoria: "cascos",
-      marca: "LS2",
-      sku: "LS2-FF352",
-      link_compra: "https://tutienda.com/productos/ls2-ff352"
-    };
+    // Le pedimos a tu GPU de 16GB que convierta el texto en los 1536 números
+    const embeddingVector = await obtenerEmbedding1536Local(texto);
 
-    // 3. Simulamos el vector que te devolvería OpenAI (en la realidad, aquí llamarías a la API de OpenAI)
-    // Rellenamos un array con 1536 números aleatorios solo para que el código funcione en este ejemplo
-    const vectorOpenAI = Array.from({ length: 1536 }, () => Math.random() * 0.1); 
+    // Convertimos el array a un formato de texto que PostgreSQL entienda
+    const vectorString = `[${embeddingVector.join(',')}]`;
 
-    // 4. Transformamos el array de números a un formato de texto [0.1, 0.2, ...] para PostgreSQL
-    const vectorString = `[${vectorOpenAI.join(',')}]`;
-
-    // 5. Insertamos en la base de datos usando SQL puro debido a que es un campo Unsupported en Prisma
+    // Guardamos en la base de datos (¡Tu schema en Prisma ya dice vector(1536) así que entra perfecto!)
     await prisma.$executeRaw`
       INSERT INTO document_sections (content, metadata, embedding)
       VALUES (
@@ -41,11 +57,11 @@ export async function guardarConocimientoCasco() {
       )
     `;
 
-    console.log("¡Conocimiento del casco LS2 guardado exitosamente!");
+    console.log("¡Conocimiento guardado gratis utilizando tu hardware!");
     return { success: true };
 
   } catch (error) {
-    console.error("Error guardando el documento:", error);
-    return { success: false, error: "No se pudo guardar el conocimiento" };
+    console.error("Error al intentar guardar el conocimiento:", error);
+    return { success: false, error: "Fallo en el servidor local" };
   }
 }

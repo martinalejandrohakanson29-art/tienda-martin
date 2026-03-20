@@ -3,36 +3,36 @@
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 
-// Función para obtener todos los mayoristas
+// 1. Función para obtener todos los registros de la tabla NumerosMayoristas
 export async function getMayoristas() {
     try {
-        const mayoristas = await prisma.mayorista.findMany({
+        const mayoristas = await prisma.numerosMayoristas.findMany({
             orderBy: {
-                createdAt: 'desc' // Los ordenamos para que los más nuevos salgan primero
+                createdAt: 'desc' // Ordena del más nuevo al más viejo
             }
         })
         return mayoristas
     } catch (error) {
-        console.error("Error al obtener la lista de mayoristas:", error)
+        console.error("Error al obtener la lista de NumerosMayoristas:", error)
         return []
     }
 }
 
-// NUEVA Función para guardar un mayorista en la Base de Datos
+// 2. Función para guardar un nuevo registro en la tabla NumerosMayoristas
 export async function createMayorista(data: { nombre: string; telefono: string }) {
     try {
-        const nuevoMayorista = await prisma.mayorista.create({
+        const nuevoMayorista = await prisma.numerosMayoristas.create({
             data: {
                 nombre: data.nombre,
                 telefono: data.telefono
             }
         })
         
-        // Le avisamos a la página que se actualice
+        // Refrescamos la ruta para que la tabla visual se actualice
         revalidatePath('/admin/chatwoot') 
         return { success: true, mayorista: nuevoMayorista }
     } catch (error) {
-        console.error("Error al guardar el mayorista en la BD:", error)
+        console.error("Error al guardar en NumerosMayoristas:", error)
         throw new Error("No se pudo guardar el mayorista")
     }
 }

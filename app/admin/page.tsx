@@ -12,7 +12,8 @@ import {
     Settings2,
     ListTodo,
     LayoutDashboard,
-    Globe // Importamos este icono nuevo
+    Globe,
+    MessageCircle // Importamos el icono para Chatwoot
 } from "lucide-react" 
 import Link from "next/link"
 import TaskForm from "./task-form"
@@ -75,7 +76,6 @@ export default async function AdminDashboard() {
                         </CardContent>
                     </Card>
 
-                    {/* ¡AQUÍ ESTÁ LA NUEVA TARJETA! */}
                     <Card className="border-l-4 border-l-emerald-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-emerald-50/50">
                         <CardHeader className="pb-3">
                             <CardTitle className="flex items-center gap-2 text-emerald-800 text-xl">
@@ -138,6 +138,24 @@ export default async function AdminDashboard() {
                             <p className="text-sm text-gray-600 mb-6">Stock, Costos y Rentabilidad.</p>
                             <Link href="/admin/mercadolibre/interna">
                                 <Button className="w-full bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-sm h-12 text-lg">
+                                    Entrar al Panel <ArrowRight size={18} />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+
+                    {/* NUEVA TARJETA: CHATWOOT / DIFUSIÓN */}
+                    <Card className="border-l-4 border-l-teal-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-teal-50/50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-teal-800 text-xl">
+                                <MessageCircle className="h-6 w-6" />
+                                Gestión Chatwoot
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                            <p className="text-sm text-gray-600 mb-6">Difusión, plantillas y mayoristas.</p>
+                            <Link href="/admin/chatwoot">
+                                <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm h-12 text-lg">
                                     Entrar al Panel <ArrowRight size={18} />
                                 </Button>
                             </Link>

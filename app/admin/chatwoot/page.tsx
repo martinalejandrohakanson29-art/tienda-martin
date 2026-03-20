@@ -5,38 +5,53 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { MessageCircle, Users, Send, Plus } from "lucide-react"
+import { MessageCircle, Users, Send, Plus, Loader2 } from "lucide-react"
 
 export default function ChatwootPage() {
-    // Estas variables (estados) guardan lo que escribes en los inputs
     const [nombre, setNombre] = useState("")
     const [telefono, setTelefono] = useState("")
-    
-    // Esta es una lista temporal para ver en pantalla a quiénes vamos agregando
     const [mayoristas, setMayoristas] = useState<{nombre: string, telefono: string}[]>([])
+    
+    // Nuevo: una variable para saber si estamos esperando la respuesta de n8n
+    const [enviando, setEnviando] = useState(false)
 
-    // Función que se ejecuta al presionar "Agendar Mayorista"
     const handleAgregar = (e: React.FormEvent) => {
-        e.preventDefault() // Evita que la página se recargue
+        e.preventDefault()
         if (!nombre || !telefono) return
         
-        // Agregamos el nuevo cliente a nuestra lista visual
         setMayoristas([...mayoristas, { nombre, telefono }])
-        
-        // Limpiamos los casilleros para poder agregar el siguiente
         setNombre("")
         setTelefono("")
     }
 
-    // Función que se ejecuta al presionar "Enviar Mensajes a Todos"
     const handleEnviarDifusion = async () => {
-        if (mayoristas.length === 0) {
-            alert("Agrega al menos un mayorista antes de enviar.")
-            return
-        }
+        if (mayoristas.length === 0) return
         
-        // Mensaje temporal hasta que lo conectemos con n8n
-        alert("¡Botón presionado! En el próximo paso conectaremos esto con tu Webhook de n8n.")
+        // Prendemos el estado de "cargando"
+        setEnviando(true)
+        
+        try {
+            // Llamamos a nuestro intermediario (la ruta API que creamos en el paso 3)
+            const respuesta = await fetch("/api/chatwoot/difusion", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ mayoristas }), // Mandamos la lista
+            })
+
+            if (respuesta.ok) {
+                alert("¡Excelente! Los datos se enviaron a n8n correctamente.")
+                setMayoristas([]) // Vaciamos la lista porque ya se mandó
+            } else {
+                alert("Hubo un problema de conexión con n8n. Revisa la consola.")
+            }
+        } catch (error) {
+            alert("Error crítico al intentar conectar con el servidor.")
+        } finally {
+            // Apagamos el estado de "cargando" sin importar si salió bien o mal
+            setEnviando(false)
+        }
     }
 
     return (
@@ -51,7 +66,6 @@ export default function ChatwootPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                {/* 1. TARJETA PARA AGREGAR MAYORISTAS */}
                 <Card className="border-t-4 border-t-teal-500 shadow-md">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-xl">
@@ -72,6 +86,7 @@ export default function ChatwootPage() {
                                     value={nombre}
                                     onChange={(e) => setNombre(e.target.value)}
                                     required
+                                    disabled={enviando}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -82,10 +97,11 @@ export default function ChatwootPage() {
                                     value={telefono}
                                     onChange={(e) => setTelefono(e.target.value)}
                                     required
+                                    disabled={enviando}
                                 />
                                 <p className="text-xs text-gray-500">Ingresar código de país y área sin el +. Ej: 549 para Argentina seguido del número local.</p>
                             </div>
-                            <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white gap-2">
+                            <Button type="submit" disabled={enviando} className="w-full bg-teal-600 hover:bg-teal-700 text-white gap-2">
                                 <Plus size={18} />
                                 Agregar a la lista
                             </Button>
@@ -93,7 +109,6 @@ export default function ChatwootPage() {
                     </CardContent>
                 </Card>
 
-                {/* 2. TARJETA PARA ENVIAR LA DIFUSIÓN */}
                 <Card className="border-t-4 border-t-emerald-500 shadow-md">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-xl">
@@ -106,7 +121,6 @@ export default function ChatwootPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         
-                        {/* Aquí mostramos un resumen de tu plantilla de Meta */}
                         <div className="bg-slate-50 p-4 rounded-md border text-sm text-slate-700">
                             <p className="font-semibold mb-2">Plantilla Autorizada a enviar:</p>
                             <p className="italic">"Hola 👋! Te contactamos de Revolución Motos. Tenemos nuevo stock mayorista disponible..."</p>
@@ -115,7 +129,6 @@ export default function ChatwootPage() {
                         <div className="pt-2">
                             <p className="text-sm font-medium mb-2">Contactos listos para recibir ({mayoristas.length}):</p>
                             
-                            {/* Si no hay nadie agregado, mostramos un aviso. Si hay, mostramos la lista. */}
                             {mayoristas.length === 0 ? (
                                 <p className="text-xs text-gray-500 italic">No hay clientes agregados todavía.</p>
                             ) : (
@@ -132,10 +145,19 @@ export default function ChatwootPage() {
                         <Button 
                             onClick={handleEnviarDifusion} 
                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
-                            disabled={mayoristas.length === 0} // El botón se apaga si la lista está vacía
+                            disabled={mayoristas.length === 0 || enviando} 
                         >
-                            <Send size={18} />
-                            Enviar Mensajes a Todos
+                            {enviando ? (
+                                <>
+                                    <Loader2 className="animate-spin" size={18} />
+                                    Enviando a n8n...
+                                </>
+                            ) : (
+                                <>
+                                    <Send size={18} />
+                                    Enviar Mensajes a Todos
+                                </>
+                            )}
                         </Button>
                     </CardContent>
                 </Card>

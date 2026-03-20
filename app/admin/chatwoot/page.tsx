@@ -8,74 +8,70 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MessageCircle, Database, Send, Save, Loader2 } from "lucide-react"
 
-// Importamos las funciones que conectan con la base de datos
+// Importamos las acciones que creamos en el Paso 1
 import { getMayoristas, createMayorista } from "@/app/actions/mayoristas"
 
 export default function ChatwootPage() {
-    // Estados para el formulario
+    // Estados para el formulario de carga
     const [nombre, setNombre] = useState("")
     const [telefono, setTelefono] = useState("")
     const [guardando, setGuardando] = useState(false)
     
-    // Estados para la Base de Datos y el envío
+    // Estados para la Base de Datos y el botón de n8n
     const [dbMayoristas, setDbMayoristas] = useState<any[]>([])
     const [cargandoDb, setCargandoDb] = useState(true)
     const [enviando, setEnviando] = useState(false)
 
-    // Función que busca los clientes en la Base de Datos
+    // Esta función busca los datos en tu tabla NumerosMayoristas
     const fetchMayoristas = async () => {
         try {
             setCargandoDb(true)
             const data = await getMayoristas()
             setDbMayoristas(data || [])
         } catch (error) {
-            console.error("Error al cargar la base de datos de mayoristas:", error)
+            console.error("Error al cargar la base de datos:", error)
         } finally {
             setCargandoDb(false)
         }
     }
 
-    // Al cargar la página, traemos los datos
+    // Ejecutamos la búsqueda apenas entramos a la página
     useEffect(() => {
         fetchMayoristas()
     }, [])
 
-    // Función para GUARDAR en la Base de Datos
+    // Esta función se activa al presionar "Agendar en Base de Datos"
     const handleAgendarBD = async (e: React.FormEvent) => {
-        e.preventDefault()
+        e.preventDefault() // Evita que la página se recargue
         if (!nombre || !telefono) return
         
         setGuardando(true)
         try {
-            // Llamamos a la función del servidor para guardar
+            // 1. Guardamos en la base de datos
             await createMayorista({ nombre, telefono })
             
-            // Si salió bien, vaciamos los casilleros
+            // 2. Vaciamos los casilleros para poder cargar el siguiente
             setNombre("")
             setTelefono("")
             
-            // Y volvemos a cargar la lista para que aparezca el nuevo!
+            // 3. Volvemos a pedirle a la base de datos la lista actualizada para que aparezca abajo
             await fetchMayoristas()
             
             alert("¡Mayorista guardado correctamente en la Base de Datos!")
         } catch (error) {
             console.error("Error al guardar:", error)
-            alert("Hubo un error al intentar guardar en la base de datos.")
+            alert("Hubo un error al intentar guardar. Revisa la consola.")
         } finally {
             setGuardando(false)
         }
     }
 
-    // Función para ENVIAR a TODOS
+    // Esta función envía toda la tabla a n8n
     const handleEnviarDifusion = async () => {
-        if (dbMayoristas.length === 0) {
-            alert("No hay mayoristas en la base de datos para enviar.")
-            return
-        }
+        if (dbMayoristas.length === 0) return
         
         setEnviando(true)
         try {
-            // Le mandamos a tu intermediario la lista COMPLETA de la base de datos
             const respuesta = await fetch("/api/chatwoot/difusion", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -105,15 +101,15 @@ export default function ChatwootPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* TARJETA 1: GUARDAR EN BASE DE DATOS */}
+                {/* TARJETA 1: AGENDAR MANUALMENTE */}
                 <Card className="border-t-4 border-t-teal-500 shadow-md">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-xl">
                             <Database className="h-5 w-5 text-teal-600" />
-                            Agendar Nuevo Mayorista
+                            Agendar Manualmente
                         </CardTitle>
                         <CardDescription>
-                            Registra un nuevo cliente de forma permanente en el sistema.
+                            Registra un nuevo cliente directamente en la base de datos.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -140,7 +136,7 @@ export default function ChatwootPage() {
                             </div>
                             <Button type="submit" disabled={guardando || enviando || !nombre || !telefono} className="w-full bg-teal-600 hover:bg-teal-700 text-white gap-2">
                                 {guardando ? (
-                                    <><Loader2 className="animate-spin h-4 w-4" /> Guardando en BD...</>
+                                    <><Loader2 className="animate-spin h-4 w-4" /> Guardando...</>
                                 ) : (
                                     <><Save size={18} /> Agendar mayorista en BD</>
                                 )}
@@ -157,7 +153,7 @@ export default function ChatwootPage() {
                             Difusión Masiva
                         </CardTitle>
                         <CardDescription>
-                            Se enviará la plantilla a TODOS los contactos registrados.
+                            Se enviará la plantilla a TODOS los contactos de la tabla.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -167,7 +163,7 @@ export default function ChatwootPage() {
                         </div>
                         
                         <div className="pt-2 text-center py-4 bg-emerald-50 border border-emerald-100 rounded-md">
-                            <p className="text-sm text-emerald-800 font-medium mb-1">Total de destinatarios:</p>
+                            <p className="text-sm text-emerald-800 font-medium mb-1">Destinatarios en BD:</p>
                             <p className="text-3xl font-bold text-emerald-600">
                                 {cargandoDb ? "..." : dbMayoristas.length}
                             </p>
@@ -194,22 +190,22 @@ export default function ChatwootPage() {
                 </Card>
             </div>
 
-            {/* TARJETA 3: DIRECTORIO (BASE DE DATOS) */}
+            {/* TARJETA 3: BASE DE DATOS DE MAYORISTAS */}
             <Card className="border-t-4 border-t-blue-500 shadow-md mt-8">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">
                         <Database className="h-5 w-5 text-blue-600" />
-                        Directorio de Mayoristas
+                        Base de Datos de Mayoristas
                     </CardTitle>
                     <CardDescription>
-                        Todos estos contactos recibirán el mensaje al presionar el botón de difusión.
+                        Directorio completo de clientes guardados.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {cargandoDb ? (
                         <div className="flex flex-col items-center justify-center py-8 text-gray-500">
                             <Loader2 className="h-8 w-8 animate-spin mb-2" />
-                            <p>Cargando registros...</p>
+                            <p>Cargando registros de NumerosMayoristas...</p>
                         </div>
                     ) : dbMayoristas.length === 0 ? (
                         <p className="text-center py-8 text-gray-500 italic">No hay mayoristas registrados en la base de datos todavía.</p>

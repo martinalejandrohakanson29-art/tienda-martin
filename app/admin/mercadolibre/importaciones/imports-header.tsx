@@ -44,16 +44,16 @@ export function ImportsHeader() {
 
             const [respVentas, respStock, respCarritos] = await Promise.all([
                 // 👇 CAMBIO CLAVE: Ahora llamamos a ventas-cover
-                fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/ventas-cover", {
+                fetch("https://n8n.revolucionmotos.tech/webhook/ventas-cover", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ from: dates.from, to: dates.to })
                 }),
-                fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/actualizar-stock-proveedor", {
+                fetch("https://n8n.revolucionmotos.tech/webhook/actualizar-stock-proveedor", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" }
                 }),
-                fetch("https://n8n-on-render-production-52f0.up.railway.app/webhook/importar-carrito", {
+                fetch("https://n8n.revolucionmotos.tech/webhook/importar-carrito", {
                     method: "GET"
                 })
             ])

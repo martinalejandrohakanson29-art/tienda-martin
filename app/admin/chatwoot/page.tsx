@@ -8,21 +8,25 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon } from "lucide-react"
 
-// Importamos las acciones
+// Importamos las acciones para guardar y leer la base de datos
 import { getMayoristas, createMayorista } from "@/app/actions/mayoristas"
 
 export default function ChatwootPage() {
-    // Estados para el formulario de carga manual de clientes
+    // -------------------------------------------------------------------------
+    // ESTADOS (VARIABLES) DE LA PANTALLA
+    // -------------------------------------------------------------------------
+    
+    // 1. Estados para agregar un cliente a mano
     const [nombre, setNombre] = useState("")
     const [telefono, setTelefono] = useState("")
     const [guardando, setGuardando] = useState(false)
     
-    // Estados para la Base de Datos y la tabla
+    // 2. Estados para la tabla de clientes guardados
     const [dbMayoristas, setDbMayoristas] = useState<any[]>([])
     const [cargandoDb, setCargandoDb] = useState(true)
     const [enviando, setEnviando] = useState(false)
 
-    // NUEVO: Estados para los campos de la plantilla de WhatsApp
+    // 3. ESTADOS PARA LA PLANTILLA (Aquí están los campos exactos de tu n8n)
     const [plantilla, setPlantilla] = useState({
         titulo: "",
         descripcion1: "",
@@ -31,7 +35,7 @@ export default function ChatwootPage() {
         url_foto: ""
     })
 
-    // Función para actualizar los datos de la plantilla fácilmente
+    // Función que actualiza lo que escribes en los casilleros de la plantilla
     const handlePlantillaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setPlantilla({
             ...plantilla,
@@ -39,7 +43,11 @@ export default function ChatwootPage() {
         })
     }
 
-    // Función que busca los datos en la tabla
+    // -------------------------------------------------------------------------
+    // FUNCIONES DE LA BASE DE DATOS Y BOTONES
+    // -------------------------------------------------------------------------
+
+    // Traer los clientes de la base de datos
     const fetchMayoristas = async () => {
         try {
             setCargandoDb(true)
@@ -52,11 +60,12 @@ export default function ChatwootPage() {
         }
     }
 
+    // Cargar clientes apenas abrimos la página
     useEffect(() => {
         fetchMayoristas()
     }, [])
 
-    // Guardar cliente manual
+    // Guardar un cliente nuevo a mano
     const handleGuardarEnBD = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!nombre || !telefono) return
@@ -76,13 +85,13 @@ export default function ChatwootPage() {
         }
     }
 
-    // Enviar difusión con los datos de la plantilla
+    // ENVIAR TODO A n8n (Contactos + Textos de la Plantilla)
     const handleEnviarDifusion = async () => {
         if (dbMayoristas.length === 0) return
         
-        // Pequeña validación para asegurar que no mandemos campos vacíos si son obligatorios
+        // Validación para asegurarnos de que no mandes un mensaje vacío por error
         if (!plantilla.titulo || !plantilla.precio) {
-            alert("Por favor, completa al menos el Título y el Precio para la difusión.")
+            alert("Por favor, completa al menos el Título y el Precio para enviar la difusión.")
             return
         }
 
@@ -93,24 +102,25 @@ export default function ChatwootPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
                     mayoristas: dbMayoristas,
-                    mensaje: plantilla // AQUÍ agregamos el contenido que escribiste
+                    mensaje: plantilla // Enviamos los 5 campos empaquetados aquí
                 }),
             })
 
             if (respuesta.ok) {
                 alert(`¡Excelente! Se envió la orden a n8n para contactar a ${dbMayoristas.length} mayoristas con esta promoción.`)
-                // Opcional: limpiar el formulario después de enviar
-                setPlantilla({ titulo: "", descripcion1: "", descripcion2: "", precio: "", url_foto: "" })
             } else {
                 alert("Hubo un problema de conexión con n8n. Revisa la consola.")
             }
         } catch (error) {
-            alert("Error crítico al intentar conectar con el servidor.")
+            alert("Error crítico al intentar conectar con el servidor web.")
         } finally {
             setEnviando(false)
         }
     }
 
+    // -------------------------------------------------------------------------
+    // DISEÑO VISUAL DE LA PANTALLA (HTML/UI)
+    // -------------------------------------------------------------------------
     return (
         <div className="space-y-6 pb-12">
             <div>
@@ -118,11 +128,12 @@ export default function ChatwootPage() {
                     <MessageCircle className="h-8 w-8 text-teal-600" />
                     Gestión Chatwoot y Difusión
                 </h1>
-                <p className="text-gray-500">Administra el directorio de mayoristas y envía promociones masivas.</p>
+                <p className="text-gray-500">Administra el directorio de mayoristas y envía promociones masivas con imagen.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* TARJETA 1: AGENDAR MANUALMENTE */}
+                
+                {/* ---------------- TARJETA 1: AGENDAR ---------------- */}
                 <Card className="border-t-4 border-t-teal-500 shadow-md h-fit">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-xl">
@@ -168,7 +179,7 @@ export default function ChatwootPage() {
                     </CardContent>
                 </Card>
 
-                {/* TARJETA 2: CONFIGURACIÓN DE PROMOCIÓN Y DIFUSIÓN */}
+                {/* ---------------- TARJETA 2: LA PLANTILLA Y EL BOTÓN DE ENVÍO ---------------- */}
                 <Card className="border-t-4 border-t-emerald-500 shadow-md">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-xl">
@@ -181,32 +192,36 @@ export default function ChatwootPage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         
-                        {/* Formulario de Plantilla */}
+                        {/* CASILLEROS PARA LA PLANTILLA */}
                         <div className="space-y-3 bg-slate-50 p-4 rounded-md border border-slate-200">
+                            {/* CAMPO 1: TÍTULO */}
                             <div className="space-y-1">
-                                <Label htmlFor="titulo" className="text-xs font-bold text-slate-500 uppercase">Título del Producto</Label>
+                                <Label htmlFor="titulo" className="text-xs font-bold text-slate-500 uppercase">1. Título del Producto</Label>
                                 <Input id="titulo" placeholder="Ej: TAPA CDI 125" value={plantilla.titulo} onChange={handlePlantillaChange} disabled={enviando} />
                             </div>
                             
+                            {/* CAMPOS 2 Y 3: DESCRIPCIONES */}
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <Label htmlFor="descripcion1" className="text-xs font-bold text-slate-500 uppercase">Descripción 1</Label>
+                                    <Label htmlFor="descripcion1" className="text-xs font-bold text-slate-500 uppercase">2. Descripción 1</Label>
                                     <Input id="descripcion1" placeholder="Ej: * IDEAL POTENCIACION" value={plantilla.descripcion1} onChange={handlePlantillaChange} disabled={enviando} />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="descripcion2" className="text-xs font-bold text-slate-500 uppercase">Descripción 2</Label>
+                                    <Label htmlFor="descripcion2" className="text-xs font-bold text-slate-500 uppercase">3. Descripción 2</Label>
                                     <Input id="descripcion2" placeholder="Ej: * MAS POTENCIA" value={plantilla.descripcion2} onChange={handlePlantillaChange} disabled={enviando} />
                                 </div>
                             </div>
 
+                            {/* CAMPO 4: PRECIO */}
                             <div className="space-y-1">
-                                <Label htmlFor="precio" className="text-xs font-bold text-slate-500 uppercase">Precio</Label>
+                                <Label htmlFor="precio" className="text-xs font-bold text-slate-500 uppercase">4. Precio</Label>
                                 <Input id="precio" placeholder="Ej: $115.000" value={plantilla.precio} onChange={handlePlantillaChange} disabled={enviando} />
                             </div>
 
-                            <div className="space-y-1 pt-2 border-t">
+                            {/* CAMPO 5: URL FOTO */}
+                            <div className="space-y-1 pt-2 border-t mt-2">
                                 <Label htmlFor="url_foto" className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
-                                    <ImageIcon size={14} /> Link de la Imagen (Cloudinary o similar)
+                                    <ImageIcon size={14} /> 5. Link de la Imagen (URL Foto)
                                 </Label>
                                 <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
                             </div>
@@ -219,6 +234,7 @@ export default function ChatwootPage() {
                             </p>
                         </div>
 
+                        {/* BOTÓN MÁGICO QUE ENVÍA A n8n */}
                         <Button 
                             onClick={handleEnviarDifusion} 
                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2 h-12 text-lg"
@@ -232,7 +248,7 @@ export default function ChatwootPage() {
                             ) : (
                                 <>
                                     <Send size={20} />
-                                    Enviar Difusión a TODOS
+                                    Enviar Promoción a TODOS
                                 </>
                             )}
                         </Button>
@@ -240,7 +256,7 @@ export default function ChatwootPage() {
                 </Card>
             </div>
 
-            {/* TARJETA 3: TABLA DE BASE DE DATOS */}
+            {/* ---------------- TARJETA 3: TABLA ---------------- */}
             <Card className="border-t-4 border-t-blue-500 shadow-md">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">

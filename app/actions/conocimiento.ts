@@ -1,6 +1,6 @@
 'use server'
 
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 // 1. Función para conectarnos a tu servidor local de LM Studio
 async function obtenerEmbedding1536Local(texto: string): Promise<number[]> {

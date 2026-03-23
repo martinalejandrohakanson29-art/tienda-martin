@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
         // 2. AQUÍ VA LA URL DE TU WEBHOOK DE n8n
         // (La cambiaremos cuando configuremos el Webhook en n8n)
-        const N8N_WEBHOOK_URL = "https://tu-n8n.railway.app/webhook/difusion-mayoristas";
+        const N8N_WEBHOOK_URL = "https://n8n.revolucionmotos.tech/webhook/difusion-mayoristas";
 
         // 3. Le enviamos el paquete de datos a n8n
         const response = await fetch(N8N_WEBHOOK_URL, {

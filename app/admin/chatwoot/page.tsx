@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MessageCircle, Database, Send, Save, Loader2 } from "lucide-react"
+import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon } from "lucide-react"
 
-// Importamos las acciones que actualizamos en el Paso 1
+// Importamos las acciones
 import { getMayoristas, createMayorista } from "@/app/actions/mayoristas"
 
 export default function ChatwootPage() {
-    // Estados para el formulario de carga manual
+    // Estados para el formulario de carga manual de clientes
     const [nombre, setNombre] = useState("")
     const [telefono, setTelefono] = useState("")
     const [guardando, setGuardando] = useState(false)
@@ -22,7 +22,24 @@ export default function ChatwootPage() {
     const [cargandoDb, setCargandoDb] = useState(true)
     const [enviando, setEnviando] = useState(false)
 
-    // Función que busca los datos en la tabla NumerosMayoristas
+    // NUEVO: Estados para los campos de la plantilla de WhatsApp
+    const [plantilla, setPlantilla] = useState({
+        titulo: "",
+        descripcion1: "",
+        descripcion2: "",
+        precio: "",
+        url_foto: ""
+    })
+
+    // Función para actualizar los datos de la plantilla fácilmente
+    const handlePlantillaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setPlantilla({
+            ...plantilla,
+            [e.target.id]: e.target.value
+        })
+    }
+
+    // Función que busca los datos en la tabla
     const fetchMayoristas = async () => {
         try {
             setCargandoDb(true)
@@ -35,28 +52,21 @@ export default function ChatwootPage() {
         }
     }
 
-    // Ejecutamos la búsqueda apenas entramos a la página
     useEffect(() => {
         fetchMayoristas()
     }, [])
 
-    // Función que se activa al presionar el botón del formulario
+    // Guardar cliente manual
     const handleGuardarEnBD = async (e: React.FormEvent) => {
-        e.preventDefault() // Evita que la página se recargue
+        e.preventDefault()
         if (!nombre || !telefono) return
         
         setGuardando(true)
         try {
-            // 1. Guardamos en la base de datos llamando a nuestra acción
             await createMayorista({ nombre, telefono })
-            
-            // 2. Vaciamos los casilleros para poder cargar el siguiente cliente
             setNombre("")
             setTelefono("")
-            
-            // 3. Volvemos a pedirle a la base de datos la lista actualizada para que aparezca en la tabla
             await fetchMayoristas()
-            
             alert("¡Mayorista guardado correctamente en la Base de Datos!")
         } catch (error) {
             console.error("Error al guardar:", error)
@@ -66,20 +76,31 @@ export default function ChatwootPage() {
         }
     }
 
-    // Función para el botón de difusión masiva
+    // Enviar difusión con los datos de la plantilla
     const handleEnviarDifusion = async () => {
         if (dbMayoristas.length === 0) return
         
+        // Pequeña validación para asegurar que no mandemos campos vacíos si son obligatorios
+        if (!plantilla.titulo || !plantilla.precio) {
+            alert("Por favor, completa al menos el Título y el Precio para la difusión.")
+            return
+        }
+
         setEnviando(true)
         try {
             const respuesta = await fetch("/api/chatwoot/difusion", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ mayoristas: dbMayoristas }),
+                body: JSON.stringify({ 
+                    mayoristas: dbMayoristas,
+                    mensaje: plantilla // AQUÍ agregamos el contenido que escribiste
+                }),
             })
 
             if (respuesta.ok) {
-                alert(`¡Excelente! Se envió la orden a n8n para contactar a los ${dbMayoristas.length} mayoristas de tu base.`)
+                alert(`¡Excelente! Se envió la orden a n8n para contactar a ${dbMayoristas.length} mayoristas con esta promoción.`)
+                // Opcional: limpiar el formulario después de enviar
+                setPlantilla({ titulo: "", descripcion1: "", descripcion2: "", precio: "", url_foto: "" })
             } else {
                 alert("Hubo un problema de conexión con n8n. Revisa la consola.")
             }
@@ -91,18 +112,18 @@ export default function ChatwootPage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-12">
             <div>
                 <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
                     <MessageCircle className="h-8 w-8 text-teal-600" />
                     Gestión Chatwoot y Difusión
                 </h1>
-                <p className="text-gray-500">Administra el directorio de mayoristas y envía difusiones masivas.</p>
+                <p className="text-gray-500">Administra el directorio de mayoristas y envía promociones masivas.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* TARJETA 1: AGENDAR MANUALMENTE EN BASE DE DATOS */}
-                <Card className="border-t-4 border-t-teal-500 shadow-md">
+                {/* TARJETA 1: AGENDAR MANUALMENTE */}
+                <Card className="border-t-4 border-t-teal-500 shadow-md h-fit">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-xl">
                             <Database className="h-5 w-5 text-teal-600" />
@@ -147,25 +168,52 @@ export default function ChatwootPage() {
                     </CardContent>
                 </Card>
 
-                {/* TARJETA 2: ENVIAR DIFUSIÓN A TODOS LOS DE LA BASE */}
+                {/* TARJETA 2: CONFIGURACIÓN DE PROMOCIÓN Y DIFUSIÓN */}
                 <Card className="border-t-4 border-t-emerald-500 shadow-md">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-xl">
                             <Send className="h-5 w-5 text-emerald-600" />
-                            Difusión Masiva
+                            Preparar Difusión Masiva
                         </CardTitle>
                         <CardDescription>
-                            Se enviará la plantilla a TODOS los contactos de la tabla.
+                            Completa los datos de la promoción para enviarla a la base.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="bg-slate-50 p-4 rounded-md border text-sm text-slate-700">
-                            <p className="font-semibold mb-2">Plantilla Autorizada:</p>
-                            <p className="italic">"Hola 👋! Te contactamos de Revolución Motos. Tenemos nuevo stock..."</p>
+                        
+                        {/* Formulario de Plantilla */}
+                        <div className="space-y-3 bg-slate-50 p-4 rounded-md border border-slate-200">
+                            <div className="space-y-1">
+                                <Label htmlFor="titulo" className="text-xs font-bold text-slate-500 uppercase">Título del Producto</Label>
+                                <Input id="titulo" placeholder="Ej: TAPA CDI 125" value={plantilla.titulo} onChange={handlePlantillaChange} disabled={enviando} />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <Label htmlFor="descripcion1" className="text-xs font-bold text-slate-500 uppercase">Descripción 1</Label>
+                                    <Input id="descripcion1" placeholder="Ej: * IDEAL POTENCIACION" value={plantilla.descripcion1} onChange={handlePlantillaChange} disabled={enviando} />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="descripcion2" className="text-xs font-bold text-slate-500 uppercase">Descripción 2</Label>
+                                    <Input id="descripcion2" placeholder="Ej: * MAS POTENCIA" value={plantilla.descripcion2} onChange={handlePlantillaChange} disabled={enviando} />
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label htmlFor="precio" className="text-xs font-bold text-slate-500 uppercase">Precio</Label>
+                                <Input id="precio" placeholder="Ej: $115.000" value={plantilla.precio} onChange={handlePlantillaChange} disabled={enviando} />
+                            </div>
+
+                            <div className="space-y-1 pt-2 border-t">
+                                <Label htmlFor="url_foto" className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                    <ImageIcon size={14} /> Link de la Imagen (Cloudinary o similar)
+                                </Label>
+                                <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
+                            </div>
                         </div>
                         
-                        <div className="pt-2 text-center py-4 bg-emerald-50 border border-emerald-100 rounded-md">
-                            <p className="text-sm text-emerald-800 font-medium mb-1">Destinatarios en Base de Datos:</p>
+                        <div className="pt-2 text-center py-3 bg-emerald-50 border border-emerald-100 rounded-md">
+                            <p className="text-sm text-emerald-800 font-medium mb-1">Destinatarios totales:</p>
                             <p className="text-3xl font-bold text-emerald-600">
                                 {cargandoDb ? "..." : dbMayoristas.length}
                             </p>
@@ -192,15 +240,15 @@ export default function ChatwootPage() {
                 </Card>
             </div>
 
-            {/* TARJETA 3: TABLA DE BASE DE DATOS DE MAYORISTAS */}
-            <Card className="border-t-4 border-t-blue-500 shadow-md mt-8">
+            {/* TARJETA 3: TABLA DE BASE DE DATOS */}
+            <Card className="border-t-4 border-t-blue-500 shadow-md">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">
                         <Database className="h-5 w-5 text-blue-600" />
                         Base de Datos de Mayoristas
                     </CardTitle>
                     <CardDescription>
-                        Directorio completo de clientes guardados. Estos son los que recibirán la difusión.
+                        Directorio de clientes que recibirán la difusión.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

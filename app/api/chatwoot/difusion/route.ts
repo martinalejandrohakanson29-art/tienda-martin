@@ -2,30 +2,35 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
     try {
-        // 1. Recibimos la lista de mayoristas y el mensaje configurado desde el frontend
+        // 1. Recibimos los datos desde la página web (la lista de gente y los textos)
         const body = await request.json();
         const { mayoristas, mensaje } = body;
 
-        // Validamos que haya datos
+        // Validamos que haya contactos en la lista
         if (!mayoristas || mayoristas.length === 0) {
             return NextResponse.json({ error: "No hay mayoristas para enviar" }, { status: 400 });
         }
 
-        // 2. AQUÍ VA LA URL DE TU WEBHOOK DE n8n
-        // (La cambiaremos cuando configuremos el Webhook en n8n)
-        const N8N_WEBHOOK_URL = "https://n8n.revolucionmotos.tech/webhook/difusion-mayoristas";
+        // 2. LA URL DEL WEBHOOK DE n8n (La cambiaremos en el próximo paso)
+        const N8N_WEBHOOK_URL = "https://tu-n8n.railway.app/webhook/difusion-mayoristas";
 
-        // 3. Le enviamos el paquete de datos a n8n
+        // 3. Preparamos y enviamos el paquete a n8n
         const response = await fetch(N8N_WEBHOOK_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
             },
-            // Empaquetamos todo junto para que n8n pueda leerlo fácil
             body: JSON.stringify({
                 tipo: "difusion_mayoristas",
                 contactos: mayoristas,
-                contenidoMensaje: mensaje // Aquí viaja el titulo, precio, url_foto, etc.
+                // Aquí mandamos los campos exactos para tu nodo "Edit Fields"
+                plantilla: {
+                    titulo: mensaje.titulo,
+                    descripcion1: mensaje.descripcion1,
+                    descripcion2: mensaje.descripcion2,
+                    precio: mensaje.precio,
+                    "url foto": mensaje.url_foto // Lo mandamos con espacio tal como lo pide tu n8n
+                }
             }),
         });
 

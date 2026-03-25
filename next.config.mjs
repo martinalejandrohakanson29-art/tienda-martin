@@ -1,5 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    // Optimización para despliegue en Docker/Coolify
+    output: 'standalone', 
     images: {
         remotePatterns: [
             {
@@ -17,8 +19,7 @@ const nextConfig = {
                 pathname: '/**',
             },
             {
-                // Recomendado: Agregar el dominio de imágenes de Mercado Libre 
-                // por si usas el componente <Image /> de Next.js para los productos
+                // Dominio de imágenes de Mercado Libre
                 protocol: 'https',
                 hostname: 'http2.mlstatic.com',
                 port: '',
@@ -26,7 +27,6 @@ const nextConfig = {
             },
         ],
     },
-    // Aquí agregamos la regla para que los celulares puedan subir fotos pesadas sin error
     experimental: {
         serverActions: {
             bodySizeLimit: '10mb',

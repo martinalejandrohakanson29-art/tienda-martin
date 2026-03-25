@@ -496,13 +496,14 @@
   }
 
   // --- GESTIÓN DE BOT CHATWOOT ---                                        
-  model ConversacionRespondida {                                          
+model ConversacionRespondida {
     id              String   @id @default(cuid())
-    conversation_id String                                                    categoria       String
-    createdAt       DateTime @default(now())                              
-                                                                              @@unique([conversation_id, categoria])
-    @@map("conversaciones_respondidas")                                   
-  }
+    conversation_id String       
+    categoria       String
+    createdAt       DateTime @default(now())
+                            
+    @@unique([conversation_id, categoria])                                    @@map("conversaciones_respondidas")   
+  }       
 
   model NumerosMayoristas {                                                   id        Int      @id @default(autoincrement())
     nombre    String?                                                     

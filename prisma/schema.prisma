@@ -26,7 +26,7 @@ model User {
 
 model Todo {
   id          String   @id @default(cuid())
-  content     String   
+  content     String  
   completed   Boolean  @default(false)
   priority    String   @default("media") 
   isShared    Boolean  @default(false) 
@@ -84,7 +84,7 @@ model Config {
 }
 
 model CarouselItem {
-  id              String   @id @default(cuid())
+  id            String   @id @default(cuid())
   mediaUrl        String   @default("")
   mediaUrlMobile  String   @default("")
   mediaType       String   @default("image")
@@ -113,7 +113,6 @@ model ShipmentItem {
   agregados  String?
   imageUrl   String?
   variation  String?
-  
   @@index([shipmentId])
 }
 
@@ -152,7 +151,7 @@ model CostosArticulos {
   costo_final_ars     Decimal? @db.Decimal(20, 2)
   fecha_actualizacion DateTime @default(now())
 
-  @@map("costos_articulos")
+  @@map("costos_articulos_v2")
 }
 
 model ProductosMaestros {
@@ -171,7 +170,7 @@ model ProductosMaestros {
   @@index([user_product_id])
   @@index([family_id])
   @@unique([mla, variation_id], name: "unique_mla_variation")
-  @@map("productos_maestros")
+  @@map("productos_maestros_v2")
 }
 
 model ComposicionKits {
@@ -185,7 +184,7 @@ model ComposicionKits {
   fecha_registro  DateTime @default(now())
 
   @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
-  @@map("composicion_kits")
+  @@map("composicion_kits_v2")
 }
 
 model SupplierProduct {
@@ -260,7 +259,7 @@ model ArticulosCompuestos {
   fecha_registro  DateTime @default(now())
 
   @@unique([sku_padre, sku_hijo], name: "unique_parent_child")
-  @@map("articulos_compuestos")
+  @@map("articulos_compuestos_v2")
 }
 
 model PlanningSession {
@@ -355,7 +354,6 @@ model EtiquetaMLItem {
   sku             String?
   quantity        Int
   variation       String?
-  
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
@@ -494,7 +492,7 @@ model ArticuloMostrador {
 }
 
 model ArticuloAuditoria {
-  id          String            @id @default(cuid())
+  id          String             @id @default(cuid())
   articuloId  String
   articulo    ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
   usuario     String
@@ -626,7 +624,8 @@ model ConversacionRespondida {
   id              String   @id @default(cuid())
   conversation_id String       
   categoria       String
-  createdAt       DateTime @default(now())                           
+  createdAt       DateTime @default(now())      
+                       
   @@unique([conversation_id, categoria])                                  
   @@map("conversaciones_respondidas")   
 }  
@@ -642,6 +641,5 @@ model DocumentSection {
   id        String   @id @default(cuid())
   content   String   @db.Text
   metadata  Json?
-
   @@map("document_sections")
 }

@@ -1,3 +1,4 @@
+// app/admin/mercadolibre/full/preparacion/page.tsx
 "use client"
 
 import { useState, useEffect } from "react";
@@ -7,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Camera, Search, RefreshCcw, ArrowLeft, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { getRecentShipments, searchShipmentItems } from "@/app/actions/guia-full";
-import { subirFotoAuditoriaFull } from "@/app/actions/preparacion-full"; // Importamos la nueva acción
+import { guardarAuditoriaFull } from "@/app/actions/preparacion-full"; // Nueva acción corregida
 import Swal from "sweetalert2";
 
 export default function GuiaPreparacionPage() {
@@ -45,7 +46,7 @@ export default function GuiaPreparacionPage() {
     async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>, item: any) {
         if (!e.target.files?.[0]) return;
 
-        Swal.fire({ title: 'Subiendo...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        Swal.fire({ title: 'Guardando preparación...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
         const formData = new FormData();
         formData.append('photo', e.target.files[0]);
@@ -53,12 +54,12 @@ export default function GuiaPreparacionPage() {
         formData.append('itemId', item.id); // ID de ShipmentItem
         formData.append('mla', item.title);
 
-        const res = await subirFotoAuditoriaFull(formData);
+        const res = await guardarAuditoriaFull(formData);
 
         if (res.success) {
-            Swal.fire({ icon: 'success', title: '¡Foto guardada!', timer: 1500, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: '¡Preparado!', timer: 1500, showConfirmButton: false });
         } else {
-            Swal.fire('Error', res.error || 'No se pudo subir', 'error');
+            Swal.fire('Error', res.error || 'No se pudo guardar', 'error');
         }
     }
 
@@ -70,25 +71,23 @@ export default function GuiaPreparacionPage() {
                         <ArrowLeft className="h-4 w-4" /> Volver
                     </Button>
                 </Link>
-                <h1 className="text-2xl font-bold text-gray-800">Guía de Preparación Full</h1>
+                <h1 className="text-2xl font-bold text-gray-800">Preparación de Envío Full</h1>
                 <Button variant="outline" size="icon" onClick={loadShipments}><RefreshCcw className="h-4 w-4" /></Button>
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border space-y-4">
-                <div className="flex flex-col sm:flex-row gap-4">
-                    <div className="flex-1">
-                        <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Envío Seleccionado</label>
-                        <Select value={selectedEnvio} onValueChange={setSelectedEnvio}>
-                            <SelectTrigger className="h-12 text-lg font-bold text-blue-600">
-                                <SelectValue placeholder="Cargando..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {shipments.map(s => (
-                                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                <div className="flex-1">
+                    <label className="text-xs font-bold uppercase text-gray-500 mb-1 block">Seleccionar Envío</label>
+                    <Select value={selectedEnvio} onValueChange={setSelectedEnvio}>
+                        <SelectTrigger className="h-12 text-lg font-bold text-blue-600">
+                            <SelectValue placeholder="Cargando envíos..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {shipments.map(s => (
+                                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
 
                 <div className="relative">
@@ -108,7 +107,7 @@ export default function GuiaPreparacionPage() {
                 {results.map((item) => (
                     <div key={item.id} className="bg-white rounded-2xl p-4 shadow-sm border flex flex-col sm:flex-row gap-4 relative">
                         <div className="w-32 h-32 rounded-xl bg-gray-50 border overflow-hidden flex-shrink-0">
-                            <img src={item.image || "/placeholder.svg"} className="w-full h-full object-cover" alt="Producto" />
+                            <img src={item.image || "/placeholder.svg"} className="w-full h-full object-cover" />
                             <div className="absolute -top-2 -left-2 bg-blue-600 text-white text-xl font-bold w-10 h-10 flex items-center justify-center rounded-full shadow-lg border-2 border-white">
                                 {item.quantity}
                             </div>
@@ -117,25 +116,21 @@ export default function GuiaPreparacionPage() {
                         <div className="flex-1 min-w-0">
                             <div className="flex justify-between items-start">
                                 <h2 className="text-xl font-bold truncate text-blue-700">{item.publicationName}</h2>
-                                <label className="cursor-pointer p-3 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                                <label className="cursor-pointer p-3 bg-gray-100 hover:bg-gray-200 rounded-xl">
                                     <Camera className="h-6 w-6 text-gray-600" />
                                     <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFileUpload(e, item)} />
                                 </label>
                             </div>
-                            <p className="font-semibold text-gray-800 leading-tight mb-2">{item.title}</p>
-                            {item.variation && <span className="inline-block bg-purple-100 text-purple-700 text-xs font-bold px-2 py-1 rounded mb-2">VAR: {item.variation}</span>}
+                            <p className="font-semibold text-gray-800 mb-2">{item.title}</p>
                             <p className="text-xs font-bold text-gray-400 uppercase">SKU: {item.subtitle}</p>
-
-                            {item.agregados && item.agregados.length > 0 && (
-                                <div className="mt-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
-                                    <p className="text-[10px] font-black text-blue-600 uppercase mb-1">Agregados:</p>
-                                    <ul className="space-y-1">
-                                        {item.agregados.map((a: string, i: number) => (
-                                            <li key={i} className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                                                <CheckCircle2 className="h-3 w-3 text-blue-500" /> {a}
-                                            </li>
-                                        ))}
-                                    </ul>
+                            
+                            {item.agregados.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {item.agregados.map((a: string, i: number) => (
+                                        <span key={i} className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-md flex items-center gap-1 font-medium">
+                                            <CheckCircle2 className="h-3 w-3" /> {a}
+                                        </span>
+                                    ))}
                                 </div>
                             )}
                         </div>

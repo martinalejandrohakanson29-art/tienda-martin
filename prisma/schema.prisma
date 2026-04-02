@@ -1,12 +1,14 @@
-// prisma/schema.prisma
-
+//
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"] // <--- AÑADE ESTO
 }
 
+//
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]   // <--- AÑADE ESTO
 }
 
 // --- SISTEMA DE USUARIOS, ROLES Y PENDIENTES ---
@@ -26,7 +28,7 @@ model User {
 
 model Todo {
   id          String   @id @default(cuid())
-  content     String  
+  content     String   
   completed   Boolean  @default(false)
   priority    String   @default("media") 
   isShared    Boolean  @default(false) 
@@ -84,7 +86,7 @@ model Config {
 }
 
 model CarouselItem {
-  id            String   @id @default(cuid())
+  id              String   @id @default(cuid())
   mediaUrl        String   @default("")
   mediaUrlMobile  String   @default("")
   mediaType       String   @default("image")
@@ -113,6 +115,7 @@ model ShipmentItem {
   agregados  String?
   imageUrl   String?
   variation  String?
+  
   @@index([shipmentId])
 }
 
@@ -128,21 +131,8 @@ model ShipmentAudit {
   @@unique([itemId, envioId])
 }
 
-// --- TABLA EXCLUSIVA PARA PREPARACIÓN FULL (SIN CONFLICTOS) ---
-model AuditoriaPreparacionFull {
-  id          String   @id @default(cuid())
-  shipmentId  String   
-  itemId      String   
-  photoUrl    String?
-  status      String   @default("PREPARADO")
-  createdAt   DateTime @default(now())
-
-  @@unique([shipmentId, itemId])
-  @@index([shipmentId])
-}
-
-// model CostosArticulos {
-  id                  String   @id @default(cuid())
+model CostosArticulos {
+  id                  Int      @id @default(autoincrement())
   id_articulo         String   @unique
   descripcion         String?
   costo_usd           Decimal? @db.Decimal(10, 2)
@@ -151,16 +141,19 @@ model AuditoriaPreparacionFull {
   costo_final_ars     Decimal? @db.Decimal(20, 2)
   fecha_actualizacion DateTime @default(now())
 
-  // AQUI ESTA EL TRUCO: Le decimos que cree una tabla con nombre nuevo
-  @@map("costos_articulos_v2")
+  @@map("costos_articulos")
 }
 
-// model ProductosMaestros {
-  id                   String   @id @default(cuid())
+// --- TABLAS MAESTRAS DE MERCADO LIBRE ---
+
+model ProductosMaestros {
+  id                   Int      @id @default(autoincrement())
   mla                  String   
   variation_id         String?
+  // --- NUEVOS CAMPOS ---
   user_product_id      String?
   family_id            String?
+  
   nombre_variante      String?
   nombre_publicacion   String?
   link_publicacion     String?
@@ -168,16 +161,15 @@ model AuditoriaPreparacionFull {
   precio_venta_ml      Decimal? @db.Decimal(20, 2)
   ultima_actualizacion DateTime @default(now())
 
+  // --- ÍNDICES Y REGLAS DE MODELO ---
   @@index([user_product_id])
   @@index([family_id])
   @@unique([mla, variation_id], name: "unique_mla_variation")
-  
-  // AQUI ESTA EL TRUCO
-  @@map("productos_maestros_v2")
+  @@map("productos_maestros")
 }
 
-// model ComposicionKits {
-  id              String   @id @default(cuid())
+model ComposicionKits {
+  id              Int      @id @default(autoincrement())
   mla             String
   variation_id    String?
   nombre_variante String?
@@ -187,10 +179,10 @@ model AuditoriaPreparacionFull {
   fecha_registro  DateTime @default(now())
 
   @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
-  
-  // AQUI ESTA EL TRUCO
-  @@map("composicion_kits_v2")
+  @@map("composicion_kits")
 }
+
+// --- GESTIÓN DE IMPORTACIONES ---
 
 model SupplierProduct {
   id              String   @id @default(cuid())
@@ -256,17 +248,15 @@ model KitComponent {
   @@index([supplierProductSku])
 }
 
-// model ArticulosCompuestos {
-  id              String   @id @default(cuid())
+model ArticulosCompuestos {
+  id              Int      @id @default(autoincrement())
   sku_padre       String   
   sku_hijo        String   
   cantidad        Int      @default(1)
   fecha_registro  DateTime @default(now())
 
   @@unique([sku_padre, sku_hijo], name: "unique_parent_child")
-  
-  // AQUI ESTA EL TRUCO
-  @@map("articulos_compuestos_v2")
+  @@map("articulos_compuestos")
 }
 
 model PlanningSession {
@@ -275,6 +265,8 @@ model PlanningSession {
   dateTo      DateTime 
   createdAt   DateTime @default(now())
 }
+
+// --- GESTIÓN DE VENTAS INSTAGRAM ---
 
 model InstagramSale {
   id                 String             @id @default(cuid())
@@ -334,6 +326,8 @@ model InstagramSaleItem {
   @@map("instagram_sale_items")
 }
 
+// --- GESTIÓN DE ETIQUETAS Y PREPARACIÓN ---
+
 model EtiquetaML {
   id              String         @id 
   orderId         String?
@@ -361,6 +355,7 @@ model EtiquetaMLItem {
   sku             String?
   quantity        Int
   variation       String?
+  
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
@@ -414,6 +409,8 @@ model MarketingAutoResponse {
   @@map("marketing_auto_responses")
 }
 
+// --- TABLA DE RESULTADOS CALCULADOS ---
+
 model RentabilidadCalculada {
   id                   String   @id @default(cuid())
   mla                  String
@@ -431,8 +428,12 @@ model RentabilidadCalculada {
   fecha_actualizacion  DateTime @default(now())
 
   @@unique([mla, variation_id])
+  
   @@map("rentabilidad_calculada")
 }
+
+
+// --- GESTIÓN DE VENTAS MOSTRADOR ---
 
 model Venta {
   id            String      @id @default(cuid())
@@ -485,6 +486,8 @@ model VentaAuditoria {
   @@map("ventas_auditoria")
 }
 
+// --- NUEVO: TABLAS PARA MODIFICAR ARTÍCULOS ---
+
 model ArticuloMostrador {
   id          String   @id
   nombre      String
@@ -499,7 +502,7 @@ model ArticuloMostrador {
 }
 
 model ArticuloAuditoria {
-  id          String             @id @default(cuid())
+  id            String            @id @default(cuid())
   articuloId  String
   articulo    ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
   usuario     String
@@ -510,10 +513,12 @@ model ArticuloAuditoria {
   @@map("articulos_auditoria")
 }
 
+// --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
+
 model TransferenciaCruzada {
   id              String   @id @default(cuid())
   whatsappId      String
-  monto           Decimal? @db.Decimal(20, 2)
+  monto           Decimal?  @db.Decimal(20, 2)
   emisorImagen    String?
   receptorImagen  String?
   infoExtra       String?
@@ -551,6 +556,8 @@ model ItemVisitaDiaria {
   @@unique([mla, fecha]) 
   @@map("item_visitas_diarias")
 }
+
+// --- NUEVO: GESTIÓN DE COMPRAS (INGRESO DE STOCK) ---
 
 model Compra {
   id            String       @id @default(cuid())
@@ -593,11 +600,16 @@ model Contacto {
   updatedAt      DateTime @updatedAt
 }
 
+// --- GESTIÓN DE VENTAS PÁGINA WEB ---
+
 model WebSale {
   id            String   @id @default(cuid())
   paymentId     String?
-  status        String   @default("PENDIENTE") 
+  // ID de MercadoPago
+  status        String   @default("PENDIENTE") // PENDIENTE, APROBADO, CANCELADO
   total         Decimal  @db.Decimal(20, 2)
+  
+  // Datos del cliente
   nombre        String?
   dni           String?
   email         String?
@@ -607,6 +619,7 @@ model WebSale {
   provincia     String?
   cp            String?
   referencias   String?
+  
   items         WebSaleItem[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -627,26 +640,30 @@ model WebSaleItem {
   @@map("ventas_web_items")
 }
 
-model ConversacionRespondida {
-  id              String   @id @default(cuid())
-  conversation_id String       
-  categoria       String
-  createdAt       DateTime @default(now())      
-                       
-  @@unique([conversation_id, categoria])                                  
-  @@map("conversaciones_respondidas")   
-}  
+// --- NUEVO: GESTIÓN DE BOT CHATWOOT ---
 
+  model ConversacionRespondida {
+    id              String   @id @default(cuid())
+    conversation_id String       
+    categoria       String
+    createdAt       DateTime @default(now())                           
+    @@unique([conversation_id, categoria])                                  
+    @@map("conversaciones_respondidas")   
+  }  
 model NumerosMayoristas {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   nombre    String?
   telefono  String   @unique
   createdAt DateTime @default(now())
 }
 
+// --- NUEVO: MODELO PARA RAG ---
+
 model DocumentSection {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
+  id        Int                 @id @default(autoincrement())
+  content   String              @db.Text
   metadata  Json?
+  embedding Unsupported("vector(1536)")? // Para OpenAI (1536 dimensiones)
+
   @@map("document_sections")
 }

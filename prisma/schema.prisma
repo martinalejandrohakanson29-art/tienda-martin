@@ -587,9 +587,13 @@ model WebSaleItem {
     @@unique([conversation_id, categoria])                                  
     @@map("conversaciones_respondidas")   
   }  
+
 model NumerosMayoristas {
-  id        String   @id @default(cuid()) // <- ¡ESTE ES EL CAMBIO CLAVE!
+  id        String   @id @default(cuid())
   nombre    String?
   telefono  String   @unique
   createdAt DateTime @default(now())
+
+  // Le decimos a la base de datos que cree una tabla limpia desde cero
+  @@map("numeros_mayoristas_v2")
 }

@@ -127,7 +127,7 @@ model ShipmentAudit {
   @@unique([itemId, envioId])
 }
 
-model CostosArticulos {
+// model CostosArticulos {
   id                  Int      @id @default(autoincrement())
   id_articulo         String   @unique
   descripcion         String?
@@ -142,7 +142,7 @@ model CostosArticulos {
 
 // --- TABLAS MAESTRAS DE MERCADO LIBRE ---
 
-model ProductosMaestros {
+// model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
   mla                  String   
   variation_id         String?
@@ -164,7 +164,7 @@ model ProductosMaestros {
   @@map("productos_maestros")
 }
 
-model ComposicionKits {
+// model ComposicionKits {
   id              Int      @id @default(autoincrement())
   mla             String
   variation_id    String?
@@ -244,7 +244,7 @@ model KitComponent {
   @@index([supplierProductSku])
 }
 
-model ArticulosCompuestos {
+// model ArticulosCompuestos {
   id              Int      @id @default(autoincrement())
   sku_padre       String   
   sku_hijo        String   

@@ -594,6 +594,6 @@ model NumerosMayoristas {
   telefono  String   @unique
   createdAt DateTime @default(now())
 
-  // Le decimos a la base de datos que cree una tabla limpia desde cero
-  @@map("numeros_mayoristas_v2")
+  // EL TRUCO SALVADOR QUE FALTABA
+  @@map("numeros_mayoristas_v3")
 }

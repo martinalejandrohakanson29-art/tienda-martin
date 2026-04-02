@@ -1,3 +1,4 @@
+// app/actions/preparacion-full.ts
 "use server"
 
 import { prisma } from "@/lib/prisma"
@@ -7,7 +8,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3"
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME
 
-export async function subirFotoAuditoriaFull(formData: FormData) {
+export async function guardarAuditoriaFull(formData: FormData) {
     const file = formData.get('photo') as File
     const shipmentId = formData.get('envioId') as string
     const itemId = formData.get('itemId') as string 
@@ -15,10 +16,10 @@ export async function subirFotoAuditoriaFull(formData: FormData) {
 
     try {
         if (!file || !shipmentId || !itemId) {
-            throw new Error("Faltan datos obligatorios para la auditoría.");
+            throw new Error("Faltan datos obligatorios.");
         }
 
-        // 1. Subida a S3 (carpeta dedicada)
+        // 1. Subida a S3
         const buffer = Buffer.from(await file.arrayBuffer());
         const fileName = `auditoria-full/${shipmentId}/${mla}_${Date.now()}.jpg`;
 
@@ -29,12 +30,13 @@ export async function subirFotoAuditoriaFull(formData: FormData) {
             ContentType: file.type || 'image/jpeg',
         }));
 
-        // 2. Registro en la nueva tabla exclusiva
-        await prisma.shipmentAuditFull.upsert({
+        // 2. Registro en la NUEVA tabla AuditoriaPreparacionFull
+        // Usamos upsert para que si subes la foto de nuevo, solo se actualice
+        await prisma.auditoriaPreparacionFull.upsert({
             where: {
-                itemId_shipmentId: {
-                    itemId: itemId,
-                    shipmentId: shipmentId
+                shipmentId_itemId: {
+                    shipmentId: shipmentId,
+                    itemId: itemId
                 }
             },
             update: {
@@ -42,10 +44,10 @@ export async function subirFotoAuditoriaFull(formData: FormData) {
                 createdAt: new Date()
             },
             create: {
-                itemId: itemId,
                 shipmentId: shipmentId,
+                itemId: itemId,
                 photoUrl: fileName,
-                status: "FOTO_CARGADA"
+                status: "PREPARADO"
             }
         });
 
@@ -53,7 +55,7 @@ export async function subirFotoAuditoriaFull(formData: FormData) {
         return { success: true, path: fileName };
 
     } catch (error: any) {
-        console.error("[ERROR AUDITORIA FULL]", error);
+        console.error("[ERROR PREPARACION FULL]", error);
         return { success: false, error: error.message };
     }
 }

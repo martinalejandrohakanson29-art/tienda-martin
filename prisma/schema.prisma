@@ -128,55 +128,55 @@ model ShipmentAudit {
 }
 
 // model CostosArticulos {
-  id                  Int      @id @default(autoincrement())
-  id_articulo         String   @unique
-  descripcion         String?
-  costo_usd           Decimal? @db.Decimal(10, 2)
-  factor_fob          Decimal? @db.Decimal(10, 2) @default(1.00)
-  es_dolar            Boolean? @default(true)
-  costo_final_ars     Decimal? @db.Decimal(20, 2)
-  fecha_actualizacion DateTime @default(now())
+ // id                  Int      @id @default(autoincrement())
+  // id_articulo         String   @unique
+  // descripcion         String?
+  // costo_usd           Decimal? @db.Decimal(10, 2)
+  // factor_fob          Decimal? @db.Decimal(10, 2) @default(1.00)
+  // es_dolar            Boolean? @default(true)
+  // costo_final_ars     Decimal? @db.Decimal(20, 2)
+  // fecha_actualizacion DateTime @default(now())
 
-  @@map("costos_articulos")
-}
+  // @@map("costos_articulos")
+// }
 
 // --- TABLAS MAESTRAS DE MERCADO LIBRE ---
 
 // model ProductosMaestros {
-  id                   Int      @id @default(autoincrement())
-  mla                  String   
-  variation_id         String?
+//  id                   Int      @id @default(autoincrement())
+ // mla                  String   
+  //variation_id         String?
   // --- NUEVOS CAMPOS ---
-  user_product_id      String?
-  family_id            String?
+ // user_product_id      String?
+ // family_id            String?
   
-  nombre_variante      String?
-  nombre_publicacion   String?
-  link_publicacion     String?
-  estado               String?
-  precio_venta_ml      Decimal? @db.Decimal(20, 2)
-  ultima_actualizacion DateTime @default(now())
+ // nombre_variante      String?
+ // nombre_publicacion   String?
+ // link_publicacion     String?
+ // estado               String?
+ // precio_venta_ml      Decimal? @db.Decimal(20, 2)
+ // ultima_actualizacion DateTime @default(now())
 
   // --- ÍNDICES Y REGLAS DE MODELO ---
-  @@index([user_product_id])
-  @@index([family_id])
-  @@unique([mla, variation_id], name: "unique_mla_variation")
-  @@map("productos_maestros")
-}
+  // @@index([user_product_id])
+  // @@index([family_id])
+  // @@unique([mla, variation_id], name: "unique_mla_variation")
+  // @@map("productos_maestros")
+// }
 
 // model ComposicionKits {
-  id              Int      @id @default(autoincrement())
-  mla             String
-  variation_id    String?
-  nombre_variante String?
-  id_articulo     String
-  nombre_articulo String?
-  cantidad        Int      @default(1)
-  fecha_registro  DateTime @default(now())
+//  id              Int      @id @default(autoincrement())
+ // mla             String
+ // variation_id    String?
+ // nombre_variante String?
+ // id_articulo     String
+ // nombre_articulo String?
+ // cantidad        Int      @default(1)
+ // fecha_registro  DateTime @default(now())
 
-  @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
-  @@map("composicion_kits")
-}
+ // @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
+ // @@map("composicion_kits")
+// }
 
 // --- GESTIÓN DE IMPORTACIONES ---
 
@@ -245,15 +245,15 @@ model KitComponent {
 }
 
 // model ArticulosCompuestos {
-  id              Int      @id @default(autoincrement())
-  sku_padre       String   
-  sku_hijo        String   
-  cantidad        Int      @default(1)
-  fecha_registro  DateTime @default(now())
+//  id              Int      @id @default(autoincrement())
+ // sku_padre       String   
+ // sku_hijo        String   
+ // cantidad        Int      @default(1)
+ // fecha_registro  DateTime @default(now())
 
-  @@unique([sku_padre, sku_hijo], name: "unique_parent_child")
-  @@map("articulos_compuestos")
-}
+ // @@unique([sku_padre, sku_hijo], name: "unique_parent_child")
+ // @@map("articulos_compuestos")
+// }
 
 model PlanningSession {
   id          String   @id @default(cuid())

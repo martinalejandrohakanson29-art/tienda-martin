@@ -1,4 +1,3 @@
-// app/actions/preparacion-full.ts
 "use server"
 
 import { prisma } from "@/lib/prisma"
@@ -19,7 +18,6 @@ export async function guardarAuditoriaFull(formData: FormData) {
             throw new Error("Faltan datos obligatorios.");
         }
 
-        // 1. Subida a S3
         const buffer = Buffer.from(await file.arrayBuffer());
         const fileName = `auditoria-full/${shipmentId}/${mla}_${Date.now()}.jpg`;
 
@@ -30,8 +28,6 @@ export async function guardarAuditoriaFull(formData: FormData) {
             ContentType: file.type || 'image/jpeg',
         }));
 
-        // 2. Registro en la NUEVA tabla AuditoriaPreparacionFull
-        // Usamos upsert para que si subes la foto de nuevo, solo se actualice
         await prisma.auditoriaPreparacionFull.upsert({
             where: {
                 shipmentId_itemId: {

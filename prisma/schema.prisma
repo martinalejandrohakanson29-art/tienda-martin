@@ -668,14 +668,17 @@ model DocumentSection {
   @@map("document_sections")
 }
 
-model ShipmentAuditFull {
-  id         String   @id @default(cuid())
-  itemId     String   // ID único del ShipmentItem
-  shipmentId String   // ID del Shipment
-  status     String   @default("FOTO_CARGADA")
-  photoUrl   String?
-  createdAt  DateTime @default(now())
+// prisma/schema.prisma
 
-  @@unique([itemId, shipmentId])
-  @@map("shipment_audit_full")
+// --- NUEVO MODELO EXCLUSIVO PARA PREPARACIÓN FULL ---
+model AuditoriaPreparacionFull {
+  id          String   @id @default(cuid())
+  shipmentId  String   // ID de la tabla Shipment
+  itemId      String   // ID de la tabla ShipmentItem
+  photoUrl    String?
+  status      String   @default("PREPARADO")
+  createdAt   DateTime @default(now())
+
+  @@unique([shipmentId, itemId])
+  @@index([shipmentId])
 }

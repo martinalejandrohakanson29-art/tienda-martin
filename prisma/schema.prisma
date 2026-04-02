@@ -1,14 +1,12 @@
-//
+// prisma/schema.prisma
+
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"] // <--- AÑADE ESTO
+  provider = "prisma-client-js"
 }
 
-//
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector")]   // <--- AÑADE ESTO
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // --- SISTEMA DE USUARIOS, ROLES Y PENDIENTES ---
@@ -131,6 +129,19 @@ model ShipmentAudit {
   @@unique([itemId, envioId])
 }
 
+// --- NUEVO MODELO EXCLUSIVO PARA PREPARACIÓN FULL (SIN ERRORES) ---
+model AuditoriaPreparacionFull {
+  id          String   @id @default(cuid())
+  shipmentId  String   
+  itemId      String   
+  photoUrl    String?
+  status      String   @default("PREPARADO")
+  createdAt   DateTime @default(now())
+
+  @@unique([shipmentId, itemId])
+  @@index([shipmentId])
+}
+
 model CostosArticulos {
   id                  Int      @id @default(autoincrement())
   id_articulo         String   @unique
@@ -150,10 +161,8 @@ model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
   mla                  String   
   variation_id         String?
-  // --- NUEVOS CAMPOS ---
   user_product_id      String?
   family_id            String?
-  
   nombre_variante      String?
   nombre_publicacion   String?
   link_publicacion     String?
@@ -161,7 +170,6 @@ model ProductosMaestros {
   precio_venta_ml      Decimal? @db.Decimal(20, 2)
   ultima_actualizacion DateTime @default(now())
 
-  // --- ÍNDICES Y REGLAS DE MODELO ---
   @@index([user_product_id])
   @@index([family_id])
   @@unique([mla, variation_id], name: "unique_mla_variation")
@@ -428,7 +436,6 @@ model RentabilidadCalculada {
   fecha_actualizacion  DateTime @default(now())
 
   @@unique([mla, variation_id])
-  
   @@map("rentabilidad_calculada")
 }
 
@@ -486,7 +493,7 @@ model VentaAuditoria {
   @@map("ventas_auditoria")
 }
 
-// --- NUEVO: TABLAS PARA MODIFICAR ARTÍCULOS ---
+// --- TABLAS PARA MODIFICAR ARTÍCULOS ---
 
 model ArticuloMostrador {
   id          String   @id
@@ -502,7 +509,7 @@ model ArticuloMostrador {
 }
 
 model ArticuloAuditoria {
-  id            String            @id @default(cuid())
+  id          String            @id @default(cuid())
   articuloId  String
   articulo    ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
   usuario     String
@@ -518,7 +525,7 @@ model ArticuloAuditoria {
 model TransferenciaCruzada {
   id              String   @id @default(cuid())
   whatsappId      String
-  monto           Decimal?  @db.Decimal(20, 2)
+  monto           Decimal? @db.Decimal(20, 2)
   emisorImagen    String?
   receptorImagen  String?
   infoExtra       String?
@@ -557,7 +564,7 @@ model ItemVisitaDiaria {
   @@map("item_visitas_diarias")
 }
 
-// --- NUEVO: GESTIÓN DE COMPRAS (INGRESO DE STOCK) ---
+// --- GESTIÓN DE COMPRAS (INGRESO DE STOCK) ---
 
 model Compra {
   id            String       @id @default(cuid())
@@ -605,11 +612,8 @@ model Contacto {
 model WebSale {
   id            String   @id @default(cuid())
   paymentId     String?
-  // ID de MercadoPago
-  status        String   @default("PENDIENTE") // PENDIENTE, APROBADO, CANCELADO
+  status        String   @default("PENDIENTE") 
   total         Decimal  @db.Decimal(20, 2)
-  
-  // Datos del cliente
   nombre        String?
   dni           String?
   email         String?
@@ -619,7 +623,6 @@ model WebSale {
   provincia     String?
   cp            String?
   referencias   String?
-  
   items         WebSaleItem[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -640,16 +643,17 @@ model WebSaleItem {
   @@map("ventas_web_items")
 }
 
-// --- NUEVO: GESTIÓN DE BOT CHATWOOT ---
+// --- GESTIÓN DE BOT CHATWOOT ---
 
-  model ConversacionRespondida {
-    id              String   @id @default(cuid())
-    conversation_id String       
-    categoria       String
-    createdAt       DateTime @default(now())                           
-    @@unique([conversation_id, categoria])                                  
-    @@map("conversaciones_respondidas")   
-  }  
+model ConversacionRespondida {
+  id              String   @id @default(cuid())
+  conversation_id String       
+  categoria       String
+  createdAt       DateTime @default(now())                           
+  @@unique([conversation_id, categoria])                                  
+  @@map("conversaciones_respondidas")   
+}  
+
 model NumerosMayoristas {
   id        Int      @id @default(autoincrement())
   nombre    String?
@@ -657,28 +661,12 @@ model NumerosMayoristas {
   createdAt DateTime @default(now())
 }
 
-// --- NUEVO: MODELO PARA RAG ---
+// --- MODELO PARA CONOCIMIENTO (SIMPLIFICADO PARA DEPLOY) ---
 
 model DocumentSection {
-  id        Int                 @id @default(autoincrement())
-  content   String              @db.Text
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
   metadata  Json?
-  embedding Unsupported("vector(1536)")? // Para OpenAI (1536 dimensiones)
 
   @@map("document_sections")
-}
-
-// prisma/schema.prisma
-
-// --- NUEVO MODELO EXCLUSIVO PARA PREPARACIÓN FULL ---
-model AuditoriaPreparacionFull {
-  id          String   @id @default(cuid())
-  shipmentId  String   // ID de la tabla Shipment
-  itemId      String   // ID de la tabla ShipmentItem
-  photoUrl    String?
-  status      String   @default("PREPARADO")
-  createdAt   DateTime @default(now())
-
-  @@unique([shipmentId, itemId])
-  @@index([shipmentId])
 }

@@ -129,7 +129,7 @@ model ShipmentAudit {
   @@unique([itemId, envioId])
 }
 
-// --- NUEVO MODELO EXCLUSIVO PARA PREPARACIÓN FULL (SIN ERRORES) ---
+// --- TABLA EXCLUSIVA PARA PREPARACIÓN FULL (SIN CONFLICTOS) ---
 model AuditoriaPreparacionFull {
   id          String   @id @default(cuid())
   shipmentId  String   
@@ -154,8 +154,6 @@ model CostosArticulos {
 
   @@map("costos_articulos")
 }
-
-// --- TABLAS MAESTRAS DE MERCADO LIBRE ---
 
 model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
@@ -189,8 +187,6 @@ model ComposicionKits {
   @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
   @@map("composicion_kits")
 }
-
-// --- GESTIÓN DE IMPORTACIONES ---
 
 model SupplierProduct {
   id              String   @id @default(cuid())
@@ -274,8 +270,6 @@ model PlanningSession {
   createdAt   DateTime @default(now())
 }
 
-// --- GESTIÓN DE VENTAS INSTAGRAM ---
-
 model InstagramSale {
   id                 String             @id @default(cuid())
   id_comprobante     String             @unique 
@@ -333,8 +327,6 @@ model InstagramSaleItem {
 
   @@map("instagram_sale_items")
 }
-
-// --- GESTIÓN DE ETIQUETAS Y PREPARACIÓN ---
 
 model EtiquetaML {
   id              String         @id 
@@ -417,8 +409,6 @@ model MarketingAutoResponse {
   @@map("marketing_auto_responses")
 }
 
-// --- TABLA DE RESULTADOS CALCULADOS ---
-
 model RentabilidadCalculada {
   id                   String   @id @default(cuid())
   mla                  String
@@ -438,9 +428,6 @@ model RentabilidadCalculada {
   @@unique([mla, variation_id])
   @@map("rentabilidad_calculada")
 }
-
-
-// --- GESTIÓN DE VENTAS MOSTRADOR ---
 
 model Venta {
   id            String      @id @default(cuid())
@@ -493,8 +480,6 @@ model VentaAuditoria {
   @@map("ventas_auditoria")
 }
 
-// --- TABLAS PARA MODIFICAR ARTÍCULOS ---
-
 model ArticuloMostrador {
   id          String   @id
   nombre      String
@@ -519,8 +504,6 @@ model ArticuloAuditoria {
 
   @@map("articulos_auditoria")
 }
-
-// --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
 
 model TransferenciaCruzada {
   id              String   @id @default(cuid())
@@ -564,8 +547,6 @@ model ItemVisitaDiaria {
   @@map("item_visitas_diarias")
 }
 
-// --- GESTIÓN DE COMPRAS (INGRESO DE STOCK) ---
-
 model Compra {
   id            String       @id @default(cuid())
   proveedor     String       @default("Proveedor General")
@@ -607,8 +588,6 @@ model Contacto {
   updatedAt      DateTime @updatedAt
 }
 
-// --- GESTIÓN DE VENTAS PÁGINA WEB ---
-
 model WebSale {
   id            String   @id @default(cuid())
   paymentId     String?
@@ -643,8 +622,6 @@ model WebSaleItem {
   @@map("ventas_web_items")
 }
 
-// --- GESTIÓN DE BOT CHATWOOT ---
-
 model ConversacionRespondida {
   id              String   @id @default(cuid())
   conversation_id String       
@@ -655,16 +632,14 @@ model ConversacionRespondida {
 }  
 
 model NumerosMayoristas {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   nombre    String?
   telefono  String   @unique
   createdAt DateTime @default(now())
 }
 
-// --- MODELO PARA CONOCIMIENTO (SIMPLIFICADO PARA DEPLOY) ---
-
 model DocumentSection {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   content   String   @db.Text
   metadata  Json?
 

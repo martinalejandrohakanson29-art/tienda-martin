@@ -667,3 +667,15 @@ model DocumentSection {
 
   @@map("document_sections")
 }
+
+model AuditoriaFull {
+  id          String   @id @default(cuid())
+  shipmentId  String   // ID del envío (Shipment)
+  itemId      String   // ID del producto en ese envío (ShipmentItem)
+  status      String   @default("PREPARADO")
+  photoUrl    String?  // Ruta de la foto en S3
+  createdAt   DateTime @default(now())
+
+  @@unique([shipmentId, itemId]) // Evita duplicados para el mismo producto en el mismo envío
+  @@index([shipmentId])
+}

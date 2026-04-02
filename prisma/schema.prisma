@@ -141,7 +141,7 @@ model AuditoriaPreparacionFull {
   @@index([shipmentId])
 }
 
-model CostosArticulos {
+// model CostosArticulos {
   id                  String   @id @default(cuid())
   id_articulo         String   @unique
   descripcion         String?
@@ -155,7 +155,7 @@ model CostosArticulos {
   @@map("costos_articulos_v2")
 }
 
-model ProductosMaestros {
+// model ProductosMaestros {
   id                   String   @id @default(cuid())
   mla                  String   
   variation_id         String?
@@ -176,7 +176,7 @@ model ProductosMaestros {
   @@map("productos_maestros_v2")
 }
 
-model ComposicionKits {
+// model ComposicionKits {
   id              String   @id @default(cuid())
   mla             String
   variation_id    String?
@@ -256,7 +256,7 @@ model KitComponent {
   @@index([supplierProductSku])
 }
 
-model ArticulosCompuestos {
+// model ArticulosCompuestos {
   id              String   @id @default(cuid())
   sku_padre       String   
   sku_hijo        String   

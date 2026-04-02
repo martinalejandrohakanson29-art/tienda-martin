@@ -142,7 +142,7 @@ model AuditoriaPreparacionFull {
 }
 
 model CostosArticulos {
-  id                  Int      @id @default(autoincrement())
+  id                  String   @id @default(cuid())
   id_articulo         String   @unique
   descripcion         String?
   costo_usd           Decimal? @db.Decimal(10, 2)
@@ -155,7 +155,7 @@ model CostosArticulos {
 }
 
 model ProductosMaestros {
-  id                   Int      @id @default(autoincrement())
+  id                   String   @id @default(cuid())
   mla                  String   
   variation_id         String?
   user_product_id      String?
@@ -174,7 +174,7 @@ model ProductosMaestros {
 }
 
 model ComposicionKits {
-  id              Int      @id @default(autoincrement())
+  id              String   @id @default(cuid())
   mla             String
   variation_id    String?
   nombre_variante String?
@@ -252,7 +252,7 @@ model KitComponent {
 }
 
 model ArticulosCompuestos {
-  id              Int      @id @default(autoincrement())
+  id              String   @id @default(cuid())
   sku_padre       String   
   sku_hijo        String   
   cantidad        Int      @default(1)

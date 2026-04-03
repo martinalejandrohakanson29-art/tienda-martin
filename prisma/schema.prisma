@@ -654,3 +654,12 @@ model NumerosMayoristas {
   telefono  String   @unique
   createdAt DateTime @default(now())
 }
+
+model AuditoriaPreparacionFull {
+  shipmentId String
+  itemId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@id([shipmentId, itemId])
+}

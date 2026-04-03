@@ -659,8 +659,9 @@ model AuditoriaPreparacionFull {
   shipmentId String
   itemId     String
   photoUrl   String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  status     String?    // <--- Agregamos esta línea
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@id([shipmentId, itemId])
 }

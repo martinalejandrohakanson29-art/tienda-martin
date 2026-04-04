@@ -653,6 +653,8 @@ model NumerosMayoristas {
   nombre    String?
   telefono  String   @unique
   createdAt DateTime @default(now())
+ @@map("NumerosMayoristas")
+
 }
 
 model AuditoriaPreparacionFull {

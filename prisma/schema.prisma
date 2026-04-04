@@ -139,7 +139,7 @@ model CostosArticulos {
   costo_final_ars     Decimal? @db.Decimal(20, 2)
   fecha_actualizacion DateTime @default(now())
 
-  @@map("costos_articulos")
+  @@map("costos_articulos_old")
 }
 
 // --- TABLAS MAESTRAS DE MERCADO LIBRE ---

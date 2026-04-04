@@ -163,7 +163,7 @@ model ProductosMaestros {
   @@index([user_product_id])
   @@index([family_id])
   @@unique([mla, variation_id], name: "unique_mla_variation")
-  @@map("productos_maestros")
+  @@map("productos_maestros_old")
 }
 
 model ComposicionKits {
@@ -177,7 +177,7 @@ model ComposicionKits {
   fecha_registro  DateTime @default(now())
 
   @@unique([mla, nombre_variante, id_articulo], name: "unique_kit_component")
-  @@map("composicion_kits")
+  @@map("composicion_kits_old")
 }
 
 // --- GESTIÓN DE IMPORTACIONES ---
@@ -254,7 +254,7 @@ model ArticulosCompuestos {
   fecha_registro  DateTime @default(now())
 
   @@unique([sku_padre, sku_hijo], name: "unique_parent_child")
-  @@map("articulos_compuestos")
+  @@map("articulos_compuestos_old")
 }
 
 model PlanningSession {

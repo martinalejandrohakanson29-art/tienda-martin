@@ -3,13 +3,14 @@ import localFont from "next/font/local";
 import "./globals.css";
 import Header from "@/components/header";
 import ConditionalFooter from "@/components/conditional-footer"; 
-import Footer from "@/components/footer"; // 👈 1. IMPORTAMOS EL FOOTER AQUÍ
+import Footer from "@/components/footer";
 import AnnouncementBar from "@/components/announcement-bar";
 import Script from "next/script";
 import ConditionalHeader from "@/components/conditional-header"; 
 import { getConfig } from "@/app/actions/config";
 import { getUniqueCategories } from "@/app/actions/products";
 
+// Configuración de fuentes locales
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
   variable: "--font-geist-sans",
@@ -21,6 +22,7 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+// Metadatos de la página
 export const metadata: Metadata = {
   title: "Revolucion motos",
   description: "Tu tienda de confianza para repuestos y accesorios",
@@ -29,6 +31,8 @@ export const metadata: Metadata = {
   }
 };
 
+// SOLUCIÓN AL ERROR DE DEPLOY: Forzamos que la página sea siempre dinámica
+// Esto evita que falle al intentar conectar a la base de datos durante el build.
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({
@@ -36,15 +40,18 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Obtenemos configuración y categorías de la base de datos
   const configData = await getConfig();
   const categoriesData = await getUniqueCategories();
 
+  // Limpiamos los datos para evitar errores de serialización
   const config = JSON.parse(JSON.stringify(configData));
   const categories = JSON.parse(JSON.stringify(categoriesData));
 
   return (
     <html lang="es">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}>
+        {/* Configuración de Facebook Pixel */}
         <Script id="meta-pixel" strategy="afterInteractive">
           {`
             !function(f,b,e,v,n,t,s)
@@ -61,9 +68,16 @@ export default async function RootLayout({
         </Script>
         
         <noscript>
-          <img height="1" width="1" style={{ display: 'none' }} src="https://www.facebook.com/tr?id=690783850730543&ev=PageView&noscript=1" alt="" />
+          <img 
+            height="1" 
+            width="1" 
+            style={{ display: 'none' }} 
+            src="https://www.facebook.com/tr?id=690783850730543&ev=PageView&noscript=1" 
+            alt="" 
+          />
         </noscript>
 
+        {/* Cabecera condicional */}
         <ConditionalHeader>
             <div className="sticky top-0 z-50 w-full flex flex-col">
                 <AnnouncementBar config={config} />
@@ -71,11 +85,12 @@ export default async function RootLayout({
             </div>
         </ConditionalHeader>
         
+        {/* Contenido principal de la aplicación */}
         <main className="flex-1">
           {children}
         </main>
         
-        {/* 👇 2. CAMBIO AQUÍ: Pasamos el Footer como hijo */}
+        {/* Footer condicional */}
         <ConditionalFooter>
             <Footer />
         </ConditionalFooter>

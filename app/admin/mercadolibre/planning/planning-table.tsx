@@ -129,7 +129,7 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
         groups.push({ type: "single", familyId: "-", items: [item] });
       } else {
         if (!groupMap.has(familyId)) {
-          const newGroup = { type: "group", familyId, items: [] };
+          const newGroup = { type: "group" as const, familyId, items: [] };
           groupMap.set(familyId, newGroup.items);
           groups.push(newGroup);
         }

@@ -49,15 +49,64 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
       },
     });
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       data: ventas.map(v => ({
         ...v,
         total: Number(v.total),
         interes: Number(v.interes),
         totalFinal: Number(v.totalFinal),
-        createdAt: v.createdAt.toISOString()
-      })) 
+        createdAt: v.createdAt.toISOString(),
+        items: v.items.map(i => ({
+          ...i,
+          precio_unit: Number(i.precio_unit),
+          subtotal: Number(i.subtotal)
+        }))
+      }))
+    };
+  } catch (error) {
+    console.error("Error al obtener ventas:", error);
+    return { success: false, error: "Error al cargar el listado" };
+  }
+}
+
+export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta: string) {
+  try {
+    const inicioRango = new Date(fechaDesde);
+    inicioRango.setHours(0, 0, 0, 0);
+
+    const finRango = new Date(fechaHasta);
+    finRango.setHours(23, 59, 59, 999);
+
+    const ventas = await prisma.venta.findMany({
+      where: {
+        createdAt: {
+          gte: inicioRango,
+          lte: finRango,
+        },
+      },
+      include: {
+        items: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return {
+      success: true,
+      data: ventas.map(v => ({
+        ...v,
+        total: Number(v.total),
+        interes: Number(v.interes),
+        totalFinal: Number(v.totalFinal),
+        createdAt: v.createdAt.toISOString(),
+        items: v.items.map(i => ({
+          ...i,
+          precio_unit: Number(i.precio_unit),
+          subtotal: Number(i.subtotal)
+        }))
+      }))
     };
   } catch (error) {
     console.error("Error al obtener ventas:", error);

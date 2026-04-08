@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  crearVentaMostrador, obtenerVentasPorFecha, marcarVentaComoRegistrada,
+import { DateRangeCalendar } from "./date-range-calendar";
+import {
+  crearVentaMostrador, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB
 } from "@/app/actions/ventas-mostrador";
 
@@ -55,7 +56,11 @@ export default function VentasMostradorClient({
   const [successMessage, setSuccessMessage] = useState("");
   const [ventasRealizadas, setVentasRealizadas] = useState<any[]>([]);
   const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaDesde, setFechaDesde] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0]);
   const [isLoadingVentas, setIsLoadingVentas] = useState(false);
+  const [fechaDesdeTemp, setFechaDesdeTemp] = useState<string | null>(null);
+  const [fechaHastaTemp, setFechaHastaTemp] = useState<string | null>(null);
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -158,13 +163,20 @@ export default function VentasMostradorClient({
   }, [showSuccess]);
 
   useEffect(() => {
-    cargarVentas(fechaFiltro);
-  }, [fechaFiltro]);
+    cargarVentas(fechaDesde, fechaHasta);
+  }, [fechaDesde, fechaHasta]);
+
+  // Efecto para sincronizar fechaDesde y fechaHasta con la fecha actual al cargar
+  useEffect(() => {
+    const hoy = new Date().toISOString().split('T')[0];
+    setFechaDesde(hoy);
+    setFechaHasta(hoy);
+  }, []);
 
   // --- FUNCIONES COMUNES ---
-  const cargarVentas = async (fecha: string) => {
+  const cargarVentas = async (fechaDesde: string, fechaHasta: string) => {
     setIsLoadingVentas(true);
-    const res = await obtenerVentasPorFecha(fecha);
+    const res = await obtenerVentasPorRango(fechaDesde, fechaHasta);
     if (res.success) {
       setVentasRealizadas(res.data || []);
     }
@@ -297,7 +309,7 @@ export default function VentasMostradorClient({
         }));
 
         resetForm();
-        cargarVentas(fechaFiltro);
+        cargarVentas(fechaDesde, fechaHasta);
       } else { alert("Error al guardar: " + resultado.error); }
     } catch (error) { alert("Ocurrió un error inesperado."); } finally { setIsSubmitting(false); }
   };
@@ -312,7 +324,7 @@ export default function VentasMostradorClient({
   const handleMarcarRegistrada = async (id: string) => {
     setVentasRealizadas(prev => prev.map(v => v.id === id ? { ...v, registrada: true } : v));
     const res = await marcarVentaComoRegistrada(id);
-    if (!res.success) { alert("No se pudo actualizar"); cargarVentas(fechaFiltro); }
+    if (!res.success) { alert("No se pudo actualizar"); cargarVentas(fechaDesde, fechaHasta); }
   };
 
   // --- CALCULOS EDICIÓN VENTA (LÓGICA MIXTA) ---
@@ -445,7 +457,7 @@ export default function VentasMostradorClient({
         }));
 
         setIsEditMainModalOpen(false);
-        cargarVentas(fechaFiltro);
+        cargarVentas(fechaDesde, fechaHasta);
       } else {
         alert("Error al guardar: " + resultado.error);
       }
@@ -749,20 +761,23 @@ export default function VentasMostradorClient({
                   <div className="space-y-1">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtrar por Fecha</Label>
                     <div className="flex items-center gap-2">
-                      <div className="relative">
-                        <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                        <Input type="date" value={fechaFiltro} onChange={(e) => setFechaFiltro(e.target.value)} className="pl-9 h-10 w-48 bg-slate-50 border-slate-200 cursor-pointer" />
-                      </div>
-                      <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaFiltro)} disabled={isLoadingVentas} className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
+                      <DateRangeCalendar
+                        fechaDesde={fechaDesde}
+                        fechaHasta={fechaHasta}
+                        setFechaDesde={(date) => { setFechaDesde(date); cargarVentas(date, fechaHasta); }}
+                        setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
+                        onApply={() => {}}
+                      />
+                      <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
                         <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
                       </Button>
                       
                       <div className="flex items-center space-x-2 border-l pl-4 border-slate-200 ml-2 h-10">
-                        <input 
-                          type="checkbox" 
-                          id="filterOffline" 
-                          checked={mostrarSoloOffline} 
-                          onChange={(e) => setMostrarSoloOffline(e.target.checked)} 
+                        <input
+                          type="checkbox"
+                          id="filterOffline"
+                          checked={mostrarSoloOffline}
+                          onChange={(e) => setMostrarSoloOffline(e.target.checked)}
                           className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-600"
                         />
                         <Label htmlFor="filterOffline" className="text-xs font-bold text-slate-600 cursor-pointer">
@@ -926,11 +941,14 @@ export default function VentasMostradorClient({
                   <div className="space-y-1">
                     <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Filtrar por Fecha</Label>
                     <div className="flex items-center gap-2">
-                      <div className="relative">
-                        <CalendarIcon className="absolute left-3 top-2.5 h-4 w-4 text-amber-500" />
-                        <Input type="date" value={fechaFiltro} onChange={(e) => setFechaFiltro(e.target.value)} className="pl-9 h-10 w-48 bg-white border-amber-200 cursor-pointer text-amber-900" />
-                      </div>
-                      <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaFiltro)} disabled={isLoadingVentas} className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
+                      <DateRangeCalendar
+                        fechaDesde={fechaDesde}
+                        fechaHasta={fechaHasta}
+                        setFechaDesde={(date) => { setFechaDesdeTemp(date); cargarVentas(date, fechaHasta); }}
+                        setFechaHasta={(date) => { setFechaHastaTemp(date); cargarVentas(fechaDesde, date); }}
+                        onApply={() => {}}
+                      />
+                      <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
                         <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
                       </Button>
                     </div>
@@ -1592,8 +1610,17 @@ function TicketImpresion({
   cliente: string, 
   metodoPago: string 
 }) {
-  const fechaActual = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const ticketId = String(Date.now()).slice(-8);
+  const [mounted, setMounted] = useState(false);
+  const [ticketId, setTicketId] = useState("");
+  const [fechaActual, setFechaActual] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+    setTicketId(String(Date.now()).slice(-8));
+    setFechaActual(new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }));
+  }, []);
+
+  if (!mounted) return null;
   
   const formatPrecio = (num: any) => {
     return Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

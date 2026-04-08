@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { 
-  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, 
+import {
+  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle,
-  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer
+  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer,
+  ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,6 +85,9 @@ export default function VentasMostradorClient({
 
   // --- ESTADO PARA IMPRESIÓN ---
   const [ventaParaImprimir, setVentaParaImprimir] = useState<any>(null);
+
+  // --- ESTADO PARA ACORDEÓN DE VENTAS ---
+  const [expandedVentas, setExpandedVentas] = useState<Set<string>>(new Set());
 
   // --- ESTADOS PARA EDICIÓN Y AUDITORÍA ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
@@ -781,7 +785,7 @@ export default function VentasMostradorClient({
                       <TableRow>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase py-3">Artículos</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3">Ver Artículos</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
@@ -794,82 +798,118 @@ export default function VentasMostradorClient({
                       {ventasFiltradas.length === 0 ? (
                         <TableRow><TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
                       ) : (
-                        ventasFiltradas.map((v) => (
-                          <TableRow key={v.id} className="hover:bg-slate-50/50 align-top">
-                            <TableCell className="text-xs font-mono text-slate-500 py-4">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
-                            
-                            <TableCell className="font-medium text-slate-700 py-4">
-                              {v.cliente}
-                              {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
-                              {v.eventoOffline && <span className="mt-1 inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span>}
-                            </TableCell>
-                            
-                            <TableCell className="py-4">
-                              <div className="flex flex-col gap-1.5 min-w-[250px]">
-                                {v.items?.map((item: any) => (
-                                  <div key={item.id} className="text-[11px] bg-slate-50 p-2 rounded-lg border border-slate-100 flex flex-col group relative">
-                                    <div className="flex justify-between items-start gap-3">
-                                      <div className="flex flex-col flex-grow">
-                                        <span 
-                                          onClick={() => copiarAlPortapapeles(item.nombre)} 
-                                          className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors block" 
-                                          title="Copiar Nombre"
-                                        >
-                                          {item.nombre}
-                                        </span>
-                                        <span 
-                                          onClick={() => copiarAlPortapapeles(item.productoId)} 
-                                          className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 mt-0.5 w-fit block transition-colors" 
-                                          title="Copiar ID"
-                                        >
-                                          {item.productoId}
-                                        </span>
-                                      </div>
-                                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                                        <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black text-[10px]">x{item.cantidad}</span>
-                                        <span className="text-slate-700 font-bold whitespace-nowrap">$ {Number(item.subtotal || 0).toLocaleString('es-AR')}</span>
+                        ventasFiltradas.map((v) => {
+                          const isExpanded = expandedVentas.has(v.id);
+                          return (
+                            <React.Fragment key={v.id}>
+                              <TableRow className="hover:bg-slate-50/50 align-top cursor-pointer transition-colors" onClick={() => {
+                                const newExpanded = new Set(expandedVentas);
+                                if (isExpanded) newExpanded.delete(v.id);
+                                else newExpanded.add(v.id);
+                                setExpandedVentas(newExpanded);
+                              }}>
+                                <TableCell className="text-xs font-mono text-slate-500 py-4 whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                                
+                                <TableCell className="font-medium text-slate-700 py-4">
+                                  {v.cliente}
+                                  {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
+                                  {v.eventoOffline && <span className="mt-1 inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span>}
+                                </TableCell>
+                                
+                                <TableCell className="py-4 pl-2">
+                                  <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg" onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newExpanded = new Set(expandedVentas);
+                                    if (isExpanded) newExpanded.delete(v.id);
+                                    else newExpanded.add(v.id);
+                                    setExpandedVentas(newExpanded);
+                                  }}>
+                                    <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                    <span className="ml-1 text-xs">Artículos ({v.items?.length || 0})</span>
+                                  </Button>
+                                </TableCell>
+                                <TableCell className="py-4">
+                                  <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                    {v.metodo_pago}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="py-4 text-xs font-mono text-slate-600">
+                                   {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
+                                </TableCell>
+                                <TableCell className="py-4 text-xs font-mono text-slate-600">
+                                   {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
+                                </TableCell>
+                                <TableCell className="py-4 text-xs text-slate-500 max-w-[200px]" title={v.info || ""}>
+                                   {v.info || "-"}
+                                </TableCell>
+                                <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
+                                <TableCell className="py-4 text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); handleImprimirVentaHistorial(v); }}
+                                      className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all border border-transparent"
+                                      title="Imprimir Ticket"
+                                    >
+                                      <Printer className="h-5 w-5" />
+                                    </button>
+                                    <button
+                                      disabled={v.registrada}
+                                      onClick={(e) => { e.stopPropagation(); handleMarcarRegistrada(v.id); }}
+                                      className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}
+                                      title={v.registrada ? "Registrada" : "Marcar como Registrada"}
+                                    >
+                                      {v.registrada ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                                    </button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                              {isExpanded && (
+                                <TableRow className="bg-slate-50/30 border-b-2 border-slate-200">
+                                  <TableCell colSpan={3} className="py-0">
+                                    <div className="p-3 bg-white border-b border-slate-200">
+                                      <div className="flex items-center gap-2 mb-2">
+                                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                                        <span className="text-xs font-bold text-slate-600 uppercase">Detalles de Artículos</span>
                                       </div>
                                     </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell className="py-4">
-                              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                {v.metodo_pago}
-                              </span>
-                            </TableCell>
-                            <TableCell className="py-4 text-xs font-mono text-slate-600">
-                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
-                            </TableCell>
-                            <TableCell className="py-4 text-xs font-mono text-slate-600">
-                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
-                            </TableCell>
-                            <TableCell className="py-4 text-xs text-slate-500 max-w-[200px]" title={v.info || ""}>
-                               {v.info || "-"}
-                            </TableCell>
-                            <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
-                            <TableCell className="py-4 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <button 
-                                  onClick={() => handleImprimirVentaHistorial(v)}
-                                  className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all border border-transparent"
-                                  title="Imprimir Ticket"
-                                >
-                                  <Printer className="h-5 w-5" />
-                                </button>
-                                <button 
-                                  disabled={v.registrada} 
-                                  onClick={() => handleMarcarRegistrada(v.id)} 
-                                  className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}
-                                  title={v.registrada ? "Registrada" : "Marcar como Registrada"}
-                                >
-                                  {v.registrada ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
-                                </button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
+                                  </TableCell>
+                                  <TableCell colSpan={6} className="py-0">
+                                    <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+                                      {v.items?.length > 0 ? (
+                                        v.items.map((item: any) => (
+                                          <div key={item.id} className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors">
+                                            <div className="flex flex-col gap-0.5">
+                                              <span
+                                                onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(item.nombre); }}
+                                                className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors"
+                                                title="Copiar Nombre"
+                                              >
+                                                {item.nombre}
+                                              </span>
+                                              <span
+                                                onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(item.productoId); }}
+                                                className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 mt-0.5 w-fit block transition-colors"
+                                                title="Copiar ID"
+                                              >
+                                                {item.productoId}
+                                              </span>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1">
+                                              <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black text-[10px]">x{item.cantidad}</span>
+                                              <span className="text-slate-700 font-bold whitespace-nowrap">$ {Number(item.subtotal || 0).toLocaleString('es-AR')}</span>
+                                            </div>
+                                          </div>
+                                        ))
+                                      ) : (
+                                        <div className="text-xs text-slate-400 italic">No hay artículos</div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </React.Fragment>
+                          );
+                        })
                       )}
                     </TableBody>
                   </Table>

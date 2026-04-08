@@ -29,7 +29,57 @@ export async function fetchSheetData() {
         const text = await res.text();
         const rows = text.split("\n").map(row => row.split(",").map(cell => cell.replace(/^"|"$/g, '').trim()));
         const filtered = rows.filter(row => row.length > 1);
-        return { success: true, headers: filtered[0] || [], body: filtered.slice(1) };
+        
+        let headers = filtered[0] || [];
+        let body = filtered.slice(1);
+
+        try {
+            // Buscamos User Product y Family en la base de datos
+            const costos = await prisma.$queryRaw<any[]>`
+                SELECT 
+                    mla, 
+                    CAST(user_product_id AS VARCHAR) as user_product_id, 
+                    CAST(family_id AS VARCHAR) as family_id
+                FROM vista_costos_productos
+            `;
+            
+            const upfamMap = new Map();
+            for (const c of costos) {
+                if (!c.mla) continue;
+                if (!upfamMap.has(c.mla)) {
+                    upfamMap.set(c.mla, { up: c.user_product_id, fam: c.family_id });
+                } else {
+                    const existing = upfamMap.get(c.mla);
+                    if (!existing.up && c.user_product_id) existing.up = c.user_product_id;
+                    if (!existing.fam && c.family_id) existing.fam = c.family_id;
+                }
+            }
+
+            // Agregamos las columnas a los headers
+            headers.push("User Product", "Familia");
+
+            // Agregamos las columnas al body
+            body = body.map(row => {
+                let mlaCell = row[0] || "";
+                const mlaNormalizado = mlaCell.replace("-", ""); // limpiamos guiones por las dudas
+                
+                // Buscamos coincidencia
+                const match = upfamMap.get(mlaCell) || upfamMap.get(mlaNormalizado);
+                
+                row.push(match?.up || "-", match?.fam || "-");
+                return row;
+            });
+        } catch (dbError) {
+            console.error("Error obteniendo ids y familia:", dbError);
+            // Si falla la db, agregamos las columnas vacías para no romper el front
+            headers.push("User Product", "Familia");
+            body = body.map(row => {
+                row.push("-", "-");
+                return row;
+            });
+        }
+
+        return { success: true, headers, body };
     } catch (error: any) {
         return { success: false, message: error.message };
     }

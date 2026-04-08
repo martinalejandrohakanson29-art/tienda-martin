@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect, useTransition, useMemo } from "react";
+import React, { useState, useRef, useEffect, useTransition, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label"; 
+import { Badge } from "@/components/ui/badge"; 
 import { 
   Maximize2, Minimize2, ArrowUp, ArrowDown, Save, Loader2, 
   Check, Copy, Truck, Hash, RefreshCw, PlayCircle 
@@ -43,8 +44,25 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
   const [summaryData, setSummaryData] = useState<any[] | null>(null);
   const [isPending, startTransition] = useTransition(); 
 
-  // Columnas visibles: A(0), B(1), C(2) - Título, D(3), I(8), J(9), K(10), L(11)
-  const VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11]; 
+  // Columnas base a mostrar
+  const BASE_VISIBLE_INDICES = [0, 1, 2, 3, 8, 9, 10, 11]; 
+
+  const visibleIndices = useMemo(() => {
+    const indices = []; // MLA (0)
+    indices.push(0); 
+    
+    // Si tenemos UP y Familia en los headers, los colocamos pegados al MLA
+    const upIndex = headers.findIndex(h => h === "User Product");
+    const famIndex = headers.findIndex(h => h === "Familia");
+    
+    if (upIndex !== -1) indices.push(upIndex);
+    if (famIndex !== -1) indices.push(famIndex);
+    
+    // Agregamos el resto
+    indices.push(1, 2, 3, 8, 9, 10, 11);
+    
+    return indices;
+  }, [headers]); 
 
   const cleanNumber = (value: string) => {
     if (!value) return 0;
@@ -99,6 +117,27 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
       return (valA - valB) * (sortConfig.direction === "asc" ? 1 : -1);
     });
   }, [displayBody, sortConfig]);
+
+  const groupedRows = useMemo(() => {
+    const famIndex = headers.findIndex((h) => h === "Familia");
+    const groups: { type: "single" | "group"; familyId: string; items: any[] }[] = [];
+    const groupMap = new Map<string, any[]>();
+
+    for (const item of sortedRows) {
+      const familyId = famIndex !== -1 ? item.row[famIndex] : "-";
+      if (!familyId || familyId === "-") {
+        groups.push({ type: "single", familyId: "-", items: [item] });
+      } else {
+        if (!groupMap.has(familyId)) {
+          const newGroup = { type: "group", familyId, items: [] };
+          groupMap.set(familyId, newGroup.items);
+          groups.push(newGroup);
+        }
+        groupMap.get(familyId)!.push(item);
+      }
+    }
+    return groups;
+  }, [sortedRows, headers]);
 
   const handleProcess = () => {
     if (!shipmentId.trim()) return alert("⚠️ Ingresa el Número de Envío.");
@@ -241,21 +280,22 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
       </CardHeader>
       <CardContent className="p-0 flex-1 overflow-hidden border rounded-lg bg-white">
         <div className="overflow-auto h-[65vh] w-full">
-            <table className="w-full text-sm text-left border-collapse table-fixed">
+            <table className="w-full text-sm text-left border-collapse">
                 <thead className="sticky top-0 z-20 bg-gray-100 shadow-sm">
                     <tr>
-                        {headers.map((header, i) => {
-                            if (!VISIBLE_INDICES.includes(i)) return null;
-                            const displayHeader = i === 11 ? "Sugerido (D-K)" : (header || `Col ${i+1}`);
+                        {visibleIndices.map((colIndex) => {
+                            const header = headers[colIndex];
+                            const displayHeader = colIndex === 11 ? "Sugerido (D-K)" : (header || `Col ${colIndex+1}`);
                             
-                            // MODIFICACIÓN DE ANCHOS: 500px para Título (i=2), 110px para el resto
-                            const columnWidth = i === 2 ? 500 : 110;
+                            // MODIFICACIÓN DE ANCHOS: 500px para Título (i=2), 110px para el resto. 
+                            // En style usamos minWidth en vez de width para forzar si table-fixed se desactiva
+                            const columnWidth = colIndex === 2 ? 500 : 110;
 
                             return (
-                                <th key={i} className="px-4 py-3 border-r border-b relative select-none cursor-pointer hover:bg-gray-200" style={{ width: columnWidth }} onClick={() => handleSort(i)}>
+                                <th key={colIndex} className="px-4 py-3 border-r border-b relative select-none cursor-pointer hover:bg-gray-200" style={{ minWidth: columnWidth, maxWidth: columnWidth }} onClick={() => handleSort(colIndex)}>
                                     <div className="flex items-center justify-between gap-1">
                                       <span className="truncate font-bold text-xs">{displayHeader}</span>
-                                      {sortConfig.index === i && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />)}
+                                      {sortConfig.index === colIndex && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3 text-blue-600" /> : <ArrowDown className="h-3 w-3 text-blue-600" />)}
                                     </div>
                                 </th>
                             );
@@ -263,23 +303,77 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
                         <th className="sticky right-0 top-0 z-30 px-4 py-3 w-[110px] bg-blue-50 border-l border-b border-blue-100 text-blue-800 font-bold text-xs">Cant. a Enviar</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y">{sortedRows.map((item) => (
-                    <tr key={item.originalIndex} className="hover:bg-blue-50/30 transition-colors">
-                        {item.row.map((cell, cellIndex) => {
-                            if (!VISIBLE_INDICES.includes(cellIndex)) return null;
+                <tbody className="divide-y relative">
+                  {groupedRows.map((group, groupIndex) => {
+                    return (
+                      <React.Fragment key={`group-${groupIndex}`}>
+                        {group.type === "group" && (
+                          <tr className="bg-purple-100/60 hover:bg-purple-200/50 transition-colors border-y border-purple-300 group">
+                            <td colSpan={visibleIndices.length} className="px-4 py-2 text-left">
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] uppercase font-black text-purple-800 tracking-widest pl-2">FAMILIA DE PRODUCTOS:</span>
+                                <Badge className="font-mono text-xs bg-purple-700 text-white shadow font-black px-3 py-1">
+                                    {group.familyId}
+                                </Badge>
+                                <span className="text-[10px] font-bold text-purple-700 bg-white/60 px-3 py-1 rounded-full border border-purple-200">
+                                  {group.items.length} variaciones
+                                </span>
+                              </div>
+                            </td>
+                            {/* Este td vacío respeta la columna sticky para que no se desarme la tabla */}
+                            <td className="sticky right-0 px-2 py-1 border-l bg-purple-100/60 border-purple-300"></td>
+                          </tr>
+                        )}
+                        {group.items.map((item) => {
+                            const isChild = group.type === "group";
+                            const trClasses = `hover:bg-blue-50/30 transition-colors ${isChild ? "bg-purple-50/30" : ""}`;
+
                             return (
-                              <td key={cellIndex} 
-                                  className={`px-4 py-2 border-r text-gray-600 ${expandText || cellIndex === 2 ? "whitespace-normal break-words" : "whitespace-nowrap truncate"}`}
-                              >
-                                {cell}
-                              </td>
+                              <tr key={item.originalIndex} className={trClasses}>
+                                  {visibleIndices.map((colIndex) => {
+                                      const cell = item.row[colIndex];
+                                      const isTitle = colIndex === 2;
+                                      const isUP = headers[colIndex] === "User Product";
+                                      const isFam = headers[colIndex] === "Familia";
+                                      
+                                      let content: React.ReactNode = cell;
+
+                                      if (isUP) {
+                                          content = cell && cell !== "-" ? (
+                                              <Badge variant="secondary" className="font-mono font-bold text-[10px] text-blue-700 bg-blue-50 border-blue-200 truncate max-w-[120px]" title={String(cell)}>
+                                                  {cell}
+                                              </Badge>
+                                          ) : <span className="text-gray-300 text-xs">-</span>;
+                                      } else if (isFam) {
+                                          content = cell && cell !== "-" ? (
+                                              <Badge variant="secondary" className="font-mono font-bold text-[10px] text-purple-700 bg-purple-50 border-purple-200 truncate max-w-[120px]" title={String(cell)}>
+                                                  {cell}
+                                              </Badge>
+                                          ) : <span className="text-gray-300 text-xs">-</span>;
+                                      }
+                                      
+                                      // Add extra styling to ensure UP and Familia cells align correctly if they contain a badge
+                                      const tdClasses = `px-4 py-2 border-r border-b text-gray-700 ${(isUP || isFam) ? "text-center" : ""} ${expandText || isTitle ? "whitespace-normal break-words" : "whitespace-nowrap truncate"}`;
+                                      
+                                      return (
+                                        <td key={colIndex} 
+                                            className={tdClasses}
+                                            title={typeof cell === "string" ? cell : undefined}
+                                        >
+                                          {content}
+                                        </td>
+                                      );
+                                  })}
+                                  <td className="sticky right-0 px-2 py-1 border-l bg-blue-50/10 backdrop-blur-sm">
+                                      <Input placeholder="0" className="h-8 bg-white border-blue-100" value={inputValues[item.originalIndex] || ""} onChange={(e) => setInputValues(prev => ({ ...prev, [item.originalIndex]: e.target.value }))} />
+                                  </td>
+                              </tr>
                             );
                         })}
-                        <td className="sticky right-0 px-2 py-1 border-l bg-blue-50/10 backdrop-blur-sm">
-                            <Input placeholder="0" className="h-8 bg-white border-blue-100" value={inputValues[item.originalIndex] || ""} onChange={(e) => setInputValues(prev => ({ ...prev, [item.originalIndex]: e.target.value }))} />
-                        </td>
-                    </tr>
-                ))}</tbody>
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
             </table>
         </div>
       </CardContent>

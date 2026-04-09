@@ -551,9 +551,10 @@ export default function VentasMostradorClient({
   return (
     <>
       {/* 1. EL TICKET */}
-      <TicketImpresion 
-        items={ventaParaImprimir ? ventaParaImprimir.items.map((i: any) => ({ ...i, id: i.productoId || i.id })) : items} 
-        total={ventaParaImprimir ? Number(ventaParaImprimir.totalFinal || ventaParaImprimir.total) : totalFinalCalculado} 
+      <TicketImpresion
+        ventaId={ventaParaImprimir ? ventaParaImprimir.id : ""}
+        items={ventaParaImprimir ? ventaParaImprimir.items.map((i: any) => ({ ...i, id: i.productoId || i.id })) : items}
+        total={ventaParaImprimir ? Number(ventaParaImprimir.totalFinal || ventaParaImprimir.total) : totalFinalCalculado}
         cliente={ventaParaImprimir ? (ventaParaImprimir.dni || ventaParaImprimir.cliente) : (requiereTarjeta && dni ? dni : cliente)}
         metodoPago={ventaParaImprimir ? ventaParaImprimir.metodo_pago : (isPagoMixto ? "MIXTO" : metodoPago)}
       />
@@ -798,6 +799,7 @@ export default function VentasMostradorClient({
                   <Table>
                     <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                       <TableRow>
+                        <TableHead className="text-[10px] font-bold uppercase py-3">ID Venta</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Ver Artículos</TableHead>
@@ -818,7 +820,12 @@ export default function VentasMostradorClient({
                           return (
                             <React.Fragment key={v.id}>
                               <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
-                                <TableCell className="text-xs font-mono text-slate-500 py-4 whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                                <TableCell className="py-4">
+                                    <div className="flex flex-col gap-1">
+                                      <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                                      <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                  </TableCell>
                                 
                                 <TableCell className="font-medium text-slate-700 py-4">
                                   {v.cliente}
@@ -960,7 +967,8 @@ export default function VentasMostradorClient({
                   <Table>
                     <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                       <TableRow>
-                        <TableHead className="text-[10px] font-bold uppercase py-3">ID / Hora</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3">ID Venta</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
@@ -973,14 +981,14 @@ export default function VentasMostradorClient({
                     </TableHeader>
                     <TableBody>
                       {ventasRealizadas.length === 0 ? (
-                        <TableRow><TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">No hay ventas para gestionar en esta fecha</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="py-20 text-center text-slate-400 italic">No hay ventas para gestionar en esta fecha</TableCell></TableRow>
                       ) : (
                         ventasRealizadas.map((v) => (
                           <TableRow key={v.id} className="hover:bg-slate-50/50">
                             <TableCell className="py-4">
-                              <div className="flex flex-col">
-                                <span className="text-xs font-mono text-slate-500">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                <span className="text-[9px] text-slate-400 font-mono mt-1" title={v.id}>...{v.id.slice(-6)}</span>
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                                <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
                               </div>
                             </TableCell>
                             <TableCell className="font-bold text-slate-700 py-4">{v.cliente}</TableCell>
@@ -1594,16 +1602,18 @@ export default function VentasMostradorClient({
 // ========================================================================
 // --- COMPONENTE DE TICKET DE IMPRESIÓN "X" PARA IMPRESORA TÉRMICA ---
 // ========================================================================
-function TicketImpresion({ 
-  items, 
-  total, 
-  cliente, 
-  metodoPago 
-}: { 
-  items: ItemVenta[], 
-  total: number, 
-  cliente: string, 
-  metodoPago: string 
+function TicketImpresion({
+  ventaId,
+  items,
+  total,
+  cliente,
+  metodoPago
+}: {
+  ventaId: string,
+  items: ItemVenta[],
+  total: number,
+  cliente: string,
+  metodoPago: string
 }) {
   const [mounted, setMounted] = useState(false);
   const [ticketId, setTicketId] = useState("");
@@ -1636,6 +1646,7 @@ function TicketImpresion({
       <div className="text-center w-full mb-1">
         <p>NO VALIDO COMO FACTURA</p>
         <p>{fechaActual}</p>
+        <p>ID VENTA: {ventaId}</p>
         <p>NRO: 00099-{ticketId}</p>
       </div>
 

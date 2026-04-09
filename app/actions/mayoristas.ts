@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache"
 // 1. Función para obtener todos los registros de la tabla NumerosMayoristas
 export async function getMayoristas() {
     try {
-        const mayoristas = await prisma.numerosMayoristas.findMany({
+        const mayoristas = await prisma.NumerosMayoristas.findMany({
             orderBy: {
                 createdAt: 'desc' // Ordena del más nuevo al más viejo para ver los últimos arriba
             }
@@ -22,7 +22,7 @@ export async function getMayoristas() {
 // 2. Función para guardar un nuevo registro en la tabla NumerosMayoristas
 export async function createMayorista(data: { nombre: string; telefono: string }) {
     try {
-        const nuevoMayorista = await prisma.numerosMayoristas.create({
+        const nuevoMayorista = await prisma.NumerosMayoristas.create({
             data: {
                 nombre: data.nombre,
                 telefono: data.telefono

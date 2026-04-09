@@ -650,12 +650,12 @@ model WebSaleItem {
     @@map("conversaciones_respondidas")   
   }  
 model NumerosMayoristas {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   nombre    String?
   telefono  String   @unique
   createdAt DateTime @default(now())
- @@map("NumerosMayoristas")
 
+  @@map("NumerosMayoristas")
 }
 
 model AuditoriaPreparacionFull {

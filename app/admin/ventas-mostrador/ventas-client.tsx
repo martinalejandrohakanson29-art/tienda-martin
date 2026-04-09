@@ -817,12 +817,7 @@ export default function VentasMostradorClient({
                           const isExpanded = expandedVentas.has(v.id);
                           return (
                             <React.Fragment key={v.id}>
-                              <TableRow className="hover:bg-slate-50/50 align-top cursor-pointer transition-colors" onClick={() => {
-                                const newExpanded = new Set(expandedVentas);
-                                if (isExpanded) newExpanded.delete(v.id);
-                                else newExpanded.add(v.id);
-                                setExpandedVentas(newExpanded);
-                              }}>
+                              <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
                                 <TableCell className="text-xs font-mono text-slate-500 py-4 whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
                                 
                                 <TableCell className="font-medium text-slate-700 py-4">

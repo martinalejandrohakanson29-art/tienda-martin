@@ -599,93 +599,23 @@ model Contacto {
   updatedAt      DateTime @updatedAt
 }
 
-// --- GESTIÓN DE VENTAS PÁGINA WEB ---
-
-model WebSale {
-  id            String   @id @default(cuid())
-  paymentId     String?
-  // ID de MercadoPago
-  status        String   @default("PENDIENTE") // PENDIENTE, APROBADO, CANCELADO
-  total         Decimal  @db.Decimal(20, 2)
-  
-  // Datos del cliente
-  nombre        String?
-  dni           String?
-  email         String?
-  telefono      String?
-  domicilio     String?
-  ciudad        String?
-  provincia     String?
-  cp            String?
-  referencias   String?
-  
-  items         WebSaleItem[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@map("ventas_web")
-}
-
-model WebSaleItem {
-  id            String   @id @default(cuid())
-  webSaleId     String
-  webSale       WebSale  @relation(fields: [webSaleId], references: [id], onDelete: Cascade)
-  productoId    String?
-  nombre        String
-  cantidad      Int      @default(1)
-  precio_unit   Decimal  @db.Decimal(20, 2)
-  subtotal      Decimal  @db.Decimal(20, 2)
-
-  @@map("ventas_web_items")
-}
-
-// --- NUEVO: GESTIÓN DE BOT CHATWOOT ---
-
-  model ConversacionRespondida {
-    id              String   @id @default(cuid())
-    conversation_id String       
-    categoria       String
-    createdAt       DateTime @default(now())                           
-    @@unique([conversation_id, categoria])                                  
-    @@map("conversaciones_respondidas")   
-  }  
-model NumerosMayoristas {
-  id        String   @id @default(cuid())
-  nombre    String?
-  telefono  String   @unique
-  createdAt DateTime @default(now())
-
-  @@map("NumerosMayoristas")
-}
-
-model AuditoriaPreparacionFull {
-  shipmentId String
-  itemId     String
-  photoUrl   String?
-  status     String?    // <--- Agregamos esta línea
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  @@id([shipmentId, itemId])
-}
-
 // --- GESTIÓN DE BOT CHATWOOT Y MENSAJERÍA ---
 
 model MensajeVendedor {
   id              Int      @id @default(autoincrement())
-  message_id      String   @unique @map("message_id") // Para el ON CONFLICT
+  message_id      String   @unique @map("message_id")
   conversation_id String   @map("conversation_id")
   content         String   @map("content")
-  procesado       Boolean  @default(false) @map("procesado") // Usado para el filtro de la IA
-  createdAt       DateTime @default(now()) @map("created_at") // Usado para el intervalo de 24h
+  procesado       Boolean  @default(false) @map("procesado")
+  createdAt       DateTime @default(now()) @map("created_at")
 
   @@map("mensajes_vendedor")
 }
 
 model HistorialMensaje {
   id         Int      @id @default(autoincrement())
-  session_id String   @map("session_id") // conversation.id en n8n
-  role       String   @map("role") // 'user' o 'assistant'
+  session_id String   @map("session_id")
+  role       String   @map("role")
   message    String   @map("message")
   createdAt  DateTime @default(now()) @map("created_at")
 
@@ -698,7 +628,7 @@ model ConversacionRespondida {
   categoria       String   @map("categoria")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  @@unique([conversation_id, categoria]) // Vital para el ON CONFLICT de n8n
+  @@unique([conversation_id, categoria])
   @@map("conversaciones_respondidas")
 }
 

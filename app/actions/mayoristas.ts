@@ -7,14 +7,15 @@ import { revalidatePath } from "next/cache"
 // 1. Función para obtener todos los registros de la tabla NumerosMayoristas
 export async function getMayoristas() {
     try {
-        const mayoristas = await prisma.NumerosMayoristas.findMany({
+        // CORRECCIÓN: Cambia 'NumerosMayoristas' por 'numerosMayoristas'
+        const mayoristas = await prisma.numerosMayoristas.findMany({
             orderBy: {
-                createdAt: 'desc' // Ordena del más nuevo al más viejo para ver los últimos arriba
+                createdAt: 'desc'
             }
         })
         return mayoristas
     } catch (error) {
-        console.error("Error al obtener la lista de NumerosMayoristas:", error)
+        console.error("Error al obtener mayoristas:", error)
         return []
     }
 }

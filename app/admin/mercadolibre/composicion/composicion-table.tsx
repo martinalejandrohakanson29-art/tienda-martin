@@ -18,10 +18,10 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
   // MODAL DE RECETAS (El habitual)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
+  const [isSavingKit, setIsSavingKit] = useState(false); // ESTADO DE CARGA PARA RECETAS
   
   // NUEVO MODAL: ALTA DE PRODUCTO MAESTRO
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
-  // NUEVO: Agregamos user_product_id y family_id al estado inicial
   const [newProduct, setNewProduct] = useState({ 
     mla: "", 
     titulo: "", 
@@ -41,8 +41,8 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
       k.mla?.toLowerCase().includes(term) ||
       k.id_articulo?.toLowerCase().includes(term) ||
       k.nombre_articulo?.toLowerCase().includes(term) ||
-      k.user_product_id?.toLowerCase().includes(term) || // Filtramos por UP
-      k.family_id?.toLowerCase().includes(term)          // Filtramos por Familia
+      k.user_product_id?.toLowerCase().includes(term) || 
+      k.family_id?.toLowerCase().includes(term)          
     );
   });
 
@@ -90,8 +90,22 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
       alert("Debes seleccionar un artículo de la lista");
       return;
     }
-    const res = await upsertKitComponent(editingItem);
-    if (res.success) setIsModalOpen(false);
+
+    setIsSavingKit(true);
+    try {
+        const res = await upsertKitComponent(editingItem);
+        if (res.success) {
+            setIsModalOpen(false);
+            setSearchArticulo("");
+        } else {
+            alert("Error al guardar: " + res.error);
+        }
+    } catch (error) {
+        console.error(error);
+        alert("Ocurrió un error inesperado al conectar con el servidor.");
+    } finally {
+        setIsSavingKit(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -109,7 +123,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
         if (res.success) {
           setIsMasterModalOpen(false); 
           setNewProduct({ mla: "", titulo: "", nombre_variante: "", variation_id: "", user_product_id: "", family_id: "" });
-          
           alert("¡Producto creado correctamente! Ahora búscalo en la lista y agrégale su receta.");
         } else {
           alert(res.error);
@@ -126,8 +139,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     <div className="space-y-4">
       {/* BARRA SUPERIOR DE ACCIONES */}
       <div className="flex flex-col md:flex-row gap-4 justify-between items-end md:items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
-        
-        {/* Buscador */}
         <div className="relative w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
@@ -138,7 +149,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
           />
         </div>
 
-        {/* Botones de Acción */}
         <div className="flex gap-2 w-full md:w-auto">
           <Button 
             onClick={() => setIsMasterModalOpen(true)} 
@@ -165,10 +175,8 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
           <TableHeader className="bg-slate-50">
             <TableRow>
               <TableHead className="font-bold text-slate-600 w-[120px]">MLA</TableHead>
-              {/* NUEVAS COLUMNAS */}
               <TableHead className="font-bold text-blue-600 w-[130px]">User Product</TableHead>
               <TableHead className="font-bold text-purple-600 w-[140px]">Familia</TableHead>
-
               <TableHead className="font-bold text-slate-600">Variante</TableHead>
               <TableHead className="font-bold text-slate-600">Componente (Insumo)</TableHead>
               <TableHead className="font-bold text-slate-600 text-center w-[80px]">Cant.</TableHead>
@@ -179,8 +187,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             {filteredKits.map((item) => (
               <TableRow key={item.id} className="hover:bg-blue-50/20 transition-colors border-slate-100">
                 <TableCell className="font-mono text-blue-600 font-bold text-xs">{item.mla}</TableCell>
-                
-                {/* NUEVAS CELDAS DE UP Y FAMILIA */}
                 <TableCell>
                   {item.user_product_id ? (
                     <Badge variant="outline" className="font-mono text-[10px] text-blue-600 bg-blue-50 border-blue-200">
@@ -199,7 +205,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                     <span className="text-slate-300 text-xs">-</span>
                   )}
                 </TableCell>
-
                 <TableCell>
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold uppercase bg-slate-100 px-2 py-1 rounded text-slate-500 w-fit">
@@ -311,7 +316,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             <div className="w-1/3 space-y-2">
               <Label className="font-bold text-slate-700">Cantidad</Label>
               <Input 
-                type="number" min="1" step="0.01"
+                type="number" min="1" step="1"
                 value={editingItem?.cantidad || 1} 
                 onChange={e => setEditingItem({...editingItem, cantidad: Number(e.target.value)})}
                 className="text-center font-bold"
@@ -319,8 +324,17 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             </div>
 
             <DialogFooter>
-              <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)}>Cancelar</Button>
-              <Button type="submit" className="bg-blue-600 hover:bg-blue-700">Guardar</Button>
+              <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} disabled={isSavingKit}>Cancelar</Button>
+              <Button type="submit" className="bg-blue-600 hover:bg-blue-700" disabled={isSavingKit}>
+                {isSavingKit ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  "Guardar"
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -338,9 +352,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               Esto vincula el MLA a tu base de datos para que puedas armarle su receta.
             </DialogDescription>
           </DialogHeader>
-          
           <form onSubmit={handleSaveMaster} className="space-y-4 pt-2">
-            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-bold text-slate-700">MLA (ID Meli)</Label>
@@ -362,7 +374,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 />
               </div>
             </div>
-
             <div className="space-y-2">
               <Label className="font-bold text-slate-700">Título de la Publicación</Label>
               <Input 
@@ -372,7 +383,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 required
               />
             </div>
-
             <div className="space-y-2">
               <Label className="text-sm font-bold text-slate-700">Nombre Variante (Opcional)</Label>
               <Input 
@@ -381,8 +391,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 placeholder="Ej: Rojo / 28mm"
               />
             </div>
-
-            {/* NUEVOS CAMPOS: USER PRODUCT Y FAMILIA */}
             <div className="grid grid-cols-2 gap-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100 mt-2">
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-blue-700 flex items-center gap-1">
@@ -405,7 +413,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 />
               </div>
             </div>
-
             <DialogFooter className="pt-4">
               <Button type="button" variant="ghost" onClick={() => setIsMasterModalOpen(false)} disabled={isSubmitting}>
                 Cancelar
@@ -428,7 +435,6 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
           </form>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

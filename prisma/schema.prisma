@@ -668,3 +668,45 @@ model AuditoriaPreparacionFull {
 
   @@id([shipmentId, itemId])
 }
+
+// --- GESTIÓN DE BOT CHATWOOT Y MENSAJERÍA ---
+
+model MensajeVendedor {
+  id              Int      @id @default(autoincrement())
+  message_id      String   @unique @map("message_id") // Para el ON CONFLICT
+  conversation_id String   @map("conversation_id")
+  content         String   @map("content")
+  procesado       Boolean  @default(false) @map("procesado") // Usado para el filtro de la IA
+  createdAt       DateTime @default(now()) @map("created_at") // Usado para el intervalo de 24h
+
+  @@map("mensajes_vendedor")
+}
+
+model HistorialMensaje {
+  id         Int      @id @default(autoincrement())
+  session_id String   @map("session_id") // conversation.id en n8n
+  role       String   @map("role") // 'user' o 'assistant'
+  message    String   @map("message")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("historial_mensajes")
+}
+
+model ConversacionRespondida {
+  id              String   @id @default(cuid())
+  conversation_id String   @map("conversation_id")
+  categoria       String   @map("categoria")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@unique([conversation_id, categoria]) // Vital para el ON CONFLICT de n8n
+  @@map("conversaciones_respondidas")
+}
+
+model NumerosMayoristas {
+  id        String   @id @default(cuid())
+  nombre    String?  @map("nombre")
+  telefono  String   @unique @map("telefono")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("NumerosMayoristas")
+}

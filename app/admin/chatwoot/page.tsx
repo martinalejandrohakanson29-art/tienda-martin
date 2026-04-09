@@ -72,18 +72,14 @@ export default function ChatwootPage() {
         
         setGuardando(true)
         try {
-            // Llamamos a la acción del servidor
             await createMayorista({ nombre, telefono })
-            
-            // Si sale bien, limpiamos los campos y refrescamos la lista
             setNombre("")
             setTelefono("")
             await fetchMayoristas()
             alert("¡Mayorista guardado correctamente en la Base de Datos!")
-        } catch (error: any) {
-            // Si falla, mostramos el error detallado en la consola y un alert informativo
+        } catch (error) {
             console.error("Error al guardar:", error)
-            alert("No se pudo guardar. Detalles: " + (error.message || "Error desconocido. Revisa si el número ya existe o si la base de datos está conectada."))
+            alert("Hubo un error al intentar guardar. Revisa que el número no esté duplicado.")
         } finally {
             setGuardando(false)
         }

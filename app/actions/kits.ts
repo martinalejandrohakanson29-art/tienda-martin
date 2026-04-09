@@ -59,16 +59,20 @@ export async function upsertKitComponent(data: any) {
     const cleanVariationId = (variation_id && variation_id.trim() !== "") ? variation_id.trim() : null;
     const cleanNombreVariante = (nombre_variante && nombre_variante.trim() !== "") ? nombre_variante.trim() : "0";
     const cleanIdArticulo = id_articulo?.trim() || "";
+    
+    // IMPORTANTE: Tu schema define 'cantidad' como Int. 
+    // Usamos Math.round para asegurar que sea un entero y no falle Prisma.
+    const cleanCantidad = Math.round(Number(cantidad)) || 1;
 
     if (id) {
       await prisma.composicionKits.update({
-        where: { id },
+        where: { id: Number(id) },
         data: { 
           mla: cleanMla,
           variation_id: cleanVariationId,
           nombre_variante: cleanNombreVariante, 
           id_articulo: cleanIdArticulo, 
-          cantidad: Number(cantidad), 
+          cantidad: cleanCantidad, 
           nombre_articulo: nombre_articulo?.trim() || ""
         },
       });
@@ -79,7 +83,7 @@ export async function upsertKitComponent(data: any) {
           variation_id: cleanVariationId,
           nombre_variante: cleanNombreVariante, 
           id_articulo: cleanIdArticulo, 
-          cantidad: Number(cantidad), 
+          cantidad: cleanCantidad, 
           nombre_articulo: nombre_articulo?.trim() || ""
         },
       });
@@ -91,6 +95,10 @@ export async function upsertKitComponent(data: any) {
     return { success: true };
   } catch (error: any) {
     console.error("Error al guardar componente:", error);
+    // Si el error es por duplicado (mla-variante-articulo) devolvemos un mensaje claro
+    if (error.code === 'P2002') {
+        return { success: false, error: "Este artículo ya existe en esta variante del kit." };
+    }
     return { 
       success: false, 
       error: error.message || "Error al guardar el componente del kit" 
@@ -116,7 +124,7 @@ export async function saveBulkKitComponents(payload: { mla: string, variantes: a
             variation_id: cleanVariationId,
             nombre_variante: cleanNombreVariante,
             id_articulo: comp.id_articulo.trim(),
-            cantidad: Number(comp.cantidad) || 1,
+            cantidad: Math.round(Number(comp.cantidad)) || 1,
             nombre_articulo: comp.nombre_articulo?.trim() || ""
           }
         });
@@ -136,7 +144,7 @@ export async function saveBulkKitComponents(payload: { mla: string, variantes: a
 export async function deleteKitComponent(id: number) {
   try {
     await prisma.composicionKits.delete({
-      where: { id }
+      where: { id: Number(id) }
     });
     revalidatePath("/admin/mercadolibre/composicion");
     revalidatePath("/admin/mercadolibre/costos");

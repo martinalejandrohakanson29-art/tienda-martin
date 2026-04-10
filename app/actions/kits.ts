@@ -4,6 +4,132 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
+// NUEVO: Crear producto maestro con receta en un solo paso
+export async function createProductWithRecipe(data: {
+  mla: string;
+  titulo: string;
+  nombre_variante?: string;
+  variation_id?: string;
+  user_product_id?: string;
+  family_id?: string;
+  componentes: Array<{
+    id_articulo: string;
+    cantidad: number;
+    nombre_articulo: string;
+  }>;
+}) {
+  try {
+    const { mla, titulo, nombre_variante, variation_id, user_product_id, family_id, componentes } = data;
+
+    // 1. Validaciones básicas
+    if (!mla || !titulo) {
+      return { success: false, error: "El MLA y el Título son obligatorios." };
+    }
+    if (!componentes || componentes.length === 0) {
+      return { success: false, error: "Debe agregar al menos un componente a la receta." };
+    }
+
+    // 2. Preparamos los datos (limpieza)
+    const cleanMla = mla.trim().toUpperCase();
+    const cleanTitle = titulo.trim();
+    const cleanVarName = nombre_variante?.trim() || null;
+    const cleanVarId = variation_id?.trim() || null;
+    const cleanUP = user_product_id?.trim().toUpperCase() || null;
+    const cleanFamily = family_id?.trim() || null;
+
+    // 3. Lógica: Check-then-Act para producto maestro
+    const existingProduct = await prisma.productosMaestros.findFirst({
+      where: {
+        mla: cleanMla,
+        variation_id: cleanVarId
+      }
+    });
+
+    let maestroId: number;
+    if (existingProduct) {
+      // SI EXISTE: Actualizamos
+      await prisma.productosMaestros.update({
+        where: { id: existingProduct.id },
+        data: {
+          nombre_publicacion: cleanTitle,
+          nombre_variante: cleanVarName,
+          user_product_id: cleanUP,
+          family_id: cleanFamily,
+          estado: "active",
+          ultima_actualizacion: new Date()
+        }
+      });
+      maestroId = existingProduct.id;
+    } else {
+      // NO EXISTE: Creamos
+      const newMaestro = await prisma.productosMaestros.create({
+        data: {
+          mla: cleanMla,
+          nombre_publicacion: cleanTitle,
+          nombre_variante: cleanVarName,
+          variation_id: cleanVarId,
+          user_product_id: cleanUP,
+          family_id: cleanFamily,
+          estado: "active",
+          link_publicacion: `https://articulo.mercadolibre.com.ar/${cleanMla}`
+        }
+      });
+      maestroId = newMaestro.id;
+    }
+
+    // 4. Crear/recetar componentes del kit
+    for (const comp of componentes) {
+      const cleanIdArticulo = comp.id_articulo?.trim() || "";
+      const cleanCantidad = Math.round(Number(comp.cantidad)) || 1;
+      const cleanNombreArticulo = comp.nombre_articulo?.trim() || "";
+
+      if (!cleanIdArticulo) continue;
+
+      await prisma.composicionKits.upsert({
+        where: {
+          unique_kit_component: {
+            mla: cleanMla,
+            nombre_variante: cleanVarName || "0",
+            id_articulo: cleanIdArticulo
+          }
+        },
+        create: {
+          mla: cleanMla,
+          variation_id: cleanVarId,
+          nombre_variante: cleanVarName || "0",
+          id_articulo: cleanIdArticulo,
+          cantidad: cleanCantidad,
+          nombre_articulo: cleanNombreArticulo
+        },
+        update: {
+          mla: cleanMla,
+          variation_id: cleanVarId,
+          nombre_variante: cleanVarName || "0",
+          id_articulo: cleanIdArticulo,
+          cantidad: cleanCantidad,
+          nombre_articulo: cleanNombreArticulo
+        }
+      });
+    }
+
+    // 5. Revalidar
+    revalidatePath("/admin/mercadolibre/composicion");
+    revalidatePath("/admin/mercadolibre/costos");
+
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al crear producto con receta:", error);
+    if (error.code === 'P2002') {
+      const target = error.meta?.target;
+      if (Array.isArray(target) && !target.includes('id')) {
+        return { success: false, error: "Este artículo ya existe en esta variante del kit." };
+      }
+      return { success: false, error: `Error de unicidad en la base de datos (Campo: ${target ? target.join(', ') : 'Desconocido'})` };
+    }
+    return { success: false, error: error.message || "Error al crear el producto con receta" };
+  }
+}
+
 // Obtener todas las composiciones de kits ENRIQUECIDAS con los datos Maestros
 export async function getComposicionKits() {
   try {

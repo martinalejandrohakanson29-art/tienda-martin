@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2, PackageOpen } from "lucide-react";
-import { upsertKitComponent, deleteKitComponent } from "@/app/actions/kits";
-import { createManualProduct, deleteManualProduct } from "@/app/actions/ml-maestros";
+import { upsertKitComponent, deleteKitComponent, createProductWithRecipe } from "@/app/actions/kits";
+import { deleteManualProduct } from "@/app/actions/ml-maestros";
 
 export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], articulos: any[], maestros: any[] }) {
   const [filter, setFilter] = useState("");
@@ -20,8 +20,10 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isSavingKit, setIsSavingKit] = useState(false); // ESTADO DE CARGA PARA RECETAS
 
-  // NUEVO MODAL: ALTA DE PRODUCTO MAESTRO
-  const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
+  // MODAL UNIFICADO: Crear producto con receta
+  const [isUnifiedModalOpen, setIsUnifiedModalOpen] = useState(false);
+  
+  // Estado para el producto maestro
   const [newProduct, setNewProduct] = useState({
     mla: "",
     titulo: "",
@@ -30,6 +32,15 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     user_product_id: "",
     family_id: ""
   });
+  
+  // Estado para los componentes de la receta
+  const [newComponent, setNewComponent] = useState({
+    id_articulo: "",
+    cantidad: 1,
+    nombre_articulo: ""
+  });
+  
+  const [recipeComponents, setRecipeComponents] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [searchArticulo, setSearchArticulo] = useState("");
@@ -156,21 +167,70 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
   };
 
   // --- NUEVOS HANDLERS: ALTA DE PRODUCTO MAESTRO ---
-  const handleSaveMaster = async (e: React.FormEvent) => {
+  // Abrir modal unificado
+  const handleOpenUnifiedModal = () => {
+    setNewProduct({
+      mla: "",
+      titulo: "",
+      nombre_variante: "",
+      variation_id: "",
+      user_product_id: "",
+      family_id: ""
+    });
+    setRecipeComponents([]);
+    setNewComponent({ id_articulo: "", cantidad: 1, nombre_articulo: "" });
+    setIsUnifiedModalOpen(true);
+  };
+
+  // Agregar componente a la receta
+  const handleAddRecipeComponent = () => {
+    if (newComponent.id_articulo) {
+      setRecipeComponents([...recipeComponents, { ...newComponent, id: Date.now() }]);
+      setNewComponent({ id_articulo: "", cantidad: 1, nombre_articulo: "" });
+    }
+  };
+
+  // Eliminar componente de la receta
+  const handleRemoveRecipeComponent = (id: number) => {
+    setRecipeComponents(recipeComponents.filter(c => c.id !== id));
+  };
+
+  // Guardar producto con receta (unificado)
+  const handleSaveProductWithRecipe = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!newProduct.mla || !newProduct.titulo) {
+      alert("El MLA y el Título son obligatorios");
+      return;
+    }
+    
+    if (recipeComponents.length === 0) {
+      alert("Debe agregar al menos un componente a la receta");
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
-      const res = await createManualProduct(newProduct);
+      const res = await createProductWithRecipe({
+        mla: newProduct.mla,
+        titulo: newProduct.titulo,
+        nombre_variante: newProduct.nombre_variante,
+        variation_id: newProduct.variation_id,
+        user_product_id: newProduct.user_product_id,
+        family_id: newProduct.family_id,
+        componentes: recipeComponents
+      });
+      
       if (res.success) {
-        setIsMasterModalOpen(false);
-        setNewProduct({ mla: "", titulo: "", nombre_variante: "", variation_id: "", user_product_id: "", family_id: "" });
-        alert("¡Producto creado correctamente! Ahora búscalo en la lista y agrégale su receta.");
+        setIsUnifiedModalOpen(false);
+        setRecipeComponents([]);
+        alert("¡Producto creado con receta correctamente!");
       } else {
         alert(res.error);
       }
     } catch (error) {
       console.error(error);
-      alert("Ocurrió un error inesperado al crear el producto.");
+      alert("Ocurrió un error inesperado.");
     } finally {
       setIsSubmitting(false);
     }
@@ -192,20 +252,11 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
 
         <div className="flex gap-2 w-full md:w-auto">
           <Button
-            onClick={() => setIsMasterModalOpen(true)}
-            variant="outline"
-            className="bg-white hover:bg-slate-100 text-slate-700 border-slate-300 gap-2 shadow-sm flex-1 md:flex-none"
+            onClick={handleOpenUnifiedModal}
+            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 gap-2 shadow-md flex-1 md:flex-none"
           >
-            <PackagePlus className="h-4 w-4 text-purple-600" />
-            Alta Catálogo ML
-          </Button>
-
-          <Button
-            onClick={() => handleOpenModal()}
-            className="bg-blue-600 hover:bg-blue-700 gap-2 shadow-sm flex-1 md:flex-none"
-          >
-            <Plus className="h-4 w-4" />
-            Nueva Receta
+            <PackagePlus className="h-4 w-4" />
+            Crear Producto con Receta
           </Button>
         </div>
       </div>
@@ -391,86 +442,193 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
         </DialogContent>
       </Dialog>
 
-      {/* MODAL 2: ALTA DE PRODUCTO MAESTRO */}
-      <Dialog open={isMasterModalOpen} onOpenChange={setIsMasterModalOpen}>
-        <DialogContent className="sm:max-w-[500px] border-l-4 border-l-purple-500">
+      {/* MODAL UNIFICADO: Crear Producto con Receta */}
+      <Dialog open={isUnifiedModalOpen} onOpenChange={setIsUnifiedModalOpen}>
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-purple-700 flex items-center gap-2">
               <PackagePlus className="h-5 w-5" />
-              Alta de Producto en Catálogo
+              Crear Producto con Receta
             </DialogTitle>
             <DialogDescription>
-              Esto vincula el MLA a tu base de datos para que puedas armarle su receta.
+              Complete los datos del producto y agregue sus componentes para crearlo con su receta.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSaveMaster} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
+          
+          <form onSubmit={handleSaveProductWithRecipe} className="space-y-6 pt-2">
+            {/* SECCIÓN 1: DATOS DEL PRODUCTO */}
+            <div className="space-y-3 border-b border-slate-200 pb-4">
+              <h3 className="text-sm font-bold text-purple-700 flex items-center gap-2">
+                <PackageOpen className="w-4 h-4" /> Datos del Producto
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="font-bold text-slate-700">MLA (ID Meli)</Label>
+                  <Input
+                    value={newProduct.mla}
+                    onChange={e => setNewProduct({ ...newProduct, mla: e.target.value })}
+                    placeholder="Ej: MLA12345678"
+                    className="font-mono uppercase border-purple-200 focus:ring-purple-500"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-bold text-slate-700">ID Variante (Opcional)</Label>
+                  <Input
+                    value={newProduct.variation_id}
+                    onChange={e => setNewProduct({ ...newProduct, variation_id: e.target.value })}
+                    placeholder="Ej: 174680..."
+                    className="font-mono"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label className="font-bold text-slate-700">MLA (ID Meli)</Label>
+                <Label className="font-bold text-slate-700">Título de la Publicación</Label>
                 <Input
-                  value={newProduct.mla}
-                  onChange={e => setNewProduct({ ...newProduct, mla: e.target.value })}
-                  placeholder="Ej: MLA12345678"
-                  className="font-mono uppercase border-purple-200 focus:ring-purple-500"
+                  value={newProduct.titulo}
+                  onChange={e => setNewProduct({ ...newProduct, titulo: e.target.value })}
+                  placeholder="Ej: Kit Carburador 150cc Completo"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label className="font-bold text-slate-700">ID Variante (Opcional)</Label>
+                <Label className="text-sm font-bold text-slate-700">Nombre Variante (Opcional)</Label>
                 <Input
-                  value={newProduct.variation_id}
-                  onChange={e => setNewProduct({ ...newProduct, variation_id: e.target.value })}
-                  placeholder="Ej: 174680..."
-                  className="font-mono"
+                  value={newProduct.nombre_variante}
+                  onChange={e => setNewProduct({ ...newProduct, nombre_variante: e.target.value })}
+                  placeholder="Ej: Rojo / 28mm"
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="font-bold text-slate-700">Título de la Publicación</Label>
-              <Input
-                value={newProduct.titulo}
-                onChange={e => setNewProduct({ ...newProduct, titulo: e.target.value })}
-                placeholder="Ej: Kit Carburador 150cc Completo"
-                required
-              />
+
+            {/* SECCIÓN 2: DATOS ADICIONALES */}
+            <div className="space-y-3 border-b border-slate-200 pb-4">
+              <h3 className="text-sm font-bold text-blue-700 flex items-center gap-2">
+                <PackageOpen className="w-4 h-4" /> Datos Adicionales
+              </h3>
+              <div className="grid grid-cols-2 gap-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-blue-700 flex items-center gap-1">
+                    <PackageOpen className="w-3 h-3" /> User Product ID
+                  </Label>
+                  <Input
+                    value={newProduct.user_product_id}
+                    onChange={e => setNewProduct({ ...newProduct, user_product_id: e.target.value })}
+                    placeholder="Ej: MLAU12345"
+                    className="text-sm font-mono border-blue-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-purple-700">Familia ID</Label>
+                  <Input
+                    value={newProduct.family_id}
+                    onChange={e => setNewProduct({ ...newProduct, family_id: e.target.value })}
+                    placeholder="Nombre de familia..."
+                    className="text-sm font-mono border-purple-200"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-bold text-slate-700">Nombre Variante (Opcional)</Label>
-              <Input
-                value={newProduct.nombre_variante}
-                onChange={e => setNewProduct({ ...newProduct, nombre_variante: e.target.value })}
-                placeholder="Ej: Rojo / 28mm"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100 mt-2">
+
+            {/* SECCIÓN 3: AGREGAR COMPONENTES DE LA RECETA */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold text-green-700 flex items-center gap-2">
+                <PackageOpen className="w-4 h-4" /> Agregar Componentes de la Receta
+              </h3>
+              
+              {/* Buscador de artículos */}
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-blue-700 flex items-center gap-1">
-                  <PackageOpen className="w-3 h-3" /> User Product ID
-                </Label>
+                <Label className="font-bold text-slate-700">Buscar Artículo</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Buscar insumo..."
+                    value={searchArticulo}
+                    onChange={e => setSearchArticulo(e.target.value)}
+                    className="pl-10 border-green-200"
+                  />
+                </div>
+                {sugerenciasArticulos.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-auto">
+                    {sugerenciasArticulos.map((art) => (
+                      <div
+                        key={art.id_articulo}
+                        onClick={() => handleSelectArticulo(art)}
+                        className="p-3 hover:bg-green-50 cursor-pointer border-b flex justify-between"
+                      >
+                        <span className="text-xs font-bold text-green-600">{art.id_articulo}</span>
+                        <span className="text-[10px] text-slate-600">{art.descripcion}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {editingItem?.id_articulo && (
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded flex gap-2 items-center">
+                    <Check className="h-4 w-4 text-green-600" />
+                    <span className="text-xs font-bold">{editingItem.id_articulo} - {editingItem.nombre_articulo}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Cantidad */}
+              <div className="space-y-2">
+                <Label className="font-bold text-slate-700">Cantidad</Label>
                 <Input
-                  value={newProduct.user_product_id}
-                  onChange={e => setNewProduct({ ...newProduct, user_product_id: e.target.value })}
-                  placeholder="Ej: MLAU12345"
-                  className="text-sm font-mono border-blue-200"
+                  type="number" min="1" step="1"
+                  value={newComponent.cantidad}
+                  onChange={e => setNewComponent({ ...newComponent, cantidad: Number(e.target.value) })}
+                  className="text-center font-bold"
                 />
               </div>
+
+              {/* Lista de componentes */}
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-purple-700">Familia ID</Label>
-                <Input
-                  value={newProduct.family_id}
-                  onChange={e => setNewProduct({ ...newProduct, family_id: e.target.value })}
-                  placeholder="Nombre de familia..."
-                  className="text-sm font-mono border-purple-200"
-                />
+                <Label className="font-bold text-slate-700">Componentes Agregados</Label>
+                <div className="space-y-2 max-h-40 overflow-y-auto border border-slate-200 rounded-lg p-2 bg-slate-50">
+                  {recipeComponents.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-4">No hay componentes agregados</p>
+                  ) : (
+                    recipeComponents.map((comp) => (
+                      <div key={comp.id} className="flex justify-between items-center bg-white p-2 rounded border border-slate-200">
+                        <div className="flex-1">
+                          <span className="text-xs font-bold text-green-600">{comp.id_articulo}</span>
+                          <span className="text-[10px] text-slate-500 ml-1">{comp.nombre_articulo}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-700">Cant: {comp.cantidad}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveRecipeComponent(comp.id)}
+                            className="h-6 w-6 text-red-500 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleAddRecipeComponent}
+                  className="w-full border-green-600 text-green-600 hover:bg-green-50"
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Agregar Componente
+                </Button>
               </div>
             </div>
+
+            {/* Footer */}
             <DialogFooter className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => setIsMasterModalOpen(false)} disabled={isSubmitting}>
+              <Button type="button" variant="ghost" onClick={() => setIsUnifiedModalOpen(false)} disabled={isSubmitting}>
                 Cancelar
               </Button>
               <Button
                 type="submit"
-                className="bg-purple-600 hover:bg-purple-700 text-white shadow-md"
+                className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-md"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
@@ -479,7 +637,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                     Creando...
                   </>
                 ) : (
-                  "Crear Producto"
+                  "Crear Producto con Receta"
                 )}
               </Button>
             </DialogFooter>

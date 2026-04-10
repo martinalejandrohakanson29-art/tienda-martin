@@ -1,20 +1,11 @@
-//
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
-//
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
-}
-
-// --- SISTEMA DE USUARIOS, ROLES Y PENDIENTES ---
-
-enum Role {
-  ADMIN
-  USER
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -22,79 +13,75 @@ model User {
   username String @unique
   password String
   role     Role   @default(USER)
-  todos    Todo[] 
+  todos    Todo[]
 }
 
 model Todo {
-  id          String   @id @default(cuid())
-  content     String   
-  completed   Boolean  @default(false)
-  priority    String   @default("media") 
-  isShared    Boolean  @default(false) 
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  content   String
+  completed Boolean  @default(false)
+  isShared  Boolean  @default(false)
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  priority  String   @default("media")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("todos")
 }
-
-// --- MODELOS DE LA TIENDA ---
 
 model Product {
   id              String   @id @default(cuid())
   title           String
   description     String
-  order           Int      @default(0)
   price           Decimal
   stock           Int
   category        String
   imageUrl        String
-  freeShipping    Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  discount        Int      @default(0)
+  isFeatured      Boolean  @default(false)
+  views           Int      @default(0)
+  mercadolibreUrl String   @default("")
   imageUrl2       String   @default("")
   imageUrl3       String   @default("")
   videoUrl        String   @default("")
-  discount        Int      @default(0)
-  isFeatured      Boolean  @default(false)
   showOnHome      Boolean  @default(false)
-  mercadolibreUrl String   @default("")
-  views           Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  order           Int      @default(0)
+  freeShipping    Boolean  @default(true)
 }
 
 model Config {
   id                    String   @id @default(cuid())
-  dolarCotizacion       Decimal  @default(1000) @db.Decimal(10, 2)
-  factorFob             Decimal  @default(1.00) @db.Decimal(10, 2)
-  recargoFinanciacion   Decimal  @default(0)    @db.Decimal(10, 2)
   companyName           String   @default("Mi Tienda")
-  logoUrl               String   @default("")
-  logoHeight            String   @default("80px")
-  announcementText      String   @default("")
   whatsappNumber        String   @default("")
   instagramUrl          String   @default("")
   tiktokUrl             String   @default("")
   welcomeText           String   @default("Bienvenido a nuestra tienda")
   locationUrl           String   @default("")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
   paymentMethods        String   @default("Efectivo,Transferencia,Tarjeta")
   carouselHeightDesktop String   @default("600px")
   carouselHeightMobile  String   @default("250px")
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  logoUrl               String   @default("")
+  logoHeight            String   @default("80px")
+  announcementText      String   @default("")
+  dolarCotizacion       Decimal  @default(1000) @db.Decimal(10, 2)
+  factorFob             Decimal  @default(1.00) @db.Decimal(10, 2)
+  recargoFinanciacion   Decimal  @default(0) @db.Decimal(10, 2)
 }
 
 model CarouselItem {
-  id              String   @id @default(cuid())
-  mediaUrl        String   @default("")
-  mediaUrlMobile  String   @default("")
-  mediaType       String   @default("image")
-  order           Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  order          Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  mediaType      String   @default("image")
+  mediaUrl       String   @default("")
+  mediaUrlMobile String   @default("")
 }
-
-// --- MODELOS DE AUDITORÍA Y ENVÍOS ---
 
 model Shipment {
   id        String         @id @default(cuid())
@@ -106,7 +93,6 @@ model Shipment {
 model ShipmentItem {
   id         String   @id @default(cuid())
   shipmentId String
-  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
   itemId     String
   title      String
   sku        String?
@@ -114,19 +100,20 @@ model ShipmentItem {
   agregados  String?
   imageUrl   String?
   variation  String?
-  
+  shipment   Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
   @@index([shipmentId])
 }
 
 model ShipmentAudit {
   id        String   @id @default(cuid())
-  itemId    String   
-  envioId   String   
+  itemId    String
+  envioId   String
   status    String
   reason    String?
-  auditor   String?  
+  auditor   String?
   createdAt DateTime @default(now())
-  
+
   @@unique([itemId, envioId])
 }
 
@@ -135,7 +122,7 @@ model CostosArticulos {
   id_articulo         String   @unique
   descripcion         String?
   costo_usd           Decimal? @db.Decimal(10, 2)
-  factor_fob          Decimal? @db.Decimal(10, 2) @default(1.00)
+  factor_fob          Decimal? @default(1.00) @db.Decimal(10, 2)
   es_dolar            Boolean? @default(true)
   costo_final_ars     Decimal? @db.Decimal(20, 2)
   fecha_actualizacion DateTime @default(now())
@@ -143,16 +130,12 @@ model CostosArticulos {
   @@map("costos_articulos_old")
 }
 
-// --- TABLAS MAESTRAS DE MERCADO LIBRE ---
-
 model ProductosMaestros {
   id                   Int      @id @default(autoincrement())
-  mla                  String   
+  mla                  String
   variation_id         String?
-  // --- NUEVOS CAMPOS ---
   user_product_id      String?
   family_id            String?
-  
   nombre_variante      String?
   nombre_publicacion   String?
   link_publicacion     String?
@@ -160,10 +143,9 @@ model ProductosMaestros {
   precio_venta_ml      Decimal? @db.Decimal(20, 2)
   ultima_actualizacion DateTime @default(now())
 
-  // --- ÍNDICES Y REGLAS DE MODELO ---
+  @@unique([mla, variation_id], name: "unique_mla_variation")
   @@index([user_product_id])
   @@index([family_id])
-  @@unique([mla, variation_id], name: "unique_mla_variation")
   @@map("productos_maestros_old")
 }
 
@@ -181,120 +163,116 @@ model ComposicionKits {
   @@map("composicion_kits_old")
 }
 
-// --- GESTIÓN DE IMPORTACIONES ---
-
 model SupplierProduct {
-  id              String   @id @default(cuid())
-  sku             String   @unique 
-  name            String   
-  ventas          ImportVentas?
-  stock           ImportStock?
-  purchaseItems   PurchaseOrderItem[] 
-  kitComponents   KitComponent[]      
-  updatedAt       DateTime @updatedAt
+  id            String              @id @default(cuid())
+  sku           String              @unique
+  name          String
+  updatedAt     DateTime            @updatedAt
+  stock         ImportStock?
+  ventas        ImportVentas?
+  kitComponents KitComponent[]
+  purchaseItems PurchaseOrderItem[]
 }
 
 model ImportVentas {
-  id              String          @id @default(cuid())
-  sku             String          @unique
-  product         SupplierProduct @relation(fields: [sku], references: [sku], onDelete: Cascade)
-  salesLast30     Int             @default(0) 
-  salesVelocity   Decimal?        @db.Decimal(10, 2) 
-  updatedAt       DateTime @updatedAt
+  id            String          @id @default(cuid())
+  sku           String          @unique
+  salesLast30   Int             @default(0)
+  salesVelocity Decimal?        @db.Decimal(10, 2)
+  updatedAt     DateTime        @updatedAt
+  product       SupplierProduct @relation(fields: [sku], references: [sku], onDelete: Cascade)
 }
 
 model ImportStock {
-  id              String          @id @default(cuid())
-  sku             String          @unique
-  product         SupplierProduct @relation(fields: [sku], references: [sku], onDelete: Cascade)
-  stockExternal   Int             @default(0) 
-  updatedAt       DateTime @updatedAt
+  id            String          @id @default(cuid())
+  sku           String          @unique
+  stockExternal Int             @default(0)
+  updatedAt     DateTime        @updatedAt
+  product       SupplierProduct @relation(fields: [sku], references: [sku], onDelete: Cascade)
 }
 
 model PurchaseOrder {
-  id              String   @id @default(cuid()) 
-  externalId      String?
-  supplier        String   
-  status          String   
-  arrivalDate     DateTime?
-  totalItems      Int      @default(0)
-  items           PurchaseOrderItem[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id          String              @id @default(cuid())
+  externalId  String?
+  supplier    String
+  status      String
+  arrivalDate DateTime?
+  totalItems  Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  items       PurchaseOrderItem[]
 }
 
 model PurchaseOrderItem {
   id                 String          @id @default(cuid())
   purchaseOrderId    String
-  purchaseOrder      PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   supplierProductSku String
+  quantity           Int
+  confirmed          Boolean         @default(false)
+  purchaseOrder      PurchaseOrder   @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
-  quantity           Int             
-  confirmed          Boolean         @default(false) 
 }
 
 model KitComponent {
   id                 String          @id @default(cuid())
-  mla                String          
-  variation_id       String?
+  mla                String
   variant            String?
   supplierProductSku String
+  quantityPerKit     Int             @default(1)
+  variation_id       String?
   supplierProduct    SupplierProduct @relation(fields: [supplierProductSku], references: [sku])
-  quantityPerKit     Int             @default(1) 
-  
+
   @@index([mla])
   @@index([variation_id])
   @@index([supplierProductSku])
 }
 
 model ArticulosCompuestos {
-  id              Int      @id @default(autoincrement())
-  sku_padre       String   
-  sku_hijo        String   
-  cantidad        Int      @default(1)
-  fecha_registro  DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  sku_padre      String
+  sku_hijo       String
+  cantidad       Int      @default(1)
+  fecha_registro DateTime @default(now())
 
   @@unique([sku_padre, sku_hijo], name: "unique_parent_child")
   @@map("articulos_compuestos_old")
 }
 
 model PlanningSession {
-  id          String   @id @default(cuid())
-  dateFrom    DateTime 
-  dateTo      DateTime 
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  dateFrom  DateTime
+  dateTo    DateTime
+  createdAt DateTime @default(now())
 }
 
-// --- GESTIÓN DE VENTAS INSTAGRAM ---
-
 model InstagramSale {
-  id                 String             @id @default(cuid())
-  id_comprobante     String             @unique 
+  id                 String                      @id @default(cuid())
+  id_comprobante     String                      @unique
   numero_comprobante String
-  fecha              DateTime           @default(now())
-  total              Decimal            @db.Decimal(20, 2)
+  fecha              DateTime                    @default(now())
+  total              Decimal                     @db.Decimal(20, 2)
   cliente            String
   dni                String?
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  envio              Decimal?                    @default(0) @db.Decimal(20, 2)
   metodo_pago        String?
-  envio              Decimal?           @db.Decimal(20, 2) @default(0) 
   articulos          InstagramSaleItem[]
   paymentGroups      InstagramSalePaymentGroup[]
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
 
   @@map("instagram_sales")
 }
 
 model InstagramSalePaymentGroup {
-  id          String   @id @default(cuid())
+  id          String                     @id @default(cuid())
   saleId      String
-  sale        InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
   metodo_pago String?
-  monto_total Decimal  @db.Decimal(20, 2)
-  envio       Decimal  @db.Decimal(20, 2) 
+  monto_total Decimal                    @db.Decimal(20, 2)
+  envio       Decimal                    @db.Decimal(20, 2)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+  sale        InstagramSale              @relation(fields: [saleId], references: [id], onDelete: Cascade)
   articulos   InstagramSalePaymentItem[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
   @@map("instagram_sale_payment_groups")
 }
@@ -302,98 +280,96 @@ model InstagramSalePaymentGroup {
 model InstagramSalePaymentItem {
   id             String                    @id @default(cuid())
   paymentGroupId String
-  paymentGroup   InstagramSalePaymentGroup @relation(fields: [paymentGroupId], references: [id], onDelete: Cascade)
   tipo           String?
   detalle        String?
   marca          String?
-  cantidad       Decimal?                  @db.Decimal(20, 2)
   precio_neto    Decimal?                  @db.Decimal(20, 2)
   iva            Decimal?                  @db.Decimal(20, 2)
   precio_total   Decimal?                  @db.Decimal(20, 2)
+  cantidad       Decimal?                  @db.Decimal(20, 2)
+  paymentGroup   InstagramSalePaymentGroup @relation(fields: [paymentGroupId], references: [id], onDelete: Cascade)
 
   @@map("instagram_sale_payment_items")
 }
 
 model InstagramSaleItem {
   id           String        @id @default(cuid())
+  detalle      String
   saleId       String
+  precio_total Decimal?      @db.Decimal(20, 2)
+  cantidad     Decimal       @db.Decimal(20, 2)
   sale         InstagramSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  detalle      String   
-  cantidad     Decimal       @db.Decimal(20, 2) 
-  precio_total Decimal?      @db.Decimal(20, 2) 
 
   @@map("instagram_sale_items")
 }
 
-// --- GESTIÓN DE ETIQUETAS Y PREPARACIÓN ---
-
 model EtiquetaML {
-  id              String         @id 
-  orderId         String?
-  logisticType    String?        
-  status          String         @default("PENDIENTE") 
-  substatus       String?
-  resumen         String?
-  payBefore       DateTime?
-  fechaPreparado  DateTime?
-  auditor         String?
-  drivePhotoUrl   String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  items           EtiquetaMLItem[]
+  id             String           @id
+  orderId        String?
+  logisticType   String?
+  status         String           @default("PENDIENTE")
+  substatus      String?
+  resumen        String?
+  auditor        String?
+  drivePhotoUrl  String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  payBefore      DateTime?
+  fechaPreparado DateTime?
+  items          EtiquetaMLItem[]
 
   @@map("etiquetas_ml")
 }
 
 model EtiquetaMLItem {
-  id              String     @id @default(cuid())
-  etiquetaId      String
-  etiqueta        EtiquetaML @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
-  mla             String     
-  title           String     
-  sku             String?
-  quantity        Int
-  variation       String?
-  
+  id         String     @id @default(cuid())
+  etiquetaId String
+  mla        String
+  title      String
+  sku        String?
+  quantity   Int
+  variation  String?
+  etiqueta   EtiquetaML @relation(fields: [etiquetaId], references: [id], onDelete: Cascade)
+
   @@index([etiquetaId])
   @@map("etiquetas_ml_items")
 }
 
 model MLFees {
-  mla                   String   @id 
-  cargo_venta_fijo      Decimal? @db.Decimal(20, 2) 
-  cargo_venta_percent   Decimal? @db.Decimal(10, 2) 
-  cuotas_fijo           Decimal? @db.Decimal(20, 2) 
-  cuotas_percent        Decimal? @db.Decimal(10, 2) 
-  envio_costo           Decimal? @db.Decimal(20, 2) 
-  costo_fijo_ml         Decimal? @db.Decimal(20, 2) 
-  ultima_actualizacion  DateTime @default(now())
+  mla                  String   @id
+  cargo_venta_fijo     Decimal? @db.Decimal(20, 2)
+  cargo_venta_percent  Decimal? @db.Decimal(10, 2)
+  cuotas_fijo          Decimal? @db.Decimal(20, 2)
+  cuotas_percent       Decimal? @db.Decimal(10, 2)
+  envio_costo          Decimal? @db.Decimal(20, 2)
+  costo_fijo_ml        Decimal? @db.Decimal(20, 2)
+  ultima_actualizacion DateTime @default(now())
 
   @@map("ml_fees")
 }
 
 model MLDescuentos {
-  mla               String   @id
-  original_price    Decimal? @db.Decimal(20, 2)
-  precio_final      Decimal? @db.Decimal(20, 2)
-  pct_descuento     Decimal? @db.Decimal(10, 2)
-  seller_percentage Decimal? @db.Decimal(10, 2)
-  meli_percentage   Decimal? @db.Decimal(10, 2)
-  descuento_propio  String?
+  mla                  String   @id
+  original_price       Decimal? @db.Decimal(20, 2)
+  precio_final         Decimal? @db.Decimal(20, 2)
+  pct_descuento        Decimal? @db.Decimal(10, 2)
+  seller_percentage    Decimal? @db.Decimal(10, 2)
+  meli_percentage      Decimal? @db.Decimal(10, 2)
+  descuento_propio     String?
   ultima_actualizacion DateTime @default(now())
 
   @@map("ml_descuentos")
 }
 
 model MarketingCampaign {
-  id          String   @id 
-  name        String
-  spend       Decimal  @db.Decimal(20, 2)
-  reach       Int
-  messages    Int      @default(0)
-  carts       Int      @default(0)
-  status      String   @default("Active")
-  updatedAt   DateTime @updatedAt
+  id        String   @id
+  name      String
+  spend     Decimal  @db.Decimal(20, 2)
+  reach     Int
+  messages  Int      @default(0)
+  carts     Int      @default(0)
+  status    String   @default("Active")
+  updatedAt DateTime @updatedAt
 
   @@map("marketing_campaigns")
 }
@@ -408,8 +384,6 @@ model MarketingAutoResponse {
   @@map("marketing_auto_responses")
 }
 
-// --- TABLA DE RESULTADOS CALCULADOS ---
-
 model RentabilidadCalculada {
   id                   String   @id @default(cuid())
   mla                  String
@@ -419,169 +393,159 @@ model RentabilidadCalculada {
   precio_original      Decimal  @db.Decimal(20, 2)
   desc_pct_total       Decimal  @db.Decimal(10, 2)
   precio_final         Decimal  @db.Decimal(20, 2)
-  precio_final_nuestro Decimal  @db.Decimal(20, 2)
   costo_total          Decimal  @db.Decimal(20, 2)
   neto_teorico         Decimal  @db.Decimal(20, 2)
   ganancia_neta        Decimal  @db.Decimal(20, 2)
   ganancia_porcentaje  Decimal  @db.Decimal(10, 2)
   fecha_actualizacion  DateTime @default(now())
+  precio_final_nuestro Decimal  @db.Decimal(20, 2)
 
   @@unique([mla, variation_id])
-  
   @@map("rentabilidad_calculada")
 }
 
-
-// --- GESTIÓN DE VENTAS MOSTRADOR ---
-
 model Venta {
-  id            String      @id @default(cuid())
-  cliente       String      @default("Consumidor Final")
-  vendedor      String      @default("Martin Jakson")
-  total         Decimal     @db.Decimal(20, 2) @default(0)
-  interes       Decimal     @db.Decimal(10, 2) @default(0)
-  totalFinal    Decimal     @db.Decimal(20, 2) @default(0)
-  metodo_pago   String      @default("Efectivo")
-  dni           String?
-  telefono      String?
-  info          String?
+  id            String           @id @default(cuid())
+  cliente       String           @default("Consumidor Final")
+  vendedor      String           @default("Martin Jakson")
+  total         Decimal          @default(0) @db.Decimal(20, 2)
+  metodo_pago   String           @default("Efectivo")
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   cupon         String?
-  transaccionId String?
   de            String?
+  dni           String?
+  info          String?
   para          String?
+  telefono      String?
+  transaccionId String?
+  registrada    Boolean          @default(false)
+  interes       Decimal          @default(0) @db.Decimal(10, 2)
+  totalFinal    Decimal          @default(0) @db.Decimal(20, 2)
   email         String?
-  eventoOffline Boolean     @default(false) 
-  registrada    Boolean     @default(false)
-  items         VentaItem[] 
-  auditorias    VentaAuditoria[] 
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  eventoOffline Boolean          @default(false)
+  auditorias    VentaAuditoria[]
+  items         VentaItem[]
 
   @@map("ventas_mostrador")
 }
 
 model VentaItem {
-  id            String   @id @default(cuid())
-  ventaId       String
-  venta         Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
-  productoId    String?
-  nombre        String   
-  cantidad      Int      @default(1)
-  precio_unit   Decimal  @db.Decimal(20, 2)
-  subtotal      Decimal  @db.Decimal(20, 2)
+  id          String  @id @default(cuid())
+  ventaId     String
+  productoId  String?
+  nombre      String
+  cantidad    Int     @default(1)
+  precio_unit Decimal @db.Decimal(20, 2)
+  subtotal    Decimal @db.Decimal(20, 2)
+  venta       Venta   @relation(fields: [ventaId], references: [id], onDelete: Cascade)
 
   @@map("ventas_mostrador_items")
 }
 
 model VentaAuditoria {
-  id          String   @id @default(cuid())
-  ventaId     String
-  venta       Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
-  usuario     String
-  accion      String   
-  detalle     String?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  ventaId   String
+  usuario   String
+  accion    String
+  detalle   String?
+  createdAt DateTime @default(now())
+  venta     Venta    @relation(fields: [ventaId], references: [id], onDelete: Cascade)
 
   @@map("ventas_auditoria")
 }
 
-// --- NUEVO: TABLAS PARA MODIFICAR ARTÍCULOS ---
-
 model ArticuloMostrador {
-  id          String   @id
-  nombre      String
-  stock       Int      @default(0)
-  precio      Decimal  @db.Decimal(20, 2) @default(0)
-  auditorias  ArticuloAuditoria[] 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  id         String              @id
+  nombre     String
+  stock      Int                 @default(0)
+  precio     Decimal             @default(0) @db.Decimal(20, 2)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  auditorias ArticuloAuditoria[]
+
   @@index([nombre])
   @@map("articulos_mostrador")
 }
 
 model ArticuloAuditoria {
-  id            String            @id @default(cuid())
-  articuloId  String
-  articulo    ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
-  usuario     String
-  accion      String   
-  detalle     String?
-  createdAt   DateTime          @default(now())
+  id         String            @id @default(cuid())
+  articuloId String
+  usuario    String
+  accion     String
+  detalle    String?
+  createdAt  DateTime          @default(now())
+  articulo   ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
 
   @@map("articulos_auditoria")
 }
 
-// --- GESTIÓN DE TRANSFERENCIAS CRUZADAS ---
-
 model TransferenciaCruzada {
-  id              String   @id @default(cuid())
-  whatsappId      String
-  monto           Decimal?  @db.Decimal(20, 2)
-  emisorImagen    String?
-  receptorImagen  String?
-  infoExtra       String?
-  deTexto         String?
-  paraTexto       String?
-  imageUrl        String?  
-  procesada       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  whatsappId     String
+  monto          Decimal? @db.Decimal(20, 2)
+  emisorImagen   String?
+  receptorImagen String?
+  infoExtra      String?
+  deTexto        String?
+  paraTexto      String?
+  procesada      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  imageUrl       String?
 
   @@index([whatsappId, procesada])
   @@map("transferencias_cruzadas")
 }
 
 model SeguimientoVentas {
-  mla               String   @id
-  nombre            String
-  ventasActual      Int      @default(0)
-  ventasAnterior    Int      @default(0)
-  diffVentas        Int      @default(0)
-  netoActual        Decimal  @db.Decimal(20, 2) @default(0)
-  netoAnterior      Decimal  @db.Decimal(20, 2) @default(0)
-  growthNeto        Decimal  @db.Decimal(10, 2) @default(0)
+  mla                 String   @id
+  nombre              String
+  ventasActual        Int      @default(0)
+  ventasAnterior      Int      @default(0)
+  diffVentas          Int      @default(0)
+  netoActual          Decimal  @default(0) @db.Decimal(20, 2)
+  netoAnterior        Decimal  @default(0) @db.Decimal(20, 2)
+  growthNeto          Decimal  @default(0) @db.Decimal(10, 2)
   ultimaActualizacion DateTime @default(now())
 
   @@map("seguimiento_ventas")
 }
 
 model ItemVisitaDiaria {
-  id        String   @id @default(cuid())
-  mla       String
-  fecha     DateTime
-  visitas   Int
-  
-  @@unique([mla, fecha]) 
+  id      String   @id @default(cuid())
+  mla     String
+  fecha   DateTime
+  visitas Int
+
+  @@unique([mla, fecha])
   @@map("item_visitas_diarias")
 }
 
-// --- NUEVO: GESTIÓN DE COMPRAS (INGRESO DE STOCK) ---
-
 model Compra {
-  id            String       @id @default(cuid())
-  proveedor     String       @default("Proveedor General")
-  comprador     String       @default("Usuario General")
-  total         Decimal      @db.Decimal(20, 2) @default(0)
-  metodo_pago   String       @default("Efectivo")
-  info          String?
-  comprobante   String?
-  items         CompraItem[]
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id          String       @id @default(cuid())
+  proveedor   String       @default("Proveedor General")
+  comprador   String       @default("Usuario General")
+  total       Decimal      @default(0) @db.Decimal(20, 2)
+  metodo_pago String       @default("Efectivo")
+  info        String?
+  comprobante String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  items       CompraItem[]
 
   @@map("compras_mostrador")
 }
 
 model CompraItem {
-  id            String   @id @default(cuid())
-  compraId      String
-  compra        Compra   @relation(fields: [compraId], references: [id], onDelete: Cascade)
-  productoId    String?
-  nombre        String
-  cantidad      Int      @default(1)
-  costo_unit    Decimal  @db.Decimal(20, 2)
-  subtotal      Decimal  @db.Decimal(20, 2)
+  id         String  @id @default(cuid())
+  compraId   String
+  productoId String?
+  nombre     String
+  cantidad   Int     @default(1)
+  costo_unit Decimal @db.Decimal(20, 2)
+  subtotal   Decimal @db.Decimal(20, 2)
+  compra     Compra  @relation(fields: [compraId], references: [id], onDelete: Cascade)
 
   @@map("compras_mostrador_items")
 }
@@ -599,60 +563,54 @@ model Contacto {
   updatedAt      DateTime @updatedAt
 }
 
-// --- GESTIÓN DE VENTAS PÁGINA WEB ---
-
 model WebSale {
-  id            String   @id @default(cuid())
-  paymentId     String?
-  // ID de MercadoPago
-  status        String   @default("PENDIENTE") // PENDIENTE, APROBADO, CANCELADO
-  total         Decimal  @db.Decimal(20, 2)
-  
-  // Datos del cliente
-  nombre        String?
-  dni           String?
-  email         String?
-  telefono      String?
-  domicilio     String?
-  ciudad        String?
-  provincia     String?
-  cp            String?
-  referencias   String?
-  
-  items         WebSaleItem[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String        @id @default(cuid())
+  payment_id       String?
+  status           String        @default("PENDIENTE")
+  total            Decimal       @db.Decimal(20, 2)
+  nombre           String?
+  dni              String?
+  email            String?
+  telefono         String?
+  domicilio        String?
+  ciudad           String?
+  provincia        String?
+  cp               String?
+  referencias      String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  ventas_web_items WebSaleItem[]
 
   @@map("ventas_web")
 }
 
 model WebSaleItem {
-  id            String   @id @default(cuid())
-  webSaleId     String
-  webSale       WebSale  @relation(fields: [webSaleId], references: [id], onDelete: Cascade)
-  productoId    String?
-  nombre        String
-  cantidad      Int      @default(1)
-  precio_unit   Decimal  @db.Decimal(20, 2)
-  subtotal      Decimal  @db.Decimal(20, 2)
+  id          String  @id @default(cuid())
+  web_sale_id String
+  producto_id String?
+  nombre      String
+  cantidad    Int     @default(1)
+  precio_unit Decimal @db.Decimal(20, 2)
+  subtotal    Decimal @db.Decimal(20, 2)
+  ventas_web  WebSale @relation(fields: [web_sale_id], references: [id], onDelete: Cascade)
 
   @@map("ventas_web_items")
 }
 
-// --- NUEVO: GESTIÓN DE BOT CHATWOOT ---
+model ConversacionRespondida {
+  id              BigInt   @id @default(autoincrement())
+  conversation_id String
+  categoria       String
+  created_at      DateTime @default(now())
 
-  model ConversacionRespondida {
-    id              String   @id @default(cuid())
-    conversation_id String       
-    categoria       String
-    createdAt       DateTime @default(now())                           
-    @@unique([conversation_id, categoria])                                  
-    @@map("conversaciones_respondidas")   
-  }  
+  @@unique([conversation_id, categoria])
+  @@map("conversaciones_respondidas")
+}
+
 model NumerosMayoristas {
-  id        String   @id @default(cuid())
   nombre    String?
   telefono  String   @unique
+  id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
   @@map("NumerosMayoristas")
@@ -662,9 +620,31 @@ model AuditoriaPreparacionFull {
   shipmentId String
   itemId     String
   photoUrl   String?
-  status     String?    // <--- Agregamos esta línea
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  status     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@id([shipmentId, itemId])
+}
+
+model historial_mensajes {
+  id         Int      @id @default(autoincrement())
+  session_id String
+  role       String
+  message    String
+  created_at DateTime @default(now())
+}
+
+model mensajes_vendedor {
+  id              Int      @id @default(autoincrement())
+  message_id      String   @unique
+  conversation_id String
+  content         String
+  procesado       Boolean  @default(false)
+  created_at      DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  USER
 }

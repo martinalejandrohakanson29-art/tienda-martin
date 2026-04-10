@@ -564,35 +564,35 @@ model Contacto {
 }
 
 model WebSale {
-  id               String        @id @default(cuid())
-  payment_id       String?
-  status           String        @default("PENDIENTE")
-  total            Decimal       @db.Decimal(20, 2)
-  nombre           String?
-  dni              String?
-  email            String?
-  telefono         String?
-  domicilio        String?
-  ciudad           String?
-  provincia        String?
-  cp               String?
-  referencias      String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  ventas_web_items WebSaleItem[]
+  id          String        @id @default(cuid())
+  paymentId   String?       @map("payment_id")
+  status      String        @default("PENDIENTE")
+  total       Decimal       @db.Decimal(20, 2)
+  nombre      String?
+  dni         String?
+  email       String?
+  telefono    String?
+  domicilio   String?
+  ciudad      String?
+  provincia   String?
+  cp          String?
+  referencias String?
+  items       WebSaleItem[] // Este nombre debe ser "items" para que funcione tu código
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@map("ventas_web")
 }
 
 model WebSaleItem {
-  id          String  @id @default(cuid())
-  web_sale_id String
-  producto_id String?
+  id          String   @id @default(cuid())
+  webSaleId   String   @map("web_sale_id")
+  webSale     WebSale  @relation(fields: [webSaleId], references: [id], onDelete: Cascade)
+  productoId  String?  @map("producto_id")
   nombre      String
-  cantidad    Int     @default(1)
-  precio_unit Decimal @db.Decimal(20, 2)
-  subtotal    Decimal @db.Decimal(20, 2)
-  ventas_web  WebSale @relation(fields: [web_sale_id], references: [id], onDelete: Cascade)
+  cantidad    Int      @default(1)
+  precio_unit Decimal  @db.Decimal(20, 2)
+  subtotal    Decimal  @db.Decimal(20, 2)
 
   @@map("ventas_web_items")
 }

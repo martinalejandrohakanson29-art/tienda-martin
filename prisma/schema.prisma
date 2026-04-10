@@ -616,6 +616,8 @@ model NumerosMayoristas {
   @@map("NumerosMayoristas")
 }
 
+// --- AUDITORÍA DE PREPARACIÓN ---
+
 model AuditoriaPreparacionFull {
   shipmentId String
   itemId     String

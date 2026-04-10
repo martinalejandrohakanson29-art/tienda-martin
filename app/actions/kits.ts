@@ -41,6 +41,14 @@ export async function getComposicionKits() {
       };
     });
 
+    // LOG: Verificar si hay kits sin enriquecer
+    if (kitsEnriquecidos.length > 0) {
+      const sinEnriquecer = kitsEnriquecidos.filter(k => !k.user_product_id && !k.family_id);
+      if (sinEnriquecer.length > 0) {
+        console.log("⚠️ Kits sin enriquecer (no están en productos_maestros):", sinEnriquecer.map(k => k.mla).join(', '));
+      }
+    }
+
     return kitsEnriquecidos;
   } catch (error) {
     console.error("Error al obtener composiciones:", error);
@@ -97,7 +105,12 @@ export async function upsertKitComponent(data: any) {
     console.error("Error al guardar componente:", error);
     // Si el error es por duplicado (mla-variante-articulo) devolvemos un mensaje claro
     if (error.code === 'P2002') {
-        return { success: false, error: "Este artículo ya existe en esta variante del kit." };
+        const target = error.meta?.target;
+        // La restriccion se llama unique_kit_component o los campos literales
+        if (Array.isArray(target) && !target.includes('id')) {
+            return { success: false, error: "Este artículo ya existe en esta variante del kit." };
+        }
+        return { success: false, error: `Error de unicidad en la base de datos (Campo: ${target ? target.join(', ') : 'Desconocido'})` };
     }
     return { 
       success: false, 

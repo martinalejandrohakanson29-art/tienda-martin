@@ -26,10 +26,10 @@ export function CostosTable({ data }: { data: any[] }) {
     const searchLower = filter.toLowerCase();
     return (
       item.titulo?.toLowerCase().includes(searchLower) ||
-      item.mla?.includes(filter) ||
+      item.mla?.toLowerCase().includes(searchLower) ||
       item.receta_detallada?.toLowerCase().includes(searchLower) ||
       item.variante_ml?.toLowerCase().includes(searchLower) ||
-      item.variation_id?.includes(filter) ||
+      item.variation_id?.toLowerCase().includes(searchLower) ||
       item.ids_articulos?.toLowerCase().includes(searchLower) ||
       item.user_product_id?.toLowerCase().includes(searchLower) ||
       item.family_id?.toLowerCase().includes(searchLower)

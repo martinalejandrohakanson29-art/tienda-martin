@@ -88,3 +88,28 @@ export async function getProductosMaestros() {
     return [];
   }
 }
+
+// NUEVO: Eliminar un producto maestro que no tiene receta
+export async function deleteManualProduct(mla: string, variation_id?: string | null) {
+  try {
+    const existingProduct = await prisma.productosMaestros.findFirst({
+      where: {
+        mla: mla,
+        variation_id: variation_id || null
+      }
+    });
+
+    if (existingProduct) {
+      await prisma.productosMaestros.delete({
+        where: { id: existingProduct.id }
+      });
+      revalidatePath("/admin/mercadolibre/composicion");
+      revalidatePath("/admin/mercadolibre/costos");
+      return { success: true };
+    }
+    return { success: false, error: "No se encontró el producto para eliminar" };
+  } catch (error: any) {
+    console.error("Error al eliminar producto maestro:", error);
+    return { success: false, error: "Error de base de datos: " + error.message };
+  }
+}

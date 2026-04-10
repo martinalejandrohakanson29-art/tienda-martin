@@ -8,57 +8,89 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2, PackageOpen } from "lucide-react"; 
+import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2, PackageOpen } from "lucide-react";
 import { upsertKitComponent, deleteKitComponent } from "@/app/actions/kits";
-import { createManualProduct } from "@/app/actions/ml-maestros";
+import { createManualProduct, deleteManualProduct } from "@/app/actions/ml-maestros";
 
 export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], articulos: any[], maestros: any[] }) {
   const [filter, setFilter] = useState("");
-  
+
   // MODAL DE RECETAS (El habitual)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isSavingKit, setIsSavingKit] = useState(false); // ESTADO DE CARGA PARA RECETAS
-  
+
   // NUEVO MODAL: ALTA DE PRODUCTO MAESTRO
   const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
-  const [newProduct, setNewProduct] = useState({ 
-    mla: "", 
-    titulo: "", 
-    nombre_variante: "", 
+  const [newProduct, setNewProduct] = useState({
+    mla: "",
+    titulo: "",
+    nombre_variante: "",
     variation_id: "",
     user_product_id: "",
     family_id: ""
   });
-  const [isSubmitting, setIsSubmitting] = useState(false); 
-  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [searchArticulo, setSearchArticulo] = useState("");
 
+  // --- COMBINAR KITS CON MAESTROS SIN RECETA ---
+  const combinedKits = [...kits];
+
+  // Agregar maestros que no tienen ninguna receta en 'kits'
+  if (maestros) {
+    maestros.forEach(maestro => {
+      // Intentamos encontrar match exacto primero (si tienen variante), sino, fall back al mla
+      const hasKit = kits.some(k =>
+        k.mla === maestro.mla &&
+        k.variation_id === maestro.variation_id
+      );
+
+      // Si el maestro no tiene variation_id (es producto simple), solo validamos mla
+      const hasKitSimple = !maestro.variation_id && kits.some(k => k.mla === maestro.mla);
+
+      if (!hasKit && !hasKitSimple) {
+        combinedKits.push({
+          id: `maestro-${maestro.mla}-${maestro.variation_id || 'base'}`, // Fake ID
+          mla: maestro.mla,
+          variation_id: maestro.variation_id,
+          nombre_variante: maestro.nombre_variante,
+          id_articulo: "SIN RECETA",
+          nombre_articulo: "Haz clic en el '+' de la derecha para agregar componentes",
+          cantidad: 0,
+          user_product_id: maestro.user_product_id,
+          family_id: maestro.family_id,
+          isDummy: true
+        });
+      }
+    });
+  }
+
   // --- LÓGICA DE FILTRADO ---
-  const filteredKits = kits.filter(k => {
+  const filteredKits = combinedKits.filter(k => {
     const term = filter.toLowerCase();
     return (
       k.mla?.toLowerCase().includes(term) ||
       k.id_articulo?.toLowerCase().includes(term) ||
       k.nombre_articulo?.toLowerCase().includes(term) ||
-      k.user_product_id?.toLowerCase().includes(term) || 
-      k.family_id?.toLowerCase().includes(term)          
+      k.user_product_id?.toLowerCase().includes(term) ||
+      k.family_id?.toLowerCase().includes(term)
     );
   });
 
-  const sugerenciasArticulos = searchArticulo.length > 1 
-    ? articulos.filter(a => 
-        a.id_articulo.toLowerCase().includes(searchArticulo.toLowerCase()) ||
-        a.descripcion?.toLowerCase().includes(searchArticulo.toLowerCase())
-      ).slice(0, 5)
+  const sugerenciasArticulos = searchArticulo.length > 1
+    ? articulos.filter(a =>
+      a.id_articulo.toLowerCase().includes(searchArticulo.toLowerCase()) ||
+      a.descripcion?.toLowerCase().includes(searchArticulo.toLowerCase())
+    ).slice(0, 5)
     : [];
 
   // --- HANDLERS DEL MODAL DE RECETAS (KIT) ---
   const handleOpenModal = (item: any = null) => {
-    setEditingItem(item || { 
-      mla: "", variation_id: "", nombre_variante: "", id_articulo: "", cantidad: 1, nombre_articulo: "" 
+    setEditingItem(item || {
+      mla: "", variation_id: "", nombre_variante: "", id_articulo: "", cantidad: 1, nombre_articulo: ""
     });
-    setSearchArticulo(""); 
+    setSearchArticulo("");
     setIsModalOpen(true);
   };
 
@@ -68,7 +100,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
       variation_id: baseItem.variation_id,
       nombre_variante: baseItem.nombre_variante,
       id_articulo: "",
-      cantidad: 1, 
+      cantidad: 1,
       nombre_articulo: ""
     });
     setSearchArticulo("");
@@ -81,7 +113,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
       id_articulo: articulo.id_articulo,
       nombre_articulo: articulo.descripcion
     });
-    setSearchArticulo(""); 
+    setSearchArticulo("");
   };
 
   const handleSaveKit = async (e: React.FormEvent) => {
@@ -93,18 +125,18 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
 
     setIsSavingKit(true);
     try {
-        const res = await upsertKitComponent(editingItem);
-        if (res.success) {
-            setIsModalOpen(false);
-            setSearchArticulo("");
-        } else {
-            alert("Error al guardar: " + res.error);
-        }
+      const res = await upsertKitComponent(editingItem);
+      if (res.success) {
+        setIsModalOpen(false);
+        setSearchArticulo("");
+      } else {
+        alert("Error al guardar: " + res.error);
+      }
     } catch (error) {
-        console.error(error);
-        alert("Ocurrió un error inesperado al conectar con el servidor.");
+      console.error(error);
+      alert("Ocurrió un error inesperado al conectar con el servidor.");
     } finally {
-        setIsSavingKit(false);
+      setIsSavingKit(false);
     }
   };
 
@@ -114,24 +146,33 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     }
   };
 
+  const handleDeleteMaster = async (mla: string, variation_id?: string) => {
+    if (confirm("¿Eliminar este producto maestro del sistema? Esto lo borrará también de la sección de costos.")) {
+      const res = await deleteManualProduct(mla, variation_id);
+      if (!res.success) {
+        alert("Error: " + res.error);
+      }
+    }
+  };
+
   // --- NUEVOS HANDLERS: ALTA DE PRODUCTO MAESTRO ---
   const handleSaveMaster = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true); 
+    setIsSubmitting(true);
     try {
-        const res = await createManualProduct(newProduct);
-        if (res.success) {
-          setIsMasterModalOpen(false); 
-          setNewProduct({ mla: "", titulo: "", nombre_variante: "", variation_id: "", user_product_id: "", family_id: "" });
-          alert("¡Producto creado correctamente! Ahora búscalo en la lista y agrégale su receta.");
-        } else {
-          alert(res.error);
-        }
+      const res = await createManualProduct(newProduct);
+      if (res.success) {
+        setIsMasterModalOpen(false);
+        setNewProduct({ mla: "", titulo: "", nombre_variante: "", variation_id: "", user_product_id: "", family_id: "" });
+        alert("¡Producto creado correctamente! Ahora búscalo en la lista y agrégale su receta.");
+      } else {
+        alert(res.error);
+      }
     } catch (error) {
-        console.error(error);
-        alert("Ocurrió un error inesperado al crear el producto.");
+      console.error(error);
+      alert("Ocurrió un error inesperado al crear el producto.");
     } finally {
-        setIsSubmitting(false); 
+      setIsSubmitting(false);
     }
   };
 
@@ -150,20 +191,20 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
         </div>
 
         <div className="flex gap-2 w-full md:w-auto">
-          <Button 
-            onClick={() => setIsMasterModalOpen(true)} 
+          <Button
+            onClick={() => setIsMasterModalOpen(true)}
             variant="outline"
             className="bg-white hover:bg-slate-100 text-slate-700 border-slate-300 gap-2 shadow-sm flex-1 md:flex-none"
           >
-            <PackagePlus className="h-4 w-4 text-purple-600" /> 
+            <PackagePlus className="h-4 w-4 text-purple-600" />
             Alta Catálogo ML
           </Button>
 
-          <Button 
-            onClick={() => handleOpenModal()} 
+          <Button
+            onClick={() => handleOpenModal()}
             className="bg-blue-600 hover:bg-blue-700 gap-2 shadow-sm flex-1 md:flex-none"
           >
-            <Plus className="h-4 w-4" /> 
+            <Plus className="h-4 w-4" />
             Nueva Receta
           </Button>
         </div>
@@ -208,29 +249,39 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 <TableCell>
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold uppercase bg-slate-100 px-2 py-1 rounded text-slate-500 w-fit">
-                        {item.nombre_variante || "Única"}
+                      {item.nombre_variante || "Única"}
                     </span>
                     {item.variation_id && (
-                        <span className="text-[9px] text-slate-400 font-mono mt-0.5">{item.variation_id}</span>
+                      <span className="text-[9px] text-slate-400 font-mono mt-0.5">{item.variation_id}</span>
                     )}
                   </div>
                 </TableCell>
-                <TableCell className="text-[11px] uppercase text-slate-600">
-                    <span className="font-mono font-bold mr-2 text-slate-800">{item.id_articulo}</span>
-                    {item.nombre_articulo}
+                <TableCell className={`text-[11px] uppercase ${item.isDummy ? "text-orange-600" : "text-slate-600"}`}>
+                  <span className="font-mono font-bold mr-2 text-slate-800">{item.id_articulo}</span>
+                  {item.nombre_articulo}
                 </TableCell>
-                <TableCell className="text-center font-black text-slate-700 text-sm">{item.cantidad}</TableCell>
+                <TableCell className="text-center font-black text-slate-700 text-sm">
+                  {item.isDummy ? "-" : item.cantidad}
+                </TableCell>
                 <TableCell className="text-center">
                   <div className="flex justify-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => handleAddIngredientToKit(item)} className="h-8 w-8 text-green-600 hover:bg-green-50" title="Agregar otro componente">
+                    <Button variant="ghost" size="icon" onClick={() => handleAddIngredientToKit(item)} className="h-8 w-8 text-green-600 hover:bg-green-50" title={item.isDummy ? "Agregar componente" : "Agregar otro componente"}>
                       <CopyPlus className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleOpenModal(item)} className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Editar receta">
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="h-8 w-8 text-red-600 hover:bg-red-50" title="Eliminar componente">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {!item.isDummy && (
+                      <Button variant="ghost" size="icon" onClick={() => handleOpenModal(item)} className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Editar receta">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {!item.isDummy ? (
+                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id as number)} className="h-8 w-8 text-red-600 hover:bg-red-50" title="Eliminar componente">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteMaster(item.mla, item.variation_id)} className="h-8 w-8 text-red-600 hover:bg-red-50" title="Eliminar producto sin receta">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -248,12 +299,12 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSaveKit} className="space-y-6 pt-4">
-             <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-bold text-slate-700">MLA Destino</Label>
-                <Input 
-                  value={editingItem?.mla || ""} 
-                  onChange={e => setEditingItem({...editingItem, mla: e.target.value})}
+                <Input
+                  value={editingItem?.mla || ""}
+                  onChange={e => setEditingItem({ ...editingItem, mla: e.target.value })}
                   className="bg-slate-50 font-mono uppercase"
                   placeholder="MLA..."
                   required
@@ -261,9 +312,9 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               </div>
               <div className="space-y-2">
                 <Label className="font-bold text-slate-700">ID Variante</Label>
-                <Input 
-                  value={editingItem?.variation_id || ""} 
-                  onChange={e => setEditingItem({...editingItem, variation_id: e.target.value})}
+                <Input
+                  value={editingItem?.variation_id || ""}
+                  onChange={e => setEditingItem({ ...editingItem, variation_id: e.target.value })}
                   className="bg-slate-50 font-mono text-xs"
                   placeholder="Opcional"
                 />
@@ -271,21 +322,21 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             </div>
 
             <div className="space-y-2">
-                <Label className="font-bold text-slate-700">Nombre Variante</Label>
-                <Input 
-                  value={editingItem?.nombre_variante || ""} 
-                  onChange={e => setEditingItem({...editingItem, nombre_variante: e.target.value})}
-                  className="bg-slate-50"
-                  placeholder="Ej: Rojo / 28mm"
-                />
+              <Label className="font-bold text-slate-700">Nombre Variante</Label>
+              <Input
+                value={editingItem?.nombre_variante || ""}
+                onChange={e => setEditingItem({ ...editingItem, nombre_variante: e.target.value })}
+                className="bg-slate-50"
+                placeholder="Ej: Rojo / 28mm"
+              />
             </div>
 
             <div className="space-y-2 relative">
               <Label className="font-bold text-blue-700">Seleccionar Artículo de Costos</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input 
-                  placeholder="Buscar insumo..." 
+                <Input
+                  placeholder="Buscar insumo..."
                   value={searchArticulo}
                   onChange={e => setSearchArticulo(e.target.value)}
                   className="pl-10 border-blue-200"
@@ -294,7 +345,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               {sugerenciasArticulos.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-auto">
                   {sugerenciasArticulos.map((art) => (
-                    <div 
+                    <div
                       key={art.id_articulo}
                       onClick={() => handleSelectArticulo(art)}
                       className="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between"
@@ -315,10 +366,10 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
 
             <div className="w-1/3 space-y-2">
               <Label className="font-bold text-slate-700">Cantidad</Label>
-              <Input 
+              <Input
                 type="number" min="1" step="1"
-                value={editingItem?.cantidad || 1} 
-                onChange={e => setEditingItem({...editingItem, cantidad: Number(e.target.value)})}
+                value={editingItem?.cantidad || 1}
+                onChange={e => setEditingItem({ ...editingItem, cantidad: Number(e.target.value) })}
                 className="text-center font-bold"
               />
             </div>
@@ -356,9 +407,9 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="font-bold text-slate-700">MLA (ID Meli)</Label>
-                <Input 
-                  value={newProduct.mla} 
-                  onChange={e => setNewProduct({...newProduct, mla: e.target.value})}
+                <Input
+                  value={newProduct.mla}
+                  onChange={e => setNewProduct({ ...newProduct, mla: e.target.value })}
                   placeholder="Ej: MLA12345678"
                   className="font-mono uppercase border-purple-200 focus:ring-purple-500"
                   required
@@ -366,9 +417,9 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               </div>
               <div className="space-y-2">
                 <Label className="font-bold text-slate-700">ID Variante (Opcional)</Label>
-                <Input 
-                  value={newProduct.variation_id} 
-                  onChange={e => setNewProduct({...newProduct, variation_id: e.target.value})}
+                <Input
+                  value={newProduct.variation_id}
+                  onChange={e => setNewProduct({ ...newProduct, variation_id: e.target.value })}
                   placeholder="Ej: 174680..."
                   className="font-mono"
                 />
@@ -376,38 +427,38 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             </div>
             <div className="space-y-2">
               <Label className="font-bold text-slate-700">Título de la Publicación</Label>
-              <Input 
-                value={newProduct.titulo} 
-                onChange={e => setNewProduct({...newProduct, titulo: e.target.value})}
+              <Input
+                value={newProduct.titulo}
+                onChange={e => setNewProduct({ ...newProduct, titulo: e.target.value })}
                 placeholder="Ej: Kit Carburador 150cc Completo"
                 required
               />
             </div>
             <div className="space-y-2">
               <Label className="text-sm font-bold text-slate-700">Nombre Variante (Opcional)</Label>
-              <Input 
-                value={newProduct.nombre_variante} 
-                onChange={e => setNewProduct({...newProduct, nombre_variante: e.target.value})}
+              <Input
+                value={newProduct.nombre_variante}
+                onChange={e => setNewProduct({ ...newProduct, nombre_variante: e.target.value })}
                 placeholder="Ej: Rojo / 28mm"
               />
             </div>
             <div className="grid grid-cols-2 gap-4 p-3 bg-blue-50/50 rounded-lg border border-blue-100 mt-2">
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-blue-700 flex items-center gap-1">
-                  <PackageOpen className="w-3 h-3"/> User Product ID
+                  <PackageOpen className="w-3 h-3" /> User Product ID
                 </Label>
-                <Input 
-                  value={newProduct.user_product_id} 
-                  onChange={e => setNewProduct({...newProduct, user_product_id: e.target.value})}
+                <Input
+                  value={newProduct.user_product_id}
+                  onChange={e => setNewProduct({ ...newProduct, user_product_id: e.target.value })}
                   placeholder="Ej: MLAU12345"
                   className="text-sm font-mono border-blue-200"
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-purple-700">Familia ID</Label>
-                <Input 
-                  value={newProduct.family_id} 
-                  onChange={e => setNewProduct({...newProduct, family_id: e.target.value})}
+                <Input
+                  value={newProduct.family_id}
+                  onChange={e => setNewProduct({ ...newProduct, family_id: e.target.value })}
                   placeholder="Nombre de familia..."
                   className="text-sm font-mono border-purple-200"
                 />
@@ -417,10 +468,10 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               <Button type="button" variant="ghost" onClick={() => setIsMasterModalOpen(false)} disabled={isSubmitting}>
                 Cancelar
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="bg-purple-600 hover:bg-purple-700 text-white shadow-md"
-                disabled={isSubmitting} 
+                disabled={isSubmitting}
               >
                 {isSubmitting ? (
                   <>

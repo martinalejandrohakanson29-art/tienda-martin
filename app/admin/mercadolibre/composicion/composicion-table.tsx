@@ -42,6 +42,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
   
   const [recipeComponents, setRecipeComponents] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedComponent, setSelectedComponent] = useState<any>(null); // Para mostrar el componente seleccionado
 
   const [searchArticulo, setSearchArticulo] = useState("");
 
@@ -118,14 +119,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     setIsModalOpen(true);
   };
 
-  const handleSelectArticulo = (articulo: any) => {
-    setEditingItem({
-      ...editingItem,
-      id_articulo: articulo.id_articulo,
-      nombre_articulo: articulo.descripcion
-    });
-    setSearchArticulo("");
-  };
+  // Esta función ya no se usa en el modal unificado, se mantiene para compatibilidad
 
   const handleSaveKit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,7 +181,19 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     if (newComponent.id_articulo) {
       setRecipeComponents([...recipeComponents, { ...newComponent, id: Date.now() }]);
       setNewComponent({ id_articulo: "", cantidad: 1, nombre_articulo: "" });
+      setSelectedComponent(null);
     }
+  };
+
+  // Seleccionar artículo de la lista de sugerencias
+  const handleSelectArticulo = (articulo: any) => {
+    setNewComponent({
+      id_articulo: articulo.id_articulo,
+      cantidad: 1,
+      nombre_articulo: articulo.descripcion
+    });
+    setSearchArticulo("");
+    setSelectedComponent(articulo);
   };
 
   // Eliminar componente de la receta
@@ -562,10 +568,10 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                     ))}
                   </div>
                 )}
-                {editingItem?.id_articulo && (
+                {selectedComponent && (
                   <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded flex gap-2 items-center">
                     <Check className="h-4 w-4 text-green-600" />
-                    <span className="text-xs font-bold">{editingItem.id_articulo} - {editingItem.nombre_articulo}</span>
+                    <span className="text-xs font-bold">{selectedComponent.id_articulo} - {selectedComponent.descripcion}</span>
                   </div>
                 )}
               </div>
@@ -614,7 +620,8 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                   type="button"
                   variant="outline"
                   onClick={handleAddRecipeComponent}
-                  className="w-full border-green-600 text-green-600 hover:bg-green-50"
+                  disabled={!newComponent.id_articulo}
+                  className="w-full border-green-600 text-green-600 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Plus className="h-3 w-3 mr-1" /> Agregar Componente
                 </Button>

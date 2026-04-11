@@ -33,11 +33,12 @@ interface Articulo {
 
 interface ItemVenta {
   id: string;
+  productoId?: string;
   nombre: string;
   cantidad: number;
   precio_unit: number;
   subtotal: number;
-  stock: number; 
+  stock: number;
   ultimaModificacion?: string | null;
 }
 
@@ -218,7 +219,7 @@ export default function VentasMostradorClient({
   const esTarjeta = (m: string) => m === "Tarjeta de Crédito" || m === "Tarjeta de Débito";
 
   // --- CALCULOS NUEVA VENTA (LÓGICA MIXTA) ---
-  const totalBase = items.reduce((acc, item) => acc + item.subtotal, 0);
+  const totalBase = items.reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
 
   const base1 = isPagoMixto ? montoPago1 : totalBase;
   const base2 = isPagoMixto ? Math.max(0, totalBase - montoPago1) : 0;
@@ -243,7 +244,7 @@ export default function VentasMostradorClient({
     }, 100);
   };
 
-  const handleImprimirVentaHistorial = (venta: any) => {
+  const handleImprimirVentaHistorial = (venta: { id: string; cliente: string; email?: string; eventoOffline?: boolean }) => {
     setVentaParaImprimir(venta); 
     setTimeout(() => {
       window.print();
@@ -253,20 +254,21 @@ export default function VentasMostradorClient({
 
   // --- FUNCIONES NUEVA VENTA ---
   const agregarProductoAVenta = (prod: Articulo) => {
-    const existe = items.find(item => item.id === prod.id);
+    const existe = items.find(item => item.productoId === prod.id);
     if (existe) {
-      setItems(items.map(item => 
-        item.id === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
+      setItems(items.map(item =>
+        item.productoId === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
       ));
     } else {
-      setItems([...items, { 
-        id: prod.id, 
-        nombre: prod.nombre, 
-        cantidad: 1, 
-        precio_unit: Number(prod.precio), 
-        subtotal: Number(prod.precio), 
+      setItems([...items, {
+        id: crypto.randomUUID(),
+        productoId: prod.id,
+        nombre: prod.nombre,
+        cantidad: 1,
+        precio_unit: Number(prod.precio),
+        subtotal: Number(prod.precio),
         stock: prod.stock,
-        ultimaModificacion: prod.ultimaModificacion 
+        ultimaModificacion: prod.ultimaModificacion
       }]);
     }
     setIsModalOpen(false);
@@ -301,7 +303,7 @@ export default function VentasMostradorClient({
       if (resultado.success) {
         mostrarMensajeExito("¡Venta registrada con éxito!");
         setArticulos(prev => prev.map(art => {
-          const itemVendido = items.find(i => i.id === art.id);
+          const itemVendido = items.find(i => i.productoId === art.id);
           if (itemVendido) {
             return { ...art, stock: art.stock - itemVendido.cantidad };
           }
@@ -328,7 +330,7 @@ export default function VentasMostradorClient({
   };
 
   // --- CALCULOS EDICIÓN VENTA (LÓGICA MIXTA) ---
-  const totalBaseEdit = editItems.reduce((acc, item) => acc + item.subtotal, 0);
+  const totalBaseEdit = editItems.reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
 
   const editBase1 = isEditPagoMixto ? editMontoPago1 : totalBaseEdit;
   const editBase2 = isEditPagoMixto ? Math.max(0, totalBaseEdit - editMontoPago1) : 0;
@@ -345,7 +347,7 @@ export default function VentasMostradorClient({
   const requiereTarjetaEdit = isEditPagoMixto ? (esTarjeta(editMetodoPago) || esTarjeta(editMetodoPago2)) : esTarjeta(editMetodoPago);
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
 
-  const abrirModalEdicion = (venta: any) => {
+  const abrirModalEdicion = (venta: { id: string; cliente: string; email?: string; metodo_pago: string; totalFinal: number; items: Array<{ productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }>; createdAt: string; total: number; interes: number; dni?: string; telefono?: string; cupon?: string; transaccionId?: string; de?: string; para?: string; eventoOffline?: boolean; info?: string }) => {
     setVentaOriginalParaComparar(venta);
     setEditVentaId(venta.id);
     setEditCliente(venta.cliente || "");
@@ -368,7 +370,7 @@ export default function VentasMostradorClient({
     const cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
     setEditInfo(cleanInfo);
     
-    setEditItems(venta.items.map((i: any) => {
+    setEditItems(venta.items.map((i: { productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => {
       const articuloBase = articulos.find(a => a.id === i.productoId);
       return {
         id: i.productoId, nombre: i.nombre, cantidad: i.cantidad,
@@ -381,18 +383,19 @@ export default function VentasMostradorClient({
   };
 
   const agregarProductoEdicion = (prod: Articulo) => {
-    const existe = editItems.find(item => item.id === prod.id);
+    const existe = editItems.find(item => item.productoId === prod.id);
     if (existe) {
-      setEditItems(editItems.map(item => 
-        item.id === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
+      setEditItems(editItems.map(item =>
+        item.productoId === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
       ));
     } else {
-      setEditItems([...editItems, { 
-        id: prod.id, 
-        nombre: prod.nombre, 
-        cantidad: 1, 
-        precio_unit: Number(prod.precio), 
-        subtotal: Number(prod.precio), 
+      setEditItems([...editItems, {
+        id: crypto.randomUUID(),
+        productoId: prod.id,
+        nombre: prod.nombre,
+        cantidad: 1,
+        precio_unit: Number(prod.precio),
+        subtotal: Number(prod.precio),
         stock: prod.stock,
         ultimaModificacion: prod.ultimaModificacion
       }]);
@@ -449,9 +452,9 @@ export default function VentasMostradorClient({
         mostrarMensajeExito("¡Venta modificada con éxito!");
         setArticulos(prev => prev.map(art => {
           let nuevoStock = art.stock;
-          const oldItem = ventaOriginalParaComparar.items.find((i: any) => i.productoId === art.id);
+          const oldItem = ventaOriginalParaComparar.items.find((i: { productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => i.productoId === art.id);
           if (oldItem) nuevoStock += oldItem.cantidad;
-          const newItem = editItems.find(i => i.id === art.id);
+          const newItem = editItems.find(i => i.productoId === art.id);
           if (newItem) nuevoStock -= newItem.cantidad;
           return { ...art, stock: nuevoStock };
         }));
@@ -498,8 +501,8 @@ export default function VentasMostradorClient({
       const nowStr = new Date().toISOString(); 
       
       setArticulos(prev => prev.map(a => a.id === priceDbItem.id ? { ...a, precio: newDbPrice, ultimaModificacion: nowStr } : a));
-      setItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
-      setEditItems(prev => prev.map(i => i.id === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
+      setItems(prev => prev.map(i => i.productoId === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
+      setEditItems(prev => prev.map(i => i.productoId === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
       
       mostrarMensajeExito("¡Precio base guardado en la Base de Datos!");
       setIsPriceDbModalOpen(false);
@@ -534,8 +537,8 @@ export default function VentasMostradorClient({
       const nowStr = new Date().toISOString(); 
 
       setArticulos(prev => prev.map(a => a.id === fastUpdateData.id ? { ...a, precio: fastUpdateData.newPrice, ultimaModificacion: nowStr } : a));
-      setItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice, ultimaModificacion: nowStr } : i));
-      setEditItems(prev => prev.map(i => i.id === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice, ultimaModificacion: nowStr } : i));
+      setItems(prev => prev.map(i => (i.productoId || i.id) === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice, ultimaModificacion: nowStr } : i));
+      setEditItems(prev => prev.map(i => (i.productoId || i.id) === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice, ultimaModificacion: nowStr } : i));
       
       mostrarMensajeExito("¡Precio actualizado en la Base de Datos con éxito!");
       setIsFastUpdateDbModalOpen(false);
@@ -553,7 +556,7 @@ export default function VentasMostradorClient({
       {/* 1. EL TICKET */}
       <TicketImpresion
         ventaId={ventaParaImprimir ? ventaParaImprimir.id : ""}
-        items={ventaParaImprimir ? ventaParaImprimir.items.map((i: any) => ({ ...i, id: i.productoId || i.id })) : items}
+        items={ventaParaImprimir ? ventaParaImprimir.items.map((i: { productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => ({ ...i, id: crypto.randomUUID() })) : items}
         total={ventaParaImprimir ? Number(ventaParaImprimir.totalFinal || ventaParaImprimir.total) : totalFinalCalculado}
         cliente={ventaParaImprimir ? (ventaParaImprimir.dni || ventaParaImprimir.cliente) : (requiereTarjeta && dni ? dni : cliente)}
         metodoPago={ventaParaImprimir ? ventaParaImprimir.metodo_pago : (isPagoMixto ? "MIXTO" : metodoPago)}
@@ -657,28 +660,28 @@ export default function VentasMostradorClient({
                                 </div>
                               </TableCell>
                               <TableCell className="text-center py-3">
-                                <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                                <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map((i: ItemVenta) => i.productoId === item.productoId ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                               </TableCell>
                               <TableCell className="text-center py-3">
                                 <div className="flex items-center justify-center gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-7 w-7 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" 
-                                    title="Editar precio base en el sistema" 
-                                    onClick={() => abrirModalPrecioDB(item.id, item.precio_unit)}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                    title="Editar precio base en el sistema"
+                                    onClick={() => abrirModalPrecioDB(item.productoId ?? item.id, item.precio_unit)}
                                   >
                                     <Database className="h-4 w-4" />
                                   </Button>
                                   <span className="text-slate-400 text-xs ml-1">$</span>
-                                  <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                                  <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map((i: ItemVenta) => i.productoId === item.productoId ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
                                   
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-7 w-7 text-slate-300 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
-                                    title="Guardar este precio en la Base de Datos" 
-                                    onClick={() => abrirModalFastUpdate(item.id, item.precio_unit)}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 text-slate-300 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                    title="Guardar este precio en la Base de Datos"
+                                    onClick={() => abrirModalFastUpdate(item.productoId ?? item.id, item.precio_unit)}
                                   >
                                     <Save className="h-4 w-4" />
                                   </Button>
@@ -790,7 +793,7 @@ export default function VentasMostradorClient({
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Total Filtrado (Final)</p>
-                  <p className="text-xl font-black text-slate-900">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')} | Cantidad Total: {ventasFiltradas.reduce((acc, v) => acc + v.items.reduce((itemAcc: number, item) => itemAcc + (item.cantidad || 1), 0), 0).toLocaleString('es-AR')}</p>
+                  <p className="text-xl font-black text-slate-900">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')} | Cantidad Total: {ventasFiltradas.length.toLocaleString('es-AR')}</p>
                 </div>
               </div>
 
@@ -893,7 +896,7 @@ export default function VentasMostradorClient({
                                   <TableCell colSpan={6} className="py-0">
                                     <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
                                       {v.items?.length > 0 ? (
-                                        v.items.map((item: any) => (
+                                        v.items.map((item: { id: string; productoId?: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => (
                                           <div key={item.id} className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors">
                                             <div className="flex flex-col gap-0.5">
                                               <span
@@ -904,11 +907,11 @@ export default function VentasMostradorClient({
                                                 {item.nombre}
                                               </span>
                                               <span
-                                                onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(item.productoId); }}
+                                                onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(item.productoId ?? item.id); }}
                                                 className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 mt-0.5 w-fit block transition-colors"
                                                 title="Copiar ID"
                                               >
-                                                {item.productoId}
+                                                {item.productoId ?? item.id}
                                               </span>
                                             </div>
                                             <div className="flex flex-col items-end gap-1">
@@ -1395,28 +1398,28 @@ export default function VentasMostradorClient({
                              </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                            <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.productoId === item.productoId ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-7 w-7 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg" 
-                                title="Editar precio base en el sistema" 
-                                onClick={() => abrirModalPrecioDB(item.id, item.precio_unit)}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                title="Editar precio base en el sistema"
+                                onClick={() => abrirModalPrecioDB(item.productoId ?? item.id, item.precio_unit)}
                               >
                                 <Database className="h-4 w-4" />
                               </Button>
                               <span className="text-slate-400 text-xs ml-1">$</span>
-                              <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                              <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.productoId === item.productoId ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
                               
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-7 w-7 text-slate-300 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors" 
-                                title="Guardar este precio en la Base de Datos" 
-                                onClick={() => abrirModalFastUpdate(item.id, item.precio_unit)}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-slate-300 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                title="Guardar este precio en la Base de Datos"
+                                onClick={() => abrirModalFastUpdate(item.productoId ?? item.id, item.precio_unit)}
                               >
                                 <Save className="h-4 w-4" />
                               </Button>
@@ -1434,7 +1437,7 @@ export default function VentasMostradorClient({
                           <TableCell className="text-right font-bold text-slate-700">
                             $ {item.subtotal.toLocaleString('es-AR')}
                           </TableCell>
-                          <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter(i => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
+                          <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((i: ItemVenta) => i.productoId !== item.productoId))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1627,7 +1630,7 @@ function TicketImpresion({
 
   if (!mounted) return null;
   
-  const formatPrecio = (num: any) => {
+  const formatPrecio = (num: number | string) => {
     return Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
@@ -1681,7 +1684,7 @@ function TicketImpresion({
           </tr>
         </thead>
         <tbody className="before:content-[''] before:block before:h-1">
-          {items.map((item, idx) => (
+          {items.map((item: ItemVenta, idx: number) => (
             <tr key={idx} className="align-top">
               <td className="pt-0.5">{item.cantidad}</td>
               <td className="pt-0.5 pr-1 break-words whitespace-normal">{item.nombre}</td>

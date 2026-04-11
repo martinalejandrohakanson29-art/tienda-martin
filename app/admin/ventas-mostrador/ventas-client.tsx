@@ -793,7 +793,9 @@ export default function VentasMostradorClient({
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-slate-400 font-bold uppercase">Total Filtrado (Final)</p>
-                  <p className="text-xl font-black text-slate-900">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')} | Cantidad Total: {ventasFiltradas.length.toLocaleString('es-AR')}</p>
+                  <p className="text-xl font-black text-slate-900">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
+                  <p className="text-xl font-black text-green-600">Cantidad Total: {ventasFiltradas.length.toLocaleString('es-AR')}</p>
+                  <p className="text-lg font-medium text-slate-900">Promedio Venta: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
                 </div>
               </div>
 

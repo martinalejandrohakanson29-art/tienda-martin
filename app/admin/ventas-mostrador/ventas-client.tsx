@@ -42,18 +42,18 @@ interface ItemVenta {
   ultimaModificacion?: string | null;
 }
 
-export default function VentasMostradorClient({ 
+export default function VentasMostradorClient({
   articulosIniciales,
-  vendedorNombre 
-}: { 
+  vendedorNombre
+}: {
   articulosIniciales: Articulo[],
-  vendedorNombre: string 
+  vendedorNombre: string
 }) {
   // --- ESTADOS GENERALES ---
   const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
-  
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false); 
+  const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [ventasRealizadas, setVentasRealizadas] = useState<any[]>([]);
   const [fechaFiltro, setFechaFiltro] = useState(new Date().toISOString().split('T')[0]);
@@ -69,10 +69,10 @@ export default function VentasMostradorClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
-  const [items, setItems] = useState<ItemVenta[]>([]); 
+  const [items, setItems] = useState<ItemVenta[]>([]);
   const [cliente, setCliente] = useState("Consumidor Final");
   const [interesTarjeta, setInteresTarjeta] = useState<number>(0);
-  
+
   const [metodoPago, setMetodoPago] = useState("Efectivo");
   const [isPagoMixto, setIsPagoMixto] = useState(false);
   const [montoPago1, setMontoPago1] = useState<number>(0);
@@ -85,7 +85,7 @@ export default function VentasMostradorClient({
   const [transaccionId, setTransaccionId] = useState("");
   const [deCruzada, setDeCruzada] = useState("");
   const [paraCruzada, setParaCruzada] = useState("");
-  
+
   const [email, setEmail] = useState("");
   const [eventoOffline, setEventoOffline] = useState(false);
 
@@ -100,11 +100,11 @@ export default function VentasMostradorClient({
   const [isSearchEditModalOpen, setIsSearchEditModalOpen] = useState(false);
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
   const [historialActual, setHistorialActual] = useState<any[]>([]);
-  
+
   const [editVentaId, setEditVentaId] = useState("");
   const [editCliente, setEditCliente] = useState("");
   const [editInteresTarjeta, setEditInteresTarjeta] = useState<number>(0);
-  
+
   const [editMetodoPago, setEditMetodoPago] = useState("");
   const [isEditPagoMixto, setIsEditPagoMixto] = useState(false);
   const [editMontoPago1, setEditMontoPago1] = useState<number>(0);
@@ -118,7 +118,7 @@ export default function VentasMostradorClient({
   const [editTransaccionId, setEditTransaccionId] = useState("");
   const [editDeCruzada, setEditDeCruzada] = useState("");
   const [editParaCruzada, setEditParaCruzada] = useState("");
-  
+
   const [editEmail, setEditEmail] = useState("");
   const [editEventoOffline, setEditEventoOffline] = useState(false);
   const [ventaOriginalParaComparar, setVentaOriginalParaComparar] = useState<any>(null);
@@ -134,7 +134,7 @@ export default function VentasMostradorClient({
 
   // --- NUEVOS ESTADOS PARA ACTUALIZACIÓN RÁPIDA DE PRECIO ---
   const [isFastUpdateDbModalOpen, setIsFastUpdateDbModalOpen] = useState(false);
-  const [fastUpdateData, setFastUpdateData] = useState<{id: string, nombre: string, oldPrice: number, newPrice: number} | null>(null);
+  const [fastUpdateData, setFastUpdateData] = useState<{ id: string, nombre: string, oldPrice: number, newPrice: number } | null>(null);
 
   // --- EFECTOS ---
   useEffect(() => {
@@ -211,7 +211,7 @@ export default function VentasMostradorClient({
     }).slice(0, 15);
   }, [searchTerm, articulos]);
 
-  const ventasFiltradas = ventasRealizadas.filter(v => 
+  const ventasFiltradas = ventasRealizadas.filter(v =>
     mostrarSoloOffline ? v.eventoOffline === true : true
   );
 
@@ -223,7 +223,7 @@ export default function VentasMostradorClient({
 
   const base1 = isPagoMixto ? montoPago1 : totalBase;
   const base2 = isPagoMixto ? Math.max(0, totalBase - montoPago1) : 0;
-  
+
   const isCredito1 = metodoPago === "Tarjeta de Crédito";
   const isCredito2 = isPagoMixto && metodoPago2 === "Tarjeta de Crédito";
 
@@ -231,24 +231,24 @@ export default function VentasMostradorClient({
   const final2 = isCredito2 ? base2 * (1 + (interesTarjeta / 100)) : base2;
 
   const totalFinalCalculado = isPagoMixto ? (final1 + final2) : final1;
-  
+
   // SOLAMENTE SE REQUIEREN DATOS EXTRA SEGÚN EL MÉTODO EXACTO
-  const requiereTarjeta = isPagoMixto ? (esTarjeta(metodoPago) || esTarjeta(metodoPago2)) : esTarjeta(metodoPago); 
+  const requiereTarjeta = isPagoMixto ? (esTarjeta(metodoPago) || esTarjeta(metodoPago2)) : esTarjeta(metodoPago);
   const requiereCruzada = (isPagoMixto && (metodoPago === "Cruzada" || metodoPago2 === "Cruzada")) || (!isPagoMixto && metodoPago === "Cruzada");
 
   // --- FUNCIONES PARA IMPRESIÓN ---
   const handleImprimirPresupuesto = () => {
-    setVentaParaImprimir(null); 
+    setVentaParaImprimir(null);
     setTimeout(() => {
       window.print();
     }, 100);
   };
 
   const handleImprimirVentaHistorial = (venta: { id: string; cliente: string; email?: string; eventoOffline?: boolean }) => {
-    setVentaParaImprimir(venta); 
+    setVentaParaImprimir(venta);
     setTimeout(() => {
       window.print();
-      setTimeout(() => setVentaParaImprimir(null), 1000); 
+      setTimeout(() => setVentaParaImprimir(null), 1000);
     }, 100);
   };
 
@@ -276,8 +276,8 @@ export default function VentasMostradorClient({
   };
 
   const handleFinalizarVenta = async () => {
-    if (requiereTarjeta && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) { 
-      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return; 
+    if (requiereTarjeta && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) {
+      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return;
     }
     if (requiereCruzada && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para pagos Cruzados."); return; }
 
@@ -285,10 +285,10 @@ export default function VentasMostradorClient({
 
     let metodoPagoFinal = isPagoMixto ? "Mixto" : metodoPago;
     let infoFinal = info;
-    
+
     if (isPagoMixto) {
-        const det = `[Mixto -> ${metodoPago}: $${final1.toLocaleString('es-AR')} | ${metodoPago2}: $${final2.toLocaleString('es-AR')}]`;
-        infoFinal = info ? `${det} - ${info}` : det;
+      const det = `[Mixto -> ${metodoPago}: $${final1.toLocaleString('es-AR')} | ${metodoPago2}: $${final2.toLocaleString('es-AR')}]`;
+      infoFinal = info ? `${det} - ${info}` : det;
     }
 
     try {
@@ -334,7 +334,7 @@ export default function VentasMostradorClient({
 
   const editBase1 = isEditPagoMixto ? editMontoPago1 : totalBaseEdit;
   const editBase2 = isEditPagoMixto ? Math.max(0, totalBaseEdit - editMontoPago1) : 0;
-  
+
   const isEditCredito1 = editMetodoPago === "Tarjeta de Crédito";
   const isEditCredito2 = isEditPagoMixto && editMetodoPago2 === "Tarjeta de Crédito";
 
@@ -342,7 +342,7 @@ export default function VentasMostradorClient({
   const editFinal2 = isEditCredito2 ? editBase2 * (1 + (editInteresTarjeta / 100)) : editBase2;
 
   const editTotalFinalCalculado = isEditPagoMixto ? (editFinal1 + editFinal2) : editFinal1;
-  
+
   // SOLAMENTE SE REQUIEREN DATOS EXTRA SEGÚN EL MÉTODO EXACTO EN EDICIÓN
   const requiereTarjetaEdit = isEditPagoMixto ? (esTarjeta(editMetodoPago) || esTarjeta(editMetodoPago2)) : esTarjeta(editMetodoPago);
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
@@ -355,7 +355,7 @@ export default function VentasMostradorClient({
     setIsEditPagoMixto(venta.metodo_pago === "Mixto");
     setEditMontoPago1(venta.total / 2); // default
     setEditMetodoPago2("Tarjeta de Crédito"); // default
-    
+
     setEditInteresTarjeta(Number(venta.interes) || 0);
     setEditDni(venta.dni || "");
     setEditTelefono(venta.telefono || "");
@@ -365,11 +365,11 @@ export default function VentasMostradorClient({
     setEditParaCruzada(venta.para || "");
     setEditEmail(venta.email || "");
     setEditEventoOffline(venta.eventoOffline || false);
-    
+
     // Limpiamos la marca de mixto vieja del info para no duplicarla si se guarda de nuevo
     const cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
     setEditInfo(cleanInfo);
-    
+
     setEditItems(venta.items.map((i: { productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => {
       const articuloBase = articulos.find(a => a.id === i.productoId);
       return {
@@ -405,8 +405,8 @@ export default function VentasMostradorClient({
   };
 
   const handleGuardarEdicion = async () => {
-    if (requiereTarjetaEdit && (!editDni.trim() || !editTelefono.trim() || !editCupon.trim() || !editTransaccionId.trim())) { 
-      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return; 
+    if (requiereTarjetaEdit && (!editDni.trim() || !editTelefono.trim() || !editCupon.trim() || !editTransaccionId.trim())) {
+      alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return;
     }
     if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
 
@@ -416,7 +416,7 @@ export default function VentasMostradorClient({
     if (ventaOriginalParaComparar.email !== editEmail) cambios.push(`Email modificado`);
     if (ventaOriginalParaComparar.eventoOffline !== editEventoOffline) cambios.push(`Evento offline modificado`);
     if (Number(ventaOriginalParaComparar.totalFinal) !== editTotalFinalCalculado) {
-        cambios.push(`Total alterado`);
+      cambios.push(`Total alterado`);
     }
     if (cambios.length === 0) cambios.push("Se actualizaron artículos o datos menores.");
     const resumenCambios = cambios.join(" | ");
@@ -424,8 +424,8 @@ export default function VentasMostradorClient({
     let editMetodoPagoFinal = isEditPagoMixto ? "Mixto" : editMetodoPago;
     let editInfoFinal = editInfo;
     if (isEditPagoMixto) {
-        const det = `[Mixto -> ${editMetodoPago}: $${editFinal1.toLocaleString('es-AR')} | ${editMetodoPago2}: $${editFinal2.toLocaleString('es-AR')}]`;
-        editInfoFinal = editInfo ? `${det} - ${editInfo}` : det;
+      const det = `[Mixto -> ${editMetodoPago}: $${editFinal1.toLocaleString('es-AR')} | ${editMetodoPago2}: $${editFinal2.toLocaleString('es-AR')}]`;
+      editInfoFinal = editInfo ? `${det} - ${editInfo}` : det;
     }
 
     try {
@@ -438,7 +438,7 @@ export default function VentasMostradorClient({
           interes: editInteresTarjeta,
           totalFinal: editTotalFinalCalculado,
           metodo_pago: editMetodoPagoFinal,
-          dni: editDni, telefono: editTelefono, info: editInfoFinal, cupon: editCupon, 
+          dni: editDni, telefono: editTelefono, info: editInfoFinal, cupon: editCupon,
           transaccionId: editTransaccionId, de: editDeCruzada, para: editParaCruzada,
           email: editEmail,
           eventoOffline: editEventoOffline,
@@ -447,7 +447,7 @@ export default function VentasMostradorClient({
         vendedorNombre,
         resumenCambios
       );
-      
+
       if (resultado.success) {
         mostrarMensajeExito("¡Venta modificada con éxito!");
         setArticulos(prev => prev.map(art => {
@@ -486,7 +486,7 @@ export default function VentasMostradorClient({
     const articulo = articulos.find(a => a.id === idArticulo);
     if (articulo) {
       setPriceDbItem(articulo);
-      setNewDbPrice(precioInputActual); 
+      setNewDbPrice(precioInputActual);
       setIsPriceDbModalOpen(true);
     }
   };
@@ -494,22 +494,22 @@ export default function VentasMostradorClient({
   const handleUpdateDbPrice = async () => {
     if (!priceDbItem) return;
     setIsUpdatingDbPrice(true);
-    
+
     const res = await actualizarPrecioArticuloDB(priceDbItem.id, newDbPrice, vendedorNombre);
-    
+
     if (res.success) {
-      const nowStr = new Date().toISOString(); 
-      
+      const nowStr = new Date().toISOString();
+
       setArticulos(prev => prev.map(a => a.id === priceDbItem.id ? { ...a, precio: newDbPrice, ultimaModificacion: nowStr } : a));
       setItems(prev => prev.map(i => i.productoId === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
       setEditItems(prev => prev.map(i => i.productoId === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
-      
+
       mostrarMensajeExito("¡Precio base guardado en la Base de Datos!");
       setIsPriceDbModalOpen(false);
     } else {
       alert("No se pudo guardar el precio: " + res.error);
     }
-    
+
     setIsUpdatingDbPrice(false);
   };
 
@@ -530,24 +530,52 @@ export default function VentasMostradorClient({
   const handleFastUpdateDbPrice = async () => {
     if (!fastUpdateData) return;
     setIsUpdatingDbPrice(true);
-    
+
     const res = await actualizarPrecioArticuloDB(fastUpdateData.id, fastUpdateData.newPrice, vendedorNombre);
-    
+
     if (res.success) {
-      const nowStr = new Date().toISOString(); 
+      const nowStr = new Date().toISOString();
 
       setArticulos(prev => prev.map(a => a.id === fastUpdateData.id ? { ...a, precio: fastUpdateData.newPrice, ultimaModificacion: nowStr } : a));
       setItems(prev => prev.map(i => (i.productoId || i.id) === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice, ultimaModificacion: nowStr } : i));
       setEditItems(prev => prev.map(i => (i.productoId || i.id) === fastUpdateData.id ? { ...i, precio_unit: fastUpdateData.newPrice, subtotal: i.cantidad * fastUpdateData.newPrice, ultimaModificacion: nowStr } : i));
-      
+
       mostrarMensajeExito("¡Precio actualizado en la Base de Datos con éxito!");
       setIsFastUpdateDbModalOpen(false);
     } else {
       alert("No se pudo guardar el precio: " + res.error);
     }
-    
+
     setIsUpdatingDbPrice(false);
   };
+
+  // Top 5 artículos más vendidos en el rango de fechas filtrado
+  const topItemsVentas = useMemo(() => {
+    if (!ventasFiltradas || ventasFiltradas.length === 0) return [];
+
+    const itemCounts: Record<string, { nombre: string; total: number }> = {};
+
+    // Iterar sobre todas las ventas filtradas y contar cada artículo vendido
+    ventasFiltradas.forEach((venta) => {
+      if (venta.items && venta.items.length > 0) {
+        venta.items.forEach((item: any) => {
+          const nombre = item.nombre || '';
+          if (nombre) {
+            if (!itemCounts[nombre]) {
+              itemCounts[nombre] = { nombre, total: 0 };
+            }
+            // Cada artículo vendido cuenta como 1 (independientemente de la cantidad)
+            itemCounts[nombre].total += 1;
+          }
+        });
+      }
+    });
+
+    // Ordenar por cantidad descendente y tomar los top 5
+    return Object.values(itemCounts)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+  }, [ventasFiltradas]);
 
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
@@ -564,7 +592,7 @@ export default function VentasMostradorClient({
 
       {/* 2. INTERFAZ NORMAL */}
       <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none relative print:hidden">
-        
+
         {showCopyFeedback && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-top-2 duration-300">
             <div className="bg-slate-800 text-white text-[10px] px-3 py-1 rounded-full shadow-lg border border-slate-700 flex items-center gap-2">
@@ -612,7 +640,7 @@ export default function VentasMostradorClient({
           {/* --- PESTAÑA: REGISTRAR VENTA --- */}
           <TabsContent value="registrar" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
             <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
-              
+
               <section className="flex-grow flex flex-col min-h-0 gap-4">
                 <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
                   <Plus className="h-4 w-4" /> Añadir Artículo ( + )
@@ -639,9 +667,9 @@ export default function VentasMostradorClient({
                               <TableCell className="font-medium text-slate-700 py-3">
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center gap-2">
-                                    <span 
-                                      onClick={() => copiarAlPortapapeles(item.nombre)} 
-                                      className="text-base cursor-pointer hover:text-blue-600 transition-colors" 
+                                    <span
+                                      onClick={() => copiarAlPortapapeles(item.nombre)}
+                                      className="text-base cursor-pointer hover:text-blue-600 transition-colors"
                                       title="Copiar Nombre"
                                     >
                                       {item.nombre}
@@ -650,9 +678,9 @@ export default function VentasMostradorClient({
                                       Stock: {item.stock}
                                     </span>
                                   </div>
-                                  <span 
-                                    onClick={() => copiarAlPortapapeles(item.id)} 
-                                    className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 transition-colors w-fit block" 
+                                  <span
+                                    onClick={() => copiarAlPortapapeles(item.id)}
+                                    className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 transition-colors w-fit block"
                                     title="Copiar ID"
                                   >
                                     {item.id}
@@ -660,7 +688,7 @@ export default function VentasMostradorClient({
                                 </div>
                               </TableCell>
                               <TableCell className="text-center py-3">
-                                <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map((i: ItemVenta) => i.productoId === item.productoId ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                                <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map((i: ItemVenta) => i.productoId === item.productoId ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                               </TableCell>
                               <TableCell className="text-center py-3">
                                 <div className="flex items-center justify-center gap-1">
@@ -674,8 +702,8 @@ export default function VentasMostradorClient({
                                     <Database className="h-4 w-4" />
                                   </Button>
                                   <span className="text-slate-400 text-xs ml-1">$</span>
-                                  <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map((i: ItemVenta) => i.productoId === item.productoId ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
-                                  
+                                  <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map((i: ItemVenta) => i.productoId === item.productoId ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+
                                   <Button
                                     variant="ghost"
                                     size="icon"
@@ -711,10 +739,10 @@ export default function VentasMostradorClient({
                 </div>
               </section>
             </main>
-            
+
             <footer className="bg-white border-t border-slate-200 p-4 md:p-5 flex-shrink-0 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] z-20 relative">
               <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row justify-between items-end gap-6">
-                
+
                 <div className="flex flex-row items-end gap-4 w-full lg:w-auto">
                   <div className="space-y-1.5 flex-grow min-w-[200px] max-w-sm">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente / Razón Social</Label>
@@ -739,10 +767,10 @@ export default function VentasMostradorClient({
                     {interesTarjeta > 0 && <p className="text-[10px] text-slate-400 font-bold mt-0.5">Ref. c/Tarjeta (+{interesTarjeta}%): <span className="text-slate-600">$ {(totalBase * (1 + interesTarjeta / 100)).toLocaleString('es-AR')}</span></p>}
                     {interesTarjeta === 0 && <p className="text-[10px] text-transparent mt-0.5 select-none">-</p>}
                   </div>
-                  
+
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 justify-end border-l border-slate-200 pl-6 h-full">
                     <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(true)} className="text-slate-500 hover:text-red-500 hover:bg-red-50 h-12 px-4 rounded-xl hidden sm:flex">
-                       <Trash2 className="h-4 w-4 mr-2" /> Descartar
+                      <Trash2 className="h-4 w-4 mr-2" /> Descartar
                     </Button>
                     <Button variant="outline" onClick={handleImprimirPresupuesto} disabled={items.length === 0} className="text-slate-700 border-slate-300 hover:bg-slate-50 h-12 px-6 rounded-xl font-medium">
                       <Printer className="h-4 w-4 mr-2" /> Presupuesto
@@ -770,12 +798,12 @@ export default function VentasMostradorClient({
                         fechaHasta={fechaHasta}
                         setFechaDesde={(date) => { setFechaDesde(date); cargarVentas(date, fechaHasta); }}
                         setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
-                        onApply={() => {}}
+                        onApply={() => { }}
                       />
                       <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
                         <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
                       </Button>
-                      
+
                       <div className="flex items-center space-x-2 border-l pl-4 border-slate-200 ml-2 h-10">
                         <input
                           type="checkbox"
@@ -791,11 +819,32 @@ export default function VentasMostradorClient({
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-slate-400 font-bold uppercase">Total Filtrado (Final)</p>
-                  <p className="text-xl font-black text-slate-900">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
-                  <p className="text-xl font-black text-green-600">Cantidad Total: {ventasFiltradas.length.toLocaleString('es-AR')}</p>
-                  <p className="text-lg font-medium text-slate-900">Promedio Venta: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
+                <div className="flex items-end justify-end gap-4 flex-1 max-w-[700px]">
+                  {/* Bloque de totales existente */}
+                  <div className="text-right min-w-[250px]">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Total Filtrado (Final)</p>
+                    <p className="text-xl font-black text-slate-900">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
+                    <p className="text-xl font-black text-green-600">Cantidad Total: {ventasFiltradas.length.toLocaleString('es-AR')}</p>
+                    <p className="text-lg font-medium text-slate-900">Promedio Venta: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
+                  </div>
+
+                  {/* Nuevo bloque: Top 5 artículos más vendidos */}
+                  <div className="text-left flex-shrink-0">
+                    {topItemsVentas.length > 0 ? (
+                      <>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Top 5 Artículos Más Vendidos</p>
+                        <div className="flex flex-col gap-0.5">
+                          {topItemsVentas.map((item, index) => (
+                            <p key={index} className="text-[10px] text-slate-600 font-medium">
+                              {index + 1}. {item.nombre} ({item.total})
+                            </p>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic">Sin datos de ventas</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -826,18 +875,18 @@ export default function VentasMostradorClient({
                             <React.Fragment key={v.id}>
                               <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
                                 <TableCell className="py-4">
-                                    <div className="flex flex-col gap-1">
-                                      <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
-                                      <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                    </div>
-                                  </TableCell>
-                                
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                                    <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                  </div>
+                                </TableCell>
+
                                 <TableCell className="font-medium text-slate-700 py-4">
                                   {v.cliente}
                                   {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
                                   {v.eventoOffline && <span className="mt-1 inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span>}
                                 </TableCell>
-                                
+
                                 <TableCell className="py-4 pl-2">
                                   <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg" onClick={(e) => {
                                     e.stopPropagation();
@@ -856,13 +905,13 @@ export default function VentasMostradorClient({
                                   </span>
                                 </TableCell>
                                 <TableCell className="py-4 text-xs font-mono text-slate-600">
-                                   {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
+                                  {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
                                 </TableCell>
                                 <TableCell className="py-4 text-xs font-mono text-slate-600">
-                                   {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
+                                  {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
                                 </TableCell>
                                 <TableCell className="py-4 text-xs text-slate-500 max-w-[200px]" title={v.info || ""}>
-                                   {v.info || "-"}
+                                  {v.info || "-"}
                                 </TableCell>
                                 <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                                 <TableCell className="py-4 text-center">
@@ -953,7 +1002,7 @@ export default function VentasMostradorClient({
                         fechaHasta={fechaHasta}
                         setFechaDesde={(date) => { setFechaDesdeTemp(date); cargarVentas(date, fechaHasta); }}
                         setFechaHasta={(date) => { setFechaHastaTemp(date); cargarVentas(fechaDesde, date); }}
-                        onApply={() => {}}
+                        onApply={() => { }}
                       />
                       <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
                         <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
@@ -962,8 +1011,8 @@ export default function VentasMostradorClient({
                   </div>
                 </div>
                 <div className="text-right">
-                   <p className="text-xs text-amber-700 font-bold flex items-center gap-2 justify-end"><AlertTriangle className="h-4 w-4"/> Área de Modificaciones</p>
-                   <p className="text-[10px] text-amber-600">Las ediciones quedarán registradas en el historial.</p>
+                  <p className="text-xs text-amber-700 font-bold flex items-center gap-2 justify-end"><AlertTriangle className="h-4 w-4" /> Área de Modificaciones</p>
+                  <p className="text-[10px] text-amber-600">Las ediciones quedarán registradas en el historial.</p>
                 </div>
               </div>
 
@@ -1003,23 +1052,23 @@ export default function VentasMostradorClient({
                               </span>
                             </TableCell>
                             <TableCell className="py-4 text-xs font-mono text-slate-600">
-                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
+                              {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
                             </TableCell>
                             <TableCell className="py-4 text-xs font-mono text-slate-600">
-                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
+                              {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
                             </TableCell>
                             <TableCell className="py-4 text-xs text-slate-500 max-w-[200px]" title={v.info || ""}>
-                               {v.info || "-"}
+                              {v.info || "-"}
                             </TableCell>
                             <TableCell className="font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                             <TableCell className="text-xs text-slate-500 py-4">{v.vendedor}</TableCell>
                             <TableCell className="py-4 text-right space-x-2 whitespace-nowrap">
-                               <Button size="sm" variant="outline" onClick={() => abrirModalEdicion(v)} className="border-amber-200 text-amber-700 hover:bg-amber-50">
-                                 <Edit className="h-4 w-4 mr-2" /> Editar Venta
-                               </Button>
-                               <Button size="sm" variant="secondary" onClick={() => abrirModalHistorial(v.id)} className="bg-slate-100 text-slate-600 hover:bg-slate-200">
-                                 <History className="h-4 w-4 mr-2" /> Historial
-                               </Button>
+                              <Button size="sm" variant="outline" onClick={() => abrirModalEdicion(v)} className="border-amber-200 text-amber-700 hover:bg-amber-50">
+                                <Edit className="h-4 w-4 mr-2" /> Editar Venta
+                              </Button>
+                              <Button size="sm" variant="secondary" onClick={() => abrirModalHistorial(v.id)} className="bg-slate-100 text-slate-600 hover:bg-slate-200">
+                                <History className="h-4 w-4 mr-2" /> Historial
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))
@@ -1065,17 +1114,17 @@ export default function VentasMostradorClient({
           <DialogContent className="sm:max-w-[550px] rounded-3xl p-6">
             <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
-              
+
               {/* SELECTOR DE PAGO MIXTO */}
               <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <input 
-                  type="checkbox" 
-                  id="pagoMixto" 
-                  checked={isPagoMixto} 
-                  onChange={(e) => { 
-                    setIsPagoMixto(e.target.checked); 
-                    if(e.target.checked && montoPago1 === 0) setMontoPago1(totalBase/2); 
-                  }} 
+                <input
+                  type="checkbox"
+                  id="pagoMixto"
+                  checked={isPagoMixto}
+                  onChange={(e) => {
+                    setIsPagoMixto(e.target.checked);
+                    if (e.target.checked && montoPago1 === 0) setMontoPago1(totalBase / 2);
+                  }}
                   className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                 />
                 <Label htmlFor="pagoMixto" className="text-sm font-bold text-slate-700 cursor-pointer">
@@ -1141,7 +1190,7 @@ export default function VentasMostradorClient({
                   </select>
                 </div>
               )}
-              
+
               {requiereTarjeta && (
                 <div className="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
                   <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label><Input value={dni} onChange={(e) => setDni(e.target.value)} className="bg-white border-blue-200" /></div>
@@ -1157,18 +1206,18 @@ export default function VentasMostradorClient({
                   <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">Para <span className="text-red-500">*</span></Label><Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" /></div>
                 </div>
               )}
-              
+
               <div className="grid grid-cols-1 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-600 uppercase">Email (Opcional)</Label>
                   <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@correo.com" className="bg-white border-slate-200" />
                 </div>
                 <div className="flex items-center space-x-3 pt-1">
-                  <input 
-                    type="checkbox" 
-                    id="eventoOffline" 
-                    checked={eventoOffline} 
-                    onChange={(e) => setEventoOffline(e.target.checked)} 
+                  <input
+                    type="checkbox"
+                    id="eventoOffline"
+                    checked={eventoOffline}
+                    onChange={(e) => setEventoOffline(e.target.checked)}
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                   />
                   <Label htmlFor="eventoOffline" className="text-sm font-bold text-slate-700 cursor-pointer">
@@ -1176,7 +1225,7 @@ export default function VentasMostradorClient({
                   </Label>
                 </div>
               </div>
-              
+
               <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Información Extra</Label><Input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Notas adicionales..." /></div>
             </div>
             <DialogFooter className="gap-3">
@@ -1203,10 +1252,10 @@ export default function VentasMostradorClient({
               </DialogTitle>
               <DialogDescription className="text-amber-700">Modifica los artículos, el cliente o la forma de pago detallada.</DialogDescription>
             </DialogHeader>
-            
+
             <div className="flex-grow overflow-y-auto p-6 flex flex-col gap-6 bg-slate-50/50">
               <section className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-4 shadow-sm">
-                
+
                 <div className="flex gap-4 items-end flex-wrap mb-2">
                   <div className="space-y-1.5 flex-grow min-w-[200px]">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase">Cliente / Razón Social</Label>
@@ -1224,14 +1273,14 @@ export default function VentasMostradorClient({
 
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <div className="flex items-center space-x-3 mb-4">
-                    <input 
-                      type="checkbox" 
-                      id="editPagoMixto" 
-                      checked={isEditPagoMixto} 
-                      onChange={(e) => { 
-                        setIsEditPagoMixto(e.target.checked); 
-                        if(e.target.checked && editMontoPago1 === 0) setEditMontoPago1(totalBaseEdit/2); 
-                      }} 
+                    <input
+                      type="checkbox"
+                      id="editPagoMixto"
+                      checked={isEditPagoMixto}
+                      onChange={(e) => {
+                        setIsEditPagoMixto(e.target.checked);
+                        if (e.target.checked && editMontoPago1 === 0) setEditMontoPago1(totalBaseEdit / 2);
+                      }}
                       className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
                     />
                     <Label htmlFor="editPagoMixto" className="text-sm font-bold text-slate-700 cursor-pointer">
@@ -1344,11 +1393,11 @@ export default function VentasMostradorClient({
                     <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="bg-white" placeholder="cliente@correo.com" />
                   </div>
                   <div className="flex items-center space-x-3 w-full md:w-auto mt-4 md:mt-0 px-2">
-                    <input 
-                      type="checkbox" 
-                      id="editEventoOffline" 
-                      checked={editEventoOffline} 
-                      onChange={(e) => setEditEventoOffline(e.target.checked)} 
+                    <input
+                      type="checkbox"
+                      id="editEventoOffline"
+                      checked={editEventoOffline}
+                      onChange={(e) => setEditEventoOffline(e.target.checked)}
                       className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
                     />
                     <Label htmlFor="editEventoOffline" className="text-xs font-bold text-slate-700 cursor-pointer whitespace-nowrap">
@@ -1377,30 +1426,30 @@ export default function VentasMostradorClient({
                       {editItems.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell className="font-medium text-slate-700 py-3">
-                             <div className="flex flex-col gap-1">
-                               <div className="flex items-center gap-2">
-                                 <span 
-                                   onClick={() => copiarAlPortapapeles(item.nombre)} 
-                                   className="text-sm cursor-pointer hover:text-amber-600 transition-colors"
-                                   title="Copiar Nombre"
-                                 >
-                                   {item.nombre}
-                                 </span>
-                                 <span className={`text-xs font-black px-2 py-1 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
-                                   Stock: {item.stock}
-                                 </span>
-                               </div>
-                               <span 
-                                 onClick={() => copiarAlPortapapeles(item.id)} 
-                                 className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-amber-600 transition-colors w-fit block" 
-                                 title="Copiar ID"
-                               >
-                                 {item.id}
-                               </span>
-                             </div>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  onClick={() => copiarAlPortapapeles(item.nombre)}
+                                  className="text-sm cursor-pointer hover:text-amber-600 transition-colors"
+                                  title="Copiar Nombre"
+                                >
+                                  {item.nombre}
+                                </span>
+                                <span className={`text-xs font-black px-2 py-1 rounded-md border whitespace-nowrap ${item.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : item.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                                  Stock: {item.stock}
+                                </span>
+                              </div>
+                              <span
+                                onClick={() => copiarAlPortapapeles(item.id)}
+                                className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-amber-600 transition-colors w-fit block"
+                                title="Copiar ID"
+                              >
+                                {item.id}
+                              </span>
+                            </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.productoId === item.productoId ? {...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit} : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                            <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.productoId === item.productoId ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -1414,8 +1463,8 @@ export default function VentasMostradorClient({
                                 <Database className="h-4 w-4" />
                               </Button>
                               <span className="text-slate-400 text-xs ml-1">$</span>
-                              <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.productoId === item.productoId ? {...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value)} : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
-                              
+                              <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.productoId === item.productoId ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1451,7 +1500,7 @@ export default function VentasMostradorClient({
             <DialogFooter className="p-6 bg-white border-t border-slate-100 gap-3">
               <Button variant="ghost" onClick={() => setIsEditMainModalOpen(false)}>Cancelar Cambios</Button>
               <Button onClick={handleGuardarEdicion} disabled={isSubmitting} className="bg-amber-600 hover:bg-amber-700 text-white px-8 rounded-xl font-bold flex gap-2">
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4"/> Guardar Modificación</>}
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4" /> Guardar Modificación</>}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1497,7 +1546,7 @@ export default function VentasMostradorClient({
               ) : (
                 historialActual.map((auditoria) => (
                   <div key={auditoria.id} className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex gap-4 items-start">
-                    <div className="bg-white p-2 border border-slate-200 rounded-lg"><User className="h-4 w-4 text-slate-400"/></div>
+                    <div className="bg-white p-2 border border-slate-200 rounded-lg"><User className="h-4 w-4 text-slate-400" /></div>
                     <div>
                       <p className="text-sm font-bold text-slate-900">{auditoria.usuario}</p>
                       <p className="text-xs text-slate-500 mb-2">{new Date(auditoria.createdAt).toLocaleString('es-AR')}</p>
@@ -1525,7 +1574,7 @@ export default function VentasMostradorClient({
                 Modificar precios de la <b>Base de Datos</b>. este cambio quedara registrado.
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="py-4 space-y-5">
               <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 flex flex-col">
                 <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider mb-1">Artículo Seleccionado</p>
@@ -1533,14 +1582,14 @@ export default function VentasMostradorClient({
                 <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {priceDbItem?.id}</p>
                 <p className="text-sm font-bold text-slate-900 mt-2">Precio Viejo: ${priceDbItem?.precio.toLocaleString('es-AR')}</p>
               </div>
-              
+
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase">Nuevo Precio Base ($)</Label>
-                <Input 
-                  type="number" 
+                <Input
+                  type="number"
                   autoFocus
-                  value={newDbPrice} 
-                  onChange={(e) => setNewDbPrice(Number(e.target.value))} 
+                  value={newDbPrice}
+                  onChange={(e) => setNewDbPrice(Number(e.target.value))}
                   className="font-black text-xl h-12 border-indigo-200 focus-visible:ring-indigo-500"
                 />
               </div>
@@ -1566,21 +1615,21 @@ export default function VentasMostradorClient({
                 Confirmar modificacion del precio en <b>Base de Datos</b>?
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="py-4 space-y-4">
               <div className="p-4 bg-green-50/50 rounded-xl border border-green-100 flex flex-col items-center text-center">
                 <p className="text-sm font-bold text-slate-900 mb-4">{fastUpdateData?.nombre}</p>
-                
+
                 <div className="flex items-center justify-center gap-6 w-full">
                   <div className="flex flex-col">
                     <span className="text-[10px] text-slate-500 font-bold uppercase mb-1">Precio anterior</span>
                     <span className="text-lg font-medium text-slate-500 line-through">${fastUpdateData?.oldPrice.toLocaleString('es-AR')}</span>
                   </div>
-                  
+
                   <div className="bg-green-200 text-green-800 p-1.5 rounded-full">
                     <CheckCircle2 className="h-5 w-5" />
                   </div>
-                  
+
                   <div className="flex flex-col">
                     <span className="text-[10px] text-green-700 font-bold uppercase mb-1">Precio nuevo</span>
                     <span className="text-2xl font-black text-green-700">${fastUpdateData?.newPrice.toLocaleString('es-AR')}</span>
@@ -1631,7 +1680,7 @@ function TicketImpresion({
   }, []);
 
   if (!mounted) return null;
-  
+
   const formatPrecio = (num: number | string) => {
     return Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
@@ -1676,7 +1725,7 @@ function TicketImpresion({
       </div>
 
       <div className="w-full border-t border-print-black border-black my-1"></div>
-      
+
       <table className="w-full text-[9px] leading-tight text-left border-collapse table-fixed">
         <thead>
           <tr>
@@ -1695,14 +1744,14 @@ function TicketImpresion({
           ))}
         </tbody>
       </table>
-      
+
       <div className="w-full border-t border-print-black border-black my-1 mt-2"></div>
 
       <div className="flex justify-between items-center w-full mt-1 mb-1">
         <span>SUBTOTAL:</span>
         <span>{formatPrecio(total)}</span>
       </div>
-      
+
       <div className="flex justify-between items-center w-full font-bold text-[10px] mb-2">
         <span>TOTAL:</span>
         <span>{formatPrecio(total)}</span>
@@ -1727,14 +1776,14 @@ function TicketImpresion({
 
 function numeroALetras(num: number): string {
   const Unidades = (n: number) => {
-    switch(n) {
+    switch (n) {
       case 1: return "UN"; case 2: return "DOS"; case 3: return "TRES"; case 4: return "CUATRO"; case 5: return "CINCO"; case 6: return "SEIS"; case 7: return "SIETE"; case 8: return "OCHO"; case 9: return "NUEVE"; default: return "";
     }
   };
   const Decenas = (n: number) => {
-    const decena = Math.floor(n/10); const unidad = n - (decena * 10);
-    switch(decena) {
-      case 1: switch(unidad) { case 0: return "DIEZ"; case 1: return "ONCE"; case 2: return "DOCE"; case 3: return "TRECE"; case 4: return "CATORCE"; case 5: return "QUINCE"; default: return "DIECI" + Unidades(unidad); }
+    const decena = Math.floor(n / 10); const unidad = n - (decena * 10);
+    switch (decena) {
+      case 1: switch (unidad) { case 0: return "DIEZ"; case 1: return "ONCE"; case 2: return "DOCE"; case 3: return "TRECE"; case 4: return "CATORCE"; case 5: return "QUINCE"; default: return "DIECI" + Unidades(unidad); }
       case 2: return unidad === 0 ? "VEINTE" : "VEINTI" + Unidades(unidad);
       case 3: return DecenasY("TREINTA", unidad); case 4: return DecenasY("CUARENTA", unidad); case 5: return DecenasY("CINCUENTA", unidad);
       case 6: return DecenasY("SESENTA", unidad); case 7: return DecenasY("SETENTA", unidad); case 8: return DecenasY("OCHENTA", unidad);
@@ -1744,7 +1793,7 @@ function numeroALetras(num: number): string {
   const DecenasY = (strSin: string, numUnidades: number) => numUnidades > 0 ? strSin + " Y " + Unidades(numUnidades) : strSin;
   const Centenas = (n: number) => {
     const centenas = Math.floor(n / 100); const decenas = n - (centenas * 100);
-    switch(centenas) {
+    switch (centenas) {
       case 1: return decenas > 0 ? "CIENTO " + Decenas(decenas) : "CIEN"; case 2: return "DOSCIENTOS " + Decenas(decenas); case 3: return "TRESCIENTOS " + Decenas(decenas);
       case 4: return "CUATROCIENTOS " + Decenas(decenas); case 5: return "QUINIENTOS " + Decenas(decenas); case 6: return "SEISCIENTOS " + Decenas(decenas);
       case 7: return "SETECIENTOS " + Decenas(decenas); case 8: return "OCHOCIENTOS " + Decenas(decenas); case 9: return "NOVECIENTOS " + Decenas(decenas); default: return Decenas(decenas);
@@ -1763,7 +1812,7 @@ function numeroALetras(num: number): string {
     return strMillones === "" ? Miles(resto) : strMillones + " " + Miles(resto);
   };
 
-  const enteros = Math.floor(num); 
+  const enteros = Math.floor(num);
   const centavos = Math.round((num - enteros) * 100).toString().padStart(2, '0');
   if (enteros === 0) return `CERO CON ${centavos}/100`;
   return `${Millones(enteros).trim()} CON ${centavos}/100`;

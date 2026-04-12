@@ -695,7 +695,7 @@ export default function VentasMostradorClient({
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
+                                    className="h-7 w-7 text-green-600 hover:bg-green-50 rounded-lg"
                                     title="Editar precio base en el sistema"
                                     onClick={() => abrirModalPrecioDB(item.productoId ?? item.id, item.precio_unit)}
                                   >
@@ -707,7 +707,7 @@ export default function VentasMostradorClient({
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-7 w-7 text-slate-300 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                    className="h-7 w-7 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                                     title="Guardar este precio en la Base de Datos"
                                     onClick={() => abrirModalFastUpdate(item.productoId ?? item.id, item.precio_unit)}
                                   >
@@ -728,7 +728,7 @@ export default function VentasMostradorClient({
                                 $ {item.subtotal.toLocaleString('es-AR')}
                               </TableCell>
                               <TableCell className="py-3 text-center">
-                                <Button variant="ghost" size="icon" onClick={() => setItems(items.filter(i => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button>
+                                <Button variant="ghost" size="icon" onClick={() => setItems(items.filter(i => i.id !== item.id))} className="text-red-500"><Trash2 className="h-4 w-4" /></Button>
                               </TableCell>
                             </TableRow>
                           ))
@@ -743,41 +743,47 @@ export default function VentasMostradorClient({
             <footer className="bg-white border-t border-slate-200 p-4 md:p-5 flex-shrink-0 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] z-20 relative">
               <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row justify-between items-end gap-6">
 
-                <div className="flex flex-row items-end gap-4 w-full lg:w-auto">
-                  <div className="space-y-1.5 flex-grow min-w-[200px] max-w-sm">
-                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cliente / Razón Social</Label>
-                    <div className="relative">
-                      <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50/50 border-slate-200 focus:bg-white transition-colors" />
-                      <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <div className="flex flex-col lg:flex-row justify-between items-end gap-6 w-full">
+                  <div className="flex flex-col sm:flex-row items-end gap-4 w-full lg:w-auto">
+                    <div className="space-y-1.5 flex-grow min-w-[200px] max-w-sm">
+                      <Label className="text-sm font-bold text-slate-700">Cliente / Razón Social</Label>
+                      <div className="relative">
+                        <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50/50 border-slate-200 focus:bg-white transition-colors" />
+                        <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-1.5 w-32">
-                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">% Int. Tarjeta</Label>
-                    <div className="relative">
-                      <Input type="number" value={interesTarjeta} onChange={(e) => setInteresTarjeta(Number(e.target.value))} className="pl-8 h-10 bg-slate-50/50 border-slate-200 font-bold text-blue-600 focus:bg-white transition-colors" />
-                      <Percent className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+
+                  <div className="flex flex-col sm:flex-row items-center lg:items-end gap-6 w-full lg:w-auto justify-end">
+                    <div className="flex items-center gap-4 flex-shrink-0">
+                      <div className="text-right -ml-24">
+                        <span className="text-sm font-bold text-slate-700 block mb-0.5">Total Base Gral.</span>
+                        <span className="text-3xl font-black text-slate-900 tracking-tighter">$ {totalBase.toLocaleString('es-AR')}</span>
+                      </div>
+                      <div className="space-y-1.5 w-32">
+                        <Label className="text-sm font-bold text-slate-700">% Int. Tarjeta</Label>
+                        <div className="relative">
+                          <Input type="number" value={interesTarjeta} onChange={(e) => setInteresTarjeta(Number(e.target.value))} className="pl-8 h-10 bg-slate-50/50 border-slate-200 font-bold text-blue-600 focus:bg-white transition-colors" />
+                          <Percent className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                        </div>
+                      </div>
+                      <div className={`text-right ${interesTarjeta === 0 ? 'hidden select-none' : ''}`}>
+                        <span className="text-[10px] font-bold text-black uppercase tracking-wider block mb-0.5">Total con Interés</span>
+                        <span className="text-3xl font-black text-red-600 tracking-tighter">$ {(totalBase * (1 + interesTarjeta / 100)).toLocaleString('es-AR')}</span>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                <div className="flex flex-col sm:flex-row items-center lg:items-end gap-6 w-full lg:w-auto justify-end">
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Total Base Gral.</span>
-                    <span className="text-3xl font-black text-slate-900 tracking-tighter">$ {totalBase.toLocaleString('es-AR')}</span>
-                    {interesTarjeta > 0 && <p className="text-[10px] text-slate-400 font-bold mt-0.5">Ref. c/Tarjeta (+{interesTarjeta}%): <span className="text-slate-600">$ {(totalBase * (1 + interesTarjeta / 100)).toLocaleString('es-AR')}</span></p>}
-                    {interesTarjeta === 0 && <p className="text-[10px] text-transparent mt-0.5 select-none">-</p>}
-                  </div>
-
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 justify-end border-l border-slate-200 pl-6 h-full">
-                    <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(true)} className="text-slate-500 hover:text-red-500 hover:bg-red-50 h-12 px-4 rounded-xl hidden sm:flex">
-                      <Trash2 className="h-4 w-4 mr-2" /> Descartar
-                    </Button>
-                    <Button variant="outline" onClick={handleImprimirPresupuesto} disabled={items.length === 0} className="text-slate-700 border-slate-300 hover:bg-slate-50 h-12 px-6 rounded-xl font-medium">
-                      <Printer className="h-4 w-4 mr-2" /> Presupuesto
-                    </Button>
-                    <Button onClick={() => setIsFinalizarModalOpen(true)} disabled={items.length === 0 || isSubmitting} className="h-12 px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-600/20 transition-all hover:shadow-lg hover:-translate-y-0.5">
-                      Finalizar Venta
-                    </Button>
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 justify-end border-l border-slate-200 pl-6 h-full">
+                      <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(true)} className="text-red-500 hover:bg-red-50 h-12 px-4 rounded-xl hidden sm:flex">
+                        <Trash2 className="h-4 w-4 mr-2" /> Descartar
+                      </Button>
+                      <Button variant="outline" onClick={handleImprimirPresupuesto} disabled={items.length === 0} className="text-slate-700 border-slate-300 hover:bg-slate-50 h-12 px-6 rounded-xl font-medium">
+                        <Printer className="h-4 w-4 mr-2" /> Presupuesto
+                      </Button>
+                      <Button onClick={() => setIsFinalizarModalOpen(true)} disabled={items.length === 0 || isSubmitting} className="h-12 px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-600/20 transition-all hover:shadow-lg hover:-translate-y-0.5">
+                        Finalizar Venta
+                      </Button>
+                    </div>
                   </div>
                 </div>
 

@@ -791,7 +791,7 @@ export default function VentasMostradorClient({
             </footer>
           </TabsContent>
 
-          {/* --- PESTAÑA: LISTADO DE VENTAS --- */}
+          {/* --- PESTAÑA: LISTADO DE VENTAS (MODIFICADA) --- */}
           <TabsContent value="listado" className="flex-grow overflow-hidden m-0 select-text data-[state=active]:flex data-[state=active]:flex-col h-full">
             <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
               <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
@@ -826,7 +826,6 @@ export default function VentasMostradorClient({
                   </div>
                 </div>
                 <div className="flex items-end justify-end gap-4 flex-1 max-w-[700px]">
-                  {/* Bloque de totales existente */}
                   <div className="text-right min-w-[250px]">
                     <p className="text-[10px] text-slate-400 font-bold uppercase">Total Filtrado (Final)</p>
                     <p className="text-xl font-black text-slate-900">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
@@ -834,7 +833,6 @@ export default function VentasMostradorClient({
                     <p className="text-lg font-medium text-slate-900">Promedio Venta: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
                   </div>
 
-                  {/* Nuevo bloque: Top 5 artículos más vendidos */}
                   <div className="text-left flex-shrink-0">
                     {topItemsVentas.length > 0 ? (
                       <>
@@ -859,8 +857,8 @@ export default function VentasMostradorClient({
                   <Table>
                     <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                       <TableRow>
+                        <TableHead className="text-[10px] font-bold uppercase py-3 w-20">Fecha</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">ID Venta</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Ver Artículos</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
@@ -868,7 +866,6 @@ export default function VentasMostradorClient({
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Info Extra</TableHead>
                         <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
-                        <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-28">Acciones</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -880,11 +877,21 @@ export default function VentasMostradorClient({
                           return (
                             <React.Fragment key={v.id}>
                               <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
-                                <TableCell className="py-4">
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
-                                    <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                {/* Celda de Fecha y Hora (Nueva) */}
+                                <TableCell className="py-4 pr-0">
+                                  <div className="flex flex-col leading-tight">
+                                    <span className="text-[11px] font-bold text-slate-700 whitespace-nowrap">
+                                      {new Date(v.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
+                                    </span>
                                   </div>
+                                </TableCell>
+
+                                {/* Celda de ID Venta (Limpio) */}
+                                <TableCell className="py-4">
+                                  <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
                                 </TableCell>
 
                                 <TableCell className="font-medium text-slate-700 py-4">
@@ -902,7 +909,7 @@ export default function VentasMostradorClient({
                                     setExpandedVentas(newExpanded);
                                   }}>
                                     <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                                    <span className="ml-1 text-xs">Artículos ({v.items?.length || 0})</span>
+                                    <span className="ml-1 text-xs">({v.items?.length || 0})</span>
                                   </Button>
                                 </TableCell>
                                 <TableCell className="py-4">
@@ -920,25 +927,6 @@ export default function VentasMostradorClient({
                                   {v.info || "-"}
                                 </TableCell>
                                 <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
-                                <TableCell className="py-4 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); handleImprimirVentaHistorial(v); }}
-                                      className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all border border-transparent"
-                                      title="Imprimir Ticket"
-                                    >
-                                      <Printer className="h-5 w-5" />
-                                    </button>
-                                    <button
-                                      disabled={v.registrada}
-                                      onClick={(e) => { e.stopPropagation(); handleMarcarRegistrada(v.id); }}
-                                      className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}
-                                      title={v.registrada ? "Registrada" : "Marcar como Registrada"}
-                                    >
-                                      {v.registrada ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
-                                    </button>
-                                  </div>
-                                </TableCell>
                               </TableRow>
                               {isExpanded && (
                                 <TableRow className="bg-slate-50/30 border-b-2 border-slate-200">

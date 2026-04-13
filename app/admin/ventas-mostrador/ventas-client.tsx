@@ -860,7 +860,7 @@ export default function VentasMostradorClient({
                     <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                       <TableRow>
                         <TableHead className="text-[10px] font-bold uppercase py-3">ID Venta</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3">Fecha / Hora</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Ver Artículos</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
@@ -873,7 +873,7 @@ export default function VentasMostradorClient({
                     </TableHeader>
                     <TableBody>
                       {ventasFiltradas.length === 0 ? (
-                        <TableRow><TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
+                        <TableRow><TableCell colSpan={10} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
                       ) : (
                         ventasFiltradas.map((v) => {
                           const isExpanded = expandedVentas.has(v.id);
@@ -881,8 +881,11 @@ export default function VentasMostradorClient({
                             <React.Fragment key={v.id}>
                               <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
                                 <TableCell className="py-4">
+                                  <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                                </TableCell>
+                                <TableCell className="py-4">
                                   <div className="flex flex-col gap-1">
-                                    <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                                    <span className="text-[10px] text-slate-700 font-bold whitespace-nowrap">{new Date(v.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                                     <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
                                   </div>
                                 </TableCell>
@@ -950,7 +953,7 @@ export default function VentasMostradorClient({
                                       </div>
                                     </div>
                                   </TableCell>
-                                  <TableCell colSpan={6} className="py-0">
+                                  <TableCell colSpan={7} className="py-0">
                                     <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
                                       {v.items?.length > 0 ? (
                                         v.items.map((item: { id: string; productoId?: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => (
@@ -1028,7 +1031,7 @@ export default function VentasMostradorClient({
                     <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                       <TableRow>
                         <TableHead className="text-[10px] font-bold uppercase py-3">ID Venta</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase py-3">Hora</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3">Fecha / Hora</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
@@ -1046,8 +1049,11 @@ export default function VentasMostradorClient({
                         ventasRealizadas.map((v) => (
                           <TableRow key={v.id} className="hover:bg-slate-50/50">
                             <TableCell className="py-4">
+                              <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                            </TableCell>
+                            <TableCell className="py-4">
                               <div className="flex flex-col gap-1">
-                                <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                                <span className="text-[10px] text-slate-700 font-bold whitespace-nowrap">{new Date(v.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
                                 <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
                               </div>
                             </TableCell>

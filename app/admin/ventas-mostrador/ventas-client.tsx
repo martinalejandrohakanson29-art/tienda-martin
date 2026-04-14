@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRangeCalendar } from "./date-range-calendar";
 import {
   crearVentaMostrador, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
-  actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB
+  actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador
 } from "@/app/actions/ventas-mostrador";
 
 interface Articulo {
@@ -347,7 +347,13 @@ export default function VentasMostradorClient({
   const requiereTarjetaEdit = isEditPagoMixto ? (esTarjeta(editMetodoPago) || esTarjeta(editMetodoPago2)) : esTarjeta(editMetodoPago);
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
 
-  const abrirModalEdicion = (venta: { id: string; cliente: string; email?: string; metodo_pago: string; totalFinal: number; items: Array<{ productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }>; createdAt: string; total: number; interes: number; dni?: string; telefono?: string; cupon?: string; transaccionId?: string; de?: string; para?: string; eventoOffline?: boolean; info?: string }) => {
+  const abrirModalEdicion = async (venta: { id: string; cliente: string; email?: string; metodo_pago: string; totalFinal: number; items: Array<{ productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }>; createdAt: string; total: number; interes: number; dni?: string; telefono?: string; cupon?: string; transaccionId?: string; de?: string; para?: string; eventoOffline?: boolean; info?: string }) => {
+    // Sincronizar artículos con la base de datos para asegurar precios correctos
+    const syncResult = await sincronizarArticulosMostrador();
+    if (syncResult.success && syncResult.data) {
+      setArticulos(syncResult.data);
+    }
+
     setVentaOriginalParaComparar(venta);
     setEditVentaId(venta.id);
     setEditCliente(venta.cliente || "");
@@ -370,10 +376,13 @@ export default function VentasMostradorClient({
     const cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
     setEditInfo(cleanInfo);
 
-    setEditItems(venta.items.map((i: { productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => {
+    // Ahora inicializamos editItems con los precios CORRECTOS desde la base de datos
+    setEditItems(venta.items.map((i: { id?: string; productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => {
       const articuloBase = articulos.find(a => a.id === i.productoId);
       return {
-        id: i.productoId, nombre: i.nombre, cantidad: i.cantidad,
+        id: i.id || crypto.randomUUID(),
+        productoId: i.productoId,
+        nombre: i.nombre, cantidad: i.cantidad,
         precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal),
         stock: articuloBase ? articuloBase.stock : 0,
         ultimaModificacion: articuloBase?.ultimaModificacion || null
@@ -688,7 +697,7 @@ export default function VentasMostradorClient({
                                 </div>
                               </TableCell>
                               <TableCell className="text-center py-3">
-                                <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map((i: ItemVenta) => i.productoId === item.productoId ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                                <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                               </TableCell>
                               <TableCell className="text-center py-3">
                                 <div className="flex items-center justify-center gap-1">
@@ -702,7 +711,7 @@ export default function VentasMostradorClient({
                                     <Database className="h-4 w-4" />
                                   </Button>
                                   <span className="text-slate-400 text-xs ml-1">$</span>
-                                  <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map((i: ItemVenta) => i.productoId === item.productoId ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                                  <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
 
                                   <Button
                                     variant="ghost"
@@ -1461,7 +1470,7 @@ export default function VentasMostradorClient({
                             </div>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.productoId === item.productoId ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                            <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                           </TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
@@ -1475,7 +1484,7 @@ export default function VentasMostradorClient({
                                 <Database className="h-4 w-4" />
                               </Button>
                               <span className="text-slate-400 text-xs ml-1">$</span>
-                              <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.productoId === item.productoId ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                              <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
 
                               <Button
                                 variant="ghost"
@@ -1500,7 +1509,7 @@ export default function VentasMostradorClient({
                           <TableCell className="text-right font-bold text-slate-700">
                             $ {item.subtotal.toLocaleString('es-AR')}
                           </TableCell>
-                          <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((i: ItemVenta) => i.productoId !== item.productoId))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
+                          <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((i: ItemVenta) => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

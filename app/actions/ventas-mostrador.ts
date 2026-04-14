@@ -334,3 +334,34 @@ export async function actualizarPrecioArticuloDB(articuloId: string, nuevoPrecio
     return { success: false, error: error.message || "Error al conectar con la base de datos" };
   }
 }
+
+/**
+ * Sincroniza los artículos del mostrador con la base de datos
+ * Esta función debe usarse antes de abrir el modal de edición para asegurar
+ * que los precios iniciales sean correctos
+ */
+export async function sincronizarArticulosMostrador() {
+  try {
+    const articulos = await prisma.articuloMostrador.findMany({
+      select: {
+        id: true,
+        nombre: true,
+        precio: true,
+        stock: true
+      }
+    });
+
+    // Convertir Decimal a number para compatibilidad con el tipo Articulo
+    const articulosConverted = articulos.map(art => ({
+      id: art.id,
+      nombre: art.nombre,
+      precio: Number(art.precio),
+      stock: art.stock
+    }));
+
+    return { success: true, data: articulosConverted };
+  } catch (error) {
+    console.error("Error al sincronizar artículos:", error);
+    return { success: false, error: "No se pudo sincronizar los artículos" };
+  }
+}

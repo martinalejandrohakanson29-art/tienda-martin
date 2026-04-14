@@ -99,6 +99,33 @@ Se implementó un sistema de acordeón desplegable en la pestaña "Listado de Ve
 - Interacción intuitiva con clic simple
 - Información de artículos disponible solo cuando se necesita
 
+### Modificación: Funcionalidad de Creación y Venta de Packs en Mostrador
+**Fecha:** 2026-04-14
+**Archivos Modificados:** `prisma/schema.prisma`, `app/actions/ventas-mostrador.ts`, `app/admin/ventas-mostrador/ventas-client.tsx`
+
+**Descripción del Cambio:**
+Se implementó un sistema para "Packs" en las ventas de mostrador que permiten agrupar múltiples artículos bajo uno solo (ej. Kit Limpieza = Cepillo + Lubricante). Esto difiere y es totalmente independiente del sistema de Kits de Mercado Libre en `kits.ts`.
+
+**Cambios Técnicos:**
+
+1.  **Prisma / Base de Datos:**
+    - Se añadió `esPack Boolean? @default(false)` al modelo `ArticuloMostrador`.
+    - Se creó un nuevo modelo de cruce `PackMostradorItem` con relaciones Many-to-Many hacia `ArticuloMostrador` delimitando explícitamente `packId` y `componenteId`.
+    
+2.  **Lógica del Servidor (Actions):**
+    - `crearPackMostrador`: Nueva Server Action para persistir el pack como artículo e insertar sus componentes.
+    - Se alteró la transacción en `crearVentaMostrador` y `actualizarVentaMostrador` para detectar si el ítem manipulado es un Pack (`esPack`). En ese caso, itera por `packItems` para descontar el stock de sus componentes directos escalados por la cantidad dada.
+    - El stock visible de un producto tipo Pack es un stock virtual computado al momento de consulta aplicando la cantidad mínima posible calculada en base a sus componentes.
+
+3.  **Frontend / UI:**
+    - Botón "Crear Pack" visible en "Venta Mostrador" pestaña "Registrar Venta".
+    - Nuevo Modal (`Diseñar Nuevo Pack`) que permite seleccionar, listar y combinar artículos estándares.
+    - Modificación visual del estado en el buscador instantáneo demarcando con un tag visual `[PACK]`.
+
+**Beneficios:**
+- Mejor gestión de inventario para promociones locales sin mezclar stocks.
+- Automatización del descuento múltiple del inventario en venta por mostrador.
+
 **IMPORTANTE:**
 - en local siempre se ejecutara en windows 11 o en linux mint. 
 - El usuario no tiene amplios conocimientos ni de codigo, ni de desarrollo, ni de base de datos. tenlo en cuenta a la hora de explicarle cosas o de pedirle que haga algo.

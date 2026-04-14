@@ -456,16 +456,32 @@ model VentaAuditoria {
 }
 
 model ArticuloMostrador {
-  id         String              @id
-  nombre     String
-  stock      Int                 @default(0)
-  precio     Decimal             @default(0) @db.Decimal(20, 2)
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
-  auditorias ArticuloAuditoria[]
+  id           String              @id
+  nombre       String
+  stock        Int                 @default(0)
+  precio       Decimal             @default(0) @db.Decimal(20, 2)
+  esPack       Boolean?            @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  auditorias   ArticuloAuditoria[]
+  packItems    PackMostradorItem[] @relation("PackPadre")
+  componenteOf PackMostradorItem[] @relation("PackComponente")
 
   @@index([nombre])
   @@map("articulos_mostrador")
+}
+
+model PackMostradorItem {
+  id             String  @id @default(cuid())
+  packId         String
+  componenteId   String
+  cantidad       Int     @default(1)
+
+  pack          ArticuloMostrador @relation("PackPadre", fields: [packId], references: [id], onDelete: Cascade)
+  componente    ArticuloMostrador @relation("PackComponente", fields: [componenteId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, componenteId])
+  @@map("pack_mostrador_items")
 }
 
 model ArticuloAuditoria {

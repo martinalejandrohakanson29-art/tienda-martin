@@ -20,7 +20,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRangeCalendar } from "./date-range-calendar";
 import {
   crearVentaMostrador, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
-  actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador
+  actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
+  crearPackMostrador
 } from "@/app/actions/ventas-mostrador";
 
 interface Articulo {
@@ -29,6 +30,7 @@ interface Articulo {
   precio: number;
   stock: number;
   ultimaModificacion?: string | null;
+  esPack?: boolean;
 }
 
 interface ItemVenta {
@@ -136,6 +138,13 @@ export default function VentasMostradorClient({
   const [isFastUpdateDbModalOpen, setIsFastUpdateDbModalOpen] = useState(false);
   const [fastUpdateData, setFastUpdateData] = useState<{ id: string, nombre: string, oldPrice: number, newPrice: number } | null>(null);
 
+  // --- ESTADOS PARA CREACIÓN DE PACK ---
+  const [isCrearPackModalOpen, setIsCrearPackModalOpen] = useState(false);
+  const [packNombre, setPackNombre] = useState("");
+  const [packPrecio, setPackPrecio] = useState("");
+  const [packComponentes, setPackComponentes] = useState<{id: string, nombre: string, cantidad: number, stock: number}[]>([]);
+  const [packSearchTerm, setPackSearchTerm] = useState("");
+
   // --- EFECTOS ---
   useEffect(() => {
     setArticulos(articulosIniciales);
@@ -143,18 +152,18 @@ export default function VentasMostradorClient({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen && !isFastUpdateDbModalOpen) {
+      if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen && !isFastUpdateDbModalOpen && !isCrearPackModalOpen) {
         e.preventDefault();
         setIsModalOpen(true);
       }
-      if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen && !isFastUpdateDbModalOpen) {
+      if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen && !isFastUpdateDbModalOpen && !isCrearPackModalOpen) {
         e.preventDefault();
         setIsSearchEditModalOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isModalOpen, isEditMainModalOpen, isSearchEditModalOpen, isPriceDbModalOpen, isFastUpdateDbModalOpen]);
+  }, [isModalOpen, isEditMainModalOpen, isSearchEditModalOpen, isPriceDbModalOpen, isFastUpdateDbModalOpen, isCrearPackModalOpen]);
 
   useEffect(() => {
     if (showSuccess) {
@@ -173,6 +182,40 @@ export default function VentasMostradorClient({
     setFechaDesde(hoy);
     setFechaHasta(hoy);
   }, []);
+
+  const resetPackForm = () => {
+    setPackNombre("");
+    setPackPrecio("");
+    setPackComponentes([]);
+    setPackSearchTerm("");
+  };
+
+  const handleCrearPack = async () => {
+    if (!packNombre.trim() || !packPrecio || packComponentes.length < 2) {
+      alert("Debes indicar nombre, precio y al menos 2 componentes.");
+      return;
+    }
+    setIsSubmitting(true);
+    const id = `PACK-${Date.now()}`;
+    const res = await crearPackMostrador({
+      id,
+      nombre: packNombre,
+      precio: Number(packPrecio),
+      componentes: packComponentes.map(c => ({ id: c.id, cantidad: c.cantidad }))
+    });
+    if (res.success) {
+      mostrarMensajeExito("¡Pack creado exitosamente!");
+      setIsCrearPackModalOpen(false);
+      resetPackForm();
+      const syncRes = await sincronizarArticulosMostrador();
+      if (syncRes.success && syncRes.data) {
+        setArticulos(syncRes.data);
+      }
+    } else {
+      alert("Error al crear el pack: " + res.error);
+    }
+    setIsSubmitting(false);
+  };
 
   // --- FUNCIONES COMUNES ---
   const cargarVentas = async (fechaDesde: string, fechaHasta: string) => {
@@ -210,6 +253,23 @@ export default function VentasMostradorClient({
       });
     }).slice(0, 15);
   }, [searchTerm, articulos]);
+
+  const packSearchResults = useMemo(() => {
+    if (packSearchTerm.trim().length < 2) return [];
+    const queryWords = packSearchTerm.toLowerCase().trim().split(/\s+/);
+    return articulos.filter(art => {
+      if(art.esPack) return false;
+      const nombreLower = art.nombre.toLowerCase();
+      const idLower = art.id.toLowerCase();
+      return queryWords.every(word => {
+        if (/^\d+$/.test(word)) {
+          const regexNumerico = new RegExp(`(?:^|[^0-9])${word}(?:[^0-9]|$)`);
+          return regexNumerico.test(nombreLower) || regexNumerico.test(idLower);
+        }
+        return nombreLower.includes(word) || idLower.includes(word);
+      });
+    }).slice(0, 10);
+  }, [packSearchTerm, articulos]);
 
   const ventasFiltradas = ventasRealizadas.filter(v =>
     mostrarSoloOffline ? v.eventoOffline === true : true
@@ -667,9 +727,14 @@ export default function VentasMostradorClient({
             <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
 
               <section className="flex-grow flex flex-col min-h-0 gap-4">
-                <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
-                  <Plus className="h-4 w-4" /> Añadir Artículo ( + )
-                </Button>
+                <div className="flex gap-4 items-center">
+                  <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
+                    <Plus className="h-4 w-4" /> Añadir Artículo ( + )
+                  </Button>
+                  <Button onClick={() => setIsCrearPackModalOpen(true)} variant="outline" className="border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 gap-2 px-6 rounded-xl w-fit shadow-sm flex-shrink-0">
+                    <Plus className="h-4 w-4" /> Crear Pack
+                  </Button>
+                </div>
 
                 <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col">
                   <div className="overflow-y-auto flex-grow h-full">
@@ -1150,7 +1215,10 @@ export default function VentasMostradorClient({
                     <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
                     <div className="text-left flex flex-col gap-1.5">
                       <div className="flex items-center gap-3">
-                        <p className="font-bold text-slate-900 leading-tight">{prod.nombre}</p>
+                        <p className="font-bold text-slate-900 leading-tight">
+                          {prod.esPack && <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-200 mr-2 uppercase">Pack</span>}
+                          {prod.nombre}
+                        </p>
                         <span className={`text-sm font-black px-2 py-0.5 rounded-md border ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                           Stock: {prod.stock}
                         </span>
@@ -1702,6 +1770,74 @@ export default function VentasMostradorClient({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* --- MODAL CREAR PACK --- */}
+        <Dialog open={isCrearPackModalOpen} onOpenChange={setIsCrearPackModalOpen}>
+          <DialogContent className="sm:max-w-[700px] rounded-3xl p-6">
+            <DialogHeader><DialogTitle className="text-xl font-bold text-purple-700 flex items-center gap-2"><Plus className="h-5 w-5" /> Diseñar Nuevo Pack</DialogTitle></DialogHeader>
+            <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-700">Nombre del Pack <span className="text-red-500">*</span></Label>
+                  <Input value={packNombre} onChange={(e) => setPackNombre(e.target.value)} placeholder="Ej: Kit Limpieza Full" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-700">Precio de Venta Final <span className="text-red-500">*</span></Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-500 font-bold">$</span>
+                    <Input type="number" value={packPrecio} onChange={(e) => setPackPrecio(e.target.value)} className="pl-6 font-bold" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2 mt-4">
+                <Label className="text-xs font-bold text-slate-700">Buscar Componentes</Label>
+                <div className="relative"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" /><input value={packSearchTerm} onChange={(e) => setPackSearchTerm(e.target.value)} placeholder="Escribe para buscar (no packs)..." className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-9 py-2 text-sm focus:border-purple-500 transition-all outline-none" /></div>
+                
+                {packSearchResults.length > 0 && (
+                  <div className="mt-2 border border-slate-200 rounded-xl max-h-40 overflow-y-auto bg-slate-50 p-2 shadow-inner">
+                    {packSearchResults.map(prod => (
+                      <div key={prod.id} className="flex justify-between items-center py-2 border-b border-white last:border-0 hover:bg-white px-2 rounded-lg cursor-pointer" onClick={() => {
+                        const existe = packComponentes.find(c => c.id === prod.id);
+                        if(existe) setPackComponentes(prev => prev.map(c => c.id === prod.id ? {...c, cantidad: c.cantidad + 1} : c));
+                        else setPackComponentes(prev => [...prev, {id: prod.id, nombre: prod.nombre, cantidad: 1, stock: prod.stock}]);
+                        setPackSearchTerm("");
+                      }}>
+                        <div className="font-semibold text-sm">{prod.nombre}</div>
+                        <div className="text-xs text-slate-500 font-bold bg-white border px-2 py-1 rounded">Stock: {prod.stock}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4">
+                <Label className="text-xs font-bold text-slate-700 mb-2 block">Componentes Añadidos ({packComponentes.length})</Label>
+                <div className="bg-slate-50 border border-slate-200 rounded-xl min-h-[100px] p-2 space-y-2">
+                  {packComponentes.length === 0 ? (
+                    <div className="text-center text-slate-400 text-sm mt-4 italic">Aún no has añadido elementos al pack.</div>
+                  ) : (
+                    packComponentes.map(comp => (
+                      <div key={comp.id} className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-lg">
+                        <div className="font-medium text-sm w-1/2 line-clamp-1" title={comp.nombre}>{comp.nombre}</div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-[10px] text-slate-500">Cant:</Label>
+                          <Input type="number" min="1" value={comp.cantidad} onChange={(e) => setPackComponentes(prev => prev.map(c => c.id === comp.id ? {...c, cantidad: Number(e.target.value)} : c))} className="w-16 h-8 text-center font-bold" />
+                          <Button variant="ghost" size="icon" onClick={() => setPackComponentes(prev => prev.filter(c => c.id !== comp.id))} className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="gap-3 border-t pt-4">
+              <Button variant="ghost" onClick={() => setIsCrearPackModalOpen(false)}>Cancelar</Button>
+              <Button onClick={handleCrearPack} disabled={isSubmitting || packComponentes.length < 2 || !packNombre.trim() || !packPrecio} className="bg-purple-600 hover:bg-purple-700 text-white px-8 rounded-xl">{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar Pack"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
 
       </div>
     </>

@@ -11,6 +11,11 @@ export async function obtenerTodosLosArticulos() {
           where: { accion: "MODIFICACION_PRECIO_BASE" },
           orderBy: { createdAt: 'desc' },
           take: 1
+        },
+        packItems: {
+          include: {
+            componente: true
+          }
         }
       }
     });
@@ -18,7 +23,11 @@ export async function obtenerTodosLosArticulos() {
     return articulos.map(art => ({
       ...art,
       precio: Number(art.precio),
-      ultimaModificacion: art.auditorias && art.auditorias.length > 0 ? art.auditorias[0].createdAt.toISOString() : null
+      esPack: art.esPack || false,
+      ultimaModificacion: art.auditorias && art.auditorias.length > 0 ? art.auditorias[0].createdAt.toISOString() : null,
+      stock: (art.esPack && art.packItems)
+              ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
+              : art.stock
     }));
   } catch (error) {
     console.error("Error al obtener artículos:", error);
@@ -179,14 +188,28 @@ export async function crearVentaMostrador(data: {
 
       // --- NUEVO: Descontar stock de los artículos vendidos ---
       for (const item of data.items) {
-        await tx.articuloMostrador.updateMany({
+        const articuloBase = await tx.articuloMostrador.findUnique({
           where: { id: item.id },
-          data: {
-            stock: {
-              decrement: item.cantidad
-            }
-          }
+          include: { packItems: true }
         });
+
+        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+          for (const packItem of articuloBase.packItems) {
+            await tx.articuloMostrador.updateMany({
+              where: { id: packItem.componenteId },
+              data: { stock: { decrement: packItem.cantidad * item.cantidad } }
+            });
+          }
+        } else {
+          await tx.articuloMostrador.updateMany({
+            where: { id: item.id },
+            data: {
+              stock: {
+                decrement: item.cantidad
+              }
+            }
+          });
+        }
       }
 
       return venta;
@@ -212,10 +235,23 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
       // Revertir el stock (sumar lo que se había restado originalmente)
       for (const oldItem of oldItems) {
         if (oldItem.productoId) {
-          await tx.articuloMostrador.updateMany({
+          const articuloBase = await tx.articuloMostrador.findUnique({
             where: { id: oldItem.productoId },
-            data: { stock: { increment: oldItem.cantidad } }
+            include: { packItems: true }
           });
+          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+            for (const packItem of articuloBase.packItems) {
+              await tx.articuloMostrador.updateMany({
+                where: { id: packItem.componenteId },
+                data: { stock: { increment: packItem.cantidad * oldItem.cantidad } }
+              });
+            }
+          } else {
+            await tx.articuloMostrador.updateMany({
+              where: { id: oldItem.productoId },
+              data: { stock: { increment: oldItem.cantidad } }
+            });
+          }
         }
       }
 
@@ -256,10 +292,23 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
 
       // --- NUEVO: 4. Descontar el stock de los nuevos items ---
       for (const newItem of data.items) {
-        await tx.articuloMostrador.updateMany({
+        const articuloBase = await tx.articuloMostrador.findUnique({
           where: { id: newItem.id },
-          data: { stock: { decrement: newItem.cantidad } }
+          include: { packItems: true }
         });
+        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+          for (const packItem of articuloBase.packItems) {
+            await tx.articuloMostrador.updateMany({
+              where: { id: packItem.componenteId },
+              data: { stock: { decrement: packItem.cantidad * newItem.cantidad } }
+            });
+          }
+        } else {
+          await tx.articuloMostrador.updateMany({
+            where: { id: newItem.id },
+            data: { stock: { decrement: newItem.cantidad } }
+          });
+        }
       }
 
       // 5. Dejamos el registro de qué se cambió
@@ -347,7 +396,9 @@ export async function sincronizarArticulosMostrador() {
         id: true,
         nombre: true,
         precio: true,
-        stock: true
+        stock: true,
+        esPack: true,
+        packItems: { include: { componente: { select: { stock: true } } } }
       }
     });
 
@@ -356,12 +407,46 @@ export async function sincronizarArticulosMostrador() {
       id: art.id,
       nombre: art.nombre,
       precio: Number(art.precio),
-      stock: art.stock
+      esPack: art.esPack || false,
+      stock: (art.esPack && art.packItems)
+              ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
+              : art.stock
     }));
 
     return { success: true, data: articulosConverted };
   } catch (error) {
     console.error("Error al sincronizar artículos:", error);
     return { success: false, error: "No se pudo sincronizar los artículos" };
+  }
+}
+
+export async function crearPackMostrador(data: { id: string, nombre: string, precio: number, componentes: { id: string, cantidad: number }[] }) {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const pack = await tx.articuloMostrador.create({
+        data: {
+          id: data.id,
+          nombre: data.nombre,
+          precio: data.precio,
+          esPack: true,
+          stock: 0,
+        }
+      });
+      
+      if (data.componentes && data.componentes.length > 0) {
+        await tx.packMostradorItem.createMany({
+          data: data.componentes.map(c => ({
+            packId: pack.id,
+            componenteId: c.id,
+            cantidad: c.cantidad
+          }))
+        });
+      }
+      return pack;
+    });
+    return { success: true, data: result };
+  } catch (error) {
+    console.error("Error al crear pack:", error);
+    return { success: false, error: "No se pudo crear el pack" };
   }
 }

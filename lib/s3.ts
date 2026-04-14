@@ -4,18 +4,25 @@ import { NodeHttpHandler } from "@smithy/node-http-handler";
 import { Agent } from "https";
 
 export const s3Client = new S3Client({
+    // Garage suele usar 'garage' o 'us-east-1', está bien dejarlo así o usar la variable
     region: process.env.S3_REGION || "garage",
-    endpoint: process.env.S3_ENDPOINT,
+    
+    // Aquí mapeamos a la URL de la API de Garage que pasaste
+    endpoint: process.env.S3_ENDPOINT || process.env.GARAGE_S3_API_URL,
+    
     credentials: {
-        accessKey_Id: process.env.S3_ACCESS_KEY_ID!,
+        // CORRECCIÓN: Era accessKeyId, no accessKey_Id
+        accessKeyId: process.env.S3_ACCESS_KEY_ID!, 
         secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
     },
-    // Esencial para Garage/MinIO
+    
+    // Esencial para Garage: permite usar buckets como path (ej: endpoint/bucket)
     forcePathStyle: true, 
-    // Esta parte soluciona el error de "Fetch Failed" o errores de SSL
+    
+    // Esto evita errores de certificados autofirmados en sslip.io
     requestHandler: new NodeHttpHandler({
         httpsAgent: new Agent({
-            rejectUnauthorized: false, // Ignora la validación del certificado SSL
+            rejectUnauthorized: false, 
         }),
     }),
 });

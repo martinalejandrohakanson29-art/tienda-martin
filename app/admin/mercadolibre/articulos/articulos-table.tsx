@@ -84,7 +84,11 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await upsertArticulo(editingArticulo);
-    if (res?.success) setIsModalOpen(false);
+    if (res?.success) {
+      setIsModalOpen(false);
+    } else {
+      alert("Error al guardar: " + res?.error);
+    }
   };
 
   // LÓGICA DE FILTRADO ACTUALIZADA (Buscador + Filtro Dólar)

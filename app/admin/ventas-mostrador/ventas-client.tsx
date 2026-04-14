@@ -586,6 +586,22 @@ export default function VentasMostradorClient({
       .slice(0, 5);
   }, [ventasFiltradas]);
 
+  // Ventas agrupadas por método de pago
+  const ventasPorMetodo = useMemo(() => {
+    if (!ventasFiltradas || ventasFiltradas.length === 0) return [];
+    
+    const totals: Record<string, number> = {};
+    
+    ventasFiltradas.forEach((venta) => {
+      const metodo = venta.metodo_pago || 'Desconocido';
+      totals[metodo] = (totals[metodo] || 0) + Number(venta.totalFinal || venta.total);
+    });
+    
+    return Object.entries(totals)
+      .map(([metodo, total]) => ({ metodo, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [ventasFiltradas]);
+
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   return (
@@ -852,6 +868,24 @@ export default function VentasMostradorClient({
                           {topItemsVentas.map((item, index) => (
                             <p key={index} className="text-[10px] text-slate-600 font-medium">
                               {index + 1}. {item.nombre} ({item.total})
+                            </p>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 italic">Sin datos de ventas</p>
+                    )}
+                  </div>
+
+                  {/* Ventas por Método de Pago */}
+                  <div className="text-left flex-shrink-0">
+                    {ventasPorMetodo.length > 0 ? (
+                      <>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Ventas por Método de Pago</p>
+                        <div className="flex flex-col gap-0.5">
+                          {ventasPorMetodo.map(({ metodo, total }, index) => (
+                            <p key={metodo} className="text-[10px] text-slate-600 font-medium">
+                              {index + 1}. {metodo} ${total.toLocaleString('es-AR')}
                             </p>
                           ))}
                         </div>

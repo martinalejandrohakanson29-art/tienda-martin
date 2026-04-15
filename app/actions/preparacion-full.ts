@@ -19,7 +19,7 @@ export async function guardarAuditoriaFull(formData: FormData) {
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());
-        const fileName = `auditoria-full/${shipmentId}/${mla}_${Date.now()}.jpg`;
+        const fileName = `auditoria-full/${shipmentId}/${itemId}_${Date.now()}.jpg`;
 
         await s3Client.send(new PutObjectCommand({
             Bucket: BUCKET_NAME,

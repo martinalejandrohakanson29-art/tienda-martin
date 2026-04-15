@@ -15,7 +15,7 @@ export async function getShipmentFolders() {
     try {
         const command = new ListObjectsV2Command({
             Bucket: BUCKET_NAME,
-            Prefix: 'auditoria/',
+            Prefix: 'auditoria-full/',
             Delimiter: '/'
         });
 
@@ -24,7 +24,7 @@ export async function getShipmentFolders() {
 
         const folderStats = await Promise.all(prefixes.map(async (p) => {
             const fullPath = p.Prefix || "";
-            const folderId = fullPath.replace('auditoria/', '').replace(/\//g, '');
+            const folderId = fullPath.replace('auditoria-full/', '').replace(/\//g, '');
 
             const shipmentDb = await prisma.shipment.findUnique({
                 where: { id: folderId },
@@ -73,7 +73,7 @@ export async function getShipmentFolders() {
  */
 export async function getAuditPendingItems(envioId: string) {
     try {
-        const prefix = `auditoria/${envioId}/`;
+        const prefix = `auditoria-full/${envioId}/`;
         
         // 1. Obtener datos de DB
         const [dbShipment, auditedItems] = await Promise.all([

@@ -420,6 +420,38 @@ export async function sincronizarArticulosMostrador() {
   }
 }
 
+export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
+  try {
+    // Usamos transacción para asegurar que Venta y sus items se eliminen juntos
+    await prisma.$transaction(async (tx) => {
+      // 1. Obtener los items actuales para registrar en auditoría
+      const items = await tx.ventaItem.findMany({
+        where: { ventaId }
+      });
+
+      // 2. Registrar auditoría de eliminación
+      await tx.ventaAuditoria.create({
+        data: {
+          ventaId: ventaId,
+          usuario: usuario,
+          accion: "ELIMINACION_VENTA",
+          detalle: `Venta eliminada por ${usuario}`
+        }
+      });
+
+      // 3. Eliminar la venta (esto también eliminará los items relacionados debido a onDelete: Cascade)
+      await tx.venta.delete({
+        where: { id: ventaId }
+      });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error al eliminar venta:", error);
+    return { success: false, error: "No se pudo eliminar la venta" };
+  }
+}
+
 export async function crearPackMostrador(data: { id: string, nombre: string, precio: number, componentes: { id: string, cantidad: number }[] }) {
   try {
     const result = await prisma.$transaction(async (tx) => {

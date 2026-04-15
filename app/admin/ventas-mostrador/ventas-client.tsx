@@ -21,7 +21,7 @@ import { DateRangeCalendar } from "./date-range-calendar";
 import {
   crearVentaMostrador, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
-  crearPackMostrador
+  crearPackMostrador, eliminarVentaMostrador
 } from "@/app/actions/ventas-mostrador";
 
 interface Articulo {
@@ -31,6 +31,17 @@ interface Articulo {
   stock: number;
   ultimaModificacion?: string | null;
   esPack?: boolean;
+  packItems?: {
+    id: string;
+    componenteId: string;
+    componente: {
+      id: string;
+      nombre: string;
+      precio: number;
+      stock: number;
+    };
+    cantidad: number;
+  }[];
 }
 
 interface ItemVenta {
@@ -42,6 +53,51 @@ interface ItemVenta {
   subtotal: number;
   stock: number;
   ultimaModificacion?: string | null;
+  esPack?: boolean;
+  packComponentes?: {
+    id: string;
+    nombre: string;
+    cantidad: number;
+    precio_unit: number;
+    subtotal: number;
+    stock: number;
+  }[];
+}
+
+// Función para expandir un pack en sus componentes individuales
+function expandirPackEnComponentes(packId: string, articulos: Articulo[]): ItemVenta[] {
+  const pack = articulos.find(a => a.id === packId);
+  if (!pack || !pack.esPack || !pack.packItems) return [];
+
+  const componentes: ItemVenta[] = [];
+  for (const packItem of pack.packItems) {
+    componentes.push({
+      id: packItem.componenteId,
+      productoId: packItem.componenteId,
+      nombre: packItem.componente.nombre,
+      cantidad: packItem.cantidad,
+      precio_unit: packItem.componente.precio,
+      subtotal: packItem.cantidad * packItem.componente.precio,
+      stock: packItem.componente.stock,
+      esPack: false
+    });
+  }
+  return componentes;
+}
+
+// Función para expandir todos los packs en los items
+function expandirPacksEnItems(items: ItemVenta[], articulos: Articulo[]): ItemVenta[] {
+  const resultado: ItemVenta[] = [];
+  for (const item of items) {
+    if (item.esPack && item.packComponentes) {
+      // Expandir el pack en sus componentes
+      resultado.push(...item.packComponentes);
+    } else {
+      // No es pack o no tiene componentes, agregar como está
+      resultado.push(item);
+    }
+  }
+  return resultado;
 }
 
 export default function VentasMostradorClient({
@@ -101,6 +157,7 @@ export default function VentasMostradorClient({
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
   const [isSearchEditModalOpen, setIsSearchEditModalOpen] = useState(false);
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
+  const [isEliminarModalOpen, setIsEliminarModalOpen] = useState(false);
   const [historialActual, setHistorialActual] = useState<any[]>([]);
 
   const [editVentaId, setEditVentaId] = useState("");
@@ -127,6 +184,9 @@ export default function VentasMostradorClient({
 
   // --- ESTADO PARA FILTRO OFFLINE ---
   const [mostrarSoloOffline, setMostrarSoloOffline] = useState(false);
+
+  // --- ESTADO PARA ELIMINAR VENTA ---
+  const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
 
   // --- ESTADOS PARA EDICIÓN DE PRECIO EN BASE DE DATOS ---
   const [isPriceDbModalOpen, setIsPriceDbModalOpen] = useState(false);
@@ -298,7 +358,17 @@ export default function VentasMostradorClient({
 
   // --- FUNCIONES PARA IMPRESIÓN ---
   const handleImprimirPresupuesto = () => {
-    setVentaParaImprimir(null);
+    // Expandir packs en sus componentes antes de imprimir
+    const itemsExpandidos = expandirPacksEnItems(items, articulos);
+    
+    setVentaParaImprimir({
+      id: crypto.randomUUID(),
+      items: itemsExpandidos,
+      total: totalFinalCalculado,
+      totalFinal: totalFinalCalculado,
+      cliente: requiereTarjeta && dni ? dni : cliente,
+      metodo_pago: isPagoMixto ? "MIXTO" : metodoPago
+    });
     setTimeout(() => {
       window.print();
     }, 100);
@@ -314,22 +384,38 @@ export default function VentasMostradorClient({
 
   // --- FUNCIONES NUEVA VENTA ---
   const agregarProductoAVenta = (prod: Articulo) => {
-    const existe = items.find(item => item.productoId === prod.id);
-    if (existe) {
-      setItems(items.map(item =>
-        item.productoId === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
-      ));
-    } else {
-      setItems([...items, {
+    // Si es un pack, expandirlo en sus componentes
+    if (prod.esPack && prod.packItems && prod.packItems.length > 0) {
+      const componentes = prod.packItems.map(packItem => ({
         id: crypto.randomUUID(),
-        productoId: prod.id,
-        nombre: prod.nombre,
-        cantidad: 1,
-        precio_unit: Number(prod.precio),
-        subtotal: Number(prod.precio),
-        stock: prod.stock,
+        productoId: packItem.componenteId,
+        nombre: packItem.componente.nombre,
+        cantidad: packItem.cantidad,
+        precio_unit: Number(packItem.componente.precio),
+        subtotal: Number(packItem.cantidad * packItem.componente.precio),
+        stock: packItem.componente.stock,
         ultimaModificacion: prod.ultimaModificacion
-      }]);
+      }));
+      setItems(prev => [...prev, ...componentes]);
+    } else {
+      // No es pack, agregar como normal
+      const existe = items.find(item => item.productoId === prod.id);
+      if (existe) {
+        setItems(items.map(item =>
+          item.productoId === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit } : item
+        ));
+      } else {
+        setItems([...items, {
+          id: crypto.randomUUID(),
+          productoId: prod.id,
+          nombre: prod.nombre,
+          cantidad: 1,
+          precio_unit: Number(prod.precio),
+          subtotal: Number(prod.precio),
+          stock: prod.stock,
+          ultimaModificacion: prod.ultimaModificacion
+        }]);
+      }
     }
     setIsModalOpen(false);
     setSearchTerm("");
@@ -353,17 +439,35 @@ export default function VentasMostradorClient({
 
     try {
       setIsSubmitting(true);
+      
+      // Preparar items para guardar: expandir packs en sus componentes
+      const itemsParaGuardar = items.flatMap(item => {
+        const articulo = articulos.find(a => a.id === item.productoId);
+        if (articulo?.esPack && articulo.packItems) {
+          // Expandir pack en sus componentes
+          return articulo.packItems.map(packItem => ({
+            ...item,
+            productoId: packItem.componenteId,
+            nombre: packItem.componente.nombre,
+            precio_unit: Number(packItem.componente.precio),
+            subtotal: Number(packItem.cantidad * packItem.componente.precio),
+            stock: packItem.componente.stock
+          }));
+        }
+        return item;
+      });
+
       const resultado = await crearVentaMostrador({
         cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
-        interes: interesTarjeta, // Guardamos el interés general aplicado a tarjetas
+        interes: interesTarjeta,
         totalFinal: totalFinalCalculado,
-        items, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+        items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
         email, eventoOffline
       });
       if (resultado.success) {
         mostrarMensajeExito("¡Venta registrada con éxito!");
         setArticulos(prev => prev.map(art => {
-          const itemVendido = items.find(i => i.productoId === art.id);
+          const itemVendido = itemsParaGuardar.find(i => i.productoId === art.id);
           if (itemVendido) {
             return { ...art, stock: art.stock - itemVendido.cantidad };
           }
@@ -546,6 +650,27 @@ export default function VentasMostradorClient({
     const res = await obtenerHistorialVenta(ventaId);
     if (res.success && res.data) {
       setHistorialActual(res.data);
+    }
+  };
+
+  const abrirModalEliminacion = (venta: any) => {
+    setVentaAEliminar(venta);
+    setIsEliminarModalOpen(true);
+  };
+
+  const handleEliminarVenta = async () => {
+    if (!ventaAEliminar) return;
+
+    const res = await eliminarVentaMostrador(ventaAEliminar.id, vendedorNombre);
+
+    if (res.success) {
+      mostrarMensajeExito("¡Venta eliminada exitosamente!");
+      setIsEliminarModalOpen(false);
+      setVentaAEliminar(null);
+      // Recargar las ventas
+      cargarVentas(fechaDesde, fechaHasta);
+    } else {
+      alert("No se pudo eliminar la venta: " + res.error);
     }
   };
 
@@ -946,17 +1071,22 @@ export default function VentasMostradorClient({
                   <div className="text-left flex-shrink-0">
                     {ventasPorMetodo.length > 0 ? (
                       <>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Ventas por Método de Pago</p>
+                        <p className="text-[11px] text-slate-400 font-bold uppercase mb-1">Ventas por Método de Pago</p>
                         <div className="flex flex-col gap-0.5">
                           {ventasPorMetodo.map(({ metodo, total }, index) => (
-                            <p key={metodo} className="text-[10px] text-slate-600 font-medium">
+                            <p key={metodo} className={`text-[11px] font-medium ${
+                              metodo === 'Efectivo' ? 'text-red-600' :
+                              metodo === 'Cruzada' ? 'text-blue-600' :
+                              metodo === 'Mixto' ? 'text-purple-600' :
+                              'text-blue-600'
+                            }`}>
                               {index + 1}. {metodo} ${total.toLocaleString('es-AR')}
                             </p>
                           ))}
                         </div>
                       </>
                     ) : (
-                      <p className="text-[10px] text-slate-400 italic">Sin datos de ventas</p>
+                      <p className="text-[11px] text-slate-400 italic">Sin datos de ventas</p>
                     )}
                   </div>
                 </div>
@@ -1188,6 +1318,9 @@ export default function VentasMostradorClient({
                               </Button>
                               <Button size="sm" variant="secondary" onClick={() => abrirModalHistorial(v.id)} className="bg-slate-100 text-slate-600 hover:bg-slate-200">
                                 <History className="h-4 w-4 mr-2" /> Historial
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => abrirModalEliminacion(v)} className="bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700 border border-red-300">
+                                <Trash2 className="h-4 w-4 mr-2" /> Eliminar
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -1683,6 +1816,58 @@ export default function VentasMostradorClient({
               )}
             </div>
             <DialogFooter><Button onClick={() => setIsHistorialModalOpen(false)}>Cerrar</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* --- MODAL DE CONFIRMACIÓN DE ELIMINACIÓN DE VENTA --- */}
+        <Dialog open={isEliminarModalOpen} onOpenChange={setIsEliminarModalOpen}>
+          <DialogContent className="sm:max-w-[450px] rounded-3xl p-6 border-2 border-red-400 shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-red-900">
+                <AlertTriangle className="h-5 w-5 text-red-600" /> Confirmar Eliminación de Venta
+              </DialogTitle>
+              <DialogDescription className="text-slate-600">
+                Esta acción eliminará permanentemente la venta y todos sus datos relacionados.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="py-4 space-y-4">
+              {/* Advertencia visual */}
+              <div className="p-4 bg-red-50/50 rounded-xl border border-red-200 flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-grow">
+                  <p className="text-sm font-bold text-red-900 mb-1">⚠️ ¡ATENCIÓN!</p>
+                  <p className="text-xs text-red-700 leading-relaxed">
+                    Esta acción es <b>irreversible</b>. Se eliminará:
+                    <ul className="list-disc list-inside mt-1 space-y-0.5">
+                      <li>Los datos principales de la venta</li>
+                      <li>Todos los items de la venta</li>
+                      <li>El historial de auditoría de la venta</li>
+                    </ul>
+                  </p>
+                </div>
+              </div>
+
+              {/* Información de la venta a eliminar */}
+              {ventaAEliminar && (
+                <div className="p-4 bg-white rounded-xl border border-slate-200">
+                  <p className="text-xs text-slate-500 font-bold uppercase mb-1">Venta a Eliminar</p>
+                  <p className="text-sm font-medium text-slate-900">{ventaAEliminar.cliente}</p>
+                  <p className="text-xs text-slate-500 mt-1">ID: {ventaAEliminar.id}</p>
+                  <p className="text-sm font-bold text-slate-700 mt-2">Total: ${ventaAEliminar.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
+                  <p className="text-xs text-slate-500 mt-1">Fecha: {new Date(ventaAEliminar.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter className="gap-3 mt-2">
+              <Button variant="outline" onClick={() => setIsEliminarModalOpen(false)} className="border-slate-300 text-slate-700 hover:bg-slate-100">
+                Cancelar
+              </Button>
+              <Button onClick={handleEliminarVenta} className="bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold px-6 shadow-md">
+                <Trash2 className="h-4 w-4 mr-2" /> Eliminar Venta
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

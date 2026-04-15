@@ -27,7 +27,14 @@ export async function obtenerTodosLosArticulos() {
       ultimaModificacion: art.auditorias && art.auditorias.length > 0 ? art.auditorias[0].createdAt.toISOString() : null,
       stock: (art.esPack && art.packItems)
               ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
-              : art.stock
+              : art.stock,
+      packItems: art.packItems?.map(packItem => ({
+        ...packItem,
+        componente: {
+          ...packItem.componente,
+          precio: Number(packItem.componente.precio)
+        }
+      })) || []
     }));
   } catch (error) {
     console.error("Error al obtener artículos:", error);

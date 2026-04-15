@@ -24,6 +24,12 @@ import {
   crearPackMostrador, eliminarVentaMostrador
 } from "@/app/actions/ventas-mostrador";
 
+type Decimal = {
+  toNumber(): number;
+  toString(): string;
+  toJSON(): string;
+};
+
 interface Articulo {
   id: string;
   nombre: string;
@@ -76,8 +82,8 @@ function expandirPackEnComponentes(packId: string, articulos: Articulo[]): ItemV
       productoId: packItem.componenteId,
       nombre: packItem.componente.nombre,
       cantidad: packItem.cantidad,
-      precio_unit: packItem.componente.precio,
-      subtotal: packItem.cantidad * packItem.componente.precio,
+      precio_unit: Number(packItem.componente.precio),
+      subtotal: Number(packItem.cantidad * packItem.componente.precio),
       stock: packItem.componente.stock,
       esPack: false
     });
@@ -714,7 +720,7 @@ export default function VentasMostradorClient({
       setFastUpdateData({
         id: articulo.id,
         nombre: articulo.nombre,
-        oldPrice: articulo.precio,
+        oldPrice: Number(articulo.precio),
         newPrice: precioInputActual
       });
       setIsFastUpdateDbModalOpen(true);
@@ -940,7 +946,7 @@ export default function VentasMostradorClient({
                                 </div>
                               </TableCell>
                               <TableCell className="text-right py-3 font-bold text-slate-700">
-                                $ {item.subtotal.toLocaleString('es-AR')}
+                                $ {Number(item.subtotal).toLocaleString('es-AR')}
                               </TableCell>
                               <TableCell className="py-3 text-center">
                                 <Button variant="ghost" size="icon" onClick={() => setItems(items.filter(i => i.id !== item.id))} className="text-red-500"><Trash2 className="h-4 w-4" /></Button>
@@ -1359,7 +1365,7 @@ export default function VentasMostradorClient({
                       <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id}</p>
                     </div>
                   </div>
-                  <p className="font-medium text-slate-900">$ {prod.precio.toLocaleString('es-AR')}</p>
+                  <p className="font-medium text-slate-900">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
                 </button>
               ))}
             </div>
@@ -1742,7 +1748,7 @@ export default function VentasMostradorClient({
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-bold text-slate-700">
-                            $ {item.subtotal.toLocaleString('es-AR')}
+                            $ {Number(item.subtotal).toLocaleString('es-AR')}
                           </TableCell>
                           <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((i: ItemVenta) => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
                         </TableRow>
@@ -1783,7 +1789,7 @@ export default function VentasMostradorClient({
                       <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id}</p>
                     </div>
                   </div>
-                  <p className="font-medium text-slate-900">$ {prod.precio.toLocaleString('es-AR')}</p>
+                  <p className="font-medium text-slate-900">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
                 </button>
               ))}
             </div>
@@ -1888,7 +1894,7 @@ export default function VentasMostradorClient({
                 <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider mb-1">Artículo Seleccionado</p>
                 <p className="text-sm font-bold text-slate-900">{priceDbItem?.nombre}</p>
                 <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {priceDbItem?.id}</p>
-                <p className="text-sm font-bold text-slate-900 mt-2">Precio Viejo: ${priceDbItem?.precio.toLocaleString('es-AR')}</p>
+                <p className="text-sm font-bold text-slate-900 mt-2">Precio Viejo: ${Number(priceDbItem?.precio).toLocaleString('es-AR')}</p>
               </div>
 
               <div className="space-y-2">

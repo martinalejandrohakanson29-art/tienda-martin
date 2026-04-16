@@ -124,6 +124,17 @@ export default function ListasClient({
     }
   }, [isPacksTabActive]);
 
+  // Cargar packs al montar el componente
+  useEffect(() => {
+    const cargarPacks = async () => {
+      const res = await obtenerPacks();
+      if (res.success && res.data) {
+        setPacks(res.data);
+      }
+    };
+    cargarPacks();
+  }, []);
+
   // Efecto para buscar componentes (artículos del mostrador)
   useEffect(() => {
     if (packSearchTerm.trim().length < 2) {

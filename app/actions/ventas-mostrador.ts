@@ -458,34 +458,3 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
     return { success: false, error: "No se pudo eliminar la venta" };
   }
 }
-
-export async function crearPackMostrador(data: { id: string, nombre: string, precio: number, componentes: { id: string, cantidad: number }[] }) {
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const pack = await tx.articuloMostrador.create({
-        data: {
-          id: data.id,
-          nombre: data.nombre,
-          precio: data.precio,
-          esPack: true,
-          stock: 0,
-        }
-      });
-      
-      if (data.componentes && data.componentes.length > 0) {
-        await tx.packMostradorItem.createMany({
-          data: data.componentes.map(c => ({
-            packId: pack.id,
-            componenteId: c.id,
-            cantidad: c.cantidad
-          }))
-        });
-      }
-      return pack;
-    });
-    return { success: true, data: result };
-  } catch (error) {
-    console.error("Error al crear pack:", error);
-    return { success: false, error: "No se pudo crear el pack" };
-  }
-}

@@ -16,7 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { actualizarArticuloDesdeLista, obtenerPacks, crearPackMostrador, eliminarPack, actualizarPack } from "@/app/actions/listas";
 
 interface Articulo {
@@ -70,7 +70,7 @@ export default function ListasClient({
   const [editData, setEditData] = useState<Articulo | null>(null);
 
   // --- ESTADOS PARA GESTIÓN DE PACKS ---
-  const [isPacksTabActive, setIsPacksTabActive] = useState(false);
+  const [activeSection, setActiveSection] = useState<"mostrador" | "packs">("mostrador");
   const [packs, setPacks] = useState<Pack[]>([]);
   const [packSearchTerm, setPackSearchTerm] = useState("");
   const [isCrearPackModalOpen, setIsCrearPackModalOpen] = useState(false);
@@ -111,7 +111,7 @@ export default function ListasClient({
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Cargar packs cuando se activa la pestaña
+  // Cargar packs cuando se activa la sección
   useEffect(() => {
     const cargarPacks = async () => {
       const res = await obtenerPacks();
@@ -119,10 +119,10 @@ export default function ListasClient({
         setPacks(res.data);
       }
     };
-    if (isPacksTabActive) {
+    if (activeSection === "packs") {
       cargarPacks();
     }
-  }, [isPacksTabActive]);
+  }, [activeSection]);
 
   // Cargar packs al montar el componente
   useEffect(() => {
@@ -291,273 +291,302 @@ export default function ListasClient({
         </div>
       </header>
 
-      {/* SISTEMA DE PESTAÑAS (TABS) */}
-      <Tabs defaultValue="mostrador" className="flex-grow flex flex-col overflow-hidden">
-        <div className="bg-white border-b border-slate-200 px-6 py-0 flex-shrink-0">
-          <TabsList className="bg-transparent h-14 p-0 w-full flex justify-start gap-6 rounded-none">
-            <TabsTrigger 
-              value="mostrador" 
-              className="gap-2 px-0 py-4 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-700 data-[state=active]:shadow-none data-[state=active]:bg-transparent font-bold text-slate-500 hover:text-slate-700"
-            >
-              <PackageSearch className="h-4 w-4" /> Artículos Mostrador
-            </TabsTrigger>
-            <TabsTrigger 
-              value="packs" 
-              className="gap-2 px-0 py-4 h-full rounded-none border-b-2 border-transparent data-[state=active]:border-purple-600 data-[state=active]:text-purple-700 data-[state=active]:shadow-none data-[state=active]:bg-transparent font-bold text-slate-500 hover:text-slate-700"
-            >
-              <PackageSearch className="h-4 w-4" /> Gestión de Packs
-            </TabsTrigger>
-          </TabsList>
-        </div>
-
-        {/* CONTENIDO DE LA PESTAÑA: ARTÍCULOS MOSTRADOR */}
-        <TabsContent value="mostrador" className="flex-grow flex flex-col overflow-hidden m-0">
-          <main className="flex-grow flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden">
-            
-            {/* Barra de Búsqueda */}
-            <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
-              <div className="relative w-full max-w-xl">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Ej: kit 170, etc..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
-                />
-              </div>
-              <div className="ml-auto px-4 text-right">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Total Registros</p>
-                <p className="text-lg font-black text-slate-800">{articulosFiltrados.length}</p>
-              </div>
-            </div>
-
-            {/* Tabla de Datos */}
-            <div className="flex-grow bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-              <div className="overflow-y-auto flex-grow">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 shadow-sm">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-bold uppercase py-4">ID Artículo</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-4">Nombre / Descripción</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase py-4">Precio Base ($)</TableHead>
-                      <TableHead className="text-center text-[10px] font-bold uppercase py-4">Stock Físico</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase py-4 w-24">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedArticulos.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">
-                          No se encontraron artículos con esa búsqueda.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paginatedArticulos.map((art) => (
-                        <TableRow key={art.id} className="hover:bg-indigo-50/30 transition-colors">
-                          <TableCell className="text-xs font-mono text-slate-400 py-3">{art.id}</TableCell>
-                          <TableCell className="font-bold text-slate-800 py-3">{art.nombre}</TableCell>
-                          <TableCell className="text-right font-black text-slate-900 py-3">
-                            $ {art.precio.toLocaleString('es-AR')}
-                          </TableCell>
-                          <TableCell className="text-center py-3">
-                            <span className={`text-xs font-black px-3 py-1 rounded-lg border ${art.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : art.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                              {art.stock}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right py-3">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => abrirModalEdicion(art)}
-                              className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-lg h-8 px-2"
-                            >
-                              <Edit className="h-4 w-4 mr-1.5" /> Editar
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              
-              {/* CONTROLES DE PAGINACIÓN */}
-              {articulosFiltrados.length > 0 && (
-                <div className="bg-slate-50 border-t border-slate-200 p-3 flex items-center justify-between flex-shrink-0">
-                  <div className="text-xs text-slate-500">
-                    Mostrando <span className="font-bold text-slate-700">{startIndex + 1}</span> a <span className="font-bold text-slate-700">{Math.min(startIndex + itemsPerPage, articulosFiltrados.length)}</span> de <span className="font-bold text-slate-700">{articulosFiltrados.length}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                      disabled={currentPage === 1}
-                      className="h-8 border-slate-300 text-slate-600"
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
-                    </Button>
-                    
-                    <span className="text-xs font-bold text-slate-600">
-                      Página {currentPage} de {totalPages}
-                    </span>
-                    
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                      disabled={currentPage >= totalPages}
-                      className="h-8 border-slate-300 text-slate-600"
-                    >
-                      Siguiente <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
+      {/* TARJETAS INDIVIDUALES (SIN PESTAÑAS) */}
+      <main className="flex-grow flex flex-col p-6 gap-6 overflow-hidden">
+        
+        {/* Tarjeta: Artículos Mostrador */}
+        <Card className={`transition-all duration-300 ${activeSection === "mostrador" ? "ring-2 ring-indigo-500 shadow-lg shadow-indigo-100" : "hover:shadow-md hover:border-indigo-200"}`}>
+          <CardHeader className="bg-gradient-to-r from-indigo-50 to-white border-b border-indigo-100 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-md shadow-indigo-200">
+                  <PackageSearch className="h-5 w-5" />
                 </div>
-              )}
-            </div>
-          </main>
-        </TabsContent>
-
-        {/* --- PESTAÑA: GESTIÓN DE PACKS --- */}
-        <TabsContent value="packs" className="flex-grow flex flex-col overflow-hidden m-0">
-          <main className="flex-grow flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden">
-            
-            {/* Barra de Búsqueda de Packs */}
-            <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
-              <div className="relative w-full max-w-xl">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <input 
-                  type="text" 
-                  placeholder="Buscar packs por nombre o ID..." 
-                  value={packSearchTerm}
-                  onChange={(e) => setPackSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
-                />
+                <div>
+                  <CardTitle className="text-lg font-black text-slate-900">Artículos Mostrador</CardTitle>
+                  <CardDescription className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Gestión de productos de venta</CardDescription>
+                </div>
               </div>
-              <div className="ml-auto px-4 text-right">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Total Packs</p>
-                <p className="text-lg font-black text-slate-800">{packs.length}</p>
-              </div>
-            </div>
-
-            {/* Botón para crear nuevo pack */}
-            <div className="flex justify-end">
               <Button 
-                onClick={() => setIsCrearPackModalOpen(true)} 
-                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-xl font-bold shadow-md shadow-purple-200 flex items-center gap-2"
+                variant="outline" 
+                size="sm"
+                onClick={() => setActiveSection("mostrador")}
+                className={`h-9 border-indigo-300 text-indigo-600 hover:bg-indigo-50 ${activeSection === "mostrador" ? "bg-indigo-50" : ""}`}
               >
-                <PackageSearch className="h-4 w-4" /> Crear Nuevo Pack
+                Ver Artículos
               </Button>
             </div>
-            {/* Tabla de Packs */}
-            <div className="flex-grow bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-              <div className="overflow-y-auto flex-grow">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 shadow-sm">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-bold uppercase py-4">ID Pack</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-4">Nombre del Pack</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase py-4">Precio Final ($)</TableHead>
-                      <TableHead className="text-center text-[10px] font-bold uppercase py-4">Componentes</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase py-4 w-24">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {packs.length === 0 ? (
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="flex flex-col h-[calc(100vh-280px)]">
+              {/* Barra de Búsqueda */}
+              <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
+                <div className="relative w-full max-w-xl">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Ej: kit 170, etc..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                  />
+                </div>
+                <div className="ml-auto px-4 text-right">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Total Registros</p>
+                  <p className="text-lg font-black text-slate-800">{articulosFiltrados.length}</p>
+                </div>
+              </div>
+
+              {/* Tabla de Datos */}
+              <div className="flex-grow bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                <div className="overflow-y-auto flex-grow">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 shadow-sm">
                       <TableRow>
-                        <TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">
-                          No se encontraron packs.
-                        </TableCell>
+                        <TableHead className="text-[10px] font-bold uppercase py-4">ID Artículo</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-4">Nombre / Descripción</TableHead>
+                        <TableHead className="text-right text-[10px] font-bold uppercase py-4">Precio Base ($)</TableHead>
+                        <TableHead className="text-center text-[10px] font-bold uppercase py-4">Stock Físico</TableHead>
+                        <TableHead className="text-right text-[10px] font-bold uppercase py-4 w-24">Acciones</TableHead>
                       </TableRow>
-                    ) : (
-                      packs.map((pack) => (
-                        <TableRow key={pack.id} className="hover:bg-purple-50/30 transition-colors">
-                          <TableCell className="text-xs font-mono text-slate-400 py-3">{pack.id}</TableCell>
-                          <TableCell className="font-bold text-slate-800 py-3">
-                            <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-2 py-1 rounded border border-purple-200 mr-2 uppercase">Pack</span>
-                            {pack.nombre}
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedArticulos.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">
+                            No se encontraron artículos con esa búsqueda.
                           </TableCell>
-                          <TableCell className="text-right font-black text-slate-900 py-3">
-                            $ {pack.precio.toLocaleString('es-AR')}
-                          </TableCell>
-                          <TableCell className="text-center py-3">
-                            <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
-                              {pack.packItems?.length || 0} componentes
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right py-3">
-                            <div className="flex items-center justify-end gap-2">
+                        </TableRow>
+                      ) : (
+                        paginatedArticulos.map((art) => (
+                          <TableRow key={art.id} className="hover:bg-indigo-50/30 transition-colors">
+                            <TableCell className="text-xs font-mono text-slate-400 py-3">{art.id}</TableCell>
+                            <TableCell className="font-bold text-slate-800 py-3">{art.nombre}</TableCell>
+                            <TableCell className="text-right font-black text-slate-900 py-3">
+                              $ {art.precio.toLocaleString('es-AR')}
+                            </TableCell>
+                            <TableCell className="text-center py-3">
+                              <span className={`text-xs font-black px-3 py-1 rounded-lg border ${art.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : art.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                                {art.stock}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right py-3">
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                onClick={() => {
-                                  setPackParaEditar(pack);
-                                  setPackNombre(pack.nombre);
-                                  setPackPrecio(pack.precio.toString());
-                                  setPackComponentes(pack.packItems?.map(pi => ({
-                                    id: pi.componente.id,
-                                    nombre: pi.componente.nombre,
-                                    cantidad: pi.cantidad,
-                                    stock: pi.componente.stock
-                                  })) || []);
-                                  setIsEditarPackModalOpen(true);
-                                }}
-                                className="text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg h-8 px-2"
+                                onClick={() => abrirModalEdicion(art)}
+                                className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-lg h-8 px-2"
                               >
                                 <Edit className="h-4 w-4 mr-1.5" /> Editar
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => {
-                                  setPackParaEditar(pack);
-                                  setPackNombre(pack.nombre);
-                                  setPackPrecio(pack.precio.toString());
-                                  setPackComponentes(pack.packItems?.map(pi => ({
-                                    id: pi.componente.id,
-                                    nombre: pi.componente.nombre,
-                                    cantidad: pi.cantidad,
-                                    stock: pi.componente.stock
-                                  })) || []);
-                                  setIsCrearPackModalOpen(true);
-                                }}
-                                className="text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg h-8 px-2"
-                              >
-                                <Save className="h-4 w-4 mr-1.5" /> Duplicar
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => {
-                                  setPackParaEditar(pack);
-                                  setIsCrearPackModalOpen(true);
-                                }}
-                                className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg h-8 px-2"
-                              >
-                                <PackageSearch className="h-4 w-4 mr-1.5" /> Ver
-                              </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => eliminarPackConfirmado(pack.id)}
-                                className="text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg h-8 px-2"
-                              >
-                                <ArrowLeft className="h-4 w-4 mr-1.5 rotate-180" /> Eliminar
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* CONTROLES DE PAGINACIÓN */}
+                {articulosFiltrados.length > 0 && (
+                  <div className="bg-slate-50 border-t border-slate-200 p-3 flex items-center justify-between flex-shrink-0">
+                    <div className="text-xs text-slate-500">
+                      Mostrando <span className="font-bold text-slate-700">{startIndex + 1}</span> a <span className="font-bold text-slate-700">{Math.min(startIndex + itemsPerPage, articulosFiltrados.length)}</span> de <span className="font-bold text-slate-700">{articulosFiltrados.length}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="h-8 border-slate-300 text-slate-600"
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
+                      </Button>
+                      
+                      <span className="text-xs font-bold text-slate-600">
+                        Página {currentPage} de {totalPages}
+                      </span>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                        disabled={currentPage >= totalPages}
+                        className="h-8 border-slate-300 text-slate-600"
+                      >
+                        Siguiente <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </main>
-        </TabsContent>
-      </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Tarjeta: Gestión de Packs */}
+        <Card className={`transition-all duration-300 ${activeSection === "packs" ? "ring-2 ring-purple-500 shadow-lg shadow-purple-100" : "hover:shadow-md hover:border-purple-200"}`}>
+          <CardHeader className="bg-gradient-to-r from-purple-50 to-white border-b border-purple-100 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-purple-600 p-2.5 rounded-xl text-white shadow-md shadow-purple-200">
+                  <PackageSearch className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-black text-slate-900">Gestión de Packs</CardTitle>
+                  <CardDescription className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Creación y administración de combinaciones</CardDescription>
+                </div>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setActiveSection("packs")}
+                className={`h-9 border-purple-300 text-purple-600 hover:bg-purple-50 ${activeSection === "packs" ? "bg-purple-50" : ""}`}
+              >
+                Ver Packs
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="flex flex-col h-[calc(100vh-280px)]">
+              {/* Barra de Búsqueda de Packs */}
+              <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
+                <div className="relative w-full max-w-xl">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                  <input 
+                    type="text" 
+                    placeholder="Buscar packs por nombre o ID..." 
+                    value={packSearchTerm}
+                    onChange={(e) => setPackSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-purple-500/20 outline-none transition-all"
+                  />
+                </div>
+                <div className="ml-auto px-4 text-right">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">Total Packs</p>
+                  <p className="text-lg font-black text-slate-800">{packs.length}</p>
+                </div>
+              </div>
+
+              {/* Botón para crear nuevo pack */}
+              <div className="flex justify-end mb-2">
+                <Button 
+                  onClick={() => setIsCrearPackModalOpen(true)} 
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-xl font-bold shadow-md shadow-purple-200 flex items-center gap-2"
+                >
+                  <PackageSearch className="h-4 w-4" /> Crear Nuevo Pack
+                </Button>
+              </div>
+              
+              {/* Tabla de Packs */}
+              <div className="flex-grow bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                <div className="overflow-y-auto flex-grow">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 shadow-sm">
+                      <TableRow>
+                        <TableHead className="text-[10px] font-bold uppercase py-4">ID Pack</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-4">Nombre del Pack</TableHead>
+                        <TableHead className="text-right text-[10px] font-bold uppercase py-4">Precio Final ($)</TableHead>
+                        <TableHead className="text-center text-[10px] font-bold uppercase py-4">Componentes</TableHead>
+                        <TableHead className="text-right text-[10px] font-bold uppercase py-4 w-24">Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {packs.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">
+                            No se encontraron packs.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        packs.map((pack) => (
+                          <TableRow key={pack.id} className="hover:bg-purple-50/30 transition-colors">
+                            <TableCell className="text-xs font-mono text-slate-400 py-3">{pack.id}</TableCell>
+                            <TableCell className="font-bold text-slate-800 py-3">
+                              <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-2 py-1 rounded border border-purple-200 mr-2 uppercase">Pack</span>
+                              {pack.nombre}
+                            </TableCell>
+                            <TableCell className="text-right font-black text-slate-900 py-3">
+                              $ {pack.precio.toLocaleString('es-AR')}
+                            </TableCell>
+                            <TableCell className="text-center py-3">
+                              <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">
+                                {pack.packItems?.length || 0} componentes
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right py-3">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    setPackParaEditar(pack);
+                                    setPackNombre(pack.nombre);
+                                    setPackPrecio(pack.precio.toString());
+                                    setPackComponentes(pack.packItems?.map(pi => ({
+                                      id: pi.componente.id,
+                                      nombre: pi.componente.nombre,
+                                      cantidad: pi.cantidad,
+                                      stock: pi.componente.stock
+                                    })) || []);
+                                    setIsEditarPackModalOpen(true);
+                                  }}
+                                  className="text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-lg h-8 px-2"
+                                >
+                                  <Edit className="h-4 w-4 mr-1.5" /> Editar
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    setPackParaEditar(pack);
+                                    setPackNombre(pack.nombre);
+                                    setPackPrecio(pack.precio.toString());
+                                    setPackComponentes(pack.packItems?.map(pi => ({
+                                      id: pi.componente.id,
+                                      nombre: pi.componente.nombre,
+                                      cantidad: pi.cantidad,
+                                      stock: pi.componente.stock
+                                    })) || []);
+                                    setIsCrearPackModalOpen(true);
+                                  }}
+                                  className="text-green-600 hover:text-green-800 hover:bg-green-100 rounded-lg h-8 px-2"
+                                >
+                                  <Save className="h-4 w-4 mr-1.5" /> Duplicar
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => {
+                                    setPackParaEditar(pack);
+                                    setIsCrearPackModalOpen(true);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg h-8 px-2"
+                                >
+                                  <PackageSearch className="h-4 w-4 mr-1.5" /> Ver
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => eliminarPackConfirmado(pack.id)}
+                                  className="text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg h-8 px-2"
+                                >
+                                  <ArrowLeft className="h-4 w-4 mr-1.5 rotate-180" /> Eliminar
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
 
       {/* MODALES PARA PACKS */}
       <Dialog open={isCrearPackModalOpen} onOpenChange={(open) => {

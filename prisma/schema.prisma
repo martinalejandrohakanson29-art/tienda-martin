@@ -422,6 +422,7 @@ model Venta {
   registrada    Boolean          @default(false)
   interes       Decimal          @default(0) @db.Decimal(10, 2)
   totalFinal    Decimal          @default(0) @db.Decimal(20, 2)
+  tipoVenta     String?          @default("CONFIRMADA")  // "CONFIRMADA" o "PEDIDO"
   email         String?
   eventoOffline Boolean          @default(false)
   puntoVentaId  String?

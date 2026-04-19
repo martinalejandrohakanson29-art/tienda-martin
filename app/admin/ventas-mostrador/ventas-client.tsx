@@ -3,8 +3,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText,
-  Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle,
-  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer,
+  Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
+  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
   ChevronDown
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DateRangeCalendar } from "./date-range-calendar";
 import {
-  crearVentaMostrador, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
+  crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador
 } from "@/app/actions/ventas-mostrador";
@@ -135,6 +135,7 @@ export default function VentasMostradorClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
+  const [isGuardarComoPedido, setIsGuardarComoPedido] = useState(false);
   const [items, setItems] = useState<ItemVenta[]>([]);
   const [cliente, setCliente] = useState("Consumidor Final");
   const [interesTarjeta, setInteresTarjeta] = useState<number>(0);
@@ -445,25 +446,38 @@ export default function VentasMostradorClient({
         return item;
       });
 
-      const resultado = await crearVentaMostrador({
-        cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
-        interes: interesTarjeta,
-        totalFinal: totalFinalCalculado,
-        items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
-        email, eventoOffline, puntoVentaId
-      });
+      const resultado = isGuardarComoPedido
+        ? await guardarComoPedidoVenta({
+            cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
+            interes: interesTarjeta,
+            totalFinal: totalFinalCalculado,
+            items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+            email, eventoOffline, puntoVentaId
+          })
+        : await crearVentaMostrador({
+            cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
+            interes: interesTarjeta,
+            totalFinal: totalFinalCalculado,
+            items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+            email, eventoOffline, puntoVentaId
+          });
+      
       if (resultado.success) {
-        mostrarMensajeExito("¡Venta registrada con éxito!");
-        setArticulos(prev => prev.map(art => {
-          const itemVendido = itemsParaGuardar.find(i => i.productoId === art.id);
-          if (itemVendido) {
-            return { ...art, stock: art.stock - itemVendido.cantidad };
-          }
-          return art;
-        }));
+        if (isGuardarComoPedido) {
+          mostrarMensajeExito("¡Pedido de venta guardado con éxito!");
+       } else {
+          mostrarMensajeExito("¡Venta registrada con éxito!");
+          setArticulos(prev => prev.map(art => {
+            const itemVendido = itemsParaGuardar.find(i => i.productoId === art.id);
+            if (itemVendido) {
+              return { ...art, stock: art.stock - itemVendido.cantidad };
+            }
+            return art;
+          }));
+       }
 
-        resetForm();
-        cargarVentas(fechaDesde, fechaHasta);
+       resetForm();
+       cargarVentas(fechaDesde, fechaHasta);
       } else { alert("Error al guardar: " + resultado.error); }
     } catch (error) { alert("Ocurrió un error inesperado."); } finally { setIsSubmitting(false); }
   };
@@ -1503,9 +1517,20 @@ export default function VentasMostradorClient({
 
               <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Información Extra</Label><Input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Notas adicionales..." /></div>
             </div>
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
+              <Label className="text-xs font-bold text-slate-600 uppercase block mb-2">Tipo de Registro</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" onClick={() => { setIsGuardarComoPedido(false); setInfo("Venta confirmada"); }} className="border-green-600 text-green-700 hover:bg-green-50">
+                  <CheckCircle className="h-4 w-4 mr-2" /> Confirmar y Guardar
+                </Button>
+                <Button variant="outline" onClick={() => { setIsGuardarComoPedido(true); setInfo("Pedido de venta - pendiente de confirmación"); }} className="border-amber-600 text-amber-700 hover:bg-amber-50">
+                  <Clock className="h-4 w-4 mr-2" /> Guardar en Pedido de Venta
+                </Button>
+              </div>
+            </div>
             <DialogFooter className="gap-3">
               <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleFinalizarVenta} disabled={isSubmitting} className="bg-blue-600 text-white px-8 rounded-xl">{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar y Guardar"}</Button>
+              <Button onClick={handleFinalizarVenta} disabled={isSubmitting} className={isGuardarComoPedido ? "bg-amber-600 text-white" : "bg-blue-600 text-white"} px-8 rounded-xl>{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (isGuardarComoPedido ? "Guardar como Pedido" : "Confirmar y Guardar")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

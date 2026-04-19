@@ -235,6 +235,96 @@ export async function crearVentaMostrador(data: {
   }
 }
 
+// --- Función para guardar como pedido de venta ---
+export async function guardarComoPedidoVenta(data: {
+  cliente: string,
+  vendedor: string,
+  total: number,
+  interes: number,
+  totalFinal: number,
+  items: any[],
+  metodo_pago: string,
+  dni?: string,
+  telefono?: string,
+  info?: string,
+  cupon?: string,
+  transaccionId?: string,
+  de?: string,
+  para?: string,
+  email?: string,
+  eventoOffline?: boolean,
+  puntoVentaId?: string
+}) {
+  try {
+    // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
+    const result = await prisma.$transaction(async (tx) => {
+      const venta = await tx.venta.create({
+        data: {
+          cliente: data.cliente,
+          vendedor: data.vendedor,
+          total: data.total,
+          interes: data.interes,
+          totalFinal: data.totalFinal,
+          tipoVenta: "PEDIDO", // Marcar como pedido de venta
+          metodo_pago: data.metodo_pago,
+          dni: data.dni,
+          telefono: data.telefono,
+          info: data.info,
+          cupon: data.cupon,
+          transaccionId: data.transaccionId,
+          de: data.de,
+          para: data.para,
+          email: data.email,
+          eventoOffline: data.eventoOffline ?? false,
+          puntoVentaId: data.puntoVentaId,
+          items: {
+            create: data.items.map(item => ({
+              productoId: item.id,
+              nombre: item.nombre,
+              cantidad: item.cantidad,
+              precio_unit: item.precio_unit,
+              subtotal: item.subtotal
+            }))
+          }
+        }
+      });
+
+      // --- Descontar stock de los artículos vendidos ---
+      for (const item of data.items) {
+        const articuloBase = await tx.articuloMostrador.findUnique({
+          where: { id: item.id },
+          include: { packItems: true }
+        });
+
+        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+          for (const packItem of articuloBase.packItems) {
+            await tx.articuloMostrador.updateMany({
+              where: { id: packItem.componenteId },
+              data: { stock: { decrement: packItem.cantidad * item.cantidad } }
+            });
+          }
+        } else {
+          await tx.articuloMostrador.updateMany({
+              where: { id: item.id },
+              data: {
+                stock: {
+                  decrement: item.cantidad
+                }
+              }
+          });
+        }
+      }
+
+      return venta;
+    });
+
+    return { success: true, id: result.id };
+  } catch (error) {
+    console.error("Error al guardar como pedido de venta:", error);
+    return { success: false, error: "No se pudo guardar el pedido de venta" };
+  }
+}
+
 // --- FUNCIONES PARA EDICIÓN Y AUDITORÍA ---
 
 export async function actualizarVentaMostrador(ventaId: string, data: any, usuario: string, detalleCambios: string) {
@@ -463,5 +553,87 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
   } catch (error) {
     console.error("Error al eliminar venta:", error);
     return { success: false, error: "No se pudo eliminar la venta" };
+  }
+}
+
+// Funciones para pedidos de venta
+export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string) {
+  try {
+    const inicioRango = new Date(fechaDesde);
+    inicioRango.setHours(0, 0, 0, 0);
+
+    const finRango = new Date(fechaHasta);
+    finRango.setHours(23, 59, 59, 999);
+
+    const ventas = await prisma.venta.findMany({
+      where: {
+        tipoVenta: "PEDIDO",
+        createdAt: {
+          gte: inicioRango,
+          lte: finRango,
+        },
+      },
+      include: {
+        items: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return ventas.map(v => ({
+      ...v,
+      tipoVenta: v.tipoVenta || "PEDIDO",
+      total: Number(v.total),
+      interes: Number(v.interes),
+      totalFinal: Number(v.totalFinal),
+      createdAt: v.createdAt.toISOString(),
+      dni: v.dni,
+      telefono: v.telefono,
+      info: v.info,
+      cupon: v.cupon,
+      transaccionId: v.transaccionId,
+      de: v.de,
+      para: v.para,
+      email: v.email,
+      eventoOffline: v.eventoOffline,
+      puntoVentaId: v.puntoVentaId,
+      items: v.items.map(i => ({
+        ...i,
+        productoId: i.productoId || null,
+        precio_unit: Number(i.precio_unit),
+        subtotal: Number(i.subtotal)
+      }))
+    }));
+  } catch (error) {
+    console.error("Error al obtener pedidos de venta:", error);
+    return [];
+  }
+}
+
+export async function confirmarPedidoVenta(ventaId: string) {
+  try {
+    await prisma.venta.update({
+      where: { id: ventaId },
+      data: { tipoVenta: "CONFIRMADA" }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error al confirmar pedido de venta:", error);
+    return { success: false, error: "No se pudo confirmar el pedido de venta" };
+  }
+}
+
+export async function eliminarPedidoVenta(ventaId: string) {
+  try {
+    await prisma.venta.delete({
+      where: { id: ventaId }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error al eliminar pedido de venta:", error);
+    return { success: false, error: "No se pudo eliminar el pedido de venta" };
   }
 }

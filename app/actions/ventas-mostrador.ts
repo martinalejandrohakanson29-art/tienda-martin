@@ -9,8 +9,7 @@ export async function obtenerTodosLosArticulos() {
       include: {
         auditorias: {
           where: { accion: "MODIFICACION_PRECIO_BASE" },
-          orderBy: { createdAt: 'desc' },
-          take: 1
+          orderBy: { createdAt: 'desc' }
         },
         packItems: {
           include: {
@@ -24,7 +23,7 @@ export async function obtenerTodosLosArticulos() {
       ...art,
       precio: Number(art.precio),
       esPack: art.esPack || false,
-      ultimaModificacion: art.auditorias && art.auditorias.length > 0 ? art.auditorias[0].createdAt.toISOString() : null,
+      ultimaModificacion: art.auditorias?.[0]?.createdAt?.toISOString() || null,
       stock: (art.esPack && art.packItems)
               ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
               : art.stock,
@@ -332,7 +331,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
     await prisma.$transaction(async (tx) => {
       // --- NUEVO: 1. Obtener los items actuales para revertir el stock ---
       const oldItems = await tx.ventaItem.findMany({
-        where: { ventaId: ventaId }
+        where: { ventaId }
       });
 
       // Revertir el stock (sumar lo que se había restado originalmente)
@@ -360,7 +359,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
 
       // 2. Borramos los items actuales para reemplazarlos limpios por los nuevos
       await tx.ventaItem.deleteMany({
-        where: { ventaId: ventaId }
+        where: { ventaId }
       });
 
       // 3. Actualizamos la venta y creamos los nuevos items

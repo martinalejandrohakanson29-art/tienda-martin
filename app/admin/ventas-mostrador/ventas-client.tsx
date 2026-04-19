@@ -155,6 +155,28 @@ export default function VentasMostradorClient({
   const [email, setEmail] = useState("");
   const [eventoOffline, setEventoOffline] = useState(false);
   const [puntoVentaId, setPuntoVentaId] = useState("");
+  const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState<any>(null);
+
+  // Establecer "Mostrador" como punto de venta por defecto (solo una vez al montar)
+  useEffect(() => {
+    if (!puntoVentaId && puntosVenta && puntosVenta.length > 0) {
+      const mostrador = puntosVenta.find((p: any) => p.nombre === "Mostrador");
+      if (mostrador) {
+        setPuntoVentaId(mostrador.id);
+        setPuntoVentaSeleccionado(mostrador);
+      }
+    }
+  }, [puntosVenta]);
+
+  // Actualizar puntoVentaSeleccionado cuando puntoVentaId cambia
+  useEffect(() => {
+    if (puntoVentaId && puntosVenta) {
+      const seleccionado = puntosVenta.find((p: any) => p.id === puntoVentaId);
+      setPuntoVentaSeleccionado(seleccionado || null);
+    } else {
+      setPuntoVentaSeleccionado(null);
+    }
+  }, [puntoVentaId, puntosVenta]);
 
   // --- ESTADO PARA IMPRESIÓN ---
   const [ventaParaImprimir, setVentaParaImprimir] = useState<any>(null);
@@ -190,6 +212,16 @@ export default function VentasMostradorClient({
   const [editEmail, setEditEmail] = useState("");
   const [editEventoOffline, setEditEventoOffline] = useState(false);
   const [editPuntoVentaId, setEditPuntoVentaId] = useState("");
+
+  // Establecer "Mostrador" como punto de venta por defecto para edición (solo una vez al montar)
+  useEffect(() => {
+    if (!editPuntoVentaId && puntosVenta && puntosVenta.length > 0) {
+      const mostrador = puntosVenta.find((p: any) => p.nombre === "Mostrador");
+      if (mostrador) {
+        setEditPuntoVentaId(mostrador.id);
+      }
+    }
+  }, [puntosVenta]);
   const [ventaOriginalParaComparar, setVentaOriginalParaComparar] = useState<any>(null);
 
   // --- ESTADO PARA FILTRO OFFLINE ---
@@ -439,8 +471,15 @@ export default function VentasMostradorClient({
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
-    setEmail(""); setEventoOffline(false); setPuntoVentaId(""); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
+    setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
+    // Restaurar "Mostrador" como punto de venta por defecto
+    if (puntosVenta && puntosVenta.length > 0) {
+      const mostrador = puntosVenta.find((p: any) => p.nombre === "Mostrador");
+      if (mostrador) {
+        setPuntoVentaId(mostrador.id);
+      }
+    }
   };
 
   const handleMarcarRegistrada = async (id: string) => {
@@ -1087,7 +1126,7 @@ export default function VentasMostradorClient({
                                 <TableCell className="font-medium text-slate-700 py-4">
                                   {v.cliente}
                                   {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
-                                  {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded-full uppercase">{v.puntoVenta.nombre}</span></div>}
+                                  {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 rounded-full uppercase text-white" style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}>{v.puntoVenta.nombre}</span></div>}
                                   {v.eventoOffline && <div className="mt-1"><span className="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span></div>}
                                 </TableCell>
 
@@ -1254,7 +1293,7 @@ export default function VentasMostradorClient({
                             </TableCell>
                             <TableCell className="font-bold text-slate-700 py-4">
                               {v.cliente}
-                              {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded-full uppercase">{v.puntoVenta.nombre}</span></div>}
+                              {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 rounded-full uppercase text-white" style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}>{v.puntoVenta.nombre}</span></div>}
                             </TableCell>
                             <TableCell className="py-4">
                               <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -1426,12 +1465,23 @@ export default function VentasMostradorClient({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-600 uppercase">Punto de Venta</Label>
-                  <select value={puntoVentaId} onChange={(e) => setPuntoVentaId(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none">
-                    <option value="">Seleccionar...</option>
-                    {puntosVenta?.map((p: any) => (
-                      <option key={p.id} value={p.id}>{p.nombre}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={puntoVentaId || ""}
+                      onChange={(e) => {
+                        setPuntoVentaId(e.target.value);
+                        const seleccionado = puntosVenta?.find((p: any) => p.id === e.target.value);
+                        setPuntoVentaSeleccionado(seleccionado || null);
+                      }}
+                      className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none color-select cursor-pointer"
+                      style={{ backgroundColor: puntoVentaSeleccionado ? puntoVentaSeleccionado.color : '#ffffff' }}
+                    >
+                      <option value="">Seleccionar...</option>
+                      {puntosVenta?.map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-600 uppercase">Email (Opcional)</Label>
@@ -1618,9 +1668,15 @@ export default function VentasMostradorClient({
                     <select value={editPuntoVentaId} onChange={(e) => setEditPuntoVentaId(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none">
                       <option value="">Seleccionar...</option>
                       {puntosVenta?.map((p: any) => (
-                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                        <option key={p.id} value={p.id} style={{ backgroundColor: p.color, color: '#ffffff' }}>{p.nombre}</option>
                       ))}
                     </select>
+                    {editPuntoVentaId && puntosVenta?.find((p: any) => p.id === editPuntoVentaId) && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="w-3 h-3 rounded-full border border-slate-300 shadow-sm" style={{ backgroundColor: puntosVenta.find((p: any) => p.id === editPuntoVentaId)?.color }}></div>
+                        <span className="text-[10px] text-slate-500 font-mono">{puntosVenta.find((p: any) => p.id === editPuntoVentaId)?.color}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-1.5 flex-grow w-full md:w-auto">
                     <Label className="text-[10px] font-bold text-slate-500 uppercase">Email (Opcional)</Label>

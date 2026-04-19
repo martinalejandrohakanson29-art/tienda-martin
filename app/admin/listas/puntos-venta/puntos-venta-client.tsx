@@ -15,6 +15,7 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
   const [isEditMode, setIsEditMode] = useState(false)
   const [currentId, setCurrentId] = useState("")
   const [nombre, setNombre] = useState("")
+  const [color, setColor] = useState("#000000")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
@@ -22,6 +23,7 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
   const openNewModal = () => {
     setIsEditMode(false)
     setNombre("")
+    setColor("#3B82F6")
     setCurrentId("")
     setIsModalOpen(true)
   }
@@ -29,6 +31,7 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
   const openEditModal = (p: any) => {
     setIsEditMode(true)
     setNombre(p.nombre)
+    setColor(p.color || "#000000")
     setCurrentId(p.id)
     setIsModalOpen(true)
   }
@@ -43,16 +46,16 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
     if (!nombre.trim()) return
     setIsSubmitting(true)
     if (isEditMode) {
-      const res = await actualizarPuntoVenta(currentId, nombre.trim())
+      const res = await actualizarPuntoVenta(currentId, nombre.trim(), color)
       if (res.success) {
-        setPuntos(prev => prev.map(p => p.id === currentId ? { ...p, nombre: nombre.trim() } : p))
+        setPuntos(prev => prev.map(p => p.id === currentId ? { ...p, nombre: nombre.trim(), color } : p))
         setIsModalOpen(false)
         mostrarMensajeExito("Actualizado correctamente")
       } else {
         alert(res.error)
       }
     } else {
-      const res = await crearPuntoVenta(nombre.trim())
+      const res = await crearPuntoVenta(nombre.trim(), color)
       if (res.success) {
         setPuntos(prev => [...prev, res.data])
         setIsModalOpen(false)
@@ -98,6 +101,7 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
           <TableHeader className="bg-slate-50 border-b border-slate-200">
             <TableRow>
               <TableHead className="font-bold text-slate-700">Nombre</TableHead>
+              <TableHead className="font-bold text-slate-700">Color</TableHead>
               <TableHead className="font-bold text-slate-700 w-[150px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -105,6 +109,12 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
             {puntos.map(p => (
               <TableRow key={p.id}>
                 <TableCell className="font-medium">{p.nombre}</TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full border border-slate-300 shadow-sm" style={{ backgroundColor: p.color || '#000000' }}></div>
+                    <span className="text-xs text-slate-500 font-mono">{p.color || '#000000'}</span>
+                  </div>
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Button size="icon" variant="ghost" onClick={() => openEditModal(p)} className="text-blue-600 hover:text-blue-700 hover:bg-blue-50">
@@ -119,7 +129,7 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
             ))}
             {puntos.length === 0 && (
               <TableRow>
-                <TableCell colSpan={2} className="text-center text-slate-500 py-8">
+                <TableCell colSpan={3} className="text-center text-slate-500 py-8">
                   No hay puntos de venta registrados.
                 </TableCell>
               </TableRow>
@@ -135,7 +145,7 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
               {isEditMode ? "Editar Punto de Venta" : "Nuevo Punto de Venta"}
             </DialogTitle>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="nombre" className="text-sm font-bold text-slate-700 uppercase tracking-wide">Nombre</Label>
               <Input
@@ -145,6 +155,24 @@ export default function PuntosVentaClient({ puntosIniciales }: { puntosIniciales
                 placeholder="Ej. Instagram, Mostrador..."
                 className="bg-slate-50 border-slate-200"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="color" className="text-sm font-bold text-slate-700 uppercase tracking-wide">Color</Label>
+              <div className="flex items-center gap-3">
+                <input
+                  id="color"
+                  type="color"
+                  value={color}
+                  onChange={e => setColor(e.target.value)}
+                  className="w-12 h-10 rounded-lg border border-slate-200 cursor-pointer"
+                />
+                <Input
+                  value={color}
+                  onChange={e => setColor(e.target.value)}
+                  placeholder="#000000"
+                  className="bg-slate-50 border-slate-200 font-mono flex-1"
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

@@ -667,6 +667,7 @@ model mensajes_vendedor {
 model PuntoVenta {
   id        String   @id @default(cuid())
   nombre    String   @unique
+  color     String   @default("#000000")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   ventas    Venta[]

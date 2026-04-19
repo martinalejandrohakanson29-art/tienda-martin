@@ -14,10 +14,10 @@ export async function obtenerPuntosVenta() {
   }
 }
 
-export async function crearPuntoVenta(nombre: string) {
+export async function crearPuntoVenta(nombre: string, color: string) {
   try {
     const nuevo = await prisma.puntoVenta.create({
-      data: { nombre }
+      data: { nombre, color }
     });
     revalidatePath("/admin/listas/puntos-venta");
     revalidatePath("/admin/ventas-mostrador");
@@ -30,11 +30,11 @@ export async function crearPuntoVenta(nombre: string) {
   }
 }
 
-export async function actualizarPuntoVenta(id: string, nombre: string) {
+export async function actualizarPuntoVenta(id: string, nombre: string, color: string) {
   try {
     const actualizado = await prisma.puntoVenta.update({
       where: { id },
-      data: { nombre }
+      data: { nombre, color }
     });
     revalidatePath("/admin/listas/puntos-venta");
     revalidatePath("/admin/ventas-mostrador");

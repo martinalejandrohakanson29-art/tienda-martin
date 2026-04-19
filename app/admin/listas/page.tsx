@@ -53,6 +53,42 @@ export default function ListasPage() {
             </div>
           </Link>
 
+          {/* Tarjeta: Puntos de Venta */}
+          <Link 
+            href="/admin/listas/puntos-venta"
+            className="group block bg-white rounded-2xl border-2 border-slate-200 shadow-sm hover:shadow-xl hover:border-emerald-400 transition-all duration-300 overflow-hidden"
+          >
+            <div className="flex flex-col">
+              <div className="p-6">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="bg-emerald-600 p-3 rounded-xl text-white shadow-md shadow-emerald-200 group-hover:scale-110 transition-transform">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 mb-1 group-hover:text-emerald-600 transition-colors">Puntos de Venta</h2>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Configuración de Origen</p>
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">Descripción</p>
+                  <p className="text-sm text-slate-600">Administra los diferentes puntos y canales de venta (Mostrador, MercadoLibre, Instagram, etc.) para vincularlos al registrar ventas.</p>
+                </div>
+              </div>
+              <div className="p-4 bg-gradient-to-r from-emerald-50 to-white border-t border-emerald-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+                    Acceder &rarr;
+                  </span>
+                  <svg className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </Link>
+
           {/* Tarjeta: Gestión de Packs */}
           <Link 
             href="/admin/listas/packs"

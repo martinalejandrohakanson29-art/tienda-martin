@@ -108,10 +108,12 @@ function expandirPacksEnItems(items: ItemVenta[], articulos: Articulo[]): ItemVe
 
 export default function VentasMostradorClient({
   articulosIniciales,
-  vendedorNombre
+  vendedorNombre,
+  puntosVenta = []
 }: {
   articulosIniciales: Articulo[],
-  vendedorNombre: string
+  vendedorNombre: string,
+  puntosVenta?: any[]
 }) {
   // --- ESTADOS GENERALES ---
   const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
@@ -152,6 +154,7 @@ export default function VentasMostradorClient({
 
   const [email, setEmail] = useState("");
   const [eventoOffline, setEventoOffline] = useState(false);
+  const [puntoVentaId, setPuntoVentaId] = useState("");
 
   // --- ESTADO PARA IMPRESIÓN ---
   const [ventaParaImprimir, setVentaParaImprimir] = useState<any>(null);
@@ -186,6 +189,7 @@ export default function VentasMostradorClient({
 
   const [editEmail, setEditEmail] = useState("");
   const [editEventoOffline, setEditEventoOffline] = useState(false);
+  const [editPuntoVentaId, setEditPuntoVentaId] = useState("");
   const [ventaOriginalParaComparar, setVentaOriginalParaComparar] = useState<any>(null);
 
   // --- ESTADO PARA FILTRO OFFLINE ---
@@ -414,7 +418,7 @@ export default function VentasMostradorClient({
         interes: interesTarjeta,
         totalFinal: totalFinalCalculado,
         items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
-        email, eventoOffline
+        email, eventoOffline, puntoVentaId
       });
       if (resultado.success) {
         mostrarMensajeExito("¡Venta registrada con éxito!");
@@ -435,7 +439,7 @@ export default function VentasMostradorClient({
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
-    setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
+    setEmail(""); setEventoOffline(false); setPuntoVentaId(""); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
   };
 
@@ -463,7 +467,7 @@ export default function VentasMostradorClient({
   const requiereTarjetaEdit = isEditPagoMixto ? (esTarjeta(editMetodoPago) || esTarjeta(editMetodoPago2)) : esTarjeta(editMetodoPago);
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
 
-  const abrirModalEdicion = async (venta: { id: string; cliente: string; email?: string; metodo_pago: string; totalFinal: number; items: Array<{ productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }>; createdAt: string; total: number; interes: number; dni?: string; telefono?: string; cupon?: string; transaccionId?: string; de?: string; para?: string; eventoOffline?: boolean; info?: string }) => {
+  const abrirModalEdicion = async (venta: { id: string; cliente: string; email?: string; metodo_pago: string; totalFinal: number; items: Array<{ productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }>; createdAt: string; total: number; interes: number; dni?: string; telefono?: string; cupon?: string; transaccionId?: string; de?: string; para?: string; eventoOffline?: boolean; info?: string; puntoVentaId?: string }) => {
     // Sincronizar artículos con la base de datos para asegurar precios correctos
     const syncResult = await sincronizarArticulosMostrador();
     if (syncResult.success && syncResult.data) {
@@ -487,6 +491,7 @@ export default function VentasMostradorClient({
     setEditParaCruzada(venta.para || "");
     setEditEmail(venta.email || "");
     setEditEventoOffline(venta.eventoOffline || false);
+    setEditPuntoVentaId(venta.puntoVentaId || "");
 
     // Limpiamos la marca de mixto vieja del info para no duplicarla si se guarda de nuevo
     const cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
@@ -540,6 +545,7 @@ export default function VentasMostradorClient({
     if (ventaOriginalParaComparar.metodo_pago !== (isEditPagoMixto ? "Mixto" : editMetodoPago)) cambios.push(`Método modificado`);
     if (ventaOriginalParaComparar.email !== editEmail) cambios.push(`Email modificado`);
     if (ventaOriginalParaComparar.eventoOffline !== editEventoOffline) cambios.push(`Evento offline modificado`);
+    if (ventaOriginalParaComparar.puntoVentaId !== editPuntoVentaId) cambios.push(`Punto de venta modificado`);
     if (Number(ventaOriginalParaComparar.totalFinal) !== editTotalFinalCalculado) {
       cambios.push(`Total alterado`);
     }
@@ -567,6 +573,7 @@ export default function VentasMostradorClient({
           transaccionId: editTransaccionId, de: editDeCruzada, para: editParaCruzada,
           email: editEmail,
           eventoOffline: editEventoOffline,
+          puntoVentaId: editPuntoVentaId,
           items: editItems
         },
         vendedorNombre,
@@ -1080,7 +1087,8 @@ export default function VentasMostradorClient({
                                 <TableCell className="font-medium text-slate-700 py-4">
                                   {v.cliente}
                                   {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
-                                  {v.eventoOffline && <span className="mt-1 inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span>}
+                                  {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded-full uppercase">{v.puntoVenta.nombre}</span></div>}
+                                  {v.eventoOffline && <div className="mt-1"><span className="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span></div>}
                                 </TableCell>
 
                                 <TableCell className="py-4 pl-2">
@@ -1244,7 +1252,10 @@ export default function VentasMostradorClient({
                                 <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
                               </div>
                             </TableCell>
-                            <TableCell className="font-bold text-slate-700 py-4">{v.cliente}</TableCell>
+                            <TableCell className="font-bold text-slate-700 py-4">
+                              {v.cliente}
+                              {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[9px] font-bold rounded-full uppercase">{v.puntoVenta.nombre}</span></div>}
+                            </TableCell>
                             <TableCell className="py-4">
                               <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
                                 {v.metodo_pago}
@@ -1412,7 +1423,16 @@ export default function VentasMostradorClient({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-600 uppercase">Punto de Venta</Label>
+                  <select value={puntoVentaId} onChange={(e) => setPuntoVentaId(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none">
+                    <option value="">Seleccionar...</option>
+                    {puntosVenta?.map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-600 uppercase">Email (Opcional)</Label>
                   <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@correo.com" className="bg-white border-slate-200" />
@@ -1593,6 +1613,15 @@ export default function VentasMostradorClient({
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-4 items-center w-full bg-slate-100/50 p-3 rounded-xl border border-slate-200 mt-2">
+                  <div className="space-y-1.5 flex-grow w-full md:w-auto">
+                    <Label className="text-[10px] font-bold text-slate-500 uppercase">Punto de Venta</Label>
+                    <select value={editPuntoVentaId} onChange={(e) => setEditPuntoVentaId(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none">
+                      <option value="">Seleccionar...</option>
+                      {puntosVenta?.map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="space-y-1.5 flex-grow w-full md:w-auto">
                     <Label className="text-[10px] font-bold text-slate-500 uppercase">Email (Opcional)</Label>
                     <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="bg-white" placeholder="cliente@correo.com" />

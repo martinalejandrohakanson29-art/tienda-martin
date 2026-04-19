@@ -424,6 +424,8 @@ model Venta {
   totalFinal    Decimal          @default(0) @db.Decimal(20, 2)
   email         String?
   eventoOffline Boolean          @default(false)
+  puntoVentaId  String?
+  puntoVenta    PuntoVenta?      @relation(fields: [puntoVentaId], references: [id])
   auditorias    VentaAuditoria[]
   items         VentaItem[]
 
@@ -660,6 +662,16 @@ model mensajes_vendedor {
   content         String
   procesado       Boolean  @default(false)
   created_at      DateTime @default(now())
+}
+
+model PuntoVenta {
+  id        String   @id @default(cuid())
+  nombre    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ventas    Venta[]
+
+  @@map("puntos_venta")
 }
 
 enum Role {

@@ -59,6 +59,7 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
       },
       include: {
         items: true,
+        puntoVenta: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -69,6 +70,7 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
       success: true,
       data: ventas.map(v => ({
         ...v,
+        puntoVenta: v.puntoVenta || null,
         total: Number(v.total),
         interes: Number(v.interes),
         totalFinal: Number(v.totalFinal),
@@ -103,6 +105,7 @@ export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta: stri
       },
       include: {
         items: true,
+        puntoVenta: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -113,6 +116,7 @@ export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta: stri
       success: true,
       data: ventas.map(v => ({
         ...v,
+        puntoVenta: v.puntoVenta || null,
         total: Number(v.total),
         interes: Number(v.interes),
         totalFinal: Number(v.totalFinal),
@@ -159,7 +163,8 @@ export async function crearVentaMostrador(data: {
   de?: string,
   para?: string,
   email?: string,
-  eventoOffline?: boolean
+  eventoOffline?: boolean,
+  puntoVentaId?: string
 }) {
   try {
     // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
@@ -181,6 +186,7 @@ export async function crearVentaMostrador(data: {
           para: data.para,
           email: data.email,
           eventoOffline: data.eventoOffline ?? false,
+          puntoVentaId: data.puntoVentaId,
           items: {
             create: data.items.map(item => ({
               productoId: item.id, 
@@ -285,6 +291,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           para: data.para,
           email: data.email,
           eventoOffline: data.eventoOffline,
+          puntoVentaId: data.puntoVentaId,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.id, 

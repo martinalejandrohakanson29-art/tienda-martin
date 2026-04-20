@@ -185,7 +185,7 @@ export async function crearVentaMostrador(data: {
           para: data.para,
           email: data.email,
           eventoOffline: data.eventoOffline ?? false,
-          puntoVentaId: data.puntoVentaId,
+          puntoVentaId: data.puntoVentaId || null,
           items: {
             create: data.items.map(item => ({
               productoId: item.id, 
@@ -275,7 +275,7 @@ export async function guardarComoPedidoVenta(data: {
           para: data.para,
           email: data.email,
           eventoOffline: data.eventoOffline ?? false,
-          puntoVentaId: data.puntoVentaId,
+          puntoVentaId: data.puntoVentaId || null,
           items: {
             create: data.items.map(item => ({
               productoId: item.id,
@@ -380,7 +380,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           para: data.para,
           email: data.email,
           eventoOffline: data.eventoOffline,
-          puntoVentaId: data.puntoVentaId,
+          puntoVentaId: data.puntoVentaId || null,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.id, 
@@ -607,6 +607,19 @@ export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string
   } catch (error) {
     console.error("Error al obtener pedidos de venta:", error);
     return [];
+  }
+}
+
+export async function actualizarEstadoPedido(ventaId: string, estadoPedido: string) {
+  try {
+    await prisma.venta.update({
+      where: { id: ventaId },
+      data: { estadoPedido }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar estado del pedido:", error);
+    return { success: false, error: "No se pudo actualizar el estado del pedido" };
   }
 }
 

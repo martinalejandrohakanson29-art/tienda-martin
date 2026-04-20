@@ -126,6 +126,31 @@ Se implementó un sistema para "Packs" en las ventas de mostrador que permiten a
 - Mejor gestión de inventario para promociones locales sin mezclar stocks.
 - Automatización del descuento múltiple del inventario en venta por mostrador.
 
+### Modificación: Estados y Observaciones en Pedidos de Venta
+**Fecha:** 2026-04-20
+**Archivos Modificados:** `prisma/schema.prisma`, `app/actions/ventas-mostrador.ts`, `app/admin/ventas-mostrador/ventas-client.tsx`, `app/admin/erp/pedidos-venta/pedidos-venta-client.tsx`
+
+**Descripción del Cambio:**
+Se implementó un flujo de estados para los Pedidos de Venta en el ERP y se mejoró la captura y visualización de las observaciones asociadas al pedido.
+
+**Cambios Técnicos:**
+
+1.  **Prisma / Base de Datos:**
+    - Se añadió `estadoPedido String? @default("PENDIENTE")` al modelo `Venta` para registrar el estado de preparación.
+
+2.  **Lógica del Servidor (Actions):**
+    - `actualizarEstadoPedido`: Nueva Server Action para modificar únicamente el campo `estadoPedido` en la base de datos sin alterar el `tipoVenta`.
+
+3.  **Frontend / UI:**
+    - **Ventas Mostrador:** Se reemplazó el `Input` por un `Textarea` en el modal de cobro y se mejoró la etiqueta a "Observaciones / Datos de Envío" para incentivar la carga de datos del comprador.
+    - **Pedidos ERP:** Se añadió un selector visual (`<select>`) con colores dinámicos según el estado (`PENDIENTE`, `LISTO_PARA_PREPARAR`, `PREPARADO`, `DESPACHADO`).
+    - Las observaciones se muestran destacadas al desplegar el acordeón de artículos de cada pedido.
+    - El botón de confirmación cambió su finalidad declarada a "Registrar Venta", pasando el pedido al listado general de ventas y descontando stock de manera definitiva.
+
+**Beneficios:**
+- Mayor control sobre el flujo logístico interno.
+- Claridad en las instrucciones de entrega y empaquetado para el equipo.
+
 **IMPORTANTE:**
 - en local siempre se ejecutara en windows 11 o en linux mint. 
 - El usuario no tiene amplios conocimientos ni de codigo, ni de desarrollo, ni de base de datos. tenlo en cuenta a la hora de explicarle cosas o de pedirle que haga algo.

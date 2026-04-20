@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -29,6 +29,7 @@ import {
   Printer,
   ArrowRight,
   RefreshCcw,
+  ChevronDown,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -36,6 +37,7 @@ import {
   obtenerPedidosVenta,
   confirmarPedidoVenta,
   eliminarPedidoVenta,
+  actualizarEstadoPedido,
 } from "@/app/actions/ventas-mostrador";
 
 type ItemVenta = {
@@ -66,6 +68,7 @@ type Venta = {
   email?: string | null;
   eventoOffline?: boolean;
   puntoVentaId?: string | null;
+  estadoPedido?: string | null;
 };
 
 export default function PedidosVentaClient() {
@@ -81,6 +84,7 @@ export default function PedidosVentaClient() {
   const [isEliminarDialogOpen, setIsEliminarDialogOpen] = useState(false);
   const [ventaParaEliminar, setVentaParaEliminar] = useState<Venta | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [expandedVentas, setExpandedVentas] = useState<Set<string>>(new Set());
 
   const cargarPedidos = async () => {
     try {
@@ -140,6 +144,19 @@ export default function PedidosVentaClient() {
     }
   };
 
+  const handleActualizarEstado = async (ventaId: string, nuevoEstado: string) => {
+    try {
+      setIsProcessing(true);
+      await actualizarEstadoPedido(ventaId, nuevoEstado);
+      cargarPedidos();
+    } catch (err) {
+      console.error("Error al actualizar estado:", err);
+      alert("Error al actualizar el estado. Intente nuevamente.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handlePrint = (venta: Venta) => {
     window.print();
   };
@@ -178,56 +195,7 @@ export default function PedidosVentaClient() {
           </p>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 font-medium">Total Pedidos</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {ventas.length}
-                </p>
-              </div>
-              <div className="bg-amber-100 p-3 rounded-lg">
-                <Clock className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </div>
 
-          <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 font-medium">
-                  Pendientes de Confirmar
-                </p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {ventas.filter((v) => v.tipoVenta === "PEDIDO").length}
-                </p>
-              </div>
-              <div className="bg-amber-100 p-3 rounded-lg">
-                <FileText className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 font-medium">
-                  Valor Total Pendiente
-                </p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">
-                  {formatPrice(
-                    ventas.reduce((sum, v) => sum + v.totalFinal, 0)
-                  )}
-                </p>
-              </div>
-              <div className="bg-amber-100 p-3 rounded-lg">
-                <RefreshCcw className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* Filters */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm mb-6">
@@ -303,117 +271,131 @@ export default function PedidosVentaClient() {
                   <TableHead className="w-16">ID</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vendedor</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead>Artículos</TableHead>
                   <TableHead className="text-right">Total Final</TableHead>
                   <TableHead className="text-right">Fecha</TableHead>
+                  <TableHead className="text-center">Estado</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventas.map((venta) => (
-                  <TableRow key={venta.id} className="hover:bg-slate-50">
-                    <TableCell className="font-mono text-sm text-slate-500">
-                      {venta.id.slice(0, 8)}
-                    </TableCell>
-                    <TableCell className="font-medium text-slate-900">
-                      {venta.cliente || "Sin cliente"}
-                    </TableCell>
-                    <TableCell className="text-slate-700">
-                      {venta.vendedor}
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatPrice(venta.total)}
-                    </TableCell>
-                    <TableCell className="text-right font-bold text-slate-900">
-                      {formatPrice(venta.totalFinal)}
-                    </TableCell>
-                    <TableCell className="text-right text-slate-600">
-                      {new Date(venta.createdAt).toLocaleDateString("es-AR", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleConfirmarPedido(venta)}
-                          className="border-green-600 text-green-700 hover:bg-green-50"
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleEliminarPedido(venta)}
-                          className="border-red-600 text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {ventas.map((venta) => {
+                  const isExpanded = expandedVentas.has(venta.id);
+                  return (
+                    <React.Fragment key={venta.id}>
+                      <TableRow className="hover:bg-slate-50 align-top">
+                        <TableCell className="font-mono text-sm text-slate-500 py-4">
+                          {venta.id.slice(0, 8)}
+                        </TableCell>
+                        <TableCell className="font-medium text-slate-900 py-4">
+                          {venta.cliente || "Sin cliente"}
+                        </TableCell>
+                        <TableCell className="text-slate-700 py-4">
+                          {venta.vendedor}
+                        </TableCell>
+                        <TableCell className="py-4">
+                          <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => {
+                            const newExpanded = new Set(expandedVentas);
+                            if (isExpanded) newExpanded.delete(venta.id);
+                            else newExpanded.add(venta.id);
+                            setExpandedVentas(newExpanded);
+                          }}>
+                            <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                            <span className="ml-1 text-xs">Ver ({venta.items?.length || 0})</span>
+                          </Button>
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-slate-900 py-4">
+                          {formatPrice(venta.totalFinal)}
+                        </TableCell>
+                        <TableCell className="text-right text-slate-600 py-4">
+                          {new Date(venta.createdAt).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </TableCell>
+                        <TableCell className="text-center py-4">
+                          <select 
+                            value={venta.estadoPedido || "PENDIENTE"}
+                            onChange={(e) => handleActualizarEstado(venta.id, e.target.value)}
+                            disabled={isProcessing}
+                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${
+                              venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
+                              venta.estadoPedido === 'PREPARADO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                              venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                              'bg-amber-100 text-amber-700 border-amber-200'
+                            }`}
+                          >
+                            <option value="PENDIENTE">Pendiente</option>
+                            <option value="LISTO_PARA_PREPARAR">Listo p/ Preparar</option>
+                            <option value="PREPARADO">Preparado</option>
+                            <option value="DESPACHADO">Despachado</option>
+                          </select>
+                        </TableCell>
+                        <TableCell className="text-center py-4">
+                          <div className="flex items-center justify-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleConfirmarPedido(venta)}
+                              className="border-green-600 text-green-700 hover:bg-green-50"
+                              title="Registrar Venta"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEliminarPedido(venta)}
+                              className="border-red-600 text-red-700 hover:bg-red-50"
+                              title="Eliminar Pedido"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && (
+                        <TableRow className="bg-slate-50/50">
+                          <TableCell colSpan={8} className="py-3 px-6">
+                            {venta.info && (
+                              <div className="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200">
+                                <p className="text-[10px] font-bold text-amber-800 uppercase mb-1">Observaciones / Datos de Envío:</p>
+                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{venta.info}</p>
+                              </div>
+                            )}
+                            <div className="space-y-2">
+                              {venta.items?.length > 0 ? (
+                                venta.items.map((item, idx) => (
+                                  <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 last:border-0 pb-2 last:pb-0">
+                                    <div>
+                                      <span className="font-semibold text-slate-700 uppercase">{item.nombre}</span>
+                                      <span className="text-[10px] text-slate-400 ml-2 font-mono uppercase">ID: {item.productoId || '-'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                      <span className="bg-slate-200 px-2 py-0.5 rounded text-[10px] font-bold text-slate-600">x{item.cantidad}</span>
+                                      <span className="font-bold text-slate-700">{formatPrice(item.subtotal)}</span>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-xs text-slate-400 italic">Sin artículos</p>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
         </div>
 
-        {/* Summary Section */}
-        {ventas.length > 0 && (
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-              <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-amber-600" />
-                Resumen por Vendedor
-              </h3>
-              <div className="space-y-2">
-                {ventasPorVendedor.map(({ vendedor, total, count }) => (
-                  <div
-                    key={vendedor}
-                    className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0"
-                  >
-                    <span className="text-slate-700">{vendedor}</span>
-                    <div className="text-right">
-                      <span className="text-sm text-slate-500">
-                        {count} pedido(s)
-                      </span>
-                      <span className="ml-2 font-semibold text-slate-900">
-                        {formatPrice(total)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
 
-            <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-              <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                <FileText className="h-5 w-5 text-amber-600" />
-                Métodos de Pago
-              </h3>
-              <div className="space-y-2">
-                {Array.from(
-                  new Set(ventas.map((v) => v.metodo_pago))
-                ).map((metodo) => (
-                  <div
-                    key={metodo}
-                    className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0"
-                  >
-                    <span className="text-slate-700">{metodo}</span>
-                    <span className="font-semibold text-slate-900">
-                      {ventas.filter((v) => v.metodo_pago === metodo).length}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Confirm Dialog */}
@@ -446,8 +428,7 @@ export default function PedidosVentaClient() {
                 </p>
               </div>
               <p className="text-sm text-slate-600">
-                ¿Desea confirmar este pedido de venta para que se cargue como una
-                venta regular?
+                ¿Desea registrar este pedido como una venta completada? Se descontará el stock correspondiente y el pedido desaparecerá de esta lista para pasar a Ventas Realizadas.
               </p>
             </div>
           )}
@@ -471,7 +452,7 @@ export default function PedidosVentaClient() {
               ) : (
                 <>
                   <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Confirmar Pedido
+                  Registrar Venta
                 </>
               )}
             </Button>

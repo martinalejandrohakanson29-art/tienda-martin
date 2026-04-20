@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -410,7 +411,9 @@ export default function VentasMostradorClient({
   };
 
   // --- FUNCIONES NUEVA VENTA ---
-  const handleFinalizarVenta = async () => {
+  const handleFinalizarVenta = async (overrideComoPedido?: boolean | React.MouseEvent) => {
+    const isPedido = typeof overrideComoPedido === 'boolean' ? overrideComoPedido : isGuardarComoPedido;
+
     if (requiereTarjeta && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) {
       alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return;
     }
@@ -419,7 +422,7 @@ export default function VentasMostradorClient({
     const clienteFinal = requiereTarjeta ? dni : cliente;
 
     let metodoPagoFinal = isPagoMixto ? "Mixto" : metodoPago;
-    let infoFinal = info;
+    let infoFinal = info || (isPedido ? "Pedido de venta - pendiente de confirmación" : "Venta confirmada");
 
     if (isPagoMixto) {
       const det = `[Mixto -> ${metodoPago}: $${final1.toLocaleString('es-AR')} | ${metodoPago2}: $${final2.toLocaleString('es-AR')}]`;
@@ -446,7 +449,7 @@ export default function VentasMostradorClient({
         return item;
       });
 
-      const resultado = isGuardarComoPedido
+      const resultado = isPedido
         ? await guardarComoPedidoVenta({
             cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
             interes: interesTarjeta,
@@ -463,7 +466,7 @@ export default function VentasMostradorClient({
           });
       
       if (resultado.success) {
-        if (isGuardarComoPedido) {
+        if (isPedido) {
           mostrarMensajeExito("¡Pedido de venta guardado con éxito!");
        } else {
           mostrarMensajeExito("¡Venta registrada con éxito!");
@@ -1515,22 +1518,29 @@ export default function VentasMostradorClient({
                 </div>
               </div>
 
-              <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Información Extra</Label><Input value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Notas adicionales..." /></div>
+              <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label><Textarea value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Dirección, referencias, método de entrega, observaciones adicionales..." className="min-h-[80px]" /></div>
             </div>
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
-              <Label className="text-xs font-bold text-slate-600 uppercase block mb-2">Tipo de Registro</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" onClick={() => { setIsGuardarComoPedido(false); setInfo("Venta confirmada"); }} className="border-green-600 text-green-700 hover:bg-green-50">
-                  <CheckCircle className="h-4 w-4 mr-2" /> Confirmar y Guardar
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 mb-2">
+              <Label className="text-xs font-bold text-slate-600 uppercase block mb-3 text-center">Acción Final</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button 
+                  onClick={() => handleFinalizarVenta(false)} 
+                  disabled={isSubmitting} 
+                  className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold"
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Confirmar y Guardar Venta</>}
                 </Button>
-                <Button variant="outline" onClick={() => { setIsGuardarComoPedido(true); setInfo("Pedido de venta - pendiente de confirmación"); }} className="border-amber-600 text-amber-700 hover:bg-amber-50">
-                  <Clock className="h-4 w-4 mr-2" /> Guardar en Pedido de Venta
+                <Button 
+                  onClick={() => handleFinalizarVenta(true)} 
+                  disabled={isSubmitting} 
+                  className="bg-amber-600 hover:bg-amber-700 text-white h-12 rounded-xl font-bold"
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-5 w-5 mr-2" /> Guardar como Pedido</>}
                 </Button>
               </div>
             </div>
-            <DialogFooter className="gap-3">
-              <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)}>Cancelar</Button>
-              <Button onClick={handleFinalizarVenta} disabled={isSubmitting} className={isGuardarComoPedido ? "bg-amber-600 text-white" : "bg-blue-600 text-white"} px-8 rounded-xl>{isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : (isGuardarComoPedido ? "Guardar como Pedido" : "Confirmar y Guardar")}</Button>
+            <DialogFooter className="mt-2">
+              <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -1683,8 +1693,8 @@ export default function VentasMostradorClient({
                 )}
 
                 <div className="space-y-1.5 w-full">
-                  <Label className="text-[10px] font-bold text-slate-400 uppercase">Información Extra / Notas</Label>
-                  <Input value={editInfo} onChange={(e) => setEditInfo(e.target.value)} className="bg-slate-50" placeholder="Agregar alguna nota sobre esta venta o edición..." />
+                  <Label className="text-[10px] font-bold text-slate-400 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label>
+                  <Textarea value={editInfo} onChange={(e) => setEditInfo(e.target.value)} className="bg-slate-50 min-h-[80px]" placeholder="Dirección, referencias, método de entrega, observaciones adicionales..." />
                 </div>
 
                 <div className="flex flex-col md:flex-row gap-4 items-center w-full bg-slate-100/50 p-3 rounded-xl border border-slate-200 mt-2">

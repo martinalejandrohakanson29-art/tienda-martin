@@ -340,7 +340,7 @@ export default function RendimientoNegocioClient() {
 
   function toggleExpandedGastosMes(mes: number, anio: number) {
     const key = `${mes}-${anio}`;
-    setExpandedGastosMes(prev => {
+    setExpandedGastosMeses(prev => {
       const newSet = new Set(prev);
       if (newSet.has(key)) {
         newSet.delete(key);

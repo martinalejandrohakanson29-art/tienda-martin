@@ -5,6 +5,46 @@ import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 
 /**
+ * Genera un PDF con los datos de un pedido de venta
+ * Esta función se usa para generar el PDF de pedidos en /admin/erp/pedidos-venta
+ */
+export async function generarPedidoPDF(ventaId: string) {
+    try {
+        const webhookUrl = process.env.N8N_PEDIDO_PDF_WEBHOOK;
+
+        if (!webhookUrl) {
+            throw new Error("La variable N8N_PEDIDO_PDF_WEBHOOK no está configurada");
+        }
+
+        const response = await fetch(webhookUrl.trim(), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ventaId: ventaId,
+                action: 'generate_pedido_pdf',
+                timestamp: new Date().toISOString()
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Error generando PDF en n8n: ${response.statusText}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const base64Pdf = buffer.toString('base64');
+
+        return { success: true, pdfBase64: base64Pdf };
+
+    } catch (error: any) {
+        console.error("Error al generar PDF del pedido:", error);
+        return { success: false, error: error.message || "Error al generar el PDF" };
+    }
+}
+
+/**
  * Llama al workflow de n8n para iniciar la descarga y actualización de etiquetas
  */
 export async function actualizarPedidos() {

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -30,6 +31,8 @@ import {
   ArrowRight,
   RefreshCcw,
   ChevronDown,
+  Eye,
+  Edit,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -38,7 +41,10 @@ import {
   confirmarPedidoVenta,
   eliminarPedidoVenta,
   actualizarEstadoPedido,
+  obtenerPedidoPorId,
+  actualizarPedidoVenta,
 } from "@/app/actions/ventas-mostrador";
+import PDFPreview from "./pdf-preview";
 
 type ItemVenta = {
   productoId?: string | null;
@@ -53,6 +59,7 @@ type Venta = {
   cliente: string;
   vendedor: string;
   total: number;
+  interes: number;
   totalFinal: number;
   metodo_pago: string;
   createdAt: string;
@@ -85,6 +92,11 @@ export default function PedidosVentaClient() {
   const [ventaParaEliminar, setVentaParaEliminar] = useState<Venta | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedVentas, setExpandedVentas] = useState<Set<string>>(new Set());
+  const [isPDFPreviewOpen, setIsPDFPreviewOpen] = useState(false);
+  const [ventaParaPDF, setVentaParaPDF] = useState<Venta | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [ventaParaEditar, setVentaParaEditar] = useState<Venta | null>(null);
+  const [editingVenta, setEditingVenta] = useState<Venta | null>(null);
 
   const cargarPedidos = async () => {
     try {
@@ -108,6 +120,82 @@ export default function PedidosVentaClient() {
   const handleEliminarPedido = (venta: Venta) => {
     setVentaParaEliminar(venta);
     setIsEliminarDialogOpen(true);
+  };
+
+  const handleVerPDF = (venta: Venta) => {
+    setVentaParaPDF(venta);
+    setIsPDFPreviewOpen(true);
+  };
+
+  const handleEditarPedido = async (venta: Venta) => {
+    setVentaParaEditar(venta);
+    setIsEditDialogOpen(true);
+    setIsProcessing(true);
+    try {
+      const ventaData = await obtenerPedidoPorId(venta.id);
+      if (ventaData) {
+        setEditingVenta(ventaData);
+      }
+    } catch (err) {
+      console.error("Error al cargar venta para editar:", err);
+      alert("Error al cargar los datos del pedido");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const confirmarEdicion = async () => {
+    if (!editingVenta || !ventaParaEditar) return;
+    
+    try {
+      setIsProcessing(true);
+      const usuario = "Admin"; // TODO: Obtener usuario actual
+      const detalleCambios = "Pedido editado desde el ERP";
+      const result = await actualizarPedidoVenta(
+        ventaParaEditar.id,
+        {
+          cliente: editingVenta.cliente,
+          vendedor: editingVenta.vendedor,
+          total: editingVenta.total,
+          interes: editingVenta.interes,
+          totalFinal: editingVenta.totalFinal,
+          metodo_pago: editingVenta.metodo_pago,
+          dni: editingVenta.dni,
+          telefono: editingVenta.telefono,
+          info: editingVenta.info,
+          cupon: editingVenta.cupon,
+          transaccionId: editingVenta.transaccionId,
+          de: editingVenta.de,
+          para: editingVenta.para,
+          email: editingVenta.email,
+          eventoOffline: editingVenta.eventoOffline,
+          puntoVentaId: editingVenta.puntoVentaId,
+          items: editingVenta.items.map(item => ({
+            id: item.productoId,
+            nombre: item.nombre,
+            cantidad: item.cantidad,
+            precio_unit: item.precio_unit,
+            subtotal: item.subtotal
+          }))
+        },
+        usuario,
+        detalleCambios
+      );
+      
+      if (result.success) {
+        setEditingVenta(null);
+        setVentaParaEditar(null);
+        setIsEditDialogOpen(false);
+        cargarPedidos();
+      } else {
+        alert(result.error || "Error al actualizar el pedido");
+      }
+    } catch (err) {
+      console.error("Error al confirmar edición:", err);
+      alert("Error al actualizar el pedido. Intente nuevamente.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const confirmarPedido = async () => {
@@ -339,6 +427,24 @@ export default function PedidosVentaClient() {
                             <Button
                               variant="outline"
                               size="sm"
+                              onClick={() => handleEditarPedido(venta)}
+                              className="border-amber-600 text-amber-700 hover:bg-amber-50"
+                              title="Editar Pedido"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleVerPDF(venta)}
+                              className="border-blue-600 text-blue-700 hover:bg-blue-50"
+                              title="Ver PDF del Pedido"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleConfirmarPedido(venta)}
                               className="border-green-600 text-green-700 hover:bg-green-50"
                               title="Registrar Venta"
@@ -497,6 +603,188 @@ export default function PedidosVentaClient() {
                 <>
                   <Trash2 className="h-4 w-4 mr-2" />
                   Eliminar Pedido
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF Preview Dialog */}
+      <Dialog open={isPDFPreviewOpen} onOpenChange={setIsPDFPreviewOpen}>
+        <DialogContent className="max-w-5xl w-full h-[90vh] p-0 rounded-2xl border-0">
+          <div className="flex items-center justify-between p-4 border-b border-slate-200">
+            <DialogTitle className="flex items-center gap-2 text-slate-900">
+              <Eye className="h-5 w-5" />
+              Vista Previa del Pedido
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsPDFPreviewOpen(false)}
+              className="text-slate-500 hover:text-slate-700"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="h-[calc(90vh-80px)] overflow-y-auto">
+            {ventaParaPDF && <PDFPreview venta={ventaParaPDF} />}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] rounded-2xl border-amber-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-900">
+              <Edit className="h-5 w-5" />
+              Editar Pedido de Venta
+            </DialogTitle>
+          </DialogHeader>
+          {isProcessing ? (
+            <div className="py-8 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-amber-600 mx-auto mb-4" />
+              <p className="text-slate-600">Cargando datos del pedido...</p>
+            </div>
+          ) : editingVenta ? (
+            <div className="mt-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                <p className="text-sm text-amber-800">
+                  <strong>ID Pedido:</strong> {editingVenta.id.slice(0, 8)}
+                </p>
+                <p className="text-sm text-amber-800">
+                  <strong>Fecha:</strong> {new Date(editingVenta.createdAt).toLocaleDateString("es-AR")}
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Cliente</Label>
+                  <Input
+                    value={editingVenta.cliente}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, cliente: e.target.value })}
+                    className="border-slate-300"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Vendedor</Label>
+                  <Input
+                    value={editingVenta.vendedor}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, vendedor: e.target.value })}
+                    className="border-slate-300"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium mb-1 block">Total</Label>
+                    <Input
+                      type="number"
+                      value={editingVenta.total}
+                      onChange={(e) => setEditingVenta({ ...editingVenta, total: Number(e.target.value) })}
+                      className="border-slate-300"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-sm font-medium mb-1 block">Interés</Label>
+                    <Input
+                      type="number"
+                      value={editingVenta.interes}
+                      onChange={(e) => setEditingVenta({ ...editingVenta, interes: Number(e.target.value) })}
+                      className="border-slate-300"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Total Final</Label>
+                  <Input
+                    type="number"
+                    value={editingVenta.totalFinal}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, totalFinal: Number(e.target.value) })}
+                    className="border-slate-300"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Método de Pago</Label>
+                  <Input
+                    value={editingVenta.metodo_pago}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, metodo_pago: e.target.value })}
+                    className="border-slate-300"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">DNI</Label>
+                  <Input
+                    value={editingVenta.dni || ""}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, dni: e.target.value })}
+                    className="border-slate-300"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Teléfono</Label>
+                  <Input
+                    value={editingVenta.telefono || ""}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, telefono: e.target.value })}
+                    className="border-slate-300"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Email</Label>
+                  <Input
+                    value={editingVenta.email || ""}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, email: e.target.value })}
+                    className="border-slate-300"
+                  />
+                </div>
+                
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Observaciones / Datos de Envío</Label>
+                  <Textarea
+                    value={editingVenta.info || ""}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, info: e.target.value })}
+                    className="border-slate-300"
+                    rows={3}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-slate-600">Error al cargar los datos del pedido</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditingVenta(null);
+                setVentaParaEditar(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmarEdicion}
+              disabled={isProcessing || !editingVenta}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Guardar Cambios
                 </>
               )}
             </Button>

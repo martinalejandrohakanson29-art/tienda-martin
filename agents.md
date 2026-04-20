@@ -151,7 +151,83 @@ Se implementó un flujo de estados para los Pedidos de Venta en el ERP y se mejo
 - Mayor control sobre el flujo logístico interno.
 - Claridad en las instrucciones de entrega y empaquetado para el equipo.
 
+### Modificación: Separación de Pedidos de Ventas
+**Fecha:** 2026-04-20
+**Archivos Modificados:** `app/actions/ventas-mostrador.ts`
+
+**Descripción del Cambio:**
+Se implementó la separación lógica entre pedidos de venta y ventas confirmadas. Anteriormente, cuando se seleccionaba "Guardar como pedido", la venta también aparecía en la pestaña "Listado de ventas". Ahora, los pedidos se listan exclusivamente en `/admin/erp/pedidos-venta`.
+
+**Cambios Técnicos:**
+
+1.  **Lógica del Servidor (Actions):**
+    - **[`obtenerVentasPorRango()`](app/actions/ventas-mostrador.ts:90):** Se agregó filtro `tipoVenta: { not: "PEDIDO" }` para excluir pedidos del listado de ventas.
+    - **[`obtenerVentasPorFecha()`](app/actions/ventas-mostrador.ts:44):** Se agregó filtro `tipoVenta: { not: "PEDIDO" }` para excluir pedidos del listado de ventas por fecha.
+
+2.  **Flujo de Trabajo:**
+    - **Guardar como pedido:** `tipoVenta = "PEDIDO"` → Aparece SOLO en `/admin/erp/pedidos-venta`
+    - **Confirmar y guardar:** `tipoVenta = "CONFIRMADA"` → Aparece en `/admin/ventas-mostrador` (Listado de Ventas)
+    - **Confirmar pedido en ERP:** `tipoVenta = "CONFIRMADA"` → Se mueve de pedidos a ventas confirmadas
+
+**Beneficios:**
+- Separación clara entre pedidos pendientes y ventas confirmadas.
+- Evita duplicación de datos en listados.
+- Mejor organización del flujo de trabajo del equipo.
+
+### Modificación: Generación de PDF para Pedidos de Venta
+**Fecha:** 2026-04-20
+**Archivos Modificados:** `app/actions/envios.ts`, `app/admin/erp/pedidos-venta/pdf-preview.tsx`, `app/admin/erp/pedidos-venta/pedidos-venta-client.tsx`
+
+**Descripción del Cambio:**
+Se implementó la opción para cada pedido de venta listado, de abrir en una pestaña nueva un PDF con los datos del pedido de venta (nombre del cliente, artículos que lo componen y observaciones cargadas).
+
+**Cambios Técnicos:**
+
+1.  **Lógica del Servidor (Actions):**
+    - **[`generarPedidoPDF()`](app/actions/envios.ts:11):** Nueva Server Action que llama al webhook de n8n para generar el PDF del pedido usando una plantilla.
+
+2.  **Componente de Vista Previa:**
+    - **[`PDFPreview.tsx`](app/admin/erp/pedidos-venta/pdf-preview.tsx):** Nuevo componente que muestra los datos del pedido en un formato optimizado para impresión/PDF, con:
+      - Datos del cliente (nombre, vendedor, método de pago)
+      - Tabla de artículos con cantidades y precios
+      - Observaciones / Datos de envío
+      - Botón de impresión que genera y abre el PDF en una nueva pestaña
+
+3.  **Frontend / UI:**
+    - **[`pedidos-venta-client.tsx`](app/admin/erp/pedidos-venta/pedidos-venta-client.tsx:346):** Se añadió un nuevo botón con icono `Eye` en la columna de acciones de cada pedido que abre el modal de vista previa del PDF.
+
+**Beneficios:**
+- Generación rápida de documentos imprimibles para cada pedido.
+- Visualización clara de los datos del pedido antes de imprimir.
+- Integración con el workflow de n8n para generación de PDFs profesionales.
+
+### Modificación: Edición de Pedidos de Venta
+**Fecha:** 2026-04-20
+**Archivos Modificados:** `app/actions/ventas-mostrador.ts`, `app/admin/erp/pedidos-venta/pedidos-venta-client.tsx`
+
+**Descripción del Cambio:**
+Se implementó la opción para modificar los datos de cada pedido de venta listado. Se agregó un botón de edición que abre un modal con todos los campos del pedido.
+
+**Cambios Técnicos:**
+
+1.  **Lógica del Servidor (Actions):**
+    - **[`obtenerPedidoPorId()`](app/actions/ventas-mostrador.ts:659):** Nueva Server Action para obtener un pedido específico por su ID para editar.
+    - **[`actualizarPedidoVenta()`](app/actions/ventas-mostrador.ts:690):** Nueva Server Action para actualizar los datos de un pedido de venta, incluyendo la gestión de stock de los artículos.
+
+2.  **Frontend / UI:**
+    - **[`pedidos-venta-client.tsx`](app/admin/erp/pedidos-venta/pedidos-venta-client.tsx:429):** Se añadió un nuevo botón con icono `Edit` en la columna de acciones de cada pedido que abre el modal de edición.
+    - **Modal de Edición:** Nuevo modal que permite modificar:
+      - Cliente, Vendedor, Total, Interés, Total Final
+      - Método de Pago, DNI, Teléfono, Email
+      - Observaciones / Datos de Envío
+    - El modal carga los datos del pedido al abrirse y actualiza el stock automáticamente al guardar.
+
+**Beneficios:**
+- Permite corregir errores en los datos del pedido antes de confirmarlo.
+- Gestión automática del stock al modificar los artículos del pedido.
+- Auditoría de cambios mediante `VentaAuditoria`.
+
 **IMPORTANTE:**
-- en local siempre se ejecutara en windows 11 o en linux mint. 
+- en local siempre se ejecutara en windows 11 o en linux mint.
 - El usuario no tiene amplios conocimientos ni de codigo, ni de desarrollo, ni de base de datos. tenlo en cuenta a la hora de explicarle cosas o de pedirle que haga algo.
 - siempre que realices una modificacion agrega los cambios correspondientes en este archivo agents.md

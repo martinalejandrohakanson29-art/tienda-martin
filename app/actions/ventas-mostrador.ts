@@ -51,6 +51,7 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
 
     const ventas = await prisma.venta.findMany({
       where: {
+        tipoVenta: { not: "PEDIDO" },
         createdAt: {
           gte: inicioDia,
           lte: finDia,
@@ -97,6 +98,7 @@ export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta: stri
 
     const ventas = await prisma.venta.findMany({
       where: {
+        tipoVenta: { not: "PEDIDO" },
         createdAt: {
           gte: inicioRango,
           lte: finRango,
@@ -610,6 +612,50 @@ export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string
   }
 }
 
+// Función para obtener un pedido por ID para editar
+export async function obtenerPedidoPorId(ventaId: string) {
+  try {
+    const venta = await prisma.venta.findUnique({
+      where: { id: ventaId },
+      include: {
+        items: true,
+      },
+    });
+
+    if (!venta) {
+      throw new Error("Pedido no encontrado");
+    }
+
+    return {
+      ...venta,
+      tipoVenta: venta.tipoVenta || "PEDIDO",
+      total: Number(venta.total),
+      interes: Number(venta.interes),
+      totalFinal: Number(venta.totalFinal),
+      createdAt: venta.createdAt.toISOString(),
+      dni: venta.dni,
+      telefono: venta.telefono,
+      info: venta.info,
+      cupon: venta.cupon,
+      transaccionId: venta.transaccionId,
+      de: venta.de,
+      para: venta.para,
+      email: venta.email,
+      eventoOffline: venta.eventoOffline,
+      puntoVentaId: venta.puntoVentaId,
+      items: venta.items.map(i => ({
+        ...i,
+        productoId: i.productoId || null,
+        precio_unit: Number(i.precio_unit),
+        subtotal: Number(i.subtotal)
+      }))
+    };
+  } catch (error) {
+    console.error("Error al obtener pedido por ID:", error);
+    return null;
+  }
+}
+
 export async function actualizarEstadoPedido(ventaId: string, estadoPedido: string) {
   try {
     await prisma.venta.update({
@@ -620,6 +666,113 @@ export async function actualizarEstadoPedido(ventaId: string, estadoPedido: stri
   } catch (error) {
     console.error("Error al actualizar estado del pedido:", error);
     return { success: false, error: "No se pudo actualizar el estado del pedido" };
+  }
+}
+
+// Función para actualizar un pedido de venta
+export async function actualizarPedidoVenta(ventaId: string, data: any, usuario: string, detalleCambios: string) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // 1. Obtener los items actuales para revertir el stock
+      const oldItems = await tx.ventaItem.findMany({
+        where: { ventaId }
+      });
+
+      // Revertir el stock (sumar lo que se había restado originalmente)
+      for (const oldItem of oldItems) {
+        if (oldItem.productoId) {
+          const articuloBase = await tx.articuloMostrador.findUnique({
+            where: { id: oldItem.productoId },
+            include: { packItems: true }
+          });
+          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+            for (const packItem of articuloBase.packItems) {
+              await tx.articuloMostrador.updateMany({
+                where: { id: packItem.componenteId },
+                data: { stock: { increment: packItem.cantidad * oldItem.cantidad } }
+              });
+            }
+          } else {
+            await tx.articuloMostrador.updateMany({
+              where: { id: oldItem.productoId },
+              data: { stock: { increment: oldItem.cantidad } }
+            });
+          }
+        }
+      }
+
+      // 2. Borramos los items actuales para reemplazarlos limpios por los nuevos
+      await tx.ventaItem.deleteMany({
+        where: { ventaId }
+      });
+
+      // 3. Actualizamos la venta y creamos los nuevos items
+      await tx.venta.update({
+        where: { id: ventaId },
+        data: {
+          cliente: data.cliente,
+          total: data.total,
+          interes: data.interes,
+          totalFinal: data.totalFinal,
+          metodo_pago: data.metodo_pago,
+          dni: data.dni,
+          telefono: data.telefono,
+          info: data.info,
+          cupon: data.cupon,
+          transaccionId: data.transaccionId,
+          de: data.de,
+          para: data.para,
+          email: data.email,
+          eventoOffline: data.eventoOffline,
+          puntoVentaId: data.puntoVentaId || null,
+          items: {
+            create: data.items.map((item: any) => ({
+              productoId: item.id,
+              nombre: item.nombre,
+              cantidad: item.cantidad,
+              precio_unit: item.precio_unit,
+              subtotal: item.subtotal
+            }))
+          }
+        }
+      });
+
+      // 4. Descontar el stock de los nuevos items
+      for (const newItem of data.items) {
+        const articuloBase = await tx.articuloMostrador.findUnique({
+          where: { id: newItem.id },
+          include: { packItems: true }
+        });
+        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+          for (const packItem of articuloBase.packItems) {
+            await tx.articuloMostrador.updateMany({
+              where: { id: packItem.componenteId },
+              data: { stock: { decrement: packItem.cantidad * newItem.cantidad } }
+            });
+          }
+        } else {
+          await tx.articuloMostrador.updateMany({
+            where: { id: newItem.id },
+            data: { stock: { decrement: newItem.cantidad } }
+          });
+        }
+      }
+
+      // 5. Dejamos el registro de qué se cambió
+      await tx.ventaAuditoria.create({
+        data: {
+          ventaId: ventaId,
+          usuario: usuario,
+          accion: "EDICION_PEDIDO_VENTA",
+          detalle: detalleCambios
+        }
+      });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar pedido de venta:", error);
+    return { success: false, error: "No se pudo actualizar el pedido de venta" };
   }
 }
 

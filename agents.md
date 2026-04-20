@@ -227,6 +227,39 @@ Se implementó la opción para modificar los datos de cada pedido de venta lista
 - Gestión automática del stock al modificar los artículos del pedido.
 - Auditoría de cambios mediante `VentaAuditoria`.
 
+### Modificación: Módulo de Rendimiento del Negocio y Gastos
+**Fecha:** 2026-04-20
+**Archivos Modificados:** `prisma/schema.prisma`, `app/actions/rendimiento-negocio.ts`, `app/admin/mercadolibre/interna/rendimiento-negocio-client.tsx`, `app/admin/mercadolibre/interna/rendimiento-negocio/page.tsx`, `app/admin/mercadolibre/interna/page.tsx`
+
+**Descripción del Cambio:**
+Se implementó un módulo completo para el seguimiento del rendimiento de cada unidad de negocio y la gestión de gastos del negocio.
+
+**Cambios Técnicos:**
+
+1.  **Prisma / Base de Datos:**
+    - Se añadió el modelo `RendimientoNegocio` con campos: `mes`, `anio`, `unidadNegocio` (mostrador, mercadolibre, mayorista, instagram), `ventaTotal`.
+    - Se añadió el modelo `GastoNegocio` con campos: `fecha`, `mes`, `anio`, `categoria`, `descripcion`, `monto`.
+    - Ambos modelos tienen restricciones de unicidad para evitar duplicados.
+
+2.  **Lógica del Servidor (Actions):**
+    - **[`app/actions/rendimiento-negocio.ts`](app/actions/rendimiento-negocio.ts):** Nuevo archivo con todas las Server Actions para:
+      - `obtenerRendimientoPorMes()`, `obtenerTodosRendimientos()`, `guardarRendimiento()`, `eliminarRendimiento()`
+      - `obtenerGastosPorMes()`, `obtenerTodosGastos()`, `guardarGasto()`, `actualizarGasto()`, `eliminarGasto()`
+      - Funciones auxiliares para obtener años y meses disponibles.
+
+3.  **Frontend / UI:**
+    - **[`rendimiento-negocio-client.tsx`](app/admin/mercadolibre/interna/rendimiento-negocio-client.tsx):** Componente principal con dos pestañas:
+      - **"Rendimiento por Unidad":** Permite cargar ventas por mes y unidad de negocio, ver el % que cada unidad representa del total, y un historial desplegable por mes.
+      - **"Gastos del Negocio":** Permite agregar gastos con categoría, descripción y monto, con vista por mes y historial anual.
+    - **[`page.tsx`](app/admin/mercadolibre/interna/rendimiento-negocio/page.tsx):** Página que envuelve el componente cliente.
+    - **[`interna/page.tsx`](app/admin/mercadolibre/interna/page.tsx):** Se añadió una nueva tarjeta "Rendimiento del Negocio" con icono `BarChart3`.
+
+**Beneficios:**
+- Seguimiento claro del rendimiento de cada unidad de negocio.
+- Visualización del % de contribución de cada canal al total de ventas.
+- Gestión centralizada de gastos del negocio.
+- Historial completo por mes y año.
+
 **IMPORTANTE:**
 - en local siempre se ejecutara en windows 11 o en linux mint.
 - El usuario no tiene amplios conocimientos ni de codigo, ni de desarrollo, ni de base de datos. tenlo en cuenta a la hora de explicarle cosas o de pedirle que haga algo.

@@ -677,6 +677,35 @@ model PuntoVenta {
   @@map("puntos_venta")
 }
 
+// === RENDIMIENTO DEL NEGOCIO ===
+
+model RendimientoNegocio {
+  id              String   @id @default(cuid())
+  mes             Int      // 1-12
+  anio            Int      // 2024, 2025, etc.
+  unidadNegocio   String   // "mostrador", "mercadolibre", "mayorista", "instagram"
+  ventaTotal      Decimal  @default(0) @db.Decimal(20, 2)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([mes, anio, unidadNegocio])
+  @@map("rendimiento_negocio")
+}
+
+model GastoNegocio {
+  id            String   @id @default(cuid())
+  fecha         DateTime @default(now())
+  mes           Int      // 1-12
+  anio          Int      // 2024, 2025, etc.
+  categoria     String   // ej: "alquiler", "servicios", "sueldos", "insumos", etc.
+  descripcion   String?
+  monto         Decimal  @db.Decimal(20, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("gastos_negocio")
+}
+
 enum Role {
   ADMIN
   USER

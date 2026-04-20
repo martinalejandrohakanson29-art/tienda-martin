@@ -1,12 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  Ship, 
-  ReceiptText, 
-  Package, 
-  ArrowLeft, 
+import {
+  Ship,
+  ReceiptText,
+  Package,
+  ArrowLeft,
   ArrowRight,
-  ArrowLeftRight // 👈 Nuevo icono para Cruzadas
+  ArrowLeftRight,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -100,6 +101,26 @@ export default function GestionInternaPage() {
             <Link href="/admin/mercadolibre/articulos">
               <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2">
                 Ver Tabla Maestra <ArrowRight size={16} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 4: Rendimiento del Negocio */}
+        <Card className="hover:shadow-md transition-all border-l-4 border-l-violet-500 bg-violet-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-violet-700">
+              <BarChart3 className="h-6 w-6" />
+              Rendimiento del Negocio
+            </CardTitle>
+            <CardDescription>
+              Ventas por unidad de negocio y gastos.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/mercadolibre/interna/rendimiento-negocio">
+              <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2">
+                Ver Rendimiento <ArrowRight size={16} />
               </Button>
             </Link>
           </CardContent>

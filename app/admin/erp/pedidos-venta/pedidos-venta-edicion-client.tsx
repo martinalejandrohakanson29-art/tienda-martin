@@ -24,15 +24,12 @@ import {
   Calendar as CalendarIcon,
   Clock,
   CheckCircle2,
-  FileText,
   Loader2,
   Trash2,
-  Printer,
-  ArrowRight,
+  Edit,
   RefreshCcw,
   ChevronDown,
   Eye,
-  Edit,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -78,7 +75,7 @@ type Venta = {
   estadoPedido?: string | null;
 };
 
-export default function PedidosVentaClient() {
+export default function PedidosVentaEdicionClient() {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,12 +94,13 @@ export default function PedidosVentaClient() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [ventaParaEditar, setVentaParaEditar] = useState<Venta | null>(null);
   const [editingVenta, setEditingVenta] = useState<Venta | null>(null);
+  const [filtroEstado, setFiltroEstado] = useState<string>("");
 
   const cargarPedidos = async () => {
     try {
       setCargando(true);
       setError(null);
-      const data = await obtenerPedidosVenta(fechaDesde, fechaHasta);
+      const data = await obtenerPedidosVenta(fechaDesde, fechaHasta, filtroEstado ? filtroEstado.toUpperCase() : undefined);
       setVentas(data);
     } catch (err) {
       console.error("Error al cargar pedidos:", err);
@@ -123,7 +121,8 @@ export default function PedidosVentaClient() {
   };
 
   const handleVerPDF = (venta: Venta) => {
-    window.open(`/admin/erp/pedidos-venta/pdf/${venta.id}`, '_blank');
+    setVentaParaPDF(venta);
+    setIsPDFPreviewOpen(true);
   };
 
   const handleEditarPedido = async (venta: Venta) => {
@@ -149,7 +148,7 @@ export default function PedidosVentaClient() {
     try {
       setIsProcessing(true);
       const usuario = "Admin"; // TODO: Obtener usuario actual
-      const detalleCambios = "Pedido editado desde el ERP";
+      const detalleCambios = "Pedido editado desde la pestaña de Edición y Registro";
       const result = await actualizarPedidoVenta(
         ventaParaEditar.id,
         {
@@ -248,6 +247,11 @@ export default function PedidosVentaClient() {
     window.print();
   };
 
+  const ventasFiltradas = useMemo(() => {
+    if (!filtroEstado) return ventas;
+    return ventas.filter(v => v.estadoPedido === filtroEstado);
+  }, [ventas, filtroEstado]);
+
   const ventasPorVendedor = useMemo(() => {
     const ventasPorVendedorMap = new Map<string, { total: number; count: number }>();
     ventas.forEach((venta) => {
@@ -275,14 +279,12 @@ export default function PedidosVentaClient() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
             <Clock className="h-8 w-8 text-amber-600" />
-            Pedidos de Venta
+            Edición y Registro de Pedidos
           </h1>
           <p className="text-slate-600 mt-2">
-            Gestión de pedidos de venta pendientes de confirmación
+            Gestión completa de pedidos de venta: editar, registrar y eliminar
           </p>
         </div>
-
-
 
         {/* Filters */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm mb-6">
@@ -308,6 +310,22 @@ export default function PedidosVentaClient() {
                 onChange={(e) => setFechaHasta(e.target.value)}
                 className="border-slate-300"
               />
+            </div>
+            <div className="flex-1">
+              <Label className="text-sm font-medium mb-2 block">
+                Filtrar por Estado
+              </Label>
+              <select
+                value={filtroEstado === "" ? "" : filtroEstado}
+                onChange={(e) => setFiltroEstado(e.target.value === "TODOS" ? "" : e.target.value.toUpperCase())}
+                className="w-full border-slate-300 rounded-lg px-3 py-2"
+              >
+                <option value="TODOS">Todos los estados</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="LISTO_PARA_PREPARAR">Listo p/ Preparar</option>
+                <option value="PREPARADO">Preparado</option>
+                <option value="DESPACHADO">Despachado</option>
+              </select>
             </div>
             <div className="flex items-end">
               <Button
@@ -338,13 +356,39 @@ export default function PedidosVentaClient() {
           </div>
         )}
 
+        {/* Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500">Total Pedidos</p>
+            <p className="text-2xl font-bold text-slate-900">{ventas.length}</p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500">Pendientes</p>
+            <p className="text-2xl font-bold text-amber-600">
+              {ventas.filter(v => v.estadoPedido === 'PENDIENTE').length}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500">Preparados</p>
+            <p className="text-2xl font-bold text-blue-600">
+              {ventas.filter(v => v.estadoPedido === 'PREPARADO').length}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500">Registrados</p>
+            <p className="text-2xl font-bold text-green-600">
+              {ventas.filter(v => v.estadoPedido === 'DESPACHADO').length}
+            </p>
+          </div>
+        </div>
+
         {/* Table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {cargando ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
             </div>
-          ) : ventas.length === 0 ? (
+          ) : ventasFiltradas.length === 0 ? (
             <div className="text-center py-12">
               <Clock className="h-12 w-12 text-slate-300 mx-auto mb-4" />
               <p className="text-slate-600">
@@ -366,7 +410,7 @@ export default function PedidosVentaClient() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventas.map((venta) => {
+                {ventasFiltradas.map((venta) => {
                   const isExpanded = expandedVentas.has(venta.id);
                   return (
                     <React.Fragment key={venta.id}>
@@ -426,11 +470,38 @@ export default function PedidosVentaClient() {
                             <Button
                               variant="outline"
                               size="sm"
+                              onClick={() => handleEditarPedido(venta)}
+                              className="border-amber-600 text-amber-700 hover:bg-amber-50"
+                              title="Editar Pedido"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               onClick={() => handleVerPDF(venta)}
                               className="border-blue-600 text-blue-700 hover:bg-blue-50"
                               title="Ver PDF del Pedido"
                             >
                               <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleConfirmarPedido(venta)}
+                              className="border-green-600 text-green-700 hover:bg-green-50"
+                              title="Registrar Venta"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEliminarPedido(venta)}
+                              className="border-red-600 text-red-700 hover:bg-red-50"
+                              title="Eliminar Pedido"
+                            >
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -472,8 +543,6 @@ export default function PedidosVentaClient() {
             </Table>
           )}
         </div>
-
-
       </div>
 
       {/* Confirm Dialog */}
@@ -690,54 +759,23 @@ export default function PedidosVentaClient() {
                 </div>
                 
                 <div>
-                  <Label className="text-sm font-medium mb-1 block">DNI</Label>
-                  <Input
-                    value={editingVenta.dni || ""}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, dni: e.target.value })}
-                    className="border-slate-300"
-                  />
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Teléfono</Label>
-                  <Input
-                    value={editingVenta.telefono || ""}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, telefono: e.target.value })}
-                    className="border-slate-300"
-                  />
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Email</Label>
-                  <Input
-                    value={editingVenta.email || ""}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, email: e.target.value })}
-                    className="border-slate-300"
-                  />
-                </div>
-                
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Observaciones / Datos de Envío</Label>
+                  <Label className="text-sm font-medium mb-1 block">Información Adicional</Label>
                   <Textarea
                     value={editingVenta.info || ""}
                     onChange={(e) => setEditingVenta({ ...editingVenta, info: e.target.value })}
+                    placeholder="Observaciones, datos de envío, etc."
                     className="border-slate-300"
                     rows={3}
                   />
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="py-8 text-center">
-              <p className="text-slate-600">Error al cargar los datos del pedido</p>
-            </div>
-          )}
+          ) : null}
           <DialogFooter>
             <Button
               variant="ghost"
               onClick={() => {
                 setIsEditDialogOpen(false);
-                setEditingVenta(null);
                 setVentaParaEditar(null);
               }}
             >
@@ -745,7 +783,7 @@ export default function PedidosVentaClient() {
             </Button>
             <Button
               onClick={confirmarEdicion}
-              disabled={isProcessing || !editingVenta}
+              disabled={isProcessing}
               className="bg-amber-600 hover:bg-amber-700 text-white"
             >
               {isProcessing ? (

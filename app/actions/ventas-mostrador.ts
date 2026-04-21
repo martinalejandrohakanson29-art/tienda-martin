@@ -558,7 +558,7 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
 }
 
 // Funciones para pedidos de venta
-export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string) {
+export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string, estadoPedido?: string) {
   try {
     const inicioRango = new Date(fechaDesde);
     inicioRango.setHours(0, 0, 0, 0);
@@ -566,14 +566,21 @@ export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string
     const finRango = new Date(fechaHasta);
     finRango.setHours(23, 59, 59, 999);
 
-    const ventas = await prisma.venta.findMany({
-      where: {
-        tipoVenta: "PEDIDO",
-        createdAt: {
-          gte: inicioRango,
-          lte: finRango,
-        },
+    const where: any = {
+      tipoVenta: "PEDIDO",
+      createdAt: {
+        gte: inicioRango,
+        lte: finRango,
       },
+    };
+
+    // Agregar filtro por estado si se proporciona
+    if (estadoPedido) {
+      where.estadoPedido = estadoPedido;
+    }
+
+    const ventas = await prisma.venta.findMany({
+      where,
       include: {
         items: true,
       },

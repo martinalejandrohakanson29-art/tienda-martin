@@ -3,24 +3,20 @@
 import React from "react";
 import { generarPedidoPDF } from "@/app/actions/envios";
 
+interface ArticulosVenta {
+  id: string;
+  items: {
+    nombre: string;
+    cantidad: number;
+    precio_unit: number;
+    subtotal: number;
+    productoId?: string | null;
+  }[];
+  info?: string | null;
+}
+
 interface PDFPreviewProps {
-  venta: {
-    id: string;
-    cliente: string;
-    vendedor: string;
-    total: number;
-    totalFinal: number;
-    metodo_pago: string;
-    createdAt: string;
-    info?: string | null;
-    items: {
-      nombre: string;
-      cantidad: number;
-      precio_unit: number;
-      subtotal: number;
-      productoId?: string | null;
-    }[];
-  };
+  venta: ArticulosVenta;
 }
 
 export default function PDFPreview({ venta }: PDFPreviewProps) {
@@ -75,76 +71,11 @@ export default function PDFPreview({ venta }: PDFPreviewProps) {
       </div>
 
       <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg p-8 print:shadow-none print:p-0">
-        {/* Header del Pedido */}
-        <div className="border-b-2 border-amber-600 pb-6 mb-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 uppercase">
-                Pedido de Venta
-              </h1>
-              <p className="text-slate-500 mt-1">
-                N° Pedido: {venta.id.slice(0, 8)}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-slate-500">
-                {new Date(venta.createdAt).toLocaleDateString("es-AR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })}
-              </p>
-              <p className="text-sm text-slate-500">
-                {new Date(venta.createdAt).toLocaleTimeString("es-AR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Datos del Cliente */}
-        <div className="mb-8">
-          <h2 className="text-lg font-bold text-slate-900 uppercase mb-3 border-b border-slate-200 pb-2">
-            A nombre de:
-          </h2>
-          <div className="bg-slate-50 p-4 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-slate-500 uppercase font-semibold">
-                  Cliente
-                </p>
-                <p className="text-slate-900 font-medium text-lg">
-                  {venta.cliente || "Consumidor Final"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 uppercase font-semibold">
-                  Vendedor
-                </p>
-                <p className="text-slate-900 font-medium text-lg">
-                  {venta.vendedor}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 uppercase font-semibold">
-                  Método de Pago
-                </p>
-                <p className="text-slate-900 font-medium">
-                  {venta.metodo_pago}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 uppercase font-semibold">
-                  Total Final
-                </p>
-                <p className="text-slate-900 font-bold text-xl">
-                  ${venta.totalFinal.toLocaleString("es-AR")}
-                </p>
-              </div>
-            </div>
-          </div>
+        {/* Título */}
+        <div className="border-b-2 border-amber-600 pb-4 mb-6">
+          <h1 className="text-3xl font-bold text-slate-900 uppercase">
+            Lista de Artículos
+          </h1>
         </div>
 
         {/* Artículos */}
@@ -209,30 +140,21 @@ export default function PDFPreview({ venta }: PDFPreviewProps) {
           </div>
         </div>
 
-        {/* Observaciones */}
-        {venta.info && (
-          <div className="mb-8">
-            <h2 className="text-lg font-bold text-slate-900 uppercase mb-3 border-b border-slate-200 pb-2">
-              Observaciones / Datos de Envío:
-            </h2>
-            <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-              <p className="text-slate-700 whitespace-pre-wrap">{venta.info}</p>
-            </div>
-          </div>
-        )}
-
         {/* Footer */}
         <div className="border-t border-slate-200 pt-6 mt-6">
           <div className="flex justify-between items-center">
             <div className="text-sm text-slate-500">
-              <p>Generado automáticamente por el sistema</p>
-              <p>Tienda Martín - {new Date().getFullYear()}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-slate-400 uppercase">Total Final</p>
-              <p className="text-2xl font-bold text-slate-900">
-                ${venta.totalFinal.toLocaleString("es-AR")}
-              </p>
+              {venta.info ? (
+                <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                  <p className="text-[10px] font-bold text-amber-800 uppercase mb-1">Observaciones / Datos de Envío:</p>
+                  <p className="text-xs text-slate-700 whitespace-pre-wrap">{venta.info}</p>
+                </div>
+              ) : (
+                <div>
+                  <p>Generado automáticamente por el sistema</p>
+                  <p>Tienda Martín - {new Date().getFullYear()}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>

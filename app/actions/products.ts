@@ -61,6 +61,19 @@ export async function getHomeShowcaseProducts() {
     return sorted.slice(0, 10)
 }
 
+// 4. Combos en Oferta (Nueva sección)
+export async function getComboProducts() {
+    const products = await prisma.product.findMany({
+        where: { isCombo: true },
+    })
+
+    // Ordenamos con nuestra lógica
+    const sorted = sortProductsByPriority(products)
+
+    // Devolvemos solo los primeros 4
+    return sorted.slice(0, 4)
+}
+
 export async function getProduct(id: string) {
     return await prisma.product.findUnique({
         where: { id },
@@ -96,11 +109,21 @@ async function checkShowcaseLimit() {
     }
 }
 
+async function checkComboLimit() {
+    const count = await prisma.product.count({
+        where: { isCombo: true }
+    })
+    if (count >= 4) {
+        throw new Error("¡Límite de Combos alcanzado! Ya tienes 4 combos. Desmarca alguno antes de agregar otro.")
+    }
+}
+
 // --- CREAR / EDITAR / BORRAR ---
 
 export async function createProduct(data: Omit<Product, "id" | "createdAt" | "updatedAt" | "views">) {
     if (data.isFeatured) await checkFeaturedLimit()
     if (data.showOnHome) await checkShowcaseLimit()
+    if (data.isCombo) await checkComboLimit()
 
     const dataToSave = {
         ...data,
@@ -129,6 +152,13 @@ export async function updateProduct(id: string, data: Partial<Omit<Product, "id"
         const currentProduct = await prisma.product.findUnique({ where: { id } })
         if (currentProduct && !currentProduct.showOnHome) {
             await checkShowcaseLimit()
+        }
+    }
+
+    if (data.isCombo) {
+        const currentProduct = await prisma.product.findUnique({ where: { id } })
+        if (currentProduct && !currentProduct.isCombo) {
+            await checkComboLimit()
         }
     }
 

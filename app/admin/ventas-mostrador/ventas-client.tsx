@@ -1516,20 +1516,20 @@ export default function VentasMostradorClient({
             </div>
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 mb-2">
               <Label className="text-xs font-bold text-slate-600 uppercase block mb-3 text-center">Acción Final</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-5">
                 <Button 
                   onClick={() => handleFinalizarVenta(false)} 
                   disabled={isSubmitting} 
-                  className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold"
+                  className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
                 >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Confirmar y Guardar Venta</>}
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar venta</>}
                 </Button>
                 <Button 
                   onClick={() => handleFinalizarVenta(true)} 
                   disabled={isSubmitting} 
-                  className="bg-amber-600 hover:bg-amber-700 text-white h-12 rounded-xl font-bold"
+                  className="bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700 text-white h-10 rounded-xl font-bold w-full text-sm shadow-md"
                 >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-5 w-5 mr-2" /> Guardar como Pedido</>}
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de venta</>}
                 </Button>
               </div>
             </div>

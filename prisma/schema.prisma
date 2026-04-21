@@ -50,6 +50,7 @@ model Product {
   showOnHome      Boolean  @default(false)
   order           Int      @default(0)
   freeShipping    Boolean  @default(true)
+  isCombo         Boolean  @default(false)
 }
 
 model Config {

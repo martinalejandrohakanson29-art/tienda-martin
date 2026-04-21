@@ -27,6 +27,7 @@ type ProductForm = {
     freeShipping: boolean
     mercadolibreUrl: string
     order: string 
+    isCombo: boolean
 }
 
 const initialState: ProductForm = {
@@ -44,7 +45,8 @@ const initialState: ProductForm = {
     showOnHome: false,
     freeShipping: true, // Por defecto marcado
     mercadolibreUrl: "",
-    order: "0" 
+    order: "0",
+    isCombo: false
 }
 
 export default function ProductsClient({ initialProducts }: { initialProducts: any[] }) {
@@ -119,7 +121,8 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
             showOnHome: product.showOnHome || false,
             freeShipping: product.freeShipping ?? true,
             mercadolibreUrl: product.mercadolibreUrl || "",
-            order: (product.order || 0).toString()
+            order: (product.order || 0).toString(),
+            isCombo: product.isCombo || false
         })
         setIsOpen(true)
     }
@@ -214,6 +217,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                                 </div>
                                 <div className="flex items-center space-x-3 border p-3 rounded-lg"><input type="checkbox" checked={formData.isFeatured} onChange={e => setFormData({...formData, isFeatured: e.target.checked})} /><Label>Destacado Principal</Label></div>
                                 <div className="flex items-center space-x-3 border p-3 rounded-lg"><input type="checkbox" checked={formData.showOnHome} onChange={e => setFormData({...formData, showOnHome: e.target.checked})} /><Label>Vidriera / Novedades</Label></div>
+                                <div className="flex items-center space-x-3 border p-3 rounded-lg bg-yellow-50 border-yellow-200"><input type="checkbox" checked={formData.isCombo} onChange={e => setFormData({...formData, isCombo: e.target.checked})} /><Label className="text-yellow-800 font-bold">Combo en Oferta</Label></div>
                             </div>
 
                             <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6" disabled={loading}>{loading ? "Guardando..." : "Guardar Cambios"}</Button>
@@ -229,6 +233,7 @@ export default function ProductsClient({ initialProducts }: { initialProducts: a
                             <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
                                 {product.freeShipping && <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"><Truck size={10} /> Envío Gratis</span>}
                                 {product.isFeatured && <span className="bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"><Star size={10} fill="white" /> Destacado</span>}
+                                {product.isCombo && <span className="bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"><ShoppingBag size={10} /> Combo</span>}
                             </div>
                             <img src={product.imageUrl} className="w-full h-full object-cover" />
                         </div>

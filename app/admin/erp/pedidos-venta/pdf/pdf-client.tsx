@@ -11,13 +11,10 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import {
-  CheckCircle2,
   Printer,
-  Trash2,
   ArrowLeft,
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
-import { confirmarPedidoVenta, eliminarPedidoVenta, actualizarEstadoPedido } from "@/app/actions/ventas-mostrador";
 
 type ItemVenta = {
   productoId?: string | null;
@@ -56,8 +53,6 @@ interface PedidoPDFClientProps {
 }
 
 export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
-
   // Auto-lanzar ventana de impresión al abrir (para Guardar como PDF)
   useEffect(() => {
     // 800ms ayuda a asegurar que los estilos de Tailwind carguen antes de imprimir
@@ -66,43 +61,6 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
     }, 800);
     return () => clearTimeout(timer);
   }, []);
-
-  const handleConfirmarPedido = async () => {
-    try {
-      setIsProcessing(true);
-      await confirmarPedidoVenta(pedido.id);
-      window.location.href = `/admin/erp/pedidos-venta`;
-    } catch (err) {
-      alert("Error al confirmar el pedido. Intente nuevamente.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleEliminarPedido = async () => {
-    if (!confirm("¿Está seguro que desea eliminar este pedido?")) return;
-    try {
-      setIsProcessing(true);
-      await eliminarPedidoVenta(pedido.id);
-      window.location.href = `/admin/erp/pedidos-venta`;
-    } catch (err) {
-      alert("Error al eliminar el pedido. Intente nuevamente.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleActualizarEstado = async (nuevoEstado: string) => {
-    try {
-      setIsProcessing(true);
-      await actualizarEstadoPedido(pedido.id, nuevoEstado);
-      window.location.href = window.location.href;
-    } catch (err) {
-      alert("Error al actualizar el estado. Intente nuevamente.");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
 
   const handlePrint = () => {
     window.print();
@@ -163,9 +121,6 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
                 <TableHead className="print:text-black">Vendedor</TableHead>
                 <TableHead className="print:text-black">Artículos</TableHead>
                 <TableHead className="text-right print:text-black">Total</TableHead>
-                {/* Ocultamos la columna de estados y botones a la hora del PDF */}
-                <TableHead className="text-center print:hidden">Estado</TableHead>
-                <TableHead className="text-center print:hidden">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -214,51 +169,6 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
                 </TableCell>
                 <TableCell className="text-right font-bold text-slate-900 py-4 print:text-black print:p-2">
                   {formatPrice(pedido.totalFinal)}
-                </TableCell>
-                <TableCell className="text-center py-4 print:hidden">
-                  <select
-                    value={pedido.estadoPedido || "PENDIENTE"}
-                    onChange={(e) => handleActualizarEstado(e.target.value)}
-                    disabled={isProcessing}
-                    className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${
-                      pedido.estadoPedido === "DESPACHADO"
-                        ? "bg-green-100 text-green-700 border-green-200"
-                        : pedido.estadoPedido === "PREPARADO"
-                          ? "bg-blue-100 text-blue-700 border-blue-200"
-                          : pedido.estadoPedido === "LISTO_PARA_PREPARAR"
-                            ? "bg-purple-100 text-purple-700 border-purple-200"
-                            : "bg-amber-100 text-amber-700 border-amber-200"
-                    }`}
-                  >
-                    <option value="PENDIENTE">Pendiente</option>
-                    <option value="LISTO_PARA_PREPARAR">Listo p/ Preparar</option>
-                    <option value="PREPARADO">Preparado</option>
-                    <option value="DESPACHADO">Despachado</option>
-                  </select>
-                </TableCell>
-                <TableCell className="text-center py-4 print:hidden">
-                  <div className="flex items-center justify-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleConfirmarPedido}
-                      disabled={isProcessing}
-                      className="bg-green-600 text-white border-green-600 hover:bg-green-700"
-                      title="Confirmar Venta"
-                    >
-                      <CheckCircle2 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleEliminarPedido}
-                      disabled={isProcessing}
-                      className="border-red-600 text-red-700 hover:bg-red-50"
-                      title="Eliminar Pedido"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
                 </TableCell>
               </TableRow>
             </TableBody>

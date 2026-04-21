@@ -145,7 +145,7 @@ export default function PedidosVentaClient() {
 
   const confirmarEdicion = async () => {
     if (!editingVenta || !ventaParaEditar) return;
-    
+
     try {
       setIsProcessing(true);
       const usuario = "Admin"; // TODO: Obtener usuario actual
@@ -180,7 +180,7 @@ export default function PedidosVentaClient() {
         usuario,
         detalleCambios
       );
-      
+
       if (result.success) {
         setEditingVenta(null);
         setVentaParaEditar(null);
@@ -404,16 +404,15 @@ export default function PedidosVentaClient() {
                           })}
                         </TableCell>
                         <TableCell className="text-center py-4">
-                          <select 
+                          <select
                             value={venta.estadoPedido || "PENDIENTE"}
                             onChange={(e) => handleActualizarEstado(venta.id, e.target.value)}
                             disabled={isProcessing}
-                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${
-                              venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
-                              venta.estadoPedido === 'PREPARADO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                              venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                              'bg-amber-100 text-amber-700 border-amber-200'
-                            }`}
+                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
+                                venta.estadoPedido === 'PREPARADO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                  venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                    'bg-amber-100 text-amber-700 border-amber-200'
+                              }`}
                           >
                             <option value="PENDIENTE">Pendiente</option>
                             <option value="LISTO_PARA_PREPARAR">Listo p/ Preparar</option>
@@ -629,7 +628,7 @@ export default function PedidosVentaClient() {
                   <strong>Fecha:</strong> {new Date(editingVenta.createdAt).toLocaleDateString("es-AR")}
                 </p>
               </div>
-              
+
               <div className="space-y-3">
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Cliente</Label>
@@ -639,7 +638,7 @@ export default function PedidosVentaClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Vendedor</Label>
                   <Input
@@ -648,7 +647,7 @@ export default function PedidosVentaClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium mb-1 block">Total</Label>
@@ -669,7 +668,7 @@ export default function PedidosVentaClient() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Total Final</Label>
                   <Input
@@ -679,7 +678,7 @@ export default function PedidosVentaClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Método de Pago</Label>
                   <Input
@@ -688,7 +687,7 @@ export default function PedidosVentaClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">DNI</Label>
                   <Input
@@ -697,7 +696,7 @@ export default function PedidosVentaClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Teléfono</Label>
                   <Input
@@ -706,7 +705,7 @@ export default function PedidosVentaClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Email</Label>
                   <Input
@@ -715,7 +714,7 @@ export default function PedidosVentaClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Observaciones / Datos de Envío</Label>
                   <Textarea

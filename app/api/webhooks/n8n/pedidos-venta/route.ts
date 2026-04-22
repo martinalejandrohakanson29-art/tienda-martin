@@ -9,6 +9,7 @@ export async function GET(req: Request) {
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const id = searchParams.get("id");
+    const estado = searchParams.get("estado");
 
     // Si se solicita un ID específico
     if (id) {
@@ -29,6 +30,11 @@ export async function GET(req: Request) {
       tipoVenta: "PEDIDO",
     };
 
+    // Filtro por estado si se proporciona
+    if (estado) {
+      where.estadoPedido = estado;
+    }
+
     // Filtro por fecha si se proporciona
     if (startDate && endDate) {
       where.createdAt = {
@@ -41,6 +47,7 @@ export async function GET(req: Request) {
       where,
       include: {
         items: true,
+        puntoVenta: true,
       },
       orderBy: {
         createdAt: "desc",
@@ -61,12 +68,16 @@ export async function GET(req: Request) {
       totalFinal: Number(p.totalFinal),
       metodo_pago: p.metodo_pago,
       fecha: p.createdAt,
+      fechaActualizacion: p.updatedAt,
       observaciones: p.info,
       envio_de: p.de,
       envio_para: p.para,
       estado: p.estadoPedido,
       registrada: p.registrada,
       pdfUrl: p.pdfUrl,
+      cupon: p.cupon,
+      transaccionId: p.transaccionId,
+      puntoVenta: p.puntoVenta?.nombre || null,
       items: p.items.map(i => ({
         sku: i.productoId,
         nombre: i.nombre,
@@ -144,6 +155,55 @@ export async function POST(req: Request) {
   } catch (error: any) {
     return NextResponse.json(
       { error: "Error en el procesamiento", message: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Endpoint para que n8n pueda actualizar el estado de un pedido
+ */
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    const { id, estado } = body;
+
+    if (!id || !estado) {
+      return NextResponse.json({ error: "Se requiere id y estado" }, { status: 400 });
+    }
+
+    // Validar estados permitidos
+    const estadosPermitidos = ["PENDIENTE", "LISTO_PARA_PREPARAR", "PREPARADO", "DESPACHADO"];
+    if (!estadosPermitidos.includes(estado)) {
+      return NextResponse.json({ error: "Estado no válido" }, { status: 400 });
+    }
+
+    const updated = await prisma.venta.update({
+      where: { id },
+      data: { estadoPedido: estado },
+      include: { items: true }
+    });
+
+    // Registrar en auditoría
+    await prisma.ventaAuditoria.create({
+      data: {
+        ventaId: id,
+        usuario: "n8n_automation",
+        accion: "ACTUALIZACION_ESTADO_N8N",
+        detalle: `Estado actualizado a ${estado} vía API n8n`
+      }
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Pedido ${id} actualizado a ${estado}`,
+      data: updated
+    });
+
+  } catch (error: any) {
+    console.error("Error en PATCH API pedidos-venta:", error);
+    return NextResponse.json(
+      { error: "Error al actualizar pedido", message: error.message },
       { status: 500 }
     );
   }

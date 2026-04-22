@@ -871,11 +871,11 @@ export async function subirPDFPedido(ventaId: string, formData: FormData) {
   }
 }
 
-export async function obtenerURLDescargaPDF(ventaId: string) {
+export async function obtenerURLDescargaPDF(ventaId: string, fileName?: string) {
   try {
     const venta = await prisma.venta.findUnique({
       where: { id: ventaId },
-      select: { pdfUrl: true }
+      select: { pdfUrl: true, id: true }
     });
 
     if (!venta || !venta.pdfUrl) {
@@ -928,6 +928,7 @@ export async function obtenerURLDescargaPDF(ventaId: string) {
     const command = new GetObjectCommand({
       Bucket: bucketName,
       Key: key,
+      ResponseContentDisposition: fileName ? `attachment; filename="${fileName}"` : undefined,
     });
 
     // Generar URL firmada válida por 1 hora (3600 segundos)

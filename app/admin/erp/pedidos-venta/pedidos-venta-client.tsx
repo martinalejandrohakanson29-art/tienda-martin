@@ -102,6 +102,7 @@ export default function PedidosVentaClient() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [ventaParaEditar, setVentaParaEditar] = useState<Venta | null>(null);
   const [editingVenta, setEditingVenta] = useState<Venta | null>(null);
+  const [selectedVentaIds, setSelectedVentaIds] = useState<Set<string>>(new Set());
 
   const cargarPedidos = async () => {
     try {
@@ -250,6 +251,61 @@ export default function PedidosVentaClient() {
   };
 
 
+  const handleToggleSelect = (id: string) => {
+    const newSelected = new Set(selectedVentaIds);
+    if (newSelected.has(id)) newSelected.delete(id);
+    else newSelected.add(id);
+    setSelectedVentaIds(newSelected);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedVentaIds.size === ventas.length && ventas.length > 0) {
+      setSelectedVentaIds(new Set());
+    } else {
+      setSelectedVentaIds(new Set(ventas.map(v => v.id)));
+    }
+  };
+
+  const handleDescargarLote = async () => {
+    const idsParaDescargar = Array.from(selectedVentaIds).filter(id => {
+      const v = ventas.find(venta => venta.id === id);
+      return v && v.pdfUrl;
+    });
+
+    if (idsParaDescargar.length === 0) {
+      alert("No hay pedidos con PDF seleccionados para descargar");
+      return;
+    }
+
+    setIsProcessing(true);
+    let exitos = 0;
+    
+    for (const id of idsParaDescargar) {
+      const venta = ventas.find(v => v.id === id);
+      const nombreArchivo = `pedido_${venta?.cliente?.replace(/[^a-zA-Z0-9]/g, '_') || id.slice(0, 8)}.pdf`;
+      
+      try {
+        const result = await obtenerURLDescargaPDF(id, nombreArchivo);
+        if (result.success && result.url) {
+          const link = document.createElement('a');
+          link.href = result.url;
+          link.setAttribute('download', nombreArchivo);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          exitos++;
+          await new Promise(resolve => setTimeout(resolve, 800));
+        }
+      } catch (err) {
+        console.error(`Error en descarga de ${id}:`, err);
+      }
+    }
+
+    setIsProcessing(false);
+    setSelectedVentaIds(new Set());
+    alert(`Se han procesado ${exitos} descargas correctamente.`);
+  };
+
   const handleDownloadPDF = async (ventaId: string) => {
     try {
       setIsProcessing(true);
@@ -285,6 +341,24 @@ export default function PedidosVentaClient() {
     return Array.from(ventasPorVendedorMap.entries())
       .map(([vendedor, data]) => ({ vendedor, ...data }))
       .sort((a, b) => b.total - a.total);
+  }, [ventas]);
+
+  const lotesExistentes = useMemo(() => {
+    const grupos = new Map<string, { url: string; clientes: string[]; ids: string[] }>();
+    
+    ventas.forEach(v => {
+      if (v.pdfUrl) {
+        if (!grupos.has(v.pdfUrl)) {
+          grupos.set(v.pdfUrl, { url: v.pdfUrl, clientes: [], ids: [] });
+        }
+        const grupo = grupos.get(v.pdfUrl)!;
+        grupo.clientes.push(v.cliente || "Sin nombre");
+        grupo.ids.push(v.id);
+      }
+    });
+
+    // Solo mostramos como "lote" si hay 2 o más pedidos compartiendo el mismo archivo
+    return Array.from(grupos.values()).filter(g => g.ids.length > 1);
   }, [ventas]);
 
   useEffect(() => {
@@ -332,7 +406,7 @@ export default function PedidosVentaClient() {
                 className="border-slate-300"
               />
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <Button
                 onClick={cargarPedidos}
                 disabled={cargando}
@@ -350,9 +424,53 @@ export default function PedidosVentaClient() {
                   </>
                 )}
               </Button>
+              {selectedVentaIds.size > 0 && (
+                <Button
+                  onClick={handleDescargarLote}
+                  disabled={isProcessing}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  Descargar PDFs ({Array.from(selectedVentaIds).filter(id => ventas.find(v => v.id === id)?.pdfUrl).length})
+                </Button>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Lotes Detectados */}
+        {lotesExistentes.length > 0 && (
+          <div className="mb-6 bg-blue-50/50 rounded-xl border border-blue-200 p-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <h3 className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Lotes de PDFs Detectados ({lotesExistentes.length})
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {lotesExistentes.map((lote, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDownloadPDF(lote.ids[0])}
+                  className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-all shadow-sm flex flex-col items-start h-auto py-2 px-4 gap-1 max-w-[300px]"
+                  title={`Descargar PDF compartido por ${lote.clientes.length} pedidos`}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <Download className="h-3 w-3 text-blue-500" />
+                    <span className="text-[9px] font-bold uppercase text-blue-400">PDF Compartido</span>
+                  </div>
+                  <span className="text-[11px] font-medium truncate w-full text-left">
+                    {lote.clientes.join(", ")}
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -378,6 +496,14 @@ export default function PedidosVentaClient() {
             <Table>
               <TableHeader className="bg-slate-50 border-b-2 border-slate-200">
                 <TableRow>
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedVentaIds.size === ventas.length && ventas.length > 0}
+                      onChange={handleToggleSelectAll}
+                      className="rounded border-slate-300"
+                    />
+                  </TableHead>
                   <TableHead className="w-16">ID</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vendedor</TableHead>
@@ -393,7 +519,15 @@ export default function PedidosVentaClient() {
                   const isExpanded = expandedVentas.has(venta.id);
                   return (
                     <React.Fragment key={venta.id}>
-                      <TableRow className="hover:bg-slate-50 align-top">
+                      <TableRow className={`hover:bg-slate-50 align-top ${selectedVentaIds.has(venta.id) ? 'bg-blue-50/50' : ''}`}>
+                        <TableCell className="py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedVentaIds.has(venta.id)}
+                            onChange={() => handleToggleSelect(venta.id)}
+                            className="rounded border-slate-300"
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-sm text-slate-500 py-4">
                           {venta.id.slice(0, 8)}
                         </TableCell>

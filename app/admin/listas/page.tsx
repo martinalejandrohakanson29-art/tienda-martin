@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { ArrowLeft } from "lucide-react"
 
 export const metadata = {
   title: "Bases de Datos y Listas - Sistema Revolución Motos",
@@ -10,9 +11,18 @@ export default function ListasPage() {
     <div className="h-screen w-full overflow-hidden bg-gradient-to-br from-slate-50 via-indigo-50/30 to-purple-50/30 p-6">
       <div className="max-w-6xl mx-auto flex flex-col gap-6">
         {/* Header principal */}
-        <header className="mb-6">
-          <h1 className="text-3xl font-black text-slate-900 mb-1">Bases de Datos y Listas</h1>
-          <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">Gestión centralizada de registros</p>
+        <header className="mb-6 flex items-center gap-4">
+          <Link 
+            href="/admin/erp" 
+            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+            title="Volver al ERP"
+          >
+            <ArrowLeft className="h-6 w-6" />
+          </Link>
+          <div>
+            <h1 className="text-3xl font-black text-slate-900 mb-1">Bases de Datos y Listas</h1>
+            <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">Gestión centralizada de registros</p>
+          </div>
         </header>
 
         {/* Tarjetas individuales como enlaces */}

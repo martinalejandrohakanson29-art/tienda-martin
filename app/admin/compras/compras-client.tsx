@@ -4,8 +4,9 @@ import React, { useState, useMemo, useEffect } from "react";
 import { 
   Plus, Search, User, Trash2, ShoppingBag, Loader2, CreditCard, 
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle,
-  RefreshCcw, Copy
+  RefreshCcw, Copy, ArrowLeft
 } from "lucide-react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -179,13 +180,22 @@ export default function ComprasClient({
       )}
 
       <header className="bg-white border-b border-slate-100 px-8 py-3 flex items-center justify-between flex-shrink-0 z-20">
-        <div className="flex items-center gap-3">
-          <div className="bg-emerald-600 p-2 rounded-lg text-white">
-            <ShoppingBag className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-slate-900">Ingreso de Mercadería (Compras)</h1>
-            <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Revolución Motos</p>
+        <div className="flex items-center gap-4">
+          <Link 
+            href="/admin/erp" 
+            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+            title="Volver al ERP"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <div className="flex items-center gap-3">
+            <div className="bg-emerald-600 p-2 rounded-lg text-white">
+              <ShoppingBag className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold tracking-tight text-slate-900">Ingreso de Mercadería (Compras)</h1>
+              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Revolución Motos</p>
+            </div>
           </div>
         </div>
         <div className="text-right border-l pl-4 border-slate-100">

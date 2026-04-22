@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown
+  ChevronDown, ArrowLeft
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -837,13 +838,22 @@ export default function VentasMostradorClient({
         )}
 
         <header className="bg-white border-b border-slate-100 px-8 py-3 flex items-center justify-between flex-shrink-0 z-20">
-          <div className="flex items-center gap-3">
-            <div className="bg-blue-600 p-2 rounded-lg text-white">
-              <ShoppingCart className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-slate-900">Venta Mostrador</h1>
-              <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Revolución Motos</p>
+          <div className="flex items-center gap-4">
+            <Link 
+              href="/admin/erp" 
+              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+              title="Volver al ERP"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 p-2 rounded-lg text-white">
+                <ShoppingCart className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold tracking-tight text-slate-900">Venta Mostrador</h1>
+                <p className="text-[10px] text-slate-500 font-medium uppercase tracking-wider">Revolución Motos</p>
+              </div>
             </div>
           </div>
           <div className="text-right border-l pl-4 border-slate-100">

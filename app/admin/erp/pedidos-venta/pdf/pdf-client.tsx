@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -77,15 +78,13 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
         {/* Header - Solo visible en pantalla web, oculto en PDF */}
         <div className="mb-8 flex items-center justify-between print:hidden">
           <div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleBack}
-              className="mb-2"
+            <Link
+              href="/admin/erp/pedidos-venta"
+              className="flex items-center gap-1 mb-2 text-slate-500 hover:text-blue-600 transition-colors text-sm font-medium"
             >
-              <ArrowLeft className="h-4 w-4 mr-1" />
+              <ArrowLeft className="h-4 w-4" />
               Volver
-            </Button>
+            </Link>
             <h1 className="text-3xl font-bold text-slate-900">
               Detalles del Pedido
             </h1>

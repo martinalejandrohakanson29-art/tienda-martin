@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -29,6 +30,7 @@ import {
   Trash2,
   Printer,
   ArrowRight,
+  ArrowLeft,
   RefreshCcw,
   ChevronDown,
   Eye,
@@ -189,6 +191,16 @@ export default function PedidosVentaDetalleClient() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
+          <div className="flex items-center gap-4 mb-2">
+            <Link
+              href="/admin/erp/pedidos-venta"
+              className="flex items-center gap-2 p-2 h-auto text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+              title="Volver a la lista"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span className="text-sm font-medium">Atrás</span>
+            </Link>
+          </div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
             <Clock className="h-8 w-8 text-amber-600" />
             Detalles del Pedido

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -34,6 +35,7 @@ import {
   Download,
   File,
   FileX,
+  ArrowLeft,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -405,6 +407,16 @@ export default function PedidosVentaEdicionClient() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
+          <div className="flex items-center gap-4 mb-2">
+            <Link
+              href="/admin/erp"
+              className="flex items-center gap-2 p-2 h-auto text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+              title="Volver al ERP"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span className="text-sm font-medium">Atrás</span>
+            </Link>
+          </div>
           <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
             <Clock className="h-8 w-8 text-amber-600" />
             Edición y Registro de Pedidos

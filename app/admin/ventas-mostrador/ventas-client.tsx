@@ -227,8 +227,10 @@ export default function VentasMostradorClient({
   }, [puntosVenta]);
   const [ventaOriginalParaComparar, setVentaOriginalParaComparar] = useState<any>(null);
 
-  // --- ESTADO PARA FILTRO OFFLINE ---
+  // --- ESTADO PARA FILTRO OFFLINE Y BUSQUEDA ---
   const [mostrarSoloOffline, setMostrarSoloOffline] = useState(false);
+  const [filtroPuntoVenta, setFiltroPuntoVenta] = useState("");
+  const [filtroIdVenta, setFiltroIdVenta] = useState("");
 
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
@@ -321,9 +323,20 @@ export default function VentasMostradorClient({
   }, [searchTerm, articulos]);
 
 
-  const ventasFiltradas = ventasRealizadas.filter(v =>
-    mostrarSoloOffline ? v.eventoOffline === true : true
-  );
+  const ventasFiltradas = ventasRealizadas.filter(v => {
+    // Filtro Offline
+    const cumpleOffline = mostrarSoloOffline ? v.eventoOffline === true : true;
+    
+    // Filtro Punto de Venta
+    const cumplePuntoVenta = filtroPuntoVenta ? v.puntoVentaId === filtroPuntoVenta : true;
+    
+    // Filtro ID Venta (Buscador)
+    const cumpleIdVenta = filtroIdVenta 
+      ? (v.numeroVenta?.toString().includes(filtroIdVenta) || v.id.toLowerCase().includes(filtroIdVenta.toLowerCase()))
+      : true;
+
+    return cumpleOffline && cumplePuntoVenta && cumpleIdVenta;
+  });
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
   const esTarjeta = (m: string) => m === "Tarjeta de Crédito" || m === "Tarjeta de Débito";
@@ -1017,87 +1030,118 @@ export default function VentasMostradorClient({
           </TabsContent>
 
           {/* --- PESTAÑA: LISTADO DE VENTAS --- */}
-          <TabsContent value="listado" className="flex-grow overflow-hidden m-0 select-text data-[state=active]:flex data-[state=active]:flex-col h-full">
+          <TabsContent value="listado" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
             <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
-              <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtrar por Fecha</Label>
-                    <div className="flex items-center gap-2">
-                      <DateRangeCalendar
-                        fechaDesde={fechaDesde}
-                        fechaHasta={fechaHasta}
-                        setFechaDesde={(date) => { setFechaDesde(date); cargarVentas(date, fechaHasta); }}
-                        setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
-                        onApply={() => { }}
-                      />
-                      <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
-                        <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
-                      </Button>
-
-                      <div className="flex items-center space-x-2 border-l pl-4 border-slate-200 ml-2 h-10">
-                        <input
-                          type="checkbox"
-                          id="filterOffline"
-                          checked={mostrarSoloOffline}
-                          onChange={(e) => setMostrarSoloOffline(e.target.checked)}
-                          className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-600"
+              <div className="flex flex-col gap-4 bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex-shrink-0">
+                <div className="flex flex-wrap items-center justify-between gap-6">
+                  {/* BLOQUE DE FILTROS */}
+                  <div className="flex flex-wrap items-end gap-4 flex-grow lg:flex-grow-0">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtrar por Fecha</Label>
+                      <div className="flex items-center gap-2">
+                        <DateRangeCalendar
+                          fechaDesde={fechaDesde}
+                          fechaHasta={fechaHasta}
+                          setFechaDesde={(date) => { setFechaDesde(date); cargarVentas(date, fechaHasta); }}
+                          setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
+                          onApply={() => { }}
                         />
-                        <Label htmlFor="filterOffline" className="text-xs font-bold text-slate-600 cursor-pointer">
-                          Solo Offline
-                        </Label>
+                        <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
+                          <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                </div>
-                <div className="flex items-end justify-end gap-4 flex-1 max-w-[700px]">
-                  {/* Bloque de totales existente */}
-                  <div className="text-right min-w-[250px]">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Total Filtrado (Final)</p>
-                    <p className="text-xl font-black text-slate-900">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
-                    <p className="text-xl font-black text-green-600">Cantidad Total: {ventasFiltradas.length.toLocaleString('es-AR')}</p>
-                    <p className="text-lg font-medium text-slate-900">Promedio Venta: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Punto de Venta</Label>
+                      <select
+                        value={filtroPuntoVenta}
+                        onChange={(e) => setFiltroPuntoVenta(e.target.value)}
+                        className="h-10 rounded-xl border border-slate-200 px-3 text-xs focus:outline-none bg-white min-w-[140px]"
+                      >
+                        <option value="">Todos los Puntos</option>
+                        {puntosVenta?.map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar Venta</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                        <Input
+                          placeholder="N° Venta o ID..."
+                          value={filtroIdVenta}
+                          onChange={(e) => setFiltroIdVenta(e.target.value)}
+                          className="h-10 w-48 pl-9 text-xs bg-white border-slate-200 rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 bg-slate-50 px-3 h-10 rounded-xl border border-slate-100">
+                      <input
+                        type="checkbox"
+                        id="filterOffline"
+                        checked={mostrarSoloOffline}
+                        onChange={(e) => setMostrarSoloOffline(e.target.checked)}
+                        className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-purple-600"
+                      />
+                      <Label htmlFor="filterOffline" className="text-xs font-bold text-slate-600 cursor-pointer">
+                        Solo Offline
+                      </Label>
+                    </div>
                   </div>
 
-                  {/* Nuevo bloque: Top 5 artículos más vendidos */}
-                  <div className="text-left flex-shrink-0">
-                    {topItemsVentas.length > 0 ? (
-                      <>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Top 5 Artículos Más Vendidos</p>
-                        <div className="flex flex-col gap-0.5">
-                          {topItemsVentas.map((item, index) => (
-                            <p key={index} className="text-[10px] text-slate-600 font-medium">
-                              {index + 1}. {item.nombre} ({item.total})
-                            </p>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-[10px] text-slate-400 italic">Sin datos de ventas</p>
-                    )}
-                  </div>
+                  {/* BLOQUE DE RESUMEN */}
+                  <div className="flex flex-wrap items-start gap-8 justify-end ml-auto">
+                    <div className="text-right min-w-[180px]">
+                      <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Resumen</p>
+                      <div className="flex flex-col gap-0.5">
+                        <p className="text-xl font-black text-slate-900 tracking-tight">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
+                        <p className="text-sm font-bold text-green-600">Ventas: {ventasFiltradas.length}</p>
+                        <p className="text-[10px] font-medium text-slate-500">Promedio: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
+                      </div>
+                    </div>
 
-                  {/* Ventas por Método de Pago */}
-                  <div className="text-left flex-shrink-0">
-                    {ventasPorMetodo.length > 0 ? (
-                      <>
-                        <p className="text-[11px] text-slate-400 font-bold uppercase mb-1">Ventas por Método de Pago</p>
-                        <div className="flex flex-col gap-0.5">
-                          {ventasPorMetodo.map(({ metodo, total }, index) => (
-                            <p key={metodo} className={`text-[11px] font-medium ${
-                              metodo === 'Efectivo' ? 'text-red-600' :
-                              metodo === 'Cruzada' ? 'text-blue-600' :
-                              metodo === 'Mixto' ? 'text-purple-600' :
-                              'text-blue-600'
-                            }`}>
-                              {index + 1}. {metodo} ${total.toLocaleString('es-AR')}
-                            </p>
-                          ))}
-                        </div>
-                      </>
-                    ) : (
-                      <p className="text-[11px] text-slate-400 italic">Sin datos de ventas</p>
-                    )}
+                    <div className="text-left flex-shrink-0 min-w-[150px]">
+                      {topItemsVentas.length > 0 ? (
+                        <>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Top 5 Vendidos</p>
+                          <div className="flex flex-col gap-0.5">
+                            {topItemsVentas.map((item, index) => (
+                              <p key={index} className="text-[10px] text-slate-600 font-medium truncate max-w-[180px]">
+                                {index + 1}. {item.nombre} ({item.total})
+                              </p>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 italic">Sin datos</p>
+                      )}
+                    </div>
+
+                    <div className="text-left flex-shrink-0 min-w-[150px]">
+                      {ventasPorMetodo.length > 0 ? (
+                        <>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Por Método</p>
+                          <div className="flex flex-col gap-0.5">
+                            {ventasPorMetodo.map(({ metodo, total }, index) => (
+                              <p key={metodo} className={`text-[10px] font-medium ${
+                                metodo === 'Efectivo' ? 'text-red-600' :
+                                metodo === 'Cruzada' ? 'text-blue-600' :
+                                metodo === 'Mixto' ? 'text-purple-600' :
+                                'text-blue-600'
+                              }`}>
+                                {metodo} ${total.toLocaleString('es-AR')}
+                              </p>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <p className="text-[10px] text-slate-400 italic">Sin datos</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1129,7 +1173,11 @@ export default function VentasMostradorClient({
                             <React.Fragment key={v.id}>
                               <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
                                 <TableCell className="py-4">
-                                  <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>
+                                  <span 
+                                    className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors" 
+                                    title={`Click para copiar ID completo: ${v.id}`}
+                                    onClick={() => copiarAlPortapapeles(v.id)}
+                                  >
                                     {v.numeroVenta || v.id.slice(0, 8)}
                                   </span>
                                 </TableCell>
@@ -1164,13 +1212,31 @@ export default function VentasMostradorClient({
                                     {v.metodo_pago}
                                   </span>
                                 </TableCell>
-                                <TableCell className="py-4 text-xs font-mono text-slate-600">
+                                <TableCell 
+                                  className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
+                                  onClick={() => {
+                                    const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "") : (v.cupon || "");
+                                    if (val) copiarAlPortapapeles(val);
+                                  }}
+                                  title="Click para copiar"
+                                >
                                   {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
                                 </TableCell>
-                                <TableCell className="py-4 text-xs font-mono text-slate-600">
+                                <TableCell 
+                                  className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
+                                  onClick={() => {
+                                    const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "") : (v.transaccionId || "");
+                                    if (val) copiarAlPortapapeles(val);
+                                  }}
+                                  title="Click para copiar"
+                                >
                                   {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
                                 </TableCell>
-                                <TableCell className="py-4 text-xs text-slate-500 max-w-[200px]" title={v.info || ""}>
+                                <TableCell 
+                                  className="py-4 text-xs text-slate-500 max-w-[200px] cursor-pointer hover:text-blue-600 transition-colors" 
+                                  title={v.info ? `Click para copiar: ${v.info}` : ""}
+                                  onClick={() => v.info && copiarAlPortapapeles(v.info)}
+                                >
                                   {v.info || "-"}
                                 </TableCell>
                                 <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
@@ -1252,27 +1318,59 @@ export default function VentasMostradorClient({
           {/* --- PESTAÑA: GESTIÓN Y EDICIÓN --- */}
           <TabsContent value="gestion" className="flex-grow overflow-hidden m-0 select-text data-[state=active]:flex data-[state=active]:flex-col h-full">
             <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
-              <div className="flex items-center justify-between bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-sm flex-shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Filtrar por Fecha</Label>
-                    <div className="flex items-center gap-2">
-                      <DateRangeCalendar
-                        fechaDesde={fechaDesde}
-                        fechaHasta={fechaHasta}
-                        setFechaDesde={(date) => { setFechaDesdeTemp(date); cargarVentas(date, fechaHasta); }}
-                        setFechaHasta={(date) => { setFechaHastaTemp(date); cargarVentas(fechaDesde, date); }}
-                        onApply={() => { }}
-                      />
-                      <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
-                        <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
-                      </Button>
+              <div className="flex flex-col gap-4 bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-sm flex-shrink-0">
+                <div className="flex flex-wrap items-center justify-between gap-6">
+                  {/* BLOQUE DE FILTROS */}
+                  <div className="flex flex-wrap items-end gap-4 flex-grow lg:flex-grow-0">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Filtrar por Fecha</Label>
+                      <div className="flex items-center gap-2">
+                        <DateRangeCalendar
+                          fechaDesde={fechaDesde}
+                          fechaHasta={fechaHasta}
+                          setFechaDesde={(date) => { setFechaDesdeTemp(date); cargarVentas(date, fechaHasta); }}
+                          setFechaHasta={(date) => { setFechaHastaTemp(date); cargarVentas(fechaDesde, date); }}
+                          onApply={() => { }}
+                        />
+                        <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
+                          <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Punto de Venta</Label>
+                      <select
+                        value={filtroPuntoVenta}
+                        onChange={(e) => setFiltroPuntoVenta(e.target.value)}
+                        className="h-10 rounded-xl border border-amber-200 px-3 text-xs focus:outline-none bg-white min-w-[140px]"
+                      >
+                        <option value="">Todos los Puntos</option>
+                        {puntosVenta?.map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Buscar Venta</Label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
+                        <Input
+                          placeholder="N° Venta o ID..."
+                          value={filtroIdVenta}
+                          onChange={(e) => setFiltroIdVenta(e.target.value)}
+                          className="h-10 w-48 pl-9 text-xs bg-white border-amber-200 rounded-xl"
+                        />
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-amber-700 font-bold flex items-center gap-2 justify-end"><AlertTriangle className="h-4 w-4" /> Área de Modificaciones</p>
-                  <p className="text-[10px] text-amber-600">Las ediciones quedarán registradas en el historial.</p>
+
+                  {/* BLOQUE DE ALERTA */}
+                  <div className="text-right ml-auto">
+                    <p className="text-xs text-amber-700 font-bold flex items-center gap-2 justify-end"><AlertTriangle className="h-4 w-4" /> Área de Modificaciones</p>
+                    <p className="text-[10px] text-amber-600">Las ediciones quedarán registradas en el historial.</p>
+                  </div>
                 </div>
               </div>
 
@@ -1294,13 +1392,17 @@ export default function VentasMostradorClient({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {ventasRealizadas.length === 0 ? (
-                        <TableRow><TableCell colSpan={10} className="py-20 text-center text-slate-400 italic">No hay ventas para gestionar en esta fecha</TableCell></TableRow>
+                      {ventasFiltradas.length === 0 ? (
+                        <TableRow><TableCell colSpan={10} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
                       ) : (
-                        ventasRealizadas.map((v) => (
+                        ventasFiltradas.map((v) => (
                           <TableRow key={v.id} className="hover:bg-slate-50/50">
                             <TableCell className="py-4">
-                              <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>
+                              <span 
+                                className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors" 
+                                title={`Click para copiar ID completo: ${v.id}`}
+                                onClick={() => copiarAlPortapapeles(v.id)}
+                              >
                                 {v.numeroVenta || v.id.slice(0, 8)}
                               </span>
                             </TableCell>
@@ -1319,13 +1421,31 @@ export default function VentasMostradorClient({
                                 {v.metodo_pago}
                               </span>
                             </TableCell>
-                            <TableCell className="py-4 text-xs font-mono text-slate-600">
+                            <TableCell 
+                              className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
+                              onClick={() => {
+                                const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "") : (v.cupon || "");
+                                if (val) copiarAlPortapapeles(val);
+                              }}
+                              title="Click para copiar"
+                            >
                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
                             </TableCell>
-                            <TableCell className="py-4 text-xs font-mono text-slate-600">
+                            <TableCell 
+                              className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
+                              onClick={() => {
+                                const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "") : (v.transaccionId || "");
+                                if (val) copiarAlPortapapeles(val);
+                              }}
+                              title="Click para copiar"
+                            >
                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
                             </TableCell>
-                            <TableCell className="py-4 text-xs text-slate-500 max-w-[200px]" title={v.info || ""}>
+                            <TableCell 
+                              className="py-4 text-xs text-slate-500 max-w-[200px] cursor-pointer hover:text-blue-600 transition-colors" 
+                              title={v.info ? `Click para copiar: ${v.info}` : ""}
+                              onClick={() => v.info && copiarAlPortapapeles(v.info)}
+                            >
                               {v.info || "-"}
                             </TableCell>
                             <TableCell className="font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>

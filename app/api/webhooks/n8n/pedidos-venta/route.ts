@@ -118,7 +118,7 @@ export async function POST(req: Request) {
 
     // Si hay una URL configurada, enviamos el push
     const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_PEDIDOS_VENTA;
-    
+
     if (N8N_WEBHOOK_URL) {
       try {
         await fetch(N8N_WEBHOOK_URL, {

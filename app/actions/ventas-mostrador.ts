@@ -982,3 +982,16 @@ export async function subirPDFLote(ventaIds: string[], formData: FormData) {
     return { success: false, error: "Error al subir el archivo a S3" };
   }
 }
+
+export async function eliminarPDFPedido(ventaId: string) {
+  try {
+    await prisma.venta.update({
+      where: { id: ventaId },
+      data: { pdfUrl: null }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al eliminar PDF de pedido:", error);
+    return { success: false, error: "Error al eliminar el archivo de la base de datos" };
+  }
+}

@@ -33,6 +33,7 @@ import {
   Upload,
   Download,
   File,
+  FileX,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -46,6 +47,7 @@ import {
   subirPDFPedido,
   obtenerURLDescargaPDF,
   subirPDFLote,
+  eliminarPDFPedido,
 } from "@/app/actions/ventas-mostrador";
 import PDFPreview from "./pdf-preview";
 
@@ -328,6 +330,26 @@ export default function PedidosVentaEdicionClient() {
       alert("Error al procesar la subida por lotes");
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleEliminarPDF = async (ventaId: string) => {
+    if (!window.confirm("¿Está seguro que desea eliminar el PDF de este pedido?")) return;
+
+    try {
+      setIsProcessing(true);
+      const result = await eliminarPDFPedido(ventaId);
+      if (result.success) {
+        alert("PDF eliminado correctamente");
+        cargarPedidos();
+      } else {
+        alert(result.error || "Error al eliminar el PDF");
+      }
+    } catch (err) {
+      console.error("Error al eliminar PDF:", err);
+      alert("Error al procesar la eliminación");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -616,15 +638,26 @@ export default function PedidosVentaEdicionClient() {
                                <Eye className="h-4 w-4" />
                              </Button>
                              {venta.pdfUrl && (
-                               <Button
-                                 variant="outline"
-                                 size="sm"
-                                 onClick={() => handleDownloadPDF(venta.id)}
-                                 className="border-green-600 text-green-700 hover:bg-green-50"
-                                 title="Descargar Comprobante PDF"
-                               >
-                                 <Download className="h-4 w-4" />
-                               </Button>
+                               <div className="flex gap-2">
+                                 <Button
+                                   variant="outline"
+                                   size="sm"
+                                   onClick={() => handleDownloadPDF(venta.id)}
+                                   className="border-green-600 text-green-700 hover:bg-green-50"
+                                   title="Descargar Comprobante PDF"
+                                 >
+                                   <Download className="h-4 w-4" />
+                                 </Button>
+                                 <Button
+                                   variant="outline"
+                                   size="sm"
+                                   onClick={() => handleEliminarPDF(venta.id)}
+                                   className="border-orange-600 text-orange-700 hover:bg-orange-50"
+                                   title="Eliminar PDF"
+                                 >
+                                   <FileX className="h-4 w-4" />
+                                 </Button>
+                               </div>
                              )}
                             <Button
                               variant="outline"

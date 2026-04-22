@@ -939,3 +939,46 @@ export async function obtenerURLDescargaPDF(ventaId: string) {
     return { success: false, error: error.message || "No se pudo generar el enlace de descarga" };
   }
 }
+
+export async function subirPDFLote(ventaIds: string[], formData: FormData) {
+  if (!ventaIds || ventaIds.length === 0) {
+    return { success: false, error: "No se seleccionaron pedidos" };
+  }
+
+  const file = formData.get('file') as File;
+  if (!file) return { success: false, error: "No se proporcionó ningún archivo" };
+
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const timestamp = Date.now();
+    // Usamos una carpeta de lotes con timestamp para evitar colisiones
+    const key = `pedidos/lotes/${timestamp}/${safeFileName}`;
+    
+    const bucketName = process.env.S3_BUCKET_NAME?.trim();
+    if (!bucketName) {
+      throw new Error("S3_BUCKET_NAME no está configurado");
+    }
+
+    await s3Client.send(new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: buffer,
+      ContentType: file.type,
+    }));
+
+    const baseUrl = process.env.GARAGE_S3_API_URL || process.env.S3_ENDPOINT;
+    const cleanBaseUrl = baseUrl?.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const pdfUrl = `${cleanBaseUrl}/${bucketName}/${key}`;
+
+    await prisma.venta.updateMany({
+      where: { id: { in: ventaIds } },
+      data: { pdfUrl }
+    });
+
+    return { success: true, url: pdfUrl };
+  } catch (error) {
+    console.error("Error al subir PDF por lote:", error);
+    return { success: false, error: "Error al subir el archivo a S3" };
+  }
+}

@@ -45,6 +45,7 @@ import {
   actualizarPedidoVenta,
   subirPDFPedido,
   obtenerURLDescargaPDF,
+  subirPDFLote,
 } from "@/app/actions/ventas-mostrador";
 import PDFPreview from "./pdf-preview";
 
@@ -100,8 +101,10 @@ export default function PedidosVentaEdicionClient() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [ventaParaEditar, setVentaParaEditar] = useState<Venta | null>(null);
   const [editingVenta, setEditingVenta] = useState<Venta | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<string>("");
+  const [selectedVentaIds, setSelectedVentaIds] = useState<Set<string>>(new Set());
+  const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const cargarPedidos = async () => {
     try {
@@ -281,6 +284,53 @@ export default function PedidosVentaEdicionClient() {
     }
   };
 
+  const handleToggleSelect = (id: string) => {
+    const newSelected = new Set(selectedVentaIds);
+    if (newSelected.has(id)) newSelected.delete(id);
+    else newSelected.add(id);
+    setSelectedVentaIds(newSelected);
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedVentaIds.size === ventasFiltradas.length && ventasFiltradas.length > 0) {
+      setSelectedVentaIds(new Set());
+    } else {
+      setSelectedVentaIds(new Set(ventasFiltradas.map(v => v.id)));
+    }
+  };
+
+  const handleBatchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0] || selectedVentaIds.size === 0) return;
+
+    const file = e.target.files[0];
+    if (file.type !== "application/pdf") {
+      alert("Solo se permiten archivos PDF");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const result = await subirPDFLote(Array.from(selectedVentaIds), formData);
+
+      if (result.success) {
+        alert(`PDF subido correctamente a ${selectedVentaIds.size} pedidos`);
+        setSelectedVentaIds(new Set());
+        setIsBatchDialogOpen(false);
+        cargarPedidos();
+      } else {
+        alert(result.error || "Error al subir el PDF por lotes");
+      }
+    } catch (err) {
+      console.error("Error al subir PDF por lotes:", err);
+      alert("Error al procesar la subida por lotes");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleDownloadPDF = async (ventaId: string) => {
     try {
       setIsProcessing(true);
@@ -382,7 +432,7 @@ export default function PedidosVentaEdicionClient() {
                 <option value="DESPACHADO">Despachado</option>
               </select>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
               <Button
                 onClick={cargarPedidos}
                 disabled={cargando}
@@ -400,6 +450,15 @@ export default function PedidosVentaEdicionClient() {
                   </>
                 )}
               </Button>
+              {selectedVentaIds.size > 0 && (
+                <Button
+                  onClick={() => setIsBatchDialogOpen(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white animate-in fade-in slide-in-from-bottom-2"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Subir PDF Lote ({selectedVentaIds.size})
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -454,6 +513,14 @@ export default function PedidosVentaEdicionClient() {
             <Table>
               <TableHeader className="bg-slate-50 border-b-2 border-slate-200">
                 <TableRow>
+                  <TableHead className="w-10">
+                    <input
+                      type="checkbox"
+                      checked={selectedVentaIds.size === ventasFiltradas.length && ventasFiltradas.length > 0}
+                      onChange={handleToggleSelectAll}
+                      className="rounded border-slate-300"
+                    />
+                  </TableHead>
                   <TableHead className="w-16">ID</TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vendedor</TableHead>
@@ -469,7 +536,15 @@ export default function PedidosVentaEdicionClient() {
                   const isExpanded = expandedVentas.has(venta.id);
                   return (
                     <React.Fragment key={venta.id}>
-                      <TableRow className="hover:bg-slate-50 align-top">
+                      <TableRow className={`hover:bg-slate-50 align-top ${selectedVentaIds.has(venta.id) ? 'bg-blue-50/50' : ''}`}>
+                        <TableCell className="py-4">
+                          <input
+                            type="checkbox"
+                            checked={selectedVentaIds.has(venta.id)}
+                            onChange={() => handleToggleSelect(venta.id)}
+                            className="rounded border-slate-300"
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-sm text-slate-500 py-4">
                           {venta.id.slice(0, 8)}
                         </TableCell>
@@ -610,6 +685,65 @@ export default function PedidosVentaEdicionClient() {
           )}
         </div>
       </div>
+
+      {/* Batch Upload Dialog */}
+      <Dialog open={isBatchDialogOpen} onOpenChange={setIsBatchDialogOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-2xl border-blue-200">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-900">
+              <Upload className="h-5 w-5" />
+              Subir PDF por Lotes
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-6 text-center">
+            <div className="bg-blue-50 p-6 rounded-2xl border-2 border-dashed border-blue-200 mb-4">
+              <Upload className="h-12 w-12 text-blue-400 mx-auto mb-4" />
+              <p className="text-sm text-blue-800 font-medium mb-2">
+                Se subirán el PDF a {selectedVentaIds.size} pedidos seleccionados
+              </p>
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handleBatchUpload}
+                className="hidden"
+                id="batch-pdf-upload"
+                disabled={isUploading}
+              />
+              <Button
+                asChild
+                disabled={isUploading}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <label htmlFor="batch-pdf-upload" className="cursor-pointer">
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>
+                      <File className="h-4 w-4 mr-2" />
+                      Seleccionar Archivo PDF
+                    </>
+                  )}
+                </label>
+              </Button>
+            </div>
+            <p className="text-xs text-slate-500 italic">
+              El mismo archivo se asociará a todos los pedidos marcados.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setIsBatchDialogOpen(false)}
+              disabled={isUploading}
+            >
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm Dialog */}
       <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>

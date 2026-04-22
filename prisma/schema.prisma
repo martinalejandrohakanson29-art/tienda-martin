@@ -407,6 +407,7 @@ model RentabilidadCalculada {
 
 model Venta {
   id            String           @id @default(cuid())
+  numeroVenta   Int              @unique @default(autoincrement())
   cliente       String           @default("Consumidor Final")
   vendedor      String           @default("Martin Jakson")
   total         Decimal          @default(0) @db.Decimal(20, 2)

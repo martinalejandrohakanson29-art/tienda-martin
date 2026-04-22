@@ -70,6 +70,7 @@ export default async function PedidoPDFPage({ params }: PageProps) {
         para: pedido.para,
         eventoOffline: pedido.eventoOffline,
         puntoVentaId: pedido.puntoVentaId,
+        numeroVenta: pedido.numeroVenta,
         items: pedido.items.map(item => ({
           productoId: item.productoId,
           nombre: item.nombre,

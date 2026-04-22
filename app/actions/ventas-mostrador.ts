@@ -238,7 +238,7 @@ export async function crearVentaMostrador(data: {
       return venta;
     });
 
-    return { success: true, id: result.id };
+    return { success: true, id: result.id, numeroVenta: result.numeroVenta };
   } catch (error) {
     console.error("Error al crear venta:", error);
     return { success: false, error: "No se pudo guardar la venta" };
@@ -328,7 +328,7 @@ export async function guardarComoPedidoVenta(data: {
       return venta;
     });
 
-    return { success: true, id: result.id };
+    return { success: true, id: result.id, numeroVenta: result.numeroVenta };
   } catch (error) {
     console.error("Error al guardar como pedido de venta:", error);
     return { success: false, error: "No se pudo guardar el pedido de venta" };

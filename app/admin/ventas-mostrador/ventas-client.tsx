@@ -809,6 +809,7 @@ export default function VentasMostradorClient({
       {/* 1. EL TICKET */}
       <TicketImpresion
         ventaId={ventaParaImprimir ? ventaParaImprimir.id : ""}
+        numeroVenta={ventaParaImprimir?.numeroVenta}
         items={ventaParaImprimir ? ventaParaImprimir.items.map((i: { productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => ({ ...i, id: crypto.randomUUID() })) : items}
         total={ventaParaImprimir ? Number(ventaParaImprimir.totalFinal || ventaParaImprimir.total) : totalFinalCalculado}
         cliente={ventaParaImprimir ? (ventaParaImprimir.cliente || ventaParaImprimir.dni) : cliente}
@@ -1118,7 +1119,9 @@ export default function VentasMostradorClient({
                             <React.Fragment key={v.id}>
                               <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
                                 <TableCell className="py-4">
-                                  <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                                  <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>
+                                    {v.numeroVenta || v.id.slice(0, 8)}
+                                  </span>
                                 </TableCell>
                                 <TableCell className="py-4">
                                   <div className="flex flex-col gap-1">
@@ -1287,7 +1290,9 @@ export default function VentasMostradorClient({
                         ventasRealizadas.map((v) => (
                           <TableRow key={v.id} className="hover:bg-slate-50/50">
                             <TableCell className="py-4">
-                              <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>{v.id}</span>
+                              <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200" title={v.id}>
+                                {v.numeroVenta || v.id.slice(0, 8)}
+                              </span>
                             </TableCell>
                             <TableCell className="py-4">
                               <div className="flex flex-col gap-1">
@@ -2031,12 +2036,14 @@ export default function VentasMostradorClient({
 // ========================================================================
 function TicketImpresion({
   ventaId,
+  numeroVenta,
   items,
   total,
   cliente,
   metodoPago
 }: {
   ventaId: string,
+  numeroVenta?: number,
   items: ItemVenta[],
   total: number,
   cliente: string,
@@ -2073,7 +2080,7 @@ function TicketImpresion({
       <div className="text-center w-full mb-1">
         <p>NO VALIDO COMO FACTURA</p>
         <p>{fechaActual}</p>
-        <p>ID VENTA: {ventaId}</p>
+        <p>ID VENTA: {numeroVenta || ventaId.slice(0, 8)}</p>
         <p>NRO: 00099-{ticketId}</p>
       </div>
 

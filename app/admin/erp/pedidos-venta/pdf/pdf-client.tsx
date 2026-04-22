@@ -45,6 +45,7 @@ type Pedido = {
   para?: string | null;
   eventoOffline?: boolean;
   puntoVentaId?: string | null;
+  numeroVenta?: number;
   items: ItemVenta[];
 };
 
@@ -107,7 +108,7 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
         {/* Encabezado especial y purificado para el PDF */}
         <div className="hidden print:block mb-8 border-b-2 border-slate-300 pb-4">
           <h1 className="text-2xl font-bold text-black uppercase">Pedido de Venta</h1>
-          <p className="text-sm text-gray-500 mt-1"><strong>ID:</strong> {pedido.id}</p>
+          <p className="text-sm text-gray-500 mt-1"><strong>ID:</strong> {pedido.numeroVenta || pedido.id}</p>
           <p className="text-sm text-gray-500"><strong>Fecha:</strong> {new Date(pedido.createdAt).toLocaleDateString("es-AR")} {new Date(pedido.createdAt).toLocaleTimeString("es-AR").slice(0, 5)}</p>
         </div>
 
@@ -126,7 +127,7 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
             <TableBody>
               <TableRow className="print:border-b print:border-slate-300">
                 <TableCell className="font-mono text-sm text-slate-500 py-4 print:text-black print:p-2">
-                  {pedido.id.slice(0, 8)}
+                  {pedido.numeroVenta || pedido.id.slice(0, 8)}
                 </TableCell>
                 <TableCell className="font-medium text-slate-900 py-4 print:text-black print:p-2">
                   {pedido.cliente || "Sin cliente"}

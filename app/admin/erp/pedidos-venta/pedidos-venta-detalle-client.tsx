@@ -75,6 +75,7 @@ type Venta = {
   eventoOffline?: boolean;
   puntoVentaId?: string | null;
   estadoPedido?: string | null;
+  numeroVenta?: number;
 };
 
 export default function PedidosVentaDetalleClient() {
@@ -214,7 +215,7 @@ export default function PedidosVentaDetalleClient() {
             <TableBody>
               <TableRow>
                 <TableCell className="font-mono text-sm text-slate-500 py-4">
-                  {venta.id.slice(0, 8)}
+                  {venta.numeroVenta || venta.id.slice(0, 8)}
                 </TableCell>
                 <TableCell className="font-medium text-slate-900 py-4">
                   {venta.cliente || "Sin cliente"}

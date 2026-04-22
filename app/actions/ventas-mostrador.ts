@@ -875,69 +875,22 @@ export async function obtenerURLDescargaPDF(ventaId: string, fileName?: string) 
   try {
     const venta = await prisma.venta.findUnique({
       where: { id: ventaId },
-      select: { pdfUrl: true, id: true }
+      select: { pdfUrl: true }
     });
 
     if (!venta || !venta.pdfUrl) {
       throw new Error("El pedido no tiene un PDF asociado");
     }
 
-    const bucketName = process.env.S3_BUCKET_NAME?.trim();
-    if (!bucketName) {
-      throw new Error("S3_BUCKET_NAME no configurado");
-    }
+    // En lugar de generar una URL firmada de S3 que puede dar error de certificados/permisos
+    // en el navegador del cliente, devolvemos nuestra propia ruta de API que actúa como proxy.
+    const queryParams = fileName ? `?fileName=${encodeURIComponent(fileName)}` : "";
+    const proxyUrl = `/api/pedidos/${ventaId}/pdf${queryParams}`;
 
-    let key = "";
-    try {
-      const url = new URL(venta.pdfUrl);
-      const pathname = url.pathname;
-      
-      // Intentar extraer el key asumiendo path-style: /bucket/key
-      if (pathname.includes(`/${bucketName}/`)) {
-        key = pathname.split(`/${bucketName}/`)[1];
-      } else if (pathname.includes(bucketName)) {
-        // Caso borde: si está el bucket pero no rodeado de slashes exactamente como esperamos
-        const parts = pathname.split(bucketName);
-        key = parts[parts.length - 1];
-        if (key.startsWith('/')) key = key.substring(1);
-      } else {
-        // Si no está el bucket en el path, tal vez el pathname es el key (virtual-host style)
-        key = pathname.startsWith('/') ? pathname.substring(1) : pathname;
-      }
-    } catch (e) {
-      // Fallback manual si falla URL constructor o la lógica anterior
-      const parts = venta.pdfUrl.split(`/${bucketName}/`);
-      if (parts.length >= 2) {
-        key = parts[1];
-      } else {
-        // Último recurso: buscar la carpeta raíz de los archivos
-        const searchPath = "pedidos/";
-        const index = venta.pdfUrl.indexOf(searchPath);
-        if (index !== -1) {
-          key = venta.pdfUrl.substring(index);
-        } else {
-          console.error("Error detallado - URL:", venta.pdfUrl, "Bucket:", bucketName);
-          throw new Error("No se pudo determinar el Key del archivo S3");
-        }
-      }
-    }
-
-    // Limpieza final de la key (asegurar que no empiece con /)
-    if (key.startsWith('/')) key = key.substring(1);
-
-    const command = new GetObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-      ResponseContentDisposition: fileName ? `attachment; filename="${fileName}"` : undefined,
-    });
-
-    // Generar URL firmada válida por 1 hora (3600 segundos)
-    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-
-    return { success: true, url: signedUrl };
+    return { success: true, url: proxyUrl };
   } catch (error: any) {
-    console.error("Error al generar URL firmada:", error);
-    return { success: false, error: error.message || "No se pudo generar el enlace de descarga" };
+    console.error("Error al obtener URL de PDF:", error);
+    return { success: false, error: error.message || "No se pudo obtener el enlace de descarga" };
   }
 }
 

@@ -46,6 +46,7 @@ import {
   actualizarEstadoPedido,
   obtenerPedidoPorId,
   actualizarPedidoVenta,
+  obtenerURLDescargaPDF,
 } from "@/app/actions/ventas-mostrador";
 import PDFPreview from "./pdf-preview";
 
@@ -249,8 +250,21 @@ export default function PedidosVentaClient() {
   };
 
 
-  const handleDownloadPDF = (url: string) => {
-    window.open(url, '_blank');
+  const handleDownloadPDF = async (ventaId: string) => {
+    try {
+      setIsProcessing(true);
+      const result = await obtenerURLDescargaPDF(ventaId);
+      if (result.success && result.url) {
+        window.open(result.url, '_blank');
+      } else {
+        alert(result.error || "Error al obtener el enlace de descarga");
+      }
+    } catch (err) {
+      console.error("Error al descargar PDF:", err);
+      alert("Error al procesar la descarga");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handlePrint = (venta: Venta) => {
@@ -444,7 +458,7 @@ export default function PedidosVentaClient() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => handleDownloadPDF(venta.pdfUrl!)}
+                                onClick={() => handleDownloadPDF(venta.id)}
                                 className="border-green-600 text-green-700 hover:bg-green-50"
                                 title="Descargar Comprobante PDF"
                               >

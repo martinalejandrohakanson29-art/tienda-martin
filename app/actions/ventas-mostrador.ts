@@ -7,7 +7,9 @@ import {
   PutObjectCommand,
   CreateBucketCommand,
   HeadBucketCommand,
+  GetObjectCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export async function obtenerTodosLosArticulos() {
   try {
@@ -866,5 +868,48 @@ export async function subirPDFPedido(ventaId: string, formData: FormData) {
   } catch (error) {
     console.error("Error al subir PDF:", error);
     return { success: false, error: "Error al subir el archivo a S3" };
+  }
+}
+
+export async function obtenerURLDescargaPDF(ventaId: string) {
+  try {
+    const venta = await prisma.venta.findUnique({
+      where: { id: ventaId },
+      select: { pdfUrl: true }
+    });
+
+    if (!venta || !venta.pdfUrl) {
+      throw new Error("El pedido no tiene un PDF asociado");
+    }
+
+    const bucketName = process.env.S3_BUCKET_NAME;
+    if (!bucketName) {
+      throw new Error("S3_BUCKET_NAME no configurado");
+    }
+
+    // Extraer el Key del pdfUrl
+    // El formato es: baseUrl/bucketName/key
+    const urlParts = venta.pdfUrl.split(`/${bucketName}/`);
+    if (urlParts.length < 2) {
+      // Si no contiene el bucketName, quizás es solo el key o tiene otro formato
+      // Intentamos obtenerlo de otra forma si falla
+      console.warn("Formato de URL inesperado, intentando fallback:", venta.pdfUrl);
+      // Fallback: si no podemos extraerlo, lanzamos error por ahora
+      throw new Error("Formato de URL de PDF inválido");
+    }
+    const key = urlParts[1];
+
+    const command = new GetObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+    });
+
+    // Generar URL firmada válida por 1 hora (3600 segundos)
+    const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+
+    return { success: true, url: signedUrl };
+  } catch (error) {
+    console.error("Error al generar URL firmada:", error);
+    return { success: false, error: "No se pudo generar el enlace de descarga" };
   }
 }

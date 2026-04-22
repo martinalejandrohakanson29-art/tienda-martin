@@ -882,22 +882,48 @@ export async function obtenerURLDescargaPDF(ventaId: string) {
       throw new Error("El pedido no tiene un PDF asociado");
     }
 
-    const bucketName = process.env.S3_BUCKET_NAME;
+    const bucketName = process.env.S3_BUCKET_NAME?.trim();
     if (!bucketName) {
       throw new Error("S3_BUCKET_NAME no configurado");
     }
 
-    // Extraer el Key del pdfUrl
-    // El formato es: baseUrl/bucketName/key
-    const urlParts = venta.pdfUrl.split(`/${bucketName}/`);
-    if (urlParts.length < 2) {
-      // Si no contiene el bucketName, quizás es solo el key o tiene otro formato
-      // Intentamos obtenerlo de otra forma si falla
-      console.warn("Formato de URL inesperado, intentando fallback:", venta.pdfUrl);
-      // Fallback: si no podemos extraerlo, lanzamos error por ahora
-      throw new Error("Formato de URL de PDF inválido");
+    let key = "";
+    try {
+      const url = new URL(venta.pdfUrl);
+      const pathname = url.pathname;
+      
+      // Intentar extraer el key asumiendo path-style: /bucket/key
+      if (pathname.includes(`/${bucketName}/`)) {
+        key = pathname.split(`/${bucketName}/`)[1];
+      } else if (pathname.includes(bucketName)) {
+        // Caso borde: si está el bucket pero no rodeado de slashes exactamente como esperamos
+        const parts = pathname.split(bucketName);
+        key = parts[parts.length - 1];
+        if (key.startsWith('/')) key = key.substring(1);
+      } else {
+        // Si no está el bucket en el path, tal vez el pathname es el key (virtual-host style)
+        key = pathname.startsWith('/') ? pathname.substring(1) : pathname;
+      }
+    } catch (e) {
+      // Fallback manual si falla URL constructor o la lógica anterior
+      const parts = venta.pdfUrl.split(`/${bucketName}/`);
+      if (parts.length >= 2) {
+        key = parts[1];
+      } else {
+        // Último recurso: buscar la carpeta raíz de los archivos
+        const searchPath = "pedidos/";
+        const index = venta.pdfUrl.indexOf(searchPath);
+        if (index !== -1) {
+          key = venta.pdfUrl.substring(index);
+        } else {
+          console.error("Error detallado - URL:", venta.pdfUrl, "Bucket:", bucketName);
+          throw new Error("No se pudo determinar el Key del archivo S3");
+        }
+      }
     }
-    const key = urlParts[1];
+
+    // Limpieza final de la key (asegurar que no empiece con /)
+    if (key.startsWith('/')) key = key.substring(1);
 
     const command = new GetObjectCommand({
       Bucket: bucketName,
@@ -908,8 +934,8 @@ export async function obtenerURLDescargaPDF(ventaId: string) {
     const signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
 
     return { success: true, url: signedUrl };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error al generar URL firmada:", error);
-    return { success: false, error: "No se pudo generar el enlace de descarga" };
+    return { success: false, error: error.message || "No se pudo generar el enlace de descarga" };
   }
 }

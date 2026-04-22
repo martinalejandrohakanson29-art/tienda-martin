@@ -30,6 +30,9 @@ import {
   RefreshCcw,
   ChevronDown,
   Eye,
+  Upload,
+  Download,
+  File,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -40,6 +43,7 @@ import {
   actualizarEstadoPedido,
   obtenerPedidoPorId,
   actualizarPedidoVenta,
+  subirPDFPedido,
 } from "@/app/actions/ventas-mostrador";
 import PDFPreview from "./pdf-preview";
 
@@ -73,6 +77,7 @@ type Venta = {
   eventoOffline?: boolean;
   puntoVentaId?: string | null;
   estadoPedido?: string | null;
+  pdfUrl?: string | null;
 };
 
 export default function PedidosVentaEdicionClient() {
@@ -94,6 +99,7 @@ export default function PedidosVentaEdicionClient() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [ventaParaEditar, setVentaParaEditar] = useState<Venta | null>(null);
   const [editingVenta, setEditingVenta] = useState<Venta | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [filtroEstado, setFiltroEstado] = useState<string>("");
 
   const cargarPedidos = async () => {
@@ -241,6 +247,41 @@ export default function PedidosVentaEdicionClient() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleUploadPDF = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0] || !editingVenta) return;
+
+    const file = e.target.files[0];
+    if (file.type !== "application/pdf") {
+      alert("Solo se permiten archivos PDF");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const result = await subirPDFPedido(editingVenta.id, formData);
+
+      if (result.success) {
+        setEditingVenta({ ...editingVenta, pdfUrl: result.url });
+        alert("PDF subido correctamente");
+        cargarPedidos();
+      } else {
+        alert(result.error || "Error al subir el PDF");
+      }
+    } catch (err) {
+      console.error("Error al subir PDF:", err);
+      alert("Error al procesar la subida del archivo");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDownloadPDF = (url: string) => {
+    window.open(url, '_blank');
   };
 
   const handlePrint = (venta: Venta) => {
@@ -476,15 +517,26 @@ export default function PedidosVentaEdicionClient() {
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleVerPDF(venta)}
-                              className="border-blue-600 text-blue-700 hover:bg-blue-50"
-                              title="Ver PDF del Pedido"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                             <Button
+                               variant="outline"
+                               size="sm"
+                               onClick={() => handleVerPDF(venta)}
+                               className="border-blue-600 text-blue-700 hover:bg-blue-50"
+                               title="Ver PDF del Pedido"
+                             >
+                               <Eye className="h-4 w-4" />
+                             </Button>
+                             {venta.pdfUrl && (
+                               <Button
+                                 variant="outline"
+                                 size="sm"
+                                 onClick={() => handleDownloadPDF(venta.pdfUrl!)}
+                                 className="border-green-600 text-green-700 hover:bg-green-50"
+                                 title="Descargar Comprobante PDF"
+                               >
+                                 <Download className="h-4 w-4" />
+                               </Button>
+                             )}
                             <Button
                               variant="outline"
                               size="sm"
@@ -766,6 +818,75 @@ export default function PedidosVentaEdicionClient() {
                     placeholder="Observaciones, datos de envío, etc."
                     className="border-slate-300"
                     rows={3}
+                  />
+                </div>
+
+                {/* Sección de carga de PDF */}
+                <div className="pt-4 border-t border-slate-200">
+                  <Label className="text-sm font-bold text-slate-700 mb-2 block flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    Comprobante PDF
+                  </Label>
+                  
+                  {editingVenta.pdfUrl ? (
+                    <div className="flex items-center justify-between bg-green-50 p-3 rounded-xl border border-green-100 mb-3">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <File className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        <span className="text-xs text-green-700 truncate font-medium">
+                          PDF Adjunto: {editingVenta.pdfUrl.split('/').pop()}
+                        </span>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-green-700 hover:bg-green-100"
+                          onClick={() => window.open(editingVenta.pdfUrl!, '_blank')}
+                        >
+                          Ver
+                        </Button>
+                        <Label 
+                          htmlFor="pdf-upload" 
+                          className="h-7 px-2 flex items-center bg-transparent text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer rounded-md border border-slate-200"
+                        >
+                          Reemplazar
+                        </Label>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mb-3">
+                      <Label 
+                        htmlFor="pdf-upload" 
+                        className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          {isUploading ? (
+                            <Loader2 className="h-6 w-6 animate-spin text-amber-600 mb-2" />
+                          ) : (
+                            <Upload className="h-6 w-6 text-slate-400 mb-2" />
+                          )}
+                          <p className="text-xs text-slate-500">
+                            {isUploading ? "Subiendo archivo..." : "Click para subir PDF de comprobante"}
+                          </p>
+                        </div>
+                        <input 
+                          id="pdf-upload" 
+                          type="file" 
+                          accept="application/pdf" 
+                          className="hidden" 
+                          onChange={handleUploadPDF}
+                          disabled={isUploading}
+                        />
+                      </Label>
+                    </div>
+                  )}
+                  <input 
+                    id="pdf-upload" 
+                    type="file" 
+                    accept="application/pdf" 
+                    className="hidden" 
+                    onChange={handleUploadPDF}
+                    disabled={isUploading}
                   />
                 </div>
               </div>

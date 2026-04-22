@@ -1,6 +1,13 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { s3Client } from "@/lib/s3"
+import { 
+  S3Client,
+  PutObjectCommand,
+  CreateBucketCommand,
+  HeadBucketCommand,
+} from "@aws-sdk/client-s3";
 
 export async function obtenerTodosLosArticulos() {
   try {
@@ -807,5 +814,57 @@ export async function eliminarPedidoVenta(ventaId: string) {
   } catch (error) {
     console.error("Error al eliminar pedido de venta:", error);
     return { success: false, error: "No se pudo eliminar el pedido de venta" };
+  }
+}
+
+export async function subirPDFPedido(ventaId: string, formData: FormData) {
+  const file = formData.get('file') as File;
+  if (!file) return { success: false, error: "No se proporcionó ningún archivo" };
+
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    // Limpiar nombre de archivo para evitar problemas en URL
+    const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const key = `pedidos/${ventaId}/${safeFileName}`;
+    
+    const bucketName = process.env.S3_BUCKET_NAME;
+    if (!bucketName) {
+      throw new Error("S3_BUCKET_NAME no está configurado en el archivo .env");
+    }
+
+    // Intentar verificar si el bucket existe, si no, intentar crearlo
+    try {
+      await s3Client.send(new HeadBucketCommand({ Bucket: bucketName }));
+    } catch (headError: any) {
+      if (headError.name === "NotFound" || headError.$metadata?.httpStatusCode === 404) {
+        try {
+          await s3Client.send(new CreateBucketCommand({ Bucket: bucketName }));
+        } catch (createError) {
+          console.error("Error al crear el bucket:", createError);
+          // Continuamos de todos modos por si el HeadBucket falló por otra razón
+        }
+      }
+    }
+
+    await s3Client.send(new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      Body: buffer,
+      ContentType: file.type,
+    }));
+
+    const baseUrl = process.env.GARAGE_S3_API_URL || process.env.S3_ENDPOINT;
+    const cleanBaseUrl = baseUrl?.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const pdfUrl = `${cleanBaseUrl}/${bucketName}/${key}`;
+
+    await prisma.venta.update({
+      where: { id: ventaId },
+      data: { pdfUrl }
+    });
+
+    return { success: true, url: pdfUrl };
+  } catch (error) {
+    console.error("Error al subir PDF:", error);
+    return { success: false, error: "Error al subir el archivo a S3" };
   }
 }

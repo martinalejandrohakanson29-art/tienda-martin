@@ -429,6 +429,7 @@ model Venta {
   eventoOffline Boolean          @default(false)
   puntoVentaId  String?
   puntoVenta    PuntoVenta?      @relation(fields: [puntoVentaId], references: [id])
+  pdfUrl        String?
   auditorias    VentaAuditoria[]
   items         VentaItem[]
 

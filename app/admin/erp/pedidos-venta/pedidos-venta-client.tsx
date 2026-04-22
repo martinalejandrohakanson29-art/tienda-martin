@@ -33,6 +33,9 @@ import {
   ChevronDown,
   Eye,
   Edit,
+  Upload,
+  Download,
+  File,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -76,6 +79,7 @@ type Venta = {
   eventoOffline?: boolean;
   puntoVentaId?: string | null;
   estadoPedido?: string | null;
+  pdfUrl?: string | null;
 };
 
 export default function PedidosVentaClient() {
@@ -242,6 +246,11 @@ export default function PedidosVentaClient() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+
+  const handleDownloadPDF = (url: string) => {
+    window.open(url, '_blank');
   };
 
   const handlePrint = (venta: Venta) => {
@@ -431,6 +440,17 @@ export default function PedidosVentaClient() {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
+                            {venta.pdfUrl && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDownloadPDF(venta.pdfUrl!)}
+                                className="border-green-600 text-green-700 hover:bg-green-50"
+                                title="Descargar Comprobante PDF"
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

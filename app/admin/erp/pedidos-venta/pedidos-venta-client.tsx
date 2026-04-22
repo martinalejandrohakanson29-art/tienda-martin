@@ -36,6 +36,7 @@ import {
   Upload,
   Download,
   File,
+  Send,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -306,6 +307,39 @@ export default function PedidosVentaClient() {
     alert(`Se han procesado ${exitos} descargas correctamente.`);
   };
 
+  const handleSincronizarN8N = async () => {
+    const pedidosIds = selectedVentaIds.size > 0 
+      ? Array.from(selectedVentaIds) 
+      : ventas.map(v => v.id);
+
+    if (pedidosIds.length === 0) {
+      alert("No hay pedidos para sincronizar");
+      return;
+    }
+
+    if (!window.confirm(`¿Desea enviar ${selectedVentaIds.size > 0 ? 'los pedidos seleccionados' : 'todos los pedidos listados'} a n8n para su procesamiento?`)) return;
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch('/api/webhooks/n8n/pedidos-venta', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidosIds })
+      });
+
+      if (response.ok) {
+        alert("Sincronización enviada con éxito");
+      } else {
+        alert("Error al sincronizar con n8n. Verifique la configuración del servidor.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error de conexión al intentar sincronizar");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleDownloadPDF = async (ventaId: string) => {
     try {
       setIsProcessing(true);
@@ -438,6 +472,19 @@ export default function PedidosVentaClient() {
                   Descargar PDFs ({Array.from(selectedVentaIds).filter(id => ventas.find(v => v.id === id)?.pdfUrl).length})
                 </Button>
               )}
+              <Button
+                onClick={handleSincronizarN8N}
+                disabled={isProcessing || ventas.length === 0}
+                variant="outline"
+                className="border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                {selectedVentaIds.size > 0 ? 'Sincronizar Selección' : 'Sincronizar Todo'}
+              </Button>
             </div>
           </div>
         </div>

@@ -546,16 +546,27 @@ model ItemVisitaDiaria {
 }
 
 model Compra {
-  id          String       @id @default(cuid())
-  proveedor   String       @default("Proveedor General")
-  comprador   String       @default("Usuario General")
-  total       Decimal      @default(0) @db.Decimal(20, 2)
-  metodo_pago String       @default("Efectivo")
-  info        String?
-  comprobante String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  items       CompraItem[]
+  id            String       @id @default(cuid())
+  numeroCompra  Int          @unique @default(autoincrement())
+  proveedor     String       @default("Proveedor General")
+  proveedorId   String?
+  proveedorRel  Proveedor?   @relation(fields: [proveedorId], references: [id])
+  comprador     String       @default("Usuario General")
+  total         Decimal      @default(0) @db.Decimal(20, 2)
+  metodo_pago   String       @default("Efectivo")
+  info          String?
+  comprobante   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  dni           String?
+  telefono      String?
+  transaccionId String?
+  registrada    Boolean      @default(false)
+  descuento     Decimal      @default(0) @db.Decimal(10, 2)
+  interes       Decimal      @default(0) @db.Decimal(10, 2)
+  totalFinal    Decimal      @default(0) @db.Decimal(20, 2)
+  items         CompraItem[]
+  auditorias    CompraAuditoria[]
 
   @@map("compras_mostrador")
 }
@@ -571,6 +582,18 @@ model CompraItem {
   compra     Compra  @relation(fields: [compraId], references: [id], onDelete: Cascade)
 
   @@map("compras_mostrador_items")
+}
+
+model CompraAuditoria {
+  id        String   @id @default(cuid())
+  compraId  String
+  usuario   String
+  accion    String
+  detalle   String?
+  createdAt DateTime @default(now())
+  compra    Compra   @relation(fields: [compraId], references: [id], onDelete: Cascade)
+
+  @@map("compras_auditoria")
 }
 
 model Contacto {
@@ -702,6 +725,7 @@ model Proveedor {
   total         Decimal @default(0) @db.Decimal(20, 2)
 
   movimientos    MovimientoProveedor[]
+  compras        Compra[]
 
   @@map("proveedores")
 }

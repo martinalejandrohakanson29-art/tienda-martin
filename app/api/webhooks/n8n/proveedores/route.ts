@@ -32,13 +32,13 @@ export async function POST(req: Request) {
       const proveedor = await prisma.proveedor.upsert({
         where: { cuit: String(cuit).trim() },
         update: {
-          razonSocial: clean(razonSocial),
+          razonSocial: String(razonSocial).trim(),
           nombreFantasia: clean(nombreFantasia),
           email: clean(email),
           telefono: clean(telefono),
         },
         create: {
-          razonSocial: clean(razonSocial)!,
+          razonSocial: String(razonSocial).trim(),
           cuit: String(cuit).trim(),
           nombreFantasia: clean(nombreFantasia),
           email: clean(email),

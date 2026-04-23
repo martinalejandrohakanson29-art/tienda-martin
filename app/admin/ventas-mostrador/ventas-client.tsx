@@ -25,6 +25,7 @@ import {
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador
 } from "@/app/actions/ventas-mostrador";
+import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 
 type Decimal = {
   toNumber(): number;
@@ -245,6 +246,14 @@ export default function VentasMostradorClient({
   const [isFastUpdateDbModalOpen, setIsFastUpdateDbModalOpen] = useState(false);
   const [fastUpdateData, setFastUpdateData] = useState<{ id: string, nombre: string, oldPrice: number, newPrice: number } | null>(null);
 
+  // --- ESTADOS PARA PROVEEDORES EN CRUZADA ---
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [isAddProveedorModalOpen, setIsAddProveedorModalOpen] = useState(false);
+  const [newProvData, setNewProvData] = useState({ razonSocial: "", cuit: "", nombreFantasia: "", email: "", telefono: "" });
+  const [isCreatingProveedor, setIsCreatingProveedor] = useState(false);
+  const [showProvList, setShowProvList] = useState(false);
+  const [showProvListEdit, setShowProvListEdit] = useState(false);
+
 
   // --- EFECTOS ---
   useEffect(() => {
@@ -276,13 +285,45 @@ export default function VentasMostradorClient({
   useEffect(() => {
     cargarVentas(fechaDesde, fechaHasta);
   }, [fechaDesde, fechaHasta]);
-
   // Efecto para sincronizar fechaDesde y fechaHasta con la fecha actual al cargar
   useEffect(() => {
     const hoy = new Date().toISOString().split('T')[0];
     setFechaDesde(hoy);
     setFechaHasta(hoy);
   }, []);
+
+  // Cargar proveedores
+  useEffect(() => {
+    const fetchProveedores = async () => {
+      const res = await obtenerProveedores();
+      if (res.success && res.data) setProveedores(res.data);
+    };
+    fetchProveedores();
+  }, []);
+
+  const handleCrearProveedorRapido = async () => {
+    if (!newProvData.razonSocial || !newProvData.cuit) {
+      alert("Razón Social y CUIT son obligatorios");
+      return;
+    }
+    setIsCreatingProveedor(true);
+    const res = await crearProveedor(newProvData);
+    if (res.success && res.data) {
+      const nuevo = res.data as any;
+      setProveedores(prev => [nuevo, ...prev]);
+      // Si estamos en nueva venta, lo seleccionamos
+      if (isFinalizarModalOpen) setParaCruzada(nuevo.razonSocial);
+      // Si estamos en edición, lo seleccionamos
+      if (isEditMainModalOpen) setEditParaCruzada(nuevo.razonSocial);
+      
+      setIsAddProveedorModalOpen(false);
+      setNewProvData({ razonSocial: "", cuit: "", nombreFantasia: "", email: "", telefono: "" });
+      mostrarMensajeExito("Proveedor creado con éxito");
+    } else {
+      alert("Error al crear proveedor: " + res.error);
+    }
+    setIsCreatingProveedor(false);
+  };
 
 
   // --- FUNCIONES COMUNES ---
@@ -1505,7 +1546,8 @@ export default function VentasMostradorClient({
         </Dialog>
 
         <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
-          <DialogContent className="sm:max-w-[550px] rounded-3xl p-6">
+          <DialogContent className="sm:max-w-[550px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+            <div className="max-h-[95vh] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200">
             <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
@@ -1604,7 +1646,58 @@ export default function VentasMostradorClient({
               {requiereCruzada && (
                 <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
                   <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
-                  <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">Para <span className="text-red-500">*</span></Label><Input value={paraCruzada} onChange={(e) => setParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" /></div>
+                  <div className="space-y-2 relative">
+                    <Label className="text-xs font-bold text-amber-700">Para <span className="text-red-500">*</span></Label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input 
+                          value={paraCruzada} 
+                          onChange={(e) => {
+                            setParaCruzada(e.target.value);
+                            setShowProvList(true);
+                          }} 
+                          onFocus={() => setShowProvList(true)}
+                          className="bg-white border-amber-200" 
+                          placeholder="Buscar proveedor..." 
+                        />
+                        {showProvList && proveedores.length > 0 && (
+                          <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                            {proveedores
+                              .filter(p => p.razonSocial.toLowerCase().includes(paraCruzada.toLowerCase()) || p.cuit.includes(paraCruzada))
+                              .map(p => (
+                              <div 
+                                key={p.id}
+                                className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
+                                onClick={() => {
+                                  setParaCruzada(p.razonSocial);
+                                  setShowProvList(false);
+                                }}
+                              >
+                                <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                                <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                              </div>
+                            ))}
+                            <div 
+                              className="p-2 text-center text-xs text-indigo-600 font-bold hover:bg-indigo-50 cursor-pointer sticky bottom-0 bg-white border-t border-slate-100"
+                              onClick={() => setShowProvList(false)}
+                            >
+                              Cerrar lista
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <Button 
+                        type="button"
+                        size="icon" 
+                        variant="outline" 
+                        className="border-amber-200 text-amber-600 hover:bg-amber-50 h-10 w-10 shrink-0"
+                        onClick={() => setIsAddProveedorModalOpen(true)}
+                        title="Nuevo Proveedor"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1671,6 +1764,7 @@ export default function VentasMostradorClient({
             <DialogFooter className="mt-2">
               <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
             </DialogFooter>
+            </div>
           </DialogContent>
         </Dialog>
 
@@ -1814,9 +1908,57 @@ export default function VentasMostradorClient({
                       <Label className="text-xs font-bold text-amber-800">De <span className="text-red-500">*</span></Label>
                       <Input value={editDeCruzada} onChange={(e) => setEditDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 relative">
                       <Label className="text-xs font-bold text-amber-800">Para <span className="text-red-500">*</span></Label>
-                      <Input value={editParaCruzada} onChange={(e) => setEditParaCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Destino" />
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input 
+                            value={editParaCruzada} 
+                            onChange={(e) => {
+                              setEditParaCruzada(e.target.value);
+                              setShowProvListEdit(true);
+                            }} 
+                            onFocus={() => setShowProvListEdit(true)}
+                            className="bg-white border-amber-200" 
+                            placeholder="Buscar proveedor..." 
+                          />
+                          {showProvListEdit && proveedores.length > 0 && (
+                            <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                              {proveedores
+                                .filter(p => p.razonSocial.toLowerCase().includes(editParaCruzada.toLowerCase()) || p.cuit.includes(editParaCruzada))
+                                .map(p => (
+                                <div 
+                                  key={p.id}
+                                  className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
+                                  onClick={() => {
+                                    setEditParaCruzada(p.razonSocial);
+                                    setShowProvListEdit(false);
+                                  }}
+                                >
+                                  <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                                  <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                                </div>
+                              ))}
+                              <div 
+                                className="p-2 text-center text-xs text-indigo-600 font-bold hover:bg-indigo-50 cursor-pointer sticky bottom-0 bg-white border-t border-slate-100"
+                                onClick={() => setShowProvListEdit(false)}
+                              >
+                                Cerrar lista
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <Button 
+                          type="button"
+                          size="icon" 
+                          variant="outline" 
+                          className="border-amber-200 text-amber-600 hover:bg-amber-50 h-10 w-10 shrink-0"
+                          onClick={() => setIsAddProveedorModalOpen(true)}
+                          title="Nuevo Proveedor"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -2154,7 +2296,34 @@ export default function VentasMostradorClient({
           </DialogContent>
         </Dialog>
 
-
+        {/* MODAL NUEVO PROVEEDOR RAPIDO */}
+        <Dialog open={isAddProveedorModalOpen} onOpenChange={setIsAddProveedorModalOpen}>
+          <DialogContent className="sm:max-w-[400px] rounded-3xl p-6 border-2 border-amber-100 shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-amber-900">
+                <Plus className="h-5 w-5 text-amber-600" /> Nuevo Proveedor
+              </DialogTitle>
+              <DialogDescription>Crea un proveedor rápidamente para esta transferencia.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase">Razón Social *</Label>
+                <Input value={newProvData.razonSocial} onChange={(e) => setNewProvData({...newProvData, razonSocial: e.target.value})} placeholder="Nombre de la empresa" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase">CUIT / DNI *</Label>
+                <Input value={newProvData.cuit} onChange={(e) => setNewProvData({...newProvData, cuit: e.target.value})} placeholder="20-XXXXXXXX-X" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsAddProveedorModalOpen(false)}>Cancelar</Button>
+              <Button onClick={handleCrearProveedorRapido} disabled={isCreatingProveedor} className="bg-amber-600 hover:bg-amber-700">
+                {isCreatingProveedor ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                Guardar Proveedor
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </>

@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock, Copy, Image as ImageIcon, Filter, CheckSquare, Square, Download, RefreshCcw } from "lucide-react"
+import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock, Copy, Image as ImageIcon, Filter, CheckSquare, Square, Download, RefreshCcw, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
@@ -175,6 +175,26 @@ export function DespachadosClient() {
         }
     };
 
+    const handleLimpiarBaseDatos = async () => {
+        if (!confirm("¿Estás seguro de que deseas limpiar TODA la lista de registración?")) return;
+        
+        setLoadingRegistracion(true);
+        try {
+            const res = await limpiarVentasRegistracion();
+            if (res.success) {
+                setVentasRegistracion([]);
+                setSelectedRegistracionIds(new Set());
+                toast.success("Base de datos de registración limpiada");
+            } else {
+                toast.error("Error al limpiar la base de datos");
+            }
+        } catch (error) {
+            toast.error("Error en la operación");
+        } finally {
+            setLoadingRegistracion(false);
+        }
+    };
+
     const displayDate = format(new Date(fecha + "T12:00:00"), "EEEE d 'de' MMMM", { locale: es });
 
     return (
@@ -321,6 +341,9 @@ export function DespachadosClient() {
                         </div>
                     </div>
                     <div className="flex gap-2">
+                        <Button variant="outline" onClick={handleLimpiarBaseDatos} disabled={loadingRegistracion} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 gap-2">
+                            <Trash2 className="h-4 w-4" /> Limpiar Lista
+                        </Button>
                         <Button onClick={handleFetchRegistracion} disabled={loadingRegistracion} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2">
                             {loadingRegistracion ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />} Obtener Ventas
                         </Button>

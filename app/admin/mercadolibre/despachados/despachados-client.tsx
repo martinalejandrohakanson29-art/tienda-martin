@@ -340,6 +340,9 @@ export function DespachadosClient() {
                                 <TableHead className="font-bold text-[11px] uppercase text-slate-500">ID Venta</TableHead>
                                 <TableHead className="font-bold text-[11px] uppercase text-slate-500">ID Envío</TableHead>
                                 <TableHead className="font-bold text-[11px] uppercase text-slate-500">MLA</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase text-slate-500">Nombre</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-right">Bruto</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-right">Neto</TableHead>
                                 <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center">Categoría</TableHead>
                                 <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-right">Agregado el</TableHead>
                                 <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center">Acción</TableHead>
@@ -347,9 +350,9 @@ export function DespachadosClient() {
                         </TableHeader>
                         <TableBody>
                             {loadingRegistracion ? (
-                                <TableRow><TableCell colSpan={7} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={10} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
                             ) : getFilteredRegistracion().length === 0 ? (
-                                <TableRow><TableCell colSpan={7} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={10} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
                             ) : (
                                 getFilteredRegistracion().map((venta) => (
                                     <TableRow key={venta.shippingId} className={`hover:bg-slate-50/30 ${selectedRegistracionIds.has(venta.shippingId) ? 'bg-blue-50/40' : ''}`}>
@@ -357,6 +360,9 @@ export function DespachadosClient() {
                                         <TableCell><div onClick={() => handleCopyText(venta.orderId)} className="font-mono text-[11px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.orderId}</div></TableCell>
                                         <TableCell><div onClick={() => handleCopyText(venta.shippingId)} className="font-mono text-[11px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.shippingId}</div></TableCell>
                                         <TableCell><div onClick={() => handleCopyText(venta.mla)} className="font-mono text-[11px] text-slate-500 cursor-pointer hover:text-blue-600">{venta.mla}</div></TableCell>
+                                        <TableCell className="text-[11px] font-medium text-slate-700">{venta.nombre || '-'}</TableCell>
+                                        <TableCell className="text-right font-mono text-[11px] font-bold text-slate-600">${Number(venta.bruto || 0).toLocaleString()}</TableCell>
+                                        <TableCell className="text-right font-mono text-[11px] font-bold text-emerald-600">${Number(venta.neto || 0).toLocaleString()}</TableCell>
                                         <TableCell className="text-center">
                                             <Badge variant="outline" className={`${venta.categoria === 'Full' ? 'bg-amber-50 text-amber-600 border-amber-200' : venta.categoria === 'Flex' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'} font-bold text-[10px] uppercase`}>{venta.categoria}</Badge>
                                         </TableCell>

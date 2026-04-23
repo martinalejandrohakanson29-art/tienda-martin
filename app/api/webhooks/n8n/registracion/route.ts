@@ -24,12 +24,18 @@ export async function POST(req: Request) {
                     orderId: String(venta.orderId || venta.ventaId),
                     mla: String(venta.mla),
                     categoria: venta.categoria || "Desconocido",
+                    nombre: venta.nombre || null,
+                    neto: venta.neto ? Number(venta.neto) : null,
+                    bruto: venta.bruto ? Number(venta.bruto) : null,
                 },
                 create: {
                     shippingId: String(venta.shippingId || venta.envioId),
                     orderId: String(venta.orderId || venta.ventaId),
                     mla: String(venta.mla),
                     categoria: venta.categoria || "Desconocido",
+                    nombre: venta.nombre || null,
+                    neto: venta.neto ? Number(venta.neto) : null,
+                    bruto: venta.bruto ? Number(venta.bruto) : null,
                 }
             });
         });

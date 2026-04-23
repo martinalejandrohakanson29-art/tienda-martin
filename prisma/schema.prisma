@@ -776,6 +776,9 @@ model VentaMLRegistracion {
   orderId    String
   mla        String
   categoria  String
+  nombre     String?
+  neto       Decimal? @db.Decimal(20, 2)
+  bruto      Decimal? @db.Decimal(20, 2)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

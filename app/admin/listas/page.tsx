@@ -134,6 +134,42 @@ export default function ListasPage() {
               </div>
             </div>
           </Link>
+
+          {/* Tarjeta: Lista de Proveedores */}
+          <Link 
+            href="/admin/listas/proveedores"
+            className="group block bg-white rounded-2xl border-2 border-slate-200 shadow-sm hover:shadow-xl hover:border-amber-400 transition-all duration-300 overflow-hidden"
+          >
+            <div className="flex flex-col">
+              <div className="p-6">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="bg-amber-600 p-3 rounded-xl text-white shadow-md shadow-amber-200 group-hover:scale-110 transition-transform">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 mb-1 group-hover:text-amber-600 transition-colors">Lista de Proveedores</h2>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Gestión de contactos comerciales</p>
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">Descripción</p>
+                  <p className="text-sm text-slate-600">Directorio centralizado de proveedores. Permite gestionar datos de contacto, CUIT y nombres de fantasía para el sistema.</p>
+                </div>
+              </div>
+              <div className="p-4 bg-gradient-to-r from-amber-50 to-white border-t border-amber-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-600 uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+                    Acceder &rarr;
+                  </span>
+                  <svg className="w-5 h-5 text-amber-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

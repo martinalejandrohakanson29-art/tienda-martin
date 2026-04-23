@@ -680,6 +680,19 @@ model PuntoVenta {
   @@map("puntos_venta")
 }
 
+model Proveedor {
+  id             String   @id @default(cuid())
+  razonSocial    String
+  cuit           String   @unique
+  nombreFantasia String?
+  email          String?
+  telefono       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("proveedores")
+}
+
 // === RENDIMIENTO DEL NEGOCIO ===
 
 model RendimientoNegocio {

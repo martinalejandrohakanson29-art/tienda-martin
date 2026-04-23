@@ -195,3 +195,77 @@ export async function actualizarPack(id: string, nombre: string, precio: number,
     return { success: false, error: "No se pudo actualizar el pack" };
   }
 }
+// --- FUNCIONES PARA GESTIÓN DE PROVEEDORES ---
+
+export async function obtenerProveedores() {
+  try {
+    const proveedores = await prisma.proveedor.findMany({
+      orderBy: { razonSocial: 'asc' },
+    });
+    return { success: true, data: proveedores };
+  } catch (error) {
+    console.error("Error al obtener proveedores:", error);
+    return { success: false, error: "No se pudieron cargar los proveedores." };
+  }
+}
+
+export async function actualizarProveedor(id: string, data: {
+  razonSocial: string;
+  cuit: string;
+  nombreFantasia?: string | null;
+  email?: string | null;
+  telefono?: string | null;
+}) {
+  try {
+    const proveedor = await prisma.proveedor.update({
+      where: { id },
+      data: {
+        razonSocial: data.razonSocial,
+        cuit: data.cuit,
+        nombreFantasia: data.nombreFantasia,
+        email: data.email,
+        telefono: data.telefono,
+      }
+    });
+    return { success: true, data: proveedor };
+  } catch (error) {
+    console.error("Error al actualizar proveedor:", error);
+    return { success: false, error: "Ocurrió un error al guardar los cambios." };
+  }
+}
+
+export async function crearProveedor(data: {
+  razonSocial: string;
+  cuit: string;
+  nombreFantasia?: string | null;
+  email?: string | null;
+  telefono?: string | null;
+}) {
+  try {
+    const proveedor = await prisma.proveedor.create({
+      data: {
+        razonSocial: data.razonSocial,
+        cuit: data.cuit,
+        nombreFantasia: data.nombreFantasia,
+        email: data.email,
+        telefono: data.telefono,
+      }
+    });
+    return { success: true, data: proveedor };
+  } catch (error) {
+    console.error("Error al crear proveedor:", error);
+    return { success: false, error: "No se pudo crear el proveedor. Es posible que el CUIT ya exista." };
+  }
+}
+
+export async function eliminarProveedor(id: string) {
+  try {
+    await prisma.proveedor.delete({
+      where: { id }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al eliminar proveedor:", error);
+    return { success: false, error: "No se pudo eliminar el proveedor." };
+  }
+}

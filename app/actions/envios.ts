@@ -252,9 +252,28 @@ export async function getVentasRegistracion() {
             take: 100
         });
 
+        // Enriquecemos con datos de la vista de costos (receta)
+        const ventasEnriquecidas = await Promise.all(ventas.map(async (venta) => {
+            const viewResult: any[] = await prisma.$queryRaw`
+                SELECT ids_articulos, receta_detallada 
+                FROM vista_costos_productos 
+                WHERE mla = ${venta.mla} 
+                LIMIT 1
+            `;
+
+            if (viewResult.length > 0) {
+                return { 
+                    ...venta, 
+                    ids_articulos: viewResult[0].ids_articulos,
+                    receta_detallada: viewResult[0].receta_detallada
+                };
+            }
+            return { ...venta, ids_articulos: null, receta_detallada: null };
+        }));
+
         return { 
             success: true, 
-            data: ventas
+            data: ventasEnriquecidas
         };
     } catch (error) {
         console.error("Error al obtener ventas para registracion:", error);

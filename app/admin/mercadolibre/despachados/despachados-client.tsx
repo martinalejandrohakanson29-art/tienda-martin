@@ -271,6 +271,7 @@ export function DespachadosClient() {
                             <TableRow className="bg-slate-50/50">
                                 <TableHead className="w-[180px] font-bold text-[11px] uppercase text-slate-500">Venta / ID</TableHead>
                                 <TableHead className="font-bold text-[11px] uppercase text-slate-500">Productos</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase text-slate-500">Id agregados</TableHead>
                                 <TableHead className="font-bold text-[11px] uppercase text-slate-500">Agregados</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -300,14 +301,29 @@ export function DespachadosClient() {
                                         <TableCell className="align-top">
                                             <div className="flex flex-col gap-1.5">
                                                 {envio.items.map((item: any) => (
-                                                    <div key={item.id}>
+                                                    <div key={item.id} className="flex flex-col gap-1">
                                                         {item.agregadoInfo?.ids_articulos?.split(',').map((id: string, idx: number) => {
-                                                            const nombres = item.agregadoInfo.nombres_articulos?.split('|') || [];
                                                             const cleanId = id.trim(); if(!cleanId) return null;
                                                             return (
-                                                                <div key={idx} onClick={() => handleCopyText(cleanId)} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 cursor-pointer hover:bg-blue-50 transition-all mb-1">
-                                                                    <span className="text-blue-600 font-mono text-[10px] font-bold">{cleanId}</span>
-                                                                    <span className="text-slate-600 text-[10px] font-medium border-l pl-2 truncate max-w-[150px]">{nombres[idx]?.trim()}</span>
+                                                                <div key={idx} onClick={() => handleCopyText(cleanId)} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2 py-0.5 cursor-pointer hover:bg-blue-50 transition-all w-fit">
+                                                                    <span className="text-blue-600 font-mono text-[9px] font-bold">{cleanId}</span>
+                                                                    <Copy className="h-2.5 w-2.5 text-slate-300" />
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="align-top">
+                                            <div className="flex flex-col gap-1.5">
+                                                {envio.items.map((item: any) => (
+                                                    <div key={item.id} className="flex flex-col gap-1">
+                                                        {item.agregadoInfo?.nombres_articulos?.split('|').map((nombre: string, idx: number) => {
+                                                            const cleanNombre = nombre.trim(); if(!cleanNombre) return null;
+                                                            return (
+                                                                <div key={idx} className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]">
+                                                                    {cleanNombre}
                                                                 </div>
                                                             );
                                                         })}
@@ -363,6 +379,8 @@ export function DespachadosClient() {
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">ID Venta</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">ID Envío</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">MLA</TableHead>
+                                <TableHead className="font-bold text-[13px] uppercase text-slate-500">Id agregados</TableHead>
+                                <TableHead className="font-bold text-[13px] uppercase text-slate-500">Agregados</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">Nombre</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500 text-right">Bruto</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500 text-right">Neto</TableHead>
@@ -383,6 +401,28 @@ export function DespachadosClient() {
                                         <TableCell><div onClick={() => handleCopyText(venta.orderId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.orderId}</div></TableCell>
                                         <TableCell><div onClick={() => handleCopyText(venta.shippingId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.shippingId}</div></TableCell>
                                         <TableCell><div onClick={() => handleCopyText(venta.mla)} className="font-mono text-[13px] text-slate-500 cursor-pointer hover:text-blue-600">{venta.mla}</div></TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col gap-1">
+                                                {venta.ids_articulos?.split(/[+,]/).map((id: string, idx: number) => {
+                                                    const cleanId = id.trim(); if(!cleanId) return null;
+                                                    return (
+                                                        <div key={idx} onClick={() => handleCopyText(cleanId)} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-0.5 cursor-pointer hover:bg-blue-50 transition-all w-fit">
+                                                            <span className="text-blue-600 font-mono text-[9px] font-bold">{cleanId}</span>
+                                                            <Copy className="h-2.5 w-2.5 text-slate-300" />
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col gap-1">
+                                                {venta.receta_detallada?.split(' + ').map((r: string, idx: number) => (
+                                                    <div key={idx} className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]">
+                                                        {r}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </TableCell>
                                         <TableCell className="text-[13px] font-medium text-slate-700">{venta.nombre || '-'}</TableCell>
                                         <TableCell className="text-right font-mono text-[14px] font-bold text-slate-600">${Number(venta.bruto || 0).toLocaleString()}</TableCell>
                                         <TableCell className="text-right font-mono text-[14px] font-bold text-emerald-600">${Number(venta.neto || 0).toLocaleString()}</TableCell>

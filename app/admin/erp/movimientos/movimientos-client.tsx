@@ -14,6 +14,7 @@ interface Movimiento {
   descripcion: string | null;
   referencia: string | null;
   saldo: number;
+  anulado: boolean;
   proveedorNombre: string;
 }
 

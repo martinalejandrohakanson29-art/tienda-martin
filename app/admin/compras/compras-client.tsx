@@ -20,7 +20,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
-  crearCompra, obtenerComprasPorRango, actualizarCompra, eliminarCompra, obtenerHistorialCompra 
+  crearCompra, obtenerComprasPorRango, actualizarCompra, eliminarCompra, obtenerHistorialCompra, guardarComoPedidoCompra
 } from "@/app/actions/compras";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 import { actualizarPrecioArticuloDB, sincronizarArticulosMostrador } from "@/app/actions/ventas-mostrador";
@@ -202,6 +202,51 @@ export default function ComprasClient({
     }
     setIsModalOpen(false);
     setSearchTerm("");
+  };
+
+  const handleGuardarPedidoCompra = async () => {
+    if (metodoPago === "A Cuenta Corriente" && !proveedorId) {
+      alert("Debe seleccionar un proveedor de la lista para compras a Cuenta Corriente.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const res = await guardarComoPedidoCompra({
+        proveedor,
+        comprador: compradorNombre,
+        total: totalBase,
+        interes,
+        descuento,
+        totalFinal: totalFinalCalculado,
+        items,
+        metodo_pago: metodoPago,
+        dni,
+        telefono,
+        info,
+        comprobante,
+        transaccionId,
+        proveedorId
+      });
+
+      if (res.success) {
+        mostrarMensajeExito("¡Pedido de compra guardado!");
+        resetForm();
+        cargarCompras(fechaDesde, fechaHasta);
+        // Actualizar stock local (el pedido también suma stock en este sistema según compras.ts)
+        setArticulos(prev => prev.map(art => {
+            const itemComprado = items.find(i => i.productoId === art.id);
+            if (itemComprado) return { ...art, stock: art.stock + itemComprado.cantidad };
+            return art;
+        }));
+      } else {
+        alert("Error: " + res.error);
+      }
+    } catch (e) {
+      alert("Ocurrió un error inesperado.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleFinalizarCompra = async () => {
@@ -705,9 +750,16 @@ export default function ComprasClient({
                 </div>
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex justify-between items-center sm:justify-between w-full">
             <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)}>Cancelar</Button>
-            <Button onClick={handleFinalizarCompra} disabled={isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-8">Confirmar Registro</Button>
+            <div className="flex gap-2">
+                <Button onClick={handleGuardarPedidoCompra} disabled={items.length === 0 || isSubmitting} variant="outline" className="border-amber-500 text-amber-600 hover:bg-amber-50 rounded-xl px-4 text-xs h-10">
+                    Pedido de Compra
+                </Button>
+                <Button onClick={handleFinalizarCompra} disabled={items.length === 0 || isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-8 h-10">
+                    Confirmar Registro
+                </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

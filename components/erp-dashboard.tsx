@@ -104,13 +104,13 @@ export function ErpDashboard() {
                 <p className="text-xs text-slate-500">Órdenes en proceso</p>
               </Link>
 
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30 opacity-60 cursor-not-allowed" href="#">
-                <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-slate-200 transition-all duration-300">
-                  <span className="material-symbols-outlined text-3xl text-slate-400 dark:text-slate-500">inventory_2</span>
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/pedidos-compra">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mb-4 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400 group-hover:text-white">inventory_2</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos Compra</h3>
-                <p className="text-xs text-slate-500">Próximamente</p>
-              </a>
+                <p className="text-xs text-slate-500">Órdenes a proveedores</p>
+              </Link>
             </div>
           </div>
 

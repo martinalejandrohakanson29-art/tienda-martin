@@ -202,7 +202,40 @@ export async function obtenerProveedores() {
     const proveedores = await prisma.proveedor.findMany({
       orderBy: { razonSocial: 'asc' },
     });
-    return { success: true, data: proveedores };
+    
+    return { 
+      success: true, 
+      data: proveedores.map(p => {
+        const toNum = (val: any) => {
+          if (val === null || val === undefined) return 0;
+          if (typeof val === 'number') return val;
+          try {
+            const n = parseFloat(val.toString());
+            return isNaN(n) ? 0 : n;
+          } catch (e) {
+            return 0;
+          }
+        };
+
+        return {
+          id: p.id,
+          razonSocial: p.razonSocial || "",
+          cuit: p.cuit || "",
+          nombreFantasia: p.nombreFantasia,
+          email: p.email,
+          telefono: p.telefono,
+          celular: p.celular,
+          saldoAnterior: toNum(p.saldoAnterior),
+          saldoVencido: toNum(p.saldoVencido),
+          dias15: toNum(p.dias15),
+          dias30: toNum(p.dias30),
+          dias45: toNum(p.dias45),
+          dias60: toNum(p.dias60),
+          mas60: toNum(p.mas60),
+          total: toNum(p.total),
+        };
+      }) 
+    };
   } catch (error) {
     console.error("Error al obtener proveedores:", error);
     return { success: false, error: "No se pudieron cargar los proveedores." };

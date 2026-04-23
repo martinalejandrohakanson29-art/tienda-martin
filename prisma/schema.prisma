@@ -687,8 +687,19 @@ model Proveedor {
   nombreFantasia String?
   email          String?
   telefono       String?
+  celular        String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  // Datos de Cuenta Corriente
+  saldoAnterior Decimal @default(0) @db.Decimal(20, 2)
+  saldoVencido  Decimal @default(0) @db.Decimal(20, 2)
+  dias15        Decimal @default(0) @db.Decimal(20, 2)
+  dias30        Decimal @default(0) @db.Decimal(20, 2)
+  dias45        Decimal @default(0) @db.Decimal(20, 2)
+  dias60        Decimal @default(0) @db.Decimal(20, 2)
+  mas60         Decimal @default(0) @db.Decimal(20, 2)
+  total         Decimal @default(0) @db.Decimal(20, 2)
 
   @@map("proveedores")
 }

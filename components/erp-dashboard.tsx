@@ -92,22 +92,7 @@ export function ErpDashboard() {
                 <p className="text-xs text-slate-500">Registrar compras</p>
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-slate-600 dark:text-slate-400 group-hover:text-[#2b8cee]">search</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Consulta Ventas</h3>
-                <p className="text-xs text-slate-500">Historial y reportes</p>
-              </a>
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-slate-600 dark:text-slate-400 group-hover:text-[#2b8cee]">manage_search</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Consulta Compras</h3>
-                <p className="text-xs text-slate-500">Listado de facturas</p>
-              </a>
-            </div>
+            <div className="hidden lg:block"></div>
           </div>
 
           {/* SECCIÓN 2: TESORERÍA */}
@@ -128,21 +113,14 @@ export function ErpDashboard() {
                 <p className="text-xs text-slate-500">Registrar cobros</p>
               </a>
             </div>
-            <div className="grid grid-cols-2 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-slate-600 dark:text-slate-400 group-hover:text-[#2b8cee]">receipt</span>
+            <div className="grid grid-cols-1 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-blue-200 dark:border-blue-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/erp/cuenta-corriente">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
+                  <span className="material-symbols-outlined text-3xl text-blue-600 dark:text-blue-400">account_balance</span>
                 </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Consultar Cobros</h3>
-                <p className="text-xs text-slate-500">Archivo de ingresos</p>
-              </a>
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
-                <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-[#2b8cee]/10 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-slate-600 dark:text-slate-400 group-hover:text-[#2b8cee]">history_edu</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Consultar Pagos</h3>
-                <p className="text-xs text-slate-500">Archivo de egresos</p>
-              </a>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Cuenta Corriente</h3>
+                <p className="text-xs text-slate-500">Estado de cuentas proveedores</p>
+              </Link>
             </div>
           </div>
 

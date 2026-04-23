@@ -11,7 +11,7 @@ export default async function MovimientosPage() {
   
   return (
     <div className="w-full min-h-screen bg-[#f6f7f8] dark:bg-[#101922]">
-      <MovimientosClient movimientosIniciales={result.success ? result.data : []} />
+      <MovimientosClient movimientosIniciales={result.success && result.data ? result.data : []} />
     </div>
   );
 }

@@ -355,10 +355,15 @@ export async function obtenerMovimientosProveedor(proveedorId?: string) {
     return {
       success: true,
       data: movimientos.map(m => ({
-        ...m,
-        monto: Number(m.monto),
-        saldo: Number(m.saldo),
+        id: m.id,
+        proveedorId: m.proveedorId,
         fecha: m.fecha.toISOString(),
+        tipo: m.tipo,
+        monto: Number(m.monto),
+        descripcion: m.descripcion,
+        referencia: m.referencia,
+        saldo: Number(m.saldo),
+        anulado: m.anulado,
         proveedorNombre: m.proveedor.razonSocial
       }))
     };

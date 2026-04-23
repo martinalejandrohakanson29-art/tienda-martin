@@ -269,7 +269,7 @@ export async function limpiarVentasRegistracion(ids?: string[]) {
     try {
         if (ids && ids.length > 0) {
             await prisma.ventaMLRegistracion.deleteMany({
-                where: { id: { in: ids } }
+                where: { shippingId: { in: ids } }
             });
         } else {
             await prisma.ventaMLRegistracion.deleteMany({});

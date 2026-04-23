@@ -771,6 +771,17 @@ model GastoNegocio {
   @@map("gastos_negocio")
 }
 
+model VentaMLRegistracion {
+  shippingId String   @id
+  orderId    String
+  mla        String
+  categoria  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("ventas_ml_registracion")
+}
+
 enum Role {
   ADMIN
   USER

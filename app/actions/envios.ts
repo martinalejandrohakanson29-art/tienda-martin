@@ -241,3 +241,42 @@ export async function getEtiquetasPreparadas(fecha: string) {
         return { success: false, data: [] };
     }
 }
+
+/**
+ * Obtiene las ventas pendientes de registración desde la tabla temporal
+ */
+export async function getVentasRegistracion() {
+    try {
+        const ventas = await prisma.ventaMLRegistracion.findMany({
+            orderBy: { createdAt: 'desc' },
+            take: 100
+        });
+
+        return { 
+            success: true, 
+            data: ventas
+        };
+    } catch (error) {
+        console.error("Error al obtener ventas para registracion:", error);
+        return { success: false, data: [] };
+    }
+}
+
+/**
+ * Limpia la tabla de registración (opcional, para después de procesar)
+ */
+export async function limpiarVentasRegistracion(ids?: string[]) {
+    try {
+        if (ids && ids.length > 0) {
+            await prisma.ventaMLRegistracion.deleteMany({
+                where: { id: { in: ids } }
+            });
+        } else {
+            await prisma.ventaMLRegistracion.deleteMany({});
+        }
+        return { success: true };
+    } catch (error) {
+        console.error("Error al limpiar ventas registracion:", error);
+        return { success: false };
+    }
+}

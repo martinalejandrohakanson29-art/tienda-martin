@@ -273,11 +273,11 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
 
     setIsProcessing(true);
     let successCount = 0;
-    
+
     for (const id of idsToDownload) {
       const compra = compras.find(c => c.id === id);
       const fileName = `pedido_compra_${compra?.proveedor?.replace(/[^a-zA-Z0-9]/g, '_') || id.slice(0, 8)}.pdf`;
-      
+
       try {
         const result = await obtenerURLDescargaPDFCompra(id);
         if (result.success && result.url) {
@@ -301,8 +301,8 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
   };
 
   const handleSincronizarN8N = async () => {
-    const pedidosIds = selectedIds.size > 0 
-      ? Array.from(selectedIds) 
+    const pedidosIds = selectedIds.size > 0
+      ? Array.from(selectedIds)
       : compras.map(v => v.id);
 
     if (pedidosIds.length === 0) {
@@ -737,17 +737,17 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Proveedor</Label>
-                  <Input 
-                    value={editingCompra.proveedor} 
-                    onChange={e => setEditingCompra(prev => prev ? {...prev, proveedor: e.target.value} : null)}
+                  <Input
+                    value={editingCompra.proveedor}
+                    onChange={e => setEditingCompra(prev => prev ? { ...prev, proveedor: e.target.value } : null)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Método de Pago</Label>
-                  <select 
+                  <select
                     className="w-full h-10 px-3 rounded-md border border-slate-300 text-sm"
                     value={editingCompra.metodo_pago}
-                    onChange={e => setEditingCompra(prev => prev ? {...prev, metodo_pago: e.target.value} : null)}
+                    onChange={e => setEditingCompra(prev => prev ? { ...prev, metodo_pago: e.target.value } : null)}
                   >
                     <option value="Efectivo">Efectivo</option>
                     <option value="Transferencia">Transferencia</option>
@@ -757,12 +757,12 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
               </div>
               <div className="space-y-2">
                 <Label>Observaciones</Label>
-                <Input 
-                  value={editingCompra.info || ""} 
-                  onChange={e => setEditingCompra(prev => prev ? {...prev, info: e.target.value} : null)}
+                <Input
+                  value={editingCompra.info || ""}
+                  onChange={e => setEditingCompra(prev => prev ? { ...prev, info: e.target.value } : null)}
                 />
               </div>
-              
+
               <div className="border-t pt-4">
                 <Label className="font-bold">Items del Pedido</Label>
                 <div className="mt-2 space-y-2">
@@ -771,10 +771,10 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                       <span className="flex-1 font-medium">{item.nombre}</span>
                       <div className="w-20">
                         <Label className="text-[10px]">Cant.</Label>
-                        <Input 
-                          type="number" 
-                          className="h-8 text-xs" 
-                          value={item.cantidad} 
+                        <Input
+                          type="number"
+                          className="h-8 text-xs"
+                          value={item.cantidad}
                           onChange={e => {
                             setEditingCompra(prev => {
                               if (!prev) return null;

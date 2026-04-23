@@ -236,16 +236,21 @@ export async function crearVentaMostrador(data: {
         }
       }
 
-      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" ---
-      if (data.metodo_pago === "Cruzada" && data.para) {
-        let proveedor = await tx.proveedor.findUnique({
-          where: { id: data.para }
-        }).catch(() => null);
+      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" o "A Cuenta Corriente" ---
+      if ((data.metodo_pago === "Cruzada" || data.metodo_pago === "A Cuenta Corriente") && data.para) {
+        const idBuscado = data.para;
+        
+        let proveedor = null;
+        if (idBuscado) {
+          proveedor = await tx.proveedor.findUnique({
+            where: { id: idBuscado }
+          }).catch(() => null);
 
-        if (!proveedor) {
-          proveedor = await tx.proveedor.findFirst({
-            where: { razonSocial: data.para }
-          });
+          if (!proveedor) {
+            proveedor = await tx.proveedor.findFirst({
+              where: { razonSocial: idBuscado }
+            });
+          }
         }
 
         if (proveedor) {
@@ -262,7 +267,7 @@ export async function crearVentaMostrador(data: {
               proveedorId: proveedor.id,
               tipo: "HABER",
               monto: montoDecimal,
-              descripcion: `Pago de venta #${venta.numeroVenta} (${data.cliente})`,
+              descripcion: `${data.metodo_pago === "Cruzada" ? "Pago de venta" : "Venta a CC"} #${venta.numeroVenta} (${data.cliente})`,
               referencia: venta.id,
               saldo: nuevoSaldo
             }
@@ -380,6 +385,44 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
         where: { ventaId }
       });
 
+      // --- NUEVO: Revertir saldo de proveedor si la venta anterior era "Cruzada" o "A Cuenta Corriente" ---
+      const oldVenta = await tx.venta.findUnique({
+        where: { id: ventaId }
+      });
+
+      if (oldVenta && (oldVenta.metodo_pago === "Cruzada" || oldVenta.metodo_pago === "A Cuenta Corriente")) {
+        const idProveedor = oldVenta.metodo_pago === "A Cuenta Corriente" ? oldVenta.para : oldVenta.para; 
+        // Nota: en el schema 'para' se usa tanto para el ID como para el nombre en algunos casos.
+        // En crearVentaMostrador estamos guardando el ID en 'para' si es A Cuenta Corriente? 
+        // Mejor revisemos cómo guardamos.
+        
+        let proveedor = await tx.proveedor.findUnique({
+          where: { id: oldVenta.para || "" }
+        }).catch(() => null);
+
+        if (!proveedor) {
+          proveedor = await tx.proveedor.findFirst({
+            where: { razonSocial: oldVenta.para || "" }
+          });
+        }
+
+        if (proveedor) {
+          const montoRevertir = new Prisma.Decimal(oldVenta.totalFinal);
+          const nuevoSaldo = proveedor.total.minus(montoRevertir);
+
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
+
+          // Marcar movimiento anterior como anulado
+          await tx.movimientoProveedor.updateMany({
+            where: { referencia: ventaId, proveedorId: proveedor.id, anulado: false },
+            data: { anulado: true }
+          });
+        }
+      }
+
       // Revertir el stock (sumar lo que se había restado originalmente)
       for (const oldItem of oldItems) {
         if (oldItem.productoId) {
@@ -438,6 +481,42 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           }
         }
       });
+
+      // --- NUEVO: Aplicar saldo de proveedor si la nueva versión es "Cruzada" o "A Cuenta Corriente" ---
+      if ((data.metodo_pago === "Cruzada" || data.metodo_pago === "A Cuenta Corriente") && data.para) {
+        const idBuscado = data.para;
+
+        let proveedor = await tx.proveedor.findUnique({
+          where: { id: idBuscado || "" }
+        }).catch(() => null);
+
+        if (!proveedor) {
+          proveedor = await tx.proveedor.findFirst({
+            where: { razonSocial: data.para || "" }
+          });
+        }
+
+        if (proveedor) {
+          const montoDecimal = new Prisma.Decimal(data.totalFinal);
+          const nuevoSaldo = proveedor.total.plus(montoDecimal);
+
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
+
+          await tx.movimientoProveedor.create({
+            data: {
+              proveedorId: proveedor.id,
+              tipo: "HABER",
+              monto: montoDecimal,
+              descripcion: `EDICIÓN: ${data.metodo_pago === "Cruzada" ? "Pago de venta" : "Venta a CC"} #${oldVenta?.numeroVenta} (${data.cliente})`,
+              referencia: ventaId,
+              saldo: nuevoSaldo
+            }
+          });
+        }
+      }
 
       // --- NUEVO: 4. Descontar el stock de los nuevos items ---
       for (const newItem of data.items) {
@@ -583,15 +662,15 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
         where: { ventaId }
       });
 
-      // --- NUEVO: Revertir saldo de proveedor si la venta era "Cruzada" ---
-      if (venta?.metodo_pago === "Cruzada" && venta.para) {
+      // --- NUEVO: Revertir saldo de proveedor si la venta era "Cruzada" o "A Cuenta Corriente" ---
+      if (venta && (venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente")) {
         let proveedor = await tx.proveedor.findUnique({
-          where: { id: venta.para }
+          where: { id: venta.para || "" }
         }).catch(() => null);
 
         if (!proveedor) {
           proveedor = await tx.proveedor.findFirst({
-            where: { razonSocial: venta.para }
+            where: { razonSocial: venta.para || "" }
           });
         }
 
@@ -616,7 +695,7 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
               proveedorId: proveedor.id,
               tipo: "EGRESO",
               monto: montoRevertir.negated(),
-              descripcion: `ANULACIÓN: Venta #${venta.numeroVenta} (${venta.cliente}) eliminada`,
+              descripcion: `ANULACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) eliminada`,
               referencia: venta.id,
               saldo: nuevoSaldo,
               anulado: true
@@ -882,8 +961,8 @@ export async function confirmarPedidoVenta(ventaId: string) {
         data: { tipoVenta: "CONFIRMADA" }
       });
 
-      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" ---
-      if (venta.metodo_pago === "Cruzada" && venta.para) {
+      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" o "A Cuenta Corriente" ---
+      if ((venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente") && venta.para) {
         let proveedor = await tx.proveedor.findUnique({
           where: { id: venta.para }
         }).catch(() => null);
@@ -908,7 +987,7 @@ export async function confirmarPedidoVenta(ventaId: string) {
               proveedorId: proveedor.id,
               tipo: "HABER",
               monto: montoDecimal,
-              descripcion: `Pago de venta #${venta.numeroVenta} (${venta.cliente}) - Confirmación Pedido`,
+              descripcion: `${venta.metodo_pago === "Cruzada" ? "Pago de venta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) - Confirmación Pedido`,
               referencia: venta.id,
               saldo: nuevoSaldo
             }

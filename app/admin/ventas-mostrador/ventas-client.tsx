@@ -409,6 +409,7 @@ export default function VentasMostradorClient({
   // SOLAMENTE SE REQUIEREN DATOS EXTRA SEGÚN EL MÉTODO EXACTO
   const requiereTarjeta = isPagoMixto ? (esTarjeta(metodoPago) || esTarjeta(metodoPago2)) : esTarjeta(metodoPago);
   const requiereCruzada = (isPagoMixto && (metodoPago === "Cruzada" || metodoPago2 === "Cruzada")) || (!isPagoMixto && metodoPago === "Cruzada");
+  const requiereCuentaCorriente = (isPagoMixto && (metodoPago === "A Cuenta Corriente" || metodoPago2 === "A Cuenta Corriente")) || (!isPagoMixto && metodoPago === "A Cuenta Corriente");
 
   // --- FUNCIONES PARA IMPRESIÓN ---
   const handleImprimirPresupuesto = () => {
@@ -483,6 +484,7 @@ export default function VentasMostradorClient({
       alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return;
     }
     if (requiereCruzada && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para pagos Cruzados."); return; }
+    if (requiereCuentaCorriente && !paraCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
 
     const clienteFinal = cliente;
 
@@ -587,6 +589,7 @@ export default function VentasMostradorClient({
   // SOLAMENTE SE REQUIEREN DATOS EXTRA SEGÚN EL MÉTODO EXACTO EN EDICIÓN
   const requiereTarjetaEdit = isEditPagoMixto ? (esTarjeta(editMetodoPago) || esTarjeta(editMetodoPago2)) : esTarjeta(editMetodoPago);
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
+  const requiereCuentaCorrienteEdit = (isEditPagoMixto && (editMetodoPago === "A Cuenta Corriente" || editMetodoPago2 === "A Cuenta Corriente")) || (!isEditPagoMixto && editMetodoPago === "A Cuenta Corriente");
 
   const abrirModalEdicion = async (venta: { id: string; cliente: string; email?: string; metodo_pago: string; totalFinal: number; items: Array<{ productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }>; createdAt: string; total: number; interes: number; dni?: string; telefono?: string; cupon?: string; transaccionId?: string; de?: string; para?: string; eventoOffline?: boolean; info?: string; puntoVentaId?: string }) => {
     // Sincronizar artículos con la base de datos para asegurar precios correctos
@@ -660,6 +663,7 @@ export default function VentasMostradorClient({
       alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return;
     }
     if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
+    if (requiereCuentaCorrienteEdit && !editParaCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
 
     let cambios = [];
     if (ventaOriginalParaComparar.cliente !== editCliente) cambios.push(`Cliente modificado`);
@@ -1612,7 +1616,8 @@ export default function VentasMostradorClient({
                       <option value="Efectivo">Efectivo</option>
                       <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                       <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                      <option value="Cruzada">Cruzada</option>
+                       <option value="Cruzada">Cruzada</option>
+                      <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                     </select>
                     <div>
                       <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
@@ -1639,7 +1644,8 @@ export default function VentasMostradorClient({
                     <option value="Efectivo">Efectivo</option>
                     <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                     <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                    <option value="Cruzada">Cruzada</option>
+                     <option value="Cruzada">Cruzada</option>
+                    <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                   </select>
                 </div>
               )}
@@ -1653,11 +1659,13 @@ export default function VentasMostradorClient({
                 </div>
               )}
 
-              {requiereCruzada && (
+              {(requiereCruzada || requiereCuentaCorriente) && (
                 <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
-                  <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
-                  <div className="space-y-2 relative">
-                    <Label className="text-xs font-bold text-amber-700">Para <span className="text-red-500">*</span></Label>
+                  {requiereCruzada && (
+                    <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
+                  )}
+                  <div className={`space-y-2 relative ${!requiereCruzada ? 'col-span-2' : ''}`}>
+                    <Label className="text-xs font-bold text-amber-700">{requiereCuentaCorriente ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
                     <div className="flex gap-2">
                       <div className="relative flex-1">
                         <Input 
@@ -1850,6 +1858,7 @@ export default function VentasMostradorClient({
                           <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                           <option value="Tarjeta de Débito">Tarjeta de Débito</option>
                           <option value="Cruzada">Cruzada</option>
+                          <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                         </select>
                         <div>
                           <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto 1</Label>
@@ -1869,6 +1878,7 @@ export default function VentasMostradorClient({
                           <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                           <option value="Tarjeta de Débito">Tarjeta de Débito</option>
                           <option value="Cruzada">Cruzada</option>
+                          <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                         </select>
                         <div>
                           <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto 2</Label>
@@ -1896,6 +1906,7 @@ export default function VentasMostradorClient({
                         <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                         <option value="Tarjeta de Débito">Tarjeta de Débito</option>
                         <option value="Cruzada">Cruzada</option>
+                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                       </select>
                     </div>
                   )}
@@ -1922,14 +1933,16 @@ export default function VentasMostradorClient({
                   </div>
                 )}
 
-                {requiereCruzadaEdit && (
+                {(requiereCruzadaEdit || requiereCuentaCorrienteEdit) && (
                   <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-200 animate-in fade-in">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-amber-800">De <span className="text-red-500">*</span></Label>
-                      <Input value={editDeCruzada} onChange={(e) => setEditDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" />
-                    </div>
-                    <div className="space-y-2 relative">
-                      <Label className="text-xs font-bold text-amber-800">Para <span className="text-red-500">*</span></Label>
+                    {requiereCruzadaEdit && (
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-amber-800">De <span className="text-red-500">*</span></Label>
+                        <Input value={editDeCruzada} onChange={(e) => setEditDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" />
+                      </div>
+                    )}
+                    <div className={`space-y-2 relative ${!requiereCruzadaEdit ? 'col-span-2' : ''}`}>
+                      <Label className="text-xs font-bold text-amber-800">{requiereCuentaCorrienteEdit ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
                       <div className="flex gap-2">
                         <div className="relative flex-1">
                           <Input 

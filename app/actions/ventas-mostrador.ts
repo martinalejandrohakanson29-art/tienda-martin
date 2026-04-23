@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { s3Client } from "@/lib/s3"
 import { 
   S3Client,
@@ -230,6 +231,40 @@ export async function crearVentaMostrador(data: {
               stock: {
                 decrement: item.cantidad
               }
+            }
+          });
+        }
+      }
+
+      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" ---
+      if (data.metodo_pago === "Cruzada" && data.para) {
+        let proveedor = await tx.proveedor.findUnique({
+          where: { id: data.para }
+        }).catch(() => null);
+
+        if (!proveedor) {
+          proveedor = await tx.proveedor.findFirst({
+            where: { razonSocial: data.para }
+          });
+        }
+
+        if (proveedor) {
+          const montoDecimal = new Prisma.Decimal(data.totalFinal);
+          const nuevoSaldo = proveedor.total.plus(montoDecimal);
+
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
+
+          await tx.movimientoProveedor.create({
+            data: {
+              proveedorId: proveedor.id,
+              tipo: "HABER",
+              monto: montoDecimal,
+              descripcion: `Pago de venta #${venta.numeroVenta} (${data.cliente})`,
+              referencia: venta.id,
+              saldo: nuevoSaldo
             }
           });
         }
@@ -538,10 +573,57 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
   try {
     // Usamos transacción para asegurar que Venta y sus items se eliminen juntos
     await prisma.$transaction(async (tx) => {
+      // 0. Obtener la venta antes de borrarla
+      const venta = await tx.venta.findUnique({
+        where: { id: ventaId }
+      });
+
       // 1. Obtener los items actuales para registrar en auditoría
       const items = await tx.ventaItem.findMany({
         where: { ventaId }
       });
+
+      // --- NUEVO: Revertir saldo de proveedor si la venta era "Cruzada" ---
+      if (venta?.metodo_pago === "Cruzada" && venta.para) {
+        let proveedor = await tx.proveedor.findUnique({
+          where: { id: venta.para }
+        }).catch(() => null);
+
+        if (!proveedor) {
+          proveedor = await tx.proveedor.findFirst({
+            where: { razonSocial: venta.para }
+          });
+        }
+
+        if (proveedor) {
+          const montoRevertir = new Prisma.Decimal(venta.totalFinal);
+          const nuevoSaldo = proveedor.total.minus(montoRevertir);
+
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
+
+          // Marcar el movimiento original como anulado
+          await tx.movimientoProveedor.updateMany({
+            where: { referencia: venta.id, proveedorId: proveedor.id },
+            data: { anulado: true }
+          });
+
+          // Crear un movimiento de anulación para que el historial sea claro
+          await tx.movimientoProveedor.create({
+            data: {
+              proveedorId: proveedor.id,
+              tipo: "EGRESO",
+              monto: montoRevertir.negated(),
+              descripcion: `ANULACIÓN: Venta #${venta.numeroVenta} (${venta.cliente}) eliminada`,
+              referencia: venta.id,
+              saldo: nuevoSaldo,
+              anulado: true
+            }
+          });
+        }
+      }
 
       // 2. Registrar auditoría de eliminación
       await tx.ventaAuditoria.create({
@@ -794,10 +876,50 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
 
 export async function confirmarPedidoVenta(ventaId: string) {
   try {
-    await prisma.venta.update({
-      where: { id: ventaId },
-      data: { tipoVenta: "CONFIRMADA" }
+    const result = await prisma.$transaction(async (tx) => {
+      const venta = await tx.venta.update({
+        where: { id: ventaId },
+        data: { tipoVenta: "CONFIRMADA" }
+      });
+
+      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" ---
+      if (venta.metodo_pago === "Cruzada" && venta.para) {
+        let proveedor = await tx.proveedor.findUnique({
+          where: { id: venta.para }
+        }).catch(() => null);
+
+        if (!proveedor) {
+          proveedor = await tx.proveedor.findFirst({
+            where: { razonSocial: venta.para }
+          });
+        }
+
+        if (proveedor) {
+          const montoDecimal = new Prisma.Decimal(venta.totalFinal);
+          const nuevoSaldo = proveedor.total.plus(montoDecimal);
+
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
+
+          await tx.movimientoProveedor.create({
+            data: {
+              proveedorId: proveedor.id,
+              tipo: "HABER",
+              monto: montoDecimal,
+              descripcion: `Pago de venta #${venta.numeroVenta} (${venta.cliente}) - Confirmación Pedido`,
+              referencia: venta.id,
+              saldo: nuevoSaldo
+            }
+          });
+        }
+      }
+
+      return venta;
     });
+
+    return { success: true, data: result };
 
     return { success: true };
   } catch (error) {

@@ -71,86 +71,104 @@ export function ErpDashboard() {
       </header>
 
       <main className="flex-grow flex flex-col items-center justify-start px-4 py-8 max-w-7xl mx-auto w-full">
-        <div className="w-full max-w-6xl space-y-10">
+        <div className="w-full max-w-6xl space-y-12">
           
-          {/* SECCIÓN 1: COMPRAS Y VENTAS */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <div className="grid grid-cols-2 gap-4">
-              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/ventas-mostrador">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">sell</span>
+          {/* SECCIÓN 1: OPERACIONES */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="material-symbols-outlined text-[#2b8cee]">inventory</span>
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">COMPRAS Y VENTAS</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/ventas-mostrador">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400 group-hover:text-white">sell</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Ventas</h3>
-                <p className="text-xs text-slate-500">Registrar Ventas (Mostrador)</p>
+                <p className="text-xs text-slate-500">Registrar Mostrador</p>
               </Link>
 
-              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/compras">
-                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-100 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">shopping_cart</span>
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/compras">
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400 group-hover:text-white">shopping_cart</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Compras</h3>
                 <p className="text-xs text-slate-500">Registrar compras</p>
               </Link>
+
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/pedidos-venta">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center mb-4 group-hover:bg-amber-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-amber-600 dark:text-amber-400 group-hover:text-white">assignment</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos Venta</h3>
+                <p className="text-xs text-slate-500">Órdenes en proceso</p>
+              </Link>
+
+              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30 opacity-60 cursor-not-allowed" href="#">
+                <div className="w-14 h-14 rounded-2xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center mb-4 group-hover:bg-slate-200 transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-slate-400 dark:text-slate-500">inventory_2</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos Compra</h3>
+                <p className="text-xs text-slate-500">Próximamente</p>
+              </a>
             </div>
-            <div className="hidden lg:block"></div>
           </div>
 
-          {/* SECCIÓN 2: TESORERÍA */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <div className="grid grid-cols-2 gap-4">
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
-                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-100 transition-colors">
+          {/* SECCIÓN 2: TESORERÍA Y CUENTAS */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="material-symbols-outlined text-[#2b8cee]">payments</span>
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">MOVIMIENTOS CUENTA CORRIENTE</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30 opacity-60 cursor-not-allowed" href="#">
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-500 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">payments</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Pagos</h3>
-                <p className="text-xs text-slate-500">Registrar pagos</p>
+                <p className="text-xs text-slate-500">Efectivo/Bancos</p>
               </a>
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
+
+              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30 opacity-60 cursor-not-allowed" href="#">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-500 transition-colors">
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">account_balance_wallet</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Cobros</h3>
-                <p className="text-xs text-slate-500">Registrar cobros</p>
+                <p className="text-xs text-slate-500">Caja diaria</p>
               </a>
-            </div>
-            <div className="grid grid-cols-1 gap-4 border-l border-slate-200 dark:border-slate-800 lg:pl-10">
-              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-blue-200 dark:border-blue-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/erp/cuenta-corriente">
-                <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-blue-600 dark:text-blue-400">account_balance</span>
+
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-blue-200 dark:border-blue-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/cuenta-corriente">
+                <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center mb-4 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-blue-600 dark:text-blue-400 group-hover:text-white">account_balance</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Cuenta Corriente</h3>
-                <p className="text-xs text-slate-500">Estado de cuentas proveedores</p>
+                <p className="text-xs text-slate-500">Saldos Proveedores</p>
+              </Link>
+
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/movimientos">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mb-4 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400 group-hover:text-white">history</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Historial Saldo</h3>
+                <p className="text-xs text-slate-500">Listado Movimientos</p>
               </Link>
             </div>
           </div>
 
-          {/* SECCIÓN 3: PEDIDOS Y LISTAS */}
-          <div className="pt-2">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mx-auto">
-              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="/admin/erp/pedidos-venta">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-100 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400">assignment</span>
+          {/* SECCIÓN 3: ADMINISTRACIÓN */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="material-symbols-outlined text-[#2b8cee]">settings</span>
+              <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Catálogos y Listas</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/listas">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mb-4 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400 group-hover:text-white">database</span>
                 </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos de Ventas</h3>
-                <p className="text-xs text-slate-500">Órdenes en proceso</p>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Consultar Listas</h3>
+                <p className="text-xs text-slate-500">Precios y Stock</p>
               </Link>
-              <a className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg" href="#">
-                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-100 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400">inventory_2</span>
-                </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos de Compras</h3>
-                <p className="text-xs text-slate-500">Solicitudes pendientes</p>
-              </a>
-              
-              {/* === NUEVA TARJETA: CONSULTAR LISTAS === */}
-              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg shadow-sm" href="/admin/listas">
-                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center mb-4 group-hover:bg-indigo-100 transition-colors">
-                  <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400">database</span>
-                </div>
-                <h3 className="text-base font-bold text-indigo-900 dark:text-indigo-400">Consultar Listas</h3>
-                <p className="text-xs text-slate-500">Artículos, stock y catálogos</p>
-              </Link>
-              {/* ======================================= */}
             </div>
           </div>
 

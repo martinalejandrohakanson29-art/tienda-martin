@@ -701,7 +701,26 @@ model Proveedor {
   mas60         Decimal @default(0) @db.Decimal(20, 2)
   total         Decimal @default(0) @db.Decimal(20, 2)
 
+  movimientos    MovimientoProveedor[]
+
   @@map("proveedores")
+}
+
+model MovimientoProveedor {
+  id          String   @id @default(cuid())
+  proveedorId String
+  proveedor   Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  fecha       DateTime @default(now())
+  tipo        String   // "INGRESO" o "EGRESO" (o DEBE/HABER)
+  monto       Decimal  @db.Decimal(20, 2)
+  descripcion String?
+  referencia  String?  // ID de la venta o documento
+  saldo       Decimal  @db.Decimal(20, 2) // Saldo resultante
+  anulado     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("movimientos_proveedor")
 }
 
 // === RENDIMIENTO DEL NEGOCIO ===

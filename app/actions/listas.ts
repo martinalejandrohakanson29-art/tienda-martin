@@ -338,3 +338,32 @@ export async function eliminarProveedor(id: string) {
     return { success: false, error: "No se pudo eliminar el proveedor." };
   }
 }
+
+export async function obtenerMovimientosProveedor(proveedorId?: string) {
+  try {
+    const where = proveedorId ? { proveedorId } : {};
+    const movimientos = await prisma.movimientoProveedor.findMany({
+      where,
+      orderBy: { fecha: 'desc' },
+      include: {
+        proveedor: {
+          select: { razonSocial: true }
+        }
+      }
+    });
+
+    return {
+      success: true,
+      data: movimientos.map(m => ({
+        ...m,
+        monto: Number(m.monto),
+        saldo: Number(m.saldo),
+        fecha: m.fecha.toISOString(),
+        proveedorNombre: m.proveedor.razonSocial
+      }))
+    };
+  } catch (error) {
+    console.error("Error al obtener movimientos:", error);
+    return { success: false, error: "No se pudieron cargar los movimientos." };
+  }
+}

@@ -7,7 +7,7 @@ export async function POST(req: Request) {
     const { action } = body;
 
     // URL del webhook de n8n para obtener ventas a registrar
-    const N8N_WEBHOOK_URL = process.env.N8N_REGISTRACION_VENTAS_URL;
+    const N8N_WEBHOOK_URL = process.env.N8N_REGISTRACION_VENTAS_URL || "https://n8n.revolucionmotos.tech/webhook/Registracion";
 
     if (!N8N_WEBHOOK_URL) {
       // Si no está configurado, devolvemos datos de prueba para que puedan trabajar en n8n

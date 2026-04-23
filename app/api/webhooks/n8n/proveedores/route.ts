@@ -14,15 +14,15 @@ export async function POST(req: Request) {
       // Función para buscar valor por múltiples posibles nombres de campos
       const getVal = (fields: string[]) => {
         for (const f of fields) {
-          if (item[f] !== undefined) return item[f];
+          if (item[f] !== undefined && item[f] !== null) return item[f];
           // Probar versión en minúsculas y sin espacios extras
           const normalizedKey = Object.keys(item).find(k => k.trim().toLowerCase() === f.toLowerCase());
-          if (normalizedKey) return item[normalizedKey];
+          if (normalizedKey && item[normalizedKey] !== null) return item[normalizedKey];
         }
         return undefined;
       };
 
-      // Mapeo flexible de campos según lo solicitado
+      // Mapeo flexible de campos
       const razonSocial = getVal(["razonSocial", "nombre", "razon social", "Cliente/Proveedor", "Cliente"]);
       const cuit = getVal(["cuit", "dni", "cuit/dni", "CUIT"]);
       const nombreFantasia = getVal(["nombreFantasia", "fantasia", "nombre de fantasia"]);
@@ -30,7 +30,30 @@ export async function POST(req: Request) {
       const telefono = getVal(["telefono", "tel", "phone", "Telefono"]);
       const celular = getVal(["celular", "cel", "Celular"]);
       
-      // Datos de cuenta corriente
+      // Validación: Solo la Razón Social es estrictamente necesaria
+      if (!razonSocial || String(razonSocial).trim() === "") {
+        results.push({ 
+          status: "skipped", 
+          message: "Falta razon social", 
+          provided: { razonSocial, cuit } 
+        });
+        continue;
+      }
+
+      // Normalización de Razón Social
+      const razonSocialValue = String(razonSocial).trim();
+      
+      // Normalización de CUIT: Si es vacío, debe ser null para no romper el @unique en la DB
+      const cuitRaw = String(cuit || "").trim();
+      const cuitValue = (cuitRaw === "" || cuitRaw.toLowerCase() === "null") ? null : cuitRaw;
+
+      // Función de limpieza para strings opcionales
+      const clean = (val: any) => {
+        const s = String(val || "").trim();
+        return (s === "" || s.toLowerCase() === "null") ? null : s;
+      };
+      
+      // Datos de cuenta corriente (parseo de números)
       const parseDecimal = (val: any) => {
         const originalVal = val;
         if (val === undefined || val === null || val === "") return 0;
@@ -38,26 +61,17 @@ export async function POST(req: Request) {
         
         let cleanVal = String(val).trim();
         
-        // Si tiene coma y punto, asumimos punto miles y coma decimal (estilo ES/AR)
+        // Formato ES/AR: punto miles y coma decimal
         if (cleanVal.includes(",") && cleanVal.includes(".")) {
           cleanVal = cleanVal.replace(/\./g, "").replace(",", ".");
         } 
-        // Si solo tiene coma, asumimos que es el decimal
         else if (cleanVal.includes(",")) {
           cleanVal = cleanVal.replace(",", ".");
         }
         
-        // Eliminar todo lo que no sea número, punto o signo menos
         cleanVal = cleanVal.replace(/[^0-9.-]/g, "");
-        
         const parsed = parseFloat(cleanVal);
-        const result = isNaN(parsed) ? 0 : parsed;
-        
-        if (result === 0 && originalVal !== 0 && originalVal !== "0") {
-          console.log(`[parseDecimal] OJO: '${originalVal}' se parseó como 0. Clean: '${cleanVal}'`);
-        }
-        
-        return result;
+        return isNaN(parsed) ? 0 : parsed;
       };
 
       const saldoAnterior = parseDecimal(getVal(["saldoAnterior", "S. Anterior", "Anterior", "Saldo Anterior"]));
@@ -69,40 +83,28 @@ export async function POST(req: Request) {
       const mas60 = parseDecimal(getVal(["mas60", "+ 60 dias", "mas 60", "más 60 días"]));
       const total = parseDecimal(getVal(["total", "Total", "Saldo Total", "Saldo"]));
 
-      if (!razonSocial) {
-        results.push({ 
-          status: "skipped", 
-          message: "Falta razon social", 
-          provided: { razonSocial } 
-        });
-        continue;
-      }
-      
-      const clean = (val: any) => (val === "null" || val === "" || val === undefined) ? null : String(val).trim();
-      const cuitValue = cuit ? String(cuit).trim() : null;
-      const razonSocialValue = String(razonSocial).trim();
+      console.log(`Procesando: ${razonSocialValue}, CUIT: ${cuitValue || 'N/A'}`);
 
-      console.log(`Mapeando item: ${razonSocialValue}, CUIT: ${cuitValue}, Total: ${total}`);
-
-      // Intentamos encontrar el proveedor existente
+      // Búsqueda de proveedor existente
       let proveedorExistente = null;
 
+      // 1. Intentar por CUIT si existe
       if (cuitValue) {
         proveedorExistente = await prisma.proveedor.findUnique({
           where: { cuit: cuitValue }
         });
       }
 
+      // 2. Fallback por Razón Social (si no hay CUIT o no se encontró)
       if (!proveedorExistente) {
-        // Fallback por nombre si no hay CUIT o no se encontró por CUIT
         proveedorExistente = await prisma.proveedor.findFirst({
           where: { razonSocial: razonSocialValue }
         });
       }
 
-      let proveedor;
-      const dataUpdate = {
+      const dataPayload = {
         razonSocial: razonSocialValue,
+        cuit: cuitValue,
         nombreFantasia: clean(nombreFantasia),
         email: clean(email),
         telefono: clean(telefono),
@@ -115,17 +117,17 @@ export async function POST(req: Request) {
         dias60,
         mas60,
         total,
-        cuit: cuitValue // Actualizar CUIT si se provee ahora
       };
 
+      let proveedor;
       if (proveedorExistente) {
         proveedor = await prisma.proveedor.update({
           where: { id: proveedorExistente.id },
-          data: dataUpdate
+          data: dataPayload
         });
       } else {
         proveedor = await prisma.proveedor.create({
-          data: dataUpdate
+          data: dataPayload
         });
       }
       

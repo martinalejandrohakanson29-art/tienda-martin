@@ -209,7 +209,7 @@ export async function guardarComoPedidoCompra(data: {
           proveedorId: data.proveedorId || null,
           items: {
             create: data.items.map(item => ({
-              productoId: item.id,
+              productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               costo_unit: item.costo_unit,
@@ -221,21 +221,24 @@ export async function guardarComoPedidoCompra(data: {
 
       // Incrementar stock
       for (const item of data.items) {
+        const prodId = item.productoId || item.id;
+        if (!prodId) continue;
+
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: item.id },
+          where: { id: prodId },
           include: { packItems: true }
         });
 
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.updateMany({
+            await tx.articuloMostrador.update({
               where: { id: packItem.componenteId },
               data: { stock: { increment: packItem.cantidad * item.cantidad } }
             });
           }
         } else {
-          await tx.articuloMostrador.updateMany({
-            where: { id: item.id },
+          await tx.articuloMostrador.update({
+            where: { id: prodId },
             data: { stock: { increment: item.cantidad } }
           });
         }
@@ -334,13 +337,13 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           });
           if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
             for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.updateMany({
+              await tx.articuloMostrador.update({
                 where: { id: packItem.componenteId },
                 data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
               });
             }
           } else {
-            await tx.articuloMostrador.updateMany({
+            await tx.articuloMostrador.update({
               where: { id: oldItem.productoId },
               data: { stock: { decrement: oldItem.cantidad } }
             });
@@ -372,7 +375,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           proveedorId: data.proveedorId || null,
           items: {
             create: data.items.map((item: any) => ({
-              productoId: item.id,
+              productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               costo_unit: item.costo_unit,
@@ -384,20 +387,22 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
 
       // 4. Incrementar stock de los nuevos items
       for (const newItem of data.items) {
+        const prodId = newItem.productoId || newItem.id;
+        if (!prodId) continue;
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: newItem.id },
+          where: { id: prodId },
           include: { packItems: true }
         });
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.updateMany({
+            await tx.articuloMostrador.update({
               where: { id: packItem.componenteId },
               data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
             });
           }
         } else {
-          await tx.articuloMostrador.updateMany({
-            where: { id: newItem.productoId },
+          await tx.articuloMostrador.update({
+            where: { id: prodId },
             data: { stock: { increment: newItem.cantidad } }
           });
         }
@@ -440,13 +445,13 @@ export async function eliminarPedidoCompra(compraId: string) {
           });
           if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
             for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.updateMany({
+              await tx.articuloMostrador.update({
                 where: { id: packItem.componenteId },
                 data: { stock: { decrement: packItem.cantidad * item.cantidad } }
               });
             }
           } else {
-            await tx.articuloMostrador.updateMany({
+            await tx.articuloMostrador.update({
               where: { id: item.productoId },
               data: { stock: { decrement: item.cantidad } }
             });
@@ -502,7 +507,7 @@ export async function crearCompra(data: {
           proveedorId: data.proveedorId || null,
           items: {
             create: data.items.map(item => ({
-              productoId: item.id, 
+              productoId: item.productoId || item.id, 
               nombre: item.nombre,
               cantidad: item.cantidad,
               costo_unit: item.costo_unit,
@@ -514,32 +519,30 @@ export async function crearCompra(data: {
 
       // 2. Incrementar stock (es una compra)
       for (const item of data.items) {
+        const prodId = item.productoId || item.id;
+        if (!prodId) continue;
+
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: item.id },
+          where: { id: prodId },
           include: { packItems: true }
         });
 
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.updateMany({
+            await tx.articuloMostrador.update({
               where: { id: packItem.componenteId },
               data: { stock: { increment: packItem.cantidad * item.cantidad } }
             });
           }
         } else {
-          await tx.articuloMostrador.updateMany({
-            where: { id: item.productoId },
-            data: {
-              stock: {
-                increment: item.cantidad
-              }
-            }
+          await tx.articuloMostrador.update({
+            where: { id: prodId },
+            data: { stock: { increment: item.cantidad } }
           });
         }
       }
 
       // 3. Impactar en cuenta corriente del proveedor si corresponde
-      // Para compras, si el pago es "A Cuenta Corriente", aumenta nuestra deuda con el proveedor (HABER)
       if ((data.metodo_pago === "A Cuenta Corriente") && (data.proveedorId || data.proveedor)) {
         const idBuscado = data.proveedorId || data.proveedor;
         
@@ -558,7 +561,6 @@ export async function crearCompra(data: {
 
         if (proveedor) {
           const montoDecimal = new Prisma.Decimal(data.totalFinal);
-          // Compras: Restamos al saldo (más deuda = más negativo)
           const nuevoSaldo = proveedor.total.minus(montoDecimal);
 
           await tx.proveedor.update({
@@ -569,7 +571,7 @@ export async function crearCompra(data: {
           await tx.movimientoProveedor.create({
             data: {
               proveedorId: proveedor.id,
-              tipo: "DEBE", // Compra aumenta nuestra deuda (EGRESO de valor)
+              tipo: "DEBE", 
               monto: montoDecimal.negated(),
               descripcion: `Compra a CC #${compra.numeroCompra}`,
               referencia: compra.id,
@@ -615,7 +617,6 @@ export async function actualizarCompra(compraId: string, data: any, usuario: str
 
         if (proveedor) {
           const montoRevertir = new Prisma.Decimal(oldCompra.totalFinal);
-          // Revertir compra: sumamos lo que habíamos restado
           const nuevoSaldo = proveedor.total.plus(montoRevertir);
 
           await tx.proveedor.update({
@@ -630,7 +631,7 @@ export async function actualizarCompra(compraId: string, data: any, usuario: str
         }
       }
 
-      // Revertir el stock (restar lo que se había sumado originalmente)
+      // Revertir el stock
       for (const oldItem of oldItems) {
         if (oldItem.productoId) {
           const articuloBase = await tx.articuloMostrador.findUnique({
@@ -639,13 +640,13 @@ export async function actualizarCompra(compraId: string, data: any, usuario: str
           });
           if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
             for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.updateMany({
+              await tx.articuloMostrador.update({
                 where: { id: packItem.componenteId },
                 data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
               });
             }
           } else {
-            await tx.articuloMostrador.updateMany({
+            await tx.articuloMostrador.update({
               where: { id: oldItem.productoId },
               data: { stock: { decrement: oldItem.cantidad } }
             });
@@ -677,7 +678,7 @@ export async function actualizarCompra(compraId: string, data: any, usuario: str
           proveedorId: data.proveedorId || null,
           items: {
             create: data.items.map((item: any) => ({
-              productoId: item.id, 
+              productoId: item.productoId || item.id, 
               nombre: item.nombre,
               cantidad: item.cantidad,
               costo_unit: item.costo_unit,
@@ -723,20 +724,22 @@ export async function actualizarCompra(compraId: string, data: any, usuario: str
 
       // 5. Incrementar stock de los nuevos items
       for (const newItem of data.items) {
+        const prodId = newItem.productoId || newItem.id;
+        if (!prodId) continue;
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: newItem.id },
+          where: { id: prodId },
           include: { packItems: true }
         });
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.updateMany({
+            await tx.articuloMostrador.update({
               where: { id: packItem.componenteId },
               data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
             });
           }
         } else {
-          await tx.articuloMostrador.updateMany({
-            where: { id: newItem.productoId },
+          await tx.articuloMostrador.update({
+            where: { id: prodId },
             data: { stock: { increment: newItem.cantidad } }
           });
         }
@@ -770,7 +773,7 @@ export async function eliminarCompra(compraId: string, usuario: string) {
 
       if (!compra) throw new Error("Compra no encontrada");
 
-      // 1. Revertir stock (restar lo que se sumó)
+      // 1. Revertir stock
       for (const item of compra.items) {
         if (item.productoId) {
           const articuloBase = await tx.articuloMostrador.findUnique({
@@ -779,13 +782,13 @@ export async function eliminarCompra(compraId: string, usuario: string) {
           });
           if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
             for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.updateMany({
+              await tx.articuloMostrador.update({
                 where: { id: packItem.componenteId },
                 data: { stock: { decrement: packItem.cantidad * item.cantidad } }
               });
             }
           } else {
-            await tx.articuloMostrador.updateMany({
+            await tx.articuloMostrador.update({
               where: { id: item.productoId },
               data: { stock: { decrement: item.cantidad } }
             });
@@ -807,7 +810,6 @@ export async function eliminarCompra(compraId: string, usuario: string) {
 
         if (proveedor) {
             const montoRevertir = new Prisma.Decimal(compra.totalFinal);
-            // Revertir compra: sumamos al saldo (volvemos hacia el 0)
             const nuevoSaldo = proveedor.total.plus(montoRevertir);
 
             await tx.proveedor.update({
@@ -815,13 +817,11 @@ export async function eliminarCompra(compraId: string, usuario: string) {
                 data: { total: nuevoSaldo }
             });
 
-            // 1. Marcar el movimiento original como anulado
             await tx.movimientoProveedor.updateMany({
                 where: { referencia: compra.id, proveedorId: proveedor.id },
                 data: { anulado: true }
             });
 
-            // 2. Crear un movimiento de anulación (monto positivo para reversar el negativo)
             await tx.movimientoProveedor.create({
                 data: {
                     proveedorId: proveedor.id,
@@ -846,7 +846,6 @@ export async function eliminarCompra(compraId: string, usuario: string) {
         }
       });
 
-      // 4. Eliminar
       await tx.compra.delete({
         where: { id: compraId }
       });

@@ -31,6 +31,7 @@ import {
   ChevronDown,
   Eye,
   Download,
+  Send,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -195,6 +196,37 @@ export default function PedidosCompraClient({ initialData }: PedidosCompraClient
     }
   };
 
+  const handleSincronizarN8N = async () => {
+    const pedidosIds = compras.map(v => v.id);
+
+    if (pedidosIds.length === 0) {
+      alert("No hay pedidos para sincronizar");
+      return;
+    }
+
+    if (!window.confirm(`¿Desea enviar los pedidos listados a n8n para su procesamiento?`)) return;
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch('/api/webhooks/n8n/pedidos-compra', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidosIds })
+      });
+
+      if (response.ok) {
+        alert("Sincronización enviada con éxito");
+      } else {
+        alert("Error al sincronizar con n8n. Verifique la configuración del servidor.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error de conexión al intentar sincronizar");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   useEffect(() => {
     // Solo cargar si las fechas cambian después del montaje inicial
     if (fechaDesde && fechaHasta) {
@@ -269,6 +301,19 @@ export default function PedidosCompraClient({ initialData }: PedidosCompraClient
                     Filtrar
                   </>
                 )}
+              </Button>
+              <Button
+                onClick={handleSincronizarN8N}
+                disabled={isProcessing || compras.length === 0}
+                variant="outline"
+                className="border-white/10 text-slate-300 hover:bg-white/5"
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Sincronizar con n8n
               </Button>
             </div>
           </div>

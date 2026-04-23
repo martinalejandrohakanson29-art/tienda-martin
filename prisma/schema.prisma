@@ -407,7 +407,6 @@ model RentabilidadCalculada {
 
 model Venta {
   id            String           @id @default(cuid())
-  numeroVenta   Int              @unique @default(autoincrement())
   cliente       String           @default("Consumidor Final")
   vendedor      String           @default("Martin Jakson")
   total         Decimal          @default(0) @db.Decimal(20, 2)
@@ -424,14 +423,15 @@ model Venta {
   registrada    Boolean          @default(false)
   interes       Decimal          @default(0) @db.Decimal(10, 2)
   totalFinal    Decimal          @default(0) @db.Decimal(20, 2)
-  tipoVenta     String?          @default("CONFIRMADA")  // "CONFIRMADA" o "PEDIDO"
-  estadoPedido  String?          @default("PENDIENTE")   // "PENDIENTE", "LISTO_PARA_PREPARAR", "PREPARADO", "DESPACHADO"
   email         String?
   eventoOffline Boolean          @default(false)
   puntoVentaId  String?
-  puntoVenta    PuntoVenta?      @relation(fields: [puntoVentaId], references: [id])
+  tipoVenta     String?          @default("CONFIRMADA")
+  estadoPedido  String?          @default("PENDIENTE")
   pdfUrl        String?
+  numeroVenta   Int              @unique @default(autoincrement())
   auditorias    VentaAuditoria[]
+  puntoVenta    PuntoVenta?      @relation(fields: [puntoVentaId], references: [id])
   items         VentaItem[]
 
   @@map("ventas_mostrador")
@@ -467,25 +467,24 @@ model ArticuloMostrador {
   nombre       String
   stock        Int                 @default(0)
   precio       Decimal             @default(0) @db.Decimal(20, 2)
-  esPack       Boolean?            @default(false)
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
+  esPack       Boolean?            @default(false)
   auditorias   ArticuloAuditoria[]
-  packItems    PackMostradorItem[] @relation("PackPadre")
   componenteOf PackMostradorItem[] @relation("PackComponente")
+  packItems    PackMostradorItem[] @relation("PackPadre")
 
   @@index([nombre])
   @@map("articulos_mostrador")
 }
 
 model PackMostradorItem {
-  id             String  @id @default(cuid())
-  packId         String
-  componenteId   String
-  cantidad       Int     @default(1)
-
-  pack          ArticuloMostrador @relation("PackPadre", fields: [packId], references: [id], onDelete: Cascade)
-  componente    ArticuloMostrador @relation("PackComponente", fields: [componenteId], references: [id], onDelete: Cascade)
+  id           String            @id @default(cuid())
+  packId       String
+  componenteId String
+  cantidad     Int               @default(1)
+  componente   ArticuloMostrador @relation("PackComponente", fields: [componenteId], references: [id], onDelete: Cascade)
+  pack         ArticuloMostrador @relation("PackPadre", fields: [packId], references: [id], onDelete: Cascade)
 
   @@unique([packId, componenteId])
   @@map("pack_mostrador_items")
@@ -546,30 +545,30 @@ model ItemVisitaDiaria {
 }
 
 model Compra {
-  id            String       @id @default(cuid())
-  numeroCompra  Int          @unique @default(autoincrement())
-  proveedor     String       @default("Proveedor General")
-  proveedorId   String?
-  proveedorRel  Proveedor?   @relation(fields: [proveedorId], references: [id])
-  comprador     String       @default("Usuario General")
-  total         Decimal      @default(0) @db.Decimal(20, 2)
-  metodo_pago   String       @default("Efectivo")
+  id            String            @id @default(cuid())
+  proveedor     String            @default("Proveedor General")
+  comprador     String            @default("Usuario General")
+  total         Decimal           @default(0) @db.Decimal(20, 2)
+  metodo_pago   String            @default("Efectivo")
   info          String?
   comprobante   String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  descuento     Decimal           @default(0) @db.Decimal(10, 2)
   dni           String?
+  interes       Decimal           @default(0) @db.Decimal(10, 2)
+  numeroCompra  Int               @unique @default(autoincrement())
+  proveedorId   String?
+  registrada    Boolean           @default(false)
   telefono      String?
+  totalFinal    Decimal           @default(0) @db.Decimal(20, 2)
   transaccionId String?
-  registrada    Boolean      @default(false)
-  descuento     Decimal      @default(0) @db.Decimal(10, 2)
-  interes       Decimal      @default(0) @db.Decimal(10, 2)
-  totalFinal    Decimal      @default(0) @db.Decimal(20, 2)
-  tipoCompra    String?      @default("CONFIRMADA")  // "CONFIRMADA" o "PEDIDO"
-  estadoPedido  String?      @default("PENDIENTE")   // "PENDIENTE", "RECIBIDO", "CANCELADO"
+  estadoPedido  String?           @default("PENDIENTE")
   pdfUrl        String?
-  items         CompraItem[]
+  tipoCompra    String?           @default("CONFIRMADA")
   auditorias    CompraAuditoria[]
+  proveedorRel  Proveedor?        @relation(fields: [proveedorId], references: [id])
+  items         CompraItem[]
 
   @@map("compras_mostrador")
 }
@@ -626,22 +625,22 @@ model WebSale {
   provincia   String?
   cp          String?
   referencias String?
-  items       WebSaleItem[] // Este nombre debe ser "items" para que funcione tu código
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  items       WebSaleItem[]
 
   @@map("ventas_web")
 }
 
 model WebSaleItem {
-  id          String   @id @default(cuid())
-  webSaleId   String   @map("web_sale_id")
-  webSale     WebSale  @relation(fields: [webSaleId], references: [id], onDelete: Cascade)
-  productoId  String?  @map("producto_id")
+  id          String  @id @default(cuid())
+  webSaleId   String  @map("web_sale_id")
+  productoId  String? @map("producto_id")
   nombre      String
-  cantidad    Int      @default(1)
-  precio_unit Decimal  @db.Decimal(20, 2)
-  subtotal    Decimal  @db.Decimal(20, 2)
+  cantidad    Int     @default(1)
+  precio_unit Decimal @db.Decimal(20, 2)
+  subtotal    Decimal @db.Decimal(20, 2)
+  webSale     WebSale @relation(fields: [webSaleId], references: [id], onDelete: Cascade)
 
   @@map("ventas_web_items")
 }
@@ -664,8 +663,6 @@ model NumerosMayoristas {
 
   @@map("NumerosMayoristas")
 }
-
-// --- AUDITORÍA DE PREPARACIÓN ---
 
 model AuditoriaPreparacionFull {
   shipmentId String
@@ -698,83 +695,78 @@ model mensajes_vendedor {
 model PuntoVenta {
   id        String   @id @default(cuid())
   nombre    String   @unique
-  color     String   @default("#000000")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  color     String   @default("#000000")
   ventas    Venta[]
 
   @@map("puntos_venta")
 }
 
 model Proveedor {
-  id             String   @id @default(cuid())
+  id             String                @id @default(cuid())
   razonSocial    String
-  cuit           String?  @unique
+  cuit           String?               @unique
   nombreFantasia String?
   email          String?
   telefono       String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
   celular        String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Datos de Cuenta Corriente
-  saldoAnterior Decimal @default(0) @db.Decimal(20, 2)
-  saldoVencido  Decimal @default(0) @db.Decimal(20, 2)
-  dias15        Decimal @default(0) @db.Decimal(20, 2)
-  dias30        Decimal @default(0) @db.Decimal(20, 2)
-  dias45        Decimal @default(0) @db.Decimal(20, 2)
-  dias60        Decimal @default(0) @db.Decimal(20, 2)
-  mas60         Decimal @default(0) @db.Decimal(20, 2)
-  total         Decimal @default(0) @db.Decimal(20, 2)
-
-  movimientos    MovimientoProveedor[]
+  dias15         Decimal               @default(0) @db.Decimal(20, 2)
+  dias30         Decimal               @default(0) @db.Decimal(20, 2)
+  dias45         Decimal               @default(0) @db.Decimal(20, 2)
+  dias60         Decimal               @default(0) @db.Decimal(20, 2)
+  mas60          Decimal               @default(0) @db.Decimal(20, 2)
+  saldoAnterior  Decimal               @default(0) @db.Decimal(20, 2)
+  saldoVencido   Decimal               @default(0) @db.Decimal(20, 2)
+  total          Decimal               @default(0) @db.Decimal(20, 2)
   compras        Compra[]
+  movimientos    MovimientoProveedor[]
 
   @@map("proveedores")
 }
 
 model MovimientoProveedor {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   proveedorId String
-  proveedor   Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
-  fecha       DateTime @default(now())
-  tipo        String   // "INGRESO" o "EGRESO" (o DEBE/HABER)
-  monto       Decimal  @db.Decimal(20, 2)
+  fecha       DateTime  @default(now())
+  tipo        String
+  monto       Decimal   @db.Decimal(20, 2)
   descripcion String?
-  referencia  String?  // ID de la venta o documento
-  saldo       Decimal  @db.Decimal(20, 2) // Saldo resultante
-  anulado     Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  referencia  String?
+  saldo       Decimal   @db.Decimal(20, 2)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  anulado     Boolean   @default(false)
+  proveedor   Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
 
   @@map("movimientos_proveedor")
 }
 
-// === RENDIMIENTO DEL NEGOCIO ===
-
 model RendimientoNegocio {
-  id              String   @id @default(cuid())
-  mes             Int      // 1-12
-  anio            Int      // 2024, 2025, etc.
-  unidadNegocio   String   // "mostrador", "mercadolibre", "mayorista", "instagram"
-  ventaTotal      Decimal  @default(0) @db.Decimal(20, 2)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(cuid())
+  mes           Int
+  anio          Int
+  unidadNegocio String
+  ventaTotal    Decimal  @default(0) @db.Decimal(20, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([mes, anio, unidadNegocio])
   @@map("rendimiento_negocio")
 }
 
 model GastoNegocio {
-  id            String   @id @default(cuid())
-  fecha         DateTime @default(now())
-  mes           Int      // 1-12
-  anio          Int      // 2024, 2025, etc.
-  categoria     String   // ej: "alquiler", "servicios", "sueldos", "insumos", etc.
-  descripcion   String?
-  monto         Decimal  @db.Decimal(20, 2)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String   @id @default(cuid())
+  fecha       DateTime @default(now())
+  mes         Int
+  anio        Int
+  categoria   String
+  descripcion String?
+  monto       Decimal  @db.Decimal(20, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@map("gastos_negocio")
 }

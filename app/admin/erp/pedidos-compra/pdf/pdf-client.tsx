@@ -66,7 +66,7 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
           <div>
             <Link
               href="/admin/erp/pedidos-compra"
-              className="flex items-center gap-1 mb-2 text-slate-500 hover:text-amber-600 transition-colors text-sm font-medium"
+              className="flex items-center gap-1 mb-2 text-slate-500 hover:text-indigo-600 transition-colors text-sm font-medium"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver
@@ -79,7 +79,7 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
             variant="outline"
             size="sm"
             onClick={handlePrint}
-            className="border-amber-600 text-amber-700 hover:bg-amber-50"
+            className="border-indigo-600 text-indigo-700 hover:bg-indigo-50"
             title="Imprimir Pedido"
           >
             <Printer className="h-4 w-4 mr-1" />

@@ -127,7 +127,7 @@ export default function CuentaCorrienteClient({
                 </div>
                 <div className="flex flex-col">
                   <span className="text-[10px] uppercase text-slate-400 font-bold">Vencido</span>
-                  <span className={`text-sm font-semibold ${proveedor.saldoVencido < 0 ? 'text-red-500' : ''}`}>
+                  <span className={`text-sm font-semibold ${proveedor.saldoVencido < 0 ? 'text-red-500' : proveedor.saldoVencido > 0 ? 'text-emerald-500' : ''}`}>
                     {formatCurrency(proveedor.saldoVencido)}
                   </span>
                 </div>
@@ -164,7 +164,7 @@ export default function CuentaCorrienteClient({
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Saldo Total
                   </span>
-                  <span className={`text-xl font-black ${proveedor.total < 0 ? 'text-red-500' : 'text-slate-900 dark:text-white'}`}>
+                  <span className={`text-xl font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
                     {formatCurrency(proveedor.total)}
                   </span>
                 </div>

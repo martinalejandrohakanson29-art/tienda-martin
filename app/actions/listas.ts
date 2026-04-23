@@ -15,7 +15,7 @@ export async function obtenerArticulosParaListas() {
         }
       }
     });
-    
+
     return {
       success: true,
       data: articulos.map(art => ({
@@ -73,7 +73,7 @@ export async function obtenerPacks() {
         }
       }
     });
-    
+
     return {
       success: true,
       data: packs.map(pack => ({
@@ -111,7 +111,7 @@ export async function crearPackMostrador(data: { id: string, nombre: string, pre
           stock: 0,
         }
       });
-      
+
       if (data.componentes && data.componentes.length > 0) {
         await tx.packMostradorItem.createMany({
           data: data.componentes.map(c => ({
@@ -137,7 +137,7 @@ export async function eliminarPack(id: string) {
       await tx.packMostradorItem.deleteMany({
         where: { packId: id }
       });
-      
+
       // Luego eliminar el pack
       await tx.articuloMostrador.delete({
         where: { id }
@@ -161,12 +161,12 @@ export async function actualizarPack(id: string, nombre: string, precio: number,
           precio
         }
       });
-      
+
       // Eliminar los items antiguos
       await tx.packMostradorItem.deleteMany({
         where: { packId: id }
       });
-      
+
       // Crear los nuevos items
       if (componentes && componentes.length > 0) {
         await tx.packMostradorItem.createMany({
@@ -177,7 +177,7 @@ export async function actualizarPack(id: string, nombre: string, precio: number,
           }))
         });
       }
-      
+
       return await tx.articuloMostrador.findUnique({
         where: { id },
         include: {
@@ -202,9 +202,9 @@ export async function obtenerProveedores() {
     const proveedores = await prisma.proveedor.findMany({
       orderBy: { razonSocial: 'asc' },
     });
-    
-    return { 
-      success: true, 
+
+    return {
+      success: true,
       data: proveedores.map(p => {
         const toNum = (val: any) => {
           if (val === null || val === undefined) return 0;
@@ -234,7 +234,7 @@ export async function obtenerProveedores() {
           mas60: toNum(p.mas60),
           total: toNum(p.total),
         };
-      }) 
+      })
     };
   } catch (error) {
     console.error("Error al obtener proveedores:", error);
@@ -244,10 +244,19 @@ export async function obtenerProveedores() {
 
 export async function actualizarProveedor(id: string, data: {
   razonSocial: string;
-  cuit: string;
+  cuit?: string | null;
   nombreFantasia?: string | null;
   email?: string | null;
   telefono?: string | null;
+  celular?: string | null;
+  saldoAnterior?: number;
+  saldoVencido?: number;
+  dias15?: number;
+  dias30?: number;
+  dias45?: number;
+  dias60?: number;
+  mas60?: number;
+  total?: number;
 }) {
   try {
     const proveedor = await prisma.proveedor.update({
@@ -258,6 +267,15 @@ export async function actualizarProveedor(id: string, data: {
         nombreFantasia: data.nombreFantasia,
         email: data.email,
         telefono: data.telefono,
+        celular: data.celular,
+        saldoAnterior: data.saldoAnterior,
+        saldoVencido: data.saldoVencido,
+        dias15: data.dias15,
+        dias30: data.dias30,
+        dias45: data.dias45,
+        dias60: data.dias60,
+        mas60: data.mas60,
+        total: data.total,
       }
     });
     return { success: true, data: proveedor };
@@ -269,10 +287,19 @@ export async function actualizarProveedor(id: string, data: {
 
 export async function crearProveedor(data: {
   razonSocial: string;
-  cuit: string;
+  cuit?: string | null;
   nombreFantasia?: string | null;
   email?: string | null;
   telefono?: string | null;
+  celular?: string | null;
+  saldoAnterior?: number;
+  saldoVencido?: number;
+  dias15?: number;
+  dias30?: number;
+  dias45?: number;
+  dias60?: number;
+  mas60?: number;
+  total?: number;
 }) {
   try {
     const proveedor = await prisma.proveedor.create({
@@ -282,6 +309,15 @@ export async function crearProveedor(data: {
         nombreFantasia: data.nombreFantasia,
         email: data.email,
         telefono: data.telefono,
+        celular: data.celular,
+        saldoAnterior: data.saldoAnterior || 0,
+        saldoVencido: data.saldoVencido || 0,
+        dias15: data.dias15 || 0,
+        dias30: data.dias30 || 0,
+        dias45: data.dias45 || 0,
+        dias60: data.dias60 || 0,
+        mas60: data.mas60 || 0,
+        total: data.total || 0,
       }
     });
     return { success: true, data: proveedor };

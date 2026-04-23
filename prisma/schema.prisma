@@ -683,7 +683,7 @@ model PuntoVenta {
 model Proveedor {
   id             String   @id @default(cuid())
   razonSocial    String
-  cuit           String   @unique
+  cuit           String?  @unique
   nombreFantasia String?
   email          String?
   telefono       String?

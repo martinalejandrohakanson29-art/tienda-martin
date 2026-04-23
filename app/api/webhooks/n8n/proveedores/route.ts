@@ -11,16 +11,28 @@ export async function POST(req: Request) {
     const results = [];
     
     for (const item of items) {
+      // Función para buscar valor por múltiples posibles nombres de campos
+      const getVal = (fields: string[]) => {
+        for (const f of fields) {
+          if (item[f] !== undefined) return item[f];
+          // Probar versión en minúsculas y sin espacios extras
+          const normalizedKey = Object.keys(item).find(k => k.trim().toLowerCase() === f.toLowerCase());
+          if (normalizedKey) return item[normalizedKey];
+        }
+        return undefined;
+      };
+
       // Mapeo flexible de campos según lo solicitado
-      const razonSocial = item.razonSocial || item.nombre || item["razon social"] || item["nombre"] || item["Cliente/Proveedor"];
-      const cuit = item.cuit || item.dni || item["cuit/dni"] || item["cuit"] || item["dni"] || item["CUIT"];
-      const nombreFantasia = item.nombreFantasia || item.fantasia || item["nombre de fantasia"];
-      const email = item.email || item.mail || item.correo;
-      const telefono = item.telefono || item.tel || item.phone || item["Telefono"];
-      const celular = item.celular || item.cel || item["Celular"];
+      const razonSocial = getVal(["razonSocial", "nombre", "razon social", "Cliente/Proveedor", "Cliente"]);
+      const cuit = getVal(["cuit", "dni", "cuit/dni", "CUIT"]);
+      const nombreFantasia = getVal(["nombreFantasia", "fantasia", "nombre de fantasia"]);
+      const email = getVal(["email", "mail", "correo"]);
+      const telefono = getVal(["telefono", "tel", "phone", "Telefono"]);
+      const celular = getVal(["celular", "cel", "Celular"]);
       
       // Datos de cuenta corriente
       const parseDecimal = (val: any) => {
+        const originalVal = val;
         if (val === undefined || val === null || val === "") return 0;
         if (typeof val === 'number') return val;
         
@@ -34,71 +46,88 @@ export async function POST(req: Request) {
         else if (cleanVal.includes(",")) {
           cleanVal = cleanVal.replace(",", ".");
         }
-        // Si solo tiene punto, pero parece ser miles (ej: 1.000), es difícil saber.
-        // Pero usualmente los datos de contabilidad traen coma para decimales.
-        // Si no tiene coma, dejamos el punto como está (asumimos decimal estándar)
         
-        // Eliminar símbolos de moneda
-        cleanVal = cleanVal.replace(/[$\s]/g, "");
+        // Eliminar todo lo que no sea número, punto o signo menos
+        cleanVal = cleanVal.replace(/[^0-9.-]/g, "");
         
         const parsed = parseFloat(cleanVal);
-        return isNaN(parsed) ? 0 : parsed;
+        const result = isNaN(parsed) ? 0 : parsed;
+        
+        if (result === 0 && originalVal !== 0 && originalVal !== "0") {
+          console.log(`[parseDecimal] OJO: '${originalVal}' se parseó como 0. Clean: '${cleanVal}'`);
+        }
+        
+        return result;
       };
 
-      const saldoAnterior = parseDecimal(item.saldoAnterior || item["S. Anterior"]);
-      const saldoVencido = parseDecimal(item.saldoVencido || item["S. Vencido"]);
-      const dias15 = parseDecimal(item.dias15 || item["15 dias"]);
-      const dias30 = parseDecimal(item.dias30 || item["30 dias"]);
-      const dias45 = parseDecimal(item.dias45 || item["45 dias"]);
-      const dias60 = parseDecimal(item.dias60 || item["60 dias"]);
-      const mas60 = parseDecimal(item.mas60 || item["+ 60 dias"]);
-      const total = parseDecimal(item.total || item["Total"]);
+      const saldoAnterior = parseDecimal(getVal(["saldoAnterior", "S. Anterior", "Anterior", "Saldo Anterior"]));
+      const saldoVencido = parseDecimal(getVal(["saldoVencido", "S. Vencido", "Vencido", "Saldo Vencido"]));
+      const dias15 = parseDecimal(getVal(["dias15", "15 dias", "15_dias", "15 días"]));
+      const dias30 = parseDecimal(getVal(["dias30", "30 dias", "30_dias", "30 días"]));
+      const dias45 = parseDecimal(getVal(["dias45", "45 dias", "45_dias", "45 días"]));
+      const dias60 = parseDecimal(getVal(["dias60", "60 dias", "60_dias", "60 días"]));
+      const mas60 = parseDecimal(getVal(["mas60", "+ 60 dias", "mas 60", "más 60 días"]));
+      const total = parseDecimal(getVal(["total", "Total", "Saldo Total", "Saldo"]));
 
-      if (!razonSocial || !cuit) {
+      if (!razonSocial) {
         results.push({ 
           status: "skipped", 
-          message: "Falta razon social o cuit/dni", 
-          provided: { razonSocial, cuit } 
+          message: "Falta razon social", 
+          provided: { razonSocial } 
         });
         continue;
       }
       
       const clean = (val: any) => (val === "null" || val === "" || val === undefined) ? null : String(val).trim();
-      
-      const proveedor = await prisma.proveedor.upsert({
-        where: { cuit: String(cuit).trim() },
-        update: {
-          razonSocial: String(razonSocial).trim(),
-          nombreFantasia: clean(nombreFantasia),
-          email: clean(email),
-          telefono: clean(telefono),
-          celular: clean(celular),
-          saldoAnterior,
-          saldoVencido,
-          dias15,
-          dias30,
-          dias45,
-          dias60,
-          mas60,
-          total
-        },
-        create: {
-          razonSocial: String(razonSocial).trim(),
-          cuit: String(cuit).trim(),
-          nombreFantasia: clean(nombreFantasia),
-          email: clean(email),
-          telefono: clean(telefono),
-          celular: clean(celular),
-          saldoAnterior,
-          saldoVencido,
-          dias15,
-          dias30,
-          dias45,
-          dias60,
-          mas60,
-          total
-        },
-      });
+      const cuitValue = cuit ? String(cuit).trim() : null;
+      const razonSocialValue = String(razonSocial).trim();
+
+      console.log(`Mapeando item: ${razonSocialValue}, CUIT: ${cuitValue}, Total: ${total}`);
+
+      // Intentamos encontrar el proveedor existente
+      let proveedorExistente = null;
+
+      if (cuitValue) {
+        proveedorExistente = await prisma.proveedor.findUnique({
+          where: { cuit: cuitValue }
+        });
+      }
+
+      if (!proveedorExistente) {
+        // Fallback por nombre si no hay CUIT o no se encontró por CUIT
+        proveedorExistente = await prisma.proveedor.findFirst({
+          where: { razonSocial: razonSocialValue }
+        });
+      }
+
+      let proveedor;
+      const dataUpdate = {
+        razonSocial: razonSocialValue,
+        nombreFantasia: clean(nombreFantasia),
+        email: clean(email),
+        telefono: clean(telefono),
+        celular: clean(celular),
+        saldoAnterior,
+        saldoVencido,
+        dias15,
+        dias30,
+        dias45,
+        dias60,
+        mas60,
+        total,
+        cuit: cuitValue // Actualizar CUIT si se provee ahora
+      };
+
+      if (proveedorExistente) {
+        proveedor = await prisma.proveedor.update({
+          where: { id: proveedorExistente.id },
+          data: dataUpdate
+        });
+      } else {
+        proveedor = await prisma.proveedor.create({
+          data: dataUpdate
+        });
+      }
       
       results.push({ status: "success", id: proveedor.id, cuit: proveedor.cuit });
     }

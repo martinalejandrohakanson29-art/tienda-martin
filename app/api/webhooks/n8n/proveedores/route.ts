@@ -4,12 +4,12 @@ import { prisma } from "@/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    
+
     // n8n puede enviar un objeto único o un array
     const items = Array.isArray(body) ? body : [body];
-    
+
     const results = [];
-    
+
     for (const item of items) {
       // Función para buscar valor por múltiples posibles nombres de campos
       const getVal = (fields: string[]) => {
@@ -29,20 +29,20 @@ export async function POST(req: Request) {
       const email = getVal(["email", "mail", "correo"]);
       const telefono = getVal(["telefono", "tel", "phone", "Telefono"]);
       const celular = getVal(["celular", "cel", "Celular"]);
-      
+
       // Validación: Solo la Razón Social es estrictamente necesaria
       if (!razonSocial || String(razonSocial).trim() === "") {
-        results.push({ 
-          status: "skipped", 
-          message: "Falta razon social", 
-          provided: { razonSocial, cuit } 
+        results.push({
+          status: "skipped",
+          message: "Falta razon social",
+          provided: { razonSocial, cuit }
         });
         continue;
       }
 
       // Normalización de Razón Social
       const razonSocialValue = String(razonSocial).trim();
-      
+
       // Normalización de CUIT: Si es vacío, debe ser null para no romper el @unique en la DB
       const cuitRaw = String(cuit || "").trim();
       const cuitValue = (cuitRaw === "" || cuitRaw.toLowerCase() === "null") ? null : cuitRaw;
@@ -52,23 +52,23 @@ export async function POST(req: Request) {
         const s = String(val || "").trim();
         return (s === "" || s.toLowerCase() === "null") ? null : s;
       };
-      
+
       // Datos de cuenta corriente (parseo de números)
       const parseDecimal = (val: any) => {
         const originalVal = val;
         if (val === undefined || val === null || val === "") return 0;
         if (typeof val === 'number') return val;
-        
+
         let cleanVal = String(val).trim();
-        
+
         // Formato ES/AR: punto miles y coma decimal
         if (cleanVal.includes(",") && cleanVal.includes(".")) {
           cleanVal = cleanVal.replace(/\./g, "").replace(",", ".");
-        } 
+        }
         else if (cleanVal.includes(",")) {
           cleanVal = cleanVal.replace(",", ".");
         }
-        
+
         cleanVal = cleanVal.replace(/[^0-9.-]/g, "");
         const parsed = parseFloat(cleanVal);
         return isNaN(parsed) ? 0 : parsed;
@@ -130,20 +130,20 @@ export async function POST(req: Request) {
           data: dataPayload
         });
       }
-      
+
       results.push({ status: "success", id: proveedor.id, cuit: proveedor.cuit });
     }
 
-    return NextResponse.json({ 
-      message: "Procesado con éxito", 
+    return NextResponse.json({
+      message: "Procesado con éxito",
       count: results.filter(r => r.status === "success").length,
-      results 
+      results
     });
   } catch (error: any) {
     console.error("Error en webhook proveedores:", error);
-    return NextResponse.json({ 
-      error: "Error interno del servidor", 
-      details: error.message 
+    return NextResponse.json({
+      error: "Error interno del servidor",
+      details: error.message
     }, { status: 500 });
   }
 }

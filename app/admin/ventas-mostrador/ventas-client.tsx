@@ -382,6 +382,16 @@ export default function VentasMostradorClient({
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
   const esTarjeta = (m: string) => m === "Tarjeta de Crédito" || m === "Tarjeta de Débito";
 
+  const formatCurrency = (amount: any) => {
+    const value = typeof amount === "number" ? amount : parseFloat(amount);
+    if (isNaN(value)) return "$ 0,00";
+    
+    return new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency: "ARS",
+    }).format(value);
+  };
+
   // --- CALCULOS NUEVA VENTA (LÓGICA MIXTA) ---
   const totalBase = items.reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
 
@@ -1673,8 +1683,18 @@ export default function VentasMostradorClient({
                                   setShowProvList(false);
                                 }}
                               >
-                                <p className="font-bold text-slate-800">{p.razonSocial}</p>
-                                <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                                    <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>
+                                      {formatCurrency(p.total)}
+                                    </p>
+                                    <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
+                                  </div>
+                                </div>
                               </div>
                             ))}
                             <div 
@@ -1935,8 +1955,18 @@ export default function VentasMostradorClient({
                                     setShowProvListEdit(false);
                                   }}
                                 >
-                                  <p className="font-bold text-slate-800">{p.razonSocial}</p>
-                                  <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                                      <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>
+                                        {formatCurrency(p.total)}
+                                      </p>
+                                      <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
+                                    </div>
+                                  </div>
                                 </div>
                               ))}
                               <div 

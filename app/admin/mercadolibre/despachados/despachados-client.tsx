@@ -380,6 +380,7 @@ export function DespachadosClient() {
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">ID Venta</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">ID Envío</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">MLA</TableHead>
+                                <TableHead className="font-bold text-[13px] uppercase text-slate-500">Variable</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">Id agregados</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">Agregados</TableHead>
                                 <TableHead className="font-bold text-[13px] uppercase text-slate-500">Nombre</TableHead>
@@ -392,19 +393,17 @@ export function DespachadosClient() {
                         </TableHeader>
                         <TableBody>
                             {loadingRegistracion ? (
-                                <TableRow><TableCell colSpan={10} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={13} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
                             ) : getFilteredRegistracion().length === 0 ? (
-                                <TableRow><TableCell colSpan={10} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
+                                <TableRow><TableCell colSpan={13} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
                             ) : (
                                 getFilteredRegistracion().map((venta) => (
                                     <TableRow key={venta.shippingId} className={`hover:bg-slate-50/30 ${selectedRegistracionIds.has(venta.shippingId) ? 'bg-blue-50/40' : ''}`}>
                                         <TableCell className="text-center"><input type="checkbox" checked={selectedRegistracionIds.has(venta.shippingId)} onChange={() => handleToggleSelectRegistracion(venta.shippingId)} className="rounded border-slate-300" /></TableCell>
                                         <TableCell><div onClick={() => handleCopyText(venta.orderId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.orderId}</div></TableCell>
                                         <TableCell><div onClick={() => handleCopyText(venta.shippingId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.shippingId}</div></TableCell>
-                                        <TableCell>
-                                            <div onClick={() => handleCopyText(venta.mla)} className="font-mono text-[13px] text-slate-500 cursor-pointer hover:text-blue-600">{venta.mla}</div>
-                                            {venta.variation && <div className="text-[10px] text-slate-400 mt-1">Var: {venta.variation}</div>}
-                                        </TableCell>
+                                        <TableCell><div onClick={() => handleCopyText(venta.mla)} className="font-mono text-[13px] text-slate-500 cursor-pointer hover:text-blue-600">{venta.mla}</div></TableCell>
+                                        <TableCell><div className="font-mono text-[12px] text-slate-400">{venta.variation || '-'}</div></TableCell>
                                         <TableCell>
                                             <div className="flex flex-col gap-1">
                                                 {venta.ids_articulos?.split(/[+,]/).map((id: string, idx: number) => {

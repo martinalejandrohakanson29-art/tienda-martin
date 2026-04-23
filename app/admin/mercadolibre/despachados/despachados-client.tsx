@@ -116,10 +116,20 @@ export function DespachadosClient() {
         try {
             toast.info("Sincronizando con n8n (Full, Flex y Colecta)...");
             
+            // Recolectamos los datos de la pestaña de Preparados
+            const pedidosPreparados = filtered.map(envio => ({
+                shippingId: envio.id,
+                orderId: envio.orderId,
+                mla: envio.items?.[0]?.mla
+            }));
+
             await fetch("/api/admin/mercadolibre/registracion", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "trigger_all_categories" })
+                body: JSON.stringify({ 
+                    action: "trigger_all_categories",
+                    preparados: pedidosPreparados 
+                })
             });
 
             setTimeout(async () => {

@@ -258,6 +258,7 @@ export async function getVentasRegistracion() {
                 SELECT ids_articulos, receta_detallada 
                 FROM vista_costos_productos 
                 WHERE mla = ${venta.mla} 
+                AND variation_id IS NOT DISTINCT FROM ${venta.variation}
                 LIMIT 1
             `;
 

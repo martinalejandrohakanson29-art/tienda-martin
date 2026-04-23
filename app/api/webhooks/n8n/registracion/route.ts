@@ -27,6 +27,7 @@ export async function POST(req: Request) {
                     nombre: venta.nombre || null,
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,
+                    variation: venta.variation || null,
                 },
                 create: {
                     shippingId: String(venta.shippingId || venta.envioId),
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
                     nombre: venta.nombre || null,
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,
+                    variation: venta.variation || null,
                 }
             });
         });

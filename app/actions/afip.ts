@@ -118,10 +118,10 @@ export async function facturarVenta(data: { monto: number, docTipo: number, docN
 
         // 3. Solicitar CAE
         const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...facturaData } as any);
-        const result = resARCA.FECAESolicitarResult;
+        const result = resARCA.FECAESolicitarResult as any;
+        const det = result.FeDetResp.FECAEDetResponse[0] || result.FeDetResp.FECAEDetResponse;
 
         if (result.FeCabResp.Resultado === 'A') {
-            const det = result.FeDetResp.FECAEDetResponse[0] || result.FeDetResp.FECAEDetResponse;
             return {
                 success: true,
                 cae: det.CAE,
@@ -133,7 +133,7 @@ export async function facturarVenta(data: { monto: number, docTipo: number, docN
             return {
                 success: false,
                 error: "Factura rechazada por ARCA",
-                details: result.Errors || result.FeDetResp.FECAEDetResponse.Observaciones
+                details: result.Errors || det?.Observaciones
             };
         }
 

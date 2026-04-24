@@ -117,7 +117,7 @@ export async function facturarVenta(data: { monto: number, docTipo: number, docN
         };
 
         // 3. Solicitar CAE
-        const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...facturaData });
+        const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...facturaData } as any);
         const result = resARCA.FECAESolicitarResult;
 
         if (result.FeCabResp.Resultado === 'A') {

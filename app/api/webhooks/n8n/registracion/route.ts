@@ -60,7 +60,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ 
             success: true, 
-            message: `${ventasInput.length} ventas procesadas y guardadas correctamente` 
+            message: `${ventasData.length} ventas procesadas y guardadas correctamente` 
         });
 
     } catch (error: any) {

@@ -245,11 +245,28 @@ export async function getEtiquetasPreparadas(fecha: string) {
 /**
  * Obtiene las ventas pendientes de registración desde la tabla temporal
  */
-export async function getVentasRegistracion() {
+export async function getVentasRegistracion(fecha?: string) {
     try {
+        const where: any = {};
+        
+        if (fecha) {
+            // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día
+            const startOfDay = new Date(fecha); 
+            startOfDay.setUTCHours(3, 0, 0, 0); 
+
+            const endOfDay = new Date(fecha);
+            endOfDay.setDate(endOfDay.getDate() + 1); 
+            endOfDay.setUTCHours(2, 59, 59, 999); 
+            where.createdAt = {
+                gte: startOfDay,
+                lte: endOfDay
+            };
+        }
+
         const ventas = await prisma.ventaMLRegistracion.findMany({
+            where,
             orderBy: { createdAt: 'desc' },
-            take: 100
+            take: 200
         });
 
         // Enriquecemos con datos de la vista de costos (receta)

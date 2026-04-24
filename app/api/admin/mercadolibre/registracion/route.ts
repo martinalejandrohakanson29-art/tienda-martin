@@ -44,6 +44,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({ 
         action: action || 'get_sales_to_register',
         preparados: body.preparados || [],
+        fecha: body.fecha,
         timestamp: new Date().toISOString()
       }),
     });

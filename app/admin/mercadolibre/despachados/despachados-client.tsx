@@ -37,7 +37,7 @@ export function DespachadosClient() {
         if (res.success) setEnvios(res.data)
         
         // Cargamos ventas de registracion iniciales
-        const resReg = await getVentasRegistracion()
+        const resReg = await getVentasRegistracion(fecha)
         if (resReg.success) setVentasRegistracion(resReg.data)
         
         setLoading(false)
@@ -129,12 +129,13 @@ export function DespachadosClient() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
                     action: "trigger_all_categories",
-                    preparados: pedidosPreparados 
+                    preparados: pedidosPreparados,
+                    fecha: fecha
                 })
             });
 
             setTimeout(async () => {
-                const res = await getVentasRegistracion();
+                const res = await getVentasRegistracion(fecha);
                 if (res.success) {
                     setVentasRegistracion(res.data);
                     toast.success("Sincronización completada");
@@ -342,6 +343,15 @@ export function DespachadosClient() {
 
             <TabsContent value="registracion" className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                 <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex flex-col gap-2">
+                        <Label className="text-xs font-bold uppercase text-slate-500">Filtrar Fecha</Label>
+                        <Input 
+                            type="date" 
+                            value={fecha} 
+                            onChange={(e) => setFecha(e.target.value)} 
+                            className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[180px]" 
+                        />
+                    </div>
                     <div className="flex flex-col gap-2">
                         <Label className="text-xs font-bold uppercase text-slate-500">Categoría</Label>
                         <div className="flex gap-2">

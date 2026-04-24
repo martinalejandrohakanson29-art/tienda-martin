@@ -23,12 +23,18 @@ export async function POST(req: Request) {
         const operations = ventasData.map((venta: any) => {
             const shippingId = String(venta.shippingId || venta.envioId);
             
-            // Usamos la fecha de la venta individual, la global del body, o hoy si no hay ninguna
+            // Prioridad: venta.fecha > globalFecha > Hoy
             const fechaStr = venta.fecha || globalFecha;
             
-            // Si hay una fecha, forzamos el createdAt a las 12:00 de ese día 
-            // para que caiga siempre dentro del rango gte(03:00) y lte(02:59+1d)
-            const createdAt = fechaStr ? new Date(`${fechaStr}T12:00:00Z`) : new Date();
+            let createdAt: Date;
+            if (fechaStr && typeof fechaStr === 'string' && fechaStr.includes('-')) {
+                // Si viene YYYY-MM-DD, forzamos 12:00 UTC para que caiga en el rango del día
+                createdAt = new Date(`${fechaStr}T12:00:00Z`);
+            } else {
+                createdAt = new Date();
+            }
+
+            console.log(`[Webhook Registracion] Procesando envío ${shippingId}. Fecha original: ${venta.fecha || 'N/A'}. Global: ${globalFecha || 'N/A'}. Usando createdAt: ${createdAt.toISOString()}`);
 
             return prisma.ventaMLRegistracion.upsert({
                 where: { shippingId },
@@ -40,7 +46,7 @@ export async function POST(req: Request) {
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,
                     variation: venta.variation || null,
-                    createdAt: createdAt // Forzamos la fecha para el filtrado
+                    createdAt: createdAt // Actualizamos la fecha para el filtrado correcto
                 },
                 create: {
                     shippingId,

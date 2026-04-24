@@ -180,13 +180,12 @@ export async function getEtiquetasML() {
  */
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
-        // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día
-        const startOfDay = new Date(fecha); 
-        startOfDay.setUTCHours(3, 0, 0, 0); 
-
-        const endOfDay = new Date(fecha);
-        endOfDay.setDate(endOfDay.getDate() + 1); 
-        endOfDay.setUTCHours(2, 59, 59, 999); 
+        // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día de forma segura
+        const startOfDay = new Date(`${fecha}T03:00:00Z`); 
+        
+        const endOfDay = new Date(`${fecha}T03:00:00Z`);
+        endOfDay.setUTCDate(endOfDay.getUTCDate() + 1); 
+        endOfDay.setUTCMilliseconds(-1); // 02:59:59.999 del día siguiente UTC
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
@@ -249,14 +248,14 @@ export async function getVentasRegistracion(fecha?: string) {
     try {
         const where: any = {};
         
-        if (fecha) {
-            // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día
-            const startOfDay = new Date(fecha); 
-            startOfDay.setUTCHours(3, 0, 0, 0); 
+        if (fecha && fecha !== "undefined" && fecha !== "null") {
+            // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día de forma segura
+            const startOfDay = new Date(`${fecha}T03:00:00Z`); 
+            
+            const endOfDay = new Date(`${fecha}T03:00:00Z`);
+            endOfDay.setUTCDate(endOfDay.getUTCDate() + 1); 
+            endOfDay.setUTCMilliseconds(-1); 
 
-            const endOfDay = new Date(fecha);
-            endOfDay.setDate(endOfDay.getDate() + 1); 
-            endOfDay.setUTCHours(2, 59, 59, 999); 
             where.createdAt = {
                 gte: startOfDay,
                 lte: endOfDay
@@ -266,7 +265,7 @@ export async function getVentasRegistracion(fecha?: string) {
         const ventas = await prisma.ventaMLRegistracion.findMany({
             where,
             orderBy: { createdAt: 'desc' },
-            take: 200
+            take: 500 // Ampliamos el límite por las dudas
         });
 
         // Enriquecemos con datos de la vista de costos (receta)

@@ -103,11 +103,15 @@ export function DespachadosClient() {
 
     const getFilteredRegistracion = () => {
         return ventasRegistracion.filter(v => {
+            // Filtro de fecha (doble seguridad)
+            const vDate = v.createdAt ? format(new Date(v.createdAt), "yyyy-MM-dd") : null;
+            const matchesDate = !vDate || vDate === fecha;
+
             const matchesCategory = categoriaFilter === "TODOS" || v.categoria === categoriaFilter;
             const matchesSearch = v.shippingId.toLowerCase().includes(searchTerm.toLowerCase()) || 
                                  v.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                  v.mla.toLowerCase().includes(searchTerm.toLowerCase());
-            return matchesCategory && matchesSearch;
+            return matchesDate && matchesCategory && matchesSearch;
         });
     };
 

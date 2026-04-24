@@ -1,5 +1,4 @@
 import RegistracionAfipClient from "./registracion-afip-client";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 export default function RegistracionAdminPage() {
     return (

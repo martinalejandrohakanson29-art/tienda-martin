@@ -141,7 +141,7 @@ export function DespachadosClient() {
                     toast.success("Sincronización completada");
                 }
                 setLoadingRegistracion(false);
-            }, 3000);
+            }, 10000);
 
         } catch (error: any) {
             console.error(error);

@@ -34,7 +34,7 @@ export async function testAfipConnection() {
             success: true, 
             message: "Conexión exitosa", 
             environment: AFIP_CONFIG.urlWsaa.includes('homo') ? 'Homologación' : 'Producción',
-            tokenPrefix: ta.token.substring(0, 10) + "..."
+            tokenPrefix: ta.credentials.token.substring(0, 10) + "..."
         };
     } catch (error: any) {
         console.error("AFIP Connection Error:", error);
@@ -55,18 +55,16 @@ export async function facturarVenta(data: { monto: number, docTipo: number, docN
             ta = await loginTicket.wsaaLogin('wsfe', AFIP_CONFIG.urlWsaa, AFIP_CONFIG.cert, AFIP_CONFIG.key);
         } catch (error: any) {
             if (error.extra && error.extra.fault && error.extra.fault.faultcode === 'ns1:coe.alreadyAuthenticated') {
-                // Si ya está autenticado, necesitamos recuperar el token. 
-                // En un entorno Next.js con Server Actions, el singleton debería tenerlo si ya se usó.
-                // Si no, la librería debería manejarlo o fallar aquí si no puede recuperarlo.
-                // Para simplificar, intentamos seguir si no lanza error de "ta is undefined".
+                // Si ya está autenticado, el singleton debería tener el ticket cargado
+                ta = loginTicket.ticket; 
             } else {
                 throw error;
             }
         }
 
         const auth = {
-            Token: ta?.token,
-            Sign: ta?.sign,
+            Token: ta?.credentials?.token,
+            Sign: ta?.credentials?.sign,
             Cuit: AFIP_CONFIG.CUIT
         };
 

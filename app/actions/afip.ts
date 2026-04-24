@@ -34,7 +34,7 @@ export async function testAfipConnection() {
             success: true, 
             message: "Conexión exitosa", 
             environment: AFIP_CONFIG.urlWsaa.includes('homo') ? 'Homologación' : 'Producción',
-            tokenPrefix: ta.credentials.token.substring(0, 10) + "..."
+            tokenPrefix: ta?.credentials?.token ? ta.credentials.token.substring(0, 10) + "..." : "N/A"
         };
     } catch (error: any) {
         console.error("AFIP Connection Error:", error);
@@ -62,15 +62,18 @@ export async function facturarVenta(data: { monto: number, docTipo: number, docN
             }
         }
 
-        const auth = {
-            Token: ta?.credentials?.token,
-            Sign: ta?.credentials?.sign,
-            Cuit: AFIP_CONFIG.CUIT
-        };
+        const token = ta?.credentials?.token;
+        const sign = ta?.credentials?.sign;
 
-        if (!auth.Token || !auth.Sign) {
+        if (!token || !sign) {
             throw new Error("No se pudo obtener el Token de Acceso de AFIP. Intenta de nuevo.");
         }
+
+        const auth = {
+            Token: token,
+            Sign: sign,
+            Cuit: parseInt(AFIP_CONFIG.CUIT)
+        };
 
         const wsfe = new Wsfev1(AFIP_CONFIG.urlWsfe);
         

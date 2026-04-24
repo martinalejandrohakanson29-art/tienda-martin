@@ -96,7 +96,7 @@ export async function facturarVenta(data: { monto: number, docTipo: number, docN
                     CbteTipo: AFIP_CONFIG.tipoComprobante
                 },
                 FeDetReq: {
-                    FECAEDetRequest: {
+                    FECAEDetRequest: [{
                         Concepto: concepto,
                         DocTipo: docTipo,
                         DocNro: docNro,
@@ -111,7 +111,7 @@ export async function facturarVenta(data: { monto: number, docTipo: number, docN
                         ImpIVA: 0,
                         MonId: 'PES',
                         MonCotiz: 1
-                    }
+                    }]
                 }
             }
         };

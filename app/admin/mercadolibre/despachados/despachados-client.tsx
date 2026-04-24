@@ -165,7 +165,7 @@ export function DespachadosClient() {
             await new Promise(resolve => setTimeout(resolve, 1000));
             
             await limpiarVentasRegistracion(ids);
-            const res = await getVentasRegistracion();
+            const res = await getVentasRegistracion(fecha);
             if (res.success) setVentasRegistracion(res.data);
             
             setSelectedRegistracionIds(new Set());

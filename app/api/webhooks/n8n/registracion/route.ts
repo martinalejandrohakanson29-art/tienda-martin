@@ -10,16 +10,28 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const ventasInput = Array.isArray(body) ? body : [body];
+        
+        // n8n puede enviar { fecha: '...', ventas: [...] } o directamente el array
+        const ventasData = Array.isArray(body) ? body : (body.ventas || [body]);
+        const globalFecha = body.fecha;
 
-        if (ventasInput.length === 0) {
+        if (ventasData.length === 0) {
             return NextResponse.json({ success: true, message: "No hay datos para procesar" });
         }
 
         // Procesamos cada venta recibida
-        const operations = ventasInput.map((venta: any) => {
+        const operations = ventasData.map((venta: any) => {
+            const shippingId = String(venta.shippingId || venta.envioId);
+            
+            // Usamos la fecha de la venta individual, la global del body, o hoy si no hay ninguna
+            const fechaStr = venta.fecha || globalFecha;
+            
+            // Si hay una fecha, forzamos el createdAt a las 12:00 de ese día 
+            // para que caiga siempre dentro del rango gte(03:00) y lte(02:59+1d)
+            const createdAt = fechaStr ? new Date(`${fechaStr}T12:00:00Z`) : new Date();
+
             return prisma.ventaMLRegistracion.upsert({
-                where: { shippingId: String(venta.shippingId || venta.envioId) },
+                where: { shippingId },
                 update: {
                     orderId: String(venta.orderId || venta.ventaId),
                     mla: String(venta.mla),
@@ -28,9 +40,10 @@ export async function POST(req: Request) {
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,
                     variation: venta.variation || null,
+                    createdAt: createdAt // Forzamos la fecha para el filtrado
                 },
                 create: {
-                    shippingId: String(venta.shippingId || venta.envioId),
+                    shippingId,
                     orderId: String(venta.orderId || venta.ventaId),
                     mla: String(venta.mla),
                     categoria: venta.categoria || "Desconocido",
@@ -38,6 +51,7 @@ export async function POST(req: Request) {
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,
                     variation: venta.variation || null,
+                    createdAt: createdAt
                 }
             });
         });

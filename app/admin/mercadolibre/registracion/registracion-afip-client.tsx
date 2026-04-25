@@ -11,6 +11,13 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import { Loader2, Send, RefreshCcw, Wifi, AlertTriangle, CheckCircle2 } from "lucide-react"
 import { format } from "date-fns"
+import { 
+    Select, 
+    SelectContent, 
+    SelectItem, 
+    SelectTrigger, 
+    SelectValue 
+} from "@/components/ui/select"
 
 export default function RegistracionAfipClient() {
     const [loading, setLoading] = useState(true)
@@ -22,6 +29,8 @@ export default function RegistracionAfipClient() {
     // Datos para factura manual
     const [manualDoc, setManualDoc] = useState("20269957361")
     const [manualMonto, setManualMonto] = useState("100")
+    const [manualDocTipo, setManualDocTipo] = useState("80")
+    const [manualIvaReceptor, setManualIvaReceptor] = useState("5")
 
     const loadData = async () => {
         setLoading(true)
@@ -62,8 +71,9 @@ export default function RegistracionAfipClient() {
             setTesting(true)
             const res = await facturarVenta({
                 monto: parseFloat(manualMonto),
-                docTipo: 80, // CUIT
-                docNro: parseInt(manualDoc),
+                docTipo: parseInt(manualDocTipo),
+                docNro: parseInt(manualDoc.replace(/-/g, '')),
+                ivaReceptor: parseInt(manualIvaReceptor),
                 concepto: 1 // Productos
             })
 
@@ -97,6 +107,7 @@ export default function RegistracionAfipClient() {
                 monto: monto,
                 docTipo: 99, // Consumidor Final
                 docNro: 0,
+                ivaReceptor: 5, // Consumidor Final (Mandatorio RG 5616)
                 concepto: 1
             })
 
@@ -164,6 +175,34 @@ export default function RegistracionAfipClient() {
                         Prueba de Facturación Manual
                     </h2>
                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <Label className="text-xs uppercase font-black text-slate-400">Tipo Doc</Label>
+                            <Select value={manualDocTipo} onValueChange={setManualDocTipo}>
+                                <SelectTrigger className="rounded-xl">
+                                    <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="80">CUIT</SelectItem>
+                                    <SelectItem value="96">DNI</SelectItem>
+                                    <SelectItem value="86">CUIL</SelectItem>
+                                    <SelectItem value="99">Sin Doc (Cons. Final)</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-xs uppercase font-black text-slate-400">Condición IVA</Label>
+                            <Select value={manualIvaReceptor} onValueChange={setManualIvaReceptor}>
+                                <SelectTrigger className="rounded-xl">
+                                    <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="5">Consumidor Final</SelectItem>
+                                    <SelectItem value="1">Resp. Inscripto</SelectItem>
+                                    <SelectItem value="6">Monotributista</SelectItem>
+                                    <SelectItem value="4">Exento</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="space-y-1.5">
                             <Label className="text-xs uppercase font-black text-slate-400">CUIT / Doc</Label>
                             <Input 

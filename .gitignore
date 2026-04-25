@@ -62,3 +62,10 @@ Desktop.ini
 
 # Roo AI
 /.roo
+
+# --- AFIP - Revolución Motos ---
+# Ignorar todos los archivos de la carpeta Registracion
+Registracion/*.key
+Registracion/*.crt
+Registracion/*.csr
+Registracion/ticket_cache.json

@@ -208,3 +208,4 @@ export async function facturarVenta(data: {
 
         return { success: false, error: error.message || "Error interno del servidor" };
     }
+}

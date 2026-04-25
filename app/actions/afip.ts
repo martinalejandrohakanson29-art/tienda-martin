@@ -20,20 +20,31 @@ const AFIP_CONFIG = {
 /**
  * Reconstruye los archivos físicos desde Base64 en Coolify si no existen.
  */
+// app/actions/afip.ts
+
 function asegurarArchivosFisicos() {
-    if (!fs.existsSync(AFIP_CONFIG.basePath)) {
-        fs.mkdirSync(AFIP_CONFIG.basePath, { recursive: true });
-        console.log("📁 [AFIP] Carpeta Registracion creada.");
-    }
+    try {
+        if (!fs.existsSync(AFIP_CONFIG.basePath)) {
+            fs.mkdirSync(AFIP_CONFIG.basePath, { recursive: true });
+            console.log("📁 [AFIP] Carpeta Registracion creada en:", AFIP_CONFIG.basePath);
+        }
 
-    if (!fs.existsSync(AFIP_CONFIG.certPath) && process.env.AFIP_CERT_B64) {
-        fs.writeFileSync(AFIP_CONFIG.certPath, Buffer.from(process.env.AFIP_CERT_B64, 'base64'));
-        console.log("📄 [AFIP] Certificado reconstruido desde Base64.");
-    }
+        if (process.env.AFIP_CERT_B64) {
+            // Escribimos siempre o verificamos integridad
+            fs.writeFileSync(AFIP_CONFIG.certPath, Buffer.from(process.env.AFIP_CERT_B64, 'base64'));
+            console.log("📄 [AFIP] Certificado verificado/reconstruido.");
+        } else {
+            console.error("❌ [AFIP] Falta variable AFIP_CERT_B64");
+        }
 
-    if (!fs.existsSync(AFIP_CONFIG.keyPath) && process.env.AFIP_KEY_B64) {
-        fs.writeFileSync(AFIP_CONFIG.keyPath, Buffer.from(process.env.AFIP_KEY_B64, 'base64'));
-        console.log("🔑 [AFIP] Llave privada reconstruida desde Base64.");
+        if (process.env.AFIP_KEY_B64) {
+            fs.writeFileSync(AFIP_CONFIG.keyPath, Buffer.from(process.env.AFIP_KEY_B64, 'base64'));
+            console.log("🔑 [AFIP] Llave privada verificada/reconstruida.");
+        } else {
+            console.error("❌ [AFIP] Falta variable AFIP_KEY_B64");
+        }
+    } catch (err: any) {
+        console.error("❌ [AFIP] Error crítico al escribir archivos:", err.message);
     }
 }
 

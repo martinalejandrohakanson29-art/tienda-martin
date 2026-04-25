@@ -24,12 +24,16 @@ function asegurarArchivosFisicos() {
     try {
         if (!fs.existsSync(AFIP_CONFIG.basePath)) {
             fs.mkdirSync(AFIP_CONFIG.basePath, { recursive: true });
-            console.log("📁 [AFIP] Carpeta Registracion creada.");
         }
 
-        // Sanitización: Eliminamos cualquier espacio, tab o salto de línea del Base64
-        const certB64 = process.env.AFIP_CERT_B64?.replace(/\s/g, '');
-        const keyB64 = process.env.AFIP_KEY_B64?.replace(/\s/g, '');
+        const certRaw = process.env.AFIP_CERT_B64 || "";
+        const keyRaw = process.env.AFIP_KEY_B64 || "";
+
+        console.log(`📏 [AFIP] Largo Cert B64: ${certRaw.length}`);
+        console.log(`📏 [AFIP] Largo Key B64: ${keyRaw.length}`);
+
+        const certB64 = certRaw.replace(/\s/g, '');
+        const keyB64 = keyRaw.replace(/\s/g, '');
 
         if (certB64) {
             const decoded = Buffer.from(certB64, 'base64').toString('utf-8').trim();

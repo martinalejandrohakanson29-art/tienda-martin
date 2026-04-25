@@ -6,6 +6,7 @@ import fs from 'fs';
 
 const AFIP_CONFIG = {
     CUIT: process.env.AFIP_CUIT || "20269957361",
+    // Directorio base para certificados y caché
     basePath: path.join(process.cwd(), 'Registracion'),
     certPath: path.join(process.cwd(), 'Registracion', process.env.AFIP_CERT_FILE || 'certificado.crt'),
     keyPath: path.join(process.cwd(), 'Registracion', process.env.AFIP_KEY_FILE || 'privada.key'),
@@ -17,8 +18,8 @@ const AFIP_CONFIG = {
 };
 
 /**
- * Reconstruye y sanitiza los archivos PEM desde Base64.
- * Elimina espacios y saltos de línea accidentales.
+ * Reconstruye los archivos físicos desde Base64 en Coolify.
+ * Limpia espacios y saltos de línea para evitar errores de formato PEM.
  */
 function asegurarArchivosFisicos() {
     try {
@@ -26,27 +27,29 @@ function asegurarArchivosFisicos() {
             fs.mkdirSync(AFIP_CONFIG.basePath, { recursive: true });
         }
 
-        // Limpieza de variables: eliminamos cualquier espacio, tab o salto de línea
+        // Limpiamos las variables de entorno eliminando cualquier espacio o salto de línea
         const certB64 = process.env.AFIP_CERT_B64?.replace(/\s/g, '');
         const keyB64 = process.env.AFIP_KEY_B64?.replace(/\s/g, '');
 
         if (certB64) {
             const decodedCert = Buffer.from(certB64, 'base64').toString('utf-8').trim();
-            if (decodedCert.includes('-----BEGIN CERTIFICATE-----')) {
+            // El certificado debe tener estas cabeceras
+            if (decodedCert.includes('-----BEGIN CERTIFICATE-----') && decodedCert.includes('-----END CERTIFICATE-----')) {
                 fs.writeFileSync(AFIP_CONFIG.certPath, decodedCert);
-                console.log("📄 [AFIP] Certificado PEM verificado y escrito.");
+                console.log("📄 [AFIP] Certificado PEM reconstruido con éxito.");
             } else {
-                console.error("❌ [AFIP] El Certificado decodificado no tiene formato PEM válido.");
+                console.error("❌ [AFIP] ERROR: El contenido de AFIP_CERT_B64 no es un certificado PEM válido.");
             }
         }
 
         if (keyB64) {
             const decodedKey = Buffer.from(keyB64, 'base64').toString('utf-8').trim();
+            // La llave privada termina en PRIVATE KEY (puede ser RSA o no)
             if (decodedKey.includes('-----BEGIN') && decodedKey.includes('PRIVATE KEY-----')) {
                 fs.writeFileSync(AFIP_CONFIG.keyPath, decodedKey);
-                console.log("🔑 [AFIP] Llave privada PEM verificada y escrita.");
+                console.log("🔑 [AFIP] Llave privada PEM reconstruida con éxito.");
             } else {
-                console.error("❌ [AFIP] La Llave Privada decodificada no tiene formato PEM válido.");
+                console.error("❌ [AFIP] ERROR: El contenido de AFIP_KEY_B64 no es una llave privada PEM válida.");
             }
         }
     } catch (err: any) {
@@ -103,7 +106,7 @@ export async function testAfipConnection() {
         return {
             success: false,
             error: error.message || "Error desconocido",
-            details: error.code === 'certificate-files-error' ? "Error en formato de certificado (PEM)" : "Revisar logs del servidor"
+            details: "Revisar logs de Coolify para ver el error técnico de ARCA."
         };
     }
 }
@@ -156,6 +159,7 @@ export async function facturarVenta(data: {
                         ImpIVA: 0,
                         MonId: 'PES',
                         MonCotiz: 1,
+                        // Cumplimiento RG 5616
                         CondicionIVAReceptorId: ivaReceptor
                     }]
                 }
@@ -167,14 +171,21 @@ export async function facturarVenta(data: {
 
         if (result.FeCabResp.Resultado === 'A') {
             const det = result.FeDetResp.FECAEDetResponse[0] || result.FeDetResp.FECAEDetResponse;
+            console.log("✅ [AFIP] Factura Autorizada! CAE:", det.CAE);
             return { success: true, cae: det.CAE, numero: nextNumber };
         } else {
             const errorMsg = result.Errors?.Err?.Msg || result.Errors?.[0]?.Msg || "Error de validación";
             const obsMsg = result.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones?.Obs?.Msg || "";
-            return { success: false, error: "Factura rechazada", details: `${errorMsg} ${obsMsg}`.trim() };
+
+            console.error("⚠️ [AFIP] Rechazo:", errorMsg, obsMsg);
+            return {
+                success: false,
+                error: "Factura rechazada",
+                details: `${errorMsg} ${obsMsg}`.trim()
+            };
         }
     } catch (error: any) {
-        console.error("❌ [AFIP] Error en facturación:", error.message);
+        console.error("❌ [AFIP] Error:", error.message);
         return { success: false, error: error.message };
     }
 }

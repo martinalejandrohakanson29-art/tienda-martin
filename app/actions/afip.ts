@@ -159,21 +159,52 @@ export async function facturarVenta(data: {
             throw new Error("Respuesta vacía de ARCA");
         }
 
+        // 1. Caso de Éxito (Aprobada)
         if (result.FeCabResp.Resultado === 'A') {
-            const det = result.FeDetResp.FECAEDetResponse[0] || result.FeDetResp.FECAEDetResponse;
+            const det = Array.isArray(result.FeDetResp.FECAEDetResponse)
+                ? result.FeDetResp.FECAEDetResponse[0]
+                : result.FeDetResp.FECAEDetResponse;
+
             console.log(`✅ [AFIP] Factura autorizada! CAE: ${det.CAE}`);
             return { success: true, cae: det.CAE, numero: nextNumber };
-        } else {
+        }
+
+        // 2. Caso de Rechazo (R) u Observaciones
+        else {
+            // Extraer errores generales del encabezado
             const errors = result.Errors?.Err || result.Errors || [];
-            const errorMsg = Array.isArray(errors) ? errors.map((e: any) => e.Msg).join(', ') : (errors.Msg || "Error desconocido");
-            console.error("❌ [AFIP] Factura RECHAZADA:", errorMsg);
-            if (result.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones) {
-                console.warn("⚠️ [AFIP] Observaciones:", result.FeDetResp.FECAEDetResponse[0].Observaciones);
-            }
-            return { success: false, error: "Factura rechazada", details: errorMsg };
+            const errorMsg = Array.isArray(errors)
+                ? errors.map((e: any) => `${e.Code}: ${e.Msg}`).join(', ')
+                : (errors.Msg ? `${errors.Code}: ${errors.Msg}` : "");
+
+            // Extraer observaciones específicas del detalle (Aquí suele estar el motivo real)
+            const detResp = Array.isArray(result.FeDetResp?.FECAEDetResponse)
+                ? result.FeDetResp.FECAEDetResponse[0]
+                : result.FeDetResp?.FECAEDetResponse;
+
+            const obs = detResp?.Observaciones?.Obs || [];
+            const obsMsg = Array.isArray(obs)
+                ? obs.map((o: any) => `${o.Code}: ${o.Msg}`).join(' | ')
+                : (obs.Msg ? `${obs.Code}: ${obs.Msg}` : "");
+
+            const fullError = [errorMsg, obsMsg].filter(Boolean).join(" - Detalle: ");
+
+            console.error("❌ [AFIP] Factura RECHAZADA.");
+            console.error("🔍 [AFIP] Motivos:", fullError);
+
+            // Log extra en formato JSON para inspección profunda en la terminal
+            console.log("DEBUG COMPLETO:", JSON.stringify(result, null, 2));
+
+            return {
+                success: false,
+                error: "Factura rechazada",
+                details: fullError || "Error no especificado por ARCA"
+            };
         }
     } catch (error: any) {
         console.error("💥 [AFIP] Error crítico en facturarVenta:", error);
+        // Esto ayuda a ver errores de conexión o de la librería
+        if (error.fault) console.error("SOAP FAULT:", JSON.stringify(error.fault, null, 2));
+
         return { success: false, error: error.message || "Error interno del servidor" };
     }
-}

@@ -93,7 +93,7 @@ export async function consultarPadron(cuit: number) {
 
         const padron = new PersonaServiceA5("https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5?WSDL");
 
-        const res = await padron.getPersona({
+        const res: any = await padron.getPersona({
             token,
             sign,
             cuitRepresentada: parseInt(AFIP_CONFIG.CUIT),

@@ -134,16 +134,48 @@ export async function facturarVenta(data: {
         const nextNumber = lastCbte + 1;
         const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
 
-        console.log(`🧾 [AFIP] Preparando factura nro ${nextNumber} para DNI/CUIT ${docNro}`);
+        const total = parseFloat(monto.toFixed(2));
+        const esResponsableInscripto = [1, 6].includes(AFIP_CONFIG.tipoComprobante);
+        
+        let neto = total;
+        let importeIva = 0;
+        let ivaArray = null;
+
+        if (esResponsableInscripto) {
+            neto = parseFloat((total / 1.21).toFixed(2));
+            importeIva = parseFloat((total - neto).toFixed(2));
+            ivaArray = [
+                {
+                    Id: 5, // 21%
+                    BaseImp: neto,
+                    Importe: importeIva
+                }
+            ];
+        }
+
+        console.log(`🧾 [AFIP] Preparando factura nro ${nextNumber} para DNI/CUIT ${docNro}`, { total, neto, importeIva });
 
         const facturaData = {
             FeCAEReq: {
                 FeCabReq: { CantReg: 1, PtoVta: AFIP_CONFIG.puntoDeVenta, CbteTipo: AFIP_CONFIG.tipoComprobante },
                 FeDetReq: {
                     FECAEDetRequest: [{
-                        Concepto: concepto, DocTipo: docTipo, DocNro: docNro, CbteDesde: nextNumber, CbteHasta: nextNumber,
-                        CbteFch: fecha, ImpTotal: monto, ImpTotConc: 0, ImpNeto: monto, ImpOpEx: 0, ImpTrib: 0, ImpIVA: 0,
-                        MonId: 'PES', MonCotiz: 1, CondicionIVAReceptorId: ivaReceptor
+                        Concepto: concepto, 
+                        DocTipo: docTipo, 
+                        DocNro: docNro, 
+                        CbteDesde: nextNumber, 
+                        CbteHasta: nextNumber,
+                        CbteFch: fecha, 
+                        ImpTotal: total, 
+                        ImpTotConc: 0, 
+                        ImpNeto: neto, 
+                        ImpOpEx: 0, 
+                        ImpTrib: 0, 
+                        ImpIVA: importeIva,
+                        MonId: 'PES', 
+                        MonCotiz: 1, 
+                        CondicionIVAReceptorId: ivaReceptor,
+                        ...(ivaArray ? { Iva: ivaArray } : {})
                     }]
                 }
             }

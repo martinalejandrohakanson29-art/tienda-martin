@@ -79,14 +79,27 @@ async function obtenerTicketAcceso() {
     }
 }
 
+// app/actions/afip.ts
+
 export async function testAfipConnection() {
-    console.log("🚀 [AFIP] Probando conexión...");
+    console.log("🚀 [AFIP] Iniciando Test en entorno:", process.env.NODE_ENV);
     try {
         asegurarArchivosFisicos();
-        await obtenerTicketAcceso();
-        return { success: true, message: "Conexión exitosa" };
+
+        console.log("⏳ [AFIP] Solicitando Ticket de Acceso a:", AFIP_CONFIG.urlWsaa);
+        const ta = await obtenerTicketAcceso();
+
+        console.log("✅ [AFIP] Ticket obtenido con éxito.");
+        return { success: true, message: "Conexión exitosa con ARCA" };
     } catch (error: any) {
-        return { success: false, error: error.message };
+        // ESTO ES CLAVE: Loguear el error completo en Coolify
+        console.error("❌ [AFIP] Error detallado:", error);
+
+        if (error.message?.includes('ETIMEDOUT')) {
+            return { success: false, error: "Timeout: ARCA no responde. ¿IP bloqueada?" };
+        }
+
+        return { success: false, error: error.message || "Error desconocido" };
     }
 }
 

@@ -144,13 +144,15 @@ export async function facturarVenta(data: {
         if (esResponsableInscripto) {
             neto = parseFloat((total / 1.21).toFixed(2));
             importeIva = parseFloat((total - neto).toFixed(2));
-            ivaArray = [
-                {
-                    Id: 5, // 21%
-                    BaseImp: neto,
-                    Importe: importeIva
-                }
-            ];
+            ivaArray = {
+                AlicIva: [
+                    {
+                        Id: 5, // 21%
+                        BaseImp: neto,
+                        Importe: importeIva
+                    }
+                ]
+            };
         }
 
         console.log(`🧾 [AFIP] Preparando factura nro ${nextNumber} para DNI/CUIT ${docNro}`, { total, neto, importeIva });

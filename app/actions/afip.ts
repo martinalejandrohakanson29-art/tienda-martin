@@ -6,7 +6,6 @@ import fs from 'fs';
 
 const AFIP_CONFIG = {
     CUIT: process.env.AFIP_CUIT || "20269957361",
-    // Directorio base para certificados y caché
     basePath: path.join(process.cwd(), 'Registracion'),
     certPath: path.join(process.cwd(), 'Registracion', process.env.AFIP_CERT_FILE || 'certificado.crt'),
     keyPath: path.join(process.cwd(), 'Registracion', process.env.AFIP_KEY_FILE || 'privada.key'),
@@ -18,30 +17,37 @@ const AFIP_CONFIG = {
 };
 
 /**
- * Reconstruye los archivos físicos desde Base64 en Coolify si no existen.
+ * Reconstruye y sanitiza los archivos PEM desde Base64.
+ * Elimina espacios y saltos de línea accidentales.
  */
-// app/actions/afip.ts
-
 function asegurarArchivosFisicos() {
     try {
         if (!fs.existsSync(AFIP_CONFIG.basePath)) {
             fs.mkdirSync(AFIP_CONFIG.basePath, { recursive: true });
-            console.log("📁 [AFIP] Carpeta Registracion creada en:", AFIP_CONFIG.basePath);
         }
 
-        if (process.env.AFIP_CERT_B64) {
-            // Escribimos siempre o verificamos integridad
-            fs.writeFileSync(AFIP_CONFIG.certPath, Buffer.from(process.env.AFIP_CERT_B64, 'base64'));
-            console.log("📄 [AFIP] Certificado verificado/reconstruido.");
-        } else {
-            console.error("❌ [AFIP] Falta variable AFIP_CERT_B64");
+        // Limpieza de variables: eliminamos cualquier espacio, tab o salto de línea
+        const certB64 = process.env.AFIP_CERT_B64?.replace(/\s/g, '');
+        const keyB64 = process.env.AFIP_KEY_B64?.replace(/\s/g, '');
+
+        if (certB64) {
+            const decodedCert = Buffer.from(certB64, 'base64').toString('utf-8').trim();
+            if (decodedCert.includes('-----BEGIN CERTIFICATE-----')) {
+                fs.writeFileSync(AFIP_CONFIG.certPath, decodedCert);
+                console.log("📄 [AFIP] Certificado PEM verificado y escrito.");
+            } else {
+                console.error("❌ [AFIP] El Certificado decodificado no tiene formato PEM válido.");
+            }
         }
 
-        if (process.env.AFIP_KEY_B64) {
-            fs.writeFileSync(AFIP_CONFIG.keyPath, Buffer.from(process.env.AFIP_KEY_B64, 'base64'));
-            console.log("🔑 [AFIP] Llave privada verificada/reconstruida.");
-        } else {
-            console.error("❌ [AFIP] Falta variable AFIP_KEY_B64");
+        if (keyB64) {
+            const decodedKey = Buffer.from(keyB64, 'base64').toString('utf-8').trim();
+            if (decodedKey.includes('-----BEGIN') && decodedKey.includes('PRIVATE KEY-----')) {
+                fs.writeFileSync(AFIP_CONFIG.keyPath, decodedKey);
+                console.log("🔑 [AFIP] Llave privada PEM verificada y escrita.");
+            } else {
+                console.error("❌ [AFIP] La Llave Privada decodificada no tiene formato PEM válido.");
+            }
         }
     } catch (err: any) {
         console.error("❌ [AFIP] Error crítico al escribir archivos:", err.message);
@@ -60,7 +66,9 @@ async function obtenerTicketAcceso() {
             const cacheData = JSON.parse(fs.readFileSync(AFIP_CONFIG.cachePath, 'utf8'));
             const expTime = cacheData.header?.expirationTime || cacheData.credentials?.expirationTime;
             if (expTime && new Date(expTime) > new Date()) return cacheData;
-        } catch (e) { console.log("⚠️ [AFIP] Error en caché."); }
+        } catch (e) {
+            console.log("⚠️ [AFIP] Error en caché de ticket, solicitando uno nuevo.");
+        }
     }
 
     try {
@@ -79,30 +87,30 @@ async function obtenerTicketAcceso() {
     }
 }
 
-// app/actions/afip.ts
-
+/**
+ * Prueba de conexión integral para el panel administrativo.
+ */
 export async function testAfipConnection() {
     console.log("🚀 [AFIP] Iniciando Test en entorno:", process.env.NODE_ENV);
     try {
         asegurarArchivosFisicos();
-
-        console.log("⏳ [AFIP] Solicitando Ticket de Acceso a:", AFIP_CONFIG.urlWsaa);
-        const ta = await obtenerTicketAcceso();
-
-        console.log("✅ [AFIP] Ticket obtenido con éxito.");
+        console.log("⏳ [AFIP] Conectando a WSAA:", AFIP_CONFIG.urlWsaa);
+        await obtenerTicketAcceso();
+        console.log("✅ [AFIP] Conexión Exitosa.");
         return { success: true, message: "Conexión exitosa con ARCA" };
     } catch (error: any) {
-        // ESTO ES CLAVE: Loguear el error completo en Coolify
         console.error("❌ [AFIP] Error detallado:", error);
-
-        if (error.message?.includes('ETIMEDOUT')) {
-            return { success: false, error: "Timeout: ARCA no responde. ¿IP bloqueada?" };
-        }
-
-        return { success: false, error: error.message || "Error desconocido" };
+        return {
+            success: false,
+            error: error.message || "Error desconocido",
+            details: error.code === 'certificate-files-error' ? "Error en formato de certificado (PEM)" : "Revisar logs del servidor"
+        };
     }
 }
 
+/**
+ * Emisión de factura electrónica (C) cumpliendo RG 5616.
+ */
 export async function facturarVenta(data: {
     monto: number,
     docTipo: number,
@@ -148,7 +156,6 @@ export async function facturarVenta(data: {
                         ImpIVA: 0,
                         MonId: 'PES',
                         MonCotiz: 1,
-                        // Cumplimiento RG 5616
                         CondicionIVAReceptorId: ivaReceptor
                     }]
                 }
@@ -160,25 +167,14 @@ export async function facturarVenta(data: {
 
         if (result.FeCabResp.Resultado === 'A') {
             const det = result.FeDetResp.FECAEDetResponse[0] || result.FeDetResp.FECAEDetResponse;
-            console.log("✅ [AFIP] Factura Autorizada! CAE:", det.CAE);
             return { success: true, cae: det.CAE, numero: nextNumber };
         } else {
             const errorMsg = result.Errors?.Err?.Msg || result.Errors?.[0]?.Msg || "Error de validación";
-            const obsMsg = result.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones?.Obs?.Msg
-                || result.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones?.[0]?.Msg
-                || "";
-
-            console.error("⚠️ [AFIP] Rechazo:", errorMsg, obsMsg);
-            console.dir(result, { depth: null });
-
-            return {
-                success: false,
-                error: "Factura rechazada",
-                details: `${errorMsg} ${obsMsg}`.trim() || "Revisar logs"
-            };
+            const obsMsg = result.FeDetResp?.FECAEDetResponse?.[0]?.Observaciones?.Obs?.Msg || "";
+            return { success: false, error: "Factura rechazada", details: `${errorMsg} ${obsMsg}`.trim() };
         }
     } catch (error: any) {
-        console.error("❌ [AFIP] Error:", error.message);
+        console.error("❌ [AFIP] Error en facturación:", error.message);
         return { success: false, error: error.message };
     }
 }

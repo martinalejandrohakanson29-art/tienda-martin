@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react"
 import { getVentasRegistracion } from "@/app/actions/envios"
-import { testAfipConnection, facturarVenta } from "@/app/actions/afip"
+import { testAfipConnection, facturarVenta, consultarPadron } from "@/app/actions/afip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
-import { Loader2, Send, RefreshCcw, Wifi, AlertTriangle, CheckCircle2 } from "lucide-react"
+import { Loader2, Send, RefreshCcw, Wifi, AlertTriangle, CheckCircle2, Search, User } from "lucide-react"
 import { format } from "date-fns"
 import { 
     Select, 
@@ -28,9 +28,12 @@ export default function RegistracionAfipClient() {
 
     // Datos para factura manual
     const [manualDoc, setManualDoc] = useState("20269957361")
-    const [manualMonto, setManualMonto] = useState("100")
+    const [manualMonto, setManualMonto] = useState("115")
     const [manualDocTipo, setManualDocTipo] = useState("80")
     const [manualIvaReceptor, setManualIvaReceptor] = useState("5")
+    const [manualCbteTipo, setManualCbteTipo] = useState("6")
+    const [manualNombre, setManualNombre] = useState("")
+    const [searching, setSearching] = useState(false)
 
     const loadData = async () => {
         setLoading(true)
@@ -61,6 +64,32 @@ export default function RegistracionAfipClient() {
         }
     }
 
+    const handleConsultarPadron = async () => {
+        if (!manualDoc) {
+            toast.error("Ingresa un CUIT/DNI para consultar")
+            return
+        }
+        
+        setSearching(true)
+        try {
+            const res = await consultarPadron(parseInt(manualDoc.replace(/-/g, '')))
+            if (res.success) {
+                setManualNombre(res.nombre || "")
+                setManualCbteTipo(res.tipoFactura?.toString() || "6")
+                setManualIvaReceptor(res.condicionIva?.toString() || "5")
+                // Si trajo nombre, probablemente es CUIT
+                if (manualDoc.length > 8) setManualDocTipo("80") 
+                toast.success("Datos obtenidos del padrón")
+            } else {
+                toast.error(res.error || "No se encontró el CUIT")
+            }
+        } catch (error) {
+            toast.error("Error al consultar padrón")
+        } finally {
+            setSearching(false)
+        }
+    }
+
     const handleFacturarManual = async () => {
         if (!manualDoc || !manualMonto) {
             toast.error("Completa los datos para la factura manual")
@@ -74,6 +103,7 @@ export default function RegistracionAfipClient() {
                 docTipo: parseInt(manualDocTipo),
                 docNro: parseInt(manualDoc.replace(/-/g, '')),
                 ivaReceptor: parseInt(manualIvaReceptor),
+                tipoComprobante: parseInt(manualCbteTipo),
                 concepto: 1 // Productos
             })
 
@@ -204,14 +234,45 @@ export default function RegistracionAfipClient() {
                             </Select>
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-xs uppercase font-black text-slate-400">CUIT / Doc</Label>
-                            <Input 
-                                value={manualDoc} 
-                                onChange={(e) => setManualDoc(e.target.value)}
-                                className="rounded-xl font-mono"
-                                placeholder="20..."
-                            />
+                            <Label className="text-xs uppercase font-black text-slate-400">Tipo Factura</Label>
+                            <Select value={manualCbteTipo} onValueChange={setManualCbteTipo}>
+                                <SelectTrigger className="rounded-xl">
+                                    <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="6">Factura B</SelectItem>
+                                    <SelectItem value="1">Factura A</SelectItem>
+                                    <SelectItem value="11">Factura C</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
+                        <div className="col-span-2 space-y-1.5">
+                            <Label className="text-xs uppercase font-black text-slate-400">CUIT / Doc</Label>
+                            <div className="flex gap-2">
+                                <Input 
+                                    value={manualDoc} 
+                                    onChange={(e) => setManualDoc(e.target.value)}
+                                    className="rounded-xl font-mono"
+                                    placeholder="20..."
+                                />
+                                <Button 
+                                    size="icon"
+                                    variant="secondary"
+                                    onClick={handleConsultarPadron}
+                                    disabled={searching}
+                                    className="rounded-xl shrink-0"
+                                    title="Consultar Padrón ARCA"
+                                >
+                                    {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                                </Button>
+                            </div>
+                        </div>
+                        {manualNombre && (
+                            <div className="col-span-2 p-3 bg-slate-50 border border-slate-100 rounded-xl flex items-center gap-3">
+                                <User className="h-4 w-4 text-slate-400" />
+                                <span className="text-xs font-bold text-slate-700 truncate">{manualNombre}</span>
+                            </div>
+                        )}
                         <div className="space-y-1.5">
                             <Label className="text-xs uppercase font-black text-slate-400">Monto ($)</Label>
                             <Input 

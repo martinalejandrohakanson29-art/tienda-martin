@@ -1,6 +1,6 @@
 "use server"
 
-import { LoginTicket, Wsfev1, PersonaServiceA5 } from 'afip-apis';
+import { LoginTicket, Wsfev1, PersonaServiceA13 } from 'afip-apis';
 import path from 'path';
 import fs from 'fs';
 
@@ -80,24 +80,26 @@ async function obtenerTicketAcceso(servicio: string = 'wsfe') {
 }
 
 export async function consultarPadron(cuit: number) {
-    console.log(`🔍 [AFIP] Consultando padrón para CUIT: ${cuit}`);
+    console.log(`🔍 [AFIP] Consultando padrón A13 para CUIT: ${cuit}`);
     try {
-        const ta = await obtenerTicketAcceso('ws_sr_padron_a5');
-
+        // 1. Pedimos el ticket específicamente para el servicio A13
+        const ta = await obtenerTicketAcceso('ws_sr_padron_a13');
+        
         const token = (ta as any).token || (ta as any).credentials?.token;
         const sign = (ta as any).sign || (ta as any).credentials?.sign;
 
         if (!token || !sign) {
             throw new Error("Token o Sign faltantes en el ticket de acceso");
         }
-
-        const padron = new PersonaServiceA5("https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5?WSDL");
-
+        
+        // 2. Usamos la URL del WSDL para el Padrón A13
+        const padron = new PersonaServiceA13("https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL");
+        
         const res: any = await padron.getPersona({
             token,
             sign,
-            cuitRepresentada: parseInt(AFIP_CONFIG.CUIT),
-            idPersona: cuit
+            cuitRepresentada: parseInt(AFIP_CONFIG.CUIT), // 20269957361
+            idPersona: cuit.toString()
         });
 
         if (!res?.personaReturn?.persona) {
@@ -107,19 +109,13 @@ export async function consultarPadron(cuit: number) {
 
         const datos = res.personaReturn.persona;
 
-        // Lógica de decisión automática
-        let tipoFactura = 6; // Por defecto Factura B
-        let condicionIva = 5; // Consumidor Final
-
+        // Lógica de decisión automática para Responsable Inscripto
         // Verificamos si es Responsable Inscripto (Impuesto 30 = IVA)
-        // Nota: algunos retornan impuestos como array, otros como objeto único si es uno solo
         const impuestos = Array.isArray(datos.impuesto) ? datos.impuesto : (datos.impuesto ? [datos.impuesto] : []);
         const tieneIVA = impuestos.some((imp: any) => imp.idImpuesto === 30);
-
-        if (tieneIVA) {
-            tipoFactura = 1; // Factura A
-            condicionIva = 1; // Responsable Inscripto
-        }
+        
+        const tipoFactura = tieneIVA ? 1 : 6; // 1 = Factura A, 6 = Factura B
+        const condicionIva = tieneIVA ? 1 : 5; // 1 = RI, 5 = Consumidor Final
 
         console.log(`✅ [AFIP] Datos obtenidos: ${datos.razonSocial || datos.apellido}, Tipo: ${tipoFactura}`);
 
@@ -132,8 +128,8 @@ export async function consultarPadron(cuit: number) {
         };
 
     } catch (error: any) {
-        console.error("❌ [AFIP] Error consultando padrón:", error);
-        return { success: false, error: "Error de conexión con ARCA o CUIT inválido" };
+        console.error("❌ [AFIP] Error consultando padrón A13:", error);
+        return { success: false, error: "CUIT no encontrado o error de autorización" };
     }
 }
 

@@ -517,7 +517,7 @@ export default function VentasMostradorClient({
       if (res.success) {
         alert("¡Guardado como proveedor!");
         const provs = await obtenerProveedores();
-        if (provs.success) setProveedores(provs.data);
+        if (provs.success && provs.data) setProveedores(provs.data);
       } else {
         alert(res.error || "Error al guardar proveedor");
       }

@@ -79,48 +79,70 @@ async function obtenerTicketAcceso(servicio: string = 'wsfe') {
     }
 }
 
-export async function consultarPadron(cuit: number) {
-    console.log(`🔍 [AFIP] Consultando padrón A13 para CUIT: ${cuit}`);
+export async function consultarPadron(documento: string | number) {
+    const docStr = documento.toString().replace(/-/g, '');
+    console.log(`🔍 [AFIP] Consultando padrón A13 para: ${docStr}`);
+    
     try {
-        // 1. Pedimos el ticket específicamente para el servicio A13
         const ta = await obtenerTicketAcceso('ws_sr_padron_a13');
-        
         const token = (ta as any).token || (ta as any).credentials?.token;
         const sign = (ta as any).sign || (ta as any).credentials?.sign;
 
         if (!token || !sign) {
             throw new Error("Token o Sign faltantes en el ticket de acceso");
         }
-        
-        // 2. Usamos la URL del WSDL para el Padrón A13
+
         const padron = new PersonaServiceA13("https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL");
         
+        let cuitBusqueda = docStr;
+
+        // Si tiene 8 dígitos o menos, asumimos que es DNI y buscamos el CUIT/CUIL asociado
+        if (docStr.length <= 8) {
+            console.log(`📇 [AFIP] Buscando CUIT asociado al DNI: ${docStr}`);
+            const resCuit: any = await padron.getIdPersonaListByDocumento({
+                token,
+                sign,
+                cuitRepresentada: parseInt(AFIP_CONFIG.CUIT),
+                documento: docStr
+            });
+
+            const list = resCuit.idPersonaListReturn?.idPersona;
+            if (Array.isArray(list) && list.length > 0) {
+                cuitBusqueda = list[0];
+            } else if (typeof list === 'string') {
+                cuitBusqueda = list;
+            } else {
+                return { success: false, error: "No se encontró un CUIT asociado a este DNI" };
+            }
+            console.log(`✅ [AFIP] CUIT encontrado: ${cuitBusqueda}`);
+        }
+
         const res: any = await padron.getPersona({
             token,
             sign,
-            cuitRepresentada: parseInt(AFIP_CONFIG.CUIT), // 20269957361
-            idPersona: cuit.toString()
+            cuitRepresentada: parseInt(AFIP_CONFIG.CUIT),
+            idPersona: cuitBusqueda
         });
 
         if (!res?.personaReturn?.persona) {
-            console.error("❌ [AFIP] No se encontraron datos para el CUIT:", cuit);
-            return { success: false, error: "No se encontró el CUIT en el padrón" };
+            console.error("❌ [AFIP] No se encontraron datos para:", cuitBusqueda);
+            return { success: false, error: "No se encontró la persona en el padrón" };
         }
 
         const datos = res.personaReturn.persona;
 
         // Lógica de decisión automática para Responsable Inscripto
-        // Verificamos si es Responsable Inscripto (Impuesto 30 = IVA)
         const impuestos = Array.isArray(datos.impuesto) ? datos.impuesto : (datos.impuesto ? [datos.impuesto] : []);
         const tieneIVA = impuestos.some((imp: any) => imp.idImpuesto === 30);
         
-        const tipoFactura = tieneIVA ? 1 : 6; // 1 = Factura A, 6 = Factura B
-        const condicionIva = tieneIVA ? 1 : 5; // 1 = RI, 5 = Consumidor Final
+        const tipoFactura = tieneIVA ? 1 : 6;
+        const condicionIva = tieneIVA ? 1 : 5;
 
         console.log(`✅ [AFIP] Datos obtenidos: ${datos.razonSocial || datos.apellido}, Tipo: ${tipoFactura}`);
 
         return {
             success: true,
+            cuit: cuitBusqueda,
             nombre: datos.razonSocial || `${datos.apellido || ''} ${datos.nombre || ''}`.trim(),
             domicilio: datos.domicilioFiscal?.direccion,
             tipoFactura,
@@ -129,7 +151,7 @@ export async function consultarPadron(cuit: number) {
 
     } catch (error: any) {
         console.error("❌ [AFIP] Error consultando padrón A13:", error);
-        return { success: false, error: "CUIT no encontrado o error de autorización" };
+        return { success: false, error: "Error en la consulta al Padrón ARCA" };
     }
 }
 

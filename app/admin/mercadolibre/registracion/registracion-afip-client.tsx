@@ -72,16 +72,21 @@ export default function RegistracionAfipClient() {
         
         setSearching(true)
         try {
-            const res = await consultarPadron(parseInt(manualDoc.replace(/-/g, '')))
+            const res = await consultarPadron(manualDoc)
             if (res.success) {
                 setManualNombre(res.nombre || "")
                 setManualCbteTipo(res.tipoFactura?.toString() || "6")
                 setManualIvaReceptor(res.condicionIva?.toString() || "5")
-                // Si trajo nombre, probablemente es CUIT
-                if (manualDoc.length > 8) setManualDocTipo("80") 
+                
+                // Si la consulta devolvió un CUIT (especialmente si buscamos por DNI), lo actualizamos
+                if (res.cuit) {
+                    setManualDoc(res.cuit)
+                    setManualDocTipo("80") // Cambiamos automáticamente a CUIT
+                }
+                
                 toast.success("Datos obtenidos del padrón")
             } else {
-                toast.error(res.error || "No se encontró el CUIT")
+                toast.error(res.error || "No se encontró el documento")
             }
         } catch (error) {
             toast.error("Error al consultar padrón")

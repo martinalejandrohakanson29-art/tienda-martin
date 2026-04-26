@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { actualizarProveedor, crearProveedor, eliminarProveedor } from "@/app/actions/listas";
+import { consultarPadron } from "@/app/actions/afip";
 
 interface Proveedor {
   id: string;
@@ -39,6 +40,7 @@ export default function ProveedoresClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<Proveedor>>({});
+  const [isSearching, setIsSearching] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
   // Filtro de búsqueda
@@ -89,6 +91,31 @@ export default function ProveedoresClient({
     setFormData({ ...proveedor });
     setIsEditing(true);
     setIsModalOpen(true);
+  };
+
+  const handleBuscarPadron = async () => {
+    if (!formData.cuit) {
+      alert("Ingresa un CUIT/DNI para buscar");
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await consultarPadron(formData.cuit);
+      if (res.success) {
+        setFormData({
+          ...formData,
+          razonSocial: res.nombre,
+          cuit: res.cuit || formData.cuit
+        });
+      } else {
+        alert(res.error || "No se encontró el CUIT");
+      }
+    } catch (e) {
+      console.error("Error al consultar padrón:", e);
+      alert("Error al consultar padrón");
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleGuardar = async () => {
@@ -312,6 +339,29 @@ export default function ProveedoresClient({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5 col-span-2 sm:col-span-1">
                 <Label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
+                  <Fingerprint className="h-3 w-3" /> CUIT / DNI <span className="text-red-500">*</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input 
+                    value={formData.cuit || ""} 
+                    onChange={(e) => setFormData({...formData, cuit: e.target.value})} 
+                    className="font-mono bg-slate-50 border-slate-200 focus-visible:ring-amber-500 flex-1"
+                    placeholder="20-XXXXXXXX-X"
+                  />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={handleBuscarPadron} 
+                    disabled={isSearching}
+                    className="shrink-0 border-slate-200 hover:bg-slate-100"
+                  >
+                    {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4 text-slate-400" />}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-1.5 col-span-2 sm:col-span-1">
+                <Label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
                   Razón Social <span className="text-red-500">*</span>
                 </Label>
                 <Input 
@@ -319,17 +369,6 @@ export default function ProveedoresClient({
                   onChange={(e) => setFormData({...formData, razonSocial: e.target.value})} 
                   className="font-medium bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
                   placeholder="Ej: Moto Repuestos S.A."
-                />
-              </div>
-              <div className="space-y-1.5 col-span-2 sm:col-span-1">
-                <Label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
-                  <Fingerprint className="h-3 w-3" /> CUIT / DNI <span className="text-red-500">*</span>
-                </Label>
-                <Input 
-                  value={formData.cuit || ""} 
-                  onChange={(e) => setFormData({...formData, cuit: e.target.value})} 
-                  className="font-mono bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
-                  placeholder="20-XXXXXXXX-X"
                 />
               </div>
             </div>

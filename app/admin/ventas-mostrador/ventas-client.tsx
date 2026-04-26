@@ -26,6 +26,7 @@ import {
   eliminarVentaMostrador
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
+import { consultarPadron } from "@/app/actions/afip";
 
 type Decimal = {
   toNumber(): number;
@@ -141,6 +142,8 @@ export default function VentasMostradorClient({
   const [isGuardarComoPedido, setIsGuardarComoPedido] = useState(false);
   const [items, setItems] = useState<ItemVenta[]>([]);
   const [cliente, setCliente] = useState("Consumidor Final");
+  const [cuitBusqueda, setCuitBusqueda] = useState("");
+  const [isSearchingPadron, setIsSearchingPadron] = useState(false);
   const [interesTarjeta, setInteresTarjeta] = useState<number>(0);
 
   const [metodoPago, setMetodoPago] = useState("Efectivo");
@@ -477,6 +480,81 @@ export default function VentasMostradorClient({
   };
 
   // --- FUNCIONES NUEVA VENTA ---
+  const handleBuscarPadron = async () => {
+    if (!cuitBusqueda) {
+      alert("Ingresa un CUIT/DNI para buscar");
+      return;
+    }
+    setIsSearchingPadron(true);
+    try {
+      const res = await consultarPadron(cuitBusqueda);
+      if (res.success) {
+        setCliente(res.nombre);
+        if (res.cuit) setCuitBusqueda(res.cuit);
+        mostrarMensajeExito("Datos obtenidos del padrón");
+      } else {
+        alert(res.error || "No se encontró el CUIT");
+      }
+    } catch (e) {
+      console.error("Error al consultar padrón:", e);
+      alert("Error al consultar padrón");
+    } finally {
+      setIsSearchingPadron(false);
+    }
+  };
+
+  const handleGuardarComoProveedor = async () => {
+    if (!cliente || !cuitBusqueda) {
+      alert("Razón Social y CUIT son necesarios para guardar como proveedor");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await crearProveedor({
+        razonSocial: cliente,
+        cuit: cuitBusqueda
+      });
+      if (res.success) {
+        alert("¡Guardado como proveedor!");
+        const provs = await obtenerProveedores();
+        if (provs.success) setProveedores(provs.data);
+      } else {
+        alert(res.error || "Error al guardar proveedor");
+      }
+    } catch (e) {
+      console.error("Error al guardar proveedor:", e);
+      alert("Error al guardar proveedor");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBuscarPadronProv = async () => {
+    if (!newProvData.cuit) {
+      alert("Ingresa un CUIT/DNI para buscar");
+      return;
+    }
+    setIsSearchingPadron(true);
+    try {
+      const res = await consultarPadron(newProvData.cuit);
+      if (res.success) {
+        setNewProvData({
+          ...newProvData,
+          razonSocial: res.nombre,
+          cuit: res.cuit || newProvData.cuit
+        });
+        mostrarMensajeExito("Datos obtenidos del padrón");
+      } else {
+        alert(res.error || "No se encontró el CUIT");
+      }
+    } catch (e) {
+      console.error("Error al consultar padrón:", e);
+      alert("Error al consultar padrón");
+    } finally {
+      setIsSearchingPadron(false);
+    }
+  };
+
   const handleFinalizarVenta = async (overrideComoPedido?: boolean | React.MouseEvent) => {
     const isPedido = typeof overrideComoPedido === 'boolean' ? overrideComoPedido : isGuardarComoPedido;
 
@@ -516,19 +594,21 @@ export default function VentasMostradorClient({
         return item;
       });
 
+      const dniFinal = dni || cuitBusqueda;
+
       const resultado = isPedido
         ? await guardarComoPedidoVenta({
             cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
             interes: interesTarjeta,
             totalFinal: totalFinalCalculado,
-            items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+            items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
             email, eventoOffline, puntoVentaId
           })
         : await crearVentaMostrador({
             cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
             interes: interesTarjeta,
             totalFinal: totalFinalCalculado,
-            items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+            items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
             email, eventoOffline, puntoVentaId
           });
       
@@ -555,7 +635,7 @@ export default function VentasMostradorClient({
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
-    setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
+    setCuitBusqueda(""); setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
     // Restaurar "Mostrador" como punto de venta por defecto
     if (puntosVenta && puntosVenta.length > 0) {
@@ -1564,13 +1644,50 @@ export default function VentasMostradorClient({
             <div className="max-h-[95vh] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200">
             <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase">Cliente / Razón Social</Label>
-                <div className="relative">
-                  <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors" />
-                  <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">CUIT / DNI (Padrón A13)</Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input 
+                        value={cuitBusqueda} 
+                        onChange={(e) => setCuitBusqueda(e.target.value)} 
+                        placeholder="CUIT o DNI..." 
+                        className="h-10 bg-slate-50 border-slate-200 pl-9" 
+                      />
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    </div>
+                    <Button 
+                      type="button"
+                      variant="secondary"
+                      onClick={handleBuscarPadron} 
+                      disabled={isSearchingPadron}
+                      className="rounded-xl h-10 px-3 shrink-0 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100"
+                    >
+                      {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Cliente / Razón Social</Label>
+                  <div className="relative">
+                    <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors" />
+                    <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  </div>
                 </div>
               </div>
+              {cliente && cuitBusqueda && cliente !== "Consumidor Final" && (
+                <div className="flex justify-end">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleGuardarComoProveedor}
+                    className="text-[10px] text-emerald-600 font-black p-2 h-auto bg-emerald-50 rounded-lg hover:bg-emerald-100 border border-emerald-100"
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Guardar como Proveedor
+                  </Button>
+                </div>
+              )}
 
               {/* SELECTOR DE PAGO MIXTO */}
               <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
@@ -2350,12 +2467,24 @@ export default function VentasMostradorClient({
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase">Razón Social *</Label>
-                <Input value={newProvData.razonSocial} onChange={(e) => setNewProvData({...newProvData, razonSocial: e.target.value})} placeholder="Nombre de la empresa" />
+                <Label className="text-xs font-bold uppercase">CUIT / DNI *</Label>
+                <div className="flex gap-2">
+                  <Input value={newProvData.cuit} onChange={(e) => setNewProvData({...newProvData, cuit: e.target.value})} placeholder="20-XXXXXXXX-X" className="flex-1" />
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={handleBuscarPadronProv} 
+                    disabled={isSearchingPadron}
+                    className="border-amber-200 text-amber-600 hover:bg-amber-50"
+                  >
+                    {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase">CUIT / DNI *</Label>
-                <Input value={newProvData.cuit} onChange={(e) => setNewProvData({...newProvData, cuit: e.target.value})} placeholder="20-XXXXXXXX-X" />
+                <Label className="text-xs font-bold uppercase">Razón Social *</Label>
+                <Input value={newProvData.razonSocial} onChange={(e) => setNewProvData({...newProvData, razonSocial: e.target.value})} placeholder="Nombre de la empresa" />
               </div>
             </div>
             <DialogFooter>

@@ -50,7 +50,7 @@ export async function generarPedidoPDF(ventaId: string) {
 export async function actualizarPedidos() {
     try {
         const webhookUrl = process.env.N8N_GENERATE_ETIQUETAS_URL;
-        
+
         if (!webhookUrl) {
             throw new Error("La URL de n8n no está configurada en las variables de entorno");
         }
@@ -60,8 +60,8 @@ export async function actualizarPedidos() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ 
-                source: 'nextjs_admin_panel', 
+            body: JSON.stringify({
+                source: 'nextjs_admin_panel',
                 action: 'manual_refresh',
                 timestamp: new Date().toISOString()
             })
@@ -96,7 +96,7 @@ export async function imprimirEtiquetas(ids: string[]) {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 ids: ids,
                 action: 'print_batch',
                 timestamp: new Date().toISOString()
@@ -129,11 +129,11 @@ export async function getEtiquetasML() {
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
-                status: { 
-                    notIn: ['shipped', 'delivered', 'cancelled', 'canceled', 'closed'] 
+                status: {
+                    notIn: ['shipped', 'delivered', 'cancelled', 'canceled', 'closed']
                 },
-                NOT: { 
-                    substatus: { in: ['picked_up', 'out_for_delivery', 'shipped', 'delivered'] } 
+                NOT: {
+                    substatus: { in: ['picked_up', 'out_for_delivery', 'shipped', 'delivered'] }
                 }
             },
             include: { items: true },
@@ -181,25 +181,25 @@ export async function getEtiquetasML() {
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
         // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día de forma segura
-        const startOfDay = new Date(`${fecha}T03:00:00Z`); 
-        
+        const startOfDay = new Date(`${fecha}T03:00:00Z`);
+
         const endOfDay = new Date(`${fecha}T03:00:00Z`);
-        endOfDay.setUTCDate(endOfDay.getUTCDate() + 1); 
+        endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
         endOfDay.setUTCMilliseconds(-1); // 02:59:59.999 del día siguiente UTC
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 AND: [
                     // 1. Filtro de seguridad: Nada cancelado
-                    { 
-                        status: { notIn: ['cancelled', 'canceled', 'CANCELLED'] } 
+                    {
+                        status: { notIn: ['cancelled', 'canceled', 'CANCELLED'] }
                     },
                     // 2. Filtro estricto: Solo si tiene fecha de preparado en el rango
-                    { 
-                        fechaPreparado: { 
-                            gte: startOfDay, 
-                            lte: endOfDay 
-                        } 
+                    {
+                        fechaPreparado: {
+                            gte: startOfDay,
+                            lte: endOfDay
+                        }
                     },
                     // 3. FILTRO CORREGIDO: Excluir 'ready_to_print' pero PERMITIR los nulos
                     {
@@ -212,8 +212,8 @@ export async function getEtiquetasPreparadas(fecha: string) {
             },
             include: { items: true },
             // Ordenamos por la fecha real de preparación
-            orderBy: { 
-                fechaPreparado: 'desc' 
+            orderBy: {
+                fechaPreparado: 'desc'
             }
         });
 
@@ -247,14 +247,14 @@ export async function getEtiquetasPreparadas(fecha: string) {
 export async function getVentasRegistracion(fecha?: string) {
     try {
         const where: any = {};
-        
+
         if (fecha && fecha !== "undefined" && fecha !== "null") {
             // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día de forma segura
-            const startOfDay = new Date(`${fecha}T03:00:00Z`); 
-            
+            const startOfDay = new Date(`${fecha}T03:00:00Z`);
+
             const endOfDay = new Date(`${fecha}T03:00:00Z`);
-            endOfDay.setUTCDate(endOfDay.getUTCDate() + 1); 
-            endOfDay.setUTCMilliseconds(-1); 
+            endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
+            endOfDay.setUTCMilliseconds(-1);
 
             where.createdAt = {
                 gte: startOfDay,
@@ -279,8 +279,8 @@ export async function getVentasRegistracion(fecha?: string) {
             `;
 
             if (viewResult.length > 0) {
-                return { 
-                    ...venta, 
+                return {
+                    ...venta,
                     ids_articulos: viewResult[0].ids_articulos,
                     receta_detallada: viewResult[0].receta_detallada
                 };
@@ -288,8 +288,8 @@ export async function getVentasRegistracion(fecha?: string) {
             return { ...venta, ids_articulos: null, receta_detallada: null };
         }));
 
-        return { 
-            success: true, 
+        return {
+            success: true,
             data: ventasEnriquecidas
         };
     } catch (error) {

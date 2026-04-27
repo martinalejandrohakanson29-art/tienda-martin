@@ -6,7 +6,7 @@ import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft
+  ChevronDown, ArrowLeft, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -577,6 +577,21 @@ export default function VentasMostradorClient({
     try {
       setIsSubmitting(true);
       
+      // --- AUTO-GUARDAR PROVEEDOR ---
+      if (cuitBusqueda && clienteFinal && clienteFinal !== "Consumidor Final") {
+        try {
+          await crearProveedor({
+            razonSocial: clienteFinal,
+            cuit: cuitBusqueda
+          });
+          // Actualizar lista local de proveedores para que aparezca en cruzadas si es necesario
+          const resProvs = await obtenerProveedores();
+          if (resProvs.success && resProvs.data) setProveedores(resProvs.data);
+        } catch (err) {
+          console.log("Aviso: No se creó proveedor (posiblemente ya existe)");
+        }
+      }
+
       // Preparar items para guardar: expandir packs en sus componentes
       const itemsParaGuardar = items.flatMap(item => {
         const articulo = articulos.find(a => a.id === item.productoId);
@@ -1666,6 +1681,15 @@ export default function VentasMostradorClient({
                     >
                       {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                     </Button>
+                    <Button 
+                      type="button"
+                      variant="ghost"
+                      onClick={() => { setCuitBusqueda(""); setCliente("Consumidor Final"); }}
+                      className="rounded-xl h-10 px-3 shrink-0 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
+                      title="Limpiar y volver a Consumidor Final"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -1676,18 +1700,7 @@ export default function VentasMostradorClient({
                   </div>
                 </div>
               </div>
-              {cliente && cuitBusqueda && cliente !== "Consumidor Final" && (
-                <div className="flex justify-end">
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={handleGuardarComoProveedor}
-                    className="text-[10px] text-emerald-600 font-black p-2 h-auto bg-emerald-50 rounded-lg hover:bg-emerald-100 border border-emerald-100"
-                  >
-                    <Plus className="h-3 w-3 mr-1" /> Guardar como Proveedor
-                  </Button>
-                </div>
-              )}
+
 
               {/* SELECTOR DE PAGO MIXTO */}
               <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200">

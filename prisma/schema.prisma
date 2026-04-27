@@ -430,6 +430,23 @@ model Venta {
   estadoPedido  String?          @default("PENDIENTE")
   pdfUrl        String?
   numeroVenta   Int              @unique @default(autoincrement())
+  
+  // Datos Legales ARCA
+  cae             String?
+  vencimientoCae  DateTime?
+  facturaNumero   Int?
+  facturaPuntoVenta Int?         @default(9)
+  tipoComprobante Int?           // 1=A, 6=B, 11=C, etc.
+  
+  // Datos del Cliente para QR y Cabecera
+  docTipo         Int?           // 80, 96, 99
+  docNro          String?        // CUIT o DNI
+  condicionIva    Int?           // 1, 5, 6
+  
+  // Desglose Impositivo (Snapshot)
+  importeIva      Decimal?       @db.Decimal(20, 2)
+  alicuotaIva     Int?           // ID de alícuota
+  
   auditorias    VentaAuditoria[]
   puntoVenta    PuntoVenta?      @relation(fields: [puntoVentaId], references: [id])
   items         VentaItem[]

@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
-  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText,
+  Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
   ChevronDown, ArrowLeft, X
@@ -23,7 +23,9 @@ import { DateRangeCalendar } from "./date-range-calendar";
 import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
-  eliminarVentaMostrador
+  eliminarVentaMostrador,
+  marcarVentaRegistrada,
+  generarFacturaARCA
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
@@ -163,6 +165,13 @@ export default function VentasMostradorClient({
   const [eventoOffline, setEventoOffline] = useState(false);
   const [puntoVentaId, setPuntoVentaId] = useState("");
   const [puntoVentaSeleccionado, setPuntoVentaSeleccionado] = useState<any>(null);
+
+  // --- ESTADOS PARA ARCA (FACTURACIÓN) ---
+  const [docTipo, setDocTipo] = useState<number>(99); // Consumidor Final por defecto
+  const [docNro, setDocNro] = useState<string>("");
+  const [condicionIva, setCondicionIva] = useState<number>(5); // Consumidor Final
+  const [isFacturando, setIsFacturando] = useState(false);
+  const [tipoFacturaSugerida, setTipoFacturaSugerida] = useState<number>(6); // B por defecto
 
   // Establecer "Mostrador" como punto de venta por defecto (solo una vez al montar)
   useEffect(() => {
@@ -490,7 +499,13 @@ export default function VentasMostradorClient({
       const res = await consultarPadron(cuitBusqueda);
       if (res.success) {
         setCliente(res.nombre);
-        if (res.cuit) setCuitBusqueda(res.cuit);
+        if (res.cuit) {
+          setDocNro(res.cuit);
+          setDocTipo(80); // CUIT
+        }
+        if (res.condicionIva) setCondicionIva(res.condicionIva);
+        if (res.tipoFactura) setTipoFacturaSugerida(res.tipoFactura);
+        
         mostrarMensajeExito("Datos obtenidos del padrón");
       } else {
         alert(res.error || "No se encontró el CUIT");
@@ -624,7 +639,9 @@ export default function VentasMostradorClient({
             interes: interesTarjeta,
             totalFinal: totalFinalCalculado,
             items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
-            email, eventoOffline, puntoVentaId
+            email, eventoOffline, puntoVentaId,
+            // ARCA fields para guardar el snapshot
+            docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
           });
       
       if (resultado.success) {
@@ -647,10 +664,30 @@ export default function VentasMostradorClient({
     } catch (error) { alert("Ocurrió un error inesperado."); } finally { setIsSubmitting(false); }
   };
 
+  const handleGenerarFactura = async (ventaId: string) => {
+    if (!confirm("¿Estás seguro de que deseas generar la factura electrónica en ARCA?")) return;
+    setIsFacturando(true);
+    try {
+      const res = await generarFacturaARCA(ventaId);
+      if (res.success) {
+        mostrarMensajeExito(`Factura generada con éxito! CAE: ${res.cae}`);
+        cargarVentas(fechaDesde, fechaHasta);
+      } else {
+        alert(`Error al facturar: ${res.error}\n${res.details || ""}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error al procesar la factura");
+    } finally {
+      setIsFacturando(false);
+    }
+  };
+
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
     setCuitBusqueda(""); setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
+    setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(6);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
     // Restaurar "Mostrador" como punto de venta por defecto
     if (puntosVenta && puntosVenta.length > 0) {
@@ -1399,14 +1436,22 @@ export default function VentasMostradorClient({
                                     >
                                       <Printer className="h-5 w-5" />
                                     </button>
-                                    <button
-                                      disabled={v.registrada}
-                                      onClick={(e) => { e.stopPropagation(); handleMarcarRegistrada(v.id); }}
-                                      className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}
-                                      title={v.registrada ? "Registrada" : "Marcar como Registrada"}
-                                    >
                                       {v.registrada ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
                                     </button>
+                                    {!v.cae ? (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleGenerarFactura(v.id); }}
+                                        disabled={isFacturando}
+                                        className="p-2 rounded-xl text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-all border border-transparent"
+                                        title="Generar Factura ARCA"
+                                      >
+                                        {isFacturando ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
+                                      </button>
+                                    ) : (
+                                      <div className="p-2 text-green-600 bg-green-50 rounded-xl border border-green-100" title={`Facturado - CAE: ${v.cae}`}>
+                                        <ShieldCheck className="h-5 w-5" />
+                                      </div>
+                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1885,18 +1930,68 @@ export default function VentasMostradorClient({
                   <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@correo.com" className="bg-white border-slate-200" />
                 </div>
                 <div className="flex items-center space-x-3 pt-1">
-                  <input
-                    type="checkbox"
-                    id="eventoOffline"
-                    checked={eventoOffline}
-                    onChange={(e) => setEventoOffline(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-                  />
-                  <Label htmlFor="eventoOffline" className="text-sm font-bold text-slate-700 cursor-pointer">
-                    Marcar como Evento Offline (Meta Ads)
-                  </Label>
-                </div>
-              </div>
+                                  <input
+                                    type="checkbox"
+                                    id="eventoOffline"
+                                    checked={eventoOffline}
+                                    onChange={(e) => setEventoOffline(e.target.checked)}
+                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                                  />
+                                  <Label htmlFor="eventoOffline" className="text-sm font-bold text-slate-700 cursor-pointer">
+                                    Marcar como Evento Offline (Meta Ads)
+                                  </Label>
+                                </div>
+                              </div>
+
+                              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-xs font-bold text-amber-700 uppercase">Datos de Facturación ARCA</Label>
+                                  <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded">Opcional para snapshot</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-amber-600 uppercase">Tipo Doc</Label>
+                                    <select 
+                                      value={docTipo} 
+                                      onChange={(e) => setDocTipo(Number(e.target.value))}
+                                      className="w-full h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs focus:outline-none"
+                                    >
+                                      <option value={99}>Sin identificar</option>
+                                      <option value={80}>CUIT</option>
+                                      <option value={96}>DNI</option>
+                                    </select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-amber-600 uppercase">Documento Nro</Label>
+                                    <Input value={docNro} onChange={(e) => setDocNro(e.target.value)} className="h-9 text-xs border-amber-200 bg-white" placeholder="20XXXXXXXX9" />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-amber-600 uppercase">Condición IVA</Label>
+                                    <select 
+                                      value={condicionIva} 
+                                      onChange={(e) => setCondicionIva(Number(e.target.value))}
+                                      className="w-full h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs focus:outline-none"
+                                    >
+                                      <option value={5}>Consumidor Final</option>
+                                      <option value={1}>Resp. Inscripto</option>
+                                      <option value={4}>Exento</option>
+                                      <option value={6}>Monotributista</option>
+                                    </select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-amber-600 uppercase">Tipo Factura</Label>
+                                    <select 
+                                      value={tipoFacturaSugerida} 
+                                      onChange={(e) => setTipoFacturaSugerida(Number(e.target.value))}
+                                      className="w-full h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs focus:outline-none font-bold text-amber-700"
+                                    >
+                                      <option value={6}>Factura B</option>
+                                      <option value={1}>Factura A</option>
+                                      <option value={11}>Factura C</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
 
               <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label><Textarea value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Dirección, referencias, método de entrega, observaciones adicionales..." className="min-h-[80px]" /></div>
             </div>

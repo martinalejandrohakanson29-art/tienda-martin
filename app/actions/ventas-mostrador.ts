@@ -2,8 +2,10 @@
 
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
+import { revalidatePath } from "next/cache";
+import { facturarVenta } from "./afip";
 import { s3Client } from "@/lib/s3"
-import { 
+import {
   S3Client,
   PutObjectCommand,
   CreateBucketCommand,
@@ -28,15 +30,15 @@ export async function obtenerTodosLosArticulos() {
         }
       }
     });
-    
+
     return articulos.map(art => ({
       ...art,
       precio: Number(art.precio),
       esPack: art.esPack || false,
       ultimaModificacion: art.auditorias?.[0]?.createdAt?.toISOString() || null,
       stock: (art.esPack && art.packItems)
-              ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
-              : art.stock,
+        ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
+        : art.stock,
       packItems: art.packItems?.map(packItem => ({
         ...packItem,
         componente: {
@@ -158,6 +160,8 @@ export async function marcarVentaComoRegistrada(id: string) {
   }
 }
 
+
+
 export async function crearVentaMostrador(data: {
   cliente: string,
   vendedor: string,
@@ -175,7 +179,18 @@ export async function crearVentaMostrador(data: {
   para?: string,
   email?: string,
   eventoOffline?: boolean,
-  puntoVentaId?: string
+  puntoVentaId?: string,
+  // ARCA fields
+  cae?: string,
+  vencimientoCae?: Date,
+  facturaNumero?: number,
+  facturaPuntoVenta?: number,
+  tipoComprobante?: number,
+  docTipo?: number,
+  docNro?: string,
+  condicionIva?: number,
+  importeIva?: any,
+  alicuotaIva?: number
 }) {
   try {
     // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
@@ -198,9 +213,20 @@ export async function crearVentaMostrador(data: {
           email: data.email,
           eventoOffline: data.eventoOffline ?? false,
           puntoVentaId: data.puntoVentaId || null,
+          // ARCA fields
+          cae: data.cae,
+          vencimientoCae: data.vencimientoCae,
+          facturaNumero: data.facturaNumero,
+          facturaPuntoVenta: data.facturaPuntoVenta,
+          tipoComprobante: data.tipoComprobante,
+          docTipo: data.docTipo,
+          docNro: data.docNro,
+          condicionIva: data.condicionIva,
+          importeIva: data.importeIva,
+          alicuotaIva: data.alicuotaIva,
           items: {
             create: data.items.map(item => ({
-              productoId: item.id, 
+              productoId: item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
@@ -239,7 +265,7 @@ export async function crearVentaMostrador(data: {
       // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" o "A Cuenta Corriente" ---
       if ((data.metodo_pago === "Cruzada" || data.metodo_pago === "A Cuenta Corriente") && data.para) {
         const idBuscado = data.para;
-        
+
         let proveedor = null;
         if (idBuscado) {
           proveedor = await tx.proveedor.findUnique({
@@ -303,7 +329,18 @@ export async function guardarComoPedidoVenta(data: {
   para?: string,
   email?: string,
   eventoOffline?: boolean,
-  puntoVentaId?: string
+  puntoVentaId?: string,
+  // ARCA fields
+  cae?: string,
+  vencimientoCae?: Date,
+  facturaNumero?: number,
+  facturaPuntoVenta?: number,
+  tipoComprobante?: number,
+  docTipo?: number,
+  docNro?: string,
+  condicionIva?: number,
+  importeIva?: any,
+  alicuotaIva?: number
 }) {
   try {
     // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
@@ -327,6 +364,17 @@ export async function guardarComoPedidoVenta(data: {
           email: data.email,
           eventoOffline: data.eventoOffline ?? false,
           puntoVentaId: data.puntoVentaId || null,
+          // ARCA fields
+          cae: data.cae,
+          vencimientoCae: data.vencimientoCae,
+          facturaNumero: data.facturaNumero,
+          facturaPuntoVenta: data.facturaPuntoVenta,
+          tipoComprobante: data.tipoComprobante,
+          docTipo: data.docTipo,
+          docNro: data.docNro,
+          condicionIva: data.condicionIva,
+          importeIva: data.importeIva,
+          alicuotaIva: data.alicuotaIva,
           items: {
             create: data.items.map(item => ({
               productoId: item.id,
@@ -355,12 +403,12 @@ export async function guardarComoPedidoVenta(data: {
           }
         } else {
           await tx.articuloMostrador.updateMany({
-              where: { id: item.id },
-              data: {
-                stock: {
-                  decrement: item.cantidad
-                }
+            where: { id: item.id },
+            data: {
+              stock: {
+                decrement: item.cantidad
               }
+            }
           });
         }
       }
@@ -391,11 +439,11 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
       });
 
       if (oldVenta && (oldVenta.metodo_pago === "Cruzada" || oldVenta.metodo_pago === "A Cuenta Corriente")) {
-        const idProveedor = oldVenta.metodo_pago === "A Cuenta Corriente" ? oldVenta.para : oldVenta.para; 
+        const idProveedor = oldVenta.metodo_pago === "A Cuenta Corriente" ? oldVenta.para : oldVenta.para;
         // Nota: en el schema 'para' se usa tanto para el ID como para el nombre en algunos casos.
         // En crearVentaMostrador estamos guardando el ID en 'para' si es A Cuenta Corriente? 
         // Mejor revisemos cómo guardamos.
-        
+
         let proveedor = await tx.proveedor.findUnique({
           where: { id: oldVenta.para || "" }
         }).catch(() => null);
@@ -470,9 +518,20 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           email: data.email,
           eventoOffline: data.eventoOffline,
           puntoVentaId: data.puntoVentaId || null,
+          // ARCA fields
+          ...(data.cae !== undefined && { cae: data.cae }),
+          ...(data.vencimientoCae !== undefined && { vencimientoCae: data.vencimientoCae }),
+          ...(data.facturaNumero !== undefined && { facturaNumero: data.facturaNumero }),
+          ...(data.facturaPuntoVenta !== undefined && { facturaPuntoVenta: data.facturaPuntoVenta }),
+          ...(data.tipoComprobante !== undefined && { tipoComprobante: data.tipoComprobante }),
+          ...(data.docTipo !== undefined && { docTipo: data.docTipo }),
+          ...(data.docNro !== undefined && { docNro: data.docNro }),
+          ...(data.condicionIva !== undefined && { condicionIva: data.condicionIva }),
+          ...(data.importeIva !== undefined && { importeIva: data.importeIva }),
+          ...(data.alicuotaIva !== undefined && { alicuotaIva: data.alicuotaIva }),
           items: {
             create: data.items.map((item: any) => ({
-              productoId: item.id, 
+              productoId: item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
@@ -637,8 +696,8 @@ export async function sincronizarArticulosMostrador() {
       precio: Number(art.precio),
       esPack: art.esPack || false,
       stock: (art.esPack && art.packItems)
-              ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
-              : art.stock
+        ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
+        : art.stock
     }));
 
     return { success: true, data: articulosConverted };
@@ -1029,7 +1088,7 @@ export async function subirPDFPedido(ventaId: string, formData: FormData) {
     // Limpiar nombre de archivo para evitar problemas en URL
     const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
     const key = `pedidos/${ventaId}/${safeFileName}`;
-    
+
     const bucketName = process.env.S3_BUCKET_NAME;
     if (!bucketName) {
       throw new Error("S3_BUCKET_NAME no está configurado en el archivo .env");
@@ -1109,7 +1168,7 @@ export async function subirPDFLote(ventaIds: string[], formData: FormData) {
     const timestamp = Date.now();
     // Usamos una carpeta de lotes con timestamp para evitar colisiones
     const key = `pedidos/lotes/${timestamp}/${safeFileName}`;
-    
+
     const bucketName = process.env.S3_BUCKET_NAME?.trim();
     if (!bucketName) {
       throw new Error("S3_BUCKET_NAME no está configurado");
@@ -1148,5 +1207,53 @@ export async function eliminarPDFPedido(ventaId: string) {
   } catch (error) {
     console.error("Error al eliminar PDF de pedido:", error);
     return { success: false, error: "Error al eliminar el archivo de la base de datos" };
+  }
+}
+
+export async function generarFacturaARCA(ventaId: string) {
+  try {
+    const venta = await prisma.venta.findUnique({
+      where: { id: ventaId },
+      include: { items: true }
+    });
+
+    if (!venta) return { success: false, error: "Venta no encontrada" };
+    if (venta.cae) return { success: false, error: "Esta venta ya fue facturada (CAE existente)" };
+
+    // Validaciones básicas de datos ARCA
+    if (!venta.docTipo || !venta.docNro) {
+      return { success: false, error: "Faltan datos del cliente (Tipo Doc / Nro) para facturar" };
+    }
+
+    const resARCA = await facturarVenta({
+      monto: Number(venta.totalFinal || venta.total),
+      docTipo: venta.docTipo,
+      docNro: parseInt(venta.docNro),
+      ivaReceptor: venta.condicionIva || 5,
+      tipoComprobante: venta.tipoComprobante || 6 // Default B
+    });
+
+    if (resARCA.success) {
+      await prisma.venta.update({
+        where: { id: ventaId },
+        data: {
+          cae: resARCA.cae,
+          facturaNumero: resARCA.numero,
+          facturaPuntoVenta: 9,
+          vencimientoCae: resARCA.vencimiento ? new Date(
+            parseInt(resARCA.vencimiento.substring(0, 4)),
+            parseInt(resARCA.vencimiento.substring(4, 6)) - 1,
+            parseInt(resARCA.vencimiento.substring(6, 8))
+          ) : new Date(),
+        }
+      });
+      revalidatePath("/admin/ventas-mostrador");
+      return { success: true, cae: resARCA.cae, numero: resARCA.numero };
+    } else {
+      return { success: false, error: resARCA.error, details: (resARCA as any).details };
+    }
+  } catch (error: any) {
+    console.error("Error en generarFacturaARCA:", error);
+    return { success: false, error: error.message || "Error interno al facturar" };
   }
 }

@@ -272,7 +272,7 @@ export async function facturarVenta(data: {
                 : result.FeDetResp.FECAEDetResponse;
 
             console.log(`✅ [AFIP] Factura autorizada! CAE: ${det.CAE}`);
-            return { success: true, cae: det.CAE, numero: nextNumber };
+            return { success: true, cae: det.CAE, numero: nextNumber, vencimiento: det.CAEFchVto };
         }
 
         // 2. Caso de Rechazo (R) u Observaciones

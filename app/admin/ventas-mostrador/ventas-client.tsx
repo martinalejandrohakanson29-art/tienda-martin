@@ -1948,55 +1948,7 @@ export default function VentasMostradorClient({
                                 </div>
                               </div>
 
-                              <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-xs font-bold text-amber-700 uppercase">Datos de Facturación ARCA</Label>
-                                  <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded">Opcional para snapshot</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-amber-600 uppercase">Tipo Doc</Label>
-                                    <select 
-                                      value={docTipo} 
-                                      onChange={(e) => setDocTipo(Number(e.target.value))}
-                                      className="w-full h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs focus:outline-none"
-                                    >
-                                      <option value={99}>Sin identificar</option>
-                                      <option value={80}>CUIT</option>
-                                      <option value={96}>DNI</option>
-                                    </select>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-amber-600 uppercase">Documento Nro</Label>
-                                    <Input value={docNro} onChange={(e) => setDocNro(e.target.value)} className="h-9 text-xs border-amber-200 bg-white" placeholder="20XXXXXXXX9" />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-amber-600 uppercase">Condición IVA</Label>
-                                    <select 
-                                      value={condicionIva} 
-                                      onChange={(e) => setCondicionIva(Number(e.target.value))}
-                                      className="w-full h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs focus:outline-none"
-                                    >
-                                      <option value={5}>Consumidor Final</option>
-                                      <option value={1}>Resp. Inscripto</option>
-                                      <option value={4}>Exento</option>
-                                      <option value={6}>Monotributista</option>
-                                    </select>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-amber-600 uppercase">Tipo Factura</Label>
-                                    <select 
-                                      value={tipoFacturaSugerida} 
-                                      onChange={(e) => setTipoFacturaSugerida(Number(e.target.value))}
-                                      className="w-full h-9 rounded-lg border border-amber-200 bg-white px-2 text-xs focus:outline-none font-bold text-amber-700"
-                                    >
-                                      <option value={6}>Factura B</option>
-                                      <option value={1}>Factura A</option>
-                                      <option value={11}>Factura C</option>
-                                    </select>
-                                  </div>
-                                </div>
-                              </div>
+
 
               <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label><Textarea value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Dirección, referencias, método de entrega, observaciones adicionales..." className="min-h-[80px]" /></div>
             </div>

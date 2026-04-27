@@ -206,7 +206,8 @@ export async function crearVentaMostrador(data: {
   email?: string,
   eventoOffline?: boolean,
   puntoVentaId?: string,
-  // ARCA fields
+  solicitarFactura?: boolean,
+  // ARCA fields directos
   cae?: string,
   vencimientoCae?: Date,
   facturaNumero?: number,
@@ -219,8 +220,78 @@ export async function crearVentaMostrador(data: {
   alicuotaIva?: number
 }) {
   try {
-    // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
+    let arcaData = {
+      cae: data.cae,
+      vencimientoCae: data.vencimientoCae,
+      facturaNumero: data.facturaNumero,
+      facturaPuntoVenta: data.facturaPuntoVenta || 9,
+      tipoComprobante: data.tipoComprobante,
+      docTipo: data.docTipo,
+      docNro: data.docNro,
+      condicionIva: data.condicionIva,
+      importeIva: data.importeIva,
+      alicuotaIva: data.alicuotaIva
+    };
+
+    // 1. Si se solicita factura automática y no tiene CAE, intentamos facturar ahora
+    if (data.solicitarFactura && !arcaData.cae) {
+      const resAfip = await facturarVenta({
+        monto: data.totalFinal,
+        docTipo: data.docTipo || 99,
+        docNro: parseInt(data.docNro || "0"),
+        ivaReceptor: data.condicionIva || 5,
+        tipoComprobante: data.tipoComprobante || 6 // Por defecto B
+      });
+
+      if (resAfip.success && resAfip.data) {
+        arcaData.cae = resAfip.data.CAE;
+        arcaData.vencimientoCae = new Date(resAfip.data.CAEFchVto.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'));
+        arcaData.facturaNumero = resAfip.data.CbteDesde;
+        arcaData.tipoComprobante = data.tipoComprobante || 6;
+      } else {
+        return { 
+          success: false, 
+          error: `Error ARCA: ${resAfip.error || 'No se pudo autorizar el comprobante'}` 
+        };
+      }
+    }
+
+    // Usamos transacción para asegurar que Venta, Stock y Sujeto se actualicen juntos
     const result = await prisma.$transaction(async (tx) => {
+      // 2. Manejo automático del "Sujeto" (Cliente/Proveedor)
+      let sujetoId = null;
+      if (data.docNro && data.docNro !== "0") {
+        const existingSujeto = await tx.proveedor.findFirst({
+          where: { cuit: data.docNro }
+        });
+
+        if (existingSujeto) {
+          await tx.proveedor.update({
+            where: { id: existingSujeto.id },
+            data: {
+              razonSocial: data.cliente,
+              email: data.email || existingSujeto.email,
+              telefono: data.telefono || existingSujeto.telefono,
+              docTipo: arcaData.docTipo,
+              condicionIva: arcaData.condicionIva
+            }
+          });
+          sujetoId = existingSujeto.id;
+        } else {
+          const newSujeto = await tx.proveedor.create({
+            data: {
+              razonSocial: data.cliente,
+              cuit: data.docNro,
+              email: data.email,
+              telefono: data.telefono,
+              docTipo: arcaData.docTipo,
+              condicionIva: arcaData.condicionIva
+            }
+          });
+          sujetoId = newSujeto.id;
+        }
+      }
+
       const venta = await tx.venta.create({
         data: {
           cliente: data.cliente,
@@ -239,17 +310,18 @@ export async function crearVentaMostrador(data: {
           email: data.email,
           eventoOffline: data.eventoOffline ?? false,
           puntoVentaId: data.puntoVentaId || null,
+          sujetoId: sujetoId,
           // ARCA fields
-          cae: data.cae,
-          vencimientoCae: data.vencimientoCae,
-          facturaNumero: data.facturaNumero,
-          facturaPuntoVenta: data.facturaPuntoVenta,
-          tipoComprobante: data.tipoComprobante,
-          docTipo: data.docTipo,
-          docNro: data.docNro,
-          condicionIva: data.condicionIva,
-          importeIva: data.importeIva,
-          alicuotaIva: data.alicuotaIva,
+          cae: arcaData.cae,
+          vencimientoCae: arcaData.vencimientoCae,
+          facturaNumero: arcaData.facturaNumero,
+          facturaPuntoVenta: arcaData.facturaPuntoVenta,
+          tipoComprobante: arcaData.tipoComprobante,
+          docTipo: arcaData.docTipo,
+          docNro: arcaData.docNro,
+          condicionIva: arcaData.condicionIva,
+          importeIva: arcaData.importeIva,
+          alicuotaIva: arcaData.alicuotaIva,
           items: {
             create: data.items.map(item => ({
               productoId: item.id,

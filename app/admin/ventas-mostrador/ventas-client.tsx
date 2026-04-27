@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
@@ -171,6 +171,13 @@ export default function VentasMostradorClient({
   const [condicionIva, setCondicionIva] = useState<number>(5); // Consumidor Final
   const [isFacturando, setIsFacturando] = useState(false);
   const [tipoFacturaSugerida, setTipoFacturaSugerida] = useState<number>(6); // B por defecto
+  const [solicitarFactura, setSolicitarFactura] = useState(false);
+  const [sujetoId, setSujetoId] = useState<string | null>(null);
+  const [sujetosEncontrados, setSujetosEncontrados] = useState<any[]>([]);
+  const [isSearchingSujetos, setIsSearchingSujetos] = useState(false);
+  const [showSujetoList, setShowSujetoList] = useState(false);
+
+  const searchSujetoRef = useRef<HTMLDivElement>(null);
 
   // Establecer "Mostrador" como punto de venta por defecto (solo una vez al montar)
   useEffect(() => {
@@ -182,6 +189,19 @@ export default function VentasMostradorClient({
       }
     }
   }, [puntosVenta]);
+
+  // Click outside search results to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchSujetoRef.current && !searchSujetoRef.current.contains(event.target as Node)) {
+        setShowSujetoList(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   // Actualizar puntoVentaSeleccionado cuando puntoVentaId cambia
   useEffect(() => {
@@ -519,30 +539,30 @@ export default function VentasMostradorClient({
     }
   };
 
-  const handleGuardarComoProveedor = async () => {
-    if (!cliente || !cuitBusqueda) {
-      alert("Razón Social y CUIT son necesarios para guardar como proveedor");
+  const handleSearchSujetos = async (q: string) => {
+    if (!q.trim()) {
+      setSujetosEncontrados([]);
+      setShowSujetoList(false);
       return;
     }
-    setIsSubmitting(true);
-    try {
-      const res = await crearProveedor({
-        razonSocial: cliente,
-        cuit: cuitBusqueda
-      });
-      if (res.success) {
-        alert("¡Guardado como proveedor!");
-        const provs = await obtenerProveedores();
-        if (provs.success && provs.data) setProveedores(provs.data);
-      } else {
-        alert(res.error || "Error al guardar proveedor");
-      }
-    } catch (e) {
-      console.error("Error al guardar proveedor:", e);
-      alert("Error al guardar proveedor");
-    } finally {
-      setIsSubmitting(false);
-    }
+    const filtered = proveedores.filter(p => 
+      p.razonSocial.toLowerCase().includes(q.toLowerCase()) || 
+      p.cuit?.includes(q)
+    ).slice(0, 10);
+    setSujetosEncontrados(filtered);
+    setShowSujetoList(true);
+  };
+
+  const handleSelectSujeto = (s: any) => {
+    setCliente(s.razonSocial);
+    setDocNro(s.cuit || "");
+    setCuitBusqueda(s.cuit || "");
+    setDocTipo(s.docTipo || (s.cuit?.length > 8 ? 80 : 96));
+    setCondicionIva(s.condicionIva || 5);
+    setSujetoId(s.id);
+    setEmail(s.email || "");
+    setTelefono(s.telefono || "");
+    setShowSujetoList(false);
   };
 
   const handleBuscarPadronProv = async () => {
@@ -590,23 +610,8 @@ export default function VentasMostradorClient({
       infoFinal = info ? `${det} - ${info}` : det;
     }
 
-    try {
-      setIsSubmitting(true);
-      
-      // --- AUTO-GUARDAR PROVEEDOR ---
-      if (cuitBusqueda && clienteFinal && clienteFinal !== "Consumidor Final") {
-        try {
-          await crearProveedor({
-            razonSocial: clienteFinal,
-            cuit: cuitBusqueda
-          });
-          // Actualizar lista local de proveedores para que aparezca en cruzadas si es necesario
-          const resProvs = await obtenerProveedores();
-          if (resProvs.success && resProvs.data) setProveedores(resProvs.data);
-        } catch (err) {
-          console.log("Aviso: No se creó proveedor (posiblemente ya existe)");
-        }
-      }
+      try {
+        setIsSubmitting(true);
 
       // Preparar items para guardar: expandir packs en sus componentes
       const itemsParaGuardar = items.flatMap(item => {
@@ -633,7 +638,8 @@ export default function VentasMostradorClient({
             interes: interesTarjeta,
             totalFinal: totalFinalCalculado,
             items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
-            email, eventoOffline, puntoVentaId
+            email, eventoOffline, puntoVentaId,
+            docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
           })
         : await crearVentaMostrador({
             cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
@@ -641,6 +647,7 @@ export default function VentasMostradorClient({
             totalFinal: totalFinalCalculado,
             items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
             email, eventoOffline, puntoVentaId,
+            solicitarFactura: solicitarFactura,
             // ARCA fields para guardar el snapshot
             docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
           });
@@ -689,6 +696,7 @@ export default function VentasMostradorClient({
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
     setCuitBusqueda(""); setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
     setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(6);
+    setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false); setSolicitarFactura(false);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
     // Restaurar "Mostrador" como punto de venta por defecto
     if (puntosVenta && puntosVenta.length > 0) {
@@ -1717,14 +1725,37 @@ export default function VentasMostradorClient({
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-500 uppercase">CUIT / DNI (Padrón A13)</Label>
                   <div className="flex gap-2">
-                    <div className="relative flex-1">
+                    <div className="relative flex-1" ref={searchSujetoRef}>
                       <Input 
                         value={cuitBusqueda} 
-                        onChange={(e) => setCuitBusqueda(e.target.value)} 
+                        onChange={(e) => {
+                          setCuitBusqueda(e.target.value);
+                          handleSearchSujetos(e.target.value);
+                        }} 
+                        onFocus={() => {
+                          if (cuitBusqueda.trim() && sujetosEncontrados.length > 0) {
+                            setShowSujetoList(true);
+                          }
+                        }}
                         placeholder="CUIT o DNI..." 
                         className="h-10 bg-slate-50 border-slate-200 pl-9" 
                       />
                       <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                      
+                      {showSujetoList && sujetosEncontrados.length > 0 && (
+                        <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                          {sujetosEncontrados.map(s => (
+                            <div 
+                              key={s.id}
+                              className="p-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
+                              onClick={() => handleSelectSujeto(s)}
+                            >
+                              <p className="font-bold text-slate-800">{s.razonSocial}</p>
+                              <p className="text-[10px] text-slate-400">{s.cuit} - {s.condicionIva === 1 ? 'RI' : 'Cons. Final'}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <Button 
                       type="button"
@@ -1732,13 +1763,14 @@ export default function VentasMostradorClient({
                       onClick={handleBuscarPadron} 
                       disabled={isSearchingPadron}
                       className="rounded-xl h-10 px-3 shrink-0 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100"
+                      title="Buscar en Padrón AFIP"
                     >
                       {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
                     </Button>
                     <Button 
                       type="button"
                       variant="ghost"
-                      onClick={() => { setCuitBusqueda(""); setCliente("Consumidor Final"); }}
+                      onClick={() => { setCuitBusqueda(""); setCliente("Consumidor Final"); setSujetoId(null); setDocNro(""); setDocTipo(99); setCondicionIva(5); }}
                       className="rounded-xl h-10 px-3 shrink-0 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
                       title="Limpiar y volver a Consumidor Final"
                     >
@@ -1752,6 +1784,31 @@ export default function VentasMostradorClient({
                     <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors" />
                     <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   </div>
+                  {docNro && (
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
+                        {docTipo === 80 ? 'CUIT' : 'DNI'}: {docNro}
+                      </span>
+                      <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
+                        {condicionIva === 1 ? 'Resp. Inscripto' : condicionIva === 6 ? 'Monotributo' : 'Consumidor Final'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <div className="flex items-center space-x-3 bg-amber-50 p-3 rounded-xl border border-amber-200 flex-1">
+                  <input
+                    type="checkbox"
+                    id="solicitarFactura"
+                    checked={solicitarFactura}
+                    onChange={(e) => setSolicitarFactura(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
+                  />
+                  <Label htmlFor="solicitarFactura" className="text-sm font-bold text-amber-700 cursor-pointer flex items-center gap-2">
+                    <FileText className="h-4 w-4" /> Generar Factura AFIP
+                  </Label>
                 </div>
               </div>
 

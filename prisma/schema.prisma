@@ -447,6 +447,9 @@ model Venta {
   importeIva      Decimal?       @db.Decimal(20, 2)
   alicuotaIva     Int?           // ID de alícuota
   
+  sujetoId      String?
+  sujeto        Proveedor?       @relation(fields: [sujetoId], references: [id])
+
   auditorias    VentaAuditoria[]
   puntoVenta    PuntoVenta?      @relation(fields: [puntoVentaId], references: [id])
   items         VentaItem[]
@@ -628,6 +631,7 @@ model Contacto {
   updatedAt      DateTime @updatedAt
 }
 
+
 model WebSale {
   id          String        @id @default(cuid())
   paymentId   String?       @map("payment_id")
@@ -738,8 +742,17 @@ model Proveedor {
   saldoAnterior  Decimal               @default(0) @db.Decimal(20, 2)
   saldoVencido   Decimal               @default(0) @db.Decimal(20, 2)
   total          Decimal               @default(0) @db.Decimal(20, 2)
+  
+  // Datos Legales / AFIP
+  docTipo        Int?                  @default(99)
+  condicionIva   Int?                  @default(5)
+  direccion      String?
+  localidad      String?
+  provincia      String?
+
   compras        Compra[]
   movimientos    MovimientoProveedor[]
+  ventasMostrador Venta[]
 
   @@map("proveedores")
 }

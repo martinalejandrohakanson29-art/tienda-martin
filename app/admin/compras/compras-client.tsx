@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
+import {
   crearCompra, obtenerComprasPorRango, actualizarCompra, eliminarCompra, obtenerHistorialCompra, guardarComoPedidoCompra
 } from "@/app/actions/compras";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
@@ -62,6 +62,7 @@ export default function ComprasClient({
   const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0]);
   const [isLoadingCompras, setIsLoadingCompras] = useState(false);
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
+  const [expandedCompras, setExpandedCompras] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
 
   // --- ESTADOS PARA NUEVA COMPRA ---
@@ -79,6 +80,7 @@ export default function ComprasClient({
   const [dni, setDni] = useState("");
   const [telefono, setTelefono] = useState("");
   const [transaccionId, setTransaccionId] = useState("");
+  const [impactarCostos, setImpactarCostos] = useState(false);
 
   // --- ESTADOS PARA EDICIÓN ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
@@ -98,6 +100,7 @@ export default function ComprasClient({
   const [editDni, setEditDni] = useState("");
   const [editTelefono, setEditTelefono] = useState("");
   const [editTransaccionId, setEditTransaccionId] = useState("");
+  const [editImpactarCostos, setEditImpactarCostos] = useState(false);
   const [compraOriginalParaComparar, setCompraOriginalParaComparar] = useState<any>(null);
   const [compraAEliminar, setCompraAEliminar] = useState<any>(null);
 
@@ -178,8 +181,7 @@ export default function ComprasClient({
 
   // --- CÁLCULOS NUEVA COMPRA ---
   const totalBase = items.reduce((acc, item) => acc + item.subtotal, 0);
-  const totalConInteres = totalBase * (1 + interes / 100);
-  const totalFinalCalculado = totalConInteres - descuento;
+  const totalFinalCalculado = totalBase + interes - descuento;
 
   // --- FUNCIONES NUEVA COMPRA ---
   const agregarProductoACompra = (prod: Articulo) => {
@@ -226,7 +228,8 @@ export default function ComprasClient({
         info,
         comprobante,
         transaccionId,
-        proveedorId
+        proveedorId,
+        impactarCostos
       });
 
       if (res.success) {
@@ -235,9 +238,9 @@ export default function ComprasClient({
         cargarCompras(fechaDesde, fechaHasta);
         // Actualizar stock local (el pedido también suma stock en este sistema según compras.ts)
         setArticulos(prev => prev.map(art => {
-            const itemComprado = items.find(i => i.productoId === art.id);
-            if (itemComprado) return { ...art, stock: art.stock + itemComprado.cantidad };
-            return art;
+          const itemComprado = items.find(i => i.productoId === art.id);
+          if (itemComprado) return { ...art, stock: art.stock + itemComprado.cantidad };
+          return art;
         }));
       } else {
         alert("Error: " + res.error);
@@ -271,7 +274,8 @@ export default function ComprasClient({
         info,
         comprobante,
         transaccionId,
-        proveedorId
+        proveedorId,
+        impactarCostos
       });
 
       if (res.success) {
@@ -280,9 +284,9 @@ export default function ComprasClient({
         cargarCompras(fechaDesde, fechaHasta);
         // Actualizar stock local
         setArticulos(prev => prev.map(art => {
-            const itemComprado = items.find(i => i.productoId === art.id);
-            if (itemComprado) return { ...art, stock: art.stock + itemComprado.cantidad };
-            return art;
+          const itemComprado = items.find(i => i.productoId === art.id);
+          if (itemComprado) return { ...art, stock: art.stock + itemComprado.cantidad };
+          return art;
         }));
       } else {
         alert("Error: " + res.error);
@@ -297,6 +301,7 @@ export default function ComprasClient({
   const resetForm = () => {
     setItems([]); setProveedor(""); setProveedorId(""); setInteres(0); setDescuento(0);
     setMetodoPago("Efectivo"); setComprobante(""); setInfo(""); setDni(""); setTelefono(""); setTransaccionId("");
+    setImpactarCostos(false);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
   };
 
@@ -317,6 +322,7 @@ export default function ComprasClient({
     setEditDni(compra.dni || "");
     setEditTelefono(compra.telefono || "");
     setEditTransaccionId(compra.transaccionId || "");
+    setEditImpactarCostos(false);
     setEditItems(compra.items.map((i: any) => ({
       id: i.id || crypto.randomUUID(),
       productoId: i.productoId,
@@ -331,7 +337,7 @@ export default function ComprasClient({
 
   const handleGuardarEdicion = async () => {
     const totalBaseEdit = editItems.reduce((acc, item) => acc + item.subtotal, 0);
-    const totalFinalEdit = (totalBaseEdit * (1 + editInteres / 100)) - editDescuento;
+    const totalFinalEdit = totalBaseEdit + editInteres - editDescuento;
 
     try {
       setIsSubmitting(true);
@@ -348,7 +354,8 @@ export default function ComprasClient({
         info: editInfo,
         comprobante: editComprobante,
         transaccionId: editTransaccionId,
-        items: editItems
+        items: editItems,
+        impactarCostos: editImpactarCostos
       }, compradorNombre, "Edición manual de compra");
 
       if (res.success) {
@@ -499,56 +506,161 @@ export default function ComprasClient({
         </TabsContent>
 
         <TabsContent value="listado" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
-            <main className="flex-grow flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden h-full">
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
-                    <div className="space-y-1">
-                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Desde</Label>
-                        <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="h-10 rounded-xl" />
-                    </div>
-                    <div className="space-y-1">
-                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Hasta</Label>
-                        <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="h-10 rounded-xl" />
-                    </div>
-                    <Button variant="outline" size="icon" onClick={() => cargarCompras(fechaDesde, fechaHasta)} className="mt-5 h-10 w-10"><RefreshCcw className="h-4 w-4" /></Button>
-                    <div className="ml-auto text-right">
-                        <p className="text-[10px] text-slate-400 font-bold uppercase">Total del Período</p>
-                        <p className="text-2xl font-black text-slate-900">$ {comprasRealizadas.reduce((acc, c) => acc + Number(c.totalFinal), 0).toLocaleString('es-AR')}</p>
-                    </div>
-                </div>
+          <main className="flex-grow flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden h-full">
+            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+              <div className="space-y-1">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Desde</Label>
+                <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="h-10 rounded-xl" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Hasta</Label>
+                <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="h-10 rounded-xl" />
+              </div>
+              <Button variant="outline" size="icon" onClick={() => cargarCompras(fechaDesde, fechaHasta)} className="mt-5 h-10 w-10"><RefreshCcw className="h-4 w-4" /></Button>
+              <div className="ml-auto text-right">
+                <p className="text-[10px] text-slate-400 font-bold uppercase">Total del Período</p>
+                <p className="text-2xl font-black text-slate-900">$ {comprasRealizadas.reduce((acc, c) => acc + Number(c.totalFinal), 0).toLocaleString('es-AR')}</p>
+              </div>
+            </div>
 
-                <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
-                    <div className="overflow-y-auto h-full">
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-slate-50 z-10">
-                                <TableRow>
-                                    <TableHead>N° Compra</TableHead>
-                                    <TableHead>Fecha</TableHead>
-                                    <TableHead>Proveedor</TableHead>
-                                    <TableHead>Metodo</TableHead>
-                                    <TableHead className="text-right">Total Final</TableHead>
-                                    <TableHead className="text-center">Acciones</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {comprasRealizadas.map((c) => (
-                                    <TableRow key={c.id}>
-                                        <TableCell className="font-mono text-xs">#{c.numeroCompra}</TableCell>
-                                        <TableCell className="text-xs">{new Date(c.createdAt).toLocaleString('es-AR')}</TableCell>
-                                        <TableCell className="font-bold">{c.proveedor}</TableCell>
-                                        <TableCell><span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase">{c.metodo_pago}</span></TableCell>
-                                        <TableCell className="text-right font-bold">$ {c.totalFinal.toLocaleString('es-AR')}</TableCell>
-                                        <TableCell className="text-center space-x-2">
-                                            <Button size="sm" variant="ghost" onClick={() => abrirModalEdicion(c)}><Edit className="h-4 w-4" /></Button>
-                                            <Button size="sm" variant="ghost" onClick={() => abrirModalHistorial(c.id)}><History className="h-4 w-4" /></Button>
-                                            <Button size="sm" variant="ghost" className="text-red-500" onClick={() => { setCompraAEliminar(c); setIsEliminarModalOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
-            </main>
+            <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden">
+              <div className="overflow-y-auto h-full">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
+                    <TableRow>
+                      <TableHead className="w-24 text-[10px] font-bold uppercase py-3">N° Compra</TableHead>
+                      <TableHead className="w-32 text-[10px] font-bold uppercase py-3">Fecha</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Proveedor</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Artículos</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Responsable</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Recargo</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
+                      <TableHead className="text-center text-[10px] font-bold uppercase py-3">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {comprasRealizadas.map((c) => {
+                      const isExpanded = expandedCompras.has(c.id);
+                      return (
+                        <React.Fragment key={c.id}>
+                          <TableRow className="hover:bg-slate-50/50 align-top transition-colors border-b">
+                            <TableCell className="py-4">
+                              <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                                #{c.numeroCompra}
+                              </span>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-[10px] text-slate-700 font-bold whitespace-nowrap">{new Date(c.createdAt).toLocaleDateString('es-AR')}</span>
+                                <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(c.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4 font-bold text-slate-900">
+                              {c.proveedor}
+                            </TableCell>
+                            <TableCell className="py-4 pl-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newExpanded = new Set(expandedCompras);
+                                  if (isExpanded) newExpanded.delete(c.id);
+                                  else newExpanded.add(c.id);
+                                  setExpandedCompras(newExpanded);
+                                }}
+                              >
+                                <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                <span className="ml-1 text-xs">Artículos ({c.items?.length || 0})</span>
+                              </Button>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <div className="flex items-center gap-2">
+                                <div className="h-6 w-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 uppercase">
+                                  {c.comprador?.charAt(0) || "U"}
+                                </div>
+                                <span className="text-xs font-medium text-slate-700">{c.comprador}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${c.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
+                                c.metodo_pago === 'Transferencia' ? 'bg-blue-100 text-blue-700' :
+                                  c.metodo_pago === 'A Cuenta Corriente' ? 'bg-amber-100 text-amber-700' :
+                                    'bg-slate-100 text-slate-700'
+                                }`}>
+                                {c.metodo_pago}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right py-4">
+                              <span className="text-xs font-mono text-amber-600 font-bold">
+                                {c.interes > 0 ? `+ $ ${c.interes.toLocaleString('es-AR')}` : "-"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right py-4 font-black text-slate-900">
+                              $ {c.totalFinal.toLocaleString('es-AR')}
+                            </TableCell>
+                            <TableCell className="text-center py-4">
+                              <div className="flex items-center justify-center gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => abrirModalEdicion(c)} className="h-8 w-8 p-0 hover:text-amber-600"><Edit className="h-4 w-4" /></Button>
+                                <Button size="sm" variant="ghost" onClick={() => abrirModalHistorial(c.id)} className="h-8 w-8 p-0 hover:text-blue-600"><History className="h-4 w-4" /></Button>
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-700" onClick={() => { setCompraAEliminar(c); setIsEliminarModalOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {isExpanded && (
+                            <TableRow className="bg-slate-50/30 border-b-2 border-slate-200">
+                              <TableCell colSpan={3} className="py-0">
+                                <div className="p-3 bg-white border-b border-slate-200">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                                    <span className="text-xs font-bold text-slate-600 uppercase">Detalles de Artículos</span>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell colSpan={6} className="py-0">
+                                <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+                                  {c.items?.length > 0 ? (
+                                    c.items.map((item: any) => (
+                                      <div key={item.id} className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors">
+                                        <div className="flex flex-col gap-0.5">
+                                          <span
+                                            onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(item.nombre); }}
+                                            className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors"
+                                            title="Copiar Nombre"
+                                          >
+                                            {item.nombre}
+                                          </span>
+                                          <span
+                                            onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(item.productoId ?? item.id); }}
+                                            className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 mt-0.5 w-fit block transition-colors"
+                                            title="Copiar ID"
+                                          >
+                                            {item.productoId ?? item.id}
+                                          </span>
+                                        </div>
+                                        <div className="flex flex-col items-end gap-1">
+                                          <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black text-[10px]">x{item.cantidad}</span>
+                                          <span className="text-slate-700 font-bold whitespace-nowrap">$ {Number(item.subtotal || 0).toLocaleString('es-AR')}</span>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-xs text-slate-400 italic">No hay artículos</div>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </main>
         </TabsContent>
 
         {/* --- PESTAÑA: GESTIÓN Y EDICIÓN --- */}
@@ -579,57 +691,154 @@ export default function ComprasClient({
                 <Table>
                   <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                     <TableRow>
-                      <TableHead className="text-[10px] font-bold uppercase py-3">ID Compra</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-3">Fecha / Hora</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 w-24">ID Compra</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 w-32">Fecha / Hora</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Proveedor</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-3">Comprobante</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Artículos</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Responsable</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Método / Comprobante</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Recargo</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Acciones Administrativas</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3 w-40">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {comprasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">No se encontraron compras</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">No se encontraron compras</TableCell></TableRow>
                     ) : (
-                      comprasRealizadas.map((v) => (
-                        <TableRow key={v.id} className="hover:bg-slate-50/50">
-                          <TableCell className="py-4">
-                            <span 
-                              className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors" 
-                              onClick={() => copiarAlPortapapeles(v.id)}
-                            >
-                              {v.numeroCompra || v.id.slice(0, 8)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="py-4 text-xs">
-                            {new Date(v.createdAt).toLocaleString('es-AR')}
-                          </TableCell>
-                          <TableCell className="font-bold text-slate-700 py-4">
-                            {v.proveedor}
-                          </TableCell>
-                          <TableCell className="py-4">
-                            <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-100 text-blue-700">
-                              {v.metodo_pago}
-                            </span>
-                          </TableCell>
-                          <TableCell className="py-4 text-xs font-mono text-slate-600">
-                            {v.comprobante || "-"}
-                          </TableCell>
-                          <TableCell className="font-black text-slate-900 py-4 text-right">$ {Number(v.totalFinal).toLocaleString('es-AR')}</TableCell>
-                          <TableCell className="py-4 text-right space-x-2 whitespace-nowrap">
-                            <Button size="sm" variant="outline" onClick={() => abrirModalEdicion(v)} className="border-amber-200 text-amber-700 hover:bg-amber-50">
-                              <Edit className="h-4 w-4 mr-2" /> Editar
-                            </Button>
-                            <Button size="sm" variant="secondary" onClick={() => abrirModalHistorial(v.id)} className="bg-slate-100 text-slate-600 hover:bg-slate-200">
-                              <History className="h-4 w-4 mr-2" /> Historial
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => { setCompraAEliminar(v); setIsEliminarModalOpen(true); }} className="bg-red-100 text-red-600 hover:bg-red-200 border border-red-300">
-                              <Trash2 className="h-4 w-4 mr-2" /> Eliminar
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      comprasRealizadas.map((v) => {
+                        const isExpanded = expandedCompras.has(v.id);
+                        return (
+                          <React.Fragment key={v.id}>
+                            <TableRow className="hover:bg-amber-50/20 transition-colors border-b align-top">
+                              <TableCell className="py-4">
+                                <span
+                                  className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors"
+                                  onClick={() => copiarAlPortapapeles(v.id)}
+                                >
+                                  #{v.numeroCompra}
+                                </span>
+                              </TableCell>
+                              <TableCell className="py-4">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-bold text-slate-700">{new Date(v.createdAt).toLocaleDateString('es-AR')}</span>
+                                  <span className="text-[10px] text-slate-400 font-mono">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-4 font-bold text-slate-900">
+                                {v.proveedor}
+                              </TableCell>
+                              <TableCell className="py-4 pl-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 px-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newExpanded = new Set(expandedCompras);
+                                    if (isExpanded) newExpanded.delete(v.id);
+                                    else newExpanded.add(v.id);
+                                    setExpandedCompras(newExpanded);
+                                  }}
+                                >
+                                  <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                  <span className="ml-1 text-xs">Artículos ({v.items?.length || 0})</span>
+                                </Button>
+                              </TableCell>
+                              <TableCell className="py-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="h-6 w-6 rounded-full bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 uppercase">
+                                    {v.comprador?.charAt(0) || "U"}
+                                  </div>
+                                  <span className="text-xs font-medium text-slate-700">{v.comprador}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-4">
+                                <div className="flex flex-col gap-1">
+                                  <span className={`w-fit px-2 py-0.5 text-[9px] font-black rounded-full uppercase ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
+                                    v.metodo_pago === 'Transferencia' ? 'bg-blue-100 text-blue-700' :
+                                      v.metodo_pago === 'A Cuenta Corriente' ? 'bg-amber-100 text-amber-700' :
+                                        'bg-slate-100 text-slate-700'
+                                    }`}>
+                                    {v.metodo_pago}
+                                  </span>
+                                  {v.comprobante && <span className="text-[10px] font-mono text-slate-400"># {v.comprobante}</span>}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right py-4 font-mono text-xs text-amber-600 font-bold">
+                                {v.interes > 0 ? `+ $ ${v.interes.toLocaleString('es-AR')}` : "-"}
+                              </TableCell>
+                              <TableCell className="text-right py-4">
+                                <span className="text-base font-black text-slate-900">$ {v.totalFinal.toLocaleString('es-AR')}</span>
+                              </TableCell>
+                              <TableCell className="text-right py-4">
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => abrirModalEdicion(v)}
+                                    className="h-8 gap-2 border-amber-200 text-amber-700 hover:bg-amber-50 rounded-lg"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" /> Editar
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => { setCompraAEliminar(v); setIsEliminarModalOpen(true); }}
+                                    className="h-8 w-8 p-0 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                            {isExpanded && (
+                              <TableRow className="bg-slate-50/30 border-b-2 border-slate-200">
+                                <TableCell colSpan={3} className="py-0">
+                                  <div className="p-3 bg-white border-b border-slate-200">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                                      <span className="text-xs font-bold text-slate-600 uppercase">Detalles de Artículos</span>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell colSpan={6} className="py-0">
+                                  <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
+                                    {v.items?.length > 0 ? (
+                                      v.items.map((item: any) => (
+                                        <div key={item.id} className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors">
+                                          <div className="flex flex-col gap-0.5">
+                                            <span
+                                              onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(item.nombre); }}
+                                              className="font-bold text-slate-800 uppercase cursor-pointer hover:text-blue-600 transition-colors"
+                                              title="Copiar Nombre"
+                                            >
+                                              {item.nombre}
+                                            </span>
+                                            <span
+                                              onClick={(e) => { e.stopPropagation(); copiarAlPortapapeles(item.productoId ?? item.id); }}
+                                              className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 mt-0.5 w-fit block transition-colors"
+                                              title="Copiar ID"
+                                            >
+                                              {item.productoId ?? item.id}
+                                            </span>
+                                          </div>
+                                          <div className="flex flex-col items-end gap-1">
+                                            <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-black text-[10px]">x{item.cantidad}</span>
+                                            <span className="text-slate-700 font-bold whitespace-nowrap">$ {Number(item.subtotal || 0).toLocaleString('es-AR')}</span>
+                                          </div>
+                                        </div>
+                                      ))
+                                    ) : (
+                                      <div className="text-xs text-slate-400 italic">No hay artículos</div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        );
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -645,8 +854,8 @@ export default function ComprasClient({
           <div className="p-6 bg-white border-b">
             <DialogTitle className="text-lg font-bold mb-3 flex items-center gap-2"><Search className="h-4 w-4 text-emerald-600" /> Buscador de Artículos</DialogTitle>
             <div className="relative">
-                <Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" />
-                <input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre o ID..." className="flex h-12 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-12 text-base outline-none focus:border-emerald-500" />
+              <Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" />
+              <input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre o ID..." className="flex h-12 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-12 text-base outline-none focus:border-emerald-500" />
             </div>
           </div>
           <div className="h-[400px] overflow-y-auto p-4">
@@ -664,103 +873,125 @@ export default function ComprasClient({
       </Dialog>
 
       <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
-        <DialogContent className="sm:max-w-[500px] rounded-3xl">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><CreditCard className="h-5 w-5 text-emerald-600" /> Detalles de la Compra</DialogTitle></DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2 relative">
+        <DialogContent className="sm:max-w-[550px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+          <div className="max-h-[95vh] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200">
+            <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-emerald-600" /> Detalles de la Compra</DialogTitle></DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2 relative">
                 <Label className="text-xs font-bold text-slate-500 uppercase">Proveedor</Label>
                 <Input value={proveedor} onChange={(e) => { setProveedor(e.target.value); setShowProvList(true); }} onFocus={() => setShowProvList(true)} className="pl-9" />
                 <User className="absolute left-3 top-9 h-4 w-4 text-slate-400" />
                 {showProvList && (
-                    <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto mt-1 animate-in fade-in zoom-in-95 duration-200">
-                        <div className="p-2 border-b bg-slate-50 flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">Resultados de búsqueda</span>
-                            <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowProvList(false)}>Cerrar</Button>
-                        </div>
-                        {proveedores.filter(p => 
-                            p.razonSocial.toLowerCase().includes(proveedor.toLowerCase()) || 
-                            (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(proveedor.toLowerCase())) ||
-                            p.cuit?.includes(proveedor)
-                        ).length > 0 ? (
-                            proveedores.filter(p => 
-                                p.razonSocial.toLowerCase().includes(proveedor.toLowerCase()) || 
-                                (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(proveedor.toLowerCase())) ||
-                                p.cuit?.includes(proveedor)
-                            ).map(p => (
-                                <div 
-                                    key={p.id} 
-                                    className="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors group" 
-                                    onClick={() => { 
-                                        setProveedor(p.razonSocial); 
-                                        setProveedorId(p.id); 
-                                        setShowProvList(false); 
-                                    }}
-                                >
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-bold text-slate-900 group-hover:text-emerald-700">{p.razonSocial}</span>
-                                            <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"} {p.nombreFantasia ? `| ${p.nombreFantasia}` : ""}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <span className="text-[10px] font-bold text-slate-400 block uppercase">Saldo</span>
-                                            <span className={`text-xs font-black ${p.total > 0 ? 'text-red-600' : 'text-green-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="p-8 text-center">
-                                <AlertTriangle className="h-8 w-8 text-amber-400 mx-auto mb-2" />
-                                <p className="text-sm font-bold text-slate-900">No se encontró el proveedor</p>
-                                <p className="text-xs text-slate-500">Prueba con otro nombre o CUIT</p>
-                            </div>
-                        )}
+                  <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto mt-1 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-2 border-b bg-slate-50 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">Resultados de búsqueda</span>
+                      <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowProvList(false)}>Cerrar</Button>
                     </div>
+                    {proveedores.filter(p =>
+                      p.razonSocial.toLowerCase().includes(proveedor.toLowerCase()) ||
+                      (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(proveedor.toLowerCase())) ||
+                      p.cuit?.includes(proveedor)
+                    ).length > 0 ? (
+                      proveedores.filter(p =>
+                        p.razonSocial.toLowerCase().includes(proveedor.toLowerCase()) ||
+                        (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(proveedor.toLowerCase())) ||
+                        p.cuit?.includes(proveedor)
+                      ).map(p => (
+                        <div
+                          key={p.id}
+                          className="p-3 hover:bg-emerald-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors group"
+                          onClick={() => {
+                            setProveedor(p.razonSocial);
+                            setProveedorId(p.id);
+                            setShowProvList(false);
+                          }}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-900 group-hover:text-emerald-700">{p.razonSocial}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"} {p.nombreFantasia ? `| ${p.nombreFantasia}` : ""}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[10px] font-bold text-slate-400 block uppercase">Saldo</span>
+                              <span className={`text-xs font-black ${p.total > 0 ? 'text-red-600' : 'text-green-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center">
+                        <AlertTriangle className="h-8 w-8 text-amber-400 mx-auto mb-2" />
+                        <p className="text-sm font-bold text-slate-900">No se encontró el proveedor</p>
+                        <p className="text-xs text-slate-500">Prueba con otro nombre o CUIT</p>
+                      </div>
+                    )}
+                  </div>
                 )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Método Pago</Label>
+                  <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm">
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Transferencia">Transferencia</option>
+                    <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                    <option value="Cheque">Cheque</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Comprobante N°</Label>
+                  <Input value={comprobante} onChange={(e) => setComprobante(e.target.value)} placeholder="Ej: 0001-00001234" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Recargo ($)</Label>
+                  <Input type="number" value={interes} onChange={(e) => setInteres(Number(e.target.value))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Descuento ($)</Label>
+                  <Input type="number" value={descuento} onChange={(e) => setDescuento(Number(e.target.value))} />
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 py-2">
+                <input
+                  type="checkbox"
+                  id="impactarCostos"
+                  checked={impactarCostos}
+                  onChange={(e) => setImpactarCostos(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <Label htmlFor="impactarCostos" className="text-sm font-medium text-slate-700 cursor-pointer">Impactar compra en costos</Label>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-500 uppercase">Método Pago</Label>
-                    <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm">
-                        <option value="Efectivo">Efectivo</option>
-                        <option value="Transferencia">Transferencia</option>
-                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                        <option value="Cheque">Cheque</option>
-                    </select>
-                </div>
-                <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-500 uppercase">Comprobante N°</Label>
-                    <Input value={comprobante} onChange={(e) => setComprobante(e.target.value)} placeholder="Ej: 0001-00001234" />
-                </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-500 uppercase">Interés (%)</Label>
-                    <Input type="number" value={interes} onChange={(e) => setInteres(Number(e.target.value))} />
-                </div>
-                <div className="space-y-1">
-                    <Label className="text-xs font-bold text-slate-500 uppercase">Descuento ($)</Label>
-                    <Input type="number" value={descuento} onChange={(e) => setDescuento(Number(e.target.value))} />
-                </div>
-            </div>
+
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 mt-2">
-                <div className="flex justify-between items-center">
-                    <span className="text-sm font-bold text-slate-500">TOTAL FINAL A PAGAR:</span>
-                    <span className="text-2xl font-black text-slate-900">$ {totalFinalCalculado.toLocaleString('es-AR')}</span>
-                </div>
+              <div className="flex justify-between items-center mb-4 px-1">
+                <span className="text-xs font-bold text-slate-500 uppercase">Total Final a Pagar</span>
+                <span className="text-2xl font-black text-slate-900">$ {totalFinalCalculado.toLocaleString('es-AR')}</span>
+              </div>
+              <div className="space-y-3 pt-3 border-t border-slate-200/60">
+                <Button
+                  onClick={handleFinalizarCompra}
+                  disabled={items.length === 0 || isSubmitting}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-emerald-600/10"
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Confirmar Compra</>}
+                </Button>
+                <Button
+                  onClick={handleGuardarPedidoCompra}
+                  disabled={items.length === 0 || isSubmitting}
+                  className="bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white h-10 rounded-xl font-bold w-full text-xs shadow-md"
+                >
+                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de compra</>}
+                </Button>
+              </div>
             </div>
+
+            <DialogFooter className="mt-2">
+              <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
+            </DialogFooter>
           </div>
-          <DialogFooter className="flex justify-between items-center sm:justify-between w-full">
-            <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)}>Cancelar</Button>
-            <div className="flex gap-2">
-                <Button onClick={handleGuardarPedidoCompra} disabled={items.length === 0 || isSubmitting} variant="outline" className="border-amber-500 text-amber-600 hover:bg-amber-50 rounded-xl px-4 text-xs h-10">
-                    Pedido de Compra
-                </Button>
-                <Button onClick={handleFinalizarCompra} disabled={items.length === 0 || isSubmitting} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-8 h-10">
-                    Confirmar Registro
-                </Button>
-            </div>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -798,116 +1029,136 @@ export default function ComprasClient({
       {/* Modal Edición (Simplificado para el ejemplo) */}
       <Dialog open={isEditMainModalOpen} onOpenChange={setIsEditMainModalOpen}>
         <DialogContent className="sm:max-w-[90vw] h-[90vh] flex flex-col rounded-3xl p-0 overflow-hidden">
-            <div className="p-6 border-b flex justify-between items-center">
-                <h2 className="text-xl font-bold flex items-center gap-2"><Edit className="h-5 w-5 text-amber-500" /> Editando Compra #{compraOriginalParaComparar?.numeroCompra}</h2>
-                <Button variant="ghost" size="icon" onClick={() => setIsEditMainModalOpen(false)}><Plus className="h-5 w-5 rotate-45" /></Button>
-            </div>
-            <div className="flex-grow overflow-hidden flex flex-col p-6 gap-6">
-                <div className="grid grid-cols-3 gap-6">
-                    <div className="space-y-2 relative">
-                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</Label>
-                        <Input value={editProveedor} onChange={(e) => { setEditProveedor(e.target.value); setShowProvListEdit(true); }} className="h-12 bg-slate-50" />
-                        {showProvListEdit && (
-                            <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto mt-1 animate-in fade-in zoom-in-95 duration-200">
-                                <div className="p-2 border-b bg-slate-50 flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">Resultados de búsqueda</span>
-                                    <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowProvListEdit(false)}>Cerrar</Button>
-                                </div>
-                                {proveedores.filter(p => 
-                                    p.razonSocial.toLowerCase().includes(editProveedor.toLowerCase()) || 
-                                    (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(editProveedor.toLowerCase())) ||
-                                    p.cuit?.includes(editProveedor)
-                                ).length > 0 ? (
-                                    proveedores.filter(p => 
-                                        p.razonSocial.toLowerCase().includes(editProveedor.toLowerCase()) || 
-                                        (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(editProveedor.toLowerCase())) ||
-                                        p.cuit?.includes(editProveedor)
-                                    ).map(p => (
-                                        <div 
-                                            key={p.id} 
-                                            className="p-3 hover:bg-amber-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors group" 
-                                            onClick={() => { 
-                                                setEditProveedor(p.razonSocial); 
-                                                setEditProveedorId(p.id); 
-                                                setShowProvListEdit(false); 
-                                            }}
-                                        >
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-bold text-slate-900 group-hover:text-amber-700">{p.razonSocial}</span>
-                                                    <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"}</span>
-                                                </div>
-                                                <div className="text-right">
-                                                    <span className={`text-xs font-black ${p.total > 0 ? 'text-red-600' : 'text-green-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="p-4 text-center text-xs text-slate-400 italic">No se encontraron resultados</div>
-                                )}
+          <div className="p-6 border-b flex justify-between items-center">
+            <h2 className="text-xl font-bold flex items-center gap-2"><Edit className="h-5 w-5 text-amber-500" /> Editando Compra #{compraOriginalParaComparar?.numeroCompra}</h2>
+            <Button variant="ghost" size="icon" onClick={() => setIsEditMainModalOpen(false)}><Plus className="h-5 w-5 rotate-45" /></Button>
+          </div>
+          <div className="flex-grow overflow-hidden flex flex-col p-6 gap-6">
+            <div className="grid grid-cols-5 gap-6">
+              <div className="space-y-2 relative">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</Label>
+                <Input value={editProveedor} onChange={(e) => { setEditProveedor(e.target.value); setShowProvListEdit(true); }} className="h-12 bg-slate-50" />
+                {showProvListEdit && (
+                  <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto mt-1 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="p-2 border-b bg-slate-50 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">Resultados de búsqueda</span>
+                      <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowProvListEdit(false)}>Cerrar</Button>
+                    </div>
+                    {proveedores.filter(p =>
+                      p.razonSocial.toLowerCase().includes(editProveedor.toLowerCase()) ||
+                      (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(editProveedor.toLowerCase())) ||
+                      p.cuit?.includes(editProveedor)
+                    ).length > 0 ? (
+                      proveedores.filter(p =>
+                        p.razonSocial.toLowerCase().includes(editProveedor.toLowerCase()) ||
+                        (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(editProveedor.toLowerCase())) ||
+                        p.cuit?.includes(editProveedor)
+                      ).map(p => (
+                        <div
+                          key={p.id}
+                          className="p-3 hover:bg-amber-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors group"
+                          onClick={() => {
+                            setEditProveedor(p.razonSocial);
+                            setEditProveedorId(p.id);
+                            setShowProvListEdit(false);
+                          }}
+                        >
+                          <div className="flex justify-between items-center">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-900 group-hover:text-amber-700">{p.razonSocial}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"}</span>
                             </div>
-                        )}
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Método Pago</Label>
-                        <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4">
-                            <option value="Efectivo">Efectivo</option>
-                            <option value="Transferencia">Transferencia</option>
-                            <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                            <option value="Cheque">Cheque</option>
-                        </select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Comprobante N°</Label>
-                        <Input value={editComprobante} onChange={(e) => setEditComprobante(e.target.value)} className="h-12 bg-slate-50" />
-                    </div>
-                </div>
-
-                <div className="flex-grow border rounded-2xl overflow-hidden flex flex-col bg-white">
-                    <div className="overflow-y-auto flex-grow h-full">
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-slate-50 z-10">
-                                <TableRow>
-                                    <TableHead>Artículo</TableHead>
-                                    <TableHead className="text-center">Cant.</TableHead>
-                                    <TableHead className="text-center">Costo Unit.</TableHead>
-                                    <TableHead className="text-right">Subtotal</TableHead>
-                                    <TableHead className="w-16"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {editItems.map((item) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell className="font-bold">{item.nombre}</TableCell>
-                                        <TableCell className="text-center"><Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.costo_unit } : i))} className="w-16 mx-auto h-8 text-center" /></TableCell>
-                                        <TableCell className="text-center"><Input type="number" value={item.costo_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className="w-28 mx-auto h-8 text-center" /></TableCell>
-                                        <TableCell className="text-right font-bold">$ {item.subtotal.toLocaleString('es-AR')}</TableCell>
-                                        <TableCell><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter(i => i.id !== item.id))} className="text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </div>
-
-                <div className="flex justify-between items-center bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                    <div className="flex gap-10">
-                        <div className="space-y-1">
-                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Base</Label>
-                            <p className="text-xl font-bold text-slate-900">$ {editItems.reduce((acc, i) => acc + i.subtotal, 0).toLocaleString('es-AR')}</p>
+                            <div className="text-right">
+                              <span className={`text-xs font-black ${p.total > 0 ? 'text-red-600' : 'text-green-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                            <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Final</Label>
-                            <p className="text-3xl font-black text-amber-600">$ {((editItems.reduce((acc, i) => acc + i.subtotal, 0) * (1 + editInteres / 100)) - editDescuento).toLocaleString('es-AR')}</p>
-                        </div>
-                    </div>
-                    <div className="flex gap-3">
-                        <Button variant="ghost" onClick={() => setIsEditMainModalOpen(false)} className="h-12 px-6 rounded-xl">Cancelar</Button>
-                        <Button onClick={handleGuardarEdicion} disabled={isSubmitting} className="h-12 px-10 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-md shadow-amber-500/20">Guardar Cambios</Button>
-                    </div>
-                </div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-xs text-slate-400 italic">No se encontraron resultados</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Método Pago</Label>
+                <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4">
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                  <option value="Cheque">Cheque</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Comprobante N°</Label>
+                <Input value={editComprobante} onChange={(e) => setEditComprobante(e.target.value)} className="h-12 bg-slate-50" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recargo ($)</Label>
+                <Input type="number" value={editInteres} onChange={(e) => setEditInteres(Number(e.target.value))} className="h-12 bg-slate-50" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descuento ($)</Label>
+                <Input type="number" value={editDescuento} onChange={(e) => setEditDescuento(Number(e.target.value))} className="h-12 bg-slate-50" />
+              </div>
             </div>
+
+            <div className="flex-grow border rounded-2xl overflow-hidden flex flex-col bg-white">
+              <div className="overflow-y-auto flex-grow h-full">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-slate-50 z-10">
+                    <TableRow>
+                      <TableHead>Artículo</TableHead>
+                      <TableHead className="text-center">Cant.</TableHead>
+                      <TableHead className="text-center">Costo Unit.</TableHead>
+                      <TableHead className="text-right">Subtotal</TableHead>
+                      <TableHead className="w-16"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {editItems.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-bold">{item.nombre}</TableCell>
+                        <TableCell className="text-center"><Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.costo_unit } : i))} className="w-16 mx-auto h-8 text-center" /></TableCell>
+                        <TableCell className="text-center"><Input type="number" value={item.costo_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className="w-28 mx-auto h-8 text-center" /></TableCell>
+                        <TableCell className="text-right font-bold">$ {item.subtotal.toLocaleString('es-AR')}</TableCell>
+                        <TableCell><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter(i => i.id !== item.id))} className="text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <div className="flex gap-10">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Base</Label>
+                  <p className="text-xl font-bold text-slate-900">$ {editItems.reduce((acc, i) => acc + i.subtotal, 0).toLocaleString('es-AR')}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Final</Label>
+                  <p className="text-3xl font-black text-amber-600">$ {(editItems.reduce((acc, i) => acc + i.subtotal, 0) + editInteres - editDescuento).toLocaleString('es-AR')}</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="editImpactarCostos"
+                    checked={editImpactarCostos}
+                    onChange={(e) => setEditImpactarCostos(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  <Label htmlFor="editImpactarCostos" className="text-sm font-medium text-slate-700 cursor-pointer">Impactar compra en costos</Label>
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="ghost" onClick={() => setIsEditMainModalOpen(false)} className="h-12 px-6 rounded-xl">Cancelar</Button>
+                  <Button onClick={handleGuardarEdicion} disabled={isSubmitting} className="h-12 px-10 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-md shadow-amber-500/20">Guardar Cambios</Button>
+                </div>
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

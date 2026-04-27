@@ -187,7 +187,8 @@ export async function guardarComoPedidoCompra(data: {
   info?: string,
   comprobante?: string,
   transaccionId?: string,
-  proveedorId?: string
+  proveedorId?: string,
+  impactarCostos?: boolean
 }) {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -219,16 +220,16 @@ export async function guardarComoPedidoCompra(data: {
         }
       });
 
-      // Incrementar stock
+      // Incrementar stock y opcionalmente actualizar costos
       for (const item of data.items) {
         const prodId = item.productoId || item.id;
         if (!prodId) continue;
-
+ 
         const articuloBase = await tx.articuloMostrador.findUnique({
           where: { id: prodId },
           include: { packItems: true }
         });
-
+ 
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
             await tx.articuloMostrador.update({
@@ -237,10 +238,26 @@ export async function guardarComoPedidoCompra(data: {
             });
           }
         } else {
+          const updateData: any = { stock: { increment: item.cantidad } };
+          if (data.impactarCostos) {
+            updateData.precio = item.costo_unit;
+          }
+ 
           await tx.articuloMostrador.update({
             where: { id: prodId },
-            data: { stock: { increment: item.cantidad } }
+            data: updateData
           });
+ 
+          if (data.impactarCostos && articuloBase) {
+            await tx.articuloAuditoria.create({
+              data: {
+                articuloId: prodId,
+                usuario: data.comprador,
+                accion: "MODIFICACION_PRECIO_BASE",
+                detalle: `Actualizado por Pedido de Compra #${compra.numeroCompra}. De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(item.costo_unit).toLocaleString('es-AR')}`
+              }
+            });
+          }
         }
       }
 
@@ -485,7 +502,8 @@ export async function crearCompra(data: {
   info?: string,
   comprobante?: string,
   transaccionId?: string,
-  proveedorId?: string
+  proveedorId?: string,
+  impactarCostos?: boolean
 }) {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -517,16 +535,16 @@ export async function crearCompra(data: {
         }
       });
 
-      // 2. Incrementar stock (es una compra)
+      // 2. Incrementar stock (es una compra) y opcionalmente actualizar costos
       for (const item of data.items) {
         const prodId = item.productoId || item.id;
         if (!prodId) continue;
-
+ 
         const articuloBase = await tx.articuloMostrador.findUnique({
           where: { id: prodId },
           include: { packItems: true }
         });
-
+ 
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
             await tx.articuloMostrador.update({
@@ -535,10 +553,26 @@ export async function crearCompra(data: {
             });
           }
         } else {
+          const updateData: any = { stock: { increment: item.cantidad } };
+          if (data.impactarCostos) {
+            updateData.precio = item.costo_unit;
+          }
+ 
           await tx.articuloMostrador.update({
             where: { id: prodId },
-            data: { stock: { increment: item.cantidad } }
+            data: updateData
           });
+ 
+          if (data.impactarCostos && articuloBase) {
+            await tx.articuloAuditoria.create({
+              data: {
+                articuloId: prodId,
+                usuario: data.comprador,
+                accion: "MODIFICACION_PRECIO_BASE",
+                detalle: `Actualizado por Compra #${compra.numeroCompra}. De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(item.costo_unit).toLocaleString('es-AR')}`
+              }
+            });
+          }
         }
       }
 
@@ -591,7 +625,22 @@ export async function crearCompra(data: {
   }
 }
 
-export async function actualizarCompra(compraId: string, data: any, usuario: string, detalleCambios: string) {
+export async function actualizarCompra(compraId: string, data: {
+  proveedor: string,
+  proveedorId?: string,
+  total: number,
+  interes: number,
+  descuento: number,
+  totalFinal: number,
+  metodo_pago: string,
+  dni?: string,
+  telefono?: string,
+  info?: string,
+  comprobante?: string,
+  transaccionId?: string,
+  items: any[],
+  impactarCostos?: boolean
+}, usuario: string, detalleCambios: string) {
   try {
     await prisma.$transaction(async (tx) => {
       // 1. Revertir stock de los items anteriores
@@ -722,7 +771,7 @@ export async function actualizarCompra(compraId: string, data: any, usuario: str
         }
       }
 
-      // 5. Incrementar stock de los nuevos items
+      // 5. Incrementar stock de los nuevos items y opcionalmente actualizar costos
       for (const newItem of data.items) {
         const prodId = newItem.productoId || newItem.id;
         if (!prodId) continue;
@@ -738,10 +787,26 @@ export async function actualizarCompra(compraId: string, data: any, usuario: str
             });
           }
         } else {
+          const updateData: any = { stock: { increment: newItem.cantidad } };
+          if (data.impactarCostos) {
+            updateData.precio = newItem.costo_unit;
+          }
+ 
           await tx.articuloMostrador.update({
             where: { id: prodId },
-            data: { stock: { increment: newItem.cantidad } }
+            data: updateData
           });
+ 
+          if (data.impactarCostos && articuloBase) {
+            await tx.articuloAuditoria.create({
+              data: {
+                articuloId: prodId,
+                usuario: usuario,
+                accion: "MODIFICACION_PRECIO_BASE",
+                detalle: `Actualizado por Edición de Compra #${oldCompra?.numeroCompra}. De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(newItem.costo_unit).toLocaleString('es-AR')}`
+              }
+            });
+          }
         }
       }
 

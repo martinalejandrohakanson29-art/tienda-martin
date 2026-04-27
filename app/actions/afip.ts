@@ -140,16 +140,21 @@ export async function consultarPadron(documento: string | number) {
 
         // Lógica de decisión automática según condición del vendedor y comprador
         const impuestos = Array.isArray(datos.impuesto) ? datos.impuesto : (datos.impuesto ? [datos.impuesto] : []);
-        const tieneIVA = impuestos.some((imp: any) => imp.idImpuesto === 30);
+        const tieneIVA = impuestos.some((imp: any) => imp.idImpuesto === 30); // 30 = IVA
+        const esMonotributista = impuestos.some((imp: any) => imp.idImpuesto === 20); // 20 = Monotributo
         
         // Si el vendedor (vos) es Monotributista (11), solo emite C (11)
         // Si el vendedor es Responsable Inscripto, emite A (1) si el cliente tiene IVA, sino B (6)
         const soyMonotributista = AFIP_CONFIG.tipoComprobante === 11;
         
         const tipoFactura = soyMonotributista ? 11 : (tieneIVA ? 1 : 6);
-        const condicionIva = tieneIVA ? 1 : 5; // 1 = RI, 5 = Consumidor Final
+        
+        // Condición IVA Receptor: 1=RI, 6=Monotributo, 5=Consumidor Final (RG 5616)
+        let condicionIva = 5;
+        if (tieneIVA) condicionIva = 1;
+        else if (esMonotributista) condicionIva = 6;
 
-        console.log(`✅ [AFIP] Datos obtenidos: ${datos.razonSocial || datos.apellido}, Comprador IVA: ${tieneIVA}, Sugerencia: Factura ${tipoFactura === 11 ? 'C' : (tipoFactura === 1 ? 'A' : 'B')}`);
+        console.log(`✅ [AFIP] Datos obtenidos: ${datos.razonSocial || datos.apellido}, Comprador: ${tieneIVA ? 'RI' : (esMonotributista ? 'Monotributo' : 'Final')}, Sugerencia: Factura ${tipoFactura === 11 ? 'C' : (tipoFactura === 1 ? 'A' : 'B')}`);
 
         return {
             success: true,
@@ -226,6 +231,7 @@ export async function facturarVenta(data: {
         let importeIva = 0;
         let ivaArray = null;
 
+        // Si el emisor es RI, el IVA es obligatorio incluso en Factura B (aunque el cliente no lo vea discriminado)
         if (esResponsableInscripto) {
             neto = parseFloat((total / 1.21).toFixed(2));
             importeIva = parseFloat((total - neto).toFixed(2));

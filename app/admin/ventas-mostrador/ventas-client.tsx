@@ -384,7 +384,9 @@ export default function VentasMostradorClient({
     
     // Filtro ID Venta (Buscador)
     const cumpleIdVenta = filtroIdVenta 
-      ? (v.numeroVenta?.toString().includes(filtroIdVenta) || v.id.toLowerCase().includes(filtroIdVenta.toLowerCase()))
+      ? (v.numeroVenta?.toString().includes(filtroIdVenta) || 
+         v.id.toLowerCase().includes(filtroIdVenta.toLowerCase()) ||
+         v.dni?.toLowerCase().includes(filtroIdVenta.toLowerCase()))
       : true;
 
     return cumpleOffline && cumplePuntoVenta && cumpleIdVenta;
@@ -1376,6 +1378,7 @@ export default function VentasMostradorClient({
 
                                 <TableCell className="font-medium text-slate-700 py-4">
                                   {v.cliente}
+                                  {v.dni && <div className="text-[10px] text-blue-600 font-bold mt-0.5">DNI/CUIT: {v.dni}</div>}
                                   {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
                                   {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 rounded-full uppercase text-white" style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}>{v.puntoVenta.nombre}</span></div>}
                                   {v.eventoOffline && <div className="mt-1"><span className="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span></div>}
@@ -1614,6 +1617,7 @@ export default function VentasMostradorClient({
                             </TableCell>
                             <TableCell className="font-bold text-slate-700 py-4">
                               {v.cliente}
+                              {v.dni && <div className="text-[10px] text-blue-600 font-bold mt-0.5">DNI/CUIT: {v.dni}</div>}
                               {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 rounded-full uppercase text-white" style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}>{v.puntoVenta.nombre}</span></div>}
                             </TableCell>
                             <TableCell className="py-4">

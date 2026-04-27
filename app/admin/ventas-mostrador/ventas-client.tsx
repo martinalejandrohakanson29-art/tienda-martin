@@ -24,7 +24,6 @@ import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
-  marcarVentaRegistrada,
   generarFacturaARCA
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
@@ -1436,6 +1435,12 @@ export default function VentasMostradorClient({
                                     >
                                       <Printer className="h-5 w-5" />
                                     </button>
+                                    <button
+                                      disabled={v.registrada}
+                                      onClick={(e) => { e.stopPropagation(); handleMarcarRegistrada(v.id); }}
+                                      className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}
+                                      title={v.registrada ? "Registrada" : "Marcar como Registrada"}
+                                    >
                                       {v.registrada ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
                                     </button>
                                     {!v.cae ? (

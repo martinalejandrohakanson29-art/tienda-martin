@@ -238,20 +238,22 @@ export async function crearVentaMostrador(data: {
       const resAfip = await facturarVenta({
         monto: data.totalFinal,
         docTipo: data.docTipo || 99,
-        docNro: parseInt(data.docNro || "0"),
+        docNro: parseInt((data.docNro || "0").replace(/\D/g, '')),
         ivaReceptor: data.condicionIva || 5,
         tipoComprobante: data.tipoComprobante || 6 // Por defecto B
       });
 
-      if (resAfip.success && resAfip.data) {
-        arcaData.cae = resAfip.data.CAE;
-        arcaData.vencimientoCae = new Date(resAfip.data.CAEFchVto.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'));
-        arcaData.facturaNumero = resAfip.data.CbteDesde;
+      if (resAfip.success) {
+        arcaData.cae = resAfip.cae;
+        if (resAfip.vencimiento) {
+          arcaData.vencimientoCae = new Date(resAfip.vencimiento.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'));
+        }
+        arcaData.facturaNumero = resAfip.numero;
         arcaData.tipoComprobante = data.tipoComprobante || 6;
       } else {
         return { 
           success: false, 
-          error: `Error ARCA: ${resAfip.error || 'No se pudo autorizar el comprobante'}` 
+          error: `Error ARCA: ${resAfip.error || 'No se pudo autorizar el comprobante'}${resAfip.details ? ' - ' + resAfip.details : ''}` 
         };
       }
     }
@@ -324,7 +326,7 @@ export async function crearVentaMostrador(data: {
           alicuotaIva: arcaData.alicuotaIva,
           items: {
             create: data.items.map(item => ({
-              productoId: item.id,
+              productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
@@ -337,7 +339,7 @@ export async function crearVentaMostrador(data: {
       // --- NUEVO: Descontar stock de los artículos vendidos ---
       for (const item of data.items) {
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: item.id },
+          where: { id: item.productoId || item.id },
           include: { packItems: true }
         });
 
@@ -350,7 +352,7 @@ export async function crearVentaMostrador(data: {
           }
         } else {
           await tx.articuloMostrador.updateMany({
-            where: { id: item.id },
+            where: { id: item.productoId || item.id },
             data: {
               stock: {
                 decrement: item.cantidad
@@ -477,7 +479,7 @@ export async function guardarComoPedidoVenta(data: {
           alicuotaIva: data.alicuotaIva,
           items: {
             create: data.items.map(item => ({
-              productoId: item.id,
+              productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
@@ -490,7 +492,7 @@ export async function guardarComoPedidoVenta(data: {
       // --- Descontar stock de los artículos vendidos ---
       for (const item of data.items) {
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: item.id },
+          where: { id: item.productoId || item.id },
           include: { packItems: true }
         });
 
@@ -503,7 +505,7 @@ export async function guardarComoPedidoVenta(data: {
           }
         } else {
           await tx.articuloMostrador.updateMany({
-            where: { id: item.id },
+            where: { id: item.productoId || item.id },
             data: {
               stock: {
                 decrement: item.cantidad
@@ -632,7 +634,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           ...(data.alicuotaIva !== undefined && { alicuotaIva: data.alicuotaIva }),
           items: {
             create: data.items.map((item: any) => ({
-              productoId: item.id,
+              productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
@@ -683,7 +685,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
       // --- NUEVO: 4. Descontar el stock de los nuevos items ---
       for (const newItem of data.items) {
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: newItem.id },
+          where: { id: newItem.productoId || newItem.id },
           include: { packItems: true }
         });
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
@@ -695,7 +697,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           }
         } else {
           await tx.articuloMostrador.updateMany({
-            where: { id: newItem.id },
+            where: { id: newItem.productoId || newItem.id },
             data: { stock: { decrement: newItem.cantidad } }
           });
         }
@@ -882,7 +884,30 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
         }
       });
 
-      // 3. Eliminar la venta (esto también eliminará los items relacionados debido a onDelete: Cascade)
+      // 3. Revertir el stock de los artículos eliminados
+      for (const item of items) {
+        if (item.productoId) {
+          const articuloBase = await tx.articuloMostrador.findUnique({
+            where: { id: item.productoId },
+            include: { packItems: true }
+          });
+          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+            for (const packItem of articuloBase.packItems) {
+              await tx.articuloMostrador.updateMany({
+                where: { id: packItem.componenteId },
+                data: { stock: { increment: packItem.cantidad * item.cantidad } }
+              });
+            }
+          } else {
+            await tx.articuloMostrador.updateMany({
+              where: { id: item.productoId },
+              data: { stock: { increment: item.cantidad } }
+            });
+          }
+        }
+      }
+
+      // 4. Eliminar la venta (esto también eliminará los items relacionados debido a onDelete: Cascade)
       await tx.venta.delete({
         where: { id: ventaId }
       });
@@ -1072,7 +1097,7 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
           puntoVentaId: data.puntoVentaId || null,
           items: {
             create: data.items.map((item: any) => ({
-              productoId: item.id,
+              productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
@@ -1085,7 +1110,7 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
       // 4. Descontar el stock de los nuevos items
       for (const newItem of data.items) {
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: newItem.id },
+          where: { id: newItem.productoId || newItem.id },
           include: { packItems: true }
         });
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
@@ -1097,7 +1122,7 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
           }
         } else {
           await tx.articuloMostrador.updateMany({
-            where: { id: newItem.id },
+            where: { id: newItem.productoId || newItem.id },
             data: { stock: { decrement: newItem.cantidad } }
           });
         }
@@ -1177,8 +1202,40 @@ export async function confirmarPedidoVenta(ventaId: string) {
 
 export async function eliminarPedidoVenta(ventaId: string) {
   try {
-    await prisma.venta.delete({
-      where: { id: ventaId }
+    await prisma.$transaction(async (tx) => {
+      const venta = await tx.venta.findUnique({
+        where: { id: ventaId },
+        include: { items: true }
+      });
+
+      if (!venta) throw new Error("Pedido no encontrado");
+
+      // Revertir stock
+      for (const item of venta.items) {
+        if (item.productoId) {
+          const articuloBase = await tx.articuloMostrador.findUnique({
+            where: { id: item.productoId },
+            include: { packItems: true }
+          });
+          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+            for (const packItem of articuloBase.packItems) {
+              await tx.articuloMostrador.updateMany({
+                where: { id: packItem.componenteId },
+                data: { stock: { increment: packItem.cantidad * item.cantidad } }
+              });
+            }
+          } else {
+            await tx.articuloMostrador.updateMany({
+              where: { id: item.productoId },
+              data: { stock: { increment: item.cantidad } }
+            });
+          }
+        }
+      }
+
+      await tx.venta.delete({
+        where: { id: ventaId }
+      });
     });
 
     return { success: true };
@@ -1337,7 +1394,7 @@ export async function generarFacturaARCA(ventaId: string) {
     const resARCA = await facturarVenta({
       monto: Number(venta.totalFinal || venta.total),
       docTipo: venta.docTipo,
-      docNro: parseInt(venta.docNro),
+      docNro: parseInt(venta.docNro.replace(/\D/g, '')),
       ivaReceptor: venta.condicionIva || 5,
       tipoComprobante: venta.tipoComprobante || 6 // Default B
     });

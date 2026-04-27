@@ -1396,7 +1396,7 @@ export async function generarFacturaARCA(ventaId: string) {
       docTipo: venta.docTipo,
       docNro: parseInt(venta.docNro.replace(/\D/g, '')),
       ivaReceptor: venta.condicionIva || 5,
-      tipoComprobante: venta.tipoComprobante || 6 // Default B
+      tipoComprobante: venta.tipoComprobante || undefined
     });
 
     if (resARCA.success) {

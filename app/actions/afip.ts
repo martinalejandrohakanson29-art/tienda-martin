@@ -5,12 +5,16 @@ import path from 'path';
 import fs from 'fs';
 
 // Esta es la clave: Ruta absoluta para que no importe el modo standalone
-const BASE_REGISTRACION = '/app/Registracion';
+// Detectamos si estamos en producción (ej: Railway) o local (Windows/Mac)
+const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync('/app');
+const BASE_REGISTRACION = isProduction 
+    ? '/app/Registracion' 
+    : path.join(process.cwd(), 'Registracion');
 
 const AFIP_CONFIG = {
     CUIT: process.env.AFIP_CUIT || "20269957361",
-    certPath: path.join(BASE_REGISTRACION, process.env.AFIP_CERT_FILE || 'produccion.crt'),
-    keyPath: path.join(BASE_REGISTRACION, process.env.AFIP_KEY_FILE || 'produccion.key'),
+    certPath: path.join(BASE_REGISTRACION, process.env.AFIP_CERT_FILE || 'certificado.crt'),
+    keyPath: path.join(BASE_REGISTRACION, process.env.AFIP_KEY_FILE || 'privada.key'),
     urlWsaa: process.env.AFIP_WSAA_URL || "https://wsaa.afip.gov.ar/ws/services/LoginCms",
     urlWsfe: process.env.AFIP_WSFE_URL || "https://servicios1.afip.gov.ar/wsfev1/service.asmx",
     puntoDeVenta: parseInt(process.env.AFIP_PUNTO_VENTA || "9"),
@@ -19,7 +23,10 @@ const AFIP_CONFIG = {
 
 async function obtenerTicketAcceso(servicio: string = 'wsfe') {
     const loginTicket = LoginTicket.getInstance();
-    const cachePath = path.join(BASE_REGISTRACION, `ticket_cache_${servicio}.json`);
+    
+    // El cache depende de la URL para evitar usar tickets de Homologación en Producción
+    const envHash = AFIP_CONFIG.urlWsaa.includes('homo') ? 'homo' : 'prod';
+    const cachePath = path.join(BASE_REGISTRACION, `ticket_cache_${servicio}_${envHash}.json`);
 
     console.log(`🔍 [AFIP] Configuración actual para ${servicio}:`, {
         urlWsaa: AFIP_CONFIG.urlWsaa,
@@ -131,14 +138,18 @@ export async function consultarPadron(documento: string | number) {
 
         const datos = res.personaReturn.persona;
 
-        // Lógica de decisión automática para Responsable Inscripto
+        // Lógica de decisión automática según condición del vendedor y comprador
         const impuestos = Array.isArray(datos.impuesto) ? datos.impuesto : (datos.impuesto ? [datos.impuesto] : []);
         const tieneIVA = impuestos.some((imp: any) => imp.idImpuesto === 30);
         
-        const tipoFactura = tieneIVA ? 1 : 6;
-        const condicionIva = tieneIVA ? 1 : 5;
+        // Si el vendedor (vos) es Monotributista (11), solo emite C (11)
+        // Si el vendedor es Responsable Inscripto, emite A (1) si el cliente tiene IVA, sino B (6)
+        const soyMonotributista = AFIP_CONFIG.tipoComprobante === 11;
+        
+        const tipoFactura = soyMonotributista ? 11 : (tieneIVA ? 1 : 6);
+        const condicionIva = tieneIVA ? 1 : 5; // 1 = RI, 5 = Consumidor Final
 
-        console.log(`✅ [AFIP] Datos obtenidos: ${datos.razonSocial || datos.apellido}, Tipo: ${tipoFactura}`);
+        console.log(`✅ [AFIP] Datos obtenidos: ${datos.razonSocial || datos.apellido}, Comprador IVA: ${tieneIVA}, Sugerencia: Factura ${tipoFactura === 11 ? 'C' : (tipoFactura === 1 ? 'A' : 'B')}`);
 
         return {
             success: true,
@@ -203,6 +214,8 @@ export async function facturarVenta(data: {
         }
 
         const lastCbte = ultimoRes.FECompUltimoAutorizadoResult.CbteNro;
+        console.log(`🔢 [AFIP] Último comprobante para PtoVta ${AFIP_CONFIG.puntoDeVenta} Tipo ${cbteTipo}: ${lastCbte}`);
+        
         const nextNumber = lastCbte + 1;
         const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
 

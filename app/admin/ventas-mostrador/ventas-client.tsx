@@ -170,7 +170,7 @@ export default function VentasMostradorClient({
   const [docNro, setDocNro] = useState<string>("");
   const [condicionIva, setCondicionIva] = useState<number>(5); // Consumidor Final
   const [isFacturando, setIsFacturando] = useState(false);
-  const [tipoFacturaSugerida, setTipoFacturaSugerida] = useState<number>(6); // B por defecto
+  const [tipoFacturaSugerida, setTipoFacturaSugerida] = useState<number>(11); // C por defecto
   const [solicitarFactura, setSolicitarFactura] = useState(false);
   const [sujetoId, setSujetoId] = useState<string | null>(null);
   const [sujetosEncontrados, setSujetosEncontrados] = useState<any[]>([]);
@@ -695,7 +695,7 @@ export default function VentasMostradorClient({
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
     setCuitBusqueda(""); setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
-    setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(6);
+    setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(11);
     setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false); setSolicitarFactura(false);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
     // Restaurar "Mostrador" como punto de venta por defecto

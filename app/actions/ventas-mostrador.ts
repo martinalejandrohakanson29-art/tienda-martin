@@ -290,7 +290,7 @@ export async function crearVentaMostrador(data: {
 
       // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada", "A Cuenta Corriente" o "Mixto" con esas partes ---
       const montoImpactoVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
-      
+
       if (montoImpactoVal > 0 && data.para) {
         const idBuscado = data.para;
 
@@ -467,10 +467,10 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
       });
 
       const esMetodoImpactoOld = oldVenta && (oldVenta.metodo_pago === "Cruzada" || oldVenta.metodo_pago === "A Cuenta Corriente" || oldVenta.metodo_pago === "Mixto");
-      
+
       if (oldVenta && esMetodoImpactoOld) {
         const montoRevertirVal = getMontoImpactoProveedor(oldVenta.metodo_pago, oldVenta.info, Number(oldVenta.totalFinal));
-        
+
         if (montoRevertirVal > 0) {
           let proveedor = await tx.proveedor.findUnique({
             where: { id: oldVenta.para || "" }
@@ -572,7 +572,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
 
       // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto ---
       const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
-      
+
       if (montoImpactoNewVal > 0 && data.para) {
         const idBuscado = data.para;
 
@@ -754,7 +754,7 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
 
       // --- NUEVO: Revertir saldo de proveedor si la venta tenía impacto (Cruzada, CC o Mixto) ---
       const esMetodoImpactoDel = venta && (venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente" || venta.metodo_pago === "Mixto");
-      
+
       if (venta && esMetodoImpactoDel) {
         const montoRevertirVal = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
 

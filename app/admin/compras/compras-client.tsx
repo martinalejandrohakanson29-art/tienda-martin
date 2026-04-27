@@ -1014,6 +1014,18 @@ export default function ComprasClient({
         </DialogContent>
       </Dialog>
 
+      {/* Modal Confirmación Descarte */}
+      <Dialog open={isConfirmDiscardOpen} onOpenChange={setIsConfirmDiscardOpen}>
+        <DialogContent className="sm:max-w-[400px] rounded-3xl">
+          <DialogHeader><DialogTitle className="text-red-600">¿Descartar cambios?</DialogTitle></DialogHeader>
+          <p className="text-sm text-slate-500">Se perderán todos los artículos agregados a la lista actual de compra. Esta acción no se puede deshacer.</p>
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={resetForm}>Descartar Todo</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal Eliminación */}
       <Dialog open={isEliminarModalOpen} onOpenChange={setIsEliminarModalOpen}>
         <DialogContent className="sm:max-w-[400px] rounded-3xl">

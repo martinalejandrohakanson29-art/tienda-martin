@@ -18,7 +18,7 @@ const AFIP_CONFIG = {
     urlWsaa: process.env.AFIP_WSAA_URL || "https://wsaa.afip.gov.ar/ws/services/LoginCms",
     urlWsfe: process.env.AFIP_WSFE_URL || "https://servicios1.afip.gov.ar/wsfev1/service.asmx",
     puntoDeVenta: parseInt(process.env.AFIP_PUNTO_VENTA || "9"),
-    tipoComprobante: parseInt(process.env.AFIP_TIPO_CBTE || "11")
+    tipoComprobante: parseInt(process.env.AFIP_TIPO_CBTE || "6")
 };
 
 async function obtenerTicketAcceso(servicio: string = 'wsfe') {

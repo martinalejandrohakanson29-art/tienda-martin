@@ -707,10 +707,11 @@ export default function VentasMostradorClient({
 
   const handleImprimirFactura = (venta: any) => {
     setVentaParaFactura(venta);
+    // Aumentamos el tiempo para permitir la carga de la imagen del QR desde el servidor externo
     setTimeout(() => {
       window.print();
       setTimeout(() => setVentaParaFactura(null), 1000);
-    }, 100);
+    }, 1000); 
   };
 
   const resetForm = () => {
@@ -2852,20 +2853,27 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
   // Lógica de QR AFIP
   const generateQR = () => {
     try {
+      const docTipo = Number(venta.docTipo || 99);
+      const docNroRaw = (venta.docNro || "0").replace(/\D/g, '');
+      const docNro = docTipo === 99 ? 0 : (Number(docNroRaw) || 0);
+      
+      const nroCmp = Number(venta.facturaNumero) || 0;
+      const codAut = Number(venta.cae) || 0;
+
       const qrData = {
         ver: 1,
         fecha: new Date(venta.createdAt).toISOString().split('T')[0],
         cuit: 20269957361,
         ptoVta: Number(venta.facturaPuntoVenta || 9),
         tipoCmp: Number(venta.tipoComprobante || 6),
-        nroCmp: Number(venta.facturaNumero),
+        nroCmp: nroCmp,
         importe: parseFloat(total.toFixed(2)),
         moneda: "PES",
         ctz: 1,
-        tipoDocRec: Number(venta.docTipo || 99),
-        nroDocRec: Number((venta.docNro || "0").replace(/\D/g, '')),
+        tipoDocRec: docTipo,
+        nroDocRec: docNro,
         tipoCodAut: "E",
-        codAut: Number(venta.cae)
+        codAut: codAut
       };
       
       const jsonStr = JSON.stringify(qrData);

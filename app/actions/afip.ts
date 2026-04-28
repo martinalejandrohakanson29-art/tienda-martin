@@ -351,9 +351,8 @@ export async function generarNotaCredito(ventaOriginal: {
 
     try {
         // 1. SANITIZACIÓN CRÍTICA: Evitar el error 500 de ARCA
-        // Si docNro es null o undefined, y es Consumidor Final, forzamos a 0.
-        // Si es CUIT (80), debe ser un número válido.
-        const docNroFinal = ventaOriginal.docNro ? Number(ventaOriginal.docNro) : 0;
+        // Limpiamos el CUIT de cualquier caracter no numérico y convertimos a número
+        const docNroFinal = parseInt(ventaOriginal.docNro.toString().replace(/\D/g, '')) || 0;
         const docTipoFinal = ventaOriginal.docTipo || 99;
 
         // Validaciones preventivas para evitar el SoapFault (Error 500)
@@ -465,5 +464,6 @@ export async function generarNotaCredito(ventaOriginal: {
         return { success: false, error: error.message };
     }
 }
+
 
 

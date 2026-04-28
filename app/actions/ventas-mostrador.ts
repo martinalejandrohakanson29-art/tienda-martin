@@ -1425,27 +1425,21 @@ export async function generarFacturaARCA(ventaId: string) {
 }
 
 export async function cancelarVenta(ventaId: string) {
-    // 1. Buscar la venta actual
     const venta = await prisma.venta.findUnique({
         where: { id: ventaId }
     });
 
     if (!venta) throw new Error("Venta no encontrada");
 
-    // 2. Si la venta ya tenía CAE, disparamos la Nota de Crédito
     if (venta.cae && !venta.info?.includes("ANULADA CON NC")) {
-        // Log para depurar qué estamos sacando de la DB
-        console.log("🔍 [cancelarVenta] Recuperando datos para NC:", {
-            id: venta.id,
-            docNro: venta.docNro,
-            dni: venta.dni,
-            docTipo: venta.docTipo
-        });
-
+        // LIMPIEZA CRÍTICA: Quitamos guiones y espacios. 
+        // Si no hay docNro, probamos con dni (que a veces tiene el CUIT).
+        const cuitLimpio = (venta.docNro || venta.dni || "0").replace(/\D/g, '');
+        
         const resNC = await generarNotaCredito({
             total: Number(venta.totalFinal),
             docTipo: venta.docTipo || 99,
-            docNro: venta.docNro || venta.dni || 0,
+            docNro: cuitLimpio, // Lo pasamos como string de dígitos
             tipoFacturaOriginal: venta.tipoComprobante || 11,
             puntoVentaOriginal: venta.facturaPuntoVenta || 9,
             numeroFacturaOriginal: venta.facturaNumero || 0,
@@ -1453,7 +1447,6 @@ export async function cancelarVenta(ventaId: string) {
         });
 
         if (resNC.success) {
-            // 3. Actualizamos la venta con los datos de la NC para que quede registro
             await prisma.venta.update({
                 where: { id: ventaId },
                 data: {
@@ -1464,16 +1457,20 @@ export async function cancelarVenta(ventaId: string) {
             revalidatePath("/admin/ventas-mostrador");
             return { success: true, message: "Venta cancelada y Nota de Crédito generada." };
         } else {
-            return { success: false, error: "No se pudo generar la Nota de Crédito en ARCA. Intente nuevamente.", details: (resNC as any).details };
+            return { 
+                success: false, 
+                error: "Error en ARCA", 
+                details: (resNC as any).details || resNC.error 
+            };
         }
     }
 
-    // Si no tenía factura, solo cancelamos el pedido
     await prisma.venta.update({
         where: { id: ventaId },
         data: { estadoPedido: "CANCELADO" }
     });
     revalidatePath("/admin/ventas-mostrador");
-
-    return { success: true, message: "Venta cancelada (no requería Nota de Crédito)." };
+    return { success: true, message: "Venta cancelada correctamente." };
 }
+
+

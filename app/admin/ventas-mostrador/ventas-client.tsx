@@ -646,6 +646,7 @@ export default function VentasMostradorClient({
       });
 
       const dniFinal = dni || cuitBusqueda;
+      const docNroFinal = docNro || (cuitBusqueda.length > 6 ? cuitBusqueda : "");
 
       const resultado = isPedido
         ? await guardarComoPedidoVenta({
@@ -654,7 +655,7 @@ export default function VentasMostradorClient({
           totalFinal: totalFinalCalculado,
           items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
           email, eventoOffline, puntoVentaId,
-          docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
+          docTipo, docNro: docNroFinal, condicionIva, tipoComprobante: tipoFacturaSugerida
         })
         : await crearVentaMostrador({
           cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
@@ -664,7 +665,7 @@ export default function VentasMostradorClient({
           email, eventoOffline, puntoVentaId,
           solicitarFactura: solicitarFactura,
           // ARCA fields para guardar el snapshot
-          docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
+          docTipo, docNro: docNroFinal, condicionIva, tipoComprobante: tipoFacturaSugerida
         });
 
       if (resultado.success) {

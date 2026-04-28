@@ -420,6 +420,7 @@ export async function registrarVentasML(ids: string[], solicitarFactura: boolean
                     totalFinal: brutoTotal,
                     items: items,
                     metodo_pago: "mercadopago (ML)",
+                    info: `Neto ML: $${netoTotal.toLocaleString('es-AR')}`,
                     cupon: v.orderId,          // ID Venta en campo cupon
                     de: v.orderId,             // ID Venta en campo de
                     transaccionId: v.shippingId, // ID Envío en campo transaccionId (para que se vea en la columna Trans.)

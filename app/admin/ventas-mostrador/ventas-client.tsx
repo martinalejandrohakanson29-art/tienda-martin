@@ -1516,7 +1516,14 @@ export default function VentasMostradorClient({
                                   title={v.info ? `Click para copiar: ${v.info}` : ""}
                                   onClick={() => v.info && copiarAlPortapapeles(v.info)}
                                 >
-                                  {v.info || "-"}
+                                  {v.mlIdVenta ? (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="text-emerald-600 font-bold whitespace-nowrap">Neto: $ {Number(v.total).toLocaleString('es-AR')}</span>
+                                      {v.info && <span className="text-[10px] opacity-70">{v.info}</span>}
+                                    </div>
+                                  ) : (
+                                    v.info || "-"
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                                 <TableCell className="py-4 text-center">
@@ -1756,7 +1763,14 @@ export default function VentasMostradorClient({
                               title={v.info ? `Click para copiar: ${v.info}` : ""}
                               onClick={() => v.info && copiarAlPortapapeles(v.info)}
                             >
-                              {v.info || "-"}
+                              {v.mlIdVenta ? (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-emerald-600 font-bold whitespace-nowrap">Neto: $ {Number(v.total).toLocaleString('es-AR')}</span>
+                                  {v.info && <span className="text-[10px] opacity-70">{v.info}</span>}
+                                </div>
+                              ) : (
+                                v.info || "-"
+                              )}
                             </TableCell>
                             <TableCell className="font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                             <TableCell className="text-xs text-slate-500 py-4">{v.vendedor}</TableCell>

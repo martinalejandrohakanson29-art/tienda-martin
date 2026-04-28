@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache";
-import { facturarVenta } from "./afip";
+import { facturarVenta, generarNotaCredito } from "./afip";
 import { s3Client } from "@/lib/s3"
 import {
   S3Client,
@@ -1422,4 +1422,50 @@ export async function generarFacturaARCA(ventaId: string) {
     console.error("Error en generarFacturaARCA:", error);
     return { success: false, error: error.message || "Error interno al facturar" };
   }
+}
+
+export async function cancelarVenta(ventaId: string) {
+    // 1. Buscar la venta actual
+    const venta = await prisma.venta.findUnique({
+        where: { id: ventaId }
+    });
+
+    if (!venta) throw new Error("Venta no encontrada");
+
+    // 2. Si la venta ya tenía CAE, disparamos la Nota de Crédito
+    if (venta.cae && !venta.info?.includes("ANULADA CON NC")) {
+        const resNC = await generarNotaCredito({
+            total: Number(venta.totalFinal),
+            docTipo: venta.docTipo || 99,
+            docNro: Number(venta.docNro || 0),
+            tipoFacturaOriginal: venta.tipoComprobante || 11,
+            puntoVentaOriginal: venta.facturaPuntoVenta || 9,
+            numeroFacturaOriginal: venta.facturaNumero || 0,
+            condicionIva: venta.condicionIva || 5
+        });
+
+        if (resNC.success) {
+            // 3. Actualizamos la venta con los datos de la NC para que quede registro
+            await prisma.venta.update({
+                where: { id: ventaId },
+                data: {
+                    estadoPedido: "CANCELADO",
+                    info: `ANULADA CON NC Nro: ${resNC.numero} - CAE: ${resNC.cae}`,
+                }
+            });
+            revalidatePath("/admin/ventas-mostrador");
+            return { success: true, message: "Venta cancelada y Nota de Crédito generada." };
+        } else {
+            return { success: false, error: "No se pudo generar la Nota de Crédito en ARCA. Intente nuevamente.", details: (resNC as any).details };
+        }
+    }
+
+    // Si no tenía factura, solo cancelamos el pedido
+    await prisma.venta.update({
+        where: { id: ventaId },
+        data: { estadoPedido: "CANCELADO" }
+    });
+    revalidatePath("/admin/ventas-mostrador");
+
+    return { success: true, message: "Venta cancelada (no requería Nota de Crédito)." };
 }

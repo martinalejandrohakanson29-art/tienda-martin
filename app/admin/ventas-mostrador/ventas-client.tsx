@@ -24,7 +24,7 @@ import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
-  generarFacturaARCA
+  generarFacturaARCA, cancelarVenta
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
@@ -115,10 +115,10 @@ function expandirPacksEnItems(items: ItemVenta[], articulos: Articulo[]): ItemVe
 const transformDriveLink = (url: string) => {
   if (!url) return "";
   if (url.includes("drive.google.com") && url.includes("/d/")) {
-      const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
-      if (idMatch && idMatch[1]) {
-          return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
-      }
+    const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
+    if (idMatch && idMatch[1]) {
+      return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
+    }
   }
   return url;
 }
@@ -361,7 +361,7 @@ export default function VentasMostradorClient({
       if (isFinalizarModalOpen) setParaCruzada(nuevo.razonSocial);
       // Si estamos en edición, lo seleccionamos
       if (isEditMainModalOpen) setEditParaCruzada(nuevo.razonSocial);
-      
+
       setIsAddProveedorModalOpen(false);
       setNewProvData({ razonSocial: "", cuit: "", nombreFantasia: "", email: "", telefono: "" });
       mostrarMensajeExito("Proveedor creado con éxito");
@@ -413,15 +413,15 @@ export default function VentasMostradorClient({
   const ventasFiltradas = ventasRealizadas.filter(v => {
     // Filtro Offline
     const cumpleOffline = mostrarSoloOffline ? v.eventoOffline === true : true;
-    
+
     // Filtro Punto de Venta
     const cumplePuntoVenta = filtroPuntoVenta ? v.puntoVentaId === filtroPuntoVenta : true;
-    
+
     // Filtro ID Venta (Buscador)
-    const cumpleIdVenta = filtroIdVenta 
-      ? (v.numeroVenta?.toString().includes(filtroIdVenta) || 
-         v.id.toLowerCase().includes(filtroIdVenta.toLowerCase()) ||
-         v.dni?.toLowerCase().includes(filtroIdVenta.toLowerCase()))
+    const cumpleIdVenta = filtroIdVenta
+      ? (v.numeroVenta?.toString().includes(filtroIdVenta) ||
+        v.id.toLowerCase().includes(filtroIdVenta.toLowerCase()) ||
+        v.dni?.toLowerCase().includes(filtroIdVenta.toLowerCase()))
       : true;
 
     return cumpleOffline && cumplePuntoVenta && cumpleIdVenta;
@@ -433,7 +433,7 @@ export default function VentasMostradorClient({
   const formatCurrency = (amount: any) => {
     const value = typeof amount === "number" ? amount : parseFloat(amount);
     if (isNaN(value)) return "$ 0,00";
-    
+
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
@@ -463,7 +463,7 @@ export default function VentasMostradorClient({
   const handleImprimirPresupuesto = () => {
     // Expandir packs en sus componentes antes de imprimir
     const itemsExpandidos = expandirPacksEnItems(items, articulos);
-    
+
     setVentaParaImprimir({
       id: crypto.randomUUID(),
       items: itemsExpandidos,
@@ -541,7 +541,7 @@ export default function VentasMostradorClient({
         }
         if (res.condicionIva) setCondicionIva(res.condicionIva);
         if (res.tipoFactura) setTipoFacturaSugerida(res.tipoFactura);
-        
+
         mostrarMensajeExito("Datos obtenidos del padrón");
       } else {
         alert(res.error || "No se encontró el CUIT");
@@ -560,8 +560,8 @@ export default function VentasMostradorClient({
       setShowSujetoList(false);
       return;
     }
-    const filtered = proveedores.filter(p => 
-      p.razonSocial.toLowerCase().includes(q.toLowerCase()) || 
+    const filtered = proveedores.filter(p =>
+      p.razonSocial.toLowerCase().includes(q.toLowerCase()) ||
       p.cuit?.includes(q)
     ).slice(0, 10);
     setSujetosEncontrados(filtered);
@@ -625,8 +625,8 @@ export default function VentasMostradorClient({
       infoFinal = info ? `${det} - ${info}` : det;
     }
 
-      try {
-        setIsSubmitting(true);
+    try {
+      setIsSubmitting(true);
 
       // Preparar items para guardar: expandir packs en sus componentes
       const itemsParaGuardar = items.flatMap(item => {
@@ -649,28 +649,28 @@ export default function VentasMostradorClient({
 
       const resultado = isPedido
         ? await guardarComoPedidoVenta({
-            cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
-            interes: interesTarjeta,
-            totalFinal: totalFinalCalculado,
-            items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
-            email, eventoOffline, puntoVentaId,
-            docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
-          })
+          cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
+          interes: interesTarjeta,
+          totalFinal: totalFinalCalculado,
+          items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+          email, eventoOffline, puntoVentaId,
+          docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
+        })
         : await crearVentaMostrador({
-            cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
-            interes: interesTarjeta,
-            totalFinal: totalFinalCalculado,
-            items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
-            email, eventoOffline, puntoVentaId,
-            solicitarFactura: solicitarFactura,
-            // ARCA fields para guardar el snapshot
-            docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
-          });
-      
+          cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
+          interes: interesTarjeta,
+          totalFinal: totalFinalCalculado,
+          items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+          email, eventoOffline, puntoVentaId,
+          solicitarFactura: solicitarFactura,
+          // ARCA fields para guardar el snapshot
+          docTipo, docNro, condicionIva, tipoComprobante: tipoFacturaSugerida
+        });
+
       if (resultado.success) {
         if (isPedido) {
           mostrarMensajeExito("¡Pedido de venta guardado con éxito!");
-       } else {
+        } else {
           mostrarMensajeExito("¡Venta registrada con éxito!");
           setArticulos(prev => prev.map(art => {
             const itemVendido = itemsParaGuardar.find(i => i.productoId === art.id);
@@ -679,10 +679,10 @@ export default function VentasMostradorClient({
             }
             return art;
           }));
-       }
+        }
 
-       resetForm();
-       cargarVentas(fechaDesde, fechaHasta);
+        resetForm();
+        cargarVentas(fechaDesde, fechaHasta);
       } else { alert("Error al guardar: " + resultado.error); }
     } catch (error) { alert("Ocurrió un error inesperado."); } finally { setIsSubmitting(false); }
   };
@@ -712,7 +712,7 @@ export default function VentasMostradorClient({
     setTimeout(() => {
       window.print();
       setTimeout(() => setVentaParaFactura(null), 1000);
-    }, 1000); 
+    }, 1000);
   };
 
   const resetForm = () => {
@@ -923,6 +923,25 @@ export default function VentasMostradorClient({
     }
   };
 
+  const handleAnularConNC = async (ventaId: string) => {
+    if (!confirm("¿Estás seguro de que deseas anular esta venta? Si tiene factura en ARCA, se generará una Nota de Crédito automáticamente.")) return;
+    setIsFacturando(true);
+    try {
+      const res = await cancelarVenta(ventaId);
+      if (res.success) {
+        mostrarMensajeExito(res.message || "Venta anulada correctamente.");
+        cargarVentas(fechaDesde, fechaHasta);
+      } else {
+        alert("Error al anular: " + res.error + (res.details ? "\n" + JSON.stringify(res.details) : ""));
+      }
+    } catch (e) {
+      alert("Ocurrió un error al intentar anular la venta.");
+      console.error(e);
+    } finally {
+      setIsFacturando(false);
+    }
+  };
+
   // --- FUNCIONES: MODIFICAR PRECIO EN BASE DE DATOS (MODAL CLÁSICO) ---
 
   const abrirModalPrecioDB = (idArticulo: string, precioInputActual: number) => {
@@ -1023,14 +1042,14 @@ export default function VentasMostradorClient({
   // Ventas agrupadas por método de pago
   const ventasPorMetodo = useMemo(() => {
     if (!ventasFiltradas || ventasFiltradas.length === 0) return [];
-    
+
     const totals: Record<string, number> = {};
-    
+
     ventasFiltradas.forEach((venta) => {
       const metodo = venta.metodo_pago || 'Desconocido';
       totals[metodo] = (totals[metodo] || 0) + Number(venta.totalFinal || venta.total);
     });
-    
+
     return Object.entries(totals)
       .map(([metodo, total]) => ({ metodo, total }))
       .sort((a, b) => b.total - a.total);
@@ -1051,7 +1070,7 @@ export default function VentasMostradorClient({
       />
 
       {/* 1b. LA FACTURA LEGAL A4 */}
-      <FacturaA4 
+      <FacturaA4
         venta={ventaParaFactura}
         config={config}
       />
@@ -1078,8 +1097,8 @@ export default function VentasMostradorClient({
 
         <header className="bg-white border-b border-slate-100 px-8 py-3 flex items-center justify-between flex-shrink-0 z-20">
           <div className="flex items-center gap-4">
-            <Link 
-              href="/admin/erp" 
+            <Link
+              href="/admin/erp"
               className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
               title="Volver al ERP"
             >
@@ -1223,7 +1242,7 @@ export default function VentasMostradorClient({
             <footer className="bg-white border-t border-slate-200 p-4 md:p-5 flex-shrink-0 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] z-20 relative">
               <div className="max-w-[1800px] mx-auto flex justify-center">
                 <div className="flex flex-col lg:flex-row items-center lg:items-end gap-10">
-                  
+
                   <div className="flex items-center gap-6 flex-shrink-0">
                     <div className="text-right">
                       <span className="text-sm font-bold text-slate-700 block mb-0.5">Total Base Gral.</span>
@@ -1356,12 +1375,11 @@ export default function VentasMostradorClient({
                           <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Por Método</p>
                           <div className="flex flex-col gap-0.5">
                             {ventasPorMetodo.map(({ metodo, total }, index) => (
-                              <p key={metodo} className={`text-[10px] font-medium ${
-                                metodo === 'Efectivo' ? 'text-red-600' :
-                                metodo === 'Cruzada' ? 'text-blue-600' :
-                                metodo === 'Mixto' ? 'text-purple-600' :
-                                'text-blue-600'
-                              }`}>
+                              <p key={metodo} className={`text-[10px] font-medium ${metodo === 'Efectivo' ? 'text-red-600' :
+                                  metodo === 'Cruzada' ? 'text-blue-600' :
+                                    metodo === 'Mixto' ? 'text-purple-600' :
+                                      'text-blue-600'
+                                }`}>
                                 {metodo} ${total.toLocaleString('es-AR')}
                               </p>
                             ))}
@@ -1402,8 +1420,8 @@ export default function VentasMostradorClient({
                             <React.Fragment key={v.id}>
                               <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
                                 <TableCell className="py-4">
-                                  <span 
-                                    className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors" 
+                                  <span
+                                    className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors"
                                     title={`Click para copiar ID completo: ${v.id}`}
                                     onClick={() => copiarAlPortapapeles(v.id)}
                                   >
@@ -1442,7 +1460,7 @@ export default function VentasMostradorClient({
                                     {v.metodo_pago}
                                   </span>
                                 </TableCell>
-                                <TableCell 
+                                <TableCell
                                   className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
                                   onClick={() => {
                                     const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "") : (v.cupon || "");
@@ -1452,7 +1470,7 @@ export default function VentasMostradorClient({
                                 >
                                   {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
                                 </TableCell>
-                                <TableCell 
+                                <TableCell
                                   className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
                                   onClick={() => {
                                     const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "") : (v.transaccionId || "");
@@ -1462,8 +1480,8 @@ export default function VentasMostradorClient({
                                 >
                                   {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
                                 </TableCell>
-                                <TableCell 
-                                  className="py-4 text-xs text-slate-500 max-w-[200px] cursor-pointer hover:text-blue-600 transition-colors" 
+                                <TableCell
+                                  className="py-4 text-xs text-slate-500 max-w-[200px] cursor-pointer hover:text-blue-600 transition-colors"
                                   title={v.info ? `Click para copiar: ${v.info}` : ""}
                                   onClick={() => v.info && copiarAlPortapapeles(v.info)}
                                 >
@@ -1658,8 +1676,8 @@ export default function VentasMostradorClient({
                         ventasFiltradas.map((v) => (
                           <TableRow key={v.id} className="hover:bg-slate-50/50">
                             <TableCell className="py-4">
-                              <span 
-                                className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors" 
+                              <span
+                                className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors"
                                 title={`Click para copiar ID completo: ${v.id}`}
                                 onClick={() => copiarAlPortapapeles(v.id)}
                               >
@@ -1682,7 +1700,7 @@ export default function VentasMostradorClient({
                                 {v.metodo_pago}
                               </span>
                             </TableCell>
-                            <TableCell 
+                            <TableCell
                               className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
                               onClick={() => {
                                 const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "") : (v.cupon || "");
@@ -1692,7 +1710,7 @@ export default function VentasMostradorClient({
                             >
                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
                             </TableCell>
-                            <TableCell 
+                            <TableCell
                               className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
                               onClick={() => {
                                 const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "") : (v.transaccionId || "");
@@ -1702,8 +1720,8 @@ export default function VentasMostradorClient({
                             >
                               {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
                             </TableCell>
-                            <TableCell 
-                              className="py-4 text-xs text-slate-500 max-w-[200px] cursor-pointer hover:text-blue-600 transition-colors" 
+                            <TableCell
+                              className="py-4 text-xs text-slate-500 max-w-[200px] cursor-pointer hover:text-blue-600 transition-colors"
                               title={v.info ? `Click para copiar: ${v.info}` : ""}
                               onClick={() => v.info && copiarAlPortapapeles(v.info)}
                             >
@@ -1712,9 +1730,16 @@ export default function VentasMostradorClient({
                             <TableCell className="font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
                             <TableCell className="text-xs text-slate-500 py-4">{v.vendedor}</TableCell>
                             <TableCell className="py-4 text-right space-x-2 whitespace-nowrap">
-                              <Button size="sm" variant="outline" onClick={() => abrirModalEdicion(v)} className="border-amber-200 text-amber-700 hover:bg-amber-50">
-                                <Edit className="h-4 w-4 mr-2" /> Editar Venta
-                              </Button>
+                              {!v.info?.includes("ANULADA CON NC") && v.estadoPedido !== "CANCELADO" && (
+                                <>
+                                  <Button size="sm" variant="outline" onClick={() => abrirModalEdicion(v)} className="border-amber-200 text-amber-700 hover:bg-amber-50">
+                                    <Edit className="h-4 w-4 mr-2" /> Editar Venta
+                                  </Button>
+                                  <Button size="sm" variant="destructive" onClick={() => handleAnularConNC(v.id)} disabled={isFacturando} className="bg-rose-100 text-rose-700 hover:bg-rose-200 hover:text-rose-800 border border-rose-300">
+                                    <AlertTriangle className="h-4 w-4 mr-2" /> Anular (NC)
+                                  </Button>
+                                </>
+                              )}
                               <Button size="sm" variant="secondary" onClick={() => abrirModalHistorial(v.id)} className="bg-slate-100 text-slate-600 hover:bg-slate-200">
                                 <History className="h-4 w-4 mr-2" /> Historial
                               </Button>
@@ -1768,322 +1793,322 @@ export default function VentasMostradorClient({
         <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
           <DialogContent className="sm:max-w-[550px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
             <div className="max-h-[95vh] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200">
-            <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-500 uppercase">CUIT / DNI (Padrón A13)</Label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1" ref={searchSujetoRef}>
-                      <Input 
-                        value={cuitBusqueda} 
-                        onChange={(e) => {
-                          setCuitBusqueda(e.target.value);
-                          handleSearchSujetos(e.target.value);
-                        }} 
-                        onFocus={() => {
-                          if (cuitBusqueda.trim() && sujetosEncontrados.length > 0) {
-                            setShowSujetoList(true);
-                          }
-                        }}
-                        placeholder="CUIT o DNI..." 
-                        className="h-10 bg-slate-50 border-slate-200 pl-9" 
-                      />
-                      <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                      
-                      {showSujetoList && sujetosEncontrados.length > 0 && (
-                        <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-                          {sujetosEncontrados.map(s => (
-                            <div 
-                              key={s.id}
-                              className="p-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
-                              onClick={() => handleSelectSujeto(s)}
-                            >
-                              <p className="font-bold text-slate-800">{s.razonSocial}</p>
-                              <p className="text-[10px] text-slate-400">{s.cuit} - {s.condicionIva === 1 ? 'RI' : 'Cons. Final'}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <Button 
-                      type="button"
-                      variant="secondary"
-                      onClick={handleBuscarPadron} 
-                      disabled={isSearchingPadron}
-                      className="rounded-xl h-10 px-3 shrink-0 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100"
-                      title="Buscar en Padrón AFIP"
-                    >
-                      {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-                    </Button>
-                    <Button 
-                      type="button"
-                      variant="ghost"
-                      onClick={() => { setCuitBusqueda(""); setCliente("Consumidor Final"); setSujetoId(null); setDocNro(""); setDocTipo(99); setCondicionIva(5); }}
-                      className="rounded-xl h-10 px-3 shrink-0 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
-                      title="Limpiar y volver a Consumidor Final"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-500 uppercase">Cliente / Razón Social</Label>
-                  <div className="relative">
-                    <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors" />
-                    <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                  </div>
-                  {docNro && (
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
-                        {docTipo === 80 ? 'CUIT' : 'DNI'}: {docNro}
-                      </span>
-                      <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
-                        {condicionIva === 1 ? 'Resp. Inscripto' : condicionIva === 6 ? 'Monotributo' : 'Consumidor Final'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase">CUIT / DNI (Padrón A13)</Label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1" ref={searchSujetoRef}>
+                        <Input
+                          value={cuitBusqueda}
+                          onChange={(e) => {
+                            setCuitBusqueda(e.target.value);
+                            handleSearchSujetos(e.target.value);
+                          }}
+                          onFocus={() => {
+                            if (cuitBusqueda.trim() && sujetosEncontrados.length > 0) {
+                              setShowSujetoList(true);
+                            }
+                          }}
+                          placeholder="CUIT o DNI..."
+                          className="h-10 bg-slate-50 border-slate-200 pl-9"
+                        />
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
 
-              <div className="flex gap-4">
-                <div className="flex items-center space-x-3 bg-amber-50 p-3 rounded-xl border border-amber-200 flex-1">
+                        {showSujetoList && sujetosEncontrados.length > 0 && (
+                          <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                            {sujetosEncontrados.map(s => (
+                              <div
+                                key={s.id}
+                                className="p-2 hover:bg-blue-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
+                                onClick={() => handleSelectSujeto(s)}
+                              >
+                                <p className="font-bold text-slate-800">{s.razonSocial}</p>
+                                <p className="text-[10px] text-slate-400">{s.cuit} - {s.condicionIva === 1 ? 'RI' : 'Cons. Final'}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleBuscarPadron}
+                        disabled={isSearchingPadron}
+                        className="rounded-xl h-10 px-3 shrink-0 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100"
+                        title="Buscar en Padrón AFIP"
+                      >
+                        {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => { setCuitBusqueda(""); setCliente("Consumidor Final"); setSujetoId(null); setDocNro(""); setDocTipo(99); setCondicionIva(5); }}
+                        className="rounded-xl h-10 px-3 shrink-0 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
+                        title="Limpiar y volver a Consumidor Final"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Cliente / Razón Social</Label>
+                    <div className="relative">
+                      <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors" />
+                      <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    </div>
+                    {docNro && (
+                      <div className="flex gap-2 mt-1">
+                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
+                          {docTipo === 80 ? 'CUIT' : 'DNI'}: {docNro}
+                        </span>
+                        <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
+                          {condicionIva === 1 ? 'Resp. Inscripto' : condicionIva === 6 ? 'Monotributo' : 'Consumidor Final'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <div className="flex items-center space-x-3 bg-amber-50 p-3 rounded-xl border border-amber-200 flex-1">
+                    <input
+                      type="checkbox"
+                      id="solicitarFactura"
+                      checked={solicitarFactura}
+                      onChange={(e) => setSolicitarFactura(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
+                    />
+                    <Label htmlFor="solicitarFactura" className="text-sm font-bold text-amber-700 cursor-pointer flex items-center gap-2">
+                      <FileText className="h-4 w-4" /> Generar Factura AFIP
+                    </Label>
+                  </div>
+                </div>
+
+
+                {/* SELECTOR DE PAGO MIXTO */}
+                <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <input
                     type="checkbox"
-                    id="solicitarFactura"
-                    checked={solicitarFactura}
-                    onChange={(e) => setSolicitarFactura(e.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
+                    id="pagoMixto"
+                    checked={isPagoMixto}
+                    onChange={(e) => {
+                      setIsPagoMixto(e.target.checked);
+                      if (e.target.checked && montoPago1 === 0) setMontoPago1(totalBase / 2);
+                    }}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                   />
-                  <Label htmlFor="solicitarFactura" className="text-sm font-bold text-amber-700 cursor-pointer flex items-center gap-2">
-                    <FileText className="h-4 w-4" /> Generar Factura AFIP
+                  <Label htmlFor="pagoMixto" className="text-sm font-bold text-slate-700 cursor-pointer">
+                    Pago Mixto (Dividir en 2 métodos de pago)
                   </Label>
                 </div>
-              </div>
 
+                {isPagoMixto ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-200 animate-in fade-in">
+                    <div className="space-y-3">
+                      <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 1</Label>
+                      <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                        <option value="Cruzada">Cruzada</option>
+                      </select>
+                      <div>
+                        <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base a pagar 1</Label>
+                        <Input type="number" value={montoPago1} onChange={(e) => setMontoPago1(Number(e.target.value))} className="font-bold border-purple-200 h-10 text-base" />
+                      </div>
+                      {isCredito1 && (
+                        <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
+                          Total P1 (+{interesTarjeta}%): <span className="text-sm block">$ {final1.toLocaleString('es-AR')}</span>
+                        </p>
+                      )}
+                    </div>
 
-              {/* SELECTOR DE PAGO MIXTO */}
-              <div className="flex items-center space-x-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <input
-                  type="checkbox"
-                  id="pagoMixto"
-                  checked={isPagoMixto}
-                  onChange={(e) => {
-                    setIsPagoMixto(e.target.checked);
-                    if (e.target.checked && montoPago1 === 0) setMontoPago1(totalBase / 2);
-                  }}
-                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-                />
-                <Label htmlFor="pagoMixto" className="text-sm font-bold text-slate-700 cursor-pointer">
-                  Pago Mixto (Dividir en 2 métodos de pago)
-                </Label>
-              </div>
+                    <div className="space-y-3">
+                      <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 2</Label>
+                      <select value={metodoPago2} onChange={(e) => setMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                        <option value="Cruzada">Cruzada</option>
+                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                      </select>
+                      <div>
+                        <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
+                        <div className="h-10 bg-purple-100/50 rounded-xl border border-purple-200 flex items-center px-3 font-bold text-purple-900">
+                          $ {base2.toLocaleString('es-AR')}
+                        </div>
+                      </div>
+                      {isCredito2 && (
+                        <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
+                          Total P2 (+{interesTarjeta}%): <span className="text-sm block">$ {final2.toLocaleString('es-AR')}</span>
+                        </p>
+                      )}
+                    </div>
 
-              {isPagoMixto ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-200 animate-in fade-in">
-                  <div className="space-y-3">
-                    <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 1</Label>
-                    <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                    <div className="col-span-1 md:col-span-2 mt-2 bg-purple-700 text-white p-4 rounded-xl flex justify-between items-center shadow-md">
+                      <span className="text-xs font-bold uppercase tracking-wider">Total Final Calculado</span>
+                      <span className="text-2xl font-black">$ {totalFinalCalculado.toLocaleString('es-AR')}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
+                    <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
                       <option value="Efectivo">Efectivo</option>
                       <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                       <option value="Tarjeta de Débito">Tarjeta de Débito</option>
                       <option value="Cruzada">Cruzada</option>
-                    </select>
-                    <div>
-                      <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base a pagar 1</Label>
-                      <Input type="number" value={montoPago1} onChange={(e) => setMontoPago1(Number(e.target.value))} className="font-bold border-purple-200 h-10 text-base" />
-                    </div>
-                    {isCredito1 && (
-                      <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
-                        Total P1 (+{interesTarjeta}%): <span className="text-sm block">$ {final1.toLocaleString('es-AR')}</span>
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 2</Label>
-                    <select value={metodoPago2} onChange={(e) => setMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
-                      <option value="Efectivo">Efectivo</option>
-                      <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                      <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                       <option value="Cruzada">Cruzada</option>
                       <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                     </select>
-                    <div>
-                      <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
-                      <div className="h-10 bg-purple-100/50 rounded-xl border border-purple-200 flex items-center px-3 font-bold text-purple-900">
-                        $ {base2.toLocaleString('es-AR')}
-                      </div>
-                    </div>
-                    {isCredito2 && (
-                      <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
-                        Total P2 (+{interesTarjeta}%): <span className="text-sm block">$ {final2.toLocaleString('es-AR')}</span>
-                      </p>
+                  </div>
+                )}
+
+                {requiereTarjeta && (
+                  <div className="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
+                    <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label><Input value={dni} onChange={(e) => setDni(e.target.value)} className="bg-white border-blue-200" /></div>
+                    <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">Teléfono <span className="text-red-500">*</span></Label><Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="bg-white border-blue-200" /></div>
+                    <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">N° Cupón <span className="text-red-500">*</span></Label><Input value={cupon} onChange={(e) => setCupon(e.target.value)} className="bg-white border-blue-200" /></div>
+                    <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">ID Transacción <span className="text-red-500">*</span></Label><Input value={transaccionId} onChange={(e) => setTransaccionId(e.target.value)} className="bg-white border-blue-200" /></div>
+                  </div>
+                )}
+
+                {(requiereCruzada || requiereCuentaCorriente) && (
+                  <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
+                    {requiereCruzada && (
+                      <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
                     )}
-                  </div>
-
-                  <div className="col-span-1 md:col-span-2 mt-2 bg-purple-700 text-white p-4 rounded-xl flex justify-between items-center shadow-md">
-                    <span className="text-xs font-bold uppercase tracking-wider">Total Final Calculado</span>
-                    <span className="text-2xl font-black">$ {totalFinalCalculado.toLocaleString('es-AR')}</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
-                  <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
-                    <option value="Efectivo">Efectivo</option>
-                    <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                    <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                     <option value="Cruzada">Cruzada</option>
-                    <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                  </select>
-                </div>
-              )}
-
-              {requiereTarjeta && (
-                <div className="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
-                  <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label><Input value={dni} onChange={(e) => setDni(e.target.value)} className="bg-white border-blue-200" /></div>
-                  <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">Teléfono <span className="text-red-500">*</span></Label><Input value={telefono} onChange={(e) => setTelefono(e.target.value)} className="bg-white border-blue-200" /></div>
-                  <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">N° Cupón <span className="text-red-500">*</span></Label><Input value={cupon} onChange={(e) => setCupon(e.target.value)} className="bg-white border-blue-200" /></div>
-                  <div className="space-y-2"><Label className="text-xs font-bold text-blue-700">ID Transacción <span className="text-red-500">*</span></Label><Input value={transaccionId} onChange={(e) => setTransaccionId(e.target.value)} className="bg-white border-blue-200" /></div>
-                </div>
-              )}
-
-              {(requiereCruzada || requiereCuentaCorriente) && (
-                <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
-                  {requiereCruzada && (
-                    <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
-                  )}
-                  <div className={`space-y-2 relative ${!requiereCruzada ? 'col-span-2' : ''}`}>
-                    <Label className="text-xs font-bold text-amber-700">{requiereCuentaCorriente ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Input 
-                          value={paraCruzada} 
-                          onChange={(e) => {
-                            setParaCruzada(e.target.value);
-                            setShowProvList(true);
-                          }} 
-                          onFocus={() => setShowProvList(true)}
-                          className="bg-white border-amber-200" 
-                          placeholder="Buscar proveedor..." 
-                        />
-                        {showProvList && proveedores.length > 0 && (
-                          <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-                            {proveedores
-                              .filter(p => p.razonSocial.toLowerCase().includes(paraCruzada.toLowerCase()) || p.cuit.includes(paraCruzada))
-                              .map(p => (
-                              <div 
-                                key={p.id}
-                                className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
-                                onClick={() => {
-                                  setParaCruzada(p.razonSocial);
-                                  setShowProvList(false);
-                                }}
+                    <div className={`space-y-2 relative ${!requiereCruzada ? 'col-span-2' : ''}`}>
+                      <Label className="text-xs font-bold text-amber-700">{requiereCuentaCorriente ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            value={paraCruzada}
+                            onChange={(e) => {
+                              setParaCruzada(e.target.value);
+                              setShowProvList(true);
+                            }}
+                            onFocus={() => setShowProvList(true)}
+                            className="bg-white border-amber-200"
+                            placeholder="Buscar proveedor..."
+                          />
+                          {showProvList && proveedores.length > 0 && (
+                            <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                              {proveedores
+                                .filter(p => p.razonSocial.toLowerCase().includes(paraCruzada.toLowerCase()) || p.cuit.includes(paraCruzada))
+                                .map(p => (
+                                  <div
+                                    key={p.id}
+                                    className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
+                                    onClick={() => {
+                                      setParaCruzada(p.razonSocial);
+                                      setShowProvList(false);
+                                    }}
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                                        <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>
+                                          {formatCurrency(p.total)}
+                                        </p>
+                                        <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              <div
+                                className="p-2 text-center text-xs text-indigo-600 font-bold hover:bg-indigo-50 cursor-pointer sticky bottom-0 bg-white border-t border-slate-100"
+                                onClick={() => setShowProvList(false)}
                               >
-                                <div className="flex justify-between items-start">
-                                  <div>
-                                    <p className="font-bold text-slate-800">{p.razonSocial}</p>
-                                    <p className="text-[10px] text-slate-400">{p.cuit}</p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>
-                                      {formatCurrency(p.total)}
-                                    </p>
-                                    <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
-                                  </div>
-                                </div>
+                                Cerrar lista
                               </div>
-                            ))}
-                            <div 
-                              className="p-2 text-center text-xs text-indigo-600 font-bold hover:bg-indigo-50 cursor-pointer sticky bottom-0 bg-white border-t border-slate-100"
-                              onClick={() => setShowProvList(false)}
-                            >
-                              Cerrar lista
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          className="border-amber-200 text-amber-600 hover:bg-amber-50 h-10 w-10 shrink-0"
+                          onClick={() => setIsAddProveedorModalOpen(true)}
+                          title="Nuevo Proveedor"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button 
-                        type="button"
-                        size="icon" 
-                        variant="outline" 
-                        className="border-amber-200 text-amber-600 hover:bg-amber-50 h-10 w-10 shrink-0"
-                        onClick={() => setIsAddProveedorModalOpen(true)}
-                        title="Nuevo Proveedor"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-600 uppercase">Punto de Venta</Label>
-                  <div className="relative">
-                    <select
-                      value={puntoVentaId || ""}
-                      onChange={(e) => {
-                        setPuntoVentaId(e.target.value);
-                        const seleccionado = puntosVenta?.find((p: any) => p.id === e.target.value);
-                        setPuntoVentaSeleccionado(seleccionado || null);
-                      }}
-                      className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none color-select cursor-pointer"
-                      style={{ backgroundColor: puntoVentaSeleccionado ? puntoVentaSeleccionado.color : '#ffffff' }}
-                    >
-                      <option value="">Seleccionar...</option>
-                      {puntosVenta?.map((p: any) => (
-                        <option key={p.id} value={p.id}>{p.nombre}</option>
-                      ))}
-                    </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-600 uppercase">Punto de Venta</Label>
+                    <div className="relative">
+                      <select
+                        value={puntoVentaId || ""}
+                        onChange={(e) => {
+                          setPuntoVentaId(e.target.value);
+                          const seleccionado = puntosVenta?.find((p: any) => p.id === e.target.value);
+                          setPuntoVentaSeleccionado(seleccionado || null);
+                        }}
+                        className="w-full h-10 rounded-xl border border-slate-200 px-3 text-sm focus:outline-none color-select cursor-pointer"
+                        style={{ backgroundColor: puntoVentaSeleccionado ? puntoVentaSeleccionado.color : '#ffffff' }}
+                      >
+                        <option value="">Seleccionar...</option>
+                        {puntosVenta?.map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-600 uppercase">Email (Opcional)</Label>
+                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@correo.com" className="bg-white border-slate-200" />
+                  </div>
+                  <div className="flex items-center space-x-3 pt-1">
+                    <input
+                      type="checkbox"
+                      id="eventoOffline"
+                      checked={eventoOffline}
+                      onChange={(e) => setEventoOffline(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                    />
+                    <Label htmlFor="eventoOffline" className="text-sm font-bold text-slate-700 cursor-pointer">
+                      Marcar como Evento Offline (Meta Ads)
+                    </Label>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-600 uppercase">Email (Opcional)</Label>
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@correo.com" className="bg-white border-slate-200" />
-                </div>
-                <div className="flex items-center space-x-3 pt-1">
-                                  <input
-                                    type="checkbox"
-                                    id="eventoOffline"
-                                    checked={eventoOffline}
-                                    onChange={(e) => setEventoOffline(e.target.checked)}
-                                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-                                  />
-                                  <Label htmlFor="eventoOffline" className="text-sm font-bold text-slate-700 cursor-pointer">
-                                    Marcar como Evento Offline (Meta Ads)
-                                  </Label>
-                                </div>
-                              </div>
 
 
 
-              <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label><Textarea value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Dirección, referencias, método de entrega, observaciones adicionales..." className="min-h-[80px]" /></div>
-            </div>
-            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 mb-2">
-              <Label className="text-xs font-bold text-slate-600 uppercase block mb-3 text-center">Acción Final</Label>
-              <div className="flex flex-col gap-5">
-                <Button 
-                  onClick={() => handleFinalizarVenta(false)} 
-                  disabled={isSubmitting} 
-                  className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
-                >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar venta</>}
-                </Button>
-                <Button 
-                  onClick={() => handleFinalizarVenta(true)} 
-                  disabled={isSubmitting} 
-                  className="bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700 text-white h-10 rounded-xl font-bold w-full text-sm shadow-md"
-                >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de venta</>}
-                </Button>
+                <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label><Textarea value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Dirección, referencias, método de entrega, observaciones adicionales..." className="min-h-[80px]" /></div>
               </div>
-            </div>
-            <DialogFooter className="mt-2">
-              <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
-            </DialogFooter>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 mb-2">
+                <Label className="text-xs font-bold text-slate-600 uppercase block mb-3 text-center">Acción Final</Label>
+                <div className="flex flex-col gap-5">
+                  <Button
+                    onClick={() => handleFinalizarVenta(false)}
+                    disabled={isSubmitting}
+                    className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar venta</>}
+                  </Button>
+                  <Button
+                    onClick={() => handleFinalizarVenta(true)}
+                    disabled={isSubmitting}
+                    className="bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700 text-white h-10 rounded-xl font-bold w-full text-sm shadow-md"
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de venta</>}
+                  </Button>
+                </div>
+              </div>
+              <DialogFooter className="mt-2">
+                <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
+              </DialogFooter>
             </div>
           </DialogContent>
         </Dialog>
@@ -2237,44 +2262,44 @@ export default function VentasMostradorClient({
                       <Label className="text-xs font-bold text-amber-800">{requiereCuentaCorrienteEdit ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
                       <div className="flex gap-2">
                         <div className="relative flex-1">
-                          <Input 
-                            value={editParaCruzada} 
+                          <Input
+                            value={editParaCruzada}
                             onChange={(e) => {
                               setEditParaCruzada(e.target.value);
                               setShowProvListEdit(true);
-                            }} 
+                            }}
                             onFocus={() => setShowProvListEdit(true)}
-                            className="bg-white border-amber-200" 
-                            placeholder="Buscar proveedor..." 
+                            className="bg-white border-amber-200"
+                            placeholder="Buscar proveedor..."
                           />
                           {showProvListEdit && proveedores.length > 0 && (
                             <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
                               {proveedores
                                 .filter(p => p.razonSocial.toLowerCase().includes(editParaCruzada.toLowerCase()) || p.cuit.includes(editParaCruzada))
                                 .map(p => (
-                                <div 
-                                  key={p.id}
-                                  className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
-                                  onClick={() => {
-                                    setEditParaCruzada(p.razonSocial);
-                                    setShowProvListEdit(false);
-                                  }}
-                                >
-                                  <div className="flex justify-between items-start">
-                                    <div>
-                                      <p className="font-bold text-slate-800">{p.razonSocial}</p>
-                                      <p className="text-[10px] text-slate-400">{p.cuit}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>
-                                        {formatCurrency(p.total)}
-                                      </p>
-                                      <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
+                                  <div
+                                    key={p.id}
+                                    className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
+                                    onClick={() => {
+                                      setEditParaCruzada(p.razonSocial);
+                                      setShowProvListEdit(false);
+                                    }}
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                                        <p className="text-[10px] text-slate-400">{p.cuit}</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>
+                                          {formatCurrency(p.total)}
+                                        </p>
+                                        <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
-                              <div 
+                                ))}
+                              <div
                                 className="p-2 text-center text-xs text-indigo-600 font-bold hover:bg-indigo-50 cursor-pointer sticky bottom-0 bg-white border-t border-slate-100"
                                 onClick={() => setShowProvListEdit(false)}
                               >
@@ -2283,10 +2308,10 @@ export default function VentasMostradorClient({
                             </div>
                           )}
                         </div>
-                        <Button 
+                        <Button
                           type="button"
-                          size="icon" 
-                          variant="outline" 
+                          size="icon"
+                          variant="outline"
                           className="border-amber-200 text-amber-600 hover:bg-amber-50 h-10 w-10 shrink-0"
                           onClick={() => setIsAddProveedorModalOpen(true)}
                           title="Nuevo Proveedor"
@@ -2644,12 +2669,12 @@ export default function VentasMostradorClient({
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase">CUIT / DNI *</Label>
                 <div className="flex gap-2">
-                  <Input value={newProvData.cuit} onChange={(e) => setNewProvData({...newProvData, cuit: e.target.value})} placeholder="20-XXXXXXXX-X" className="flex-1" />
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={handleBuscarPadronProv} 
+                  <Input value={newProvData.cuit} onChange={(e) => setNewProvData({ ...newProvData, cuit: e.target.value })} placeholder="20-XXXXXXXX-X" className="flex-1" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleBuscarPadronProv}
                     disabled={isSearchingPadron}
                     className="border-amber-200 text-amber-600 hover:bg-amber-50"
                   >
@@ -2659,7 +2684,7 @@ export default function VentasMostradorClient({
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase">Razón Social *</Label>
-                <Input value={newProvData.razonSocial} onChange={(e) => setNewProvData({...newProvData, razonSocial: e.target.value})} placeholder="Nombre de la empresa" />
+                <Input value={newProvData.razonSocial} onChange={(e) => setNewProvData({ ...newProvData, razonSocial: e.target.value })} placeholder="Nombre de la empresa" />
               </div>
             </div>
             <DialogFooter>
@@ -2853,11 +2878,11 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
   const total = Number(venta.totalFinal || venta.total);
   const neto = parseFloat((total / 1.21).toFixed(2));
   const iva = parseFloat((total - neto).toFixed(2));
-  
+
   const fechaFactura = new Date(venta.createdAt).toLocaleDateString('es-AR');
   const nroFactura = (venta.facturaNumero || 0).toString().padStart(8, '0');
   const ptoVenta = (venta.facturaPuntoVenta || 9).toString().padStart(4, '0');
-  
+
   const tipoCbte = venta.tipoComprobante === 1 ? 'A' : 'B';
   const codCbte = venta.tipoComprobante === 1 ? '01' : '06';
 
@@ -2867,7 +2892,7 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
       const docTipo = Number(venta.docTipo || 99);
       const docNroRaw = (venta.docNro || "0").replace(/\D/g, '');
       const docNro = docTipo === 99 ? 0 : (Number(docNroRaw) || 0);
-      
+
       const nroCmp = Number(venta.facturaNumero) || 0;
       const codAut = Number(venta.cae) || 0;
 
@@ -2886,7 +2911,7 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
         tipoCodAut: "E",
         codAut: codAut
       };
-      
+
       const jsonStr = JSON.stringify(qrData);
       const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
       return `https://quickchart.io/qr?text=${encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p=${base64}`)}&size=200`;

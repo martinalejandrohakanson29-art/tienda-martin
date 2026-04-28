@@ -334,3 +334,122 @@ export async function facturarVenta(data: {
         return { success: false, error: error.message || "Error interno del servidor" };
     }
 }
+
+/**
+ * Genera una Nota de Crédito para anular una factura existente
+ */
+export async function generarNotaCredito(ventaOriginal: {
+    total: number,
+    docTipo: number,
+    docNro: number,
+    tipoFacturaOriginal: number,
+    puntoVentaOriginal: number,
+    numeroFacturaOriginal: number,
+    condicionIva: number
+}) {
+    console.log("🔄 [AFIP] Iniciando generación de Nota de Crédito para anular factura:", ventaOriginal.numeroFacturaOriginal);
+    
+    try {
+        // 1. Determinar el tipo de Nota de Crédito según la factura original
+        let tipoNC = 13; // Por defecto NC "C" (13)
+        if (ventaOriginal.tipoFacturaOriginal === 1) tipoNC = 3;  // NC "A"
+        if (ventaOriginal.tipoFacturaOriginal === 6) tipoNC = 8;  // NC "B"
+        if (ventaOriginal.tipoFacturaOriginal === 11) tipoNC = 13; // NC "C"
+
+        const ta = await obtenerTicketAcceso('wsfe');
+        const token = (ta as any).token || (ta as any).credentials?.token;
+        const sign = (ta as any).sign || (ta as any).credentials?.sign;
+
+        const auth = { Token: token, Sign: sign, Cuit: parseInt(AFIP_CONFIG.CUIT) };
+        const wsfe = new Wsfev1(AFIP_CONFIG.urlWsfe);
+
+        // 2. Obtener el próximo número de NC
+        const ultimoRes = await wsfe.FECompUltimoAutorizado({
+            Auth: auth, 
+            PtoVta: AFIP_CONFIG.puntoDeVenta, 
+            CbteTipo: tipoNC
+        });
+        
+        const nextNumber = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro) + 1;
+        const fecha = new Date().toLocaleDateString('sv-SE').replace(/-/g, '');
+
+        // 3. Preparar cálculos impositivos (espejo de la factura original)
+        const total = parseFloat(ventaOriginal.total.toFixed(2));
+        let neto = total;
+        let importeIva = 0;
+        let ivaArray = null;
+
+        if ([3, 8].includes(tipoNC)) { // Si es NC A o B (Responsable Inscripto)
+            neto = parseFloat((total / 1.21).toFixed(2));
+            importeIva = parseFloat((total - neto).toFixed(2));
+            ivaArray = {
+                AlicIva: [{
+                    Id: 5, // 21%
+                    BaseImp: neto,
+                    Importe: importeIva
+                }]
+            };
+        }
+
+        // 4. Estructura de la Nota de Crédito con comprobante asociado
+        const ncData = {
+            FeCAEReq: {
+                FeCabReq: { CantReg: 1, PtoVta: AFIP_CONFIG.puntoDeVenta, CbteTipo: tipoNC },
+                FeDetReq: {
+                    FECAEDetRequest: [{
+                        Concepto: 1, // Productos
+                        DocTipo: ventaOriginal.docTipo,
+                        DocNro: ventaOriginal.docNro,
+                        CbteDesde: nextNumber,
+                        CbteHasta: nextNumber,
+                        CbteFch: fecha,
+                        ImpTotal: total,
+                        ImpTotConc: 0,
+                        ImpNeto: neto,
+                        ImpOpEx: 0,
+                        ImpTrib: 0,
+                        ImpIVA: importeIva,
+                        MonId: 'PES',
+                        MonCotiz: 1,
+                        CondicionIVAReceptorId: ventaOriginal.condicionIva,
+                        // ESTO ES CLAVE: Vinculación con la factura original
+                        CbtesAsoc: {
+                            CbteAsoc: [{
+                                Tipo: ventaOriginal.tipoFacturaOriginal,
+                                PtoVta: ventaOriginal.puntoVentaOriginal,
+                                Nro: ventaOriginal.numeroFacturaOriginal
+                            }]
+                        },
+                        ...(ivaArray ? { Iva: ivaArray } : {})
+                    }]
+                }
+            }
+        };
+
+        console.log(`📤 [AFIP] Enviando NC tipo ${tipoNC} nro ${nextNumber}...`);
+        const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...ncData } as any);
+        const result = resARCA.FECAESolicitarResult as any;
+
+        if (result.FeCabResp.Resultado === 'A') {
+            const det = Array.isArray(result.FeDetResp.FECAEDetResponse)
+                ? result.FeDetResp.FECAEDetResponse[0]
+                : result.FeDetResp.FECAEDetResponse;
+
+            console.log(`✅ [AFIP] Nota de Crédito autorizada! CAE: ${det.CAE}`);
+            return { 
+                success: true, 
+                cae: det.CAE, 
+                numero: nextNumber, 
+                vencimiento: det.CAEFchVto,
+                tipoComprobante: tipoNC
+            };
+        } else {
+            console.error("❌ [AFIP] NC Rechazada:", JSON.stringify(result, null, 2));
+            return { success: false, error: "ARCA rechazó la Nota de Crédito", details: result };
+        }
+
+    } catch (error: any) {
+        console.error("💥 [AFIP] Error crítico en generarNotaCredito:", error);
+        return { success: false, error: error.message };
+    }
+}

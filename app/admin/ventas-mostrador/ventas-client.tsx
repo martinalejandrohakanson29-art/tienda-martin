@@ -2975,8 +2975,8 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
           <div className="flex items-center gap-4">
             <img src={qrUrl} alt="QR AFIP" className="w-24 h-24 border border-gray-200" />
             <div>
-              <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_ARCA_Argentina.png" alt="ARCA" className="h-8 mb-2" />
-              <p className="font-bold">Comprobante Autorizado</p>
+              <img src="https://www.afip.gob.ar/genericos/guiaVisual/img/logo_afip.png" alt="AFIP" className="h-7 mb-1" />
+              <p className="font-bold text-[10px] leading-tight">Comprobante Autorizado</p>
               <p><span className="font-bold">C.A.E. N°:</span> {venta.cae}</p>
               <p><span className="font-bold">Vto. C.A.E.:</span> {venta.vencimientoCae ? new Date(venta.vencimientoCae).toLocaleDateString('es-AR') : '-'}</p>
             </div>

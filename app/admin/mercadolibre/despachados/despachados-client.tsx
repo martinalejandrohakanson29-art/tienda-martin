@@ -101,8 +101,10 @@ export function DespachadosClient() {
     };
 
     const handleToggleSelectAllRegistracion = () => {
-        const filtered = getFilteredRegistracion();
-        if (selectedRegistracionIds.size === filtered.length && filtered.length > 0) {
+        const filtered = getFilteredRegistracion().filter(v => !v.registrada);
+        if (filtered.length === 0) return;
+
+        if (selectedRegistracionIds.size === filtered.length) {
             setSelectedRegistracionIds(new Set());
         } else {
             setSelectedRegistracionIds(new Set(filtered.map(v => v.shippingId)));
@@ -405,7 +407,12 @@ export function DespachadosClient() {
                             <TableHeader>
                                 <TableRow className="bg-slate-50/50">
                                     <TableHead className="w-[50px] text-center">
-                                        <input type="checkbox" checked={getFilteredRegistracion().length > 0 && selectedRegistracionIds.size === getFilteredRegistracion().length} onChange={handleToggleSelectAllRegistracion} className="rounded border-slate-300" />
+                                        <input
+                                            type="checkbox"
+                                            checked={getFilteredRegistracion().filter(v => !v.registrada).length > 0 && selectedRegistracionIds.size === getFilteredRegistracion().filter(v => !v.registrada).length}
+                                            onChange={handleToggleSelectAllRegistracion}
+                                            className="rounded border-slate-300"
+                                        />
                                     </TableHead>
                                     <TableHead className="font-bold text-[13px] uppercase text-slate-500">ID Venta</TableHead>
                                     <TableHead className="font-bold text-[13px] uppercase text-slate-500">ID Envío</TableHead>
@@ -428,8 +435,16 @@ export function DespachadosClient() {
                                     <TableRow><TableCell colSpan={13} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
                                 ) : (
                                     getFilteredRegistracion().map((venta) => (
-                                        <TableRow key={venta.shippingId} className={`hover:bg-slate-50/30 ${selectedRegistracionIds.has(venta.shippingId) ? 'bg-blue-50/40' : ''}`}>
-                                            <TableCell className="text-center"><input type="checkbox" checked={selectedRegistracionIds.has(venta.shippingId)} onChange={() => handleToggleSelectRegistracion(venta.shippingId)} className="rounded border-slate-300" /></TableCell>
+                                        <TableRow key={venta.shippingId} className={`hover:bg-slate-50/30 ${selectedRegistracionIds.has(venta.shippingId) ? 'bg-blue-50/40' : ''} ${venta.registrada ? 'opacity-80 bg-slate-50/50' : ''}`}>
+                                            <TableCell className="text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedRegistracionIds.has(venta.shippingId)}
+                                                    onChange={() => !venta.registrada && handleToggleSelectRegistracion(venta.shippingId)}
+                                                    disabled={venta.registrada}
+                                                    className="rounded border-slate-300 disabled:opacity-30"
+                                                />
+                                            </TableCell>
                                             <TableCell><div onClick={() => handleCopyText(venta.orderId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.orderId}</div></TableCell>
                                             <TableCell><div onClick={() => handleCopyText(venta.shippingId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.shippingId}</div></TableCell>
                                             <TableCell><div onClick={() => handleCopyText(venta.mla)} className="font-mono text-[13px] text-slate-500 cursor-pointer hover:text-blue-600">{venta.mla}</div></TableCell>
@@ -466,9 +481,16 @@ export function DespachadosClient() {
                                                 <Badge variant="outline" className={`${venta.categoria === 'Full' ? 'bg-amber-50 text-amber-600 border-amber-200' : venta.categoria === 'Flex' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'} font-bold text-[11px] uppercase`}>{venta.categoria}</Badge>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600" onClick={() => handleToggleSelectRegistracion(venta.shippingId)}>
-                                                    {selectedRegistracionIds.has(venta.shippingId) ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
-                                                </Button>
+                                                {venta.registrada ? (
+                                                    <div className="flex flex-col items-center gap-1">
+                                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-black text-[10px]">REGISTRADO</Badge>
+                                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                                    </div>
+                                                ) : (
+                                                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600" onClick={() => handleToggleSelectRegistracion(venta.shippingId)}>
+                                                        {selectedRegistracionIds.has(venta.shippingId) ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                                                    </Button>
+                                                )}
                                             </TableCell>
                                         </TableRow>
                                     ))

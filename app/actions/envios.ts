@@ -269,6 +269,14 @@ export async function getVentasRegistracion(fecha?: string) {
             take: 500 // Ampliamos el límite por las dudas
         });
 
+        // Buscamos cuáles de estas ya están registradas en la tabla Venta
+        const shippingIds = ventas.map(v => v.shippingId);
+        const ventasRegistradas = await prisma.venta.findMany({
+            where: { mlIdEnvio: { in: shippingIds } },
+            select: { mlIdEnvio: true }
+        });
+        const setRegistradas = new Set(ventasRegistradas.map(v => v.mlIdEnvio));
+
         // Enriquecemos con datos de la vista de costos (receta)
         const ventasEnriquecidas = await Promise.all(ventas.map(async (venta) => {
             const viewResult: any[] = await prisma.$queryRaw`
@@ -279,14 +287,12 @@ export async function getVentasRegistracion(fecha?: string) {
                 LIMIT 1
             `;
 
-            if (viewResult.length > 0) {
-                return {
-                    ...venta,
-                    ids_articulos: viewResult[0].ids_articulos,
-                    receta_detallada: viewResult[0].receta_detallada
-                };
-            }
-            return { ...venta, ids_articulos: null, receta_detallada: null };
+            return {
+                ...venta,
+                registrada: setRegistradas.has(venta.shippingId),
+                ids_articulos: viewResult.length > 0 ? viewResult[0].ids_articulos : null,
+                receta_detallada: viewResult.length > 0 ? viewResult[0].receta_detallada : null
+            };
         }));
 
         return {
@@ -443,14 +449,10 @@ export async function registrarVentasML(ids: string[], solicitarFactura: boolean
             }
         }
 
-        // 3. Limpiamos las ventas procesadas con éxito
-        if (procesados > 0) {
-            // Solo borramos los que procesamos (o todos los seleccionados?)
-            // Por seguridad, borramos los que intentamos procesar si queremos, 
-            // pero mejor borrar solo los exitosos.
-            // Pero limpiarVentasRegistracion borra por IDs de envio.
-            await limpiarVentasRegistracion(ids);
-        }
+        // 3. Ya no limpiamos las ventas, para que sigan figurando como registradas
+        // if (procesados > 0) {
+        //     await limpiarVentasRegistracion(ids);
+        // }
 
         revalidatePath('/admin/mercadolibre/despachados');
         revalidatePath('/admin/ventas-mostrador');

@@ -347,9 +347,15 @@ export async function generarNotaCredito(ventaOriginal: {
     numeroFacturaOriginal: number,
     condicionIva: number
 }) {
-    console.log("🔄 [AFIP] Iniciando generación de Nota de Crédito para anular factura:", ventaOriginal.numeroFacturaOriginal);
-    
+    // LOG DE SEGURIDAD: Verificamos qué está llegando realmente
+    console.log("🔄 [AFIP] Datos recibidos para NC:", JSON.stringify(ventaOriginal, null, 2));
+
     try {
+        // Validaciones preventivas para evitar el SoapFault (Error 500)
+        if (!ventaOriginal.puntoVentaOriginal || !ventaOriginal.numeroFacturaOriginal) {
+            throw new Error(`Datos de factura original incompletos: PtoVta ${ventaOriginal.puntoVentaOriginal}, Nro ${ventaOriginal.numeroFacturaOriginal}`);
+        }
+
         // 1. Determinar el tipo de Nota de Crédito según la factura original
         let tipoNC = 13; // Por defecto NC "C" (13)
         if (ventaOriginal.tipoFacturaOriginal === 1) tipoNC = 3;  // NC "A"
@@ -373,13 +379,14 @@ export async function generarNotaCredito(ventaOriginal: {
         const nextNumber = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro) + 1;
         const fecha = new Date().toLocaleDateString('sv-SE').replace(/-/g, '');
 
-        // 3. Preparar cálculos impositivos (espejo de la factura original)
+        // 3. Preparar cálculos impositivos
         const total = parseFloat(ventaOriginal.total.toFixed(2));
         let neto = total;
         let importeIva = 0;
         let ivaArray = null;
 
-        if ([3, 8].includes(tipoNC)) { // Si es NC A o B (Responsable Inscripto)
+        // Si es NC A o B (vendedor es Responsable Inscripto)
+        if ([3, 8].includes(tipoNC)) {
             neto = parseFloat((total / 1.21).toFixed(2));
             importeIva = parseFloat((total - neto).toFixed(2));
             ivaArray = {
@@ -391,13 +398,13 @@ export async function generarNotaCredito(ventaOriginal: {
             };
         }
 
-        // 4. Estructura de la Nota de Crédito con comprobante asociado
+        // 4. Estructura de la Nota de Crédito
         const ncData = {
             FeCAEReq: {
                 FeCabReq: { CantReg: 1, PtoVta: AFIP_CONFIG.puntoDeVenta, CbteTipo: tipoNC },
                 FeDetReq: {
                     FECAEDetRequest: [{
-                        Concepto: 1, // Productos
+                        Concepto: 1, 
                         DocTipo: ventaOriginal.docTipo,
                         DocNro: ventaOriginal.docNro,
                         CbteDesde: nextNumber,
@@ -411,8 +418,8 @@ export async function generarNotaCredito(ventaOriginal: {
                         ImpIVA: importeIva,
                         MonId: 'PES',
                         MonCotiz: 1,
-                        CondicionIVAReceptorId: ventaOriginal.condicionIva,
-                        // ESTO ES CLAVE: Vinculación con la factura original
+                        // Aseguramos que sea un número, si falta usamos 5 (Consumidor Final)
+                        CondicionIVAReceptorId: ventaOriginal.condicionIva || 5,
                         CbtesAsoc: {
                             CbteAsoc: [{
                                 Tipo: ventaOriginal.tipoFacturaOriginal,
@@ -426,7 +433,8 @@ export async function generarNotaCredito(ventaOriginal: {
             }
         };
 
-        console.log(`📤 [AFIP] Enviando NC tipo ${tipoNC} nro ${nextNumber}...`);
+        console.log(`📤 [AFIP] Enviando NC tipo ${tipoNC} nro ${nextNumber} vinculada a Factura ${ventaOriginal.numeroFacturaOriginal}...`);
+        
         const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...ncData } as any);
         const result = resARCA.FECAESolicitarResult as any;
 
@@ -435,7 +443,6 @@ export async function generarNotaCredito(ventaOriginal: {
                 ? result.FeDetResp.FECAEDetResponse[0]
                 : result.FeDetResp.FECAEDetResponse;
 
-            console.log(`✅ [AFIP] Nota de Crédito autorizada! CAE: ${det.CAE}`);
             return { 
                 success: true, 
                 cae: det.CAE, 
@@ -444,12 +451,18 @@ export async function generarNotaCredito(ventaOriginal: {
                 tipoComprobante: tipoNC
             };
         } else {
-            console.error("❌ [AFIP] NC Rechazada:", JSON.stringify(result, null, 2));
             return { success: false, error: "ARCA rechazó la Nota de Crédito", details: result };
         }
 
     } catch (error: any) {
-        console.error("💥 [AFIP] Error crítico en generarNotaCredito:", error);
+        console.error("💥 [AFIP] Error crítico en generarNotaCredito:");
+        // Esta línea es la clave: te mostrará el motivo real del SoapFault en la terminal
+        if (error.extra && error.extra.fault) {
+            console.error("DETALLE DEL ERROR (SOAP FAULT):", JSON.stringify(error.extra.fault, null, 2));
+        } else {
+            console.error(error);
+        }
         return { success: false, error: error.message };
     }
 }
+

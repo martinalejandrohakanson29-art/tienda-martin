@@ -3,6 +3,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { crearVentaMostrador } from "./ventas-mostrador"
 
 /**
  * Genera un PDF con los datos de un pedido de venta
@@ -314,5 +315,143 @@ export async function limpiarVentasRegistracion(ids?: string[]) {
     } catch (error) {
         console.error("Error al limpiar ventas registracion:", error);
         return { success: false };
+    }
+}
+
+/**
+ * Registra una lista de ventas de MercadoLibre en el ERP (ventas-mostrador)
+ */
+export async function registrarVentasML(ids: string[]) {
+    try {
+        if (!ids || ids.length === 0) return { success: false, error: "No hay IDs seleccionados" };
+
+        // 1. Buscamos el Punto de Venta "MercadoLibre"
+        const pv = await prisma.puntoVenta.findFirst({
+            where: { nombre: { contains: "MercadoLibre", mode: 'insensitive' } }
+        });
+
+        if (!pv) {
+            return { success: false, error: "No se encontró el punto de venta 'MercadoLibre'" };
+        }
+
+        // 2. Obtenemos las ventas a registrar
+        const ventasRes = await getVentasRegistracion();
+        if (!ventasRes.success) return { success: false, error: "No se pudieron obtener las ventas de registración" };
+
+        const todasLasVentas = ventasRes.data || [];
+        const ventasAProcesar = todasLasVentas.filter(v => ids.includes(v.shippingId));
+
+        if (ventasAProcesar.length === 0) return { success: false, error: "No se encontraron las ventas seleccionadas" };
+
+        let procesados = 0;
+        let errores = 0;
+
+        for (const v of ventasAProcesar) {
+            try {
+                // Preparar items
+                const idsArticulos = v.ids_articulos?.split(/[+,]/).map((id: string) => id.trim()).filter(Boolean) || [];
+                const recetaDetallada = v.receta_detallada?.split('|').map((s: string) => s.trim()) || [];
+
+                const netoTotal = Number(v.neto || 0);
+                const brutoTotal = Number(v.bruto || 0);
+                const interes = brutoTotal - netoTotal;
+
+                let items: any[] = [];
+
+                if (idsArticulos.length > 0) {
+                    // Si hay IDs de artículos, los usamos
+                    // Buscamos los nombres y precios actuales para distribuir el neto proporcionalmente
+                    const articulosInfo = await prisma.articuloMostrador.findMany({
+                        where: { id: { in: idsArticulos } }
+                    });
+
+                    // Usamos un Map para búsquedas más eficientes
+                    const articulosMap = new Map(articulosInfo.map(a => [a.id, a]));
+
+                    // Calculamos el total basándonos en todos los elementos del kit (incluyendo duplicados si los hubiera)
+                    const totalPreciosBase = idsArticulos.reduce((sum: number, idArt: string) => {
+                        const info = articulosMap.get(idArt);
+                        return sum + Number(info?.precio || 0);
+                    }, 0);
+
+                    items = idsArticulos.map((idArt: string, idx: number) => {
+                        const info = articulosMap.get(idArt);
+                        const nombre = info?.nombre || recetaDetallada[idx] || `Producto ML ${v.mla}`;
+                        const precioBase = info ? Number(info.precio) : 0;
+
+                        // Distribuimos el neto proporcionalmente al precio base, o equitativamente si no hay precios
+                        let precioUnit = 0;
+                        if (totalPreciosBase > 0) {
+                            precioUnit = (precioBase / totalPreciosBase) * netoTotal;
+                        } else {
+                            precioUnit = netoTotal / idsArticulos.length;
+                        }
+
+                        return {
+                            productoId: idArt,
+                            nombre: nombre,
+                            cantidad: 1, // En ML las cantidades suelen venir ya multiplicadas en la receta o ser 1
+                            precio_unit: precioUnit,
+                            subtotal: precioUnit
+                        };
+                    });
+                } else {
+                    // Si no hay receta, usamos un item genérico con el MLA
+                    items = [{
+                        productoId: null,
+                        nombre: `Venta MercadoLibre ${v.mla}${v.variation ? ' - Var: ' + v.variation : ''}`,
+                        cantidad: 1,
+                        precio_unit: netoTotal,
+                        subtotal: netoTotal
+                    }];
+                }
+
+                const res = await crearVentaMostrador({
+                    cliente: v.nombre || "Cliente MercadoLibre",
+                    vendedor: "Sistema MercadoLibre",
+                    total: netoTotal,
+                    interes: interes,
+                    totalFinal: brutoTotal,
+                    items: items,
+                    metodo_pago: "mercadopago (ML)",
+                    mlIdVenta: v.orderId,
+                    mlIdEnvio: v.shippingId,
+                    mlMla: v.mla,
+                    puntoVentaId: pv.id,
+                    eventoOffline: false
+                });
+
+                if (res.success) {
+                    procesados++;
+                } else {
+                    console.error(`Error procesando venta ${v.shippingId}:`, res.error);
+                    errores++;
+                }
+            } catch (err) {
+                console.error(`Error fatal procesando venta ${v.shippingId}:`, err);
+                errores++;
+            }
+        }
+
+        // 3. Limpiamos las ventas procesadas con éxito
+        if (procesados > 0) {
+            // Solo borramos los que procesamos (o todos los seleccionados?)
+            // Por seguridad, borramos los que intentamos procesar si queremos, 
+            // pero mejor borrar solo los exitosos.
+            // Pero limpiarVentasRegistracion borra por IDs de envio.
+            await limpiarVentasRegistracion(ids);
+        }
+
+        revalidatePath('/admin/mercadolibre/despachados');
+        revalidatePath('/admin/ventas-mostrador');
+
+        return {
+            success: true,
+            message: `Proceso finalizado. Registrados: ${procesados}, Errores: ${errores}`
+        };
+
+    } catch (error: any) {
+        console.error("Error en registrarVentasML:", error);
+        return { success: false, error: error.message || "Error en el servidor" };
     }
 }

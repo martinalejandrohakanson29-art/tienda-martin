@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 // LOGICA ACTUAL: Usamos Preparadas, no Despachadas
-import { getEtiquetasPreparadas, getVentasRegistracion, limpiarVentasRegistracion } from "@/app/actions/envios" 
+import { getEtiquetasPreparadas, getVentasRegistracion, limpiarVentasRegistracion, registrarVentasML } from "@/app/actions/envios" 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -165,16 +165,18 @@ export function DespachadosClient() {
         
         try {
             const ids = Array.from(selectedRegistracionIds);
-            // Simulación de proceso
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const res = await registrarVentasML(ids);
             
-            await limpiarVentasRegistracion(ids);
-            const res = await getVentasRegistracion(fecha);
-            if (res.success) setVentasRegistracion(res.data);
-            
-            setSelectedRegistracionIds(new Set());
-            toast.success("Ventas registradas y removidas de la lista");
+            if (res.success) {
+                toast.success(res.message || "Ventas registradas con éxito");
+                const resReg = await getVentasRegistracion(fecha);
+                if (resReg.success) setVentasRegistracion(resReg.data);
+                setSelectedRegistracionIds(new Set());
+            } else {
+                toast.error(res.error || "Error al registrar las ventas");
+            }
         } catch (error) {
+            console.error(error);
             toast.error("Error al procesar el registro");
         } finally {
             setIsProcessing(false);

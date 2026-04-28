@@ -217,7 +217,10 @@ export async function crearVentaMostrador(data: {
   docNro?: string,
   condicionIva?: number,
   importeIva?: any,
-  alicuotaIva?: number
+  alicuotaIva?: number,
+  mlIdVenta?: string,
+  mlIdEnvio?: string,
+  mlMla?: string
 }) {
   try {
     let arcaData = {
@@ -324,6 +327,9 @@ export async function crearVentaMostrador(data: {
           condicionIva: arcaData.condicionIva,
           importeIva: arcaData.importeIva,
           alicuotaIva: arcaData.alicuotaIva,
+          mlIdVenta: data.mlIdVenta,
+          mlIdEnvio: data.mlIdEnvio,
+          mlMla: data.mlMla,
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -442,7 +448,10 @@ export async function guardarComoPedidoVenta(data: {
   docNro?: string,
   condicionIva?: number,
   importeIva?: any,
-  alicuotaIva?: number
+  alicuotaIva?: number,
+  mlIdVenta?: string,
+  mlIdEnvio?: string,
+  mlMla?: string
 }) {
   try {
     // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
@@ -477,6 +486,9 @@ export async function guardarComoPedidoVenta(data: {
           condicionIva: data.condicionIva,
           importeIva: data.importeIva,
           alicuotaIva: data.alicuotaIva,
+          mlIdVenta: data.mlIdVenta,
+          mlIdEnvio: data.mlIdEnvio,
+          mlMla: data.mlMla,
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,

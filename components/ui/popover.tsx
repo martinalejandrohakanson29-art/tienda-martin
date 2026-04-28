@@ -8,7 +8,7 @@ const Popover = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("relative z-50 w-72", className)} {...props} />
+  <div ref={ref} className={cn("z-50", className)} {...props} />
 ))
 Popover.displayName = "Popover"
 
@@ -59,7 +59,7 @@ const PopoverContent = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        "z-50 w-72 rounded-md border border-slate-200 bg-white p-6 text-slate-950 shadow-md outline-none animate-in fade-in-0 zoom-in-95",
+        "absolute z-50 w-72 rounded-md border border-slate-200 bg-white p-6 text-slate-950 shadow-md outline-none animate-in fade-in-0 zoom-in-95",
         className
       )}
       style={position ? { top: position.top, left: position.left, width: position.width } : undefined}

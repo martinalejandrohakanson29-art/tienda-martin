@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DateRangeCalendar } from "./date-range-calendar";
 import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
@@ -217,6 +219,12 @@ export default function VentasMostradorClient({
       if (searchSujetoRef.current && !searchSujetoRef.current.contains(event.target as Node)) {
         setShowSujetoList(false);
       }
+      if (puntoVentaRef.current && !puntoVentaRef.current.contains(event.target as Node)) {
+        setIsPuntoVentaOpen(false);
+      }
+      if (puntoVentaGestionRef.current && !puntoVentaGestionRef.current.contains(event.target as Node)) {
+        setIsPuntoVentaOpenGestion(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
@@ -286,7 +294,11 @@ export default function VentasMostradorClient({
 
   // --- ESTADO PARA FILTRO OFFLINE Y BUSQUEDA ---
   const [mostrarSoloOffline, setMostrarSoloOffline] = useState(false);
-  const [filtroPuntoVenta, setFiltroPuntoVenta] = useState("");
+  const [filtroPuntoVenta, setFiltroPuntoVenta] = useState<string[]>([]);
+  const [isPuntoVentaOpen, setIsPuntoVentaOpen] = useState(false);
+  const [isPuntoVentaOpenGestion, setIsPuntoVentaOpenGestion] = useState(false);
+  const puntoVentaRef = useRef<HTMLDivElement>(null);
+  const puntoVentaGestionRef = useRef<HTMLDivElement>(null);
   const [filtroIdVenta, setFiltroIdVenta] = useState("");
 
   // --- ESTADO PARA ELIMINAR VENTA ---
@@ -425,7 +437,7 @@ export default function VentasMostradorClient({
     const cumpleOffline = mostrarSoloOffline ? v.eventoOffline === true : true;
 
     // Filtro Punto de Venta
-    const cumplePuntoVenta = filtroPuntoVenta ? v.puntoVentaId === filtroPuntoVenta : true;
+    const cumplePuntoVenta = filtroPuntoVenta.length > 0 ? filtroPuntoVenta.includes(v.puntoVentaId) : true;
 
     // Filtro ID Venta (Buscador)
     const cumpleIdVenta = filtroIdVenta
@@ -1333,16 +1345,64 @@ export default function VentasMostradorClient({
 
                     <div className="space-y-1">
                       <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Punto de Venta</Label>
-                      <select
-                        value={filtroPuntoVenta}
-                        onChange={(e) => setFiltroPuntoVenta(e.target.value)}
-                        className="h-10 rounded-xl border border-slate-200 px-3 text-xs focus:outline-none bg-white min-w-[140px]"
-                      >
-                        <option value="">Todos los Puntos</option>
-                        {puntosVenta?.map((p: any) => (
-                          <option key={p.id} value={p.id}>{p.nombre}</option>
-                        ))}
-                      </select>
+                      <Popover className="min-w-[160px]" ref={puntoVentaRef}>
+                        <PopoverTrigger
+                          onClick={() => setIsPuntoVentaOpen(!isPuntoVentaOpen)}
+                          className="h-10 w-full rounded-xl border border-slate-200 px-3 text-xs focus:outline-none bg-white flex items-center justify-between hover:border-slate-300 transition-all shadow-sm"
+                        >
+                          <span className="truncate">
+                            {filtroPuntoVenta.length === 0
+                              ? "Todos los Puntos"
+                              : filtroPuntoVenta.length === 1
+                                ? puntosVenta?.find(p => p.id === filtroPuntoVenta[0])?.nombre
+                                : `${filtroPuntoVenta.length} Seleccionados`}
+                          </span>
+                          <ChevronDown className="h-3 w-3 text-slate-400 ml-2" />
+                        </PopoverTrigger>
+                        {isPuntoVentaOpen && (
+                          <PopoverContent className="p-2 w-64 shadow-xl border-slate-100 rounded-xl bg-white" align="start">
+                            <div className="flex flex-col gap-1">
+                              <div
+                                className="flex items-center space-x-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
+                                onClick={() => {
+                                  setFiltroPuntoVenta([]);
+                                  setIsPuntoVentaOpen(false);
+                                }}
+                              >
+                                <div className={`flex items-center justify-center h-4 w-4 rounded border transition-all ${filtroPuntoVenta.length === 0 ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                                  {filtroPuntoVenta.length === 0 && <CheckCircle className="h-3 w-3 text-white" />}
+                                </div>
+                                <span className={`text-xs font-semibold ${filtroPuntoVenta.length === 0 ? 'text-blue-600' : 'text-slate-600'}`}>Todos los Puntos</span>
+                              </div>
+                              <div className="h-px bg-slate-100 my-1" />
+                              <div className="max-h-60 overflow-y-auto pr-1 flex flex-col gap-1">
+                                {puntosVenta?.map((p: any) => {
+                                  const isSelected = filtroPuntoVenta.includes(p.id);
+                                  return (
+                                    <div
+                                      key={p.id}
+                                      className={`flex items-center space-x-2 p-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-blue-50/50' : ''}`}
+                                      onClick={() => {
+                                        if (isSelected) {
+                                          setFiltroPuntoVenta(filtroPuntoVenta.filter(id => id !== p.id));
+                                        } else {
+                                          setFiltroPuntoVenta([...filtroPuntoVenta, p.id]);
+                                        }
+                                      }}
+                                    >
+                                      <div className={`flex items-center justify-center h-4 w-4 rounded border transition-all ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-300'}`}>
+                                        {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
+                                      </div>
+                                      <span className={`text-xs ${isSelected ? 'text-blue-700 font-medium' : 'text-slate-600'}`}>{p.nombre}</span>
+                                      {p.color && <div className="h-2 w-2 rounded-full ml-auto" style={{ backgroundColor: p.color }} />}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        )}
+                      </Popover>
                     </div>
 
                     <div className="space-y-1">
@@ -1656,16 +1716,64 @@ export default function VentasMostradorClient({
 
                     <div className="space-y-1">
                       <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Punto de Venta</Label>
-                      <select
-                        value={filtroPuntoVenta}
-                        onChange={(e) => setFiltroPuntoVenta(e.target.value)}
-                        className="h-10 rounded-xl border border-amber-200 px-3 text-xs focus:outline-none bg-white min-w-[140px]"
-                      >
-                        <option value="">Todos los Puntos</option>
-                        {puntosVenta?.map((p: any) => (
-                          <option key={p.id} value={p.id}>{p.nombre}</option>
-                        ))}
-                      </select>
+                      <Popover className="min-w-[160px]" ref={puntoVentaGestionRef}>
+                        <PopoverTrigger
+                          onClick={() => setIsPuntoVentaOpenGestion(!isPuntoVentaOpenGestion)}
+                          className="h-10 w-full rounded-xl border border-amber-200 px-3 text-xs focus:outline-none bg-white flex items-center justify-between hover:border-amber-300 transition-all shadow-sm"
+                        >
+                          <span className="truncate">
+                            {filtroPuntoVenta.length === 0
+                              ? "Todos los Puntos"
+                              : filtroPuntoVenta.length === 1
+                                ? puntosVenta?.find(p => p.id === filtroPuntoVenta[0])?.nombre
+                                : `${filtroPuntoVenta.length} Seleccionados`}
+                          </span>
+                          <ChevronDown className="h-3 w-3 text-amber-400 ml-2" />
+                        </PopoverTrigger>
+                        {isPuntoVentaOpenGestion && (
+                          <PopoverContent className="p-2 w-64 shadow-xl border-amber-100 rounded-xl bg-white" align="start">
+                            <div className="flex flex-col gap-1">
+                              <div
+                                className="flex items-center space-x-2 p-2 hover:bg-amber-50 rounded-lg cursor-pointer transition-colors"
+                                onClick={() => {
+                                  setFiltroPuntoVenta([]);
+                                  setIsPuntoVentaOpenGestion(false);
+                                }}
+                              >
+                                <div className={`flex items-center justify-center h-4 w-4 rounded border transition-all ${filtroPuntoVenta.length === 0 ? 'bg-amber-600 border-amber-600' : 'border-amber-200'}`}>
+                                  {filtroPuntoVenta.length === 0 && <CheckCircle className="h-3 w-3 text-white" />}
+                                </div>
+                                <span className={`text-xs font-semibold ${filtroPuntoVenta.length === 0 ? 'text-amber-600' : 'text-amber-700'}`}>Todos los Puntos</span>
+                              </div>
+                              <div className="h-px bg-amber-100 my-1" />
+                              <div className="max-h-60 overflow-y-auto pr-1 flex flex-col gap-1">
+                                {puntosVenta?.map((p: any) => {
+                                  const isSelected = filtroPuntoVenta.includes(p.id);
+                                  return (
+                                    <div
+                                      key={p.id}
+                                      className={`flex items-center space-x-2 p-2 hover:bg-amber-50 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-amber-50' : ''}`}
+                                      onClick={() => {
+                                        if (isSelected) {
+                                          setFiltroPuntoVenta(filtroPuntoVenta.filter(id => id !== p.id));
+                                        } else {
+                                          setFiltroPuntoVenta([...filtroPuntoVenta, p.id]);
+                                        }
+                                      }}
+                                    >
+                                      <div className={`flex items-center justify-center h-4 w-4 rounded border transition-all ${isSelected ? 'bg-amber-600 border-amber-600' : 'border-amber-200'}`}>
+                                        {isSelected && <CheckCircle className="h-3 w-3 text-white" />}
+                                      </div>
+                                      <span className={`text-xs ${isSelected ? 'text-amber-800 font-medium' : 'text-amber-700'}`}>{p.nombre}</span>
+                                      {p.color && <div className="h-2 w-2 rounded-full ml-auto" style={{ backgroundColor: p.color }} />}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        )}
+                      </Popover>
                     </div>
 
                     <div className="space-y-1">

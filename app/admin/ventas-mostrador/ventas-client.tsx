@@ -114,11 +114,13 @@ function expandirPacksEnItems(items: ItemVenta[], articulos: Articulo[]): ItemVe
 export default function VentasMostradorClient({
   articulosIniciales,
   vendedorNombre,
-  puntosVenta = []
+  puntosVenta = [],
+  config
 }: {
   articulosIniciales: Articulo[],
   vendedorNombre: string,
-  puntosVenta?: any[]
+  puntosVenta?: any[],
+  config?: any
 }) {
   // --- ESTADOS GENERALES ---
   const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
@@ -169,6 +171,7 @@ export default function VentasMostradorClient({
   const [docTipo, setDocTipo] = useState<number>(99); // Consumidor Final por defecto
   const [docNro, setDocNro] = useState<string>("");
   const [condicionIva, setCondicionIva] = useState<number>(5); // Consumidor Final
+  const [ventaParaFactura, setVentaParaFactura] = useState<any>(null);
   const [isFacturando, setIsFacturando] = useState(false);
   const [tipoFacturaSugerida, setTipoFacturaSugerida] = useState<number>(6); // B por defecto para Responsable Inscripto
   const [solicitarFactura, setSolicitarFactura] = useState(false);
@@ -691,6 +694,14 @@ export default function VentasMostradorClient({
     }
   };
 
+  const handleImprimirFactura = (venta: any) => {
+    setVentaParaFactura(venta);
+    setTimeout(() => {
+      window.print();
+      setTimeout(() => setVentaParaFactura(null), 1000);
+    }, 100);
+  };
+
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
@@ -1016,7 +1027,7 @@ export default function VentasMostradorClient({
 
   return (
     <>
-      {/* 1. EL TICKET */}
+      {/* 1. EL TICKET TÉRMICO */}
       <TicketImpresion
         ventaId={ventaParaImprimir ? ventaParaImprimir.id : ""}
         numeroVenta={ventaParaImprimir?.numeroVenta}
@@ -1024,6 +1035,12 @@ export default function VentasMostradorClient({
         total={ventaParaImprimir ? Number(ventaParaImprimir.totalFinal || ventaParaImprimir.total) : totalFinalCalculado}
         cliente={ventaParaImprimir ? (ventaParaImprimir.cliente || ventaParaImprimir.dni) : cliente}
         metodoPago={ventaParaImprimir ? ventaParaImprimir.metodo_pago : (isPagoMixto ? "MIXTO" : metodoPago)}
+      />
+
+      {/* 1b. LA FACTURA LEGAL A4 */}
+      <FacturaA4 
+        venta={ventaParaFactura}
+        config={config}
       />
 
       {/* 2. INTERFAZ NORMAL */}
@@ -1464,8 +1481,17 @@ export default function VentasMostradorClient({
                                         {isFacturando ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
                                       </button>
                                     ) : (
-                                      <div className="p-2 text-green-600 bg-green-50 rounded-xl border border-green-100" title={`Facturado - CAE: ${v.cae}`}>
-                                        <ShieldCheck className="h-5 w-5" />
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleImprimirFactura(v); }}
+                                          className="p-2 rounded-xl text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-all"
+                                          title={`Imprimir Factura Legal A4 - CAE: ${v.cae}`}
+                                        >
+                                          <FileText className="h-5 w-5" />
+                                        </button>
+                                        <div className="p-2 text-green-600 bg-green-50 rounded-xl border border-green-100" title={`Facturado - CAE: ${v.cae}`}>
+                                          <ShieldCheck className="h-5 w-5" />
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -2793,4 +2819,166 @@ function numeroALetras(num: number): string {
   const centavos = Math.round((num - enteros) * 100).toString().padStart(2, '0');
   if (enteros === 0) return `CERO CON ${centavos}/100`;
   return `${Millones(enteros).trim()} CON ${centavos}/100`;
+}
+
+function FacturaA4({ venta, config }: { venta: any, config?: any }) {
+  if (!venta) return null;
+
+  const logoUrl = config?.logoUrl || "/logo-revolucion.png";
+
+  const items = venta.items || [];
+  const total = Number(venta.totalFinal || venta.total);
+  const neto = parseFloat((total / 1.21).toFixed(2));
+  const iva = parseFloat((total - neto).toFixed(2));
+  
+  const fechaFactura = new Date(venta.createdAt).toLocaleDateString('es-AR');
+  const nroFactura = (venta.facturaNumero || 0).toString().padStart(8, '0');
+  const ptoVenta = (venta.facturaPuntoVenta || 9).toString().padStart(4, '0');
+  
+  const tipoCbte = venta.tipoComprobante === 1 ? 'A' : 'B';
+  const codCbte = venta.tipoComprobante === 1 ? '01' : '06';
+
+  // Lógica de QR AFIP
+  const qrData = {
+    ver: 1,
+    fecha: new Date(venta.createdAt).toISOString().split('T')[0],
+    cuit: 20269957361,
+    ptoVta: venta.facturaPuntoVenta || 9,
+    tipoCmp: venta.tipoComprobante || 6,
+    nroCmp: venta.facturaNumero,
+    importe: total,
+    moneda: "PES",
+    ctz: 1,
+    tipoDocRec: venta.docTipo || 99,
+    nroDocRec: parseInt((venta.docNro || "0").replace(/\D/g, '')),
+    tipoCodAut: "E",
+    codAut: venta.cae
+  };
+  const qrBase64 = btoa(JSON.stringify(qrData));
+  const qrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=150x150&chl=${encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p=${qrBase64}`)}`;
+
+  return (
+    <div className="hidden print:block w-full bg-white text-black p-8 font-sans text-[11px] leading-normal min-h-screen">
+      <style type="text/css" media="print">
+        {`
+          @page { size: A4; margin: 0; }
+          body { background: white !important; }
+          .border-black { border: 1px solid black !important; }
+        `}
+      </style>
+
+      {/* HEADER CONTENEDOR */}
+      <div className="border-black mb-0 overflow-hidden flex h-32">
+        {/* LADO IZQUIERDO: EMISOR */}
+        <div className="w-1/2 p-4 border-r border-black relative">
+          <div className="flex flex-col items-center mb-2">
+            <img src={logoUrl} alt="Logo" className="h-12 mb-1" />
+            <h1 className="text-sm font-bold">REVOLUCIÓN MOTOS</h1>
+            <p className="text-[9px] text-center font-bold">de Oliva Peirone Jose Luis</p>
+          </div>
+          <div className="text-[9px]">
+            <p>Revolución de Mayo 1605 - D° 5 - (5000) Córdoba</p>
+            <p>Tel: 3512404003 | Email: revolucionmotos@gmail.com</p>
+            <p className="font-bold">I.V.A. RESPONSABLE INSCRIPTO</p>
+          </div>
+        </div>
+
+        {/* CENTRO: TIPO COMPROBANTE */}
+        <div className="absolute left-1/2 -translate-x-1/2 top-8 w-12 h-14 bg-white border-black flex flex-col items-center justify-center z-10">
+          <span className="text-2xl font-black">{tipoCbte}</span>
+          <span className="text-[8px]">COD. {codCbte}</span>
+        </div>
+
+        {/* LADO DERECHO: DATOS FACTURA */}
+        <div className="w-1/2 p-4 pt-6">
+          <div className="text-right">
+            <h2 className="text-xl font-bold mb-2">Factura</h2>
+            <p className="font-bold">N°: {ptoVenta}-{nroFactura}</p>
+            <p className="font-bold">Fecha: {fechaFactura}</p>
+          </div>
+          <div className="mt-4 text-[9px] text-right">
+            <p>CUIT: 20-26995736-1</p>
+            <p>Ing. Brutos: 280244775</p>
+            <p>Inicio de Actividad: 01/04/2010</p>
+          </div>
+        </div>
+      </div>
+
+      {/* DATOS DEL CLIENTE */}
+      <div className="border-black border-t-0 p-3 grid grid-cols-2 gap-y-1">
+        <p><span className="font-bold">Razón Social:</span> {venta.cliente || "Consumidor Final"}</p>
+        <p><span className="font-bold">I.V.A.:</span> {venta.condicionIva === 1 ? 'Responsable Inscripto' : 'Consumidor Final'}</p>
+        <p><span className="font-bold">Domicilio:</span> {venta.domicilio || '-'}</p>
+        <p><span className="font-bold">CUIT/DNI:</span> {venta.docNro || '-'}</p>
+        <p><span className="font-bold">Localidad:</span> {venta.localidad || 'Córdoba - CORDOBA CAPITAL'}</p>
+        <p><span className="font-bold">Vendedor:</span> {venta.vendedor}</p>
+      </div>
+
+      {/* TABLA DE ARTÍCULOS */}
+      <table className="w-full border-black border-t-0 border-collapse mt-4">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border-black p-2 text-left w-16">Cantidad</th>
+            <th className="border-black p-2 text-left">Descripción</th>
+            <th className="border-black p-2 text-center w-16">% IVA</th>
+            <th className="border-black p-2 text-right w-24">P. Unit.</th>
+            <th className="border-black p-2 text-right w-24">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item: any, i: number) => (
+            <tr key={i}>
+              <td className="border-black p-2 text-center">{item.cantidad} Un</td>
+              <td className="border-black p-2">{item.nombre}</td>
+              <td className="border-black p-2 text-center">21,00</td>
+              <td className="border-black p-2 text-right">{(Number(item.precio_unit)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+              <td className="border-black p-2 text-right">{(Number(item.subtotal)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+            </tr>
+          ))}
+          {/* Relleno para que la tabla tenga cuerpo */}
+          {[...Array(Math.max(0, 10 - items.length))].map((_, i) => (
+            <tr key={`blank-${i}`} className="h-6">
+              <td className="border-black p-2"></td>
+              <td className="border-black p-2"></td>
+              <td className="border-black p-2"></td>
+              <td className="border-black p-2"></td>
+              <td className="border-black p-2"></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* FOOTER DE TOTALES */}
+      <div className="mt-4 flex justify-between items-end">
+        {/* QR Y CAE */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-4">
+            <img src={qrUrl} alt="QR AFIP" className="w-24 h-24 border border-gray-200" />
+            <div>
+              <img src="https://upload.wikimedia.org/wikipedia/commons/e/e0/Logo_ARCA_Argentina.png" alt="ARCA" className="h-8 mb-2" />
+              <p className="font-bold">Comprobante Autorizado</p>
+              <p><span className="font-bold">C.A.E. N°:</span> {venta.cae}</p>
+              <p><span className="font-bold">Vto. C.A.E.:</span> {venta.vencimientoCae ? new Date(venta.vencimientoCae).toLocaleDateString('es-AR') : '-'}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* TABLA DE TOTALES */}
+        <div className="w-1/3 border-black p-0">
+          <div className="flex justify-between border-b border-black p-1 px-2">
+            <span className="font-bold uppercase">Neto:</span>
+            <span>$ {neto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="flex justify-between border-b border-black p-1 px-2">
+            <span className="font-bold uppercase">IVA 21%:</span>
+            <span>$ {iva.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="flex justify-between bg-gray-100 p-2 px-2 text-sm">
+            <span className="font-bold uppercase">Total:</span>
+            <span className="font-black">$ {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

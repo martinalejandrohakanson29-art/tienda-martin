@@ -341,26 +341,30 @@ export async function facturarVenta(data: {
 export async function generarNotaCredito(ventaOriginal: {
     total: number,
     docTipo: number,
-    docNro: number,
+    docNro: any, // Lo cambiamos a any para sanitizarlo adentro
     tipoFacturaOriginal: number,
     puntoVentaOriginal: number,
     numeroFacturaOriginal: number,
     condicionIva: number
 }) {
-    // LOG DE SEGURIDAD: Verificamos qué está llegando realmente
-    console.log("🔄 [AFIP] Datos recibidos para NC:", JSON.stringify(ventaOriginal, null, 2));
+    console.log("🔄 [AFIP] Iniciando generación de NC. Datos brutos:", JSON.stringify(ventaOriginal, null, 2));
 
     try {
+        // 1. SANITIZACIÓN CRÍTICA: Evitar el error 500 de ARCA
+        // Si docNro es null o undefined, y es Consumidor Final, forzamos a 0.
+        // Si es CUIT (80), debe ser un número válido.
+        const docNroFinal = ventaOriginal.docNro ? Number(ventaOriginal.docNro) : 0;
+        const docTipoFinal = ventaOriginal.docTipo || 99;
+
         // Validaciones preventivas para evitar el SoapFault (Error 500)
         if (!ventaOriginal.puntoVentaOriginal || !ventaOriginal.numeroFacturaOriginal) {
             throw new Error(`Datos de factura original incompletos: PtoVta ${ventaOriginal.puntoVentaOriginal}, Nro ${ventaOriginal.numeroFacturaOriginal}`);
         }
 
-        // 1. Determinar el tipo de Nota de Crédito según la factura original
-        let tipoNC = 13; // Por defecto NC "C" (13)
-        if (ventaOriginal.tipoFacturaOriginal === 1) tipoNC = 3;  // NC "A"
-        if (ventaOriginal.tipoFacturaOriginal === 6) tipoNC = 8;  // NC "B"
-        if (ventaOriginal.tipoFacturaOriginal === 11) tipoNC = 13; // NC "C"
+        let tipoNC = 13; 
+        if (ventaOriginal.tipoFacturaOriginal === 1) tipoNC = 3;  
+        if (ventaOriginal.tipoFacturaOriginal === 6) tipoNC = 8;  
+        if (ventaOriginal.tipoFacturaOriginal === 11) tipoNC = 13;
 
         const ta = await obtenerTicketAcceso('wsfe');
         const token = (ta as any).token || (ta as any).credentials?.token;
@@ -369,7 +373,6 @@ export async function generarNotaCredito(ventaOriginal: {
         const auth = { Token: token, Sign: sign, Cuit: parseInt(AFIP_CONFIG.CUIT) };
         const wsfe = new Wsfev1(AFIP_CONFIG.urlWsfe);
 
-        // 2. Obtener el próximo número de NC
         const ultimoRes = await wsfe.FECompUltimoAutorizado({
             Auth: auth, 
             PtoVta: AFIP_CONFIG.puntoDeVenta, 
@@ -379,13 +382,11 @@ export async function generarNotaCredito(ventaOriginal: {
         const nextNumber = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro) + 1;
         const fecha = new Date().toLocaleDateString('sv-SE').replace(/-/g, '');
 
-        // 3. Preparar cálculos impositivos
         const total = parseFloat(ventaOriginal.total.toFixed(2));
         let neto = total;
         let importeIva = 0;
         let ivaArray = null;
 
-        // Si es NC A o B (vendedor es Responsable Inscripto)
         if ([3, 8].includes(tipoNC)) {
             neto = parseFloat((total / 1.21).toFixed(2));
             importeIva = parseFloat((total - neto).toFixed(2));
@@ -398,15 +399,14 @@ export async function generarNotaCredito(ventaOriginal: {
             };
         }
 
-        // 4. Estructura de la Nota de Crédito
         const ncData = {
             FeCAEReq: {
                 FeCabReq: { CantReg: 1, PtoVta: AFIP_CONFIG.puntoDeVenta, CbteTipo: tipoNC },
                 FeDetReq: {
                     FECAEDetRequest: [{
-                        Concepto: 1, 
-                        DocTipo: ventaOriginal.docTipo,
-                        DocNro: ventaOriginal.docNro,
+                        Concepto: 1,
+                        DocTipo: docTipoFinal,
+                        DocNro: docNroFinal, // Ahora estamos seguros de que es un número
                         CbteDesde: nextNumber,
                         CbteHasta: nextNumber,
                         CbteFch: fecha,
@@ -418,7 +418,6 @@ export async function generarNotaCredito(ventaOriginal: {
                         ImpIVA: importeIva,
                         MonId: 'PES',
                         MonCotiz: 1,
-                        // Aseguramos que sea un número, si falta usamos 5 (Consumidor Final)
                         CondicionIVAReceptorId: ventaOriginal.condicionIva || 5,
                         CbtesAsoc: {
                             CbteAsoc: [{
@@ -433,7 +432,7 @@ export async function generarNotaCredito(ventaOriginal: {
             }
         };
 
-        console.log(`📤 [AFIP] Enviando NC tipo ${tipoNC} nro ${nextNumber} vinculada a Factura ${ventaOriginal.numeroFacturaOriginal}...`);
+        console.log(`📤 [AFIP] Enviando NC tipo ${tipoNC} nro ${nextNumber} para Cliente ${docNroFinal}...`);
         
         const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...ncData } as any);
         const result = resARCA.FECAESolicitarResult as any;
@@ -446,23 +445,25 @@ export async function generarNotaCredito(ventaOriginal: {
             return { 
                 success: true, 
                 cae: det.CAE, 
-                numero: nextNumber, 
+                numero: nextNumber,
                 vencimiento: det.CAEFchVto,
                 tipoComprobante: tipoNC
             };
         } else {
-            return { success: false, error: "ARCA rechazó la Nota de Crédito", details: result };
+            console.error("❌ [AFIP] NC Rechazada por Reglas de Negocio:", JSON.stringify(result, null, 2));
+            return { success: false, error: "ARCA rechazó la NC", details: result };
         }
 
     } catch (error: any) {
         console.error("💥 [AFIP] Error crítico en generarNotaCredito:");
-        // Esta línea es la clave: te mostrará el motivo real del SoapFault en la terminal
         if (error.extra && error.extra.fault) {
-            console.error("DETALLE DEL ERROR (SOAP FAULT):", JSON.stringify(error.extra.fault, null, 2));
+            console.error("SOAP FAULT REASON:", error.extra.fault.reason?.text);
+            console.error("DETALLE COMPLETO:", JSON.stringify(error.extra.fault, null, 2));
         } else {
             console.error(error);
         }
         return { success: false, error: error.message };
     }
 }
+
 

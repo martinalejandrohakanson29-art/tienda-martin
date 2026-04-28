@@ -1434,10 +1434,18 @@ export async function cancelarVenta(ventaId: string) {
 
     // 2. Si la venta ya tenía CAE, disparamos la Nota de Crédito
     if (venta.cae && !venta.info?.includes("ANULADA CON NC")) {
+        // Log para depurar qué estamos sacando de la DB
+        console.log("🔍 [cancelarVenta] Recuperando datos para NC:", {
+            id: venta.id,
+            docNro: venta.docNro,
+            dni: venta.dni,
+            docTipo: venta.docTipo
+        });
+
         const resNC = await generarNotaCredito({
             total: Number(venta.totalFinal),
             docTipo: venta.docTipo || 99,
-            docNro: Number(venta.docNro || 0),
+            docNro: venta.docNro || venta.dni || 0,
             tipoFacturaOriginal: venta.tipoComprobante || 11,
             puntoVentaOriginal: venta.facturaPuntoVenta || 9,
             numeroFacturaOriginal: venta.facturaNumero || 0,

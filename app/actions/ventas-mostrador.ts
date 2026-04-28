@@ -251,9 +251,9 @@ export async function crearVentaMostrador(data: {
         arcaData.facturaNumero = resAfip.numero;
         arcaData.tipoComprobante = data.tipoComprobante || 6;
       } else {
-        return { 
-          success: false, 
-          error: `Error ARCA: ${resAfip.error || 'No se pudo autorizar el comprobante'}${resAfip.details ? ' - ' + resAfip.details : ''}` 
+        return {
+          success: false,
+          error: `Error ARCA: ${resAfip.error || 'No se pudo autorizar el comprobante'}${resAfip.details ? ' - ' + resAfip.details : ''}`
         };
       }
     }

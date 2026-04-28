@@ -218,11 +218,11 @@ export async function facturarVenta(data: {
             throw new Error("Error al obtener último comprobante");
         }
 
-        const lastCbte = ultimoRes.FECompUltimoAutorizadoResult.CbteNro;
+        const lastCbte = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro);
         console.log(`🔢 [AFIP] Último comprobante para PtoVta ${AFIP_CONFIG.puntoDeVenta} Tipo ${cbteTipo}: ${lastCbte}`);
         
         const nextNumber = lastCbte + 1;
-        const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        const fecha = new Date().toLocaleDateString('sv-SE').replace(/-/g, '');
 
         const total = parseFloat(monto.toFixed(2));
         const esResponsableInscripto = [1, 6].includes(cbteTipo);

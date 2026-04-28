@@ -111,6 +111,17 @@ function expandirPacksEnItems(items: ItemVenta[], articulos: Articulo[]): ItemVe
   return resultado;
 }
 
+const transformDriveLink = (url: string) => {
+  if (!url) return "";
+  if (url.includes("drive.google.com") && url.includes("/d/")) {
+      const idMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
+      if (idMatch && idMatch[1]) {
+          return `https://lh3.googleusercontent.com/d/${idMatch[1]}`
+      }
+  }
+  return url;
+}
+
 export default function VentasMostradorClient({
   articulosIniciales,
   vendedorNombre,
@@ -2682,7 +2693,7 @@ function TicketImpresion({
     setFechaActual(new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }));
   }, []);
 
-  if (!mounted) return null;
+  if (!mounted || !ventaId) return null;
 
   const formatPrecio = (num: number | string) => {
     return Number(num || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2737,7 +2748,7 @@ function TicketImpresion({
             <th className="font-normal w-[25%] pb-1 pt-1 text-right align-bottom">TOTAL</th>
           </tr>
         </thead>
-        <tbody className="before:content-[''] before:block before:h-1">
+        <tbody>
           {items.map((item: ItemVenta, idx: number) => (
             <tr key={idx} className="align-top">
               <td className="pt-0.5">{item.cantidad}</td>
@@ -2824,7 +2835,7 @@ function numeroALetras(num: number): string {
 function FacturaA4({ venta, config }: { venta: any, config?: any }) {
   if (!venta) return null;
 
-  const logoUrl = config?.logoUrl || "/logo-revolucion.png";
+  const logoUrl = transformDriveLink(config?.logoUrl) || "/logo-revolucion.png";
 
   const items = venta.items || [];
   const total = Number(venta.totalFinal || venta.total);
@@ -2855,7 +2866,7 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
     codAut: venta.cae
   };
   const qrBase64 = btoa(JSON.stringify(qrData));
-  const qrUrl = `https://chart.googleapis.com/chart?cht=qr&chs=150x150&chl=${encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p=${qrBase64}`)}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p=${qrBase64}`)}`;
 
   return (
     <div className="hidden print:block w-full bg-white text-black p-8 font-sans text-[11px] leading-normal min-h-screen">
@@ -2933,16 +2944,6 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
               <td className="border-black p-2 text-center">21,00</td>
               <td className="border-black p-2 text-right">{(Number(item.precio_unit)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
               <td className="border-black p-2 text-right">{(Number(item.subtotal)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
-            </tr>
-          ))}
-          {/* Relleno para que la tabla tenga cuerpo */}
-          {[...Array(Math.max(0, 10 - items.length))].map((_, i) => (
-            <tr key={`blank-${i}`} className="h-6">
-              <td className="border-black p-2"></td>
-              <td className="border-black p-2"></td>
-              <td className="border-black p-2"></td>
-              <td className="border-black p-2"></td>
-              <td className="border-black p-2"></td>
             </tr>
           ))}
         </tbody>

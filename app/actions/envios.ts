@@ -321,7 +321,7 @@ export async function limpiarVentasRegistracion(ids?: string[]) {
 /**
  * Registra una lista de ventas de MercadoLibre en el ERP (ventas-mostrador)
  */
-export async function registrarVentasML(ids: string[]) {
+export async function registrarVentasML(ids: string[], solicitarFactura: boolean = false, tipoComprobante: number = 6) {
     try {
         if (!ids || ids.length === 0) return { success: false, error: "No hay IDs seleccionados" };
 
@@ -414,15 +414,25 @@ export async function registrarVentasML(ids: string[]) {
                     totalFinal: brutoTotal,
                     items: items,
                     metodo_pago: "mercadopago (ML)",
+                    cupon: v.orderId,          // ID Venta en campo cupon
+                    de: v.orderId,             // ID Venta en campo de
+                    transaccionId: v.shippingId, // ID Envío en campo transaccionId (para que se vea en la columna Trans.)
+                    para: v.shippingId,        // ID Envío en campo para
                     mlIdVenta: v.orderId,
                     mlIdEnvio: v.shippingId,
                     mlMla: v.mla,
                     puntoVentaId: pv.id,
-                    eventoOffline: false
+                    eventoOffline: false,
+                    solicitarFactura: solicitarFactura,
+                    tipoComprobante: tipoComprobante
                 });
 
                 if (res.success) {
                     procesados++;
+                    // Si son muchas facturas, damos un respiro al servidor/AFIP
+                    if (solicitarFactura && ventasAProcesar.length > 5) {
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                    }
                 } else {
                     console.error(`Error procesando venta ${v.shippingId}:`, res.error);
                     errores++;

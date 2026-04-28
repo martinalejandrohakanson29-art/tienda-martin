@@ -7,8 +7,8 @@ import fs from 'fs';
 // Esta es la clave: Ruta absoluta para que no importe el modo standalone
 // Detectamos si estamos en producción (ej: Railway) o local (Windows/Mac)
 const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync('/app');
-const BASE_REGISTRACION = isProduction 
-    ? '/app/Registracion' 
+const BASE_REGISTRACION = isProduction
+    ? '/app/Registracion'
     : path.join(process.cwd(), 'Registracion');
 
 const AFIP_CONFIG = {
@@ -23,7 +23,7 @@ const AFIP_CONFIG = {
 
 async function obtenerTicketAcceso(servicio: string = 'wsfe') {
     const loginTicket = LoginTicket.getInstance();
-    
+
     // El cache depende de la URL para evitar usar tickets de Homologación en Producción
     const envHash = AFIP_CONFIG.urlWsaa.includes('homo') ? 'homo' : 'prod';
     const cachePath = path.join(BASE_REGISTRACION, `ticket_cache_${servicio}_${envHash}.json`);
@@ -89,7 +89,7 @@ async function obtenerTicketAcceso(servicio: string = 'wsfe') {
 export async function consultarPadron(documento: string | number) {
     const docStr = documento.toString().replace(/-/g, '');
     console.log(`🔍 [AFIP] Consultando padrón A13 para: ${docStr}`);
-    
+
     try {
         const ta = await obtenerTicketAcceso('ws_sr_padron_a13');
         const token = (ta as any).token || (ta as any).credentials?.token;
@@ -100,7 +100,7 @@ export async function consultarPadron(documento: string | number) {
         }
 
         const padron = new PersonaServiceA13("https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL");
-        
+
         let cuitBusqueda = docStr;
 
         // Si tiene 8 dígitos o menos, asumimos que es DNI y buscamos el CUIT/CUIL asociado
@@ -142,13 +142,13 @@ export async function consultarPadron(documento: string | number) {
         const impuestos = Array.isArray(datos.impuesto) ? datos.impuesto : (datos.impuesto ? [datos.impuesto] : []);
         const tieneIVA = impuestos.some((imp: any) => imp.idImpuesto === 30); // 30 = IVA
         const esMonotributista = impuestos.some((imp: any) => imp.idImpuesto === 20); // 20 = Monotributo
-        
+
         // Si el vendedor (vos) es Monotributista (11), solo emite C (11)
         // Si el vendedor es Responsable Inscripto, emite A (1) si el cliente tiene IVA, sino B (6)
         const soyMonotributista = AFIP_CONFIG.tipoComprobante === 11;
-        
+
         const tipoFactura = soyMonotributista ? 11 : (tieneIVA ? 1 : 6);
-        
+
         // Condición IVA Receptor: 1=RI, 6=Monotributo, 5=Consumidor Final (RG 5616)
         let condicionIva = 5;
         if (tieneIVA) condicionIva = 1;
@@ -220,7 +220,7 @@ export async function facturarVenta(data: {
 
         const lastCbte = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro);
         console.log(`🔢 [AFIP] Último comprobante para PtoVta ${AFIP_CONFIG.puntoDeVenta} Tipo ${cbteTipo}: ${lastCbte}`);
-        
+
         const nextNumber = lastCbte + 1;
         const fecha = new Date().toLocaleDateString('sv-SE').replace(/-/g, '');
 
@@ -360,9 +360,9 @@ export async function generarNotaCredito(ventaOriginal: {
             throw new Error(`Datos de factura original incompletos: PtoVta ${ventaOriginal.puntoVentaOriginal}, Nro ${ventaOriginal.numeroFacturaOriginal}`);
         }
 
-        let tipoNC = 13; 
-        if (ventaOriginal.tipoFacturaOriginal === 1) tipoNC = 3;  
-        if (ventaOriginal.tipoFacturaOriginal === 6) tipoNC = 8;  
+        let tipoNC = 13;
+        if (ventaOriginal.tipoFacturaOriginal === 1) tipoNC = 3;
+        if (ventaOriginal.tipoFacturaOriginal === 6) tipoNC = 8;
         if (ventaOriginal.tipoFacturaOriginal === 11) tipoNC = 13;
 
         const ta = await obtenerTicketAcceso('wsfe');
@@ -373,11 +373,11 @@ export async function generarNotaCredito(ventaOriginal: {
         const wsfe = new Wsfev1(AFIP_CONFIG.urlWsfe);
 
         const ultimoRes = await wsfe.FECompUltimoAutorizado({
-            Auth: auth, 
-            PtoVta: AFIP_CONFIG.puntoDeVenta, 
+            Auth: auth,
+            PtoVta: AFIP_CONFIG.puntoDeVenta,
             CbteTipo: tipoNC
         });
-        
+
         const nextNumber = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro) + 1;
         const fecha = new Date().toLocaleDateString('sv-SE').replace(/-/g, '');
 
@@ -432,7 +432,7 @@ export async function generarNotaCredito(ventaOriginal: {
         };
 
         console.log(`📤 [AFIP] Enviando NC tipo ${tipoNC} nro ${nextNumber} para Cliente ${docNroFinal}...`);
-        
+
         const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...ncData } as any);
         const result = resARCA.FECAESolicitarResult as any;
 
@@ -441,9 +441,9 @@ export async function generarNotaCredito(ventaOriginal: {
                 ? result.FeDetResp.FECAEDetResponse[0]
                 : result.FeDetResp.FECAEDetResponse;
 
-            return { 
-                success: true, 
-                cae: det.CAE, 
+            return {
+                success: true,
+                cae: det.CAE,
                 numero: nextNumber,
                 vencimiento: det.CAEFchVto,
                 tipoComprobante: tipoNC

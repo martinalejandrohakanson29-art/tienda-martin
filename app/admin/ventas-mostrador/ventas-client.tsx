@@ -1736,7 +1736,13 @@ export default function VentasMostradorClient({
                                   <Button size="sm" variant="outline" onClick={() => abrirModalEdicion(v)} className="border-amber-200 text-amber-700 hover:bg-amber-50">
                                     <Edit className="h-4 w-4 mr-2" /> Editar Venta
                                   </Button>
-                                  <Button size="sm" variant="destructive" onClick={() => handleAnularConNC(v.id)} disabled={isFacturando} className="bg-rose-100 text-rose-700 hover:bg-rose-200 hover:text-rose-800 border border-rose-300">
+                                  <Button 
+                                    size="sm" 
+                                    variant="destructive" 
+                                    onClick={() => handleAnularConNC(v.id)} 
+                                    disabled={isFacturando || !v.cae} 
+                                    className="bg-rose-100 text-rose-700 hover:bg-rose-200 hover:text-rose-800 border border-rose-300 disabled:opacity-50 disabled:grayscale"
+                                  >
                                     <AlertTriangle className="h-4 w-4 mr-2" /> Anular (NC)
                                   </Button>
                                 </>

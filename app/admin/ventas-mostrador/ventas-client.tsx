@@ -2850,23 +2850,34 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
   const codCbte = venta.tipoComprobante === 1 ? '01' : '06';
 
   // Lógica de QR AFIP
-  const qrData = {
-    ver: 1,
-    fecha: new Date(venta.createdAt).toISOString().split('T')[0],
-    cuit: 20269957361,
-    ptoVta: venta.facturaPuntoVenta || 9,
-    tipoCmp: venta.tipoComprobante || 6,
-    nroCmp: venta.facturaNumero,
-    importe: total,
-    moneda: "PES",
-    ctz: 1,
-    tipoDocRec: venta.docTipo || 99,
-    nroDocRec: parseInt((venta.docNro || "0").replace(/\D/g, '')),
-    tipoCodAut: "E",
-    codAut: venta.cae
+  const generateQR = () => {
+    try {
+      const qrData = {
+        ver: 1,
+        fecha: new Date(venta.createdAt).toISOString().split('T')[0],
+        cuit: 20269957361,
+        ptoVta: Number(venta.facturaPuntoVenta || 9),
+        tipoCmp: Number(venta.tipoComprobante || 6),
+        nroCmp: Number(venta.facturaNumero),
+        importe: parseFloat(total.toFixed(2)),
+        moneda: "PES",
+        ctz: 1,
+        tipoDocRec: Number(venta.docTipo || 99),
+        nroDocRec: Number((venta.docNro || "0").replace(/\D/g, '')),
+        tipoCodAut: "E",
+        codAut: Number(venta.cae)
+      };
+      
+      const jsonStr = JSON.stringify(qrData);
+      const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+      return `https://quickchart.io/qr?text=${encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p=${base64}`)}&size=200`;
+    } catch (e) {
+      console.error("Error generando QR:", e);
+      return "";
+    }
   };
-  const qrBase64 = btoa(JSON.stringify(qrData));
-  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`https://www.afip.gob.ar/fe/qr/?p=${qrBase64}`)}`;
+
+  const qrUrl = generateQR();
 
   return (
     <div className="hidden print:block w-full bg-white text-black p-8 font-sans text-[11px] leading-normal min-h-screen">

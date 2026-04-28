@@ -24,6 +24,7 @@ import {
 } from "@/app/actions/compras";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 import { actualizarPrecioArticuloDB, sincronizarArticulosMostrador } from "@/app/actions/ventas-mostrador";
+import { PedidosCompraClient } from "@/app/admin/erp/pedidos-compra/pedidos-compra-client";
 
 interface Articulo {
   id: string;
@@ -427,6 +428,9 @@ export default function ComprasClient({
           <TabsList className="bg-slate-100/50 p-1 w-full flex justify-start">
             <TabsTrigger value="registrar" className="gap-2 px-6"><Plus className="h-4 w-4" /> Nueva Compra</TabsTrigger>
             <TabsTrigger value="listado" className="gap-2 px-6"><ClipboardList className="h-4 w-4" /> Historial de Compras</TabsTrigger>
+            <TabsTrigger value="pedidos" className="gap-2 px-6 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 data-[state=active]:bg-indigo-100 data-[state=active]:text-indigo-900 border border-transparent data-[state=active]:border-indigo-200">
+              <Clock className="h-4 w-4" /> Pedidos de Compra
+            </TabsTrigger>
             <TabsTrigger value="gestion" className="gap-2 px-6 ml-auto bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
               <Edit className="h-4 w-4" /> Gestión y Edición
             </TabsTrigger>
@@ -661,6 +665,12 @@ export default function ComprasClient({
               </div>
             </div>
           </main>
+        </TabsContent>
+
+        <TabsContent value="pedidos" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full bg-white">
+          <div className="flex-grow overflow-auto">
+            <PedidosCompraClient initialData={[]} />
+          </div>
         </TabsContent>
 
         {/* --- PESTAÑA: GESTIÓN Y EDICIÓN --- */}

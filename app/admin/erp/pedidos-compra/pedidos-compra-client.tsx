@@ -336,7 +336,7 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
   useEffect(() => {
     // Initial load if dates are set
     if (fechaDesde && fechaHasta) {
-      // cargarPedidos();
+      cargarPedidos();
     }
   }, [fechaDesde, fechaHasta]);
 

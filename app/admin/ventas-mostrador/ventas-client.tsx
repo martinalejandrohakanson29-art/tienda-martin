@@ -28,6 +28,7 @@ import {
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
+import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
 
 type Decimal = {
   toNumber(): number;
@@ -1105,6 +1106,9 @@ export default function VentasMostradorClient({
             <TabsList className="bg-slate-100/50 p-1 w-full flex justify-start relative">
               <TabsTrigger value="registrar" className="gap-2 px-6"><ShoppingCart className="h-4 w-4" /> Registrar Venta</TabsTrigger>
               <TabsTrigger value="listado" className="gap-2 px-6"><ClipboardList className="h-4 w-4" /> Listado de Ventas</TabsTrigger>
+              <TabsTrigger value="pedidos" className="gap-2 px-6 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 data-[state=active]:bg-indigo-100 data-[state=active]:text-indigo-900 border border-transparent data-[state=active]:border-indigo-200">
+                <Clock className="h-4 w-4" /> Pedidos de Ventas
+              </TabsTrigger>
               <TabsTrigger value="gestion" className="gap-2 px-6 ml-auto bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
                 <Edit className="h-4 w-4" /> Gestión y Edición
               </TabsTrigger>
@@ -1562,6 +1566,13 @@ export default function VentasMostradorClient({
                 </div>
               </div>
             </main>
+          </TabsContent>
+
+          {/* --- PESTAÑA: PEDIDOS DE VENTAS --- */}
+          <TabsContent value="pedidos" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full bg-white">
+            <div className="flex-grow overflow-auto">
+              <PedidosVentaEdicionClient />
+            </div>
           </TabsContent>
 
           {/* --- PESTAÑA: GESTIÓN Y EDICIÓN --- */}

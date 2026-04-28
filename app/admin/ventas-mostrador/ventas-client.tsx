@@ -1376,9 +1376,9 @@ export default function VentasMostradorClient({
                           <div className="flex flex-col gap-0.5">
                             {ventasPorMetodo.map(({ metodo, total }, index) => (
                               <p key={metodo} className={`text-[10px] font-medium ${metodo === 'Efectivo' ? 'text-red-600' :
-                                  metodo === 'Cruzada' ? 'text-blue-600' :
-                                    metodo === 'Mixto' ? 'text-purple-600' :
-                                      'text-blue-600'
+                                metodo === 'Cruzada' ? 'text-blue-600' :
+                                  metodo === 'Mixto' ? 'text-purple-600' :
+                                    'text-blue-600'
                                 }`}>
                                 {metodo} ${total.toLocaleString('es-AR')}
                               </p>

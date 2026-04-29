@@ -313,9 +313,12 @@ export default function CuentaCorrienteClient({
                     {formatCurrency(proveedor.total)}
                   </span>
                 </div>
-                <button className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#2b8cee] hover:text-white transition-all">
+                <Link 
+                  href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
+                  className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#2b8cee] hover:text-white transition-all"
+                >
                   <span className="material-symbols-outlined">chevron_right</span>
-                </button>
+                </Link>
               </div>
             </div>
           ))

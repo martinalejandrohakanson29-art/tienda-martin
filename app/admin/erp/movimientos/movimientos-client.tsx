@@ -20,19 +20,51 @@ interface Movimiento {
 
 interface MovimientosClientProps {
   movimientosIniciales: Movimiento[];
+  initialProveedorId?: string;
 }
 
 export default function MovimientosClient({
   movimientosIniciales,
+  initialProveedorId,
 }: MovimientosClientProps) {
-  const [searchTerm, setSearchTerm] = useState("");
+  const today = new Date().toISOString().split("T")[0];
+  
+  // Si tenemos movimientos y todos son del mismo proveedor (porque vinimos filtrados),
+  // ponemos el nombre en el buscador para que sea visible el filtro
+  const initialSearch = useMemo(() => {
+    if (initialProveedorId && movimientosIniciales.length > 0) {
+      return movimientosIniciales[0].proveedorNombre;
+    }
+    return "";
+  }, [initialProveedorId, movimientosIniciales]);
+
+  const [searchTerm, setSearchTerm] = useState(initialSearch);
+  const [startDate, setStartDate] = useState(today);
+  const [endDate, setEndDate] = useState(today);
 
   const filteredMovimientos = useMemo(() => {
-    return movimientosIniciales.filter((m) =>
-      m.proveedorNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (m.descripcion && m.descripcion.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [movimientosIniciales, searchTerm]);
+    return movimientosIniciales.filter((m) => {
+      const matchesSearch = 
+        m.proveedorNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (m.descripcion && m.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      if (!matchesSearch) return false;
+
+      const movimientoDate = new Date(m.fecha);
+      
+      if (startDate) {
+        const start = new Date(startDate + "T00:00:00");
+        if (movimientoDate < start) return false;
+      }
+      
+      if (endDate) {
+        const end = new Date(endDate + "T23:59:59");
+        if (movimientoDate > end) return false;
+      }
+
+      return true;
+    });
+  }, [movimientosIniciales, searchTerm, startDate, endDate]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-AR", {
@@ -45,7 +77,7 @@ export default function MovimientosClient({
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header section */}
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <Link
               href="/admin/erp"
@@ -63,19 +95,55 @@ export default function MovimientosClient({
             </div>
           </div>
 
-          <div className="relative max-w-md w-full">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <span className="material-symbols-outlined text-slate-400 text-sm">
-                search
-              </span>
+          <div className="flex flex-col md:flex-row items-end gap-3 w-full lg:w-auto">
+            <div className="relative w-full md:w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <span className="material-symbols-outlined text-slate-400 text-sm">
+                  search
+                </span>
+              </div>
+              <input
+                type="text"
+                className="block w-full pl-10 pr-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
+                placeholder="Buscar proveedor o descripción..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <input
-              type="text"
-              className="block w-full pl-10 pr-3 py-2.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm placeholder-slate-500 focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
-              placeholder="Buscar por proveedor o descripción..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="flex flex-col gap-1 w-full md:w-40">
+                <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Desde</label>
+                <input
+                  type="date"
+                  className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1 w-full md:w-40">
+                <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Hasta</label>
+                <input
+                  type="date"
+                  className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+              {(startDate || endDate || searchTerm) && (
+                <button
+                  onClick={() => {
+                    setStartDate("");
+                    setEndDate("");
+                    setSearchTerm("");
+                  }}
+                  className="mt-5 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                  title="Limpiar filtros"
+                >
+                  <span className="material-symbols-outlined text-xl">filter_list_off</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -89,7 +157,6 @@ export default function MovimientosClient({
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Tipo</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo Resultante</th>
               </tr>
@@ -105,25 +172,14 @@ export default function MovimientosClient({
                       <span className={`text-sm font-bold text-slate-900 dark:text-white ${m.anulado ? "line-through" : ""}`}>{m.proveedorNombre}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <p className={`text-sm text-slate-600 dark:text-slate-400 line-clamp-1 ${m.anulado ? "italic text-red-500" : ""}`}>
-                        {m.anulado && <span className="mr-1">⚠️</span>}
-                        {m.descripcion || "---"}
-                      </p>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex flex-col gap-1">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase w-fit ${
-                          m.tipo === "HABER" || m.tipo === "INGRESO"
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                            : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"
-                        }`}>
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase text-[#2b8cee] mb-0.5">
                           {m.tipo}
                         </span>
-                        {m.anulado && (
-                          <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-[8px] font-black uppercase w-fit">
-                            Anulado
-                          </span>
-                        )}
+                        <p className={`text-sm text-slate-600 dark:text-slate-400 ${m.anulado ? "italic text-red-500 line-through opacity-70" : ""}`}>
+                          {m.anulado && <span className="mr-1">⚠️</span>}
+                          {m.descripcion || "---"}
+                        </p>
                       </div>
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${
@@ -138,7 +194,7 @@ export default function MovimientosClient({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={5} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
                       <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">history</span>
                       <p className="text-slate-500 font-medium">No se encontraron movimientos.</p>

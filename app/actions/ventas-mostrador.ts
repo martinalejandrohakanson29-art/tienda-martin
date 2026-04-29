@@ -220,7 +220,8 @@ export async function crearVentaMostrador(data: {
   alicuotaIva?: number,
   mlIdVenta?: string,
   mlIdEnvio?: string,
-  mlMla?: string
+  mlMla?: string,
+  mlDni?: string
 }) {
   try {
     let arcaData = {
@@ -330,6 +331,7 @@ export async function crearVentaMostrador(data: {
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
           mlMla: data.mlMla,
+          mlDni: data.mlDni,
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -451,7 +453,8 @@ export async function guardarComoPedidoVenta(data: {
   alicuotaIva?: number,
   mlIdVenta?: string,
   mlIdEnvio?: string,
-  mlMla?: string
+  mlMla?: string,
+  mlDni?: string
 }) {
   try {
     // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
@@ -489,6 +492,7 @@ export async function guardarComoPedidoVenta(data: {
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
           mlMla: data.mlMla,
+          mlDni: data.mlDni,
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -633,6 +637,10 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           email: data.email,
           eventoOffline: data.eventoOffline,
           puntoVentaId: data.puntoVentaId || null,
+          mlIdVenta: data.mlIdVenta,
+          mlIdEnvio: data.mlIdEnvio,
+          mlMla: data.mlMla,
+          mlDni: data.mlDni,
           // ARCA fields
           ...(data.cae !== undefined && { cae: data.cae }),
           ...(data.vencimientoCae !== undefined && { vencimientoCae: data.vencimientoCae }),

@@ -176,7 +176,7 @@ export default function VentasMostradorClient({
   const [deCruzada, setDeCruzada] = useState("");
   const [paraCruzada, setParaCruzada] = useState("");
 
-  // --- ESTADOS PARA MERCADOPAGO (ML) ---
+  // --- ESTADOS PARA MERCADOLIBRE Y MERCADOPAGO ---
   const [mlIdVenta, setMlIdVenta] = useState("");
   const [mlIdEnvio, setMlIdEnvio] = useState("");
   const [mlMla, setMlMla] = useState("");
@@ -450,8 +450,9 @@ export default function VentasMostradorClient({
   });
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
+  const esMercadoLibre = (m: string) => m === "MercadoLibre";
+  const esMercadoPago = (m: string) => m === "MercadoPago";
   const esTarjeta = (m: string) => m === "Tarjeta de Crédito" || m === "Tarjeta de Débito";
-  const esMercadoPago = (m: string) => m === "MercadoPago (ML)";
 
   const formatCurrency = (amount: any) => {
     const value = typeof amount === "number" ? amount : parseFloat(amount);
@@ -479,6 +480,7 @@ export default function VentasMostradorClient({
 
   // SOLAMENTE SE REQUIEREN DATOS EXTRA SEGÚN EL MÉTODO EXACTO
   const requiereTarjeta = isPagoMixto ? (esTarjeta(metodoPago) || esTarjeta(metodoPago2)) : esTarjeta(metodoPago);
+  const requiereMercadoLibre = isPagoMixto ? (esMercadoLibre(metodoPago) || esMercadoLibre(metodoPago2)) : esMercadoLibre(metodoPago);
   const requiereMercadoPago = isPagoMixto ? (esMercadoPago(metodoPago) || esMercadoPago(metodoPago2)) : esMercadoPago(metodoPago);
   const requiereCruzada = (isPagoMixto && (metodoPago === "Cruzada" || metodoPago2 === "Cruzada")) || (!isPagoMixto && metodoPago === "Cruzada");
   const requiereCuentaCorriente = (isPagoMixto && (metodoPago === "A Cuenta Corriente" || metodoPago2 === "A Cuenta Corriente")) || (!isPagoMixto && metodoPago === "A Cuenta Corriente");
@@ -636,8 +638,11 @@ export default function VentasMostradorClient({
     if (requiereTarjeta && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) {
       alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return;
     }
-    if (requiereMercadoPago && (!mlIdVenta.trim() || !mlIdEnvio.trim() || !mlMla.trim())) {
-      alert("Id Venta, Id Envío y MLA son OBLIGATORIOS para MercadoPago (ML)."); return;
+    if (requiereMercadoLibre && (!mlIdVenta.trim() || !mlIdEnvio.trim() || !mlMla.trim())) {
+      alert("Id Venta, Id Envío y MLA son OBLIGATORIOS para MercadoLibre."); return;
+    }
+    if (requiereMercadoPago && !mlIdVenta.trim()) {
+      alert("El Id de pago es OBLIGATORIO para MercadoPago."); return;
     }
     if (requiereCruzada && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para pagos Cruzados."); return; }
     if (requiereCuentaCorriente && !paraCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
@@ -672,7 +677,7 @@ export default function VentasMostradorClient({
         return item;
       });
 
-      const dniFinal = requiereMercadoPago ? (mlDni || dni || cuitBusqueda) : (dni || cuitBusqueda);
+      const dniFinal = (requiereMercadoLibre || requiereMercadoPago) ? (mlDni || dni || cuitBusqueda) : (dni || cuitBusqueda);
       const docNroFinal = docNro || (cuitBusqueda.length > 6 ? cuitBusqueda : "");
 
       const resultado = isPedido
@@ -683,7 +688,7 @@ export default function VentasMostradorClient({
           items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
           email, eventoOffline, puntoVentaId,
           docTipo, docNro: docNroFinal, condicionIva, tipoComprobante: tipoFacturaSugerida,
-          mlIdVenta, mlIdEnvio, mlMla
+          mlIdVenta, mlIdEnvio, mlMla, mlDni
         })
         : await crearVentaMostrador({
           cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
@@ -694,7 +699,7 @@ export default function VentasMostradorClient({
           solicitarFactura: solicitarFactura,
           // ARCA fields para guardar el snapshot
           docTipo, docNro: docNroFinal, condicionIva, tipoComprobante: tipoFacturaSugerida,
-          mlIdVenta, mlIdEnvio, mlMla
+          mlIdVenta, mlIdEnvio, mlMla, mlDni
         });
 
       if (resultado.success) {
@@ -784,6 +789,7 @@ export default function VentasMostradorClient({
 
   // SOLAMENTE SE REQUIEREN DATOS EXTRA SEGÚN EL MÉTODO EXACTO EN EDICIÓN
   const requiereTarjetaEdit = isEditPagoMixto ? (esTarjeta(editMetodoPago) || esTarjeta(editMetodoPago2)) : esTarjeta(editMetodoPago);
+  const requiereMercadoLibreEdit = isEditPagoMixto ? (esMercadoLibre(editMetodoPago) || esMercadoLibre(editMetodoPago2)) : esMercadoLibre(editMetodoPago);
   const requiereMercadoPagoEdit = isEditPagoMixto ? (esMercadoPago(editMetodoPago) || esMercadoPago(editMetodoPago2)) : esMercadoPago(editMetodoPago);
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
   const requiereCuentaCorrienteEdit = (isEditPagoMixto && (editMetodoPago === "A Cuenta Corriente" || editMetodoPago2 === "A Cuenta Corriente")) || (!isEditPagoMixto && editMetodoPago === "A Cuenta Corriente");
@@ -863,8 +869,11 @@ export default function VentasMostradorClient({
     if (requiereTarjetaEdit && (!editDni.trim() || !editTelefono.trim() || !editCupon.trim() || !editTransaccionId.trim())) {
       alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return;
     }
-    if (requiereMercadoPagoEdit && (!editMlIdVenta.trim() || !editMlIdEnvio.trim() || !editMlMla.trim())) {
-      alert("Id Venta, Id Envío y MLA son OBLIGATORIOS para MercadoPago (ML)."); return;
+    if (requiereMercadoLibreEdit && (!editMlIdVenta.trim() || !editMlIdEnvio.trim() || !editMlMla.trim())) {
+      alert("Id Venta, Id Envío y MLA son OBLIGATORIOS para MercadoLibre."); return;
+    }
+    if (requiereMercadoPagoEdit && !editMlIdVenta.trim()) {
+      alert("El Id de pago es OBLIGATORIO para MercadoPago."); return;
     }
     if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
     if (requiereCuentaCorrienteEdit && !editParaCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
@@ -2071,7 +2080,8 @@ export default function VentasMostradorClient({
                         <option value="Efectivo">Efectivo</option>
                         <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                         <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                        <option value="MercadoPago (ML)">MercadoPago (ML)</option>
+                        <option value="MercadoLibre">MercadoLibre</option>
+                        <option value="MercadoPago">MercadoPago</option>
                         <option value="Cruzada">Cruzada</option>
                       </select>
                       <div>
@@ -2091,7 +2101,8 @@ export default function VentasMostradorClient({
                         <option value="Efectivo">Efectivo</option>
                         <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                         <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                        <option value="MercadoPago (ML)">MercadoPago (ML)</option>
+                        <option value="MercadoLibre">MercadoLibre</option>
+                        <option value="MercadoPago">MercadoPago</option>
                         <option value="Cruzada">Cruzada</option>
                         <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                       </select>
@@ -2120,7 +2131,8 @@ export default function VentasMostradorClient({
                       <option value="Efectivo">Efectivo</option>
                       <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                       <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                      <option value="MercadoPago (ML)">MercadoPago (ML)</option>
+                      <option value="MercadoLibre">MercadoLibre</option>
+                      <option value="MercadoPago">MercadoPago</option>
                       <option value="Cruzada">Cruzada</option>
                       <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                     </select>
@@ -2136,12 +2148,18 @@ export default function VentasMostradorClient({
                   </div>
                 )}
 
-                {requiereMercadoPago && (
+                {requiereMercadoLibre && (
                   <div className="grid grid-cols-2 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
                     <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id Venta <span className="text-red-500">*</span></Label><Input value={mlIdVenta} onChange={(e) => setMlIdVenta(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
                     <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id Envío <span className="text-red-500">*</span></Label><Input value={mlIdEnvio} onChange={(e) => setMlIdEnvio(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
                     <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">MLA <span className="text-red-500">*</span></Label><Input value={mlMla} onChange={(e) => setMlMla(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
                     <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Dni <span className="text-slate-400">(Opcional)</span></Label><Input value={mlDni} onChange={(e) => setMlDni(e.target.value)} className="bg-white border-indigo-200" placeholder="DNI del cliente" /></div>
+                  </div>
+                )}
+
+                {requiereMercadoPago && (
+                  <div className="grid grid-cols-1 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
+                    <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id de pago <span className="text-red-500">*</span></Label><Input value={mlIdVenta} onChange={(e) => setMlIdVenta(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
                   </div>
                 )}
 
@@ -2345,7 +2363,8 @@ export default function VentasMostradorClient({
                           <option value="Efectivo">Efectivo</option>
                           <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                           <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                          <option value="MercadoPago (ML)">MercadoPago (ML)</option>
+                          <option value="MercadoLibre">MercadoLibre</option>
+                          <option value="MercadoPago">MercadoPago</option>
                           <option value="Cruzada">Cruzada</option>
                           <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                         </select>
@@ -2366,7 +2385,8 @@ export default function VentasMostradorClient({
                           <option value="Efectivo">Efectivo</option>
                           <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                           <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                          <option value="MercadoPago (ML)">MercadoPago (ML)</option>
+                          <option value="MercadoLibre">MercadoLibre</option>
+                          <option value="MercadoPago">MercadoPago</option>
                           <option value="Cruzada">Cruzada</option>
                           <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                         </select>
@@ -2395,7 +2415,8 @@ export default function VentasMostradorClient({
                         <option value="Efectivo">Efectivo</option>
                         <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
                         <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                        <option value="MercadoPago (ML)">MercadoPago (ML)</option>
+                        <option value="MercadoLibre">MercadoLibre</option>
+                        <option value="MercadoPago">MercadoPago</option>
                         <option value="Cruzada">Cruzada</option>
                         <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                       </select>
@@ -2424,12 +2445,18 @@ export default function VentasMostradorClient({
                   </div>
                 )}
 
-                {requiereMercadoPagoEdit && (
+                {requiereMercadoLibreEdit && (
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
                     <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id Venta <span className="text-red-500">*</span></Label><Input value={editMlIdVenta} onChange={(e) => setEditMlIdVenta(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
                     <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id Envío <span className="text-red-500">*</span></Label><Input value={editMlIdEnvio} onChange={(e) => setEditMlIdEnvio(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
                     <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">MLA <span className="text-red-500">*</span></Label><Input value={editMlMla} onChange={(e) => setEditMlMla(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
                     <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Dni <span className="text-slate-400">(Opcional)</span></Label><Input value={editMlDni} onChange={(e) => setEditMlDni(e.target.value)} className="bg-white border-indigo-200" placeholder="DNI del cliente" /></div>
+                  </div>
+                )}
+
+                {requiereMercadoPagoEdit && (
+                  <div className="grid grid-cols-1 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
+                    <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id de pago <span className="text-red-500">*</span></Label><Input value={editMlIdVenta} onChange={(e) => setEditMlIdVenta(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
                   </div>
                 )}
 

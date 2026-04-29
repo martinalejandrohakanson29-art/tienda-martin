@@ -419,7 +419,7 @@ export async function registrarVentasML(ids: string[], solicitarFactura: boolean
                     interes: interes,
                     totalFinal: brutoTotal,
                     items: items,
-                    metodo_pago: "mercadopago (ML)",
+                    metodo_pago: "MercadoLibre",
                     info: `Neto ML: $${netoTotal.toLocaleString('es-AR')}`,
                     cupon: v.orderId,          // ID Venta en campo cupon
                     de: v.orderId,             // ID Venta en campo de

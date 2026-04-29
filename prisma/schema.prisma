@@ -447,6 +447,7 @@ model Venta {
   mlIdVenta       String?
   mlIdEnvio       String?
   mlMla           String?
+  mlDni           String?
   
   // Desglose Impositivo (Snapshot)
   importeIva      Decimal?       @db.Decimal(20, 2)

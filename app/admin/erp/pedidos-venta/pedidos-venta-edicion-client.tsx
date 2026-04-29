@@ -1042,7 +1042,7 @@ export default function PedidosVentaEdicionClient() {
                   </div>
                 )}
 
-                {editingVenta.metodo_pago === "MercadoLibre" && (
+                {(editingVenta.metodo_pago === "MercadoLibre" || editingVenta.metodo_pago === "mercadopago (ML)") && (
                   <div className="grid grid-cols-2 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-indigo-700">Id Venta <span className="text-red-500">*</span></Label>

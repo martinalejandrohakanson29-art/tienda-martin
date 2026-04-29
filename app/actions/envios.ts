@@ -327,13 +327,25 @@ export async function limpiarVentasRegistracion(ids?: string[]) {
 /**
  * Registra una lista de ventas de MercadoLibre en el ERP (ventas-mostrador)
  */
-export async function registrarVentasML(ids: string[], solicitarFactura: boolean = false, tipoComprobante: number = 6) {
+export async function registrarVentasML(
+    ids: string[],
+    solicitarFactura: boolean = false,
+    tipoComprobante: number = 6,
+    docTipo: number = 99,
+    docNro: string = "0",
+    condicionIva: number = 5
+) {
     try {
         if (!ids || ids.length === 0) return { success: false, error: "No hay IDs seleccionados" };
 
         // 1. Buscamos el Punto de Venta "MercadoLibre"
         const pv = await prisma.puntoVenta.findFirst({
-            where: { nombre: { contains: "MercadoLibre", mode: 'insensitive' } }
+            where: {
+                OR: [
+                    { nombre: { contains: "MercadoLibre", mode: 'insensitive' } },
+                    { nombre: { contains: "mercadopago (ML)", mode: 'insensitive' } }
+                ]
+            }
         });
 
         if (!pv) {
@@ -431,7 +443,10 @@ export async function registrarVentasML(ids: string[], solicitarFactura: boolean
                     puntoVentaId: pv.id,
                     eventoOffline: false,
                     solicitarFactura: solicitarFactura,
-                    tipoComprobante: tipoComprobante
+                    tipoComprobante: tipoComprobante,
+                    docTipo: docTipo,
+                    docNro: docNro,
+                    condicionIva: condicionIva
                 });
 
                 if (res.success) {

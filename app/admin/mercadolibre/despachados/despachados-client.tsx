@@ -35,6 +35,7 @@ export function DespachadosClient() {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
     const [solicitarFactura, setSolicitarFactura] = useState(true)
     const [tipoFactura, setTipoFactura] = useState(6) // Default B
+    const [cuit, setCuit] = useState("")
 
     // Referencia para capturar el diseño cuadrado
     const areaCapturaRef = useRef<HTMLDivElement>(null)
@@ -180,7 +181,28 @@ export function DespachadosClient() {
 
         try {
             const ids = Array.from(selectedRegistracionIds);
-            const res = await registrarVentasML(ids, solicitarFactura, tipoFactura);
+            
+            // Lógica de parámetros según tipo de factura
+            let docTipo = 99;
+            let docNro = "0";
+            let condicionIva = 5;
+
+            if (tipoFactura === 1) { // Factura A
+                docTipo = 80;
+                docNro = cuit.replace(/\D/g, ''); // Limpiar a solo números
+                condicionIva = 1;
+
+                if (docNro.length !== 11) {
+                    toast.error("El CUIT debe tener 11 dígitos");
+                    setIsProcessing(false);
+                    setIsConfirmModalOpen(true);
+                    return;
+                }
+            } else if (tipoFactura === 11) { // Factura C
+                condicionIva = 6;
+            }
+
+            const res = await registrarVentasML(ids, solicitarFactura, tipoFactura, docTipo, docNro, condicionIva);
 
             if (res.success) {
                 toast.success(res.message || "Ventas registradas con éxito");
@@ -552,6 +574,22 @@ export function DespachadosClient() {
                                         <SelectItem value="11" className="font-bold text-slate-600 focus:bg-blue-50 focus:text-blue-700">Factura C (Monotributo)</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                
+                                {tipoFactura === 1 && (
+                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">CUIT del Cliente</Label>
+                                        <Input
+                                            placeholder="20-XXXXXXXX-X"
+                                            value={cuit}
+                                            onChange={(e) => setCuit(e.target.value)}
+                                            className="h-12 rounded-xl border-slate-200 bg-white font-mono text-lg font-bold text-slate-700 focus:ring-blue-500"
+                                        />
+                                        <p className="text-[10px] text-slate-400 font-medium">
+                                            Ingresá los 11 dígitos del CUIT para la Factura A.
+                                        </p>
+                                    </div>
+                                )}
+
                                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-100 flex gap-3 items-start">
                                     <Clock className="h-4 w-4 text-amber-500 mt-0.5" />
                                     <p className="text-[10px] text-amber-700 font-medium leading-relaxed">

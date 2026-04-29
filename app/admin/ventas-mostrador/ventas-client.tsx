@@ -450,7 +450,7 @@ export default function VentasMostradorClient({
   });
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
-  const esMercadoLibre = (m: string) => m === "MercadoLibre";
+  const esMercadoLibre = (m: string) => m === "MercadoLibre" || m === "mercadopago (ML)";
   const esMercadoPago = (m: string) => m === "MercadoPago";
   const esTarjeta = (m: string) => m === "Tarjeta de Crédito" || m === "Tarjeta de Débito";
 
@@ -804,7 +804,7 @@ export default function VentasMostradorClient({
     setVentaOriginalParaComparar(venta);
     setEditVentaId(venta.id);
     setEditCliente(venta.cliente || "");
-    setEditMetodoPago(venta.metodo_pago === "Mixto" ? "Efectivo" : (venta.metodo_pago || "Efectivo"));
+    setEditMetodoPago(venta.metodo_pago === "Mixto" ? "Efectivo" : (venta.metodo_pago === "mercadopago (ML)" ? "MercadoLibre" : (venta.metodo_pago || "Efectivo")));
     setIsEditPagoMixto(venta.metodo_pago === "Mixto");
     setEditMontoPago1(venta.total / 2); // default
     setEditMetodoPago2("Tarjeta de Crédito"); // default
@@ -1557,7 +1557,7 @@ export default function VentasMostradorClient({
                                 </TableCell>
                                 <TableCell className="py-4">
                                   <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                                    {v.metodo_pago}
+                                    {v.metodo_pago === "mercadopago (ML)" ? "MercadoLibre" : v.metodo_pago}
                                   </span>
                                 </TableCell>
                                 <TableCell

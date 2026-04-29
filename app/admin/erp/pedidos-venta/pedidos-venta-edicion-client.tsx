@@ -85,6 +85,10 @@ type Venta = {
   estadoPedido?: string | null;
   pdfUrl?: string | null;
   numeroVenta?: number;
+  mlIdVenta?: string | null;
+  mlIdEnvio?: string | null;
+  mlMla?: string | null;
+  mlDni?: string | null;
 };
 
 export default function PedidosVentaEdicionClient() {
@@ -183,6 +187,10 @@ export default function PedidosVentaEdicionClient() {
           email: editingVenta.email,
           eventoOffline: editingVenta.eventoOffline,
           puntoVentaId: editingVenta.puntoVentaId,
+          mlIdVenta: editingVenta.mlIdVenta,
+          mlIdEnvio: editingVenta.mlIdEnvio,
+          mlMla: editingVenta.mlMla,
+          mlDni: editingVenta.mlDni,
           items: editingVenta.items.map(item => ({
             id: item.productoId,
             nombre: item.nombre,
@@ -997,12 +1005,87 @@ export default function PedidosVentaEdicionClient() {
                 
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Método de Pago</Label>
-                  <Input
+                  <select
                     value={editingVenta.metodo_pago}
                     onChange={(e) => setEditingVenta({ ...editingVenta, metodo_pago: e.target.value })}
-                    className="border-slate-300"
-                  />
+                    className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
+                  >
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                    <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                    <option value="MercadoLibre">MercadoLibre</option>
+                    <option value="MercadoPago">MercadoPago</option>
+                    <option value="Cruzada">Cruzada</option>
+                    <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                  </select>
                 </div>
+
+                {/* Campos Dinámicos según Método de Pago */}
+                {(editingVenta.metodo_pago === "Tarjeta de Crédito" || editingVenta.metodo_pago === "Tarjeta de Débito") && (
+                  <div className="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.dni || ""} onChange={(e) => setEditingVenta({ ...editingVenta, dni: e.target.value })} className="bg-white border-blue-200" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-blue-700">Teléfono <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.telefono || ""} onChange={(e) => setEditingVenta({ ...editingVenta, telefono: e.target.value })} className="bg-white border-blue-200" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-blue-700">N° Cupón <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.cupon || ""} onChange={(e) => setEditingVenta({ ...editingVenta, cupon: e.target.value })} className="bg-white border-blue-200" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-blue-700">ID Transacción <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.transaccionId || ""} onChange={(e) => setEditingVenta({ ...editingVenta, transaccionId: e.target.value })} className="bg-white border-blue-200" />
+                    </div>
+                  </div>
+                )}
+
+                {editingVenta.metodo_pago === "MercadoLibre" && (
+                  <div className="grid grid-cols-2 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-indigo-700">Id Venta <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.mlIdVenta || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlIdVenta: e.target.value })} className="bg-white border-indigo-200" placeholder="Obligatorio" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-indigo-700">Id Envío <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.mlIdEnvio || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlIdEnvio: e.target.value })} className="bg-white border-indigo-200" placeholder="Obligatorio" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-indigo-700">MLA <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.mlMla || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlMla: e.target.value })} className="bg-white border-indigo-200" placeholder="Obligatorio" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-indigo-700">Dni <span className="text-slate-400">(Opcional)</span></Label>
+                      <Input value={editingVenta.mlDni || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlDni: e.target.value })} className="bg-white border-indigo-200" placeholder="DNI del cliente" />
+                    </div>
+                  </div>
+                )}
+
+                {editingVenta.metodo_pago === "MercadoPago" && (
+                  <div className="grid grid-cols-1 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-indigo-700">Id de pago <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.mlIdVenta || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlIdVenta: e.target.value })} className="bg-white border-indigo-200" placeholder="Obligatorio" />
+                    </div>
+                  </div>
+                )}
+
+                {(editingVenta.metodo_pago === "Cruzada" || editingVenta.metodo_pago === "A Cuenta Corriente") && (
+                  <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
+                    {editingVenta.metodo_pago === "Cruzada" && (
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label>
+                        <Input value={editingVenta.de || ""} onChange={(e) => setEditingVenta({ ...editingVenta, de: e.target.value })} className="bg-white border-amber-200" placeholder="Origen" />
+                      </div>
+                    )}
+                    <div className={`space-y-2 ${editingVenta.metodo_pago !== "Cruzada" ? 'col-span-2' : ''}`}>
+                      <Label className="text-xs font-bold text-amber-700">{editingVenta.metodo_pago === "A Cuenta Corriente" ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
+                      <Input value={editingVenta.para || ""} onChange={(e) => setEditingVenta({ ...editingVenta, para: e.target.value })} className="bg-white border-amber-200" placeholder="Destino / Proveedor" />
+                    </div>
+                  </div>
+                )}
                 
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Información Adicional</Label>

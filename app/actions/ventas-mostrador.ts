@@ -1115,6 +1115,10 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
           email: data.email,
           eventoOffline: data.eventoOffline,
           puntoVentaId: data.puntoVentaId || null,
+          mlIdVenta: data.mlIdVenta,
+          mlIdEnvio: data.mlIdEnvio,
+          mlMla: data.mlMla,
+          mlDni: data.mlDni,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id,
@@ -1445,52 +1449,52 @@ export async function generarFacturaARCA(ventaId: string) {
 }
 
 export async function cancelarVenta(ventaId: string) {
-    const venta = await prisma.venta.findUnique({
-        where: { id: ventaId }
+  const venta = await prisma.venta.findUnique({
+    where: { id: ventaId }
+  });
+
+  if (!venta) throw new Error("Venta no encontrada");
+
+  if (venta.cae && !venta.info?.includes("ANULADA CON NC")) {
+    // LIMPIEZA CRÍTICA: Quitamos guiones y espacios. 
+    // Si no hay docNro, probamos con dni (que a veces tiene el CUIT).
+    const cuitLimpio = (venta.docNro || venta.dni || "0").replace(/\D/g, '');
+
+    const resNC = await generarNotaCredito({
+      total: Number(venta.totalFinal),
+      docTipo: venta.docTipo || 99,
+      docNro: cuitLimpio, // Lo pasamos como string de dígitos
+      tipoFacturaOriginal: venta.tipoComprobante || 11,
+      puntoVentaOriginal: venta.facturaPuntoVenta || 9,
+      numeroFacturaOriginal: venta.facturaNumero || 0,
+      condicionIva: venta.condicionIva || 5
     });
 
-    if (!venta) throw new Error("Venta no encontrada");
-
-    if (venta.cae && !venta.info?.includes("ANULADA CON NC")) {
-        // LIMPIEZA CRÍTICA: Quitamos guiones y espacios. 
-        // Si no hay docNro, probamos con dni (que a veces tiene el CUIT).
-        const cuitLimpio = (venta.docNro || venta.dni || "0").replace(/\D/g, '');
-        
-        const resNC = await generarNotaCredito({
-            total: Number(venta.totalFinal),
-            docTipo: venta.docTipo || 99,
-            docNro: cuitLimpio, // Lo pasamos como string de dígitos
-            tipoFacturaOriginal: venta.tipoComprobante || 11,
-            puntoVentaOriginal: venta.facturaPuntoVenta || 9,
-            numeroFacturaOriginal: venta.facturaNumero || 0,
-            condicionIva: venta.condicionIva || 5
-        });
-
-        if (resNC.success) {
-            await prisma.venta.update({
-                where: { id: ventaId },
-                data: {
-                    estadoPedido: "CANCELADO",
-                    info: `ANULADA CON NC Nro: ${resNC.numero} - CAE: ${resNC.cae}`,
-                }
-            });
-            revalidatePath("/admin/ventas-mostrador");
-            return { success: true, message: "Venta cancelada y Nota de Crédito generada." };
-        } else {
-            return { 
-                success: false, 
-                error: "Error en ARCA", 
-                details: (resNC as any).details || resNC.error 
-            };
-        }
-    }
-
-    await prisma.venta.update({
+    if (resNC.success) {
+      await prisma.venta.update({
         where: { id: ventaId },
-        data: { estadoPedido: "CANCELADO" }
-    });
-    revalidatePath("/admin/ventas-mostrador");
-    return { success: true, message: "Venta cancelada correctamente." };
+        data: {
+          estadoPedido: "CANCELADO",
+          info: `ANULADA CON NC Nro: ${resNC.numero} - CAE: ${resNC.cae}`,
+        }
+      });
+      revalidatePath("/admin/ventas-mostrador");
+      return { success: true, message: "Venta cancelada y Nota de Crédito generada." };
+    } else {
+      return {
+        success: false,
+        error: "Error en ARCA",
+        details: (resNC as any).details || resNC.error
+      };
+    }
+  }
+
+  await prisma.venta.update({
+    where: { id: ventaId },
+    data: { estadoPedido: "CANCELADO" }
+  });
+  revalidatePath("/admin/ventas-mostrador");
+  return { success: true, message: "Venta cancelada correctamente." };
 }
 
 

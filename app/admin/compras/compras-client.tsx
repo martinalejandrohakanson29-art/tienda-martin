@@ -44,6 +44,7 @@ interface ItemCompra {
   subtotal: number;
   stock: number;
   ultimaModificacion?: string | null;
+  margenGanancia?: number;
 }
 
 export default function ComprasClient({
@@ -67,6 +68,18 @@ export default function ComprasClient({
   const [searchTerm, setSearchTerm] = useState("");
 
   // --- ESTADOS PARA NUEVA COMPRA ---
+  const [isPuntoVentaOpen, setIsPuntoVentaOpen] = useState(false);
+  const [isPuntoVentaOpenGestion, setIsPuntoVentaOpenGestion] = useState(false);
+
+  // Helper para color del margen
+  const getMarginColor = (m: number) => {
+    if (m > 60) return "text-fuchsia-600 font-bold";
+    if (m > 50) return "text-orange-600 font-bold";
+    if (m >= 40) return "text-yellow-600 font-bold";
+    if (m < 40) return "text-red-600 font-bold";
+    return "text-slate-600";
+  };
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
@@ -200,7 +213,8 @@ export default function ComprasClient({
         costo_unit: Number(prod.precio),
         subtotal: Number(prod.precio),
         stock: prod.stock,
-        ultimaModificacion: prod.ultimaModificacion
+        ultimaModificacion: prod.ultimaModificacion,
+        margenGanancia: 50
       }]);
     }
     setIsModalOpen(false);
@@ -331,7 +345,8 @@ export default function ComprasClient({
       cantidad: i.cantidad,
       costo_unit: Number(i.costo_unit),
       subtotal: Number(i.subtotal),
-      stock: articulos.find(a => a.id === i.productoId)?.stock || 0
+      stock: articulos.find(a => a.id === i.productoId)?.stock || 0,
+      margenGanancia: i.margenGanancia || 50
     })));
     setIsEditMainModalOpen(true);
   };
@@ -451,19 +466,24 @@ export default function ComprasClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Artículo</TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3">Cant.</TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3">Costo Unit.</TableHead>
+                      <TableHead className="text-center text-[10px] font-bold uppercase py-3">Margen %</TableHead>
+                      <TableHead className="text-center text-[10px] font-bold uppercase py-3">Precio Público</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Subtotal</TableHead>
                       <TableHead className="w-16"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {items.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">No hay artículos cargados</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">No hay artículos cargados</TableCell></TableRow>
                     ) : (
                       items.map((item) => (
                         <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
                           <TableCell className="font-medium text-slate-700 py-3">
                             <div className="flex flex-col gap-1">
-                              <span className="text-base font-bold">{item.nombre}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-base font-bold">{item.nombre}</span>
+                                <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">STOCK: {item.stock}</span>
+                              </div>
                               <span className="text-[10px] text-slate-400 font-mono uppercase">{item.productoId}</span>
                             </div>
                           </TableCell>
@@ -473,7 +493,63 @@ export default function ComprasClient({
                           <TableCell className="text-center py-3">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-slate-400 text-xs">$</span>
-                              <Input type="number" value={item.costo_unit} onChange={(e) => setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                              <Input 
+                                type="text" 
+                                inputMode="decimal"
+                                value={item.costo_unit} 
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(',', '.');
+                                  const newCost = parseFloat(val);
+                                  if (!isNaN(newCost)) {
+                                    setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost } : i));
+                                  } else if (e.target.value === "") {
+                                    setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: 0, subtotal: 0 } : i));
+                                  }
+                                }} 
+                                className={`w-28 h-8 ${inputSinFlechas}`} 
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <Input 
+                                type="text" 
+                                inputMode="decimal"
+                                value={item.margenGanancia ?? 50} 
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(',', '.');
+                                  const newMargin = parseFloat(val);
+                                  if (!isNaN(newMargin)) {
+                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin } : i));
+                                  } else if (e.target.value === "") {
+                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: 0 } : i));
+                                  }
+                                }} 
+                                className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`} 
+                              />
+                              <span className="text-slate-400 text-xs">%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-emerald-600 text-xs">$</span>
+                              <Input 
+                                type="text" 
+                                inputMode="decimal"
+                                value={Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))} 
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, '');
+                                  const newPrice = parseInt(val);
+                                  const cost = item.costo_unit;
+                                  if (!isNaN(newPrice) && cost > 0) {
+                                    const newMargin = Math.round(((newPrice - cost) / cost) * 100 * 100) / 100;
+                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin } : i));
+                                  } else if (val === "") {
+                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: -100 } : i));
+                                  }
+                                }}
+                                className={`w-28 h-8 ${inputSinFlechas} text-emerald-600 font-bold`} 
+                              />
                             </div>
                           </TableCell>
                           <TableCell className="text-right py-3 font-bold text-slate-700">
@@ -1133,6 +1209,8 @@ export default function ComprasClient({
                       <TableHead>Artículo</TableHead>
                       <TableHead className="text-center">Cant.</TableHead>
                       <TableHead className="text-center">Costo Unit.</TableHead>
+                      <TableHead className="text-center">Margen %</TableHead>
+                      <TableHead className="text-center">Precio Público</TableHead>
                       <TableHead className="text-right">Subtotal</TableHead>
                       <TableHead className="w-16"></TableHead>
                     </TableRow>
@@ -1140,9 +1218,75 @@ export default function ComprasClient({
                   <TableBody>
                     {editItems.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell className="font-bold">{item.nombre}</TableCell>
+                        <TableCell className="font-bold">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base font-bold">{item.nombre}</span>
+                              <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">STOCK: {item.stock}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono uppercase">{item.productoId}</span>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-center"><Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.costo_unit } : i))} className="w-16 mx-auto h-8 text-center" /></TableCell>
-                        <TableCell className="text-center"><Input type="number" value={item.costo_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className="w-28 mx-auto h-8 text-center" /></TableCell>
+                        <TableCell className="text-center">
+                          <Input 
+                            type="text" 
+                            inputMode="decimal"
+                            value={item.costo_unit} 
+                            onChange={(e) => {
+                              const val = e.target.value.replace(',', '.');
+                              const newCost = parseFloat(val);
+                              if (!isNaN(newCost)) {
+                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost } : i));
+                              } else if (e.target.value === "") {
+                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: 0, subtotal: 0 } : i));
+                              }
+                            }} 
+                            className="w-28 mx-auto h-8 text-center" 
+                          />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <Input 
+                              type="text" 
+                              inputMode="decimal"
+                              value={item.margenGanancia ?? 50} 
+                              onChange={(e) => {
+                                const val = e.target.value.replace(',', '.');
+                                const newMargin = parseFloat(val);
+                                if (!isNaN(newMargin)) {
+                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin } : i));
+                                } else if (e.target.value === "") {
+                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: 0 } : i));
+                                }
+                              }} 
+                              className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`} 
+                            />
+                            <span className="text-slate-400 text-xs">%</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="text-emerald-600 text-xs">$</span>
+                            <Input 
+                              type="text" 
+                              inputMode="decimal"
+                              value={Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))} 
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '');
+                                const newPrice = parseInt(val);
+                                const cost = item.costo_unit;
+                                if (!isNaN(newPrice) && cost > 0) {
+                                  const newMargin = Math.round(((newPrice - cost) / cost) * 100 * 100) / 100;
+                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin } : i));
+                                } else if (val === "") {
+                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: -100 } : i));
+                                }
+                              }}
+                              className={`w-28 h-8 ${inputSinFlechas} text-emerald-600 font-bold`} 
+                            />
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right font-bold">$ {item.subtotal.toLocaleString('es-AR')}</TableCell>
                         <TableCell><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter(i => i.id !== item.id))} className="text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
                       </TableRow>

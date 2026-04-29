@@ -239,8 +239,11 @@ export async function guardarComoPedidoCompra(data: {
           }
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
+          const margen = item.margenGanancia ?? 50;
+          const precioPublico = Number(item.costo_unit) * (1 + margen / 100);
+
           if (data.impactarCostos) {
-            updateData.precio = item.costo_unit;
+            updateData.precio = precioPublico;
           }
  
           await tx.articuloMostrador.update({
@@ -254,7 +257,7 @@ export async function guardarComoPedidoCompra(data: {
                 articuloId: prodId,
                 usuario: data.comprador,
                 accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado por Pedido de Compra #${compra.numeroCompra}. De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(item.costo_unit).toLocaleString('es-AR')}`
+                detalle: `Actualizado por Pedido de Compra #${compra.numeroCompra} (Costo: $${Number(item.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
               }
             });
           }
@@ -524,14 +527,15 @@ export async function crearCompra(data: {
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
           items: {
-            create: data.items.map(item => ({
-              productoId: item.productoId || item.id, 
-              nombre: item.nombre,
-              cantidad: item.cantidad,
-              costo_unit: item.costo_unit,
-              subtotal: item.subtotal
-            }))
-          }
+              create: data.items.map(item => ({
+                productoId: item.productoId || item.id, 
+                nombre: item.nombre,
+                cantidad: item.cantidad,
+                costo_unit: item.costo_unit,
+                subtotal: item.subtotal,
+                margenGanancia: item.margenGanancia || 50
+              }))
+            }
         }
       });
 
@@ -554,8 +558,11 @@ export async function crearCompra(data: {
           }
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
+          const margen = item.margenGanancia ?? 50;
+          const precioPublico = Number(item.costo_unit) * (1 + margen / 100);
+
           if (data.impactarCostos) {
-            updateData.precio = item.costo_unit;
+            updateData.precio = precioPublico;
           }
  
           await tx.articuloMostrador.update({
@@ -569,7 +576,7 @@ export async function crearCompra(data: {
                 articuloId: prodId,
                 usuario: data.comprador,
                 accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado por Compra #${compra.numeroCompra}. De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(item.costo_unit).toLocaleString('es-AR')}`
+                detalle: `Actualizado por Compra #${compra.numeroCompra} (Costo: $${Number(item.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
               }
             });
           }
@@ -731,7 +738,8 @@ export async function actualizarCompra(compraId: string, data: {
               nombre: item.nombre,
               cantidad: item.cantidad,
               costo_unit: item.costo_unit,
-              subtotal: item.subtotal
+              subtotal: item.subtotal,
+              margenGanancia: item.margenGanancia || 50
             }))
           }
         }
@@ -788,8 +796,11 @@ export async function actualizarCompra(compraId: string, data: {
           }
         } else {
           const updateData: any = { stock: { increment: newItem.cantidad } };
+          const margen = newItem.margenGanancia ?? 50;
+          const precioPublico = Number(newItem.costo_unit) * (1 + margen / 100);
+
           if (data.impactarCostos) {
-            updateData.precio = newItem.costo_unit;
+            updateData.precio = precioPublico;
           }
  
           await tx.articuloMostrador.update({
@@ -803,7 +814,7 @@ export async function actualizarCompra(compraId: string, data: {
                 articuloId: prodId,
                 usuario: usuario,
                 accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado por Edición de Compra #${oldCompra?.numeroCompra}. De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(newItem.costo_unit).toLocaleString('es-AR')}`
+                detalle: `Actualizado por Edición de Compra #${oldCompra?.numeroCompra} (Costo: $${Number(newItem.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
               }
             });
           }

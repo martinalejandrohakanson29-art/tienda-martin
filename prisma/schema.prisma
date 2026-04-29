@@ -605,8 +605,9 @@ model CompraItem {
   nombre     String
   cantidad   Int     @default(1)
   costo_unit Decimal @db.Decimal(20, 2)
-  subtotal   Decimal @db.Decimal(20, 2)
-  compra     Compra  @relation(fields: [compraId], references: [id], onDelete: Cascade)
+  subtotal       Decimal  @db.Decimal(20, 2)
+  margenGanancia Decimal? @db.Decimal(10, 2)
+  compra         Compra  @relation(fields: [compraId], references: [id], onDelete: Cascade)
 
   @@map("compras_mostrador_items")
 }

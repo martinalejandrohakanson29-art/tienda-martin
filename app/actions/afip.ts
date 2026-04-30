@@ -88,10 +88,10 @@ async function obtenerTicketAcceso(servicio: string = 'wsfe') {
 
 export async function consultarPadron(documento: string | number) {
     const docStr = documento.toString().replace(/-/g, '');
-    console.log(`🔍 [AFIP] Consultando padrón A13 para: ${docStr}`);
+    console.log(`🔍 [AFIP] Consultando padrón A5 para: ${docStr}`);
 
     try {
-        const ta = await obtenerTicketAcceso('ws_sr_padron_a5');
+        const ta = await obtenerTicketAcceso('ws_sr_constancia_inscripcion');
         const token = (ta as any).token || (ta as any).credentials?.token;
         const sign = (ta as any).sign || (ta as any).credentials?.sign;
 
@@ -162,7 +162,7 @@ export async function consultarPadron(documento: string | number) {
         };
 
     } catch (error: any) {
-        console.error("❌ [AFIP] Error consultando padrón A13:", error);
+        console.error("❌ [AFIP] Error consultando padrón A5:", error);
         return { success: false, error: "Error en la consulta al Padrón ARCA" };
     }
 }

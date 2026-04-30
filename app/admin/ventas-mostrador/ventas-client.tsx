@@ -300,6 +300,7 @@ export default function VentasMostradorClient({
   const puntoVentaRef = useRef<HTMLDivElement>(null);
   const puntoVentaGestionRef = useRef<HTMLDivElement>(null);
   const [filtroIdVenta, setFiltroIdVenta] = useState("");
+  const [filtroMetodoPago, setFiltroMetodoPago] = useState("");
 
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
@@ -446,7 +447,14 @@ export default function VentasMostradorClient({
         v.dni?.toLowerCase().includes(filtroIdVenta.toLowerCase()))
       : true;
 
-    return cumpleOffline && cumplePuntoVenta && cumpleIdVenta;
+    // Filtro Metodo de Pago
+    const cumpleMetodoPago = filtroMetodoPago
+      ? (filtroMetodoPago === "MercadoLibre"
+        ? (v.metodo_pago === "MercadoLibre" || v.metodo_pago === "mercadopago (ML)")
+        : v.metodo_pago === filtroMetodoPago)
+      : true;
+
+    return cumpleOffline && cumplePuntoVenta && cumpleIdVenta && cumpleMetodoPago;
   });
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
@@ -1425,6 +1433,25 @@ export default function VentasMostradorClient({
                           className="h-10 w-48 pl-9 text-xs bg-white border-slate-200 rounded-xl"
                         />
                       </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Método de Pago</Label>
+                      <select
+                        value={filtroMetodoPago}
+                        onChange={(e) => setFiltroMetodoPago(e.target.value)}
+                        className="h-10 w-40 rounded-xl border border-slate-200 bg-white px-3 text-xs focus:outline-none hover:border-slate-300 transition-all shadow-sm"
+                      >
+                        <option value="">Todos</option>
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                        <option value="MercadoLibre">MercadoLibre</option>
+                        <option value="MercadoPago">MercadoPago</option>
+                        <option value="Cruzada">Cruzada</option>
+                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                        <option value="Mixto">Mixto</option>
+                      </select>
                     </div>
 
                     <div className="flex items-center space-x-2 bg-slate-50 px-3 h-10 rounded-xl border border-slate-100">

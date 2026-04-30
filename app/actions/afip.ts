@@ -1,6 +1,6 @@
 "use server"
 
-import { LoginTicket, Wsfev1, PersonaServiceA13 } from 'afip-apis';
+import { LoginTicket, Wsfev1, PersonaServiceA5 } from 'afip-apis';
 import path from 'path';
 import fs from 'fs';
 
@@ -91,7 +91,7 @@ export async function consultarPadron(documento: string | number) {
     console.log(`🔍 [AFIP] Consultando padrón A13 para: ${docStr}`);
 
     try {
-        const ta = await obtenerTicketAcceso('ws_sr_padron_a13');
+        const ta = await obtenerTicketAcceso('ws_sr_padron_a5');
         const token = (ta as any).token || (ta as any).credentials?.token;
         const sign = (ta as any).sign || (ta as any).credentials?.sign;
 
@@ -99,57 +99,50 @@ export async function consultarPadron(documento: string | number) {
             throw new Error("Token o Sign faltantes en el ticket de acceso");
         }
 
-        const padron = new PersonaServiceA13("https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL");
+        const padron = new PersonaServiceA5(
+            AFIP_CONFIG.urlWsaa.includes('homo')
+                ? PersonaServiceA5.testWSDL
+                : PersonaServiceA5.produccionWSDL
+        );
 
         let cuitBusqueda = docStr;
 
         // Si tiene 8 dígitos o menos, asumimos que es DNI y buscamos el CUIT/CUIL asociado
-        if (docStr.length <= 8) {
-            console.log(`📇 [AFIP] Buscando CUIT asociado al DNI: ${docStr}`);
-            const resCuit: any = await padron.getIdPersonaListByDocumento({
-                token,
-                sign,
-                cuitRepresentada: parseInt(AFIP_CONFIG.CUIT),
-                documento: docStr
-            });
-
-            const list = resCuit.idPersonaListReturn?.idPersona;
-            if (Array.isArray(list) && list.length > 0) {
-                cuitBusqueda = list[0];
-            } else if (typeof list === 'string') {
-                cuitBusqueda = list;
-            } else {
-                return { success: false, error: "No se encontró un CUIT asociado a este DNI" };
-            }
-            console.log(`✅ [AFIP] CUIT encontrado: ${cuitBusqueda}`);
-        }
+        // Nota: A5 no tiene getIdPersonaListByDocumento directamente, así que usamos A13 solo para esto si fuera necesario
+        // Pero intentaremos con el cuit directo si ya tiene 11. 
+        // Si es DNI, el padron A5 requiere el CUIT.
 
         const res: any = await padron.getPersona({
             token,
             sign,
             cuitRepresentada: parseInt(AFIP_CONFIG.CUIT),
-            idPersona: cuitBusqueda
+            idPersona: parseInt(cuitBusqueda)
         });
 
         if (!res?.personaReturn?.persona) {
             console.error("❌ [AFIP] No se encontraron datos para:", cuitBusqueda);
-            return { success: false, error: "No se encontró la persona en el padrón" };
+            console.log("DEBUG A5 FULL RESPONSE:", JSON.stringify(res, null, 2));
+            return { success: false, error: "No se encontró la persona en el padrón A5" };
         }
 
-        const datos = res.personaReturn.persona;
-        console.log("🔍 [AFIP] Datos completos del padrón para", cuitBusqueda, ":", JSON.stringify(datos, null, 2));
+        const persona = res.personaReturn.persona;
+        console.log("🔍 [AFIP] Datos completos del padrón A5 para", cuitBusqueda, ":", JSON.stringify(persona, null, 2));
 
-        // Lógica de decisión automática según condición del vendedor y comprador
-        const impuestos = Array.isArray(datos.impuesto) ? datos.impuesto : (datos.impuesto ? [datos.impuesto] : []);
-        console.log("📊 [AFIP] Impuestos detectados:", JSON.stringify(impuestos));
-        
+        // En A5 la estructura es diferente: datosGenerales y datosRegimenGeneral
+        const dg = persona.datosGenerales;
+        const drg = persona.datosRegimenGeneral;
+        const dm = persona.datosMonotributo;
+
+        const nombre = dg ? (dg.razonSocial || `${dg.apellido || ''} ${dg.nombre || ''}`.trim()) : "Sin Nombre";
+
+        // Impuestos en A5 están en datosRegimenGeneral.impuesto
+        const impuestos = drg?.impuesto ? (Array.isArray(drg.impuesto) ? drg.impuesto : [drg.impuesto]) : [];
+        console.log("📊 [AFIP] Impuestos A5 detectados:", JSON.stringify(impuestos));
+
         const tieneIVA = impuestos.some((imp: any) => Number(imp.idImpuesto) === 30 || imp.idImpuesto === "30"); // 30 = IVA
-        const esMonotributista = impuestos.some((imp: any) => Number(imp.idImpuesto) === 20 || imp.idImpuesto === "20"); // 20 = Monotributo
+        const esMonotributista = !!dm; // Si existe el objeto datosMonotributo en la respuesta
 
-        // Si el vendedor (vos) es Monotributista (11), solo emite C (11)
-        // Si el vendedor es Responsable Inscripto, emite A (1) si el cliente tiene IVA, sino B (6)
         const soyMonotributista = AFIP_CONFIG.tipoComprobante === 11;
-
         const tipoFactura = soyMonotributista ? 11 : (tieneIVA ? 1 : 6);
 
         // Condición IVA Receptor: 1=RI, 6=Monotributo, 5=Consumidor Final (RG 5616)
@@ -157,13 +150,13 @@ export async function consultarPadron(documento: string | number) {
         if (tieneIVA) condicionIva = 1;
         else if (esMonotributista) condicionIva = 6;
 
-        console.log(`✅ [AFIP] Datos obtenidos: ${datos.razonSocial || datos.apellido}, Comprador: ${tieneIVA ? 'RI' : (esMonotributista ? 'Monotributo' : 'Final')}, Sugerencia: Factura ${tipoFactura === 11 ? 'C' : (tipoFactura === 1 ? 'A' : 'B')}`);
+        console.log(`✅ [AFIP] A5 - Nombre: ${nombre}, Comprador: ${tieneIVA ? 'RI' : (esMonotributista ? 'Monotributo' : 'Final')}, Sugerencia: Factura ${tipoFactura === 11 ? 'C' : (tipoFactura === 1 ? 'A' : 'B')}`);
 
         return {
             success: true,
             cuit: cuitBusqueda,
-            nombre: datos.razonSocial || `${datos.apellido || ''} ${datos.nombre || ''}`.trim(),
-            domicilio: datos.domicilioFiscal?.direccion,
+            nombre: nombre,
+            domicilio: dg?.domicilioFiscal?.direccion,
             tipoFactura,
             condicionIva
         };

@@ -150,50 +150,60 @@ export async function consultarPadron(documento: string | number) {
             idPersona: parseInt(cuitBusqueda)
         });
 
-        if (!res?.personaReturn) {
+        if (!res?.personaReturn && !res['ns2:personaReturn']) {
             console.error("❌ [AFIP] No se encontraron datos para:", cuitBusqueda);
             console.log("DEBUG A5 FULL RESPONSE:", JSON.stringify(res, null, 2));
             return { success: false, error: "No se encontró la persona en el padrón A5" };
         }
 
-        const persona = res.personaReturn.persona || res.personaReturn;
+        // Función auxiliar para extraer propiedades ignorando prefijos (ns2:) y mayúsculas
+        const getProp = (obj: any, key: string) => {
+            if (!obj) return undefined;
+            const lowKey = key.toLowerCase();
+            if (obj[key] !== undefined) return obj[key];
+            const foundKey = Object.keys(obj).find(k => {
+                const kLow = k.toLowerCase();
+                return kLow === lowKey || kLow.endsWith(":" + lowKey);
+            });
+            return foundKey ? obj[foundKey] : undefined;
+        };
+
+        const personaReturn = res.personaReturn || res['ns2:personaReturn'];
+        const persona = getProp(personaReturn, 'persona') || personaReturn;
+        
         console.log("🔍 [AFIP] Datos encontrados en Padrón A5 para", cuitBusqueda);
 
-        // En A5 la estructura es diferente: datosGenerales y datosRegimenGeneral
-        // Soportamos tanto camelCase como PascalCase por seguridad
-        const dg = persona.datosGenerales || (persona as any).DatosGenerales;
-        const drg = persona.datosRegimenGeneral || (persona as any).DatosRegimenGeneral;
-        const dm = persona.datosMonotributo || (persona as any).DatosMonotributo;
+        const dg = getProp(persona, 'datosGenerales');
+        const drg = getProp(persona, 'datosRegimenGeneral');
+        const dm = getProp(persona, 'datosMonotributo');
 
-        const razonSocial = dg?.razonSocial || dg?.RazonSocial;
-        const apellido = dg?.apellido || dg?.Apellido;
-        const nombreReal = dg?.nombre || dg?.Nombre;
+        const razonSocial = getProp(dg, 'razonSocial');
+        const apellido = getProp(dg, 'apellido');
+        const nombreReal = getProp(dg, 'nombre');
 
-        const nombre = dg ? (razonSocial || `${apellido || ''} ${nombreReal || ''}`.trim()) : "Sin Nombre";
+        const nombre = dg ? (razonSocial || `${apellido || ''} ${nombreReal || ''}`.trim() || "Sin Nombre") : "Sin Nombre";
 
-        // Impuestos en A5 están en datosRegimenGeneral.impuesto
-        const rawImpuestos = drg?.impuesto || (drg as any)?.Impuesto;
+        // Impuestos en A5
+        const rawImpuestos = getProp(drg, 'impuesto');
         const impuestos = rawImpuestos ? (Array.isArray(rawImpuestos) ? rawImpuestos : [rawImpuestos]) : [];
-        console.log("📊 [AFIP] Impuestos A5 detectados:", JSON.stringify(impuestos));
-
+        
         const tieneIVA = impuestos.some((imp: any) => {
-            const id = imp.idImpuesto || imp.IdImpuesto;
+            const id = getProp(imp, 'idImpuesto');
             return Number(id) === 30 || id === "30";
         });
-        const esMonotributista = !!dm; // Si existe el objeto datosMonotributo en la respuesta
+        const esMonotributista = !!dm;
 
         const soyMonotributista = AFIP_CONFIG.tipoComprobante === 11;
         const tipoFactura = soyMonotributista ? 11 : (tieneIVA ? 1 : 6);
 
-        // Condición IVA Receptor: 1=RI, 6=Monotributo, 5=Consumidor Final (RG 5616)
         let condicionIva = 5;
         if (tieneIVA) condicionIva = 1;
         else if (esMonotributista) condicionIva = 6;
 
-        console.log(`✅ [AFIP] A5 - Nombre: ${nombre}, Comprador: ${tieneIVA ? 'RI' : (esMonotributista ? 'Monotributo' : 'Final')}, Sugerencia: Factura ${tipoFactura === 11 ? 'C' : (tipoFactura === 1 ? 'A' : 'B')}`);
+        console.log(`✅ [AFIP] A5 - Nombre: ${nombre}, Comprador: ${tieneIVA ? 'RI' : (esMonotributista ? 'Monotributo' : 'Final')}`);
 
-        const domicilioObj = dg?.domicilioFiscal || (dg as any)?.DomicilioFiscal;
-        const direccion = domicilioObj?.direccion || domicilioObj?.Direccion;
+        const domicilioObj = getProp(dg, 'domicilioFiscal');
+        const direccion = getProp(domicilioObj, 'direccion');
 
         return {
             success: true,

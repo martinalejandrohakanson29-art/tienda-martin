@@ -531,6 +531,45 @@ export async function guardarComoPedidoVenta(data: {
         }
       }
 
+      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" ---
+      if (data.metodo_pago === "Cruzada" && data.para) {
+        const idBuscado = data.para;
+
+        let proveedor = null;
+        if (idBuscado) {
+          proveedor = await tx.proveedor.findUnique({
+            where: { id: idBuscado }
+          }).catch(() => null);
+
+          if (!proveedor) {
+            proveedor = await tx.proveedor.findFirst({
+              where: { razonSocial: idBuscado }
+            });
+          }
+        }
+
+        if (proveedor) {
+          const montoDecimal = new Prisma.Decimal(data.totalFinal);
+          const nuevoSaldo = proveedor.total.plus(montoDecimal);
+
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
+
+          await tx.movimientoProveedor.create({
+            data: {
+              proveedorId: proveedor.id,
+              tipo: "HABER",
+              monto: montoDecimal,
+              descripcion: `Pago de venta (Pedido) #${venta.numeroVenta} (${data.cliente})`,
+              referencia: venta.id,
+              saldo: nuevoSaldo
+            }
+          });
+        }
+      }
+
       return venta;
     });
 
@@ -1068,6 +1107,43 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
         where: { ventaId }
       });
 
+      // --- NUEVO: Revertir saldo de proveedor si el pedido anterior tenía impacto (Cruzada) ---
+      const oldVenta = await tx.venta.findUnique({
+        where: { id: ventaId }
+      });
+
+      if (oldVenta && oldVenta.metodo_pago === "Cruzada") {
+        const montoRevertirVal = Number(oldVenta.totalFinal);
+
+        if (montoRevertirVal > 0) {
+          let proveedor = await tx.proveedor.findUnique({
+            where: { id: oldVenta.para || "" }
+          }).catch(() => null);
+
+          if (!proveedor) {
+            proveedor = await tx.proveedor.findFirst({
+              where: { razonSocial: oldVenta.para || "" }
+            });
+          }
+
+          if (proveedor) {
+            const montoRevertir = new Prisma.Decimal(montoRevertirVal);
+            const nuevoSaldo = proveedor.total.minus(montoRevertir);
+
+            await tx.proveedor.update({
+              where: { id: proveedor.id },
+              data: { total: nuevoSaldo }
+            });
+
+            // Marcar movimiento anterior como anulado
+            await tx.movimientoProveedor.updateMany({
+              where: { referencia: ventaId, proveedorId: proveedor.id, anulado: false },
+              data: { anulado: true }
+            });
+          }
+        }
+      }
+
       // Revertir el stock (sumar lo que se había restado originalmente)
       for (const oldItem of oldItems) {
         if (oldItem.productoId) {
@@ -1131,6 +1207,42 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
         }
       });
 
+      // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto (Cruzada) ---
+      if (data.metodo_pago === "Cruzada" && data.para) {
+        const idBuscado = data.para;
+
+        let proveedor = await tx.proveedor.findUnique({
+          where: { id: idBuscado || "" }
+        }).catch(() => null);
+
+        if (!proveedor) {
+          proveedor = await tx.proveedor.findFirst({
+            where: { razonSocial: data.para || "" }
+          });
+        }
+
+        if (proveedor) {
+          const montoDecimal = new Prisma.Decimal(data.totalFinal);
+          const nuevoSaldo = proveedor.total.plus(montoDecimal);
+
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
+
+          await tx.movimientoProveedor.create({
+            data: {
+              proveedorId: proveedor.id,
+              tipo: "HABER",
+              monto: montoDecimal,
+              descripcion: `EDICIÓN (Pedido): Pago de venta #${oldVenta?.numeroVenta} (${data.cliente})`,
+              referencia: ventaId,
+              saldo: nuevoSaldo
+            }
+          });
+        }
+      }
+
       // 4. Descontar el stock de los nuevos items
       for (const newItem of data.items) {
         const articuloBase = await tx.articuloMostrador.findUnique({
@@ -1179,7 +1291,12 @@ export async function confirmarPedidoVenta(ventaId: string) {
       });
 
       // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" o "A Cuenta Corriente" ---
-      if ((venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente") && venta.para) {
+      // Verificamos si ya existe un movimiento para no duplicar (especialmente para Cruzada que ahora se imputa al crear el pedido)
+      const movimientoExistente = await tx.movimientoProveedor.findFirst({
+        where: { referencia: ventaId, anulado: false }
+      });
+
+      if (!movimientoExistente && (venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente") && venta.para) {
         let proveedor = await tx.proveedor.findUnique({
           where: { id: venta.para }
         }).catch(() => null);

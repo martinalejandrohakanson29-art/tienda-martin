@@ -137,11 +137,14 @@ export async function consultarPadron(documento: string | number) {
         }
 
         const datos = res.personaReturn.persona;
+        console.log("🔍 [AFIP] Datos completos del padrón para", cuitBusqueda, ":", JSON.stringify(datos, null, 2));
 
         // Lógica de decisión automática según condición del vendedor y comprador
         const impuestos = Array.isArray(datos.impuesto) ? datos.impuesto : (datos.impuesto ? [datos.impuesto] : []);
-        const tieneIVA = impuestos.some((imp: any) => imp.idImpuesto === 30); // 30 = IVA
-        const esMonotributista = impuestos.some((imp: any) => imp.idImpuesto === 20); // 20 = Monotributo
+        console.log("📊 [AFIP] Impuestos detectados:", JSON.stringify(impuestos));
+        
+        const tieneIVA = impuestos.some((imp: any) => Number(imp.idImpuesto) === 30 || imp.idImpuesto === "30"); // 30 = IVA
+        const esMonotributista = impuestos.some((imp: any) => Number(imp.idImpuesto) === 20 || imp.idImpuesto === "20"); // 20 = Monotributo
 
         // Si el vendedor (vos) es Monotributista (11), solo emite C (11)
         // Si el vendedor es Responsable Inscripto, emite A (1) si el cliente tiene IVA, sino B (6)

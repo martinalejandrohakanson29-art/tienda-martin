@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { DateRangeCalendar } from "./date-range-calendar";
 import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
@@ -560,29 +561,31 @@ export default function VentasMostradorClient({
 
   // --- FUNCIONES NUEVA VENTA ---
   const handleBuscarPadron = async () => {
-    if (!cuitBusqueda) {
-      alert("Ingresa un CUIT/DNI para buscar");
+    const cleanCuit = cuitBusqueda.replace(/\D/g, '');
+    if (!cleanCuit || cleanCuit.length < 7) {
+      alert("Ingresa un CUIT (11 dígitos) o DNI (7-8 dígitos) válido");
       return;
     }
+
     setIsSearchingPadron(true);
     try {
-      const res = await consultarPadron(cuitBusqueda);
+      const res = await consultarPadron(cleanCuit);
       if (res.success) {
-        setCliente(res.nombre);
+        setCliente(res.nombre || "Sin Nombre");
         if (res.cuit) {
           setDocNro(res.cuit);
-          setDocTipo(80); // CUIT
+          setDocTipo(res.cuit.length === 11 ? 80 : 96);
         }
         if (res.condicionIva) setCondicionIva(res.condicionIva);
         if (res.tipoFactura) setTipoFacturaSugerida(res.tipoFactura);
 
         mostrarMensajeExito("Datos obtenidos del padrón");
       } else {
-        alert(res.error || "No se encontró el CUIT");
+        alert(res.error || "No se encontraron datos en el padrón");
       }
     } catch (e) {
       console.error("Error al consultar padrón:", e);
-      alert("Error al consultar padrón");
+      alert("Error al consultar el padrón AFIP");
     } finally {
       setIsSearchingPadron(false);
     }
@@ -2062,25 +2065,23 @@ export default function VentasMostradorClient({
                       <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     </div>
                     {docNro && (
-                      <div className="mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-1">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Resultado Padrón</span>
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
-                            condicionIva === 1 ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                            condicionIva === 6 ? 'bg-orange-50 text-orange-700 border-orange-200' : 
-                            'bg-slate-50 text-slate-600 border-slate-200'
-                          }`}>
-                            {condicionIva === 1 ? 'RESP. INSCRIPTO' : condicionIva === 6 ? 'MONOTRIBUTISTA' : 'CONSUMIDOR FINAL'}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
-                            <span className="text-xs font-bold text-slate-700 truncate">{cliente}</span>
+                      <div className="mt-2 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl animate-in fade-in slide-in-from-top-1">
+                        <div className="grid grid-cols-1 gap-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Razón Social Encontrada</Label>
+                              <p className="text-sm font-black text-emerald-900">{cliente}</p>
+                            </div>
+                            <Badge className={`${condicionIva === 1 ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                                condicionIva === 6 ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                                  'bg-slate-100 text-slate-600 border-slate-200'
+                              } font-black text-[9px] border shadow-none`}>
+                              {condicionIva === 1 ? 'RESP. INSCRIPTO' : condicionIva === 6 ? 'MONOTRIBUTISTA' : 'CONSUMIDOR FINAL'}
+                            </Badge>
                           </div>
-                          <div className="flex items-center gap-4 ml-3.5">
-                            <span className="text-[10px] text-slate-500 font-medium">
-                              {docTipo === 80 ? 'CUIT' : 'DNI'}: <span className="text-slate-700 font-bold">{docNro}</span>
+                          <div className="flex items-center gap-4 border-t border-emerald-100/50 pt-2">
+                            <span className="text-[10px] text-emerald-600 font-bold uppercase">
+                              {docTipo === 80 ? 'CUIT' : 'DNI'}: <span className="text-emerald-900 font-black">{docNro}</span>
                             </span>
                           </div>
                         </div>
@@ -3136,8 +3137,8 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
 
   const isNC = [3, 8, 13].includes(venta.tipoComprobante);
   const isTypeC = [11, 13].includes(venta.tipoComprobante);
-  const tipoCbte = (venta.tipoComprobante === 1 || venta.tipoComprobante === 3) ? 'A' : 
-                   (venta.tipoComprobante === 6 || venta.tipoComprobante === 8) ? 'B' : 'C';
+  const tipoCbte = (venta.tipoComprobante === 1 || venta.tipoComprobante === 3) ? 'A' :
+    (venta.tipoComprobante === 6 || venta.tipoComprobante === 8) ? 'B' : 'C';
   const codCbte = (venta.tipoComprobante || 6).toString().padStart(2, '0');
   const tituloComprobante = isNC ? "Nota de Crédito" : "Factura";
 

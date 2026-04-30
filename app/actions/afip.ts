@@ -157,8 +157,9 @@ export async function consultarPadron(documento: string | number) {
         }
 
         // Función auxiliar para extraer propiedades ignorando prefijos (ns2:) y mayúsculas
-        const getProp = (obj: any, key: string) => {
+        const getProp = (obj: any, key: string): any => {
             if (!obj) return undefined;
+            if (Array.isArray(obj)) return getProp(obj[0], key);
             const lowKey = key.toLowerCase();
             if (obj[key] !== undefined) return obj[key];
             const foundKey = Object.keys(obj).find(k => {
@@ -168,7 +169,7 @@ export async function consultarPadron(documento: string | number) {
             return foundKey ? obj[foundKey] : undefined;
         };
 
-        const personaReturn = res.personaReturn || res['ns2:personaReturn'];
+        const personaReturn = getProp(res, 'personaReturn') || res;
         const persona = getProp(personaReturn, 'persona') || personaReturn;
         
         console.log("🔍 [AFIP] Datos encontrados en Padrón A5 para", cuitBusqueda);
@@ -177,11 +178,11 @@ export async function consultarPadron(documento: string | number) {
         const drg = getProp(persona, 'datosRegimenGeneral');
         const dm = getProp(persona, 'datosMonotributo');
 
-        const razonSocial = getProp(dg, 'razonSocial');
-        const apellido = getProp(dg, 'apellido');
-        const nombreReal = getProp(dg, 'nombre');
+        const razonSocial = getProp(dg, 'razonSocial') || getProp(persona, 'razonSocial');
+        const apellido = getProp(dg, 'apellido') || getProp(persona, 'apellido');
+        const nombreReal = getProp(dg, 'nombre') || getProp(persona, 'nombre');
 
-        const nombre = dg ? (razonSocial || `${apellido || ''} ${nombreReal || ''}`.trim() || "Sin Nombre") : "Sin Nombre";
+        const nombre = (razonSocial || `${apellido || ''} ${nombreReal || ''}`.trim()) || "Sin Nombre";
 
         // Impuestos en A5
         const rawImpuestos = getProp(drg, 'impuesto');

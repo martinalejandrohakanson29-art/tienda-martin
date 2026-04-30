@@ -38,6 +38,7 @@ export function DespachadosClient() {
     const [tipoFactura, setTipoFactura] = useState(6) // Default B
     const [cuit, setCuit] = useState("")
     const [razonSocial, setRazonSocial] = useState("")
+    const [condicionIvaEncontrada, setCondicionIvaEncontrada] = useState<number | null>(null)
     const [isSearchingPadron, setIsSearchingPadron] = useState(false)
 
     // Referencia para capturar el diseño cuadrado
@@ -176,6 +177,7 @@ export function DespachadosClient() {
             return;
         }
         setRazonSocial("");
+        setCondicionIvaEncontrada(null);
         setIsConfirmModalOpen(true);
     };
 
@@ -190,12 +192,21 @@ export function DespachadosClient() {
             const res = await consultarPadron(cuit);
             if (res.success) {
                 setRazonSocial(res.nombre || "");
+                setCondicionIvaEncontrada(res.condicionIva || null);
+                
+                // Sugerencia automática de tipo de factura
+                if (res.condicionIva === 1) setTipoFactura(1); // Si es RI -> Factura A
+                else if (res.condicionIva === 6) setTipoFactura(6); // Si es Monotributo -> Factura B (el emisor suele ser RI)
+                else setTipoFactura(6); // Consumidor Final -> Factura B
+                
                 toast.success("Datos obtenidos del padrón");
             } else {
                 toast.error(res.error || "No se encontraron datos");
+                setCondicionIvaEncontrada(null);
             }
         } catch (error) {
             toast.error("Error al consultar el padrón");
+            setCondicionIvaEncontrada(null);
         } finally {
             setIsSearchingPadron(false);
         }
@@ -212,11 +223,19 @@ export function DespachadosClient() {
             // Lógica de parámetros según tipo de factura
             let docTipo = 99;
             let docNro = "0";
-            let condicionIva = 5;
+            let condicionIva = condicionIvaEncontrada || 5;
 
             if (tipoFactura === 1) { // Factura A
                 docTipo = 80;
                 docNro = cuit.replace(/\D/g, ''); // Limpiar a solo números
+                
+                // VALIDACIÓN CRÍTICA
+                if (condicionIva !== 1) {
+                    toast.error("ERROR: No se puede emitir Factura A a un cliente que no es Responsable Inscripto.");
+                    setIsProcessing(false);
+                    return;
+                }
+                
                 condicionIva = 1;
 
                 if (docNro.length !== 11) {
@@ -225,8 +244,16 @@ export function DespachadosClient() {
                     setIsConfirmModalOpen(true);
                     return;
                 }
-            } else if (tipoFactura === 11) { // Factura C
+            } else if (tipoFactura === 11) { // Factura C (Uso interno o emisor Monotributista)
                 condicionIva = 6;
+                docTipo = 80;
+                docNro = cuit.replace(/\D/g, '');
+            } else {
+                // Factura B
+                if (cuit && cuit.length >= 7) {
+                    docTipo = cuit.length === 11 ? 80 : 96; // 80=CUIT, 96=DNI
+                    docNro = cuit.replace(/\D/g, '');
+                }
             }
 
             const res = await registrarVentasML(ids, solicitarFactura, tipoFactura, docTipo, docNro, condicionIva, razonSocial);
@@ -602,15 +629,19 @@ export function DespachadosClient() {
                                         <SelectValue placeholder="Seleccionar tipo" />
                                     </SelectTrigger>
                                     <SelectContent className="rounded-xl border-slate-200 shadow-xl">
-                                        <SelectItem value="6" className="font-bold text-slate-600 focus:bg-blue-50 focus:text-blue-700">Factura B (Consumidor Final)</SelectItem>
+                                        <SelectItem value="6" className="font-bold text-slate-600 focus:bg-blue-50 focus:text-blue-700">Factura B (Cons. Final / Monotributo)</SelectItem>
                                         <SelectItem value="1" className="font-bold text-slate-600 focus:bg-blue-50 focus:text-blue-700">Factura A (Responsable Inscripto)</SelectItem>
-                                        <SelectItem value="11" className="font-bold text-slate-600 focus:bg-blue-50 focus:text-blue-700">Factura C (Monotributo)</SelectItem>
                                     </SelectContent>
                                 </Select>
-                                
-                                {tipoFactura === 1 && (
+
+                                {(tipoFactura === 1 || (solicitarFactura && tipoFactura === 6)) && (
                                     <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                        <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">CUIT del Cliente</Label>
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">CUIT / DNI del Cliente</Label>
+                                            {condicionIvaEncontrada === 1 && tipoFactura === 6 && (
+                                                <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[9px]">AVISO: Es RI</Badge>
+                                            )}
+                                        </div>
                                         <div className="flex gap-2">
                                             <Input
                                                 placeholder="20-XXXXXXXX-X"
@@ -629,12 +660,27 @@ export function DespachadosClient() {
                                         </div>
                                         {razonSocial && (
                                             <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl animate-in fade-in slide-in-from-top-1">
-                                                <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Razón Social Encontrada</Label>
-                                                <p className="text-sm font-black text-emerald-900">{razonSocial}</p>
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Razón Social Encontrada</Label>
+                                                        <p className="text-sm font-black text-emerald-900">{razonSocial}</p>
+                                                    </div>
+                                                    {condicionIvaEncontrada !== null && (
+                                                        <Badge className={`${
+                                                            condicionIvaEncontrada === 1 ? 'bg-blue-100 text-blue-700' : 
+                                                            condicionIvaEncontrada === 6 ? 'bg-amber-100 text-amber-700' : 
+                                                            'bg-slate-100 text-slate-700'
+                                                        } text-[9px] border-none font-bold`}>
+                                                            {condicionIvaEncontrada === 1 ? 'RESP. INSCRIPTO' : 
+                                                             condicionIvaEncontrada === 6 ? 'MONOTRIBUTO' : 
+                                                             'CONS. FINAL'}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                         <p className="text-[10px] text-slate-400 font-medium">
-                                            Ingresá los 11 dígitos del CUIT para la Factura A.
+                                            {tipoFactura === 1 ? "Ingresá los 11 dígitos del CUIT para la Factura A." : "Ingresá CUIT o DNI para Factura B nominada."}
                                         </p>
                                     </div>
                                 )}

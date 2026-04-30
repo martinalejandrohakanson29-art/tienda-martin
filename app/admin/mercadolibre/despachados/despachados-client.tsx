@@ -182,8 +182,9 @@ export function DespachadosClient() {
     };
 
     const handleBuscarPadron = async () => {
-        if (!cuit || cuit.replace(/\D/g, '').length < 11) {
-            toast.error("Ingresá un CUIT válido de 11 dígitos");
+        const cleanCuit = cuit.replace(/\D/g, '');
+        if (!cuit || (cleanCuit.length < 7)) {
+            toast.error("Ingresá un CUIT (11 dígitos) o DNI (7-8 dígitos) válido");
             return;
         }
 

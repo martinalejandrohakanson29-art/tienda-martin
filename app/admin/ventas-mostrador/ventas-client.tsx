@@ -1653,7 +1653,7 @@ export default function VentasMostradorClient({
                                         <button
                                           onClick={(e) => { e.stopPropagation(); handleImprimirFactura(v); }}
                                           className="p-2 rounded-xl text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-all"
-                                          title={`Imprimir Factura Legal A4 - CAE: ${v.cae}`}
+                                          title={`Imprimir ${[3, 8, 13].includes(v.tipoComprobante) ? 'Nota de Crédito' : 'Factura'} Legal A4 - CAE: ${v.cae}`}
                                         >
                                           <FileText className="h-5 w-5" />
                                         </button>
@@ -3134,17 +3134,22 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
 
   const logoUrl = transformDriveLink(config?.logoUrl) || "/logo-revolucion.png";
 
+  const isNC = [3, 8, 13].includes(venta.tipoComprobante);
+  const isTypeC = [11, 13].includes(venta.tipoComprobante);
+  const tipoCbte = (venta.tipoComprobante === 1 || venta.tipoComprobante === 3) ? 'A' : 
+                   (venta.tipoComprobante === 6 || venta.tipoComprobante === 8) ? 'B' : 'C';
+  const codCbte = (venta.tipoComprobante || 6).toString().padStart(2, '0');
+  const tituloComprobante = isNC ? "Nota de Crédito" : "Factura";
+
   const items = venta.items || [];
   const total = Number(venta.totalFinal || venta.total);
-  const neto = parseFloat((total / 1.21).toFixed(2));
-  const iva = parseFloat((total - neto).toFixed(2));
+  const neto = isTypeC ? total : parseFloat((total / 1.21).toFixed(2));
+  const iva = isTypeC ? 0 : parseFloat((total - neto).toFixed(2));
 
   const fechaFactura = new Date(venta.createdAt).toLocaleDateString('es-AR');
   const nroFactura = (venta.facturaNumero || 0).toString().padStart(8, '0');
   const ptoVenta = (venta.facturaPuntoVenta || 9).toString().padStart(4, '0');
 
-  const tipoCbte = venta.tipoComprobante === 1 ? 'A' : 'B';
-  const codCbte = venta.tipoComprobante === 1 ? '01' : '06';
 
   // Lógica de QR AFIP
   const generateQR = () => {
@@ -3218,7 +3223,7 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
         {/* LADO DERECHO: DATOS FACTURA */}
         <div className="w-1/2 p-4 pt-6">
           <div className="text-right">
-            <h2 className="text-xl font-bold mb-2">Factura</h2>
+            <h2 className="text-xl font-bold mb-2">{tituloComprobante}</h2>
             <p className="font-bold">N°: {ptoVenta}-{nroFactura}</p>
             <p className="font-bold">Fecha: {fechaFactura}</p>
           </div>
@@ -3281,14 +3286,18 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
 
         {/* TABLA DE TOTALES */}
         <div className="w-1/3 border-black p-0">
-          <div className="flex justify-between border-b border-black p-1 px-2">
-            <span className="font-bold uppercase">Neto:</span>
-            <span>$ {neto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div className="flex justify-between border-b border-black p-1 px-2">
-            <span className="font-bold uppercase">IVA 21%:</span>
-            <span>$ {iva.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
-          </div>
+          {!isTypeC && (
+            <>
+              <div className="flex justify-between border-b border-black p-1 px-2">
+                <span className="font-bold uppercase">Neto:</span>
+                <span>$ {neto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex justify-between border-b border-black p-1 px-2">
+                <span className="font-bold uppercase">IVA 21%:</span>
+                <span>$ {iva.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between bg-gray-100 p-2 px-2 text-sm">
             <span className="font-bold uppercase">Total:</span>
             <span className="font-black">$ {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>

@@ -1593,6 +1593,14 @@ export async function cancelarVenta(ventaId: string) {
         data: {
           estadoPedido: "CANCELADO",
           info: `ANULADA CON NC Nro: ${resNC.numero} - CAE: ${resNC.cae}`,
+          cae: resNC.cae,
+          facturaNumero: resNC.numero,
+          tipoComprobante: resNC.tipoComprobante,
+          vencimientoCae: resNC.vencimiento ? new Date(
+            parseInt(resNC.vencimiento.substring(0, 4)),
+            parseInt(resNC.vencimiento.substring(4, 6)) - 1,
+            parseInt(resNC.vencimiento.substring(6, 8))
+          ) : new Date(),
         }
       });
       revalidatePath("/admin/ventas-mostrador");

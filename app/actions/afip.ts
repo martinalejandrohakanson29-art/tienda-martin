@@ -156,21 +156,30 @@ export async function consultarPadron(documento: string | number) {
             return { success: false, error: "No se encontró la persona en el padrón A5" };
         }
 
-        const persona = res.personaReturn;
+        const persona = res.personaReturn.persona || res.personaReturn;
         console.log("🔍 [AFIP] Datos encontrados en Padrón A5 para", cuitBusqueda);
 
         // En A5 la estructura es diferente: datosGenerales y datosRegimenGeneral
-        const dg = persona.datosGenerales;
-        const drg = persona.datosRegimenGeneral;
-        const dm = persona.datosMonotributo;
+        // Soportamos tanto camelCase como PascalCase por seguridad
+        const dg = persona.datosGenerales || (persona as any).DatosGenerales;
+        const drg = persona.datosRegimenGeneral || (persona as any).DatosRegimenGeneral;
+        const dm = persona.datosMonotributo || (persona as any).DatosMonotributo;
 
-        const nombre = dg ? (dg.razonSocial || `${dg.apellido || ''} ${dg.nombre || ''}`.trim()) : "Sin Nombre";
+        const razonSocial = dg?.razonSocial || dg?.RazonSocial;
+        const apellido = dg?.apellido || dg?.Apellido;
+        const nombreReal = dg?.nombre || dg?.Nombre;
+
+        const nombre = dg ? (razonSocial || `${apellido || ''} ${nombreReal || ''}`.trim()) : "Sin Nombre";
 
         // Impuestos en A5 están en datosRegimenGeneral.impuesto
-        const impuestos = drg?.impuesto ? (Array.isArray(drg.impuesto) ? drg.impuesto : [drg.impuesto]) : [];
+        const rawImpuestos = drg?.impuesto || (drg as any)?.Impuesto;
+        const impuestos = rawImpuestos ? (Array.isArray(rawImpuestos) ? rawImpuestos : [rawImpuestos]) : [];
         console.log("📊 [AFIP] Impuestos A5 detectados:", JSON.stringify(impuestos));
 
-        const tieneIVA = impuestos.some((imp: any) => Number(imp.idImpuesto) === 30 || imp.idImpuesto === "30"); // 30 = IVA
+        const tieneIVA = impuestos.some((imp: any) => {
+            const id = imp.idImpuesto || imp.IdImpuesto;
+            return Number(id) === 30 || id === "30";
+        });
         const esMonotributista = !!dm; // Si existe el objeto datosMonotributo en la respuesta
 
         const soyMonotributista = AFIP_CONFIG.tipoComprobante === 11;
@@ -183,11 +192,14 @@ export async function consultarPadron(documento: string | number) {
 
         console.log(`✅ [AFIP] A5 - Nombre: ${nombre}, Comprador: ${tieneIVA ? 'RI' : (esMonotributista ? 'Monotributo' : 'Final')}, Sugerencia: Factura ${tipoFactura === 11 ? 'C' : (tipoFactura === 1 ? 'A' : 'B')}`);
 
+        const domicilioObj = dg?.domicilioFiscal || (dg as any)?.DomicilioFiscal;
+        const direccion = domicilioObj?.direccion || domicilioObj?.Direccion;
+
         return {
             success: true,
             cuit: cuitBusqueda,
             nombre: nombre,
-            domicilio: dg?.domicilioFiscal?.direccion,
+            domicilio: direccion,
             tipoFactura,
             condicionIva
         };

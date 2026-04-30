@@ -36,10 +36,13 @@ export async function POST(req: Request) {
 
             console.log(`[Webhook Registracion] Procesando envío ${shippingId}. Fecha original: ${venta.fecha || 'N/A'}. Global: ${globalFecha || 'N/A'}. Usando createdAt: ${createdAt.toISOString()}`);
 
+            const packId = venta.packId || venta.pack_id ? String(venta.packId || venta.pack_id) : null;
+
             return prisma.ventaMLRegistracion.upsert({
                 where: { shippingId },
                 update: {
                     orderId: String(venta.orderId || venta.ventaId),
+                    packId: packId,
                     mla: String(venta.mla),
                     categoria: venta.categoria || "Desconocido",
                     nombre: venta.nombre || null,
@@ -51,6 +54,7 @@ export async function POST(req: Request) {
                 create: {
                     shippingId,
                     orderId: String(venta.orderId || venta.ventaId),
+                    packId: packId,
                     mla: String(venta.mla),
                     categoria: venta.categoria || "Desconocido",
                     nombre: venta.nombre || null,

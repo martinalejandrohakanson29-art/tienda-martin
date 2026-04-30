@@ -15,7 +15,7 @@ export async function POST(req: Request) {
         for (const data of enviosInput) {
             // 1. Identificamos el envío. Si no hay shipping_id, usamos el order_id como respaldo.
             const shippingId = String(data.shipping_id || data.id || data.order_id);
-            
+
             if (!shippingId || shippingId === 'undefined') {
                 console.error("Webhook: Se recibió un envío sin ID válido", data);
                 continue;
@@ -24,15 +24,15 @@ export async function POST(req: Request) {
             // 2. Procesamos fechas y estados
             const rawPayBefore = data.pay_before || data.shipping_option?.estimated_delivery_time?.pay_before;
             const payBefore = rawPayBefore ? new Date(rawPayBefore) : null;
-            
+
             // Dato clave: Fecha de impresión de ML
             const mlFirstPrinted = data.date_first_printed ? new Date(data.date_first_printed) : null;
-            
+
             // El pedido se considera "preparado" si ya tiene fecha de impresión 
             // o si el estado es 'ready_to_ship' (que es lo que manda tu n8n)
-            const esPreparado = 
-                mlFirstPrinted !== null || 
-                data.status === 'ready_to_ship' || 
+            const esPreparado =
+                mlFirstPrinted !== null ||
+                data.status === 'ready_to_ship' ||
                 ['ready_for_pickup', 'printed'].includes(data.substatus);
 
             let itemsDetalle = data.datos_json || [];
@@ -54,35 +54,39 @@ export async function POST(req: Request) {
                 // LÓGICA DE PROTECCIÓN DE ESTADO:
                 // Si el pedido ya fue AUDITADO manualmente por vos, mantenemos ese estado.
                 // Caso contrario, usamos el estado que viene de n8n/Mercado Libre.
-                const nuevoEstado = registroExistente?.status === "AUDITADO" 
-                    ? "AUDITADO" 
+                const nuevoEstado = registroExistente?.status === "AUDITADO"
+                    ? "AUDITADO"
                     : (data.status || "PENDIENTE");
 
                 // LÓGICA DE FECHA (FECHA PREPARADO):
                 let nuevaFechaPreparado = registroExistente?.fechaPreparado || null;
-                
+
                 if (mlFirstPrinted) {
                     nuevaFechaPreparado = mlFirstPrinted;
-                } 
+                }
                 else if (!nuevaFechaPreparado && esPreparado) {
                     nuevaFechaPreparado = new Date();
                 }
+
+                const packId = data.pack_id || data.packId ? String(data.pack_id || data.packId) : null;
 
                 // Guardamos/Actualizamos la etiqueta
                 await tx.etiquetaML.upsert({
                     where: { id: shippingId },
                     update: {
                         orderId: String(data.order_id),
+                        packId: packId,
                         status: nuevoEstado, // Usamos la variable protegida
                         substatus: data.substatus || null,
                         resumen: data.resumen,
                         logisticType: data.logistic_type,
                         payBefore: payBefore,
-                        fechaPreparado: nuevaFechaPreparado 
+                        fechaPreparado: nuevaFechaPreparado
                     },
                     create: {
                         id: shippingId,
                         orderId: String(data.order_id),
+                        packId: packId,
                         status: nuevoEstado,
                         substatus: data.substatus || null,
                         resumen: data.resumen,

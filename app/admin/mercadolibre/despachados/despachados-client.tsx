@@ -358,6 +358,7 @@ export function DespachadosClient() {
                                             <TableCell className="py-4 align-top">
                                                 <div onClick={() => handleCopyText(envio.id)} className="font-mono text-[11px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{envio.id}</div>
                                                 {envio.orderId && <div onClick={() => handleCopyText(envio.orderId)} className="font-mono text-[10px] text-slate-400 cursor-pointer hover:text-blue-600 mt-1">{envio.orderId}</div>}
+                                                {envio.packId && <div onClick={() => handleCopyText(envio.packId)} className="font-mono text-[10px] text-amber-600 font-bold cursor-pointer hover:text-blue-600 mt-1">Pack: {envio.packId}</div>}
                                             </TableCell>
                                             <TableCell className="align-top">
                                                 <div className="flex flex-col gap-2">
@@ -462,8 +463,7 @@ export function DespachadosClient() {
                                             className="rounded border-slate-300"
                                         />
                                     </TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">ID Venta</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">ID Envío</TableHead>
+                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">Venta / ID</TableHead>
                                     <TableHead className="font-bold text-[13px] uppercase text-slate-500">MLA</TableHead>
                                     <TableHead className="font-bold text-[13px] uppercase text-slate-500">Variable</TableHead>
                                     <TableHead className="font-bold text-[13px] uppercase text-slate-500">Id agregados</TableHead>
@@ -478,9 +478,9 @@ export function DespachadosClient() {
                             </TableHeader>
                             <TableBody>
                                 {loadingRegistracion ? (
-                                    <TableRow><TableCell colSpan={13} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={12} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
                                 ) : getFilteredRegistracion().length === 0 ? (
-                                    <TableRow><TableCell colSpan={13} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={12} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
                                 ) : (
                                     getFilteredRegistracion().map((venta) => (
                                         <TableRow key={venta.shippingId} className={`hover:bg-slate-50/30 ${selectedRegistracionIds.has(venta.shippingId) ? 'bg-blue-50/40' : ''} ${venta.registrada ? 'opacity-80 bg-slate-50/50' : ''}`}>
@@ -493,8 +493,11 @@ export function DespachadosClient() {
                                                     className="rounded border-slate-300 disabled:opacity-30"
                                                 />
                                             </TableCell>
-                                            <TableCell><div onClick={() => handleCopyText(venta.orderId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.orderId}</div></TableCell>
-                                            <TableCell><div onClick={() => handleCopyText(venta.shippingId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.shippingId}</div></TableCell>
+                                            <TableCell className="py-4 align-top">
+                                                <div onClick={() => handleCopyText(venta.orderId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.orderId}</div>
+                                                <div onClick={() => handleCopyText(venta.shippingId)} className="font-mono text-[11px] text-slate-400 cursor-pointer hover:text-blue-600 mt-1">{venta.shippingId}</div>
+                                                {venta.packId && <div onClick={() => handleCopyText(venta.packId)} className="font-mono text-[10px] text-amber-600 font-bold cursor-pointer hover:text-blue-600 mt-1">Pack: {venta.packId}</div>}
+                                            </TableCell>
                                             <TableCell><div onClick={() => handleCopyText(venta.mla)} className="font-mono text-[13px] text-slate-500 cursor-pointer hover:text-blue-600">{venta.mla}</div></TableCell>
                                             <TableCell><div className="font-mono text-[12px] text-slate-400">{venta.variation || '-'}</div></TableCell>
                                             <TableCell>

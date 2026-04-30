@@ -307,6 +307,7 @@ model InstagramSaleItem {
 model EtiquetaML {
   id             String           @id
   orderId        String?
+  packId         String?
   logisticType   String?
   status         String           @default("PENDIENTE")
   substatus      String?
@@ -817,6 +818,7 @@ model GastoNegocio {
 model VentaMLRegistracion {
   shippingId String   @id
   orderId    String
+  packId     String?
   mla        String
   categoria  String
   nombre     String?

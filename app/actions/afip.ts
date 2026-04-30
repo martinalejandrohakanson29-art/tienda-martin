@@ -182,10 +182,11 @@ export async function consultarPadron(documento: string | number) {
         const dg = getProp(persona, 'datosGenerales');
         const drg = getProp(persona, 'datosRegimenGeneral');
         const dm = getProp(persona, 'datosMonotributo');
+        const ec = getProp(persona, 'errorConstancia'); // Caso detectado en logs
 
-        const razonSocial = getProp(dg, 'razonSocial') || getProp(persona, 'razonSocial');
-        const apellido = getProp(dg, 'apellido') || getProp(persona, 'apellido');
-        const nombreReal = getProp(dg, 'nombre') || getProp(persona, 'nombre');
+        const razonSocial = getProp(dg, 'razonSocial') || getProp(persona, 'razonSocial') || getProp(ec, 'razonSocial');
+        const apellido = getProp(dg, 'apellido') || getProp(persona, 'apellido') || getProp(ec, 'apellido');
+        const nombreReal = getProp(dg, 'nombre') || getProp(persona, 'nombre') || getProp(ec, 'nombre');
 
         const nombre = (razonSocial || `${apellido || ''} ${nombreReal || ''}`.trim()) || "Sin Nombre";
 

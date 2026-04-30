@@ -562,6 +562,8 @@ export default function VentasMostradorClient({
   // --- FUNCIONES NUEVA VENTA ---
   const handleBuscarPadron = async () => {
     const cleanCuit = cuitBusqueda.replace(/\D/g, '');
+    console.log("🔍 [Padron] Iniciando búsqueda para:", cleanCuit);
+
     if (!cleanCuit || cleanCuit.length < 7) {
       alert("Ingresa un CUIT (11 dígitos) o DNI (7-8 dígitos) válido");
       return;
@@ -570,6 +572,8 @@ export default function VentasMostradorClient({
     setIsSearchingPadron(true);
     try {
       const res = await consultarPadron(cleanCuit);
+      console.log("📥 [Padron] Respuesta recibida:", res);
+
       if (res.success) {
         setCliente(res.nombre || "Sin Nombre");
         if (res.cuit) {
@@ -581,10 +585,11 @@ export default function VentasMostradorClient({
 
         mostrarMensajeExito("Datos obtenidos del padrón");
       } else {
+        console.warn("⚠️ [Padron] No se obtuvieron resultados:", res.error);
         alert(res.error || "No se encontraron datos en el padrón");
       }
     } catch (e) {
-      console.error("Error al consultar padrón:", e);
+      console.error("❌ [Padron] Error fatal:", e);
       alert("Error al consultar el padrón AFIP");
     } finally {
       setIsSearchingPadron(false);

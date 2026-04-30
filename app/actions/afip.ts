@@ -128,21 +128,25 @@ export async function consultarPadron(documento: string | number) {
                     documento: docStr
                 });
 
+                console.log("DEBUG A13 RAW RESPONSE:", JSON.stringify(resCuit, null, 2));
+
                 const list = resCuit.idPersonaListReturn?.idPersona;
                 if (Array.isArray(list) && list.length > 0) {
                     cuitBusqueda = list[0].toString();
                 } else if (list) {
                     cuitBusqueda = list.toString();
                 } else {
+                    console.warn("⚠️ [AFIP] A13 no devolvió CUIT para el documento:", docStr);
                     return { success: false, error: "No se encontró un CUIT asociado a este DNI" };
                 }
-                console.log(`✅ [AFIP] CUIT encontrado: ${cuitBusqueda}`);
+                console.log(`✅ [AFIP] CUIT encontrado por DNI: ${cuitBusqueda}`);
             } catch (err13) {
                 console.error("❌ [AFIP] Error buscando CUIT por DNI:", err13);
                 return { success: false, error: "Error al buscar CUIT asociado al DNI" };
             }
         }
 
+        console.log(`🚀 [AFIP] Consultando Padrón A5 para ID: ${cuitBusqueda}`);
         const res: any = await padron.getPersona({
             token,
             sign,
@@ -150,9 +154,10 @@ export async function consultarPadron(documento: string | number) {
             idPersona: parseInt(cuitBusqueda)
         });
 
+        console.log("DEBUG A5 RAW RESPONSE:", JSON.stringify(res, null, 2));
+
         if (!res?.personaReturn && !res['ns2:personaReturn']) {
-            console.error("❌ [AFIP] No se encontraron datos para:", cuitBusqueda);
-            console.log("DEBUG A5 FULL RESPONSE:", JSON.stringify(res, null, 2));
+            console.error("❌ [AFIP] No se encontraron datos (personaReturn vacío) para:", cuitBusqueda);
             return { success: false, error: "No se encontró la persona en el padrón A5" };
         }
 
@@ -172,7 +177,7 @@ export async function consultarPadron(documento: string | number) {
         const personaReturn = getProp(res, 'personaReturn') || res;
         const persona = getProp(personaReturn, 'persona') || personaReturn;
         
-        console.log("🔍 [AFIP] Datos encontrados en Padrón A5 para", cuitBusqueda);
+        console.log("🔍 [AFIP] Extrayendo datos del objeto persona...");
 
         const dg = getProp(persona, 'datosGenerales');
         const drg = getProp(persona, 'datosRegimenGeneral');
@@ -201,7 +206,7 @@ export async function consultarPadron(documento: string | number) {
         if (tieneIVA) condicionIva = 1;
         else if (esMonotributista) condicionIva = 6;
 
-        console.log(`✅ [AFIP] A5 - Nombre: ${nombre}, Comprador: ${tieneIVA ? 'RI' : (esMonotributista ? 'Monotributo' : 'Final')}`);
+        console.log(`✨ [AFIP] Resultado final -> Nombre: ${nombre}, Cnd. IVA: ${condicionIva}`);
 
         const domicilioObj = getProp(dg, 'domicilioFiscal');
         const direccion = getProp(domicilioObj, 'direccion');

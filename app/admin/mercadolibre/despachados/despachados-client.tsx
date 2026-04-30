@@ -646,7 +646,14 @@ export function DespachadosClient() {
                                             <Input
                                                 placeholder="20-XXXXXXXX-X"
                                                 value={cuit}
-                                                onChange={(e) => setCuit(e.target.value)}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setCuit(val);
+                                                    if (!val) {
+                                                        setRazonSocial("");
+                                                        setCondicionIvaEncontrada(null);
+                                                    }
+                                                }}
                                                 className="h-12 rounded-xl border-slate-200 bg-white font-mono text-lg font-bold text-slate-700 focus:ring-blue-500 flex-1"
                                             />
                                             <Button 
@@ -659,23 +666,27 @@ export function DespachadosClient() {
                                             </Button>
                                         </div>
                                         {razonSocial && (
-                                            <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl animate-in fade-in slide-in-from-top-1">
-                                                <div className="flex justify-between items-start">
+                                            <div className="space-y-3 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl animate-in fade-in slide-in-from-top-1">
+                                                <div className="grid grid-cols-1 gap-3">
                                                     <div>
-                                                        <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Razón Social Encontrada</Label>
+                                                        <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Razón Social</Label>
                                                         <p className="text-sm font-black text-emerald-900">{razonSocial}</p>
                                                     </div>
-                                                    {condicionIvaEncontrada !== null && (
-                                                        <Badge className={`${
-                                                            condicionIvaEncontrada === 1 ? 'bg-blue-100 text-blue-700' : 
-                                                            condicionIvaEncontrada === 6 ? 'bg-amber-100 text-amber-700' : 
-                                                            'bg-slate-100 text-slate-700'
-                                                        } text-[9px] border-none font-bold`}>
-                                                            {condicionIvaEncontrada === 1 ? 'RESP. INSCRIPTO' : 
-                                                             condicionIvaEncontrada === 6 ? 'MONOTRIBUTO' : 
-                                                             'CONS. FINAL'}
-                                                        </Badge>
-                                                    )}
+                                                    <div>
+                                                        <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Condición IVA</Label>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <div className={`h-2 w-2 rounded-full ${
+                                                                condicionIvaEncontrada === 1 ? 'bg-blue-500' : 
+                                                                condicionIvaEncontrada === 6 ? 'bg-amber-500' : 
+                                                                'bg-slate-400'
+                                                            }`} />
+                                                            <p className="text-xs font-bold text-emerald-800 uppercase">
+                                                                {condicionIvaEncontrada === 1 ? 'Responsable Inscripto' : 
+                                                                 condicionIvaEncontrada === 6 ? 'Monotributista' : 
+                                                                 'Consumidor Final'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}

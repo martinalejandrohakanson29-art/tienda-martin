@@ -119,14 +119,14 @@ export async function consultarPadron(documento: string | number) {
             idPersona: parseInt(cuitBusqueda)
         });
 
-        if (!res?.personaReturn?.persona) {
+        if (!res?.personaReturn) {
             console.error("❌ [AFIP] No se encontraron datos para:", cuitBusqueda);
             console.log("DEBUG A5 FULL RESPONSE:", JSON.stringify(res, null, 2));
             return { success: false, error: "No se encontró la persona en el padrón A5" };
         }
 
-        const persona = res.personaReturn.persona;
-        console.log("🔍 [AFIP] Datos completos del padrón A5 para", cuitBusqueda, ":", JSON.stringify(persona, null, 2));
+        const persona = res.personaReturn;
+        console.log("🔍 [AFIP] Datos encontrados en Padrón A5 para", cuitBusqueda);
 
         // En A5 la estructura es diferente: datosGenerales y datosRegimenGeneral
         const dg = persona.datosGenerales;

@@ -139,6 +139,7 @@ export function DespachadosClient() {
             const pedidosPreparados = filtered.map(envio => ({
                 shippingId: envio.id,
                 orderId: envio.orderId,
+                pack: envio.packId,
                 mla: envio.items?.[0]?.mla,
                 variation: envio.items?.[0]?.variation
             }));

@@ -421,7 +421,7 @@ export async function crearVentaMostrador(data: {
   }
 }
 
-// --- Función para guardar como pedido de venta ---
+// --- Función para guardar como pedido de venta (Triggering new deploy) ---
 export async function guardarComoPedidoVenta(data: {
   cliente: string,
   vendedor: string,

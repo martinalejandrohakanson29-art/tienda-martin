@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 // LOGICA ACTUAL: Usamos Preparadas, no Despachadas
 import { getEtiquetasPreparadas, getVentasRegistracion, limpiarVentasRegistracion, registrarVentasML } from "@/app/actions/envios"
+import { consultarPadron } from "@/app/actions/afip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -36,6 +37,8 @@ export function DespachadosClient() {
     const [solicitarFactura, setSolicitarFactura] = useState(true)
     const [tipoFactura, setTipoFactura] = useState(6) // Default B
     const [cuit, setCuit] = useState("")
+    const [razonSocial, setRazonSocial] = useState("")
+    const [isSearchingPadron, setIsSearchingPadron] = useState(false)
 
     // Referencia para capturar el diseño cuadrado
     const areaCapturaRef = useRef<HTMLDivElement>(null)
@@ -171,7 +174,30 @@ export function DespachadosClient() {
             toast.warning("No hay ventas seleccionadas");
             return;
         }
+        setRazonSocial("");
         setIsConfirmModalOpen(true);
+    };
+
+    const handleBuscarPadron = async () => {
+        if (!cuit || cuit.replace(/\D/g, '').length < 11) {
+            toast.error("Ingresá un CUIT válido de 11 dígitos");
+            return;
+        }
+
+        setIsSearchingPadron(true);
+        try {
+            const res = await consultarPadron(cuit);
+            if (res.success) {
+                setRazonSocial(res.nombre || "");
+                toast.success("Datos obtenidos del padrón");
+            } else {
+                toast.error(res.error || "No se encontraron datos");
+            }
+        } catch (error) {
+            toast.error("Error al consultar el padrón");
+        } finally {
+            setIsSearchingPadron(false);
+        }
     };
 
     const confirmarProcesar = async () => {
@@ -202,7 +228,7 @@ export function DespachadosClient() {
                 condicionIva = 6;
             }
 
-            const res = await registrarVentasML(ids, solicitarFactura, tipoFactura, docTipo, docNro, condicionIva);
+            const res = await registrarVentasML(ids, solicitarFactura, tipoFactura, docTipo, docNro, condicionIva, razonSocial);
 
             if (res.success) {
                 toast.success(res.message || "Ventas registradas con éxito");
@@ -563,7 +589,10 @@ export function DespachadosClient() {
                                 <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">Tipo de Comprobante</Label>
                                 <Select
                                     value={tipoFactura.toString()}
-                                    onValueChange={(val) => setTipoFactura(parseInt(val))}
+                                    onValueChange={(val) => {
+                                        setTipoFactura(parseInt(val));
+                                        setRazonSocial("");
+                                    }}
                                 >
                                     <SelectTrigger className="w-full h-12 rounded-xl border-slate-200 bg-white font-bold text-slate-700 focus:ring-blue-500">
                                         <SelectValue placeholder="Seleccionar tipo" />
@@ -578,12 +607,28 @@ export function DespachadosClient() {
                                 {tipoFactura === 1 && (
                                     <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                                         <Label className="text-xs font-bold uppercase text-slate-500 tracking-wider">CUIT del Cliente</Label>
-                                        <Input
-                                            placeholder="20-XXXXXXXX-X"
-                                            value={cuit}
-                                            onChange={(e) => setCuit(e.target.value)}
-                                            className="h-12 rounded-xl border-slate-200 bg-white font-mono text-lg font-bold text-slate-700 focus:ring-blue-500"
-                                        />
+                                        <div className="flex gap-2">
+                                            <Input
+                                                placeholder="20-XXXXXXXX-X"
+                                                value={cuit}
+                                                onChange={(e) => setCuit(e.target.value)}
+                                                className="h-12 rounded-xl border-slate-200 bg-white font-mono text-lg font-bold text-slate-700 focus:ring-blue-500 flex-1"
+                                            />
+                                            <Button 
+                                                type="button"
+                                                onClick={handleBuscarPadron}
+                                                disabled={isSearchingPadron}
+                                                className="h-12 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4"
+                                            >
+                                                {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                                            </Button>
+                                        </div>
+                                        {razonSocial && (
+                                            <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl animate-in fade-in slide-in-from-top-1">
+                                                <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Razón Social Encontrada</Label>
+                                                <p className="text-sm font-black text-emerald-900">{razonSocial}</p>
+                                            </div>
+                                        )}
                                         <p className="text-[10px] text-slate-400 font-medium">
                                             Ingresá los 11 dígitos del CUIT para la Factura A.
                                         </p>

@@ -333,7 +333,8 @@ export async function registrarVentasML(
     tipoComprobante: number = 6,
     docTipo: number = 99,
     docNro: string = "0",
-    condicionIva: number = 5
+    condicionIva: number = 5,
+    razonSocial?: string
 ) {
     try {
         if (!ids || ids.length === 0) return { success: false, error: "No hay IDs seleccionados" };
@@ -425,7 +426,7 @@ export async function registrarVentasML(
                 }
 
                 const res = await crearVentaMostrador({
-                    cliente: v.nombre || "Cliente MercadoLibre",
+                    cliente: razonSocial || v.nombre || "Cliente MercadoLibre",
                     vendedor: "Sistema MercadoLibre",
                     total: netoTotal,
                     interes: interes,

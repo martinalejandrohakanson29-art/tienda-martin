@@ -3183,7 +3183,7 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
       {/* DATOS DEL CLIENTE */}
       <div className="border-black border-t-0 p-3 grid grid-cols-2 gap-y-1">
         <p><span className="font-bold">Razón Social:</span> {venta.cliente || "Consumidor Final"}</p>
-        <p><span className="font-bold">I.V.A.:</span> {venta.condicionIva === 1 ? 'Responsable Inscripto' : 'Consumidor Final'}</p>
+        <p><span className="font-bold">I.V.A.:</span> {venta.condicionIva === 1 ? 'Responsable Inscripto' : venta.condicionIva === 6 ? 'Monotributo' : 'Consumidor Final'}</p>
         <p><span className="font-bold">Domicilio:</span> {venta.domicilio || '-'}</p>
         <p><span className="font-bold">CUIT/DNI:</span> {venta.docNro || '-'}</p>
         <p><span className="font-bold">Localidad:</span> {venta.localidad || 'Córdoba - CORDOBA CAPITAL'}</p>

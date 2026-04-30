@@ -87,7 +87,7 @@ async function obtenerTicketAcceso(servicio: string = 'wsfe') {
 }
 
 export async function consultarPadron(documento: string | number) {
-    const docStr = documento.toString().replace(/-/g, '');
+    const docStr = documento.toString().replace(/\D/g, '');
     console.log(`🔍 [AFIP] Consultando padrón A5 para: ${docStr}`);
 
     try {

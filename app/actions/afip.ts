@@ -1,6 +1,6 @@
 "use server"
 
-import { LoginTicket, Wsfev1, PersonaServiceA5 } from 'afip-apis';
+import { LoginTicket, Wsfev1, PersonaServiceA5, PersonaServiceA13 } from 'afip-apis';
 import path from 'path';
 import fs from 'fs';
 
@@ -108,9 +108,40 @@ export async function consultarPadron(documento: string | number) {
         let cuitBusqueda = docStr;
 
         // Si tiene 8 dígitos o menos, asumimos que es DNI y buscamos el CUIT/CUIL asociado
-        // Nota: A5 no tiene getIdPersonaListByDocumento directamente, así que usamos A13 solo para esto si fuera necesario
-        // Pero intentaremos con el cuit directo si ya tiene 11. 
-        // Si es DNI, el padron A5 requiere el CUIT.
+        if (docStr.length <= 8) {
+            console.log(`📇 [AFIP] Buscando CUIT asociado al DNI: ${docStr}`);
+            try {
+                const ta13 = await obtenerTicketAcceso('ws_sr_padron_a13');
+                const token13 = (ta13 as any).token || (ta13 as any).credentials?.token;
+                const sign13 = (ta13 as any).sign || (ta13 as any).credentials?.sign;
+
+                const padron13 = new PersonaServiceA13(
+                    AFIP_CONFIG.urlWsaa.includes('homo')
+                        ? "https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL"
+                        : "https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA13?WSDL"
+                );
+
+                const resCuit: any = await padron13.getIdPersonaListByDocumento({
+                    token: token13,
+                    sign: sign13,
+                    cuitRepresentada: parseInt(AFIP_CONFIG.CUIT),
+                    documento: docStr
+                });
+
+                const list = resCuit.idPersonaListReturn?.idPersona;
+                if (Array.isArray(list) && list.length > 0) {
+                    cuitBusqueda = list[0].toString();
+                } else if (list) {
+                    cuitBusqueda = list.toString();
+                } else {
+                    return { success: false, error: "No se encontró un CUIT asociado a este DNI" };
+                }
+                console.log(`✅ [AFIP] CUIT encontrado: ${cuitBusqueda}`);
+            } catch (err13) {
+                console.error("❌ [AFIP] Error buscando CUIT por DNI:", err13);
+                return { success: false, error: "Error al buscar CUIT asociado al DNI" };
+            }
+        }
 
         const res: any = await padron.getPersona({
             token,

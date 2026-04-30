@@ -1998,8 +1998,16 @@ export default function VentasMostradorClient({
                         <Input
                           value={cuitBusqueda}
                           onChange={(e) => {
-                            setCuitBusqueda(e.target.value);
-                            handleSearchSujetos(e.target.value);
+                            const val = e.target.value;
+                            setCuitBusqueda(val);
+                            handleSearchSujetos(val);
+                            if (!val.trim()) {
+                              setCliente("Consumidor Final");
+                              setDocNro("");
+                              setCondicionIva(5);
+                              setTipoFacturaSugerida(6);
+                              setSujetoId(null);
+                            }
                           }}
                           onFocus={() => {
                             if (cuitBusqueda.trim() && sujetosEncontrados.length > 0) {
@@ -2054,13 +2062,28 @@ export default function VentasMostradorClient({
                       <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                     </div>
                     {docNro && (
-                      <div className="flex gap-2 mt-1">
-                        <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-bold">
-                          {docTipo === 80 ? 'CUIT' : 'DNI'}: {docNro}
-                        </span>
-                        <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
-                          {condicionIva === 1 ? 'Resp. Inscripto' : condicionIva === 6 ? 'Monotributo' : 'Consumidor Final'}
-                        </span>
+                      <div className="mt-2 p-2 bg-white border border-slate-200 rounded-xl shadow-sm animate-in fade-in slide-in-from-top-1">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Resultado Padrón</span>
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
+                            condicionIva === 1 ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                            condicionIva === 6 ? 'bg-orange-50 text-orange-700 border-orange-200' : 
+                            'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
+                            {condicionIva === 1 ? 'RESP. INSCRIPTO' : condicionIva === 6 ? 'MONOTRIBUTISTA' : 'CONSUMIDOR FINAL'}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-1.5 rounded-full bg-blue-500"></div>
+                            <span className="text-xs font-bold text-slate-700 truncate">{cliente}</span>
+                          </div>
+                          <div className="flex items-center gap-4 ml-3.5">
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {docTipo === 80 ? 'CUIT' : 'DNI'}: <span className="text-slate-700 font-bold">{docNro}</span>
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

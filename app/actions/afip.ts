@@ -278,7 +278,7 @@ export async function facturarVenta(data: {
         console.log(`🔢 [AFIP] Último comprobante para PtoVta ${AFIP_CONFIG.puntoDeVenta} Tipo ${cbteTipo}: ${lastCbte}`);
 
         const nextNumber = lastCbte + 1;
-        const fecha = new Date().toLocaleDateString('sv-SE').replace(/-/g, '');
+        const fecha = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(/-/g, '');
 
         const total = parseFloat(monto.toFixed(2));
         const esResponsableInscripto = [1, 6].includes(cbteTipo);
@@ -435,7 +435,7 @@ export async function generarNotaCredito(ventaOriginal: {
         });
 
         const nextNumber = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro) + 1;
-        const fecha = new Date().toLocaleDateString('sv-SE').replace(/-/g, '');
+        const fecha = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(/-/g, '');
 
         const total = parseFloat(ventaOriginal.total.toFixed(2));
         let neto = total;

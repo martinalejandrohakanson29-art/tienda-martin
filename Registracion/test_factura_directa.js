@@ -51,7 +51,7 @@ async function testFactura() {
         console.log(`   Último comprobante: ${lastNumber}`);
         
         const nextNumber = lastNumber + 1;
-        const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        const fecha = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(/-/g, '');
         const monto = 1.50; // Monto de prueba pequeño
 
         console.log(`3. Solicitando factura Nro ${nextNumber} por $${monto}...`);

@@ -60,7 +60,7 @@ app.post('/facturar', async (req, res) => {
         });
 
         const nextNumber = ultimoRes.FECompUltimoAutorizadoResult.CbteNro + 1;
-        const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        const fecha = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(/-/g, '');
 
         // 3. Preparar datos de la factura
         const facturaData = {

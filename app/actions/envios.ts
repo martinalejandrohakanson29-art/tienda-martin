@@ -277,21 +277,45 @@ export async function getVentasRegistracion(fecha?: string) {
         });
         const setRegistradas = new Set(ventasRegistradas.map(v => v.mlIdVenta));
 
+        // Buscamos etiquetas relacionadas para obtener títulos y cantidades
+        const shippingIds = ventas.map(v => v.shippingId).filter(Boolean);
+        const labels = await prisma.etiquetaML.findMany({
+            where: { id: { in: shippingIds } },
+            include: { items: true }
+        });
+        const labelsMap = new Map(labels.map(l => [l.id, l]));
+
         // Enriquecemos con datos de la vista de costos (receta)
         const ventasEnriquecidas = await Promise.all(ventas.map(async (venta) => {
+            // Buscamos el título y cantidad en la etiqueta
+            const label = labelsMap.get(venta.shippingId);
+            const labelItem = label?.items.find(i => i.mla === venta.mla && (i.variation === venta.variation || (!i.variation && !venta.variation)));
+
             const viewResult: any[] = await prisma.$queryRaw`
-                SELECT ids_articulos, receta_detallada 
-                FROM vista_costos_productos 
-                WHERE mla = ${venta.mla} 
-                AND variation_id IS NOT DISTINCT FROM ${venta.variation}
-                LIMIT 1
+                SELECT ids_articulos FROM vista_costos_productos WHERE mla = ${venta.mla.trim()} AND variation_id IS NOT DISTINCT FROM ${venta.variation} LIMIT 1
             `;
+
+            let raw_ids_articulos = viewResult.length > 0 ? viewResult[0].ids_articulos : null;
+            let ids_articulos = null;
+            let receta_detallada = null;
+
+            if (raw_ids_articulos) {
+                const ids = raw_ids_articulos.split(/[+,]/).map((id: string) => id.trim()).filter(Boolean);
+                const articulos = await prisma.costosArticulos.findMany({
+                    where: { id_articulo: { in: ids } },
+                    select: { id_articulo: true, descripcion: true }
+                });
+                ids_articulos = ids.join(', ');
+                receta_detallada = ids.map((id: string) => articulos.find((a) => a.id_articulo === id)?.descripcion || "Sin descripción").join(' | ');
+            }
 
             return {
                 ...venta,
                 registrada: setRegistradas.has(venta.orderId),
-                ids_articulos: viewResult.length > 0 ? viewResult[0].ids_articulos : null,
-                receta_detallada: viewResult.length > 0 ? viewResult[0].receta_detallada : null
+                ids_articulos,
+                receta_detallada,
+                titulo: labelItem?.title || `Venta ML ${venta.mla}`,
+                cantidad: labelItem?.quantity || 1
             };
         }));
 
@@ -440,6 +464,7 @@ export async function registrarVentasML(
                     para: v.shippingId,        // ID Envío en campo para
                     mlIdVenta: v.orderId,
                     mlIdEnvio: v.shippingId,
+                    mlPackId: v.packId ?? undefined,
                     mlMla: v.mla,
                     puntoVentaId: pv.id,
                     eventoOffline: false,

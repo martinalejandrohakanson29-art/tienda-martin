@@ -447,6 +447,7 @@ model Venta {
   // Datos MercadoPago (ML)
   mlIdVenta       String?
   mlIdEnvio       String?
+  mlPackId        String?
   mlMla           String?
   mlDni           String?
   

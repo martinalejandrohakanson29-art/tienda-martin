@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo, Fragment } from "react"
 // LOGICA ACTUAL: Usamos Preparadas, no Despachadas
 import { getEtiquetasPreparadas, getVentasRegistracion, limpiarVentasRegistracion, registrarVentasML } from "@/app/actions/envios"
 import { consultarPadron } from "@/app/actions/afip"
@@ -131,6 +131,31 @@ export function DespachadosClient() {
         });
     };
 
+    const groupedRegistracion = useMemo(() => {
+        const filtered = getFilteredRegistracion();
+        const result: { id: string; ventas: any[] }[] = [];
+        const groupMap = new Map<string, any[]>();
+
+        filtered.forEach((v) => {
+            // Priorizamos packId para agrupar, si no existe usamos shippingId
+            const groupId = v.packId || v.shippingId;
+            if (!groupMap.has(groupId)) groupMap.set(groupId, []);
+            groupMap.get(groupId)!.push(v);
+        });
+
+        const renderedGroups = new Set<string>();
+
+        filtered.forEach((v) => {
+            const groupId = v.packId || v.shippingId;
+            if (!renderedGroups.has(groupId)) {
+                result.push({ id: groupId, ventas: groupMap.get(groupId)! });
+                renderedGroups.add(groupId);
+            }
+        });
+
+        return result;
+    }, [ventasRegistracion, categoriaFilter, searchTerm, fecha]);
+
     const handleFetchRegistracion = async () => {
         setLoadingRegistracion(true);
         try {
@@ -194,12 +219,12 @@ export function DespachadosClient() {
             if (res.success) {
                 setRazonSocial(res.nombre || "");
                 setCondicionIvaEncontrada(res.condicionIva || null);
-                
+
                 // Sugerencia automática de tipo de factura
                 if (res.condicionIva === 1) setTipoFactura(1); // Si es RI -> Factura A
                 else if (res.condicionIva === 6) setTipoFactura(6); // Si es Monotributo -> Factura B (el emisor suele ser RI)
                 else setTipoFactura(6); // Consumidor Final -> Factura B
-                
+
                 toast.success("Datos obtenidos del padrón");
             } else {
                 toast.error(res.error || "No se encontraron datos");
@@ -220,7 +245,7 @@ export function DespachadosClient() {
 
         try {
             const ids = Array.from(selectedRegistracionIds);
-            
+
             // Lógica de parámetros según tipo de factura
             let docTipo = 99;
             let docNro = "0";
@@ -229,14 +254,14 @@ export function DespachadosClient() {
             if (tipoFactura === 1) { // Factura A
                 docTipo = 80;
                 docNro = cuit.replace(/\D/g, ''); // Limpiar a solo números
-                
+
                 // VALIDACIÓN CRÍTICA
                 if (condicionIva !== 1) {
                     toast.error("ERROR: No se puede emitir Factura A a un cliente que no es Responsable Inscripto.");
                     setIsProcessing(false);
                     return;
                 }
-                
+
                 condicionIva = 1;
 
                 if (docNro.length !== 11) {
@@ -492,88 +517,163 @@ export function DespachadosClient() {
                                             className="rounded border-slate-300"
                                         />
                                     </TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">Venta / ID</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">MLA</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">Variable</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">Id agregados</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">Agregados</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500">Nombre</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500 text-right">Bruto</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500 text-right">Neto</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500 text-right">%</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500 text-center">Categoría</TableHead>
-                                    <TableHead className="font-bold text-[13px] uppercase text-slate-500 text-center">Acción</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500">Venta / ID</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500">Productos</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500">Id agregados</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500">Agregados</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500">Nombre</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-right">Bruto</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-right">Neto</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-right">%</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center">Categoría</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500 text-center">Acción</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {loadingRegistracion ? (
                                     <TableRow><TableCell colSpan={12} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
-                                ) : getFilteredRegistracion().length === 0 ? (
+                                ) : groupedRegistracion.length === 0 ? (
                                     <TableRow><TableCell colSpan={12} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
                                 ) : (
-                                    getFilteredRegistracion().map((venta) => (
-                                        <TableRow key={venta.orderId} className={`hover:bg-slate-50/30 ${selectedRegistracionIds.has(venta.orderId) ? 'bg-blue-50/40' : ''} ${venta.registrada ? 'opacity-80 bg-slate-50/50' : ''}`}>
-                                            <TableCell className="text-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedRegistracionIds.has(venta.orderId)}
-                                                    onChange={() => !venta.registrada && handleToggleSelectRegistracion(venta.orderId)}
-                                                    disabled={venta.registrada}
-                                                    className="rounded border-slate-300 disabled:opacity-30"
-                                                />
-                                            </TableCell>
-                                            <TableCell className="py-4 align-top">
-                                                <div onClick={() => handleCopyText(venta.orderId)} className="font-mono text-[13px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{venta.orderId}</div>
-                                                <div onClick={() => handleCopyText(venta.shippingId)} className="font-mono text-[11px] text-slate-400 cursor-pointer hover:text-blue-600 mt-1">{venta.shippingId}</div>
-                                                {venta.packId && <div onClick={() => handleCopyText(venta.packId)} className="font-mono text-[10px] text-amber-600 font-bold cursor-pointer hover:text-blue-600 mt-1">Pack: {venta.packId}</div>}
-                                            </TableCell>
-                                            <TableCell><div onClick={() => handleCopyText(venta.mla)} className="font-mono text-[13px] text-slate-500 cursor-pointer hover:text-blue-600">{venta.mla}</div></TableCell>
-                                            <TableCell><div className="font-mono text-[12px] text-slate-400">{venta.variation || '-'}</div></TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col gap-1">
-                                                    {venta.ids_articulos?.split(/[+,]/).map((id: string, idx: number) => {
-                                                        const cleanId = id.trim(); if (!cleanId) return null;
-                                                        return (
-                                                            <div key={idx} onClick={() => handleCopyText(cleanId)} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded px-2 py-0.5 cursor-pointer hover:bg-blue-50 transition-all w-fit">
-                                                                <span className="text-blue-600 font-mono text-[9px] font-bold">{cleanId}</span>
-                                                                <Copy className="h-2.5 w-2.5 text-slate-300" />
+                                    groupedRegistracion.map((group) => {
+                                        const isPack = group.ventas[0].packId && group.ventas.length > 1;
+                                        const allOrderIds = group.ventas.map(v => v.orderId);
+                                        const allRegistrada = group.ventas.every(v => v.registrada);
+                                        const someRegistrada = group.ventas.some(v => v.registrada);
+                                        const allSelected = allOrderIds.every(id => selectedRegistracionIds.has(id));
+
+                                        const totalBruto = group.ventas.reduce((acc, v) => acc + Number(v.bruto || 0), 0);
+                                        const totalNeto = group.ventas.reduce((acc, v) => acc + Number(v.neto || 0), 0);
+
+                                        return (
+                                            <TableRow
+                                                key={group.id}
+                                                className={`hover:bg-slate-50/30 ${allSelected ? 'bg-blue-50/40' : ''} ${allRegistrada ? 'opacity-80 bg-slate-50/50' : ''} ${group.ventas[0].packId ? 'border-l-4 border-l-amber-400 bg-amber-50/10' : ''}`}
+                                            >
+                                                <TableCell className="text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={allSelected}
+                                                        onChange={() => {
+                                                            const newSelected = new Set(selectedRegistracionIds);
+                                                            if (allSelected) {
+                                                                allOrderIds.forEach(id => newSelected.delete(id));
+                                                            } else {
+                                                                group.ventas.forEach(v => {
+                                                                    if (!v.registrada) newSelected.add(v.orderId);
+                                                                });
+                                                            }
+                                                            setSelectedRegistracionIds(newSelected);
+                                                        }}
+                                                        disabled={allRegistrada}
+                                                        className="rounded border-slate-300 disabled:opacity-30"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="py-4 align-top">
+                                                    <div onClick={() => handleCopyText(group.ventas[0].shippingId)} className="font-mono text-[11px] font-bold text-slate-600 cursor-pointer hover:text-blue-600">{group.ventas[0].shippingId}</div>
+                                                    <div className="flex flex-col mt-1">
+                                                        {group.ventas.map(v => (
+                                                            <div key={v.orderId} onClick={() => handleCopyText(v.orderId)} className="font-mono text-[10px] text-slate-400 cursor-pointer hover:text-blue-600">
+                                                                {v.orderId}
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col gap-1">
-                                                    {venta.receta_detallada?.split(' + ').map((r: string, idx: number) => (
-                                                        <div key={idx} className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]">
-                                                            {r}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-[13px] font-medium text-slate-700">{venta.nombre || '-'}</TableCell>
-                                            <TableCell className="text-right font-mono text-[14px] font-bold text-slate-600">${Number(venta.bruto || 0).toLocaleString()}</TableCell>
-                                            <TableCell className="text-right font-mono text-[14px] font-bold text-emerald-600">${Number(venta.neto || 0).toLocaleString()}</TableCell>
-                                            <TableCell className="text-right font-mono text-[13px] font-bold text-blue-600">
-                                                {venta.neto && Number(venta.neto) > 0 ? `+${(((Number(venta.bruto) - Number(venta.neto)) / Number(venta.neto)) * 100).toFixed(1)}%` : '-'}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <Badge variant="outline" className={`${venta.categoria === 'Full' ? 'bg-amber-50 text-amber-600 border-amber-200' : venta.categoria === 'Flex' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'} font-bold text-[11px] uppercase`}>{venta.categoria}</Badge>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                {venta.registrada ? (
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-black text-[10px]">REGISTRADO</Badge>
-                                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                                        ))}
                                                     </div>
-                                                ) : (
-                                                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600" onClick={() => handleToggleSelectRegistracion(venta.orderId)}>
-                                                        {selectedRegistracionIds.has(venta.orderId) ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
-                                                    </Button>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                                    {group.ventas[0].packId && <div onClick={() => handleCopyText(group.ventas[0].packId)} className="font-mono text-[10px] text-amber-600 font-bold cursor-pointer hover:text-blue-600 mt-1">Pack: {group.ventas[0].packId}</div>}
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <div className="flex flex-col gap-2">
+                                                        {group.ventas.map(v => (
+                                                            <div key={v.orderId} className="flex flex-col">
+                                                                <p className="text-xs text-slate-600 leading-tight">
+                                                                    <span className="font-bold">{v.cantidad}x</span> {v.titulo}
+                                                                </p>
+                                                                <div className="flex gap-2 items-center">
+                                                                    <span onClick={() => handleCopyText(v.mla)} className="text-[10px] text-slate-400 font-mono cursor-pointer hover:text-blue-600">({v.mla})</span>
+                                                                    {v.variation && <span className="text-[10px] text-slate-400">Var: {v.variation}</span>}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <div className="flex flex-col gap-2">
+                                                        {group.ventas.map(v => (
+                                                            <div key={v.orderId} className="flex flex-col gap-1">
+                                                                {v.ids_articulos ? v.ids_articulos.split(',').map((id: string, idx: number) => {
+                                                                    const cleanId = id.trim(); if (!cleanId) return null;
+                                                                    return (
+                                                                        <div key={idx} onClick={() => handleCopyText(cleanId)} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2 py-0.5 cursor-pointer hover:bg-blue-50 transition-all w-fit">
+                                                                            <span className="text-blue-600 font-mono text-[9px] font-bold">{cleanId}</span>
+                                                                            <Copy className="h-2.5 w-2.5 text-slate-300" />
+                                                                        </div>
+                                                                    );
+                                                                }) : null}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="align-top">
+                                                    <div className="flex flex-col gap-2">
+                                                        {group.ventas.map(v => (
+                                                            <div key={v.orderId} className="flex flex-col gap-1">
+                                                                {v.receta_detallada ? v.receta_detallada.split('|').map((r: string, idx: number) => {
+                                                                    const cleanR = r.trim(); if (!cleanR) return null;
+                                                                    return (
+                                                                        <div key={idx} className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]">
+                                                                            {cleanR}
+                                                                        </div>
+                                                                    );
+                                                                }) : <span className="text-[10px] text-slate-400 italic">Sin agregados</span>}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-[12px] font-medium text-slate-700 align-top">
+                                                    <div className="flex flex-col gap-1">
+                                                        {group.ventas.map((v, i) => (
+                                                            <div key={v.orderId} className={i > 0 ? "pt-1 border-t border-slate-100/50" : ""}>
+                                                                {v.nombre || '-'}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {isPack && <div className="text-[9px] text-slate-400 mt-1 font-bold">({group.ventas.length} pedidos en pack)</div>}
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono text-[12px] font-bold text-slate-600 align-top">${totalBruto.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right font-mono text-[12px] font-bold text-emerald-600 align-top">${totalNeto.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right font-mono text-[11px] font-bold text-blue-600 align-top">
+                                                    {totalNeto > 0 ? `+${(((totalBruto - totalNeto) / totalNeto) * 100).toFixed(1)}%` : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-center align-top">
+                                                    <Badge variant="outline" className={`${group.ventas[0].categoria === 'Full' ? 'bg-amber-50 text-amber-600 border-amber-200' : group.ventas[0].categoria === 'Flex' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-50 text-slate-600 border-slate-200'} font-bold text-[11px] uppercase`}>{group.ventas[0].categoria}</Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center align-top">
+                                                    {allRegistrada ? (
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-black text-[10px]">REGISTRADO</Badge>
+                                                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600" onClick={() => {
+                                                                const newSelected = new Set(selectedRegistracionIds);
+                                                                if (allSelected) {
+                                                                    allOrderIds.forEach(id => newSelected.delete(id));
+                                                                } else {
+                                                                    group.ventas.forEach(v => {
+                                                                        if (!v.registrada) newSelected.add(v.orderId);
+                                                                    });
+                                                                }
+                                                                setSelectedRegistracionIds(newSelected);
+                                                            }}>
+                                                                {allSelected ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                                                            </Button>
+                                                            {someRegistrada && !allRegistrada && <span className="text-[8px] text-amber-600 font-black">PARCIAL</span>}
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
                                 )}
                             </TableBody>
                         </Table>
@@ -657,7 +757,7 @@ export function DespachadosClient() {
                                                 }}
                                                 className="h-12 rounded-xl border-slate-200 bg-white font-mono text-lg font-bold text-slate-700 focus:ring-blue-500 flex-1"
                                             />
-                                            <Button 
+                                            <Button
                                                 type="button"
                                                 onClick={handleBuscarPadron}
                                                 disabled={isSearchingPadron}
@@ -676,15 +776,14 @@ export function DespachadosClient() {
                                                     <div>
                                                         <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Condición IVA</Label>
                                                         <div className="flex items-center gap-2 mt-1">
-                                                            <div className={`h-2 w-2 rounded-full ${
-                                                                condicionIvaEncontrada === 1 ? 'bg-blue-500' : 
-                                                                condicionIvaEncontrada === 6 ? 'bg-amber-500' : 
-                                                                'bg-slate-400'
-                                                            }`} />
+                                                            <div className={`h-2 w-2 rounded-full ${condicionIvaEncontrada === 1 ? 'bg-blue-500' :
+                                                                condicionIvaEncontrada === 6 ? 'bg-amber-500' :
+                                                                    'bg-slate-400'
+                                                                }`} />
                                                             <p className="text-xs font-bold text-emerald-800 uppercase">
-                                                                {condicionIvaEncontrada === 1 ? 'Responsable Inscripto' : 
-                                                                 condicionIvaEncontrada === 6 ? 'Monotributista' : 
-                                                                 'Consumidor Final'}
+                                                                {condicionIvaEncontrada === 1 ? 'Responsable Inscripto' :
+                                                                    condicionIvaEncontrada === 6 ? 'Monotributista' :
+                                                                        'Consumidor Final'}
                                                             </p>
                                                         </div>
                                                     </div>

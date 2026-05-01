@@ -220,6 +220,7 @@ export async function crearVentaMostrador(data: {
   alicuotaIva?: number,
   mlIdVenta?: string,
   mlIdEnvio?: string,
+  mlPackId?: string,
   mlMla?: string,
   mlDni?: string
 }) {
@@ -330,6 +331,7 @@ export async function crearVentaMostrador(data: {
           alicuotaIva: arcaData.alicuotaIva,
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
+          mlPackId: data.mlPackId,
           mlMla: data.mlMla,
           mlDni: data.mlDni,
           items: {
@@ -453,6 +455,7 @@ export async function guardarComoPedidoVenta(data: {
   alicuotaIva?: number,
   mlIdVenta?: string,
   mlIdEnvio?: string,
+  mlPackId?: string,
   mlMla?: string,
   mlDni?: string
 }) {
@@ -491,6 +494,7 @@ export async function guardarComoPedidoVenta(data: {
           alicuotaIva: data.alicuotaIva,
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
+          mlPackId: data.mlPackId,
           mlMla: data.mlMla,
           mlDni: data.mlDni,
           items: {
@@ -678,6 +682,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           puntoVentaId: data.puntoVentaId || null,
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
+          mlPackId: data.mlPackId,
           mlMla: data.mlMla,
           mlDni: data.mlDni,
           // ARCA fields
@@ -1193,6 +1198,7 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
           puntoVentaId: data.puntoVentaId || null,
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
+          mlPackId: data.mlPackId,
           mlMla: data.mlMla,
           mlDni: data.mlDni,
           items: {

@@ -112,7 +112,7 @@ export function DespachadosClient() {
         if (selectedRegistracionIds.size === filtered.length) {
             setSelectedRegistracionIds(new Set());
         } else {
-            setSelectedRegistracionIds(new Set(filtered.map(v => v.shippingId)));
+            setSelectedRegistracionIds(new Set(filtered.map(v => v.orderId)));
         }
     };
 
@@ -512,12 +512,12 @@ export function DespachadosClient() {
                                     <TableRow><TableCell colSpan={12} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
                                 ) : (
                                     getFilteredRegistracion().map((venta) => (
-                                        <TableRow key={venta.shippingId} className={`hover:bg-slate-50/30 ${selectedRegistracionIds.has(venta.shippingId) ? 'bg-blue-50/40' : ''} ${venta.registrada ? 'opacity-80 bg-slate-50/50' : ''}`}>
+                                        <TableRow key={venta.orderId} className={`hover:bg-slate-50/30 ${selectedRegistracionIds.has(venta.orderId) ? 'bg-blue-50/40' : ''} ${venta.registrada ? 'opacity-80 bg-slate-50/50' : ''}`}>
                                             <TableCell className="text-center">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedRegistracionIds.has(venta.shippingId)}
-                                                    onChange={() => !venta.registrada && handleToggleSelectRegistracion(venta.shippingId)}
+                                                    checked={selectedRegistracionIds.has(venta.orderId)}
+                                                    onChange={() => !venta.registrada && handleToggleSelectRegistracion(venta.orderId)}
                                                     disabled={venta.registrada}
                                                     className="rounded border-slate-300 disabled:opacity-30"
                                                 />
@@ -567,8 +567,8 @@ export function DespachadosClient() {
                                                         <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                                     </div>
                                                 ) : (
-                                                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600" onClick={() => handleToggleSelectRegistracion(venta.shippingId)}>
-                                                        {selectedRegistracionIds.has(venta.shippingId) ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                                                    <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-slate-400 hover:text-emerald-600" onClick={() => handleToggleSelectRegistracion(venta.orderId)}>
+                                                        {selectedRegistracionIds.has(venta.orderId) ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
                                                     </Button>
                                                 )}
                                             </TableCell>

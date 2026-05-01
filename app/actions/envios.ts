@@ -270,12 +270,12 @@ export async function getVentasRegistracion(fecha?: string) {
         });
 
         // Buscamos cuáles de estas ya están registradas en la tabla Venta
-        const shippingIds = ventas.map(v => v.shippingId);
+        const orderIds = ventas.map(v => v.orderId);
         const ventasRegistradas = await prisma.venta.findMany({
-            where: { mlIdEnvio: { in: shippingIds } },
-            select: { mlIdEnvio: true }
+            where: { mlIdVenta: { in: orderIds } },
+            select: { mlIdVenta: true }
         });
-        const setRegistradas = new Set(ventasRegistradas.map(v => v.mlIdEnvio));
+        const setRegistradas = new Set(ventasRegistradas.map(v => v.mlIdVenta));
 
         // Enriquecemos con datos de la vista de costos (receta)
         const ventasEnriquecidas = await Promise.all(ventas.map(async (venta) => {
@@ -289,7 +289,7 @@ export async function getVentasRegistracion(fecha?: string) {
 
             return {
                 ...venta,
-                registrada: setRegistradas.has(venta.shippingId),
+                registrada: setRegistradas.has(venta.orderId),
                 ids_articulos: viewResult.length > 0 ? viewResult[0].ids_articulos : null,
                 receta_detallada: viewResult.length > 0 ? viewResult[0].receta_detallada : null
             };
@@ -312,7 +312,7 @@ export async function limpiarVentasRegistracion(ids?: string[]) {
     try {
         if (ids && ids.length > 0) {
             await prisma.ventaMLRegistracion.deleteMany({
-                where: { shippingId: { in: ids } }
+                where: { orderId: { in: ids } }
             });
         } else {
             await prisma.ventaMLRegistracion.deleteMany({});
@@ -358,7 +358,7 @@ export async function registrarVentasML(
         if (!ventasRes.success) return { success: false, error: "No se pudieron obtener las ventas de registración" };
 
         const todasLasVentas = ventasRes.data || [];
-        const ventasAProcesar = todasLasVentas.filter(v => ids.includes(v.shippingId));
+        const ventasAProcesar = todasLasVentas.filter(v => ids.includes(v.orderId));
 
         if (ventasAProcesar.length === 0) return { success: false, error: "No se encontraron las ventas seleccionadas" };
 

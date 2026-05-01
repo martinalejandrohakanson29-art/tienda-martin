@@ -816,8 +816,8 @@ model GastoNegocio {
 }
 
 model VentaMLRegistracion {
-  shippingId String   @id
-  orderId    String
+  orderId    String   @id
+  shippingId String
   packId     String?
   mla        String
   categoria  String

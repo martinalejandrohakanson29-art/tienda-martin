@@ -38,10 +38,12 @@ export async function POST(req: Request) {
 
             const packId = venta.packId || venta.pack_id ? String(venta.packId || venta.pack_id) : null;
 
+            const orderId = String(venta.orderId || venta.ventaId);
+
             return prisma.ventaMLRegistracion.upsert({
-                where: { shippingId },
+                where: { orderId },
                 update: {
-                    orderId: String(venta.orderId || venta.ventaId),
+                    shippingId,
                     packId: packId,
                     mla: String(venta.mla),
                     categoria: venta.categoria || "Desconocido",
@@ -52,8 +54,8 @@ export async function POST(req: Request) {
                     createdAt: createdAt // Actualizamos la fecha para el filtrado correcto
                 },
                 create: {
+                    orderId,
                     shippingId,
-                    orderId: String(venta.orderId || venta.ventaId),
                     packId: packId,
                     mla: String(venta.mla),
                     categoria: venta.categoria || "Desconocido",

@@ -24,18 +24,18 @@ interface Proveedor {
   telefono?: string | null;
 }
 
-export default function ProveedoresClient({ 
-  proveedoresIniciales 
-}: { 
-  proveedoresIniciales: Proveedor[] 
+export default function ProveedoresClient({
+  proveedoresIniciales
+}: {
+  proveedoresIniciales: Proveedor[]
 }) {
   const [proveedores, setProveedores] = useState<Proveedor[]>(proveedoresIniciales);
   const [searchTerm, setSearchTerm] = useState("");
-  
+
   // Estados para Paginación
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50; 
-  
+  const itemsPerPage = 50;
+
   // Estados para el Modal de Edición/Creación
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,19 +46,19 @@ export default function ProveedoresClient({
   // Filtro de búsqueda
   const proveedoresFiltrados = useMemo(() => {
     if (!searchTerm.trim()) return proveedores;
-    
+
     const quitarAcentos = (texto: string) => {
       return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     };
-    
+
     const busquedaLimpia = quitarAcentos(searchTerm.toLowerCase().trim());
     const palabrasBuscadas = busquedaLimpia.split(/\s+/);
-    
+
     return proveedores.filter(p => {
       const rsLimpia = quitarAcentos((p.razonSocial || "").toLowerCase());
       const cuitLimpio = quitarAcentos((p.cuit || "").toLowerCase());
       const fantasiaLimpia = quitarAcentos((p.nombreFantasia || "").toLowerCase());
-      
+
       return palabrasBuscadas.every(palabra => {
         return rsLimpia.includes(palabra) || cuitLimpio.includes(palabra) || fantasiaLimpia.includes(palabra);
       });
@@ -125,7 +125,7 @@ export default function ProveedoresClient({
     }
 
     setIsSubmitting(true);
-    
+
     try {
       if (isEditing && formData.id) {
         const res = await actualizarProveedor(formData.id, formData as any);
@@ -153,7 +153,7 @@ export default function ProveedoresClient({
 
   const handleEliminar = async (id: string) => {
     if (!confirm("¿Estás seguro de eliminar este proveedor?")) return;
-    
+
     const res = await eliminarProveedor(id);
     if (res.success) {
       setProveedores(prev => prev.filter(p => p.id !== id));
@@ -164,7 +164,7 @@ export default function ProveedoresClient({
 
   return (
     <div className="h-full flex flex-col relative">
-      
+
       {/* HEADER PRINCIPAL */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between flex-shrink-0 z-20 shadow-sm">
         <div className="flex items-center gap-4">
@@ -179,8 +179,8 @@ export default function ProveedoresClient({
             <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Gestión centralizada de contactos comerciales</p>
           </div>
         </div>
-        
-        <Button 
+
+        <Button
           onClick={abrirModalCrear}
           className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-md shadow-amber-100 flex items-center gap-2"
         >
@@ -190,14 +190,14 @@ export default function ProveedoresClient({
 
       {/* Contenido principal */}
       <main className="flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden">
-        
+
         {/* Barra de Búsqueda */}
         <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
           <div className="relative w-full max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Buscar por razón social, CUIT o nombre de fantasía..." 
+            <input
+              type="text"
+              placeholder="Buscar por razón social, CUIT o nombre de fantasía..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-amber-500/20 outline-none transition-all"
@@ -260,17 +260,17 @@ export default function ProveedoresClient({
                       </TableCell>
                       <TableCell className="text-right py-3">
                         <div className="flex items-center justify-end gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => abrirModalEdicion(p)}
                             className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-lg h-8 px-2"
                           >
                             <Edit className="h-4 w-4 mr-1.5" /> Editar
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => handleEliminar(p.id)}
                             className="text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg h-8 px-2"
                           >
@@ -284,32 +284,32 @@ export default function ProveedoresClient({
               </TableBody>
             </Table>
           </div>
-          
+
           {/* Paginación */}
           {proveedoresFiltrados.length > 0 && (
             <div className="bg-slate-50 border-t border-slate-200 p-3 flex items-center justify-between flex-shrink-0">
               <div className="text-xs text-slate-500">
                 Mostrando <span className="font-bold text-slate-700">{startIndex + 1}</span> a <span className="font-bold text-slate-700">{Math.min(startIndex + itemsPerPage, proveedoresFiltrados.length)}</span> de <span className="font-bold text-slate-700">{proveedoresFiltrados.length}</span>
               </div>
-              
+
               <div className="flex items-center gap-4">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
                   className="h-8 border-slate-300 text-slate-600"
                 >
                   <ArrowLeft className="h-4 w-4 mr-1" /> Anterior
                 </Button>
-                
+
                 <span className="text-xs font-bold text-slate-600">
                   Página {currentPage} de {totalPages}
                 </span>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                   disabled={currentPage >= totalPages}
                   className="h-8 border-slate-300 text-slate-600"
@@ -334,7 +334,7 @@ export default function ProveedoresClient({
               Completa la información del proveedor. El CUIT/DNI debe ser único.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5 col-span-2 sm:col-span-1">
@@ -342,17 +342,17 @@ export default function ProveedoresClient({
                   <Fingerprint className="h-3 w-3" /> CUIT / DNI
                 </Label>
                 <div className="flex gap-2">
-                  <Input 
-                    value={formData.cuit || ""} 
-                    onChange={(e) => setFormData({...formData, cuit: e.target.value})} 
+                  <Input
+                    value={formData.cuit || ""}
+                    onChange={(e) => setFormData({ ...formData, cuit: e.target.value })}
                     className="font-mono bg-slate-50 border-slate-200 focus-visible:ring-amber-500 flex-1"
                     placeholder="20-XXXXXXXX-X"
                   />
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="icon" 
-                    onClick={handleBuscarPadron} 
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleBuscarPadron}
                     disabled={isSearching}
                     className="shrink-0 border-slate-200 hover:bg-slate-100"
                   >
@@ -364,20 +364,20 @@ export default function ProveedoresClient({
                 <Label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
                   Razón Social <span className="text-red-500">*</span>
                 </Label>
-                <Input 
-                  value={formData.razonSocial || ""} 
-                  onChange={(e) => setFormData({...formData, razonSocial: e.target.value})} 
+                <Input
+                  value={formData.razonSocial || ""}
+                  onChange={(e) => setFormData({ ...formData, razonSocial: e.target.value })}
                   className="font-medium bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
                   placeholder="Ej: Moto Repuestos S.A."
                 />
               </div>
             </div>
-            
+
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-slate-600 uppercase">Nombre de Fantasía</Label>
-              <Input 
-                value={formData.nombreFantasia || ""} 
-                onChange={(e) => setFormData({...formData, nombreFantasia: e.target.value})} 
+              <Input
+                value={formData.nombreFantasia || ""}
+                onChange={(e) => setFormData({ ...formData, nombreFantasia: e.target.value })}
                 className="bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
                 placeholder="Ej: Repuestos El Rayo"
               />
@@ -388,10 +388,10 @@ export default function ProveedoresClient({
                 <Label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
                   <Mail className="h-3 w-3" /> Email
                 </Label>
-                <Input 
+                <Input
                   type="email"
-                  value={formData.email || ""} 
-                  onChange={(e) => setFormData({...formData, email: e.target.value})} 
+                  value={formData.email || ""}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
                   placeholder="contacto@proveedor.com"
                 />
@@ -400,9 +400,9 @@ export default function ProveedoresClient({
                 <Label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
                   <Phone className="h-3 w-3" /> Teléfono
                 </Label>
-                <Input 
-                  value={formData.telefono || ""} 
-                  onChange={(e) => setFormData({...formData, telefono: e.target.value})} 
+                <Input
+                  value={formData.telefono || ""}
+                  onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
                   className="bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
                   placeholder="+54 11 XXXX-XXXX"
                 />
@@ -414,9 +414,9 @@ export default function ProveedoresClient({
             <Button variant="ghost" onClick={() => setIsModalOpen(false)} className="text-slate-500 hover:text-slate-700">
               Cancelar
             </Button>
-            <Button 
-              onClick={handleGuardar} 
-              disabled={isSubmitting} 
+            <Button
+              onClick={handleGuardar}
+              disabled={isSubmitting}
               className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold px-8 shadow-md"
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}

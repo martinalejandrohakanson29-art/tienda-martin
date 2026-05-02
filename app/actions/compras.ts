@@ -23,6 +23,8 @@ export async function obtenerTodosLosArticulos() {
     return articulos.map(art => ({
       ...art,
       precio: Number(art.precio),
+      costo: art.costo ? Number(art.costo) : 0,
+      margenGanancia: art.margenGanancia ? Number(art.margenGanancia) : 0,
       esPack: art.esPack || false,
       ultimaModificacion: art.auditorias?.[0]?.createdAt?.toISOString() || null,
       stock: (art.esPack && art.packItems)
@@ -32,7 +34,9 @@ export async function obtenerTodosLosArticulos() {
         ...packItem,
         componente: {
           ...packItem.componente,
-          precio: Number(packItem.componente.precio)
+          precio: Number(packItem.componente.precio),
+          costo: packItem.componente.costo ? Number(packItem.componente.costo) : 0,
+          margenGanancia: packItem.componente.margenGanancia ? Number(packItem.componente.margenGanancia) : 0,
         }
       })) || []
     }));

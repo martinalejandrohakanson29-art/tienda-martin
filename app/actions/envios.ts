@@ -314,7 +314,7 @@ export async function getVentasRegistracion(fecha?: string) {
                 registrada: setRegistradas.has(venta.orderId),
                 ids_articulos,
                 receta_detallada,
-                titulo: labelItem?.title || `Venta ML ${venta.mla}`,
+                titulo: labelItem?.title || `Venta ML`,
                 cantidad: labelItem?.quantity || 1
             };
         }));

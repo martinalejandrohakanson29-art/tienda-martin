@@ -131,6 +131,20 @@ export function DespachadosClient() {
         });
     };
 
+    const categoriaCounts = useMemo(() => {
+        const counts: Record<string, number> = { TODOS: 0, Full: 0, Colecta: 0, Flex: 0 };
+        ventasRegistracion.forEach(v => {
+            const vDate = v.createdAt ? format(new Date(v.createdAt), "yyyy-MM-dd") : null;
+            if (!vDate || vDate === fecha) {
+                counts.TODOS++;
+                if (v.categoria && counts[v.categoria] !== undefined) {
+                    counts[v.categoria]++;
+                }
+            }
+        });
+        return counts;
+    }, [ventasRegistracion, fecha]);
+
     const groupedRegistracion = useMemo(() => {
         const filtered = getFilteredRegistracion();
         const result: { id: string; ventas: any[] }[] = [];
@@ -481,7 +495,21 @@ export function DespachadosClient() {
                             <Label className="text-xs font-bold uppercase text-slate-500">Categoría</Label>
                             <div className="flex gap-2">
                                 {["TODOS", "Full", "Colecta", "Flex"].map((cat) => (
-                                    <Button key={cat} variant={categoriaFilter === cat ? "default" : "outline"} size="sm" onClick={() => setCategoriaFilter(cat)} className="rounded-xl text-xs font-bold">{cat}</Button>
+                                    <Button
+                                        key={cat}
+                                        variant={categoriaFilter === cat ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setCategoriaFilter(cat)}
+                                        className="rounded-xl text-xs font-bold gap-2"
+                                    >
+                                        {cat}
+                                        <Badge
+                                            variant={categoriaFilter === cat ? "secondary" : "outline"}
+                                            className={`px-1.5 py-0 h-5 min-w-[20px] justify-center ${categoriaFilter === cat ? 'bg-white/20 text-white border-none' : 'bg-slate-100 text-slate-500'}`}
+                                        >
+                                            {categoriaCounts[cat] || 0}
+                                        </Badge>
+                                    </Button>
                                 ))}
                             </div>
                         </div>

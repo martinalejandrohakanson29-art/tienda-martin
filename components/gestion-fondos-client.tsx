@@ -3,8 +3,10 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { registrarMovimientoManualProveedor } from "@/app/actions/erp";
+import { registrarMovimientoManualProveedor, anularMovimientoProveedor } from "@/app/actions/erp";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 interface Proveedor {
   id: string;
@@ -15,11 +17,13 @@ interface Proveedor {
 interface GestionFondosClientProps {
   type: "PAGO" | "COBRO";
   proveedores: Proveedor[];
+  recentMovimientos?: any[];
 }
 
 export default function GestionFondosClient({
   type,
   proveedores,
+  recentMovimientos = [],
 }: GestionFondosClientProps) {
   const router = useRouter();
   const [selectedProveedorId, setSelectedProveedorId] = useState("");
@@ -34,6 +38,7 @@ export default function GestionFondosClient({
   const [showDropdown, setShowDropdown] = useState(false);
   const [showDeDropdown, setShowDeDropdown] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAnulando, setIsAnulando] = useState<string | null>(null);
 
   const filteredProveedores = useMemo(() => {
     return proveedores.filter((p) =>
@@ -93,6 +98,28 @@ export default function GestionFondosClient({
       toast.error("Error de conexión");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAnular = async (id: string) => {
+    if (!confirm("¿Estás seguro de que deseas anular este movimiento?")) {
+      return;
+    }
+
+    setIsAnulando(id);
+    try {
+      const result = await anularMovimientoProveedor(id);
+      if (result.success) {
+        toast.success("Movimiento anulado correctamente");
+        router.refresh();
+      } else {
+        const errorMsg = (result as any).error || "Error al anular";
+        toast.error(errorMsg);
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setIsAnulando(null);
     }
   };
 
@@ -447,6 +474,83 @@ export default function GestionFondosClient({
           </div>
         </div>
       </div>
+
+      {/* Recent Movements Section */}
+      {recentMovimientos.length > 0 && (
+        <div className="mt-12 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#2b8cee]">history</span>
+              Movimientos Recientes
+            </h2>
+            <Link 
+              href="/admin/erp/movimientos" 
+              className="text-sm font-bold text-[#2b8cee] hover:underline"
+            >
+              Ver todo el historial
+            </Link>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                    <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
+                    <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
+                    <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
+                    <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {recentMovimientos.map((m) => (
+                    <tr key={m.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${m.anulado ? "opacity-50" : ""}`}>
+                      <td className="px-6 py-3 whitespace-nowrap text-slate-500 text-xs">
+                        {format(new Date(m.fecha), "dd/MM/yy HH:mm", { locale: es })}
+                      </td>
+                      <td className={`px-6 py-3 whitespace-nowrap font-bold ${m.anulado ? "line-through text-slate-400" : ""}`}>
+                        {m.proveedorNombre}
+                      </td>
+                      <td className={`px-6 py-3 ${m.anulado ? "line-through italic text-slate-400" : ""}`}>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-blue-500 font-bold uppercase">{m.tipo}</span>
+                          <span className="truncate max-w-[200px]">{m.descripcion || "---"}</span>
+                        </div>
+                      </td>
+                      <td className={`px-6 py-3 whitespace-nowrap font-bold text-right ${
+                        m.anulado ? "text-slate-400" : (m.monto >= 0 ? "text-emerald-600" : "text-rose-600")
+                      }`}>
+                        {formatCurrency(m.monto)}
+                      </td>
+                      <td className="px-6 py-3 whitespace-nowrap text-center">
+                        {!m.anulado && (
+                          <button
+                            onClick={() => handleAnular(m.id)}
+                            disabled={isAnulando === m.id}
+                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                            title="Anular"
+                          >
+                            {isAnulando === m.id ? (
+                              <span className="w-4 h-4 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin inline-block" />
+                            ) : (
+                              <span className="material-symbols-outlined text-base">block</span>
+                            )}
+                          </button>
+                        )}
+                        {m.anulado && (
+                          <span className="text-[10px] font-bold text-rose-500 uppercase tracking-tighter">Anulado</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+
   );
 }

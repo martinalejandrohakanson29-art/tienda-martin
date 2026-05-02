@@ -18,7 +18,7 @@ import { consultarPadron } from "@/app/actions/afip";
 interface Proveedor {
   id: string;
   razonSocial: string;
-  cuit: string;
+  cuit?: string | null;
   nombreFantasia?: string | null;
   email?: string | null;
   telefono?: string | null;
@@ -119,8 +119,8 @@ export default function ProveedoresClient({
   };
 
   const handleGuardar = async () => {
-    if (!formData.razonSocial || !formData.cuit) {
-      alert("Razón Social y CUIT son obligatorios");
+    if (!formData.razonSocial) {
+      alert("La Razón Social es obligatoria");
       return;
     }
 
@@ -339,7 +339,7 @@ export default function ProveedoresClient({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5 col-span-2 sm:col-span-1">
                 <Label className="text-xs font-bold text-slate-600 uppercase flex items-center gap-1">
-                  <Fingerprint className="h-3 w-3" /> CUIT / DNI <span className="text-red-500">*</span>
+                  <Fingerprint className="h-3 w-3" /> CUIT / DNI
                 </Label>
                 <div className="flex gap-2">
                   <Input 

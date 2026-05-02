@@ -23,12 +23,16 @@ export async function obtenerArticulosParaListas() {
         nombre: art.nombre,
         precio: Number(art.precio),
         stock: art.stock,
+        costo: Number(art.costo || 0),
+        margenGanancia: Number(art.margenGanancia || 0),
         esPack: art.esPack || false,
         packItems: art.packItems?.map(packItem => ({
           ...packItem,
           componente: {
             ...packItem.componente,
-            precio: Number(packItem.componente.precio)
+            precio: Number(packItem.componente.precio),
+            costo: Number(packItem.componente.costo || 0),
+            margenGanancia: Number(packItem.componente.margenGanancia || 0)
           }
         })) || []
       }))
@@ -40,14 +44,16 @@ export async function obtenerArticulosParaListas() {
 }
 
 // Función para editar un artículo desde la tabla de listas
-export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number) {
+export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number) {
   try {
     await prisma.articuloMostrador.update({
       where: { id },
       data: {
         nombre,
         precio,
-        stock
+        stock,
+        costo,
+        margenGanancia
       }
     });
 
@@ -55,6 +61,27 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
   } catch (error) {
     console.error("Error al actualizar artículo:", error);
     return { success: false, error: "Ocurrió un error al guardar los cambios." };
+  }
+}
+
+export async function crearArticuloMostrador(data: { id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number }) {
+  try {
+    const articulo = await prisma.articuloMostrador.create({
+      data: {
+        id: data.id,
+        nombre: data.nombre,
+        precio: data.precio,
+        stock: data.stock,
+        costo: data.costo || 0,
+        margenGanancia: data.margenGanancia || 0,
+        esPack: false
+      }
+    });
+
+    return { success: true, data: articulo };
+  } catch (error) {
+    console.error("Error al crear artículo:", error);
+    return { success: false, error: "No se pudo crear el artículo. Es posible que el ID ya exista." };
   }
 }
 
@@ -263,7 +290,7 @@ export async function actualizarProveedor(id: string, data: {
       where: { id },
       data: {
         razonSocial: data.razonSocial,
-        cuit: data.cuit,
+        cuit: data.cuit?.trim() || null,
         nombreFantasia: data.nombreFantasia,
         email: data.email,
         telefono: data.telefono,
@@ -305,7 +332,7 @@ export async function crearProveedor(data: {
     const proveedor = await prisma.proveedor.create({
       data: {
         razonSocial: data.razonSocial,
-        cuit: data.cuit,
+        cuit: data.cuit?.trim() || null,
         nombreFantasia: data.nombreFantasia,
         email: data.email,
         telefono: data.telefono,

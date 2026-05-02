@@ -115,3 +115,97 @@ export async function registrarMovimientoManualProveedor(data: {
     return { success: false, error: error.message || "Error al registrar el movimiento" }
   }
 }
+
+export async function anularMovimientoProveedor(movimientoId: string) {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Obtener el movimiento
+      const movimiento = await tx.movimientoProveedor.findUnique({
+        where: { id: movimientoId },
+        include: { proveedor: true },
+      })
+
+      if (!movimiento) {
+        throw new Error("Movimiento no encontrado")
+      }
+
+      if (movimiento.anulado) {
+        throw new Error("El movimiento ya está anulado")
+      }
+
+      // 2. Revertir impacto en el proveedor
+      // Si el monto fue +100 (suma al saldo), restamos 100
+      // Si el monto fue -100 (resta al saldo), sumamos 100
+      const nuevoTotal = movimiento.proveedor.total.minus(movimiento.monto)
+
+      await tx.proveedor.update({
+        where: { id: movimiento.proveedorId },
+        data: { total: nuevoTotal },
+      })
+
+      // 3. Marcar como anulado
+      await tx.movimientoProveedor.update({
+        where: { id: movimientoId },
+        data: { anulado: true },
+      })
+
+      // 4. Intentar encontrar y anular el movimiento "gemelo" si es una transferencia
+      // Esto es opcional y basado en heurística porque no están linkeados
+      if (movimiento.referencia?.startsWith("MANUAL_")) {
+        const isXfer = movimiento.referencia.includes("_XFER_")
+        const searchRef = isXfer 
+          ? movimiento.referencia.replace("_XFER_", "_") // Si es XFER, buscamos el principal
+          : movimiento.referencia.replace("MANUAL_", "MANUAL_XFER_") // Si es principal, buscamos el XFER
+        
+        // Buscamos movimientos del mismo momento (mismo segundo aprox) con el mismo monto (negado o igual)
+        // En registrarMovimientoManualProveedor, el monto del principal y emisor son opuestos si uno suma y otro resta
+        // Pero en la DB se guardan como el cambio neto.
+        // Principal PAGO: +Monto. Emisor XFER PAGO: -Monto.
+        // Principal COBRO: -Monto. Emisor XFER COBRO: +Monto.
+        // Así que siempre son opuestos.
+        
+        const gemelo = await tx.movimientoProveedor.findFirst({
+          where: {
+            referencia: { startsWith: searchRef.split('_').slice(0, 2).join('_') }, // Match parcial de referencia
+            monto: movimiento.monto.negated(),
+            createdAt: {
+              gte: new Date(movimiento.createdAt.getTime() - 5000), // +/- 5 segundos
+              lte: new Date(movimiento.createdAt.getTime() + 5000),
+            },
+            anulado: false,
+            id: { not: movimientoId }
+          },
+          include: { proveedor: true }
+        })
+
+        if (gemelo) {
+          // Revertir impacto en el gemelo
+          const nuevoTotalGemelo = gemelo.proveedor.total.minus(gemelo.monto)
+          await tx.proveedor.update({
+            where: { id: gemelo.proveedorId },
+            data: { total: nuevoTotalGemelo }
+          })
+
+          // Anular gemelo
+          await tx.movimientoProveedor.update({
+            where: { id: gemelo.id },
+            data: { anulado: true }
+          })
+        }
+      }
+
+      return { success: true };
+    });
+
+    revalidatePath("/admin/erp/movimientos");
+    revalidatePath("/admin/erp/cuenta-corriente");
+    
+    return { success: true, error: null };
+  } catch (error: any) {
+    console.error("Error al anular movimiento:", error);
+    return { success: false, error: error.message || "Error al anular el movimiento" };
+  }
+}
+
+
+

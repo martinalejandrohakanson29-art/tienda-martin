@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, ArrowLeft, Edit, Save, Loader2, Database } from "lucide-react";
+import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus } from "lucide-react";
 import Link from "next/link";
+import { actualizarArticuloDesdeLista, crearArticuloMostrador } from "@/app/actions/listas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +19,8 @@ interface Articulo {
   nombre: string;
   precio: number;
   stock: number;
+  costo?: number;
+  margenGanancia?: number;
 }
 
 export default function ArticulosClient({ 
@@ -36,6 +39,17 @@ export default function ArticulosClient({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editData, setEditData] = useState<Articulo | null>(null);
+  
+  // Estados para el Modal de Creación
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newData, setNewData] = useState<Articulo>({
+    id: "",
+    nombre: "",
+    precio: 0,
+    stock: 0,
+    costo: 0,
+    margenGanancia: 0
+  });
 
   // --- NUEVO BUSCADOR INTELIGENTE Y FLEXIBLE ---
   const articulosFiltrados = useMemo(() => {
@@ -77,27 +91,67 @@ export default function ArticulosClient({
     if (!editData) return;
     setIsSubmitting(true);
 
-    const res = await fetch('/api/admin/listas/articulos', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: editData.id,
-        nombre: editData.nombre,
-        precio: editData.precio,
-        stock: editData.stock
-      })
-    });
-
-    const result = await res.json();
+    const res = await actualizarArticuloDesdeLista(
+      editData.id,
+      editData.nombre,
+      editData.precio,
+      editData.stock,
+      editData.costo,
+      editData.margenGanancia
+    );
     
-    if (result.success) {
+    if (res.success) {
       setArticulos(prev => prev.map(a => a.id === editData.id ? editData : a));
       setIsEditModalOpen(false);
     } else {
-      alert("Error: " + result.error);
+      alert("Error: " + res.error);
     }
     
     setIsSubmitting(false);
+  };
+
+  const handleCrearArticulo = async () => {
+    if (!newData.id || !newData.nombre) {
+      alert("ID y Nombre son obligatorios");
+      return;
+    }
+    setIsSubmitting(true);
+
+    const res = await crearArticuloMostrador(newData);
+    
+    if (res.success) {
+      setArticulos(prev => [...prev, newData]);
+      setIsCreateModalOpen(false);
+      setNewData({ id: "", nombre: "", precio: 0, stock: 0, costo: 0, margenGanancia: 0 });
+    } else {
+      alert("Error: " + res.error);
+    }
+    
+    setIsSubmitting(false);
+  };
+
+  const calcularPrecio = (costo: number, margen: number) => {
+    return Number((costo * (1 + margen / 100)).toFixed(2));
+  };
+
+  const handleCostoChange = (val: number, isEdit: boolean) => {
+    if (isEdit && editData) {
+      const nuevoPrecio = calcularPrecio(val, editData.margenGanancia || 0);
+      setEditData({ ...editData, costo: val, precio: nuevoPrecio });
+    } else if (!isEdit) {
+      const nuevoPrecio = calcularPrecio(val, newData.margenGanancia || 0);
+      setNewData({ ...newData, costo: val, precio: nuevoPrecio });
+    }
+  };
+
+  const handleMargenChange = (val: number, isEdit: boolean) => {
+    if (isEdit && editData) {
+      const nuevoPrecio = calcularPrecio(editData.costo || 0, val);
+      setEditData({ ...editData, margenGanancia: val, precio: nuevoPrecio });
+    } else if (!isEdit) {
+      const nuevoPrecio = calcularPrecio(newData.costo || 0, val);
+      setNewData({ ...newData, margenGanancia: val, precio: nuevoPrecio });
+    }
   };
 
   return (
@@ -117,6 +171,17 @@ export default function ArticulosClient({
             <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Gestión de productos de venta</p>
           </div>
         </div>
+        <Button 
+          onClick={() => {
+            const nuevoId = "ART-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+            setNewData({ ...newData, id: nuevoId });
+            setIsCreateModalOpen(true);
+          }}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md gap-2"
+        >
+          <Plus className="h-5 w-5" />
+          Crear nuevo artículo
+        </Button>
       </header>
 
       {/* Contenido principal */}
@@ -252,12 +317,33 @@ export default function ArticulosClient({
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 uppercase">Precio Base ($)</Label>
+                  <Label className="text-xs font-bold text-slate-600 uppercase">Costo ($)</Label>
+                  <Input 
+                    type="number" 
+                    value={editData.costo} 
+                    onChange={(e) => handleCostoChange(Number(e.target.value), true)} 
+                    className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 uppercase">% Ganancia</Label>
+                  <Input 
+                    type="number" 
+                    value={editData.margenGanancia} 
+                    onChange={(e) => handleMargenChange(Number(e.target.value), true)} 
+                    className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 uppercase">Precio Final ($)</Label>
                   <Input 
                     type="number" 
                     value={editData.precio} 
                     onChange={(e) => setEditData({...editData, precio: Number(e.target.value)})} 
-                    className="font-black text-lg bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                    className="font-black text-lg bg-indigo-50 border-indigo-200 text-indigo-700 focus-visible:ring-indigo-500"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -289,6 +375,99 @@ export default function ArticulosClient({
             >
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
               Guardar Cambios
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* MODAL DE CREACIÓN */}
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl p-6 border-2 border-indigo-100 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-indigo-900">
+              <Plus className="h-5 w-5 text-indigo-600" /> Nuevo Artículo
+            </DialogTitle>
+            <DialogDescription className="text-slate-500">
+              Ingresa los datos del nuevo artículo para el mostrador.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">ID Artículo (SKU)</Label>
+                <Input 
+                  value={newData.id} 
+                  readOnly
+                  className="font-mono bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">Stock Inicial</Label>
+                <Input 
+                  type="number" 
+                  value={newData.stock} 
+                  onChange={(e) => setNewData({...newData, stock: Number(e.target.value)})} 
+                  className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600 uppercase">Nombre / Descripción</Label>
+              <Input 
+                value={newData.nombre} 
+                onChange={(e) => setNewData({...newData, nombre: e.target.value})} 
+                className="font-medium bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">Costo ($)</Label>
+                <Input 
+                  type="number" 
+                  value={newData.costo} 
+                  onChange={(e) => handleCostoChange(Number(e.target.value), false)} 
+                  className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">% Ganancia</Label>
+                <Input 
+                  type="number" 
+                  value={newData.margenGanancia} 
+                  onChange={(e) => handleMargenChange(Number(e.target.value), false)} 
+                  className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+              <Label className="text-xs font-bold text-indigo-600 uppercase mb-2 block">Precio Final de Venta</Label>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl font-black text-indigo-900">$</span>
+                <Input 
+                  type="number" 
+                  value={newData.precio} 
+                  onChange={(e) => setNewData({...newData, precio: Number(e.target.value)})} 
+                  className="font-black text-2xl bg-white border-indigo-200 text-indigo-700 focus-visible:ring-indigo-500 h-12"
+                />
+              </div>
+              <p className="text-[10px] text-indigo-400 mt-2 font-medium italic">* Puedes ajustar el precio manualmente si lo deseas.</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-3 mt-4">
+            <Button variant="ghost" onClick={() => setIsCreateModalOpen(false)} className="text-slate-500 hover:text-slate-700">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCrearArticulo} 
+              disabled={isSubmitting} 
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold px-8 shadow-md"
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+              Crear Artículo
             </Button>
           </DialogFooter>
         </DialogContent>

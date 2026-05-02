@@ -24,6 +24,7 @@ import {
 } from "@/app/actions/compras";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 import { actualizarPrecioArticuloDB, sincronizarArticulosMostrador } from "@/app/actions/ventas-mostrador";
+import { crearArticuloMostrador } from "@/app/actions/listas";
 import { PedidosCompraClient } from "@/app/admin/erp/pedidos-compra/pedidos-compra-client";
 
 interface Articulo {
@@ -33,6 +34,8 @@ interface Articulo {
   stock: number;
   ultimaModificacion?: string | null;
   esPack?: boolean;
+  costo?: number;
+  margenGanancia?: number;
 }
 
 interface ItemCompra {
@@ -123,6 +126,17 @@ export default function ComprasClient({
   const [showProvList, setShowProvList] = useState(false);
   const [showProvListEdit, setShowProvListEdit] = useState(false);
 
+  // --- ESTADOS PARA CREACIÓN DE ARTÍCULO ---
+  const [isCreateArticuloModalOpen, setIsCreateArticuloModalOpen] = useState(false);
+  const [newArtData, setNewArtData] = useState<Articulo>({
+    id: "",
+    nombre: "",
+    precio: 0,
+    stock: 0,
+    costo: 0,
+    margenGanancia: 0
+  });
+
   // --- EFECTOS ---
   useEffect(() => {
     setArticulos(articulosIniciales);
@@ -192,6 +206,49 @@ export default function ComprasClient({
       });
     }).slice(0, 15);
   }, [searchTerm, articulos]);
+
+  const handleCrearNuevoArticulo = async () => {
+    if (!newArtData.id || !newArtData.nombre) {
+      alert("ID y Nombre son obligatorios");
+      return;
+    }
+    setIsSubmitting(true);
+
+    const res = await crearArticuloMostrador({
+      id: newArtData.id,
+      nombre: newArtData.nombre,
+      precio: newArtData.precio,
+      stock: newArtData.stock,
+      costo: newArtData.costo,
+      margenGanancia: newArtData.margenGanancia
+    });
+
+    if (res.success) {
+      const nuevo = { ...newArtData, precio: Number(newArtData.precio) };
+      setArticulos(prev => [...prev, nuevo]);
+      agregarProductoACompra(nuevo);
+      setIsCreateArticuloModalOpen(false);
+      setNewArtData({ id: "", nombre: "", precio: 0, stock: 0, costo: 0, margenGanancia: 0 });
+      mostrarMensajeExito("Artículo creado y añadido a la compra");
+    } else {
+      alert("Error: " + res.error);
+    }
+    setIsSubmitting(false);
+  };
+
+  const calcularPrecioArt = (costo: number, margen: number) => {
+    return Number((costo * (1 + margen / 100)).toFixed(2));
+  };
+
+  const handleCostoArtChange = (val: number) => {
+    const nuevoPrecio = calcularPrecioArt(val, newArtData.margenGanancia || 0);
+    setNewArtData({ ...newArtData, costo: val, precio: nuevoPrecio });
+  };
+
+  const handleMargenArtChange = (val: number) => {
+    const nuevoPrecio = calcularPrecioArt(newArtData.costo || 0, val);
+    setNewArtData({ ...newArtData, margenGanancia: val, precio: nuevoPrecio });
+  };
 
   // --- CÁLCULOS NUEVA COMPRA ---
   const totalBase = items.reduce((acc, item) => acc + item.subtotal, 0);
@@ -454,9 +511,18 @@ export default function ComprasClient({
 
         <TabsContent value="registrar" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
           <main className="flex-grow flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden h-full">
-            <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md">
-              <Plus className="h-4 w-4" /> Buscar Artículo ( + )
-            </Button>
+            <div className="flex gap-4 items-center">
+              <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
+                <Plus className="h-4 w-4" /> Buscar Artículo ( + )
+              </Button>
+              <Button onClick={() => {
+                const nuevoId = "ART-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+                setNewArtData({ ...newArtData, id: nuevoId });
+                setIsCreateArticuloModalOpen(true);
+              }} variant="outline" className="ml-auto border-emerald-200 text-emerald-700 hover:bg-emerald-50 gap-2 px-6 rounded-xl w-fit shadow-sm flex-shrink-0">
+                <Plus className="h-4 w-4" /> Crear nuevo artículo
+              </Button>
+            </div>
 
             <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col">
               <div className="overflow-y-auto flex-grow h-full">
@@ -1325,6 +1391,100 @@ export default function ComprasClient({
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DE CREACIÓN DE ARTÍCULO RÁPIDO */}
+      <Dialog open={isCreateArticuloModalOpen} onOpenChange={setIsCreateArticuloModalOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl p-6 border-2 border-emerald-100 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-emerald-900">
+              <Plus className="h-5 w-5 text-emerald-600" /> Crear Nuevo Artículo
+            </DialogTitle>
+            <DialogDescription className="text-slate-500">
+              Ingresa los datos para dar de alta un nuevo producto en el sistema.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">ID / SKU</Label>
+                <Input 
+                  value={newArtData.id} 
+                  readOnly
+                  className="font-mono bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">Stock Inicial</Label>
+                <Input 
+                  type="number" 
+                  value={newArtData.stock} 
+                  onChange={(e) => setNewArtData({...newArtData, stock: Number(e.target.value)})} 
+                  className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600 uppercase">Nombre / Descripción</Label>
+              <Input 
+                value={newArtData.nombre} 
+                onChange={(e) => setNewArtData({...newArtData, nombre: e.target.value})} 
+                className="font-medium bg-slate-50 border-slate-200 focus-visible:ring-emerald-500"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">Costo ($)</Label>
+                <Input 
+                  type="number" 
+                  value={newArtData.costo} 
+                  onChange={(e) => handleCostoArtChange(Number(e.target.value))} 
+                  className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-emerald-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">% Ganancia</Label>
+                <Input 
+                  type="number" 
+                  value={newArtData.margenGanancia} 
+                  onChange={(e) => handleMargenArtChange(Number(e.target.value))} 
+                  className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+              <Label className="text-xs font-bold text-emerald-600 uppercase mb-2 block">Precio Final de Venta</Label>
+              <div className="flex items-center gap-3">
+                <span className="text-2xl font-black text-emerald-900">$</span>
+                <Input 
+                  type="number" 
+                  value={newArtData.precio} 
+                  onChange={(e) => setNewArtData({...newArtData, precio: Number(e.target.value)})} 
+                  className="font-black text-2xl bg-white border-emerald-200 text-emerald-700 focus-visible:ring-emerald-500 h-12"
+                />
+              </div>
+              <p className="text-[10px] text-emerald-400 mt-2 font-medium italic">* El valor se calcula automáticamente pero puede editarse manualmente.</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-3 mt-4">
+            <Button variant="ghost" onClick={() => setIsCreateArticuloModalOpen(false)} className="text-slate-500 hover:text-slate-700">
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleCrearNuevoArticulo} 
+              disabled={isSubmitting} 
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold px-8 shadow-md"
+            >
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+              Crear e Incluir
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

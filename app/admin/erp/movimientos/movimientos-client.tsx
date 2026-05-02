@@ -4,6 +4,9 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { anularMovimientoProveedor } from "@/app/actions/erp";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface Movimiento {
   id: string;
@@ -27,8 +30,10 @@ export default function MovimientosClient({
   movimientosIniciales,
   initialProveedorId,
 }: MovimientosClientProps) {
+  const router = useRouter();
   const today = new Date().toISOString().split("T")[0];
-  
+  const [isAnulando, setIsAnulando] = useState<string | null>(null);
+
   // Si tenemos movimientos y todos son del mismo proveedor (porque vinimos filtrados),
   // ponemos el nombre en el buscador para que sea visible el filtro
   const initialSearch = useMemo(() => {
@@ -44,19 +49,19 @@ export default function MovimientosClient({
 
   const filteredMovimientos = useMemo(() => {
     return movimientosIniciales.filter((m) => {
-      const matchesSearch = 
+      const matchesSearch =
         m.proveedorNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (m.descripcion && m.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
-      
+
       if (!matchesSearch) return false;
 
       const movimientoDate = new Date(m.fecha);
-      
+
       if (startDate) {
         const start = new Date(startDate + "T00:00:00");
         if (movimientoDate < start) return false;
       }
-      
+
       if (endDate) {
         const end = new Date(endDate + "T23:59:59");
         if (movimientoDate > end) return false;
@@ -71,6 +76,28 @@ export default function MovimientosClient({
       style: "currency",
       currency: "ARS",
     }).format(amount);
+  };
+
+  const handleAnular = async (id: string) => {
+    if (!confirm("¿Estás seguro de que deseas anular este movimiento? Esta acción revertirá el impacto en el saldo del proveedor.")) {
+      return;
+    }
+
+    setIsAnulando(id);
+    try {
+      const result = await anularMovimientoProveedor(id);
+      if (result.success) {
+        toast.success("Movimiento anulado correctamente");
+        router.refresh();
+      } else {
+        const errorMsg = (result as any).error || "Error al anular el movimiento";
+        toast.error(errorMsg);
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setIsAnulando(null);
+    }
   };
 
   return (
@@ -110,7 +137,7 @@ export default function MovimientosClient({
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            
+
             <div className="flex items-center gap-2 w-full md:w-auto">
               <div className="flex flex-col gap-1 w-full md:w-40">
                 <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Desde</label>
@@ -159,6 +186,7 @@ export default function MovimientosClient({
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo Resultante</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -182,19 +210,34 @@ export default function MovimientosClient({
                         </p>
                       </div>
                     </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${
-                      m.anulado ? "text-slate-400 line-through" : (m.monto >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")
-                    }`}>
+                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${m.anulado ? "text-slate-400 line-through" : (m.monto >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")
+                      }`}>
                       {formatCurrency(m.monto)}
                     </td>
                     <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right ${m.anulado ? "text-slate-400" : ""}`}>
                       {formatCurrency(m.saldo)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      {!m.anulado && (
+                        <button
+                          onClick={() => handleAnular(m.id)}
+                          disabled={isAnulando === m.id}
+                          className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                          title="Anular movimiento"
+                        >
+                          {isAnulando === m.id ? (
+                            <span className="w-5 h-5 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin inline-block" />
+                          ) : (
+                            <span className="material-symbols-outlined text-lg">block</span>
+                          )}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
                       <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">history</span>
                       <p className="text-slate-500 font-medium">No se encontraron movimientos.</p>

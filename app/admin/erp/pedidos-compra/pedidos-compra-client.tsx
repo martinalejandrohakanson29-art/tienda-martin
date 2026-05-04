@@ -31,8 +31,12 @@ import {
   ChevronDown,
   Eye,
   Download,
-  Send,
+  Search,
+  AlertTriangle,
+  CheckCircle,
+  Save,
   Edit,
+  Send,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -49,11 +53,13 @@ import {
 import { obtenerProveedores } from "@/app/actions/listas";
 
 type ItemCompra = {
+  id?: string;
   productoId?: string | null;
   nombre: string;
   cantidad: number;
   costo_unit: number;
   subtotal: number;
+  margenGanancia?: number;
 };
 
 type Compra = {
@@ -104,13 +110,27 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
   const [editingCompra, setEditingCompra] = useState<Compra | null>(null);
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [showProvListEdit, setShowProvListEdit] = useState(false);
+  const [impactarCostos, setImpactarCostos] = useState(false);
+  const [confirmImpactarCostos, setConfirmImpactarCostos] = useState(false);
+
+  const getMarginColor = (m: number) => {
+    if (m > 60) return "text-fuchsia-600 font-bold";
+    if (m > 50) return "text-orange-600 font-bold";
+    if (m >= 40) return "text-yellow-600 font-bold";
+    if (m < 40) return "text-red-600 font-bold";
+    return "text-slate-600";
+  };
 
   const cargarPedidos = async () => {
     try {
       setCargando(true);
       setError(null);
-      const data = await obtenerPedidosCompra(fechaDesde, fechaHasta);
-      setCompras(data as Compra[]);
+      const res = await obtenerPedidosCompra(fechaDesde, fechaHasta);
+      if (res.success && res.data) {
+        setCompras(res.data as any);
+      } else if (res.error) {
+        setError(res.error);
+      }
     } catch (err) {
       console.error("Error al cargar pedidos:", err);
       setError("No se pudieron cargar los pedidos de compra");
@@ -153,7 +173,12 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
     try {
       const data = await obtenerPedidoCompraPorId(compra.id);
       if (data) {
-        setEditingCompra(data as Compra);
+        const mappedItems = data.items.map((i: any) => ({
+          ...i,
+          margenGanancia: i.margenGanancia || 50
+        }));
+        setEditingCompra({ ...data, items: mappedItems } as Compra);
+        setImpactarCostos(false);
         setIsEditDialogOpen(true);
       }
     } catch (err) {
@@ -171,7 +196,7 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
       setIsProcessing(true);
       const result = await actualizarPedidoCompra(
         editingCompra.id,
-        editingCompra,
+        { ...editingCompra, impactarCostos },
         "Admin", // TODO: Get actual user
         "Pedido editado desde el ERP"
       );
@@ -196,7 +221,11 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
 
     try {
       setIsProcessing(true);
-      const result = await confirmarPedidoCompra(compraSeleccionada.id);
+      const result = await confirmarPedidoCompra(compraSeleccionada.id, {
+        impactarCostos: confirmImpactarCostos,
+        items: compraSeleccionada.items,
+        usuario: "Admin" // TODO: Get actual user
+      });
       if (result.success) {
         setCompraSeleccionada(null);
         setIsConfirmDialogOpen(false);
@@ -505,6 +534,7 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                   <TableHead className="text-right">Total Final</TableHead>
                   <TableHead className="text-right">Fecha</TableHead>
                   <TableHead className="text-center">Estado</TableHead>
+                  <TableHead className="text-center">Metodo</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
@@ -577,6 +607,17 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                           </select>
                         </TableCell>
                         <TableCell className="text-center py-4">
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${compra.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
+                            compra.metodo_pago === 'Transferencia' ? 'bg-blue-100 text-blue-700' :
+                              compra.metodo_pago === 'A Cuenta Corriente' ? 'bg-amber-100 text-amber-700' :
+                                compra.metodo_pago === 'Cheque' ? 'bg-indigo-100 text-indigo-700' :
+                                  compra.metodo_pago === 'Mercado Pago' ? 'bg-sky-100 text-sky-700' :
+                                    'bg-slate-100 text-slate-700'
+                            }`}>
+                            {compra.metodo_pago}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-center py-4">
                           <div className="flex items-center justify-center gap-2">
                             <Button
                               variant="outline"
@@ -646,6 +687,7 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                                       <span className="text-[10px] text-slate-400 ml-2 font-mono uppercase">ID: {item.productoId || '-'}</span>
                                     </div>
                                     <div className="flex items-center gap-4">
+                                      <span className="text-[10px] font-medium text-slate-500">{formatPrice(item.costo_unit)} c/u</span>
                                       <span className="bg-slate-200 px-2 py-0.5 rounded text-[10px] font-bold text-slate-600">x{item.cantidad}</span>
                                       <span className="font-bold text-slate-700">{formatPrice(item.subtotal)}</span>
                                     </div>
@@ -669,54 +711,107 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
 
       {/* Confirm Dialog */}
       <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogContent className="sm:max-w-[450px] rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-indigo-900">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              Confirmar Recepción de Compra
-            </DialogTitle>
-          </DialogHeader>
-          {compraSeleccionada && (
-            <div className="mt-4 space-y-4">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <p className="text-sm text-slate-700">
-                  <strong>Proveedor:</strong> {compraSeleccionada.proveedor || "Sin proveedor"}
+        <DialogContent className="sm:max-w-[550px] rounded-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <div className="p-6 border-b bg-white flex-shrink-0">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-indigo-900">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                Confirmar Recepción de Compra
+              </DialogTitle>
+            </DialogHeader>
+          </div>
+
+          <div className="flex-grow overflow-y-auto p-6 space-y-4">
+            {compraSeleccionada && (
+              <>
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Proveedor</p>
+                    <p className="text-sm font-bold text-slate-700">{compraSeleccionada.proveedor || "Sin proveedor"}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Final</p>
+                    <p className="text-lg font-black text-slate-900">{formatPrice(compraSeleccionada.totalFinal)}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumen de Artículos</p>
+                  <div className="border rounded-xl overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          <TableHead className="text-[10px] py-2">Artículo</TableHead>
+                          <TableHead className="text-center text-[10px] py-2">Cant.</TableHead>
+                          <TableHead className="text-right text-[10px] py-2">Subtotal</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {compraSeleccionada.items.map((item, idx) => (
+                          <TableRow key={idx} className="text-xs">
+                            <TableCell className="py-2">{item.nombre}</TableCell>
+                            <TableCell className="text-center py-2">x{item.cantidad}</TableCell>
+                            <TableCell className="text-right py-2">{formatPrice(item.subtotal)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="confirmImpactarCostos"
+                      checked={confirmImpactarCostos}
+                      onChange={(e) => setConfirmImpactarCostos(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <Label htmlFor="confirmImpactarCostos" className="text-sm font-bold text-amber-900 cursor-pointer">
+                      Impactar costos y actualizar precios públicos
+                    </Label>
+                  </div>
+                  <p className="text-[10px] text-amber-700 leading-relaxed italic">
+                    * Si marcas esta opción, el costo de los productos se actualizará con los valores de este pedido y se recalcularán los precios de venta según los márgenes establecidos.
+                  </p>
+                </div>
+
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  ¿Desea confirmar que ha recibido este pedido? Esto marcará la compra como confirmada y actualizará el saldo con el proveedor si el pago es a Cuenta Corriente.
                 </p>
-                <p className="text-sm text-slate-700">
-                  <strong>Total Final:</strong>{" "}
-                  {formatPrice(compraSeleccionada.totalFinal)}
-                </p>
-              </div>
-              <p className="text-sm text-slate-600">
-                ¿Desea confirmar que ha recibido este pedido? Esto marcará la compra como confirmada y actualizará el saldo con el proveedor si el pago es a Cuenta Corriente.
-              </p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setIsConfirmDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={confirmarPedido}
-              disabled={isProcessing}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Procesando...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Confirmar Recepción
-                </>
-              )}
-            </Button>
-          </DialogFooter>
+              </>
+            )}
+          </div>
+
+          <div className="p-6 border-t bg-slate-50 flex-shrink-0">
+            <DialogFooter className="flex gap-2">
+              <Button
+                variant="ghost"
+                onClick={() => setIsConfirmDialogOpen(false)}
+                className="flex-1"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={confirmarPedido}
+                disabled={isProcessing}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Confirmando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirmar Recepción
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -766,20 +861,27 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] rounded-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-indigo-900">
-              <Edit className="h-5 w-5" />
-              Editar Pedido de Compra
-            </DialogTitle>
-          </DialogHeader>
+        <DialogContent className="sm:max-w-[950px] rounded-3xl max-h-[95vh] overflow-hidden flex flex-col p-0 border-none shadow-2xl">
+          <div className="p-6 border-b bg-white flex-shrink-0 flex justify-between items-center">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-indigo-900 text-xl font-bold">
+                <Edit className="h-6 w-6 text-amber-500" />
+                Editando Pedido de Compra #{editingCompra?.numeroCompra || editingCompra?.id.slice(0, 8)}
+              </DialogTitle>
+            </DialogHeader>
+            <Button variant="ghost" size="icon" onClick={() => setIsEditDialogOpen(false)} className="rounded-full">
+              <RefreshCcw className="h-4 w-4 rotate-45" />
+            </Button>
+          </div>
+
           {editingCompra && (
-            <div className="mt-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2 relative">
-                  <Label>Proveedor</Label>
+            <div className="flex-grow overflow-hidden flex flex-col p-6 gap-6 bg-slate-50/30">
+              <div className="grid grid-cols-4 gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
+                <div className="space-y-1.5 relative">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Proveedor</Label>
                   <Input
                     value={editingCompra.proveedor}
+                    className="h-10 border-slate-200 focus:border-indigo-500"
                     onChange={e => {
                       const val = e.target.value;
                       setEditingCompra(prev => prev ? { ...prev, proveedor: val } : null);
@@ -814,10 +916,9 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                             <div className="flex justify-between items-center">
                               <div className="flex flex-col">
                                 <span className="text-sm font-bold text-slate-900 group-hover:text-indigo-700">{p.razonSocial}</span>
-                                <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"} {p.nombreFantasia ? `| ${p.nombreFantasia}` : ""}</span>
+                                <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"}</span>
                               </div>
                               <div className="text-right">
-                                <span className="text-[10px] font-bold text-slate-400 block uppercase">Saldo</span>
                                 <span className={`text-xs font-black ${p.total > 0 ? 'text-red-600' : 'text-green-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</span>
                               </div>
                             </div>
@@ -829,113 +930,231 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                     </div>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label>Método de Pago</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Método Pago</Label>
                   <select
-                    className="w-full h-10 px-3 rounded-md border border-slate-300 text-sm"
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm bg-white"
                     value={editingCompra.metodo_pago}
                     onChange={e => setEditingCompra(prev => prev ? { ...prev, metodo_pago: e.target.value } : null)}
                   >
                     <option value="Efectivo">Efectivo</option>
                     <option value="Transferencia">Transferencia</option>
                     <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Mercado Pago">Mercado Pago</option>
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Fecha Carga</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fecha Carga</Label>
                   <Input
                     type="date"
+                    className="h-10 border-slate-200"
                     value={editingCompra.fechaCarga ? new Date(editingCompra.fechaCarga).toISOString().split('T')[0] : (editingCompra.createdAt ? new Date(editingCompra.createdAt).toISOString().split('T')[0] : "")}
                     onChange={e => setEditingCompra(prev => prev ? { ...prev, fechaCarga: e.target.value } : null)}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Fecha Ingreso</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fecha Ingreso</Label>
                   <Input
                     type="date"
+                    className="h-10 border-slate-200"
                     value={editingCompra.fechaIngreso ? new Date(editingCompra.fechaIngreso).toISOString().split('T')[0] : ""}
                     onChange={e => setEditingCompra(prev => prev ? { ...prev, fechaIngreso: e.target.value } : null)}
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Observaciones</Label>
-                <Input
-                  value={editingCompra.info || ""}
-                  onChange={e => setEditingCompra(prev => prev ? { ...prev, info: e.target.value } : null)}
-                />
+
+              <div className="flex-grow bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                <div className="overflow-y-auto flex-grow h-full">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
+                      <TableRow>
+                        <TableHead className="text-[10px] font-bold uppercase py-3">Artículo</TableHead>
+                        <TableHead className="text-center text-[10px] font-bold uppercase py-3">Cant.</TableHead>
+                        <TableHead className="text-center text-[10px] font-bold uppercase py-3">Costo Unit.</TableHead>
+                        <TableHead className="text-center text-[10px] font-bold uppercase py-3">Margen %</TableHead>
+                        <TableHead className="text-center text-[10px] font-bold uppercase py-3">Precio Público</TableHead>
+                        <TableHead className="text-right text-[10px] font-bold uppercase py-3">Subtotal</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {editingCompra.items.map((item, idx) => (
+                        <TableRow key={idx} className="hover:bg-slate-50/50 transition-colors">
+                          <TableCell className="font-medium text-slate-700 py-3">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-bold">{item.nombre}</span>
+                              <span className="text-[9px] text-slate-400 font-mono uppercase">{item.productoId}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center py-3">
+                            <Input
+                              type="number"
+                              className="w-16 h-8 mx-auto text-center text-xs font-bold border-slate-200"
+                              value={item.cantidad}
+                              onChange={e => {
+                                const val = parseInt(e.target.value) || 0;
+                                setEditingCompra(prev => {
+                                  if (!prev) return null;
+                                  const newItems = [...prev.items];
+                                  newItems[idx] = { ...newItems[idx], cantidad: val, subtotal: val * newItems[idx].costo_unit };
+                                  const newTotal = newItems.reduce((acc, i) => acc + i.subtotal, 0);
+                                  return { ...prev, items: newItems, total: newTotal, totalFinal: newTotal + (prev.interes || 0) - (prev.descuento || 0) };
+                                });
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell className="text-center py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-slate-400 text-xs">$</span>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                className="w-24 h-8 text-center text-xs font-bold border-slate-200"
+                                value={item.costo_unit}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value.replace(',', '.')) || 0;
+                                  setEditingCompra(prev => {
+                                    if (!prev) return null;
+                                    const newItems = [...prev.items];
+                                    newItems[idx] = { ...newItems[idx], costo_unit: val, subtotal: val * newItems[idx].cantidad };
+                                    const newTotal = newItems.reduce((acc, i) => acc + i.subtotal, 0);
+                                    return { ...prev, items: newItems, total: newTotal, totalFinal: newTotal + (prev.interes || 0) - (prev.descuento || 0) };
+                                  });
+                                }}
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                className={`w-16 h-8 text-center text-xs border-slate-200 ${getMarginColor(item.margenGanancia ?? 50)}`}
+                                value={item.margenGanancia ?? 50}
+                                onChange={e => {
+                                  const val = parseFloat(e.target.value.replace(',', '.')) || 0;
+                                  setEditingCompra(prev => {
+                                    if (!prev) return null;
+                                    const newItems = [...prev.items];
+                                    newItems[idx] = { ...newItems[idx], margenGanancia: val };
+                                    return { ...prev, items: newItems };
+                                  });
+                                }}
+                              />
+                              <span className="text-slate-400 text-xs">%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center py-3">
+                            <div className="flex items-center justify-center gap-1">
+                              <span className="text-emerald-600 text-xs">$</span>
+                              <Input
+                                type="text"
+                                inputMode="decimal"
+                                className="w-24 h-8 text-center text-xs font-bold text-emerald-600 border-slate-200"
+                                value={Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value.replace(/\D/g, '')) || 0;
+                                  const cost = item.costo_unit;
+                                  if (cost > 0) {
+                                    const newMargin = Math.round(((val - cost) / cost) * 100 * 100) / 100;
+                                    setEditingCompra(prev => {
+                                      if (!prev) return null;
+                                      const newItems = [...prev.items];
+                                      newItems[idx] = { ...newItems[idx], margenGanancia: newMargin };
+                                      return { ...prev, items: newItems };
+                                    });
+                                  }
+                                }}
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right py-3 font-bold text-slate-700 pr-6">
+                            {formatPrice(item.subtotal)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
 
-              <div className="border-t pt-4">
-                <Label className="font-bold">Items del Pedido</Label>
-                <div className="mt-2 space-y-2">
-                  {editingCompra.items.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg text-xs">
-                      <span className="flex-1 font-medium">{item.nombre}</span>
-                      <div className="w-20">
-                        <Label className="text-[10px]">Cant.</Label>
-                        <Input
-                          type="number"
-                          className="h-8 text-xs"
-                          value={item.cantidad}
-                          onChange={e => {
-                            setEditingCompra(prev => {
-                              if (!prev) return null;
-                              const newItems = [...prev.items];
-                              newItems[idx].cantidad = parseInt(e.target.value) || 0;
-                              newItems[idx].subtotal = newItems[idx].cantidad * newItems[idx].costo_unit;
-                              const newTotal = newItems.reduce((acc, i) => acc + i.subtotal, 0);
-                              return {
-                                ...prev,
-                                items: newItems,
-                                total: newTotal,
-                                totalFinal: newTotal + (prev.interes || 0) - (prev.descuento || 0)
-                              };
-                            });
-                          }}
-                        />
-                      </div>
-                      <div className="w-24 text-right">
-                        <Label className="text-[10px]">Subtotal</Label>
-                        <p className="font-bold">{formatPrice(item.subtotal)}</p>
-                      </div>
+              <div className="flex flex-col gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex-shrink-0">
+                <div className="flex justify-between items-end">
+                  <div className="flex gap-10">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Base</Label>
+                      <p className="text-xl font-bold text-slate-900">{formatPrice(editingCompra.total)}</p>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Interés (+)</Label>
+                      <Input
+                        type="number"
+                        className="h-8 w-24 text-xs font-bold"
+                        value={editingCompra.interes || 0}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setEditingCompra(prev => prev ? { ...prev, interes: val, totalFinal: (prev.total || 0) + val - (prev.descuento || 0) } : null);
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Descuento (-)</Label>
+                      <Input
+                        type="number"
+                        className="h-8 w-24 text-xs font-bold text-red-600"
+                        value={editingCompra.descuento || 0}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setEditingCompra(prev => prev ? { ...prev, descuento: val, totalFinal: (prev.total || 0) + (prev.interes || 0) - val } : null);
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Final</Label>
+                      <p className="text-3xl font-black text-indigo-600 tracking-tighter">{formatPrice(editingCompra.totalFinal)}</p>
+                    </div>
+                  </div>
 
-              <div className="bg-indigo-50 p-4 rounded-xl space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span>Subtotal:</span>
-                  <span>{formatPrice(editingCompra.total)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-red-600 font-medium">
-                  <span>Total Final:</span>
-                  <span className="text-lg font-bold">{formatPrice(editingCompra.totalFinal)}</span>
+                  <div className="flex flex-col items-end gap-4">
+                    <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex items-center space-x-3 shadow-sm">
+                      <input
+                        type="checkbox"
+                        id="editImpactarCostos"
+                        checked={impactarCostos}
+                        onChange={(e) => setImpactarCostos(e.target.checked)}
+                        className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                      />
+                      <Label htmlFor="editImpactarCostos" className="text-sm font-bold text-amber-900 cursor-pointer">
+                        Impactar costos y actualizar precios públicos
+                      </Label>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <Button
+                        variant="ghost"
+                        onClick={() => setIsEditDialogOpen(false)}
+                        className="h-12 px-8 rounded-xl font-medium text-slate-600"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        onClick={confirmarEdicion}
+                        disabled={isProcessing}
+                        className="h-12 px-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-600/20"
+                      >
+                        {isProcessing ? (
+                          <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                        ) : (
+                          <Save className="h-5 w-5 mr-2" />
+                        )}
+                        Guardar Cambios
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => setIsEditDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={confirmarEdicion}
-              disabled={isProcessing}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-            >
-              {isProcessing ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-              )}
-              Guardar Cambios
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

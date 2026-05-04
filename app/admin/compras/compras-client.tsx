@@ -750,11 +750,13 @@ export default function ComprasClient({
                               </div>
                             </TableCell>
                             <TableCell className="py-4">
-                              <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${c.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
-                                c.metodo_pago === 'Transferencia' ? 'bg-blue-100 text-blue-700' :
-                                  c.metodo_pago === 'A Cuenta Corriente' ? 'bg-amber-100 text-amber-700' :
-                                    'bg-slate-100 text-slate-700'
-                                }`}>
+                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${c.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
+                                  c.metodo_pago === 'Transferencia' ? 'bg-blue-100 text-blue-700' :
+                                    c.metodo_pago === 'A Cuenta Corriente' ? 'bg-amber-100 text-amber-700' :
+                                      c.metodo_pago === 'Cheque' ? 'bg-indigo-100 text-indigo-700' :
+                                        c.metodo_pago === 'Mercado Pago' ? 'bg-sky-100 text-sky-700' :
+                                          'bg-slate-100 text-slate-700'
+                                  }`}>
                                 {c.metodo_pago}
                               </span>
                             </TableCell>
@@ -934,7 +936,9 @@ export default function ComprasClient({
                                   <span className={`w-fit px-2 py-0.5 text-[9px] font-black rounded-full uppercase ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
                                     v.metodo_pago === 'Transferencia' ? 'bg-blue-100 text-blue-700' :
                                       v.metodo_pago === 'A Cuenta Corriente' ? 'bg-amber-100 text-amber-700' :
-                                        'bg-slate-100 text-slate-700'
+                                        v.metodo_pago === 'Cheque' ? 'bg-indigo-100 text-indigo-700' :
+                                          v.metodo_pago === 'Mercado Pago' ? 'bg-sky-100 text-sky-700' :
+                                            'bg-slate-100 text-slate-700'
                                     }`}>
                                     {v.metodo_pago}
                                   </span>
@@ -1112,6 +1116,7 @@ export default function ComprasClient({
                     <option value="Transferencia">Transferencia</option>
                     <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                     <option value="Cheque">Cheque</option>
+                    <option value="Mercado Pago">Mercado Pago</option>
                   </select>
                 </div>
                 <div className="space-y-1">
@@ -1301,6 +1306,7 @@ export default function ComprasClient({
                   <option value="Transferencia">Transferencia</option>
                   <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                   <option value="Cheque">Cheque</option>
+                  <option value="Mercado Pago">Mercado Pago</option>
                 </select>
               </div>
               <div className="space-y-2">

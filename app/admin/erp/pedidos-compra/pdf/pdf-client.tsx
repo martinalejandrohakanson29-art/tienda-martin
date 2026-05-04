@@ -47,12 +47,7 @@ interface PedidoPDFClientProps {
 }
 
 export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      window.print();
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
+  // Se elimina el auto-print a pedido del usuario
 
   const handlePrint = () => {
     window.print();
@@ -134,6 +129,9 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
                             </span>
                           </div>
                           <div className="flex items-center gap-4">
+                            <span className="text-[10px] font-medium text-slate-500 print:text-black">
+                              {formatPrice(item.costo_unit)} c/u
+                            </span>
                             <span className="bg-slate-200 print:border print:border-slate-300 print:bg-transparent px-2 py-0.5 rounded text-[10px] font-bold text-slate-600 print:text-black">
                               x{item.cantidad}
                             </span>

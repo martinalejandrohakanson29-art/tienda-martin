@@ -14,15 +14,16 @@ export default async function PedidosCompraPage() {
   const haceUnMes = new Date()
   haceUnMes.setMonth(hoy.getMonth() - 1)
 
-  const pedidos = await obtenerPedidosCompra(
+  const res = await obtenerPedidosCompra(
     haceUnMes.toISOString(),
     hoy.toISOString()
   )
+  const initialData = res.success ? res.data : []
 
   return (
     <div className="flex-1 space-y-4">
       <Suspense fallback={<div className="text-slate-500">Cargando pedidos...</div>}>
-        <PedidosCompraClient initialData={pedidos} />
+        <PedidosCompraClient initialData={initialData as any[]} />
       </Suspense>
     </div>
   )

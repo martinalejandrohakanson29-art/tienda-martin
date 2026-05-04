@@ -19,7 +19,7 @@ export async function obtenerTodosLosArticulos() {
         }
       }
     });
-    
+
     return articulos.map(art => ({
       ...art,
       precio: Number(art.precio),
@@ -28,8 +28,8 @@ export async function obtenerTodosLosArticulos() {
       esPack: art.esPack || false,
       ultimaModificacion: art.auditorias?.[0]?.createdAt?.toISOString() || null,
       stock: (art.esPack && art.packItems)
-              ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
-              : art.stock,
+        ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
+        : art.stock,
       packItems: art.packItems?.map(packItem => ({
         ...packItem,
         componente: {
@@ -126,26 +126,29 @@ export async function obtenerPedidosCompra(fechaDesde: string, fechaHasta: strin
       },
     });
 
-    return compras.map(c => ({
-      ...c,
-      tipoCompra: c.tipoCompra || "PEDIDO",
-      total: Number(c.total),
-      interes: Number(c.interes),
-      descuento: Number(c.descuento),
-      totalFinal: Number(c.totalFinal),
-      createdAt: c.createdAt.toISOString(),
-      fechaCarga: c.fechaCarga.toISOString(),
-      fechaIngreso: c.fechaIngreso ? c.fechaIngreso.toISOString() : null,
-      items: c.items.map(i => ({
-        ...i,
-        productoId: i.productoId || null,
-        costo_unit: Number(i.costo_unit),
-        subtotal: Number(i.subtotal)
+    return {
+      success: true,
+      data: compras.map(c => ({
+        ...c,
+        tipoCompra: c.tipoCompra || "PEDIDO",
+        total: Number(c.total),
+        interes: Number(c.interes),
+        descuento: Number(c.descuento),
+        totalFinal: Number(c.totalFinal),
+        createdAt: c.createdAt.toISOString(),
+        fechaCarga: c.fechaCarga.toISOString(),
+        fechaIngreso: c.fechaIngreso ? c.fechaIngreso.toISOString() : null,
+        items: c.items.map(i => ({
+          ...i,
+          productoId: i.productoId || null,
+          costo_unit: Number(i.costo_unit),
+          subtotal: Number(i.subtotal)
+        }))
       }))
-    }));
+    };
   } catch (error) {
     console.error("Error al obtener pedidos de compra:", error);
-    return [];
+    return { success: false, error: "No se pudieron cargar los pedidos de compra" };
   }
 }
 
@@ -238,12 +241,12 @@ export async function guardarComoPedidoCompra(data: {
       for (const item of data.items) {
         const prodId = item.productoId || item.id;
         if (!prodId) continue;
- 
+
         const articuloBase = await tx.articuloMostrador.findUnique({
           where: { id: prodId },
           include: { packItems: true }
         });
- 
+
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
             await tx.articuloMostrador.update({
@@ -259,12 +262,12 @@ export async function guardarComoPedidoCompra(data: {
           if (data.impactarCostos) {
             updateData.precio = precioPublico;
           }
- 
+
           await tx.articuloMostrador.update({
             where: { id: prodId },
             data: updateData
           });
- 
+
           if (data.impactarCostos && articuloBase) {
             await tx.articuloAuditoria.create({
               data: {
@@ -288,7 +291,7 @@ export async function guardarComoPedidoCompra(data: {
   }
 }
 
-export async function confirmarPedidoCompra(compraId: string) {
+export async function confirmarPedidoCompra(compraId: string, data?: { impactarCostos: boolean, items: any[], usuario: string }) {
   try {
     const result = await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.update({
@@ -296,10 +299,45 @@ export async function confirmarPedidoCompra(compraId: string) {
         data: { tipoCompra: "CONFIRMADA" }
       });
 
+      // Si se pasaron items y se solicitó impactar costos
+      if (data && data.items && data.impactarCostos) {
+        for (const item of data.items) {
+          const prodId = item.productoId || item.id;
+          if (!prodId) continue;
+
+          const articuloBase = await tx.articuloMostrador.findUnique({
+            where: { id: prodId }
+          });
+
+          if (articuloBase && !articuloBase.esPack) {
+            const margen = item.margenGanancia ?? 50;
+            const precioPublico = Number(item.costo_unit) * (1 + margen / 100);
+
+            await tx.articuloMostrador.update({
+              where: { id: prodId },
+              data: {
+                costo: item.costo_unit,
+                margenGanancia: margen,
+                precio: precioPublico
+              }
+            });
+
+            await tx.articuloAuditoria.create({
+              data: {
+                articuloId: prodId,
+                usuario: data.usuario || "Admin",
+                accion: "MODIFICACION_PRECIO_BASE",
+                detalle: `Actualizado al confirmar Pedido #${compra.numeroCompra} (Costo: $${Number(item.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
+              }
+            });
+          }
+        }
+      }
+
       // Impactar en cuenta corriente del proveedor si corresponde
       if ((compra.metodo_pago === "A Cuenta Corriente") && (compra.proveedorId || compra.proveedor)) {
         const idBuscado = compra.proveedorId || compra.proveedor;
-        
+
         let proveedor = await tx.proveedor.findUnique({
           where: { id: idBuscado || "" }
         }).catch(() => null);
@@ -414,7 +452,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
       });
 
       // 3. Actualizar compra y crear nuevos items
-      await tx.compra.update({
+      const updatedCompra = await tx.compra.update({
         where: { id: compraId },
         data: {
           proveedor: data.proveedor,
@@ -438,13 +476,14 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
               nombre: item.nombre,
               cantidad: item.cantidad,
               costo_unit: item.costo_unit,
-              subtotal: item.subtotal
+              subtotal: item.subtotal,
+              margenGanancia: item.margenGanancia || 50
             }))
           }
         }
       });
 
-      // 4. Incrementar stock de los nuevos items
+      // 4. Incrementar stock de los nuevos items and optionally impact costs
       for (const newItem of data.items) {
         const prodId = newItem.productoId || newItem.id;
         if (!prodId) continue;
@@ -452,6 +491,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           where: { id: prodId },
           include: { packItems: true }
         });
+
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
             await tx.articuloMostrador.update({
@@ -460,10 +500,31 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
             });
           }
         } else {
+          const updateData: any = { stock: { increment: newItem.cantidad } };
+          const margen = newItem.margenGanancia ?? 50;
+          const precioPublico = Number(newItem.costo_unit) * (1 + margen / 100);
+
+          if (data.impactarCostos) {
+            updateData.costo = newItem.costo_unit;
+            updateData.margenGanancia = margen;
+            updateData.precio = precioPublico;
+          }
+
           await tx.articuloMostrador.update({
             where: { id: prodId },
-            data: { stock: { increment: newItem.cantidad } }
+            data: updateData
           });
+
+          if (data.impactarCostos && articuloBase) {
+            await tx.articuloAuditoria.create({
+              data: {
+                articuloId: prodId,
+                usuario: usuario,
+                accion: "MODIFICACION_PRECIO_BASE",
+                detalle: `Actualizado por Edición de Pedido #${updatedCompra.numeroCompra} (Costo: $${Number(newItem.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
+              }
+            });
+          }
         }
       }
 
@@ -570,15 +631,15 @@ export async function crearCompra(data: {
           fechaCarga: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
           fechaIngreso: data.fechaIngreso ? new Date(data.fechaIngreso) : null,
           items: {
-              create: data.items.map(item => ({
-                productoId: item.productoId || item.id, 
-                nombre: item.nombre,
-                cantidad: item.cantidad,
-                costo_unit: item.costo_unit,
-                subtotal: item.subtotal,
-                margenGanancia: item.margenGanancia || 50
-              }))
-            }
+            create: data.items.map(item => ({
+              productoId: item.productoId || item.id,
+              nombre: item.nombre,
+              cantidad: item.cantidad,
+              costo_unit: item.costo_unit,
+              subtotal: item.subtotal,
+              margenGanancia: item.margenGanancia || 50
+            }))
+          }
         }
       });
 
@@ -586,12 +647,12 @@ export async function crearCompra(data: {
       for (const item of data.items) {
         const prodId = item.productoId || item.id;
         if (!prodId) continue;
- 
+
         const articuloBase = await tx.articuloMostrador.findUnique({
           where: { id: prodId },
           include: { packItems: true }
         });
- 
+
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
           for (const packItem of articuloBase.packItems) {
             await tx.articuloMostrador.update({
@@ -607,12 +668,12 @@ export async function crearCompra(data: {
           if (data.impactarCostos) {
             updateData.precio = precioPublico;
           }
- 
+
           await tx.articuloMostrador.update({
             where: { id: prodId },
             data: updateData
           });
- 
+
           if (data.impactarCostos && articuloBase) {
             await tx.articuloAuditoria.create({
               data: {
@@ -629,7 +690,7 @@ export async function crearCompra(data: {
       // 3. Impactar en cuenta corriente del proveedor si corresponde
       if ((data.metodo_pago === "A Cuenta Corriente") && (data.proveedorId || data.proveedor)) {
         const idBuscado = data.proveedorId || data.proveedor;
-        
+
         let proveedor = null;
         if (idBuscado) {
           proveedor = await tx.proveedor.findUnique({
@@ -655,7 +716,7 @@ export async function crearCompra(data: {
           await tx.movimientoProveedor.create({
             data: {
               proveedorId: proveedor.id,
-              tipo: "DEBE", 
+              tipo: "DEBE",
               monto: montoDecimal.negated(),
               descripcion: `Compra a CC #${compra.numeroCompra}`,
               referencia: compra.id,
@@ -782,7 +843,7 @@ export async function actualizarCompra(compraId: string, data: {
           fechaIngreso: data.fechaIngreso ? new Date(data.fechaIngreso) : null,
           items: {
             create: data.items.map((item: any) => ({
-              productoId: item.productoId || item.id, 
+              productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
               costo_unit: item.costo_unit,
@@ -851,12 +912,12 @@ export async function actualizarCompra(compraId: string, data: {
           if (data.impactarCostos) {
             updateData.precio = precioPublico;
           }
- 
+
           await tx.articuloMostrador.update({
             where: { id: prodId },
             data: updateData
           });
- 
+
           if (data.impactarCostos && articuloBase) {
             await tx.articuloAuditoria.create({
               data: {
@@ -934,32 +995,32 @@ export async function eliminarCompra(compraId: string, usuario: string) {
         }
 
         if (proveedor) {
-            const montoRevertir = new Prisma.Decimal(compra.totalFinal);
-            const nuevoSaldo = proveedor.total.plus(montoRevertir);
+          const montoRevertir = new Prisma.Decimal(compra.totalFinal);
+          const nuevoSaldo = proveedor.total.plus(montoRevertir);
 
-            await tx.proveedor.update({
-                where: { id: proveedor.id },
-                data: { total: nuevoSaldo }
-            });
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
 
-            await tx.movimientoProveedor.updateMany({
-                where: { referencia: compra.id, proveedorId: proveedor.id },
-                data: { anulado: true }
-            });
+          await tx.movimientoProveedor.updateMany({
+            where: { referencia: compra.id, proveedorId: proveedor.id },
+            data: { anulado: true }
+          });
 
-            await tx.movimientoProveedor.create({
-                data: {
-                    proveedorId: proveedor.id,
-                    tipo: "HABER", 
-                    monto: montoRevertir,
-                    descripcion: `ANULACIÓN: Compra a CC #${compra.numeroCompra} eliminada`,
-                    referencia: compra.id,
-                    saldo: nuevoSaldo,
-                    anulado: true
-                }
-            });
-          }
+          await tx.movimientoProveedor.create({
+            data: {
+              proveedorId: proveedor.id,
+              tipo: "HABER",
+              monto: montoRevertir,
+              descripcion: `ANULACIÓN: Compra a CC #${compra.numeroCompra} eliminada`,
+              referencia: compra.id,
+              saldo: nuevoSaldo,
+              anulado: true
+            }
+          });
         }
+      }
 
       // 3. Auditoria
       await tx.compraAuditoria.create({

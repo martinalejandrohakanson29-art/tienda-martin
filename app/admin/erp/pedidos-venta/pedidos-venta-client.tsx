@@ -47,6 +47,7 @@ import {
   confirmarPedidoVenta,
   eliminarPedidoVenta,
   actualizarEstadoPedido,
+  actualizarEstadoPedidoMasivo,
   obtenerPedidoPorId,
   actualizarPedidoVenta,
   obtenerURLDescargaPDF,
@@ -343,12 +344,18 @@ export default function PedidosVentaClient() {
     }
   };
 
-  const handleDownloadPDF = async (ventaId: string) => {
+  const handleDownloadPDF = async (ventaId: string, idsParaActualizar?: string[]) => {
     try {
       setIsProcessing(true);
       const result = await obtenerURLDescargaPDF(ventaId);
       if (result.success && result.url) {
         window.open(result.url, '_blank');
+        
+        // Si se proporcionaron IDs para actualizar (especialmente para lotes), los marcamos como IMPRESO
+        if (idsParaActualizar && idsParaActualizar.length > 0) {
+          await actualizarEstadoPedidoMasivo(idsParaActualizar, "IMPRESO");
+          cargarPedidos();
+        }
       } else {
         alert(result.error || "Error al obtener el enlace de descarga");
       }
@@ -509,23 +516,30 @@ export default function PedidosVentaClient() {
               <FileText className="h-4 w-4" />
               Lotes de PDFs Detectados ({lotesExistentes.length})
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2">
               {lotesExistentes.map((lote, index) => (
                 <Button
                   key={index}
                   variant="outline"
                   size="sm"
-                  onClick={() => handleDownloadPDF(lote.ids[0])}
-                  className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-all shadow-sm flex flex-col items-start h-auto py-2 px-4 gap-1 max-w-[300px]"
+                  onClick={() => handleDownloadPDF(lote.ids[0], lote.ids)}
+                  className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-all shadow-sm flex flex-col items-start h-auto py-2.5 px-4 gap-2 w-full max-w-2xl"
                   title={`Descargar PDF compartido por ${lote.clientes.length} pedidos`}
                 >
-                  <div className="flex items-center gap-2 w-full">
-                    <Download className="h-3 w-3 text-blue-500" />
-                    <span className="text-[9px] font-bold uppercase text-blue-400">PDF Compartido</span>
+                  <div className="flex items-center gap-2 w-full border-b border-blue-100 pb-1 mb-1">
+                    <Download className="h-3.5 w-3.5 text-blue-500" />
+                    <span className="text-[10px] font-bold uppercase text-blue-400">PDF Compartido ({lote.clientes.length} pedidos)</span>
                   </div>
-                  <span className="text-[11px] font-medium truncate w-full text-left">
-                    {lote.clientes.join(", ")}
-                  </span>
+                  <div className="flex flex-col gap-1 w-full">
+                    {lote.clientes.map((cliente, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <div className="h-1 w-1 rounded-full bg-blue-400" />
+                        <span className="text-[11px] font-medium text-left">
+                          {cliente}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </Button>
               ))}
             </div>
@@ -627,12 +641,14 @@ export default function PedidosVentaClient() {
                             disabled={isProcessing}
                             className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
                               venta.estadoPedido === 'PREPARADO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                                  'bg-amber-100 text-amber-700 border-amber-200'
+                                venta.estadoPedido === 'IMPRESO' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                  venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                    'bg-amber-100 text-amber-700 border-amber-200'
                               }`}
                           >
                             <option value="PENDIENTE">Pendiente</option>
                             <option value="LISTO_PARA_PREPARAR">Listo p/ Preparar</option>
+                            <option value="IMPRESO">Impreso</option>
                             <option value="PREPARADO">Preparado</option>
                             <option value="DESPACHADO">Despachado</option>
                           </select>

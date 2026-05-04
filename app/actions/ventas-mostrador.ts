@@ -1107,6 +1107,19 @@ export async function actualizarEstadoPedido(ventaId: string, estadoPedido: stri
   }
 }
 
+export async function actualizarEstadoPedidoMasivo(ventaIds: string[], estadoPedido: string) {
+  try {
+    await prisma.venta.updateMany({
+      where: { id: { in: ventaIds } },
+      data: { estadoPedido }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar estados de pedidos:", error);
+    return { success: false, error: "No se pudieron actualizar los estados de los pedidos" };
+  }
+}
+
 // Función para actualizar un pedido de venta
 export async function actualizarPedidoVenta(ventaId: string, data: any, usuario: string, detalleCambios: string) {
   try {

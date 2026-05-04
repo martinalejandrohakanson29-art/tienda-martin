@@ -46,6 +46,7 @@ import {
   obtenerURLDescargaPDFCompra,
   actualizarFechaCompra,
 } from "@/app/actions/compras";
+import { obtenerProveedores } from "@/app/actions/listas";
 
 type ItemCompra = {
   productoId?: string | null;
@@ -75,6 +76,7 @@ type Compra = {
   estadoPedido?: string | null;
   pdfUrl?: string | null;
   numeroCompra?: number;
+  proveedorId?: string | null;
 };
 
 interface PedidosCompraClientProps {
@@ -100,6 +102,8 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
   // Editing state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingCompra, setEditingCompra] = useState<Compra | null>(null);
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [showProvListEdit, setShowProvListEdit] = useState(false);
 
   const cargarPedidos = async () => {
     try {
@@ -352,6 +356,14 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
       setIsProcessing(false);
     }
   };
+
+  useEffect(() => {
+    const fetchProveedores = async () => {
+      const res = await obtenerProveedores();
+      if (res.success && res.data) setProveedores(res.data);
+    };
+    fetchProveedores();
+  }, []);
 
   useEffect(() => {
     // Initial load if dates are set
@@ -764,12 +776,58 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
           {editingCompra && (
             <div className="mt-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+                <div className="space-y-2 relative">
                   <Label>Proveedor</Label>
                   <Input
                     value={editingCompra.proveedor}
-                    onChange={e => setEditingCompra(prev => prev ? { ...prev, proveedor: e.target.value } : null)}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setEditingCompra(prev => prev ? { ...prev, proveedor: val } : null);
+                      setShowProvListEdit(true);
+                    }}
+                    onFocus={() => setShowProvListEdit(true)}
                   />
+                  {showProvListEdit && (
+                    <div className="absolute z-[100] w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto mt-1 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="p-2 border-b bg-slate-50 flex items-center justify-between sticky top-0 z-10">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">Resultados de búsqueda</span>
+                        <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowProvListEdit(false)}>Cerrar</Button>
+                      </div>
+                      {proveedores.filter(p =>
+                        p.razonSocial.toLowerCase().includes(editingCompra.proveedor.toLowerCase()) ||
+                        (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(editingCompra.proveedor.toLowerCase())) ||
+                        p.cuit?.includes(editingCompra.proveedor)
+                      ).length > 0 ? (
+                        proveedores.filter(p =>
+                          p.razonSocial.toLowerCase().includes(editingCompra.proveedor.toLowerCase()) ||
+                          (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(editingCompra.proveedor.toLowerCase())) ||
+                          p.cuit?.includes(editingCompra.proveedor)
+                        ).map(p => (
+                          <div
+                            key={p.id}
+                            className="p-3 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors group"
+                            onClick={() => {
+                              setEditingCompra(prev => prev ? { ...prev, proveedor: p.razonSocial, proveedorId: p.id } : null);
+                              setShowProvListEdit(false);
+                            }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-slate-900 group-hover:text-indigo-700">{p.razonSocial}</span>
+                                <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"} {p.nombreFantasia ? `| ${p.nombreFantasia}` : ""}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-[10px] font-bold text-slate-400 block uppercase">Saldo</span>
+                                <span className={`text-xs font-black ${p.total > 0 ? 'text-red-600' : 'text-green-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-xs text-slate-400 italic">No se encontraron resultados</div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Método de Pago</Label>

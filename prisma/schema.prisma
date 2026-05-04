@@ -596,6 +596,8 @@ model Compra {
   estadoPedido  String?           @default("PENDIENTE")
   pdfUrl        String?
   tipoCompra    String?           @default("CONFIRMADA")
+  fechaIngreso  DateTime?
+  fechaCarga    DateTime          @default(now())
   auditorias    CompraAuditoria[]
   proveedorRel  Proveedor?        @relation(fields: [proveedorId], references: [id])
   items         CompraItem[]

@@ -65,6 +65,8 @@ type Compra = {
   totalFinal: number;
   metodo_pago: string;
   createdAt: string;
+  fechaCarga?: string;
+  fechaIngreso?: string | null;
   tipoCompra: string;
   items: ItemCompra[];
   dni?: string | null;
@@ -532,13 +534,20 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                           {formatPrice(compra.totalFinal)}
                         </TableCell>
                         <TableCell className="text-right py-4">
-                          <Input
-                            type="date"
-                            value={new Date(compra.createdAt).toISOString().split('T')[0]}
-                            onChange={(e) => handleActualizarFecha(compra.id, e.target.value)}
-                            disabled={isProcessing}
-                            className="h-8 text-xs w-32 ml-auto border-slate-200 focus:border-indigo-500"
-                          />
+                          <div className="flex flex-col items-end gap-1">
+                            <Input
+                              type="date"
+                              value={new Date(compra.fechaCarga || compra.createdAt).toISOString().split('T')[0]}
+                              onChange={(e) => handleActualizarFecha(compra.id, e.target.value)}
+                              disabled={isProcessing}
+                              className="h-8 text-[10px] w-28 border-slate-200 focus:border-indigo-500"
+                            />
+                            {compra.fechaIngreso && (
+                              <span className="text-[9px] text-blue-600 font-bold">
+                                Ingreso: {new Date(compra.fechaIngreso).toLocaleDateString('es-AR')}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center py-4">
                           <select
@@ -775,11 +784,19 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Fecha</Label>
+                  <Label>Fecha Carga</Label>
                   <Input
                     type="date"
-                    value={editingCompra.createdAt ? new Date(editingCompra.createdAt).toISOString().split('T')[0] : ""}
-                    onChange={e => setEditingCompra(prev => prev ? { ...prev, createdAt: e.target.value } : null)}
+                    value={editingCompra.fechaCarga ? new Date(editingCompra.fechaCarga).toISOString().split('T')[0] : (editingCompra.createdAt ? new Date(editingCompra.createdAt).toISOString().split('T')[0] : "")}
+                    onChange={e => setEditingCompra(prev => prev ? { ...prev, fechaCarga: e.target.value } : null)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha Ingreso</Label>
+                  <Input
+                    type="date"
+                    value={editingCompra.fechaIngreso ? new Date(editingCompra.fechaIngreso).toISOString().split('T')[0] : ""}
+                    onChange={e => setEditingCompra(prev => prev ? { ...prev, fechaIngreso: e.target.value } : null)}
                   />
                 </div>
               </div>

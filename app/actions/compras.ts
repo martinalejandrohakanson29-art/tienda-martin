@@ -57,7 +57,7 @@ export async function obtenerComprasPorRango(fechaDesde: string, fechaHasta: str
     const compras = await prisma.compra.findMany({
       where: {
         tipoCompra: { not: "PEDIDO" },
-        createdAt: {
+        fechaCarga: {
           gte: inicioRango,
           lte: finRango,
         },
@@ -67,7 +67,7 @@ export async function obtenerComprasPorRango(fechaDesde: string, fechaHasta: str
         proveedorRel: true,
       },
       orderBy: {
-        createdAt: 'desc',
+        fechaCarga: 'desc',
       },
     });
 
@@ -80,6 +80,8 @@ export async function obtenerComprasPorRango(fechaDesde: string, fechaHasta: str
         descuento: Number(c.descuento),
         totalFinal: Number(c.totalFinal),
         createdAt: c.createdAt.toISOString(),
+        fechaCarga: c.fechaCarga.toISOString(),
+        fechaIngreso: c.fechaIngreso ? c.fechaIngreso.toISOString() : null,
         items: c.items.map(i => ({
           ...i,
           costo_unit: Number(i.costo_unit),
@@ -103,7 +105,7 @@ export async function obtenerPedidosCompra(fechaDesde: string, fechaHasta: strin
 
     const where: any = {
       tipoCompra: "PEDIDO",
-      createdAt: {
+      fechaCarga: {
         gte: inicioRango,
         lte: finRango,
       },
@@ -120,7 +122,7 @@ export async function obtenerPedidosCompra(fechaDesde: string, fechaHasta: strin
         proveedorRel: true,
       },
       orderBy: {
-        createdAt: 'desc',
+        fechaCarga: 'desc',
       },
     });
 
@@ -132,6 +134,8 @@ export async function obtenerPedidosCompra(fechaDesde: string, fechaHasta: strin
       descuento: Number(c.descuento),
       totalFinal: Number(c.totalFinal),
       createdAt: c.createdAt.toISOString(),
+      fechaCarga: c.fechaCarga.toISOString(),
+      fechaIngreso: c.fechaIngreso ? c.fechaIngreso.toISOString() : null,
       items: c.items.map(i => ({
         ...i,
         productoId: i.productoId || null,
@@ -164,6 +168,8 @@ export async function obtenerPedidoCompraPorId(compraId: string) {
       descuento: Number(compra.descuento),
       totalFinal: Number(compra.totalFinal),
       createdAt: compra.createdAt.toISOString(),
+      fechaCarga: compra.fechaCarga.toISOString(),
+      fechaIngreso: compra.fechaIngreso ? compra.fechaIngreso.toISOString() : null,
       items: compra.items.map(i => ({
         ...i,
         productoId: i.productoId || null,
@@ -193,7 +199,8 @@ export async function guardarComoPedidoCompra(data: {
   transaccionId?: string,
   proveedorId?: string,
   impactarCostos?: boolean,
-  fechaCompra?: string
+  fechaCompra?: string,
+  fechaIngreso?: string
 }) {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -213,7 +220,8 @@ export async function guardarComoPedidoCompra(data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
-          createdAt: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
+          fechaCarga: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
+          fechaIngreso: data.fechaIngreso ? new Date(data.fechaIngreso) : null,
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -352,7 +360,7 @@ export async function actualizarFechaCompra(compraId: string, nuevaFecha: string
     await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.update({
         where: { id: compraId },
-        data: { createdAt: new Date(nuevaFecha) }
+        data: { fechaCarga: new Date(nuevaFecha) }
       });
 
       // Si tiene movimientos en cuenta corriente, actualizarlos también
@@ -422,7 +430,8 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
-          createdAt: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
+          fechaCarga: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
+          fechaIngreso: data.fechaIngreso ? new Date(data.fechaIngreso) : null,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id,
@@ -537,7 +546,8 @@ export async function crearCompra(data: {
   transaccionId?: string,
   proveedorId?: string,
   impactarCostos?: boolean,
-  fechaCompra?: string
+  fechaCompra?: string,
+  fechaIngreso?: string
 }) {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -557,7 +567,8 @@ export async function crearCompra(data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
-          createdAt: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
+          fechaCarga: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
+          fechaIngreso: data.fechaIngreso ? new Date(data.fechaIngreso) : null,
           items: {
               create: data.items.map(item => ({
                 productoId: item.productoId || item.id, 
@@ -680,7 +691,8 @@ export async function actualizarCompra(compraId: string, data: {
   transaccionId?: string,
   items: any[],
   impactarCostos?: boolean,
-  fechaCompra?: string
+  fechaCompra?: string,
+  fechaIngreso?: string
 }, usuario: string, detalleCambios: string) {
   try {
     await prisma.$transaction(async (tx) => {
@@ -766,7 +778,8 @@ export async function actualizarCompra(compraId: string, data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
-          createdAt: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
+          fechaCarga: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
+          fechaIngreso: data.fechaIngreso ? new Date(data.fechaIngreso) : null,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id, 

@@ -99,6 +99,7 @@ export default function ComprasClient({
   const [transaccionId, setTransaccionId] = useState("");
   const [impactarCostos, setImpactarCostos] = useState(false);
   const [fechaCompra, setFechaCompra] = useState(new Date().toISOString().split('T')[0]);
+  const [fechaIngreso, setFechaIngreso] = useState("");
 
   // --- ESTADOS PARA EDICIÓN ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
@@ -120,6 +121,7 @@ export default function ComprasClient({
   const [editTransaccionId, setEditTransaccionId] = useState("");
   const [editImpactarCostos, setEditImpactarCostos] = useState(false);
   const [editFechaCompra, setEditFechaCompra] = useState("");
+  const [editFechaIngreso, setEditFechaIngreso] = useState("");
   const [compraOriginalParaComparar, setCompraOriginalParaComparar] = useState<any>(null);
   const [compraAEliminar, setCompraAEliminar] = useState<any>(null);
 
@@ -304,7 +306,8 @@ export default function ComprasClient({
         transaccionId,
         proveedorId,
         impactarCostos,
-        fechaCompra
+        fechaCompra,
+        fechaIngreso
       });
 
       if (res.success) {
@@ -351,7 +354,8 @@ export default function ComprasClient({
         transaccionId,
         proveedorId,
         impactarCostos,
-        fechaCompra
+        fechaCompra,
+        fechaIngreso
       });
 
       if (res.success) {
@@ -379,6 +383,7 @@ export default function ComprasClient({
     setMetodoPago("Efectivo"); setComprobante(""); setInfo(""); setDni(""); setTelefono(""); setTransaccionId("");
     setImpactarCostos(false);
     setFechaCompra(new Date().toISOString().split('T')[0]);
+    setFechaIngreso("");
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
   };
 
@@ -400,7 +405,8 @@ export default function ComprasClient({
     setEditTelefono(compra.telefono || "");
     setEditTransaccionId(compra.transaccionId || "");
     setEditImpactarCostos(false);
-    setEditFechaCompra(new Date(compra.createdAt).toISOString().split('T')[0]);
+    setEditFechaCompra(new Date(compra.fechaCarga || compra.createdAt).toISOString().split('T')[0]);
+    setEditFechaIngreso(compra.fechaIngreso ? new Date(compra.fechaIngreso).toISOString().split('T')[0] : "");
     setEditItems(compra.items.map((i: any) => ({
       id: i.id || crypto.randomUUID(),
       productoId: i.productoId,
@@ -435,7 +441,8 @@ export default function ComprasClient({
         transaccionId: editTransaccionId,
         items: editItems,
         impactarCostos: editImpactarCostos,
-        fechaCompra: editFechaCompra
+        fechaCompra: editFechaCompra,
+        fechaIngreso: editFechaIngreso
       }, compradorNombre, "Edición manual de compra");
 
       if (res.success) {
@@ -682,7 +689,8 @@ export default function ComprasClient({
                   <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                     <TableRow>
                       <TableHead className="w-24 text-[10px] font-bold uppercase py-3">N° Compra</TableHead>
-                      <TableHead className="w-32 text-[10px] font-bold uppercase py-3">Fecha</TableHead>
+                      <TableHead className="w-28 text-[10px] font-bold uppercase py-3">Fecha Ingreso</TableHead>
+                      <TableHead className="w-28 text-[10px] font-bold uppercase py-3">Fecha Carga</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Proveedor</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Artículos</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Responsable</TableHead>
@@ -704,10 +712,14 @@ export default function ComprasClient({
                               </span>
                             </TableCell>
                             <TableCell className="py-4">
-                              <div className="flex flex-col gap-1">
-                                <span className="text-[10px] text-slate-700 font-bold whitespace-nowrap">{new Date(c.createdAt).toLocaleDateString('es-AR')}</span>
-                                <span className="text-[10px] text-slate-400 font-mono whitespace-nowrap">{new Date(c.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-                              </div>
+                              {c.fechaIngreso ? (
+                                <span className="text-[10px] text-blue-600 font-bold whitespace-nowrap">{new Date(c.fechaIngreso).toLocaleDateString('es-AR')}</span>
+                              ) : (
+                                <span className="text-[10px] text-slate-300 italic">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <span className="text-[10px] text-slate-700 font-bold whitespace-nowrap">{new Date(c.fechaCarga || c.createdAt).toLocaleDateString('es-AR')}</span>
                             </TableCell>
                             <TableCell className="py-4 font-bold text-slate-900">
                               {c.proveedor}
@@ -772,7 +784,7 @@ export default function ComprasClient({
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell colSpan={6} className="py-0">
+                              <TableCell colSpan={7} className="py-0">
                                 <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
                                   {c.items?.length > 0 ? (
                                     c.items.map((item: any) => (
@@ -851,7 +863,8 @@ export default function ComprasClient({
                   <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                     <TableRow>
                       <TableHead className="text-[10px] font-bold uppercase py-3 w-24">ID Compra</TableHead>
-                      <TableHead className="text-[10px] font-bold uppercase py-3 w-32">Fecha / Hora</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 w-28">Fecha Ingreso</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3 w-28">Fecha Carga</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Proveedor</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Artículos</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Responsable</TableHead>
@@ -879,10 +892,14 @@ export default function ComprasClient({
                                 </span>
                               </TableCell>
                               <TableCell className="py-4">
-                                <div className="flex flex-col">
-                                  <span className="text-xs font-bold text-slate-700">{new Date(v.createdAt).toLocaleDateString('es-AR')}</span>
-                                  <span className="text-[10px] text-slate-400 font-mono">{new Date(v.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
+                                {v.fechaIngreso ? (
+                                  <span className="text-xs font-bold text-blue-600">{new Date(v.fechaIngreso).toLocaleDateString('es-AR')}</span>
+                                ) : (
+                                  <span className="text-xs text-slate-300 italic">-</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="py-4">
+                                <span className="text-xs font-bold text-slate-700">{new Date(v.fechaCarga || v.createdAt).toLocaleDateString('es-AR')}</span>
                               </TableCell>
                               <TableCell className="py-4 font-bold text-slate-900">
                                 {v.proveedor}
@@ -961,7 +978,7 @@ export default function ComprasClient({
                                     </div>
                                   </div>
                                 </TableCell>
-                                <TableCell colSpan={6} className="py-0">
+                                <TableCell colSpan={7} className="py-0">
                                   <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
                                     {v.items?.length > 0 ? (
                                       v.items.map((item: any) => (
@@ -1112,16 +1129,30 @@ export default function ComprasClient({
                   <Input type="number" value={descuento} onChange={(e) => setDescuento(Number(e.target.value))} />
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs font-bold text-slate-500 uppercase">Fecha de Compra</Label>
-                <div className="relative">
-                  <Input 
-                    type="date" 
-                    value={fechaCompra} 
-                    onChange={(e) => setFechaCompra(e.target.value)} 
-                    className="pl-9"
-                  />
-                  <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Fecha Carga</Label>
+                  <div className="relative">
+                    <Input 
+                      type="date" 
+                      value={fechaCompra} 
+                      onChange={(e) => setFechaCompra(e.target.value)} 
+                      className="pl-9"
+                    />
+                    <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Fecha Ingreso (Opc)</Label>
+                  <div className="relative">
+                    <Input 
+                      type="date" 
+                      value={fechaIngreso} 
+                      onChange={(e) => setFechaIngreso(e.target.value)} 
+                      className="pl-9"
+                    />
+                    <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-blue-400" />
+                  </div>
                 </div>
               </div>
               <div className="flex items-center space-x-2 py-2">
@@ -1285,8 +1316,12 @@ export default function ComprasClient({
                 <Input type="number" value={editDescuento} onChange={(e) => setEditDescuento(Number(e.target.value))} className="h-12 bg-slate-50" />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</Label>
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Carga</Label>
                 <Input type="date" value={editFechaCompra} onChange={(e) => setEditFechaCompra(e.target.value)} className="h-12 bg-slate-50" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Ingreso</Label>
+                <Input type="date" value={editFechaIngreso} onChange={(e) => setEditFechaIngreso(e.target.value)} className="h-12 bg-slate-50" />
               </div>
             </div>
 

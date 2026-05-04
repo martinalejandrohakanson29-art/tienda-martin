@@ -98,6 +98,7 @@ export default function ComprasClient({
   const [telefono, setTelefono] = useState("");
   const [transaccionId, setTransaccionId] = useState("");
   const [impactarCostos, setImpactarCostos] = useState(false);
+  const [fechaCompra, setFechaCompra] = useState(new Date().toISOString().split('T')[0]);
 
   // --- ESTADOS PARA EDICIÓN ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
@@ -118,6 +119,7 @@ export default function ComprasClient({
   const [editTelefono, setEditTelefono] = useState("");
   const [editTransaccionId, setEditTransaccionId] = useState("");
   const [editImpactarCostos, setEditImpactarCostos] = useState(false);
+  const [editFechaCompra, setEditFechaCompra] = useState("");
   const [compraOriginalParaComparar, setCompraOriginalParaComparar] = useState<any>(null);
   const [compraAEliminar, setCompraAEliminar] = useState<any>(null);
 
@@ -301,7 +303,8 @@ export default function ComprasClient({
         comprobante,
         transaccionId,
         proveedorId,
-        impactarCostos
+        impactarCostos,
+        fechaCompra
       });
 
       if (res.success) {
@@ -347,7 +350,8 @@ export default function ComprasClient({
         comprobante,
         transaccionId,
         proveedorId,
-        impactarCostos
+        impactarCostos,
+        fechaCompra
       });
 
       if (res.success) {
@@ -374,6 +378,7 @@ export default function ComprasClient({
     setItems([]); setProveedor(""); setProveedorId(""); setInteres(0); setDescuento(0);
     setMetodoPago("Efectivo"); setComprobante(""); setInfo(""); setDni(""); setTelefono(""); setTransaccionId("");
     setImpactarCostos(false);
+    setFechaCompra(new Date().toISOString().split('T')[0]);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
   };
 
@@ -395,6 +400,7 @@ export default function ComprasClient({
     setEditTelefono(compra.telefono || "");
     setEditTransaccionId(compra.transaccionId || "");
     setEditImpactarCostos(false);
+    setEditFechaCompra(new Date(compra.createdAt).toISOString().split('T')[0]);
     setEditItems(compra.items.map((i: any) => ({
       id: i.id || crypto.randomUUID(),
       productoId: i.productoId,
@@ -428,7 +434,8 @@ export default function ComprasClient({
         comprobante: editComprobante,
         transaccionId: editTransaccionId,
         items: editItems,
-        impactarCostos: editImpactarCostos
+        impactarCostos: editImpactarCostos,
+        fechaCompra: editFechaCompra
       }, compradorNombre, "Edición manual de compra");
 
       if (res.success) {
@@ -1105,6 +1112,18 @@ export default function ComprasClient({
                   <Input type="number" value={descuento} onChange={(e) => setDescuento(Number(e.target.value))} />
                 </div>
               </div>
+              <div className="space-y-1">
+                <Label className="text-xs font-bold text-slate-500 uppercase">Fecha de Compra</Label>
+                <div className="relative">
+                  <Input 
+                    type="date" 
+                    value={fechaCompra} 
+                    onChange={(e) => setFechaCompra(e.target.value)} 
+                    className="pl-9"
+                  />
+                  <CalendarIcon className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                </div>
+              </div>
               <div className="flex items-center space-x-2 py-2">
                 <input
                   type="checkbox"
@@ -1264,6 +1283,10 @@ export default function ComprasClient({
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descuento ($)</Label>
                 <Input type="number" value={editDescuento} onChange={(e) => setEditDescuento(Number(e.target.value))} className="h-12 bg-slate-50" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</Label>
+                <Input type="date" value={editFechaCompra} onChange={(e) => setEditFechaCompra(e.target.value)} className="h-12 bg-slate-50" />
               </div>
             </div>
 

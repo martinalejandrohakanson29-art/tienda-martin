@@ -192,7 +192,8 @@ export async function guardarComoPedidoCompra(data: {
   comprobante?: string,
   transaccionId?: string,
   proveedorId?: string,
-  impactarCostos?: boolean
+  impactarCostos?: boolean,
+  fechaCompra?: string
 }) {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -212,6 +213,7 @@ export async function guardarComoPedidoCompra(data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
+          createdAt: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -397,6 +399,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
+          createdAt: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id,
@@ -510,7 +513,8 @@ export async function crearCompra(data: {
   comprobante?: string,
   transaccionId?: string,
   proveedorId?: string,
-  impactarCostos?: boolean
+  impactarCostos?: boolean,
+  fechaCompra?: string
 }) {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -530,6 +534,7 @@ export async function crearCompra(data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
+          createdAt: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
           items: {
               create: data.items.map(item => ({
                 productoId: item.productoId || item.id, 
@@ -620,7 +625,8 @@ export async function crearCompra(data: {
               monto: montoDecimal.negated(),
               descripcion: `Compra a CC #${compra.numeroCompra}`,
               referencia: compra.id,
-              saldo: nuevoSaldo
+              saldo: nuevoSaldo,
+              fecha: data.fechaCompra ? new Date(data.fechaCompra) : undefined
             }
           });
         }
@@ -650,7 +656,8 @@ export async function actualizarCompra(compraId: string, data: {
   comprobante?: string,
   transaccionId?: string,
   items: any[],
-  impactarCostos?: boolean
+  impactarCostos?: boolean,
+  fechaCompra?: string
 }, usuario: string, detalleCambios: string) {
   try {
     await prisma.$transaction(async (tx) => {
@@ -736,6 +743,7 @@ export async function actualizarCompra(compraId: string, data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
+          createdAt: data.fechaCompra ? new Date(data.fechaCompra) : undefined,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id, 
@@ -777,7 +785,8 @@ export async function actualizarCompra(compraId: string, data: {
               monto: montoDecimal.negated(),
               descripcion: `EDICIÓN: Compra a CC #${oldCompra?.numeroCompra}`,
               referencia: compraId,
-              saldo: nuevoSaldo
+              saldo: nuevoSaldo,
+              fecha: data.fechaCompra ? new Date(data.fechaCompra) : undefined
             }
           });
         }

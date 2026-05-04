@@ -44,6 +44,7 @@ import {
   obtenerPedidoCompraPorId,
   actualizarPedidoCompra,
   obtenerURLDescargaPDFCompra,
+  actualizarFechaCompra,
 } from "@/app/actions/compras";
 
 type ItemCompra = {
@@ -238,6 +239,23 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
     } catch (err) {
       console.error("Error al actualizar estado:", err);
       alert("Error al actualizar el estado. Intente nuevamente.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleActualizarFecha = async (compraId: string, nuevaFecha: string) => {
+    try {
+      setIsProcessing(true);
+      const result = await actualizarFechaCompra(compraId, nuevaFecha);
+      if (result.success) {
+        cargarPedidos();
+      } else {
+        alert(result.error || "Error al actualizar la fecha");
+      }
+    } catch (err) {
+      console.error("Error al actualizar fecha:", err);
+      alert("Error al actualizar la fecha. Intente nuevamente.");
     } finally {
       setIsProcessing(false);
     }
@@ -513,12 +531,14 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                         <TableCell className="text-right font-bold text-slate-900 py-4">
                           {formatPrice(compra.totalFinal)}
                         </TableCell>
-                        <TableCell className="text-right text-slate-600 py-4">
-                          {new Date(compra.createdAt).toLocaleDateString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })}
+                        <TableCell className="text-right py-4">
+                          <Input
+                            type="date"
+                            value={new Date(compra.createdAt).toISOString().split('T')[0]}
+                            onChange={(e) => handleActualizarFecha(compra.id, e.target.value)}
+                            disabled={isProcessing}
+                            className="h-8 text-xs w-32 ml-auto border-slate-200 focus:border-indigo-500"
+                          />
                         </TableCell>
                         <TableCell className="text-center py-4">
                           <select
@@ -753,6 +773,14 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                     <option value="Transferencia">Transferencia</option>
                     <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                   </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Fecha</Label>
+                  <Input
+                    type="date"
+                    value={editingCompra.createdAt ? new Date(editingCompra.createdAt).toISOString().split('T')[0] : ""}
+                    onChange={e => setEditingCompra(prev => prev ? { ...prev, createdAt: e.target.value } : null)}
+                  />
                 </div>
               </div>
               <div className="space-y-2">

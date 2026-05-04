@@ -347,6 +347,29 @@ export async function actualizarEstadoPedidoCompra(compraId: string, estadoPedid
   }
 }
 
+export async function actualizarFechaCompra(compraId: string, nuevaFecha: string) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      const compra = await tx.compra.update({
+        where: { id: compraId },
+        data: { createdAt: new Date(nuevaFecha) }
+      });
+
+      // Si tiene movimientos en cuenta corriente, actualizarlos también
+      if (compra.metodo_pago === "A Cuenta Corriente") {
+        await tx.movimientoProveedor.updateMany({
+          where: { referencia: compraId },
+          data: { fecha: new Date(nuevaFecha) }
+        });
+      }
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar fecha de compra:", error);
+    return { success: false, error: "No se pudo actualizar la fecha" };
+  }
+}
+
 export async function actualizarPedidoCompra(compraId: string, data: any, usuario: string, detalleCambios: string) {
   try {
     await prisma.$transaction(async (tx) => {

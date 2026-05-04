@@ -22,6 +22,7 @@ interface Proveedor {
   dias60: number;
   mas60: number;
   total: number;
+  aliasCbu?: string | null;
 }
 
 interface CuentaCorrienteClientProps {
@@ -49,7 +50,8 @@ export default function CuentaCorrienteClient({
     cuit: "",
     email: "",
     telefono: "",
-    celular: ""
+    celular: "",
+    aliasCbu: ""
   });
 
   const processedProveedores = useMemo(() => {
@@ -98,7 +100,8 @@ export default function CuentaCorrienteClient({
       cuit: p.cuit || "",
       email: p.email || "",
       telefono: p.telefono || "",
-      celular: p.celular || ""
+      celular: p.celular || "",
+      aliasCbu: p.aliasCbu || ""
     });
     setIsEditModalOpen(true);
   };
@@ -302,6 +305,10 @@ export default function CuentaCorrienteClient({
                   <span className="material-symbols-outlined text-sm">call</span>
                   <span>{proveedor.telefono || proveedor.celular || "Sin contacto"}</span>
                 </div>
+                <div className="flex items-center gap-2 text-xs text-indigo-600 font-medium">
+                  <span className="material-symbols-outlined text-sm">payments</span>
+                  <span className="truncate">{proveedor.aliasCbu || "Sin alias/cbu"}</span>
+                </div>
               </div>
 
               <div className="mt-6 flex items-center justify-between">
@@ -408,6 +415,15 @@ export default function CuentaCorrienteClient({
                     type="text"
                     value={editForm.celular}
                     onChange={(e) => setEditForm({...editForm, celular: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
+                  />
+                </div>
+                <div className="space-y-1.5 md:col-span-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Alias / CBU</label>
+                  <input 
+                    type="text"
+                    value={editForm.aliasCbu}
+                    onChange={(e) => setEditForm({...editForm, aliasCbu: e.target.value})}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
                   />
                 </div>

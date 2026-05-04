@@ -260,6 +260,7 @@ export async function obtenerProveedores() {
           dias60: toNum(p.dias60),
           mas60: toNum(p.mas60),
           total: toNum(p.total),
+          aliasCbu: p.aliasCbu || "",
         };
       })
     };
@@ -284,6 +285,7 @@ export async function actualizarProveedor(id: string, data: {
   dias60?: number;
   mas60?: number;
   total?: number;
+  aliasCbu?: string | null;
 }) {
   try {
     const proveedor = await prisma.proveedor.update({
@@ -303,6 +305,7 @@ export async function actualizarProveedor(id: string, data: {
         dias60: data.dias60,
         mas60: data.mas60,
         total: data.total,
+        aliasCbu: data.aliasCbu,
       }
     });
     return { success: true, data: proveedor };
@@ -327,6 +330,7 @@ export async function crearProveedor(data: {
   dias60?: number;
   mas60?: number;
   total?: number;
+  aliasCbu?: string | null;
 }) {
   try {
     const proveedor = await prisma.proveedor.create({
@@ -345,6 +349,7 @@ export async function crearProveedor(data: {
         dias60: data.dias60 || 0,
         mas60: data.mas60 || 0,
         total: data.total || 0,
+        aliasCbu: data.aliasCbu,
       }
     });
     return { success: true, data: proveedor };

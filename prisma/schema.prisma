@@ -770,6 +770,7 @@ model Proveedor {
   compras        Compra[]
   movimientos    MovimientoProveedor[]
   ventasMostrador Venta[]
+  aliasCbu       String?
 
   @@map("proveedores")
 }

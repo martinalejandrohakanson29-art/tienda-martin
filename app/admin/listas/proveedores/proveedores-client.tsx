@@ -22,6 +22,7 @@ interface Proveedor {
   nombreFantasia?: string | null;
   email?: string | null;
   telefono?: string | null;
+  aliasCbu?: string | null;
 }
 
 export default function ProveedoresClient({
@@ -81,7 +82,8 @@ export default function ProveedoresClient({
       cuit: "",
       nombreFantasia: "",
       email: "",
-      telefono: ""
+      telefono: "",
+      aliasCbu: ""
     });
     setIsEditing(false);
     setIsModalOpen(true);
@@ -407,6 +409,16 @@ export default function ProveedoresClient({
                   placeholder="+54 11 XXXX-XXXX"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-slate-600 uppercase">Alias / CBU</Label>
+              <Input
+                value={formData.aliasCbu || ""}
+                onChange={(e) => setFormData({ ...formData, aliasCbu: e.target.value })}
+                className="bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
+                placeholder="Alias o CBU para transferencias"
+              />
             </div>
           </div>
 

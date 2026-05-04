@@ -29,6 +29,7 @@ export async function registrarMovimientoManualProveedor(data: {
   deQuien: string
   aQuien: string
   descripcion?: string
+  fechaPago?: Date
 }) {
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -65,6 +66,7 @@ export async function registrarMovimientoManualProveedor(data: {
           descripcion: descPrincipal,
           referencia: `MANUAL_${data.tipo}_${data.metodoPago}`,
           saldo: nuevoSaldoPrincipal,
+          fechaPago: data.fechaPago,
         },
       })
 
@@ -98,6 +100,7 @@ export async function registrarMovimientoManualProveedor(data: {
               descripcion: descEmisor,
               referencia: `MANUAL_XFER_${data.tipo}`,
               saldo: nuevoSaldoEmisor,
+              fechaPago: data.fechaPago,
             },
           })
         }

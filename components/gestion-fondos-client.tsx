@@ -39,6 +39,7 @@ export default function GestionFondosClient({
   const [showDeDropdown, setShowDeDropdown] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnulando, setIsAnulando] = useState<string | null>(null);
+  const [fechaPago, setFechaPago] = useState("");
 
   const filteredProveedores = useMemo(() => {
     return proveedores.filter((p) =>
@@ -86,6 +87,7 @@ export default function GestionFondosClient({
         deQuien,
         aQuien,
         descripcion,
+        fechaPago: fechaPago ? new Date(fechaPago + "T12:00:00") : undefined,
       });
 
       if (result.success) {
@@ -248,9 +250,31 @@ export default function GestionFondosClient({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Fecha Real (Opcional)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
+                      value={fechaPago}
+                      onChange={(e) => setFechaPago(e.target.value)}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 pointer-events-none">
+                      calendar_today
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    Deja vacío para usar la fecha de hoy. Útil para pagos realizados días atrás.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
                       De (Emisor) *
                     </label>
                     <select
@@ -323,10 +347,13 @@ export default function GestionFondosClient({
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    A (Receptor) *
-                  </label>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                      A (Receptor) *
+                    </label>
+                    <div className="h-[38px]" /> {/* Altura exacta del select para alinear los inputs */}
+                  </div>
                   <input
                     type="text"
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
@@ -497,6 +524,7 @@ export default function GestionFondosClient({
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                     <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider">Fecha Real</th>
                     <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
                     <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
                     <th className="px-6 py-3 font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
@@ -508,6 +536,9 @@ export default function GestionFondosClient({
                     <tr key={m.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${m.anulado ? "opacity-50" : ""}`}>
                       <td className="px-6 py-3 whitespace-nowrap text-slate-500 text-xs">
                         {format(new Date(m.fecha), "dd/MM/yy HH:mm", { locale: es })}
+                      </td>
+                      <td className="px-6 py-3 whitespace-nowrap text-slate-500 text-xs font-bold">
+                        {m.fechaPago ? format(new Date(m.fechaPago), "dd/MM/yy", { locale: es }) : "---"}
                       </td>
                       <td className={`px-6 py-3 whitespace-nowrap font-bold ${m.anulado ? "line-through text-slate-400" : ""}`}>
                         {m.proveedorNombre}

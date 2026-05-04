@@ -787,6 +787,7 @@ model MovimientoProveedor {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   anulado     Boolean   @default(false)
+  fechaPago   DateTime?
   proveedor   Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
 
   @@map("movimientos_proveedor")

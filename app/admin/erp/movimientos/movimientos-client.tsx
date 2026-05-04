@@ -18,6 +18,7 @@ interface Movimiento {
   referencia: string | null;
   saldo: number;
   anulado: boolean;
+  fechaPago: string | null;
   proveedorNombre: string;
 }
 
@@ -181,11 +182,12 @@ export default function MovimientosClient({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registro</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Real</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo Resultante</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Acciones</th>
               </tr>
             </thead>
@@ -193,8 +195,21 @@ export default function MovimientosClient({
               {filteredMovimientos.length > 0 ? (
                 filteredMovimientos.map((m) => (
                   <tr key={m.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${m.anulado ? "opacity-60 grayscale-[0.5]" : ""}`}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                      {format(new Date(m.fecha), "dd/MM/yyyy HH:mm", { locale: es })}
+                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
+                      <div className="flex flex-col">
+                        <span>{format(new Date(m.fecha), "dd/MM/yy", { locale: es })}</span>
+                        <span className="text-[10px] opacity-50">{format(new Date(m.fecha), "HH:mm", { locale: es })}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
+                      {m.fechaPago ? (
+                        <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                          <span className="material-symbols-outlined text-xs">calendar_today</span>
+                          {format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es })}
+                        </div>
+                      ) : (
+                        <span className="text-slate-300 italic">---</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`text-sm font-bold text-slate-900 dark:text-white ${m.anulado ? "line-through" : ""}`}>{m.proveedorNombre}</span>
@@ -237,7 +252,7 @@ export default function MovimientosClient({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
                       <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">history</span>
                       <p className="text-slate-500 font-medium">No se encontraron movimientos.</p>

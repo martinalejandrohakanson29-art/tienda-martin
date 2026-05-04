@@ -396,6 +396,7 @@ export async function obtenerMovimientosProveedor(proveedorId?: string) {
         referencia: m.referencia,
         saldo: Number(m.saldo),
         anulado: m.anulado,
+        fechaPago: m.fechaPago ? m.fechaPago.toISOString() : null,
         proveedorNombre: m.proveedor.razonSocial
       }))
     };

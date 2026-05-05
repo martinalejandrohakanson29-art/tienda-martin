@@ -207,7 +207,9 @@ export default function MovimientosClient({
   };
 
   const handleExportPDF = () => {
-    if (filteredMovimientos.length === 0) {
+    const activeMovimientos = filteredMovimientos.filter(m => !m.anulado);
+
+    if (activeMovimientos.length === 0) {
       toast.error("No hay movimientos para exportar");
       return;
     }
@@ -234,7 +236,7 @@ export default function MovimientosClient({
     }
 
     const tableColumn = ["Registro", "F. Real", "Proveedor", "Tipo", "Descripción", "Monto", "Saldo"];
-    const tableRows = filteredMovimientos.map(m => [
+    const tableRows = activeMovimientos.map(m => [
       format(new Date(m.fecha), "dd/MM/yy HH:mm"),
       m.fechaPago ? format(new Date(m.fechaPago), "dd/MM/yy") : "---",
       m.proveedorNombre,

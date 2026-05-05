@@ -51,6 +51,7 @@ import {
   obtenerPedidoPorId,
   actualizarPedidoVenta,
   obtenerURLDescargaPDF,
+  actualizarTipoEnvioPedido,
 } from "@/app/actions/ventas-mostrador";
 import PDFPreview from "./pdf-preview";
 
@@ -86,6 +87,7 @@ type Venta = {
   estadoPedido?: string | null;
   pdfUrl?: string | null;
   numeroVenta?: number;
+  tipoEnvio?: string;
 };
 
 export default function PedidosVentaClient() {
@@ -180,6 +182,7 @@ export default function PedidosVentaClient() {
           email: editingVenta.email,
           eventoOffline: editingVenta.eventoOffline,
           puntoVentaId: editingVenta.puntoVentaId,
+          tipoEnvio: editingVenta.tipoEnvio,
           items: editingVenta.items.map(item => ({
             id: item.productoId,
             nombre: item.nombre,
@@ -250,6 +253,19 @@ export default function PedidosVentaClient() {
     } catch (err) {
       console.error("Error al actualizar estado:", err);
       alert("Error al actualizar el estado. Intente nuevamente.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleActualizarTipoEnvio = async (ventaId: string, nuevoTipo: string) => {
+    try {
+      setIsProcessing(true);
+      await actualizarTipoEnvioPedido(ventaId, nuevoTipo);
+      cargarPedidos();
+    } catch (err) {
+      console.error("Error al actualizar tipo de envío:", err);
+      alert("Error al actualizar el tipo de envío. Intente nuevamente.");
     } finally {
       setIsProcessing(false);
     }
@@ -584,6 +600,7 @@ export default function PedidosVentaClient() {
                   <TableHead>Artículos</TableHead>
                   <TableHead className="text-right">Total Final</TableHead>
                   <TableHead className="text-right">Fecha</TableHead>
+                  <TableHead className="text-center">Tipo Envío</TableHead>
                   <TableHead className="text-center">Estado</TableHead>
                   <TableHead className="text-center">Acciones</TableHead>
                 </TableRow>
@@ -633,6 +650,18 @@ export default function PedidosVentaClient() {
                             hour: "2-digit",
                             minute: "2-digit",
                           })}
+                        </TableCell>
+                        <TableCell className="text-center py-4">
+                          <select
+                            value={venta.tipoEnvio || "andreani"}
+                            onChange={(e) => handleActualizarTipoEnvio(venta.id, e.target.value)}
+                            disabled={isProcessing}
+                            className="text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border border-slate-200 outline-none cursor-pointer bg-white hover:bg-slate-50 transition-colors"
+                          >
+                            <option value="andreani">Andreani</option>
+                            <option value="via cargo">Via Cargo</option>
+                            <option value="Retiran aca">Retiran aca</option>
+                          </select>
                         </TableCell>
                         <TableCell className="text-center py-4">
                           <select
@@ -921,6 +950,19 @@ export default function PedidosVentaClient() {
                     onChange={(e) => setEditingVenta({ ...editingVenta, totalFinal: Number(e.target.value) })}
                     className="border-slate-300"
                   />
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium mb-1 block">Tipo de Envío</Label>
+                  <select
+                    value={editingVenta.tipoEnvio || "andreani"}
+                    onChange={(e) => setEditingVenta({ ...editingVenta, tipoEnvio: e.target.value })}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                  >
+                    <option value="andreani">Andreani</option>
+                    <option value="via cargo">Via Cargo</option>
+                    <option value="Retiran aca">Retiran aca</option>
+                  </select>
                 </div>
 
                 <div>

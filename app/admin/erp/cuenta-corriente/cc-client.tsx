@@ -44,7 +44,7 @@ export default function CuentaCorrienteClient({
   const [filterBy, setFilterBy] = useState<FilterType>("todos");
   const [sortBy, setSortBy] = useState<SortType>("nombre-asc");
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
-  
+
   // States for Edit Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedProveedor, setSelectedProveedor] = useState<Proveedor | null>(null);
@@ -60,16 +60,16 @@ export default function CuentaCorrienteClient({
 
   const processedProveedores = useMemo(() => {
     let result = proveedoresIniciales.filter((p) => {
-      const matchesSearch = 
+      const matchesSearch =
         p.razonSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (p.cuit && p.cuit.includes(searchTerm)) ||
         (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(searchTerm.toLowerCase()));
-      
-      const matchesFilter = 
+
+      const matchesFilter =
         filterBy === "todos" ? true :
-        filterBy === "deudores" ? p.total > 0 :
-        filterBy === "acreedores" ? p.total < 0 : true;
-      
+          filterBy === "deudores" ? p.total > 0 :
+            filterBy === "acreedores" ? p.total < 0 : true;
+
       return matchesSearch && matchesFilter;
     });
 
@@ -89,7 +89,7 @@ export default function CuentaCorrienteClient({
   const formatCurrency = (amount: any) => {
     const value = typeof amount === "number" ? amount : parseFloat(amount);
     if (isNaN(value)) return "$ 0,00";
-    
+
     return new Intl.NumberFormat("es-AR", {
       style: "currency",
       currency: "ARS",
@@ -245,11 +245,10 @@ export default function CuentaCorrienteClient({
                 <button
                   key={f}
                   onClick={() => setFilterBy(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    filterBy === f 
-                    ? "bg-[#2b8cee] text-white" 
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${filterBy === f
+                    ? "bg-[#2b8cee] text-white"
                     : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  }`}
+                    }`}
                 >
                   {f === "todos" ? "Todos" : f === "deudores" ? "Deudores (>0)" : "A quienes debemos (<0)"}
                 </button>
@@ -259,7 +258,7 @@ export default function CuentaCorrienteClient({
 
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-slate-400 text-sm">sort</span>
-            <select 
+            <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortType)}
               className="bg-transparent text-xs font-bold text-slate-600 dark:text-slate-300 outline-none cursor-pointer"
@@ -275,11 +274,10 @@ export default function CuentaCorrienteClient({
             <button
               type="button"
               onClick={() => setViewMode("card")}
-              className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
-                viewMode === "card"
-                  ? "bg-white dark:bg-slate-700 text-[#2b8cee] shadow-sm"
-                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              }`}
+              className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${viewMode === "card"
+                ? "bg-white dark:bg-slate-700 text-[#2b8cee] shadow-sm"
+                : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                }`}
               title="Vista de Tarjetas"
             >
               <span className="material-symbols-outlined text-sm">grid_view</span>
@@ -287,11 +285,10 @@ export default function CuentaCorrienteClient({
             <button
               type="button"
               onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
-                viewMode === "list"
-                  ? "bg-white dark:bg-slate-700 text-[#2b8cee] shadow-sm"
-                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              }`}
+              className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${viewMode === "list"
+                ? "bg-white dark:bg-slate-700 text-[#2b8cee] shadow-sm"
+                : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                }`}
               title="Vista de Lista"
             >
               <span className="material-symbols-outlined text-sm">format_list_bulleted</span>
@@ -334,13 +331,13 @@ export default function CuentaCorrienteClient({
               >
                 {/* Action Buttons Overlay */}
                 <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
+                  <button
                     onClick={() => handleEditClick(proveedor)}
                     className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-[#2b8cee] hover:border-[#2b8cee] transition-all"
                   >
                     <span className="material-symbols-outlined text-sm">edit</span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
                     className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-red-500 hover:border-red-500 transition-all"
                   >
@@ -426,7 +423,7 @@ export default function CuentaCorrienteClient({
                       {formatCurrency(proveedor.total)}
                     </span>
                   </div>
-                  <Link 
+                  <Link
                     href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
                     className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#2b8cee] hover:text-white transition-all"
                   >
@@ -451,7 +448,7 @@ export default function CuentaCorrienteClient({
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {processedProveedores.map((proveedor) => (
-                    <tr 
+                    <tr
                       key={proveedor.id}
                       className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
                     >
@@ -475,21 +472,21 @@ export default function CuentaCorrienteClient({
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button 
+                          <button
                             onClick={() => handleEditClick(proveedor)}
                             className="p-2 text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
                             title="Editar"
                           >
                             <span className="material-symbols-outlined text-sm">edit</span>
                           </button>
-                          <Link 
+                          <Link
                             href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
                             className="p-2 text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
                             title="Ver movimientos"
                           >
                             <span className="material-symbols-outlined text-sm">visibility</span>
                           </Link>
-                          <button 
+                          <button
                             onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
                             title="Eliminar"
@@ -528,91 +525,91 @@ export default function CuentaCorrienteClient({
           <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">Editar Proveedor</h2>
-              <button 
+              <button
                 onClick={() => setIsEditModalOpen(false)}
                 className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            
+
             <form onSubmit={handleUpdate} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5 md:col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">Razón Social</label>
-                  <input 
+                  <input
                     required
                     type="text"
                     value={editForm.razonSocial}
-                    onChange={(e) => setEditForm({...editForm, razonSocial: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, razonSocial: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">Nombre de Fantasía</label>
-                  <input 
+                  <input
                     type="text"
                     value={editForm.nombreFantasia}
-                    onChange={(e) => setEditForm({...editForm, nombreFantasia: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, nombreFantasia: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">CUIT / DNI</label>
-                  <input 
+                  <input
                     type="text"
                     value={editForm.cuit}
-                    onChange={(e) => setEditForm({...editForm, cuit: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, cuit: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">Email</label>
-                  <input 
+                  <input
                     type="email"
                     value={editForm.email}
-                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">Teléfono</label>
-                  <input 
+                  <input
                     type="text"
                     value={editForm.telefono}
-                    onChange={(e) => setEditForm({...editForm, telefono: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, telefono: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">Celular</label>
-                  <input 
+                  <input
                     type="text"
                     value={editForm.celular}
-                    onChange={(e) => setEditForm({...editForm, celular: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, celular: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
                   />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase ml-1">Alias / CBU</label>
-                  <input 
+                  <input
                     type="text"
                     value={editForm.aliasCbu}
-                    onChange={(e) => setEditForm({...editForm, aliasCbu: e.target.value})}
+                    onChange={(e) => setEditForm({ ...editForm, aliasCbu: e.target.value })}
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl focus:ring-2 focus:ring-[#2b8cee] transition-all outline-none"
                   />
                 </div>
               </div>
 
               <div className="pt-6 flex gap-3">
-                <button 
+                <button
                   type="button"
                   onClick={() => setIsEditModalOpen(false)}
                   className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
                 >
                   Cancelar
                 </button>
-                <button 
+                <button
                   type="submit"
                   disabled={isPending}
                   className="flex-[2] px-4 py-3 bg-[#2b8cee] text-white font-bold rounded-xl hover:bg-[#2b8cee]/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"

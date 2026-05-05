@@ -461,7 +461,8 @@ export async function guardarComoPedidoVenta(data: {
   mlIdEnvio?: string,
   mlPackId?: string,
   mlMla?: string,
-  mlDni?: string
+  mlDni?: string,
+  tipoEnvio?: string
 }) {
   try {
     // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
@@ -474,6 +475,7 @@ export async function guardarComoPedidoVenta(data: {
           interes: data.interes,
           totalFinal: data.totalFinal,
           tipoVenta: "PEDIDO", // Marcar como pedido de venta
+          tipoEnvio: data.tipoEnvio || "andreani",
           metodo_pago: data.metodo_pago,
           dni: data.dni,
           telefono: data.telefono,
@@ -684,6 +686,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           email: data.email,
           eventoOffline: data.eventoOffline,
           puntoVentaId: data.puntoVentaId || null,
+          tipoEnvio: data.tipoEnvio,
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
           mlPackId: data.mlPackId,
@@ -1107,6 +1110,20 @@ export async function actualizarEstadoPedido(ventaId: string, estadoPedido: stri
   }
 }
 
+export async function actualizarTipoEnvioPedido(ventaId: string, tipoEnvio: string) {
+  try {
+    await prisma.venta.update({
+      where: { id: ventaId },
+      data: { tipoEnvio }
+    });
+    revalidatePath("/admin/erp/pedidos-venta");
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar tipo de envío del pedido:", error);
+    return { success: false, error: "No se pudo actualizar el tipo de envío" };
+  }
+}
+
 export async function actualizarEstadoPedidoMasivo(ventaIds: string[], estadoPedido: string) {
   try {
     await prisma.venta.updateMany({
@@ -1213,6 +1230,7 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
           email: data.email,
           eventoOffline: data.eventoOffline,
           puntoVentaId: data.puntoVentaId || null,
+          tipoEnvio: data.tipoEnvio,
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
           mlPackId: data.mlPackId,

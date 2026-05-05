@@ -431,6 +431,7 @@ model Venta {
   estadoPedido  String?          @default("PENDIENTE")
   pdfUrl        String?
   numeroVenta   Int              @unique @default(autoincrement())
+  tipoEnvio     String           @default("andreani")
   
   // Datos Legales ARCA
   cae             String?

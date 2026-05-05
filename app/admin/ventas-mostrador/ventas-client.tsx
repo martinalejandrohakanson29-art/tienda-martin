@@ -3520,7 +3520,7 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
       </style>
 
       {/* HEADER CONTENEDOR */}
-      <div className="border-black mb-0 overflow-hidden flex h-32">
+      <div className="border-black mb-0 flex relative min-h-[140px]">
         {/* LADO IZQUIERDO: EMISOR */}
         <div className="w-1/2 p-4 border-r border-black relative">
           <div className="flex flex-col items-center mb-2">
@@ -3545,16 +3545,16 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
         </div>
 
         {/* LADO DERECHO: DATOS FACTURA */}
-        <div className="w-1/2 p-4 pt-6">
+        <div className="w-1/2 p-6 flex flex-col justify-center items-end">
           <div className="text-right">
-            <h2 className="text-xl font-bold mb-2">{tituloComprobante}</h2>
-            <p className="font-bold">N°: {ptoVenta}-{nroFactura}</p>
-            <p className="font-bold">Fecha: {fechaFactura}</p>
+            <h2 className="text-xl font-bold mb-1">{tituloComprobante}</h2>
+            <p className="font-bold text-sm">N°: {ptoVenta}-{nroFactura}</p>
+            <p className="font-bold text-sm">Fecha: {fechaFactura}</p>
           </div>
-          <div className="mt-4 text-[9px] text-right">
-            <p>CUIT: 20-26995736-1</p>
-            <p>Ing. Brutos: 280244775</p>
-            <p>Inicio de Actividad: 01/04/2010</p>
+          <div className="mt-4 text-[10px] text-right space-y-0.5">
+            <p><span className="font-bold">CUIT:</span> 20-26995736-1</p>
+            <p><span className="font-bold">Ing. Brutos:</span> 280244775</p>
+            <p><span className="font-bold">Inicio de Actividad:</span> 01/04/2010</p>
           </div>
         </div>
       </div>
@@ -3586,8 +3586,8 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
               <td className="border-black p-2 text-center">{item.cantidad} Un</td>
               <td className="border-black p-2">{item.nombre}</td>
               <td className="border-black p-2 text-center">21,00</td>
-              <td className="border-black p-2 text-right">{(Number(item.precio_unit)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
-              <td className="border-black p-2 text-right">{(Number(item.subtotal)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+              <td className="border-black p-2 text-right">{(Number(item.precio_unit) / 1.21).toLocaleString('es-AR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
+              <td className="border-black p-2 text-right">{(Number(item.subtotal) / 1.21).toLocaleString('es-AR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
             </tr>
           ))}
         </tbody>
@@ -3616,10 +3616,6 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
         <div className="w-1/3 border-black p-0">
           {!isTypeC && (
             <>
-              <div className="flex justify-between border-b border-black p-1 px-2">
-                <span className="font-bold uppercase">Neto:</span>
-                <span>$ {neto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
-              </div>
               <div className="flex justify-between border-b border-black p-1 px-2">
                 <span className="font-bold uppercase">IVA 21%:</span>
                 <span>$ {iva.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>

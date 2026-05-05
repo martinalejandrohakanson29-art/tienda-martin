@@ -1,12 +1,16 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { anularMovimientoProveedor } from "@/app/actions/erp";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { obtenerProveedores, obtenerMovimientosProveedor } from "@/app/actions/listas";
 
 interface Movimiento {
   id: string;
@@ -32,7 +36,11 @@ export default function MovimientosClient({
   initialProveedorId,
 }: MovimientosClientProps) {
   const router = useRouter();
-  const today = new Date().toISOString().split("T")[0];
+  
+  const now = new Date();
+  const today = format(now, "yyyy-MM-dd");
+  const firstDayOfMonth = format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd");
+
   const [isAnulando, setIsAnulando] = useState<string | null>(null);
 
   // Si tenemos movimientos y todos son del mismo proveedor (porque vinimos filtrados),
@@ -45,11 +53,70 @@ export default function MovimientosClient({
   }, [initialProveedorId, movimientosIniciales]);
 
   const [searchTerm, setSearchTerm] = useState(initialSearch);
-  const [startDate, setStartDate] = useState(today);
+  const [startDate, setStartDate] = useState(firstDayOfMonth);
   const [endDate, setEndDate] = useState(today);
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [showProvList, setShowProvList] = useState(false);
+  const [movimientos, setMovimientos] = useState<Movimiento[]>(movimientosIniciales);
+  const [isLoadingMovs, setIsLoadingMovs] = useState(false);
+
+  useEffect(() => {
+    const fetchProveedores = async () => {
+      const res = await obtenerProveedores();
+      if (res.success && res.data) setProveedores(res.data);
+    };
+    fetchProveedores();
+  }, []);
+
+  useEffect(() => {
+    setMovimientos(movimientosIniciales);
+  }, [movimientosIniciales]);
+
+  // Sincronizar el término de búsqueda inicial si cambia (ej. al cargar el componente)
+  useEffect(() => {
+    if (initialSearch) {
+      setSearchTerm(initialSearch);
+    }
+  }, [initialSearch]);
+
+  const handleSelectProveedor = async (p: any) => {
+    setSearchTerm(p.razonSocial);
+    setShowProvList(false);
+    setIsLoadingMovs(true);
+    try {
+      const res = await obtenerMovimientosProveedor(p.id);
+      if (res.success && res.data) {
+        setMovimientos(res.data);
+      } else {
+        toast.error("No se pudieron cargar los movimientos del proveedor");
+      }
+    } catch (error) {
+      toast.error("Error al conectar con la base de datos");
+    } finally {
+      setIsLoadingMovs(false);
+    }
+  };
+
+  const resetAllMovements = () => {
+    setMovimientos(movimientosIniciales);
+    setSearchTerm("");
+    setAppliedStartDate("");
+    setAppliedEndDate("");
+    setStartDate("");
+    setEndDate("");
+  };
+
+  // Estados para los filtros aplicados (solo para las fechas)
+  const [appliedStartDate, setAppliedStartDate] = useState(firstDayOfMonth);
+  const [appliedEndDate, setAppliedEndDate] = useState(today);
+
+  const handleSearch = () => {
+    setAppliedStartDate(startDate);
+    setAppliedEndDate(endDate);
+  };
 
   const filteredMovimientos = useMemo(() => {
-    return movimientosIniciales.filter((m) => {
+    return movimientos.filter((m) => {
       const matchesSearch =
         m.proveedorNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (m.descripcion && m.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -58,19 +125,19 @@ export default function MovimientosClient({
 
       const movimientoDate = new Date(m.fecha);
 
-      if (startDate) {
-        const start = new Date(startDate + "T00:00:00");
+      if (appliedStartDate) {
+        const start = new Date(appliedStartDate + "T00:00:00");
         if (movimientoDate < start) return false;
       }
 
-      if (endDate) {
-        const end = new Date(endDate + "T23:59:59");
+      if (appliedEndDate) {
+        const end = new Date(appliedEndDate + "T23:59:59");
         if (movimientoDate > end) return false;
       }
 
       return true;
     });
-  }, [movimientosIniciales, searchTerm, startDate, endDate]);
+  }, [movimientos, searchTerm, appliedStartDate, appliedEndDate]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-AR", {
@@ -101,6 +168,110 @@ export default function MovimientosClient({
     }
   };
 
+  const handleExportExcel = () => {
+    if (filteredMovimientos.length === 0) {
+      toast.error("No hay movimientos para exportar");
+      return;
+    }
+
+    const dataToExport = filteredMovimientos.map((m) => ({
+      Registro: format(new Date(m.fecha), "dd/MM/yyyy HH:mm", { locale: es }),
+      "Fecha Real (Pago)": m.fechaPago ? format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es }) : "---",
+      Proveedor: m.proveedorNombre,
+      Tipo: m.tipo,
+      Descripción: m.descripcion || "---",
+      Monto: m.monto,
+      Saldo: m.saldo,
+      Anulado: m.anulado ? "SÍ" : "NO",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Movimientos");
+
+    // Ajustar anchos de columna
+    const columnWidths = [
+      { wch: 20 }, // Registro
+      { wch: 18 }, // Fecha Real
+      { wch: 30 }, // Proveedor
+      { wch: 15 }, // Tipo
+      { wch: 40 }, // Descripción
+      { wch: 15 }, // Monto
+      { wch: 15 }, // Saldo
+      { wch: 10 }, // Anulado
+    ];
+    worksheet["!cols"] = columnWidths;
+
+    XLSX.writeFile(workbook, `Reporte_Movimientos_${format(new Date(), "dd-MM-yyyy_HHmm")}.xlsx`);
+    toast.success("Reporte Excel generado");
+  };
+
+  const handleExportPDF = () => {
+    if (filteredMovimientos.length === 0) {
+      toast.error("No hay movimientos para exportar");
+      return;
+    }
+
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.setTextColor(43, 140, 238); // #2b8cee
+    doc.text("Reporte de Movimientos", 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generado el: ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: es })}`, 14, 30);
+    
+    if (appliedStartDate || appliedEndDate) {
+      const start = appliedStartDate ? format(new Date(appliedStartDate + "T12:00:00"), "dd/MM/yyyy") : "Inicio";
+      const end = appliedEndDate ? format(new Date(appliedEndDate + "T12:00:00"), "dd/MM/yyyy") : "Hoy";
+      doc.text(`Periodo: ${start} al ${end}`, 14, 36);
+    }
+
+    if (searchTerm) {
+      doc.text(`Filtro búsqueda: "${searchTerm}"`, 14, 42);
+    }
+
+    const tableColumn = ["Registro", "F. Real", "Proveedor", "Tipo", "Descripción", "Monto", "Saldo"];
+    const tableRows = filteredMovimientos.map(m => [
+      format(new Date(m.fecha), "dd/MM/yy HH:mm"),
+      m.fechaPago ? format(new Date(m.fechaPago), "dd/MM/yy") : "---",
+      m.proveedorNombre,
+      m.tipo,
+      m.descripcion || "---",
+      formatCurrency(m.monto),
+      formatCurrency(m.saldo)
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 48,
+      theme: 'striped',
+      headStyles: { fillColor: [43, 140, 238], textColor: 255, fontStyle: 'bold' },
+      styles: { fontSize: 7, cellPadding: 2 },
+      columnStyles: {
+        5: { halign: 'right' },
+        6: { halign: 'right' },
+      },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 5) {
+          const rawValue = filteredMovimientos[data.row.index].monto;
+          if (rawValue < 0) {
+            data.cell.styles.textColor = [225, 29, 72]; // rose-600
+          } else if (rawValue > 0) {
+            data.cell.styles.textColor = [5, 150, 105]; // emerald-600
+          }
+        }
+      }
+    });
+
+    const pdfUrl = doc.output('bloburl');
+    window.open(pdfUrl, '_blank');
+    toast.success("Reporte PDF generado");
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header section */}
@@ -123,21 +294,61 @@ export default function MovimientosClient({
             </div>
           </div>
 
-          <div className="flex flex-col md:flex-row items-end gap-3 w-full lg:w-auto">
-            <div className="relative w-full md:w-64">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="material-symbols-outlined text-slate-400 text-sm">
-                  search
-                </span>
+            <div className="flex flex-col md:flex-row items-end gap-3 w-full lg:w-auto">
+              <div className="relative w-full md:w-64">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  {isLoadingMovs ? (
+                    <span className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-slate-400 text-sm">
+                      search
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  className="block w-full pl-10 pr-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
+                  placeholder="Buscar proveedor..."
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setShowProvList(true);
+                  }}
+                  onFocus={() => setShowProvList(true)}
+                  onBlur={() => setTimeout(() => setShowProvList(false), 200)}
+                />
+                {showProvList && searchTerm.length > 0 && (
+                  <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="p-2 border-b bg-slate-50 dark:bg-slate-800/50">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Proveedores en DB</span>
+                    </div>
+                    {proveedores.filter(p => 
+                      p.razonSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                      (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                      p.cuit?.includes(searchTerm)
+                    ).length > 0 ? (
+                      proveedores.filter(p => 
+                        p.razonSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                        p.cuit?.includes(searchTerm)
+                      ).map(p => (
+                        <div
+                          key={p.id}
+                          className="p-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer border-b border-slate-50 dark:border-slate-800 last:border-0 transition-colors"
+                          onClick={() => handleSelectProveedor(p)}
+                        >
+                          <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-900 dark:text-white">{p.razonSocial}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"} {p.nombreFantasia ? `| ${p.nombreFantasia}` : ""}</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-xs text-slate-400 italic">No hay coincidencias en DB</div>
+                    )}
+                  </div>
+                )}
               </div>
-              <input
-                type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
-                placeholder="Buscar proveedor o descripción..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
 
             <div className="flex items-center gap-2 w-full md:w-auto">
               <div className="flex flex-col gap-1 w-full md:w-40">
@@ -160,17 +371,39 @@ export default function MovimientosClient({
               </div>
               {(startDate || endDate || searchTerm) && (
                 <button
-                  onClick={() => {
-                    setStartDate("");
-                    setEndDate("");
-                    setSearchTerm("");
-                  }}
+                  onClick={resetAllMovements}
                   className="mt-5 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
                   title="Limpiar filtros"
                 >
                   <span className="material-symbols-outlined text-xl">filter_list_off</span>
                 </button>
               )}
+              <button
+                onClick={handleSearch}
+                className="mt-5 flex items-center gap-2 px-4 py-2 bg-[#2b8cee] hover:bg-[#1a76cc] text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-blue-200 dark:shadow-none"
+              >
+                <span className="material-symbols-outlined text-lg">search</span>
+                Buscar
+              </button>
+
+              <div className="flex flex-col gap-2 ml-4 pl-4 border-l border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={handleExportExcel}
+                  className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-200 dark:shadow-none"
+                  title="Exportar a Excel"
+                >
+                  <span className="material-symbols-outlined text-base">description</span>
+                  Excel
+                </button>
+                <button
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-2 px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-rose-200 dark:shadow-none"
+                  title="Exportar a PDF"
+                >
+                  <span className="material-symbols-outlined text-base">picture_as_pdf</span>
+                  PDF
+                </button>
+              </div>
             </div>
           </div>
         </div>

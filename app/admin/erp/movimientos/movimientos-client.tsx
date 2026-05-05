@@ -215,12 +215,12 @@ export default function MovimientosClient({
     const doc = new jsPDF();
     
     // Header
-    doc.setFontSize(20);
-    doc.setTextColor(43, 140, 238); // #2b8cee
+    doc.setFontSize(18);
+    doc.setTextColor(0, 0, 0); // Black
     doc.text("Reporte de Movimientos", 14, 22);
     
     doc.setFontSize(10);
-    doc.setTextColor(100);
+    doc.setTextColor(60); // Dark grey
     doc.text(`Generado el: ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: es })}`, 14, 30);
     
     if (appliedStartDate || appliedEndDate) {
@@ -248,22 +248,12 @@ export default function MovimientosClient({
       head: [tableColumn],
       body: tableRows,
       startY: 48,
-      theme: 'striped',
-      headStyles: { fillColor: [43, 140, 238], textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 7, cellPadding: 2 },
+      theme: 'grid',
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: 0.1 },
+      styles: { fontSize: 7, cellPadding: 2, textColor: [0, 0, 0] },
       columnStyles: {
         5: { halign: 'right' },
         6: { halign: 'right' },
-      },
-      didParseCell: (data) => {
-        if (data.section === 'body' && data.column.index === 5) {
-          const rawValue = filteredMovimientos[data.row.index].monto;
-          if (rawValue < 0) {
-            data.cell.styles.textColor = [225, 29, 72]; // rose-600
-          } else if (rawValue > 0) {
-            data.cell.styles.textColor = [5, 150, 105]; // emerald-600
-          }
-        }
       }
     });
 

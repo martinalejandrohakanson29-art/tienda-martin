@@ -8,6 +8,8 @@ import {
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
   ChevronDown, ArrowLeft, X
 } from "lucide-react";
+import jsPDF from "jspdf";
+import { toPng } from "html-to-image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -202,8 +204,10 @@ export default function VentasMostradorClient({
   const [sujetosEncontrados, setSujetosEncontrados] = useState<any[]>([]);
   const [isSearchingSujetos, setIsSearchingSujetos] = useState(false);
   const [showSujetoList, setShowSujetoList] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const searchSujetoRef = useRef<HTMLDivElement>(null);
+  const facturaRef = useRef<HTMLDivElement>(null);
 
   // Establecer "Mostrador" como punto de venta por defecto (solo una vez al montar)
   useEffect(() => {
@@ -857,13 +861,37 @@ export default function VentasMostradorClient({
     }
   };
 
-  const handleImprimirFactura = (venta: any) => {
+  const handleImprimirFactura = async (venta: any) => {
     setVentaParaFactura(venta);
-    // Aumentamos el tiempo para permitir la carga de la imagen del QR desde el servidor externo
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => setVentaParaFactura(null), 1000);
-    }, 1000);
+    setIsGeneratingPDF(true);
+
+    // Aumentamos el tiempo para permitir la carga de la imagen del QR y renderizado
+    setTimeout(async () => {
+      if (facturaRef.current) {
+        try {
+          const dataUrl = await toPng(facturaRef.current, {
+            quality: 1,
+            pixelRatio: 2,
+            backgroundColor: "#ffffff",
+            skipFonts: true,
+          });
+
+          const pdf = new jsPDF("p", "mm", "a4");
+          const imgProps = pdf.getImageProperties(dataUrl);
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+          pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
+          const pdfUrl = pdf.output("bloburl");
+          window.open(pdfUrl, "_blank");
+        } catch (err: any) {
+          console.error("Error al generar PDF:", err);
+          alert(`No se pudo generar el PDF: ${err.message || "Error de red o CORS"}`);
+        }
+      }
+      setVentaParaFactura(null);
+      setIsGeneratingPDF(false);
+    }, 1500);
   };
 
   const resetForm = () => {
@@ -1247,11 +1275,15 @@ export default function VentasMostradorClient({
         metodoPago={ventaParaImprimir ? ventaParaImprimir.metodo_pago : (isPagoMixto ? "MIXTO" : metodoPago)}
       />
 
-      {/* 1b. LA FACTURA LEGAL A4 */}
-      <FacturaA4
-        venta={ventaParaFactura}
-        config={config}
-      />
+      {/* 1b. LA FACTURA LEGAL A4 (CAPTURABLE) */}
+      <div style={{ position: 'absolute', left: '-9999px', top: '0', pointerEvents: 'none', width: '210mm' }}>
+        <div ref={facturaRef}>
+          <FacturaA4
+            venta={ventaParaFactura}
+            config={config}
+          />
+        </div>
+      </div>
 
       {/* 2. INTERFAZ NORMAL */}
       <div className="h-screen flex flex-col bg-slate-50/30 overflow-hidden select-none relative print:hidden">
@@ -1789,11 +1821,12 @@ export default function VentasMostradorClient({
                                     ) : (
                                       <div className="flex items-center gap-1">
                                         <button
+                                          disabled={isGeneratingPDF}
                                           onClick={(e) => { e.stopPropagation(); handleImprimirFactura(v); }}
-                                          className="p-2 rounded-xl text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-all"
+                                          className={`p-2 rounded-xl border transition-all ${isGeneratingPDF ? 'opacity-50 cursor-not-allowed' : 'text-blue-600 bg-blue-50 border-blue-100 hover:bg-blue-100'}`}
                                           title={`Imprimir ${[3, 8, 13].includes(v.tipoComprobante) ? 'Nota de Crédito' : 'Factura'} Legal A4 - CAE: ${v.cae}`}
                                         >
-                                          <FileText className="h-5 w-5" />
+                                          {isGeneratingPDF && ventaParaFactura?.id === v.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
                                         </button>
                                         <div className="p-2 text-green-600 bg-green-50 rounded-xl border border-green-100" title={`Facturado - CAE: ${v.cae}`}>
                                           <ShieldCheck className="h-5 w-5" />
@@ -2221,8 +2254,8 @@ export default function VentasMostradorClient({
                               <p className="text-sm font-black text-emerald-900">{cliente}</p>
                             </div>
                             <Badge className={`${condicionIva === 1 ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                condicionIva === 6 ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                                  'bg-slate-100 text-slate-600 border-slate-200'
+                              condicionIva === 6 ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                                'bg-slate-100 text-slate-600 border-slate-200'
                               } font-black text-[9px] border shadow-none`}>
                               {condicionIva === 1 ? 'RESP. INSCRIPTO' : condicionIva === 6 ? 'MONOTRIBUTISTA' : 'CONSUMIDOR FINAL'}
                             </Badge>
@@ -3161,23 +3194,23 @@ export default function VentasMostradorClient({
                 Ingresa los datos para dar de alta un nuevo producto en el sistema.
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="py-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-600 uppercase">ID / SKU</Label>
-                  <Input 
-                    value={newArtData.id} 
+                  <Input
+                    value={newArtData.id}
                     readOnly
                     className="font-mono bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-600 uppercase">Stock Inicial</Label>
-                  <Input 
-                    type="number" 
-                    value={newArtData.stock} 
-                    onChange={(e) => setNewArtData({...newArtData, stock: Number(e.target.value)})} 
+                  <Input
+                    type="number"
+                    value={newArtData.stock}
+                    onChange={(e) => setNewArtData({ ...newArtData, stock: Number(e.target.value) })}
                     className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
                   />
                 </div>
@@ -3185,29 +3218,29 @@ export default function VentasMostradorClient({
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-600 uppercase">Nombre / Descripción</Label>
-                <Input 
-                  value={newArtData.nombre} 
-                  onChange={(e) => setNewArtData({...newArtData, nombre: e.target.value})} 
+                <Input
+                  value={newArtData.nombre}
+                  onChange={(e) => setNewArtData({ ...newArtData, nombre: e.target.value })}
                   className="font-medium bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-600 uppercase">Costo ($)</Label>
-                  <Input 
-                    type="number" 
-                    value={newArtData.costo} 
-                    onChange={(e) => handleCostoArtChange(Number(e.target.value))} 
+                  <Input
+                    type="number"
+                    value={newArtData.costo}
+                    onChange={(e) => handleCostoArtChange(Number(e.target.value))}
                     className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-600 uppercase">% Ganancia</Label>
-                  <Input 
-                    type="number" 
-                    value={newArtData.margenGanancia} 
-                    onChange={(e) => handleMargenArtChange(Number(e.target.value))} 
+                  <Input
+                    type="number"
+                    value={newArtData.margenGanancia}
+                    onChange={(e) => handleMargenArtChange(Number(e.target.value))}
                     className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
                   />
                 </div>
@@ -3217,10 +3250,10 @@ export default function VentasMostradorClient({
                 <Label className="text-xs font-bold text-indigo-600 uppercase mb-2 block">Precio Final Resultante</Label>
                 <div className="flex items-center gap-3">
                   <span className="text-2xl font-black text-indigo-900">$</span>
-                  <Input 
-                    type="number" 
-                    value={newArtData.precio} 
-                    onChange={(e) => setNewArtData({...newArtData, precio: Number(e.target.value)})} 
+                  <Input
+                    type="number"
+                    value={newArtData.precio}
+                    onChange={(e) => setNewArtData({ ...newArtData, precio: Number(e.target.value) })}
                     className="font-black text-2xl bg-white border-indigo-200 text-indigo-700 focus-visible:ring-indigo-500 h-12"
                   />
                 </div>
@@ -3234,9 +3267,9 @@ export default function VentasMostradorClient({
               <Button variant="ghost" onClick={() => setIsCreateArticuloModalOpen(false)} className="text-slate-500 hover:text-slate-700">
                 Cancelar
               </Button>
-              <Button 
-                onClick={handleCrearNuevoArticulo} 
-                disabled={isSubmitting} 
+              <Button
+                onClick={handleCrearNuevoArticulo}
+                disabled={isSubmitting}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold px-8 shadow-md"
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
@@ -3477,7 +3510,7 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
   const qrUrl = generateQR();
 
   return (
-    <div className="hidden print:block w-full bg-white text-black p-8 font-sans text-[11px] leading-normal min-h-screen">
+    <div className="w-[210mm] bg-white text-black p-8 font-sans text-[11px] leading-normal min-h-screen">
       <style type="text/css" media="print">
         {`
           @page { size: A4; margin: 0; }
@@ -3491,8 +3524,11 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
         {/* LADO IZQUIERDO: EMISOR */}
         <div className="w-1/2 p-4 border-r border-black relative">
           <div className="flex flex-col items-center mb-2">
-            <img src={logoUrl} alt="Logo" className="h-12 mb-1" />
-            <h1 className="text-sm font-bold">REVOLUCIÓN MOTOS</h1>
+            {logoUrl && !logoUrl.includes('googleusercontent') ? (
+              <img src={logoUrl} alt="Logo" className="h-12 mb-1" crossOrigin="anonymous" onError={(e) => e.currentTarget.style.display = 'none'} />
+            ) : (
+              <h1 className="text-sm font-bold">REVOLUCIÓN MOTOS</h1>
+            )}
             <p className="text-[9px] text-center font-bold">de Oliva Peirone Jose Luis</p>
           </div>
           <div className="text-[9px]">
@@ -3562,9 +3598,13 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
         {/* QR Y CAE */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-4">
-            <img src={qrUrl} alt="QR AFIP" className="w-24 h-24 border border-gray-200" />
+            <img src={qrUrl} alt="QR AFIP" className="w-24 h-24 border border-gray-200" crossOrigin="anonymous" onError={(e) => e.currentTarget.style.display = 'none'} />
             <div>
-              <img src="https://www.afip.gob.ar/genericos/guiaVisual/img/logo_afip.png" alt="AFIP" className="h-7 mb-1" />
+              <img 
+                src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgNDAiPjxyZWN0IHdpZHRoPSIxMjAiIGhlaWdodD0iNDAiIHJ4PSI0IiBmaWxsPSIjMDA1QzlCIi8+PHRleHQgeD0iMTAiIHk9IjI4IiBmaWxsPSIjRkZGIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSJib2xkIiBmb250LXNpemU9IjIwIj5BRklQPC90ZXh0Pjwvc3ZnPg==" 
+                alt="AFIP" 
+                className="h-7 mb-1" 
+              />
               <p className="font-bold text-[10px] leading-tight">Comprobante Autorizado</p>
               <p><span className="font-bold">C.A.E. N°:</span> {venta.cae}</p>
               <p><span className="font-bold">Vto. C.A.E.:</span> {venta.vencimientoCae ? new Date(venta.vencimientoCae).toLocaleDateString('es-AR') : '-'}</p>

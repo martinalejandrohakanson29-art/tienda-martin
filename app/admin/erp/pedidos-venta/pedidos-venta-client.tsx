@@ -656,7 +656,12 @@ export default function PedidosVentaClient() {
                             value={venta.tipoEnvio || "andreani"}
                             onChange={(e) => handleActualizarTipoEnvio(venta.id, e.target.value)}
                             disabled={isProcessing}
-                            className="text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border border-slate-200 outline-none cursor-pointer bg-white hover:bg-slate-50 transition-colors"
+                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer transition-colors ${
+                              (venta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-100 text-red-700 border-red-200' :
+                              venta.tipoEnvio === 'via cargo' ? 'bg-green-100 text-green-700 border-green-200' :
+                              venta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                              'bg-white border-slate-200'
+                            }`}
                           >
                             <option value="andreani">Andreani</option>
                             <option value="via cargo">Via Cargo</option>
@@ -957,7 +962,12 @@ export default function PedidosVentaClient() {
                   <select
                     value={editingVenta.tipoEnvio || "andreani"}
                     onChange={(e) => setEditingVenta({ ...editingVenta, tipoEnvio: e.target.value })}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20"
+                    className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 transition-colors ${
+                      (editingVenta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-50 border-red-200 text-red-900' :
+                      editingVenta.tipoEnvio === 'via cargo' ? 'bg-green-50 border-green-200 text-green-900' :
+                      editingVenta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-50 border-yellow-200 text-yellow-900' :
+                      'border-slate-300'
+                    }`}
                   >
                     <option value="andreani">Andreani</option>
                     <option value="via cargo">Via Cargo</option>

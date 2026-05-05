@@ -283,6 +283,12 @@ export default function VentasMostradorClient({
   const [editEmail, setEditEmail] = useState("");
   const [editEventoOffline, setEditEventoOffline] = useState(false);
   const [editPuntoVentaId, setEditPuntoVentaId] = useState("");
+  const [editDocTipo, setEditDocTipo] = useState<number>(99);
+  const [editDocNro, setEditDocNro] = useState<string>("");
+  const [editCondicionIva, setEditCondicionIva] = useState<number>(5);
+  const [editCuitBusqueda, setEditCuitBusqueda] = useState("");
+  const [isSearchingPadronEdit, setIsSearchingPadronEdit] = useState(false);
+  const [editTipoFacturaSugerida, setEditTipoFacturaSugerida] = useState<number>(6);
 
   // Establecer "Mostrador" como punto de venta por defecto para edición (solo una vez al montar)
   useEffect(() => {
@@ -304,6 +310,7 @@ export default function VentasMostradorClient({
   const puntoVentaGestionRef = useRef<HTMLDivElement>(null);
   const [filtroIdVenta, setFiltroIdVenta] = useState("");
   const [filtroMetodoPago, setFiltroMetodoPago] = useState("");
+  const [filtroCliente, setFiltroCliente] = useState("");
 
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
@@ -504,6 +511,12 @@ export default function VentasMostradorClient({
         v.dni?.toLowerCase().includes(filtroIdVenta.toLowerCase()))
       : true;
 
+    // Filtro Cliente
+    const cumpleCliente = filtroCliente
+      ? (v.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) ||
+        v.dni?.toLowerCase().includes(filtroCliente.toLowerCase()))
+      : true;
+
     // Filtro Metodo de Pago
     const cumpleMetodoPago = filtroMetodoPago
       ? (filtroMetodoPago === "MercadoLibre"
@@ -511,7 +524,7 @@ export default function VentasMostradorClient({
         : v.metodo_pago === filtroMetodoPago)
       : true;
 
-    return cumpleOffline && cumplePuntoVenta && cumpleIdVenta && cumpleMetodoPago;
+    return cumpleOffline && cumplePuntoVenta && cumpleIdVenta && cumpleMetodoPago && cumpleCliente;
   });
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
@@ -701,6 +714,37 @@ export default function VentasMostradorClient({
       alert("Error al consultar padrón");
     } finally {
       setIsSearchingPadron(false);
+    }
+  };
+
+  const handleBuscarPadronEdit = async () => {
+    const cleanCuit = editCuitBusqueda.replace(/\D/g, '');
+    if (!cleanCuit || cleanCuit.length < 7) {
+      alert("Ingresa un CUIT (11 dígitos) o DNI (7-8 dígitos) válido");
+      return;
+    }
+
+    setIsSearchingPadronEdit(true);
+    try {
+      const res = await consultarPadron(cleanCuit);
+      if (res.success) {
+        setEditCliente(res.nombre || "Sin Nombre");
+        if (res.cuit) {
+          setEditDocNro(res.cuit);
+          setEditDocTipo(res.cuit.length === 11 ? 80 : 96);
+          setEditDni(res.cuit);
+        }
+        if (res.condicionIva) setEditCondicionIva(res.condicionIva);
+        if (res.tipoFactura) setEditTipoFacturaSugerida(res.tipoFactura);
+
+        mostrarMensajeExito("Datos obtenidos del padrón");
+      } else {
+        alert(res.error || "No se encontraron datos en el padrón");
+      }
+    } catch (e) {
+      alert("Error al consultar el padrón AFIP");
+    } finally {
+      setIsSearchingPadronEdit(false);
     }
   };
 
@@ -900,6 +944,12 @@ export default function VentasMostradorClient({
     const cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
     setEditInfo(cleanInfo);
 
+    setEditDocTipo(venta.docTipo || 99);
+    setEditDocNro(venta.docNro || "");
+    setEditCondicionIva(venta.condicionIva || 5);
+    setEditCuitBusqueda(venta.docNro || venta.dni || "");
+    setEditTipoFacturaSugerida(venta.tipoComprobante || 6);
+
     // Ahora inicializamos editItems con los precios CORRECTOS desde la base de datos
     setEditItems(venta.items.map((i: { id?: string; productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => {
       const articuloBase = articulos.find(a => a.id === i.productoId);
@@ -988,7 +1038,11 @@ export default function VentasMostradorClient({
           mlIdVenta: editMlIdVenta,
           mlIdEnvio: editMlIdEnvio,
           mlMla: editMlMla,
-          mlDni: editMlDni
+          mlDni: editMlDni,
+          docTipo: editDocTipo,
+          docNro: editDocNro,
+          condicionIva: editCondicionIva,
+          tipoComprobante: editTipoFacturaSugerida
         },
         vendedorNombre,
         resumenCambios
@@ -1507,6 +1561,19 @@ export default function VentasMostradorClient({
                     </div>
 
                     <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar Cliente</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                        <Input
+                          placeholder="Nombre o DNI/CUIT..."
+                          value={filtroCliente}
+                          onChange={(e) => setFiltroCliente(e.target.value)}
+                          className="h-10 w-48 pl-9 text-xs bg-white border-slate-200 rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
                       <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Método de Pago</Label>
                       <select
                         value={filtroMetodoPago}
@@ -1891,6 +1958,19 @@ export default function VentasMostradorClient({
                           placeholder="N° Venta o ID..."
                           value={filtroIdVenta}
                           onChange={(e) => setFiltroIdVenta(e.target.value)}
+                          className="h-10 w-48 pl-9 text-xs bg-white border-amber-200 rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Buscar Cliente</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
+                        <Input
+                          placeholder="Nombre o DNI/CUIT..."
+                          value={filtroCliente}
+                          onChange={(e) => setFiltroCliente(e.target.value)}
                           className="h-10 w-48 pl-9 text-xs bg-white border-amber-200 rounded-xl"
                         />
                       </div>
@@ -2444,8 +2524,32 @@ export default function VentasMostradorClient({
 
                 <div className="flex gap-4 items-end flex-wrap mb-2">
                   <div className="space-y-1.5 flex-grow min-w-[200px]">
+                    <Label className="text-[10px] font-bold text-slate-400 uppercase">CUIT / DNI (Padrón A4)</Label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          value={editCuitBusqueda}
+                          onChange={(e) => setEditCuitBusqueda(e.target.value)}
+                          placeholder="CUIT o DNI..."
+                          className="h-10 bg-slate-50 border-slate-200 pl-9"
+                        />
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleBuscarPadronEdit}
+                        disabled={isSearchingPadronEdit}
+                        className="rounded-xl h-10 px-3 shrink-0 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100"
+                        title="Buscar en Padrón AFIP"
+                      >
+                        {isSearchingPadronEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5 flex-grow min-w-[200px]">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase">Cliente / Razón Social</Label>
-                    <Input value={editCliente} onChange={(e) => setEditCliente(e.target.value)} className="bg-slate-50" />
+                    <Input value={editCliente} onChange={(e) => setEditCliente(e.target.value)} className="bg-slate-50 h-10" />
                   </div>
                   <div className="space-y-1.5 w-32">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase">% Interés Gral.</Label>
@@ -2456,6 +2560,26 @@ export default function VentasMostradorClient({
                     <span className="text-2xl font-black text-amber-900">$ {totalBaseEdit.toLocaleString('es-AR')}</span>
                   </div>
                 </div>
+
+                {editDocNro && (
+                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl animate-in fade-in slide-in-from-top-1 mb-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Datos Fiscales</Label>
+                        <p className="text-sm font-black text-emerald-900">{editCliente}</p>
+                        <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1">
+                          {editDocTipo === 80 ? 'CUIT' : 'DNI'}: <span className="text-emerald-900 font-black">{editDocNro}</span>
+                        </p>
+                      </div>
+                      <Badge className={`${editCondicionIva === 1 ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                        editCondicionIva === 6 ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                          'bg-slate-100 text-slate-600 border-slate-200'
+                        } font-black text-[9px] border shadow-none`}>
+                        {editCondicionIva === 1 ? 'RESP. INSCRIPTO' : editCondicionIva === 6 ? 'MONOTRIBUTISTA' : 'CONSUMIDOR FINAL'}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
 
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                   <div className="flex items-center space-x-3 mb-4">

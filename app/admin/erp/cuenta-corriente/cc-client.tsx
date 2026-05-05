@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { actualizarProveedor, eliminarProveedor } from "@/app/actions/listas";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Proveedor {
   id: string;
@@ -40,6 +43,7 @@ export default function CuentaCorrienteClient({
   const [searchTerm, setSearchTerm] = useState("");
   const [filterBy, setFilterBy] = useState<FilterType>("todos");
   const [sortBy, setSortBy] = useState<SortType>("nombre-asc");
+  const [viewMode, setViewMode] = useState<"card" | "list">("card");
   
   // States for Edit Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -139,6 +143,61 @@ export default function CuentaCorrienteClient({
     });
   };
 
+  const handleExportExcel = () => {
+    const dataToExport = processedProveedores.map((p) => ({
+      "Razon Social": p.razonSocial,
+      "Nombre Fantasia": p.nombreFantasia || "---",
+      "CUIT": p.cuit || "---",
+      "Email": p.email || "---",
+      "Telefono": p.telefono || "---",
+      "Celular": p.celular || "---",
+      "Saldo Anterior": p.saldoAnterior,
+      "Saldo Vencido": p.saldoVencido,
+      "15-30 dias": p.dias15 + p.dias30,
+      "45-60 dias": p.dias45 + p.dias60,
+      "+60 dias": p.mas60,
+      "Total": p.total,
+      "Alias/CBU": p.aliasCbu || "---",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Cuenta Corriente");
+    XLSX.writeFile(workbook, `cuenta_corriente_proveedores_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const title = "Listado de Cuenta Corriente - Proveedores";
+    const date = new Date().toLocaleDateString();
+
+    doc.setFontSize(18);
+    doc.text(title, 14, 22);
+    doc.setFontSize(10);
+    doc.text(`Fecha: ${date}`, 14, 30);
+    doc.text(`Filtros: ${filterBy} | Orden: ${sortBy}`, 14, 35);
+
+    const tableData = processedProveedores.map((p) => [
+      p.razonSocial,
+      p.cuit || "---",
+      formatCurrency(p.saldoAnterior),
+      formatCurrency(p.saldoVencido),
+      formatCurrency(p.total),
+    ]);
+
+    autoTable(doc, {
+      startY: 40,
+      head: [["Proveedor", "CUIT", "S. Anterior", "S. Vencido", "Total"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [43, 140, 238] },
+      styles: { fontSize: 8 },
+    });
+
+    const pdfOutput = doc.output("bloburl");
+    window.open(pdfOutput, "_blank");
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header section */}
@@ -212,140 +271,256 @@ export default function CuentaCorrienteClient({
             </select>
           </div>
 
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setViewMode("card")}
+              className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                viewMode === "card"
+                  ? "bg-white dark:bg-slate-700 text-[#2b8cee] shadow-sm"
+                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              }`}
+              title="Vista de Tarjetas"
+            >
+              <span className="material-symbols-outlined text-sm">grid_view</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`p-1.5 rounded-lg transition-all flex items-center justify-center ${
+                viewMode === "list"
+                  ? "bg-white dark:bg-slate-700 text-[#2b8cee] shadow-sm"
+                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              }`}
+              title="Vista de Lista"
+            >
+              <span className="material-symbols-outlined text-sm">format_list_bulleted</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 ml-2">
+            <button
+              onClick={handleExportExcel}
+              className="px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+              title="Exportar a Excel"
+            >
+              <span className="material-symbols-outlined text-sm">description</span>
+              Excel
+            </button>
+            <button
+              onClick={handleExportPDF}
+              className="px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+              title="Vista previa PDF"
+            >
+              <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+              PDF
+            </button>
+          </div>
+
           <div className="ml-auto text-xs font-medium text-slate-400">
             {processedProveedores.length} proveedores encontrados
           </div>
         </div>
       </div>
 
-      {/* Grid of Suppliers */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {processedProveedores.length > 0 ? (
-          processedProveedores.map((proveedor) => (
-            <div
-              key={proveedor.id}
-              className="group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-[#2b8cee]/50 transition-all duration-300 hover:shadow-xl flex flex-col relative"
-            >
-              {/* Action Buttons Overlay */}
-              <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                  onClick={() => handleEditClick(proveedor)}
-                  className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-[#2b8cee] hover:border-[#2b8cee] transition-all"
-                >
-                  <span className="material-symbols-outlined text-sm">edit</span>
-                </button>
-                <button 
-                  onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
-                  className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-red-500 hover:border-red-500 transition-all"
-                >
-                  <span className="material-symbols-outlined text-sm">delete</span>
-                </button>
-              </div>
-
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-[#2b8cee]/10 flex items-center justify-center text-[#2b8cee] group-hover:bg-[#2b8cee] group-hover:text-white transition-colors duration-300">
-                  <span className="material-symbols-outlined text-2xl">
-                    business
-                  </span>
+      {/* Main Content Area: Grid or List */}
+      {processedProveedores.length > 0 ? (
+        viewMode === "card" ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {processedProveedores.map((proveedor) => (
+              <div
+                key={proveedor.id}
+                className="group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-[#2b8cee]/50 transition-all duration-300 hover:shadow-xl flex flex-col relative"
+              >
+                {/* Action Buttons Overlay */}
+                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => handleEditClick(proveedor)}
+                    className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-[#2b8cee] hover:border-[#2b8cee] transition-all"
+                  >
+                    <span className="material-symbols-outlined text-sm">edit</span>
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
+                    className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-red-500 hover:border-red-500 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-sm">delete</span>
+                  </button>
                 </div>
-                <div className="text-right pr-10">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    CUIT
-                  </span>
-                  <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
-                    {proveedor.cuit || "---"}
+
+                <div className="flex items-start justify-between mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-[#2b8cee]/10 flex items-center justify-center text-[#2b8cee] group-hover:bg-[#2b8cee] group-hover:text-white transition-colors duration-300">
+                    <span className="material-symbols-outlined text-2xl">
+                      business
+                    </span>
+                  </div>
+                  <div className="text-right pr-10">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      CUIT
+                    </span>
+                    <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                      {proveedor.cuit || "---"}
+                    </p>
+                  </div>
+                </div>
+
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate">
+                  {proveedor.razonSocial}
+                </h3>
+                {proveedor.nombreFantasia && (
+                  <p className="text-sm text-[#2b8cee] font-medium mb-4">
+                    {proveedor.nombreFantasia}
                   </p>
+                )}
+
+                {/* Account Aging Summary */}
+                <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase text-slate-400 font-bold">Anterior</span>
+                    <span className="text-sm font-semibold">{formatCurrency(proveedor.saldoAnterior)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase text-slate-400 font-bold">Vencido</span>
+                    <span className={`text-sm font-semibold ${proveedor.saldoVencido < 0 ? 'text-red-500' : proveedor.saldoVencido > 0 ? 'text-emerald-500' : ''}`}>
+                      {formatCurrency(proveedor.saldoVencido)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex-grow space-y-3">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500">15 - 30 días</span>
+                    <span className="font-medium">{formatCurrency(proveedor.dias15 + proveedor.dias30)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500">45 - 60 días</span>
+                    <span className="font-medium">{formatCurrency(proveedor.dias45 + proveedor.dias60)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500">+ 60 días</span>
+                    <span className="font-medium">{formatCurrency(proveedor.mas60)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="material-symbols-outlined text-sm">mail</span>
+                    <span className="truncate">{proveedor.email || "Sin email"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="material-symbols-outlined text-sm">call</span>
+                    <span>{proveedor.telefono || proveedor.celular || "Sin contacto"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-indigo-600 font-medium">
+                    <span className="material-symbols-outlined text-sm">payments</span>
+                    <span className="truncate">{proveedor.aliasCbu || "Sin alias/cbu"}</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Saldo Total
+                    </span>
+                    <span className={`text-xl font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
+                      {formatCurrency(proveedor.total)}
+                    </span>
+                  </div>
+                  <Link 
+                    href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
+                    className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#2b8cee] hover:text-white transition-all"
+                  >
+                    <span className="material-symbols-outlined">chevron_right</span>
+                  </Link>
                 </div>
               </div>
-
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate">
-                {proveedor.razonSocial}
-              </h3>
-              {proveedor.nombreFantasia && (
-                <p className="text-sm text-[#2b8cee] font-medium mb-4">
-                  {proveedor.nombreFantasia}
-                </p>
-              )}
-
-              {/* Account Aging Summary */}
-              <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase text-slate-400 font-bold">Anterior</span>
-                  <span className="text-sm font-semibold">{formatCurrency(proveedor.saldoAnterior)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase text-slate-400 font-bold">Vencido</span>
-                  <span className={`text-sm font-semibold ${proveedor.saldoVencido < 0 ? 'text-red-500' : proveedor.saldoVencido > 0 ? 'text-emerald-500' : ''}`}>
-                    {formatCurrency(proveedor.saldoVencido)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex-grow space-y-3">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500">15 - 30 días</span>
-                  <span className="font-medium">{formatCurrency(proveedor.dias15 + proveedor.dias30)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500">45 - 60 días</span>
-                  <span className="font-medium">{formatCurrency(proveedor.dias45 + proveedor.dias60)}</span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-500">+ 60 días</span>
-                  <span className="font-medium">{formatCurrency(proveedor.mas60)}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span className="material-symbols-outlined text-sm">mail</span>
-                  <span className="truncate">{proveedor.email || "Sin email"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span className="material-symbols-outlined text-sm">call</span>
-                  <span>{proveedor.telefono || proveedor.celular || "Sin contacto"}</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-indigo-600 font-medium">
-                  <span className="material-symbols-outlined text-sm">payments</span>
-                  <span className="truncate">{proveedor.aliasCbu || "Sin alias/cbu"}</span>
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Saldo Total
-                  </span>
-                  <span className={`text-xl font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
-                    {formatCurrency(proveedor.total)}
-                  </span>
-                </div>
-                <Link 
-                  href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
-                  className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#2b8cee] hover:text-white transition-all"
-                >
-                  <span className="material-symbols-outlined">chevron_right</span>
-                </Link>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="col-span-full py-20 text-center">
-            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="material-symbols-outlined text-4xl text-slate-400">
-                search_off
-              </span>
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              No se encontraron proveedores
-            </h3>
-            <p className="text-slate-500">
-              Intenta con otro término de búsqueda o verifica que el proveedor
-              esté registrado.
-            </p>
+            ))}
           </div>
-        )}
-      </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Proveedor</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Anterior</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Vencido</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Saldo Total</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {processedProveedores.map((proveedor) => (
+                    <tr 
+                      key={proveedor.id}
+                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">{proveedor.razonSocial}</span>
+                          {proveedor.nombreFantasia && (
+                            <span className="text-xs text-[#2b8cee]">{proveedor.nombreFantasia}</span>
+                          )}
+                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">{proveedor.cuit || "---"}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm text-slate-600 dark:text-slate-400 font-medium">
+                        {formatCurrency(proveedor.saldoAnterior)}
+                      </td>
+                      <td className={`px-6 py-4 text-right text-sm font-semibold ${proveedor.saldoVencido < 0 ? 'text-red-500' : proveedor.saldoVencido > 0 ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-400'}`}>
+                        {formatCurrency(proveedor.saldoVencido)}
+                      </td>
+                      <td className={`px-6 py-4 text-right text-base font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
+                        {formatCurrency(proveedor.total)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleEditClick(proveedor)}
+                            className="p-2 text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                            title="Editar"
+                          >
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                          </button>
+                          <Link 
+                            href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
+                            className="p-2 text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                            title="Ver movimientos"
+                          >
+                            <span className="material-symbols-outlined text-sm">visibility</span>
+                          </Link>
+                          <button 
+                            onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
+                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                            title="Eliminar"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      ) : (
+        <div className="py-20 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="material-symbols-outlined text-4xl text-slate-400">
+              search_off
+            </span>
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+            No se encontraron proveedores
+          </h3>
+          <p className="text-slate-500">
+            Intenta con otro término de búsqueda o verifica que el proveedor
+            esté registrado.
+          </p>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {isEditModalOpen && (

@@ -196,7 +196,11 @@ export default function VentasMostradorClient({
   const [docTipo, setDocTipo] = useState<number>(99); // Consumidor Final por defecto
   const [docNro, setDocNro] = useState<string>("");
   const [condicionIva, setCondicionIva] = useState<number>(5); // Consumidor Final
+  const facturaRef = useRef<HTMLDivElement>(null);
+  const pedidoRef = useRef<HTMLDivElement>(null);
   const [ventaParaFactura, setVentaParaFactura] = useState<any>(null);
+  const [ventaParaPedido, setVentaParaPedido] = useState<any>(null);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isFacturando, setIsFacturando] = useState(false);
   const [tipoFacturaSugerida, setTipoFacturaSugerida] = useState<number>(6); // B por defecto para Responsable Inscripto
   const [solicitarFactura, setSolicitarFactura] = useState(false);
@@ -204,10 +208,8 @@ export default function VentasMostradorClient({
   const [sujetosEncontrados, setSujetosEncontrados] = useState<any[]>([]);
   const [isSearchingSujetos, setIsSearchingSujetos] = useState(false);
   const [showSujetoList, setShowSujetoList] = useState(false);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const searchSujetoRef = useRef<HTMLDivElement>(null);
-  const facturaRef = useRef<HTMLDivElement>(null);
 
   // Establecer "Mostrador" como punto de venta por defecto (solo una vez al montar)
   useEffect(() => {
@@ -894,6 +896,42 @@ export default function VentasMostradorClient({
     }, 1500);
   };
 
+  const handleVerResumenPDF = async (venta: any) => {
+    setVentaParaPedido(venta);
+    setIsGeneratingPDF(true);
+
+    // Aumentamos el tiempo para permitir el renderizado
+    setTimeout(async () => {
+      if (pedidoRef.current) {
+        try {
+          const dataUrl = await toPng(pedidoRef.current, {
+            quality: 1,
+            pixelRatio: 2,
+            backgroundColor: "#ffffff",
+            skipFonts: true,
+          });
+
+          const pdf = new jsPDF("p", "mm", "a4");
+          const imgProps = pdf.getImageProperties(dataUrl);
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+          pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
+
+          const blob = pdf.output("blob");
+          const url = URL.createObjectURL(blob);
+          window.open(url, "_blank");
+        } catch (error) {
+          console.error("Error al generar PDF:", error);
+          alert("No se pudo generar el resumen en PDF.");
+        } finally {
+          setVentaParaPedido(null);
+          setIsGeneratingPDF(false);
+        }
+      }
+    }, 1500);
+  };
+
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
@@ -911,11 +949,6 @@ export default function VentasMostradorClient({
     }
   };
 
-  const handleMarcarRegistrada = async (id: string) => {
-    setVentasRealizadas(prev => prev.map(v => v.id === id ? { ...v, registrada: true } : v));
-    const res = await marcarVentaComoRegistrada(id);
-    if (!res.success) { alert("No se pudo actualizar"); cargarVentas(fechaDesde, fechaHasta); }
-  };
 
   // --- CALCULOS EDICIÓN VENTA (LÓGICA MIXTA) ---
   const totalBaseEdit = editItems.reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
@@ -1282,6 +1315,17 @@ export default function VentasMostradorClient({
             venta={ventaParaFactura}
             config={config}
           />
+        </div>
+      </div>
+
+      {/* 1c. EL RESUMEN DE VENTA A4 (CAPTURABLE) */}
+      <div style={{ position: 'absolute', left: '-9999px', top: '0', pointerEvents: 'none', width: '210mm' }}>
+        <div ref={pedidoRef}>
+          {ventaParaPedido && (
+            <PedidoVentaA4
+              venta={ventaParaPedido}
+            />
+          )}
         </div>
       </div>
 
@@ -1802,12 +1846,15 @@ export default function VentasMostradorClient({
                                       <Printer className="h-5 w-5" />
                                     </button>
                                     <button
-                                      disabled={v.registrada}
-                                      onClick={(e) => { e.stopPropagation(); handleMarcarRegistrada(v.id); }}
-                                      className={`p-2 rounded-xl transition-all ${v.registrada ? 'text-green-600 bg-green-50 cursor-default border border-green-100' : 'text-slate-300 hover:text-blue-600 hover:bg-blue-50 border border-transparent'}`}
-                                      title={v.registrada ? "Registrada" : "Marcar como Registrada"}
+                                      onClick={(e) => { e.stopPropagation(); handleVerResumenPDF(v); }}
+                                      className="p-2 rounded-xl transition-all text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-transparent"
+                                      title="Ver Resumen PDF"
                                     >
-                                      {v.registrada ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
+                                      {isGeneratingPDF && ventaParaPedido?.id === v.id ? (
+                                        <RefreshCcw className="h-5 w-5 animate-spin" />
+                                      ) : (
+                                        <span className="font-bold text-lg">X</span>
+                                      )}
                                     </button>
                                     {!v.cae ? (
                                       <button
@@ -3627,6 +3674,115 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
           <div className="flex justify-between bg-gray-100 p-2 px-2 text-sm">
             <span className="font-bold uppercase">Total:</span>
             <span className="font-black">$ {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// COMPONENTE PARA EL FORMATO A4 DEL PEDIDO (SIMILAR A LA FACTURA)
+function PedidoVentaA4({ venta }: { venta: any }) {
+  const items = venta.items || [];
+  const total = Number(venta.totalFinal || venta.total || 0);
+
+  // Datos estáticos o calculados
+  const fechaFactura = new Date(venta.createdAt).toLocaleDateString('es-AR');
+  const nroPedido = (venta.numeroVenta || venta.id.slice(0, 8)).toString().padStart(8, '0');
+
+  return (
+    <div className="w-[210mm] h-[297mm] bg-white text-black p-10 font-sans text-[11px] leading-normal flex flex-col">
+      <style type="text/css" media="print">
+        {`
+          @page { size: A4; margin: 0; }
+          body { background: white !important; }
+          .border-black { border: 1px solid black !important; }
+        `}
+      </style>
+
+      <div className="flex-grow">
+        {/* HEADER CONTENEDOR */}
+        <div className="border-black mb-0 flex relative min-h-[140px]">
+          {/* LADO IZQUIERDO: EMISOR */}
+          <div className="w-1/2 p-4 border-r border-black relative">
+            <div className="flex flex-col items-center mb-2">
+              <h1 className="text-sm font-bold">REVOLUCIÓN MOTOS</h1>
+              <p className="text-[9px] text-center font-bold">de Oliva Peirone Jose Luis</p>
+            </div>
+            <div className="text-[9px]">
+              <p>Revolución de Mayo 1605 - D° 5 - (5000) Córdoba</p>
+              <p>Tel: 3512404003 | Email: revolucionmotos@gmail.com</p>
+              <p className="font-bold">I.V.A. RESPONSABLE INSCRIPTO</p>
+            </div>
+          </div>
+
+          {/* CENTRO: TIPO COMPROBANTE (X para pedidos) */}
+          <div className="absolute left-1/2 -translate-x-1/2 top-8 w-12 h-14 bg-white border-black flex flex-col items-center justify-center z-10">
+            <span className="text-2xl font-black">X</span>
+            <span className="text-[8px]">PEDIDO</span>
+          </div>
+
+          {/* LADO DERECHO: DATOS COMPROBANTE */}
+          <div className="w-1/2 p-6 flex flex-col justify-center items-end">
+            <div className="text-right">
+              <h2 className="text-xl font-bold mb-1 uppercase text-blue-700">Resumen de Venta</h2>
+              <p className="font-bold text-sm">N°: 0001-{nroPedido}</p>
+              <p className="font-bold text-sm">Fecha: {fechaFactura}</p>
+            </div>
+            <div className="mt-4 text-[10px] text-right space-y-0.5">
+              <p><span className="font-bold">CUIT:</span> 20-26995736-1</p>
+              <p><span className="font-bold">Ing. Brutos:</span> 280244775</p>
+              <p><span className="font-bold">Inicio de Actividad:</span> 01/04/2010</p>
+            </div>
+          </div>
+        </div>
+
+        {/* DATOS DEL CLIENTE */}
+        <div className="border-black border-t-0 p-3 grid grid-cols-2 gap-y-1">
+          <p><span className="font-bold">Razón Social:</span> {venta.cliente || "Consumidor Final"}</p>
+          <p><span className="font-bold">I.V.A.:</span> Consumidor Final</p>
+          <p><span className="font-bold">CUIT/DNI:</span> {venta.dni || venta.docNro || '-'}</p>
+          <p><span className="font-bold">Vendedor:</span> {venta.vendedor}</p>
+          <p className="col-span-2"><span className="font-bold">Obs:</span> {venta.info || '-'}</p>
+        </div>
+
+        {/* TABLA DE ARTÍCULOS */}
+        <table className="w-full border-black border-t-0 border-collapse mt-4">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="border-black p-2 text-left w-16">Cantidad</th>
+              <th className="border-black p-2 text-left">Descripción</th>
+              <th className="border-black p-2 text-right w-24">P. Unit.</th>
+              <th className="border-black p-2 text-right w-24">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item: any, i: number) => (
+              <tr key={i}>
+                <td className="border-black p-2 text-center">{item.cantidad} Un</td>
+                <td className="border-black p-2">{item.nombre}</td>
+                <td className="border-black p-2 text-right">{(Number(item.precio_unit)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                <td className="border-black p-2 text-right">{(Number(item.subtotal)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* FOOTER DE TOTALES EN EL PIE */}
+      <div className="flex justify-between items-end border-t border-black pt-4 mt-auto">
+        <div className="flex flex-col gap-2">
+          <div className="p-4 border border-dashed border-gray-300 rounded-lg">
+            <p className="text-[10px] text-gray-500 italic">Documento no válido como factura.</p>
+            <p className="text-[10px] text-gray-500 italic">Reserva de mercadería sujeta a confirmación.</p>
+          </div>
+        </div>
+
+        {/* TABLA DE TOTALES */}
+        <div className="w-1/3 border-black p-0">
+          <div className="flex justify-between bg-blue-50 p-2 px-2 text-sm border border-blue-200">
+            <span className="font-bold uppercase text-blue-900">Total:</span>
+            <span className="font-black text-blue-900">$ {total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
       </div>

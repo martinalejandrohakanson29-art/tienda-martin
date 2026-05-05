@@ -114,7 +114,35 @@ export default function GuiaPreparacionPage() {
                                 </label>
                             </div>
                             <p className="font-semibold text-gray-800 mb-2">{item.title}</p>
-                            <p className="text-xs font-bold text-gray-400 uppercase">SKU: {item.subtitle}</p>
+                            <div className="flex flex-wrap gap-2 items-center mb-2">
+                                <p className="text-xs font-bold text-gray-400 uppercase">SKU: {item.subtitle}</p>
+                                {item.variation && (
+                                    <p className="text-xs font-bold text-blue-500 uppercase bg-blue-50 px-2 py-0.5 rounded border border-blue-100">Var: {item.variation}</p>
+                                )}
+                            </div>
+
+                            {item.receta && (
+                                <div className="mt-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                    <p className="text-[10px] font-bold text-amber-700 uppercase mb-2 tracking-wider">Contenido de la Receta:</p>
+                                    <div className="flex flex-col gap-1.5">
+                                        {item.receta.split(' + ').map((r: string, idx: number) => (
+                                            <div key={idx} className="text-xs text-amber-900 font-bold flex items-center gap-2">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                {r}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {item.componentes_ids && (
+                                        <div className="mt-2 pt-2 border-t border-amber-200/50 flex flex-wrap gap-1">
+                                            {item.componentes_ids.split(' + ').map((id: string, idx: number) => (
+                                                <span key={idx} className="text-[9px] font-mono font-bold bg-white/50 px-1.5 py-0.5 rounded border border-amber-200 text-amber-800">
+                                                    {id}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}

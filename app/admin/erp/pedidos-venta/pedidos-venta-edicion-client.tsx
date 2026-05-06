@@ -37,6 +37,10 @@ import {
   FileX,
   ArrowLeft,
   Printer,
+  Plus,
+  Search,
+  X,
+  Minus,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -54,6 +58,7 @@ import {
   subirPDFLote,
   eliminarPDFPedido,
   actualizarTipoEnvioPedido,
+  obtenerTodosLosArticulos,
 } from "@/app/actions/ventas-mostrador";
 import PDFPreview from "./pdf-preview";
 
@@ -122,6 +127,34 @@ export default function PedidosVentaEdicionClient() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [ventaParaFactura, setVentaParaFactura] = useState<Venta | null>(null);
   const facturaRef = React.useRef<HTMLDivElement>(null);
+
+  // Estados para búsqueda de artículos
+  const [articulos, setArticulos] = useState<any[]>([]);
+  const [busquedaArticulo, setBusquedaArticulo] = useState("");
+  const [resultadosBusqueda, setResultadosBusqueda] = useState<any[]>([]);
+
+  // Cargar artículos al inicio
+  useEffect(() => {
+    const cargarArticulos = async () => {
+      const arts = await obtenerTodosLosArticulos();
+      setArticulos(arts);
+    };
+    cargarArticulos();
+  }, []);
+
+  // Filtrar artículos según búsqueda
+  useEffect(() => {
+    if (busquedaArticulo.length > 1) {
+      const lowerBusqueda = busquedaArticulo.toLowerCase();
+      const filtrados = articulos.filter(art => 
+        art.nombre.toLowerCase().includes(lowerBusqueda) || 
+        (art.codigo && art.codigo.toLowerCase().includes(lowerBusqueda))
+      ).slice(0, 10);
+      setResultadosBusqueda(filtrados);
+    } else {
+      setResultadosBusqueda([]);
+    }
+  }, [busquedaArticulo, articulos]);
 
   const cargarPedidos = async () => {
     try {
@@ -197,6 +230,72 @@ export default function PedidosVentaEdicionClient() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // --- Helpers para gestión de items ---
+  const recalcularTotales = (items: ItemVenta[], interes: number = 0) => {
+    const subtotal = items.reduce((acc, item) => acc + (Number(item.cantidad) * Number(item.precio_unit)), 0);
+    const totalFinal = subtotal + interes;
+    return { total: subtotal, totalFinal };
+  };
+
+  const agregarArticulo = (articulo: any) => {
+    if (!editingVenta) return;
+    
+    const existingItem = editingVenta.items.find(i => i.productoId === articulo.id);
+    let newItems;
+    
+    if (existingItem) {
+      newItems = editingVenta.items.map(i => 
+        i.productoId === articulo.id 
+          ? { ...i, cantidad: i.cantidad + 1, subtotal: (i.cantidad + 1) * i.precio_unit }
+          : i
+      );
+    } else {
+      newItems = [
+        ...editingVenta.items,
+        {
+          productoId: articulo.id,
+          nombre: articulo.nombre,
+          cantidad: 1,
+          precio_unit: articulo.precio,
+          subtotal: articulo.precio
+        }
+      ];
+    }
+    
+    const { total, totalFinal } = recalcularTotales(newItems, editingVenta.interes || 0);
+    setEditingVenta({ ...editingVenta, items: newItems, total, totalFinal });
+    setBusquedaArticulo("");
+    setResultadosBusqueda([]);
+  };
+
+  const eliminarArticulo = (index: number) => {
+    if (!editingVenta) return;
+    const newItems = [...editingVenta.items];
+    newItems.splice(index, 1);
+    const { total, totalFinal } = recalcularTotales(newItems, editingVenta.interes || 0);
+    setEditingVenta({ ...editingVenta, items: newItems, total, totalFinal });
+  };
+
+  const actualizarItem = (index: number, field: string, value: any) => {
+    if (!editingVenta) return;
+    const newItems = [...editingVenta.items];
+    const item = { ...newItems[index], [field]: value };
+    
+    if (field === 'cantidad' || field === 'precio_unit') {
+      item.subtotal = Number(item.cantidad) * Number(item.precio_unit);
+    }
+    
+    newItems[index] = item;
+    const { total, totalFinal } = recalcularTotales(newItems, editingVenta.interes || 0);
+    setEditingVenta({ ...editingVenta, items: newItems, total, totalFinal });
+  };
+
+  const handleInteresChange = (val: number) => {
+    if (!editingVenta) return;
+    const { totalFinal } = recalcularTotales(editingVenta.items, val);
+    setEditingVenta({ ...editingVenta, interes: val, totalFinal });
   };
 
   const confirmarEdicion = async () => {
@@ -1034,9 +1133,9 @@ export default function PedidosVentaEdicionClient() {
                     <Label className="text-sm font-medium mb-1 block">Total</Label>
                     <Input
                       type="number"
+                      readOnly
                       value={editingVenta.total}
-                      onChange={(e) => setEditingVenta({ ...editingVenta, total: Number(e.target.value) })}
-                      className="border-slate-300"
+                      className="border-slate-300 bg-slate-50"
                     />
                   </div>
                   <div>
@@ -1044,7 +1143,7 @@ export default function PedidosVentaEdicionClient() {
                     <Input
                       type="number"
                       value={editingVenta.interes}
-                      onChange={(e) => setEditingVenta({ ...editingVenta, interes: Number(e.target.value) })}
+                      onChange={(e) => handleInteresChange(Number(e.target.value))}
                       className="border-slate-300"
                     />
                   </div>
@@ -1054,10 +1153,123 @@ export default function PedidosVentaEdicionClient() {
                   <Label className="text-sm font-medium mb-1 block">Total Final</Label>
                   <Input
                     type="number"
+                    readOnly
                     value={editingVenta.totalFinal}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, totalFinal: Number(e.target.value) })}
-                    className="border-slate-300"
+                    className="border-slate-300 bg-slate-100 font-bold"
                   />
+                </div>
+
+                {/* Sección de Artículos */}
+                <div className="pt-4 border-t border-slate-200">
+                  <Label className="text-sm font-bold text-slate-700 mb-2 block flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Artículos del Pedido
+                  </Label>
+                  
+                  {/* Buscador de artículos */}
+                  <div className="relative mb-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input
+                        placeholder="Buscar artículo por nombre o código..."
+                        value={busquedaArticulo}
+                        onChange={(e) => setBusquedaArticulo(e.target.value)}
+                        className="pl-10 border-amber-200 focus:ring-amber-500/20"
+                      />
+                      {busquedaArticulo && (
+                        <button
+                          onClick={() => setBusquedaArticulo("")}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    
+                    {resultadosBusqueda.length > 0 && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[200px] overflow-y-auto">
+                        {resultadosBusqueda.map((art) => (
+                          <button
+                            key={art.id}
+                            onClick={() => agregarArticulo(art)}
+                            className="w-full flex items-center justify-between p-3 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-slate-900">{art.nombre}</span>
+                              <span className="text-xs text-slate-500">Stock: {art.stock} | {formatPrice(art.precio)}</span>
+                            </div>
+                            <Plus className="h-4 w-4 text-amber-500" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tabla de artículos actuales */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
+                    <Table>
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          <TableHead className="text-[10px] uppercase font-bold py-2">Articulo</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold py-2 text-center w-24">Cant.</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold py-2 text-right w-32">P. Unit</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold py-2 text-right w-32">Subtotal</TableHead>
+                          <TableHead className="text-[10px] uppercase font-bold py-2 w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {editingVenta.items.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-8 text-slate-400 italic text-sm">
+                              No hay artículos en este pedido
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          editingVenta.items.map((item, idx) => (
+                            <TableRow key={idx} className="hover:bg-slate-50/50">
+                              <TableCell className="py-2">
+                                <p className="text-sm font-medium text-slate-900 line-clamp-1">{item.nombre}</p>
+                              </TableCell>
+                              <TableCell className="py-2">
+                                <div className="flex items-center justify-center gap-1">
+                                  <Input
+                                    type="number"
+                                    value={item.cantidad}
+                                    onChange={(e) => actualizarItem(idx, 'cantidad', Number(e.target.value))}
+                                    className="h-8 w-16 text-center text-xs p-1"
+                                  />
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-2 text-right">
+                                <div className="flex items-center justify-end">
+                                  <span className="text-xs text-slate-400 mr-1">$</span>
+                                  <Input
+                                    type="number"
+                                    value={item.precio_unit}
+                                    onChange={(e) => actualizarItem(idx, 'precio_unit', Number(e.target.value))}
+                                    className="h-8 w-24 text-right text-xs p-1"
+                                  />
+                                </div>
+                              </TableCell>
+                              <TableCell className="py-2 text-right text-sm font-medium">
+                                {formatPrice(item.subtotal)}
+                              </TableCell>
+                              <TableCell className="py-2 text-center">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => eliminarArticulo(idx)}
+                                  className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
                 
                 <div>
@@ -1074,6 +1286,7 @@ export default function PedidosVentaEdicionClient() {
                     <option value="MercadoPago">MercadoPago</option>
                     <option value="Cruzada">Cruzada</option>
                     <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                    <option value="Mixto">Mixto</option>
                   </select>
                 </div>
 

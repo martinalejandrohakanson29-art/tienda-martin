@@ -2384,6 +2384,7 @@ export default function VentasMostradorClient({
                         <option value="MercadoPago">MercadoPago</option>
                         <option value="Cruzada">Cruzada</option>
                         <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                        <option value="A Confirmar">A Confirmar</option>
                       </select>
                       <div>
                         <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
@@ -2414,6 +2415,7 @@ export default function VentasMostradorClient({
                       <option value="MercadoPago">MercadoPago</option>
                       <option value="Cruzada">Cruzada</option>
                       <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                      <option value="A Confirmar">A Confirmar</option>
                     </select>
                   </div>
                 )}

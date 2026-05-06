@@ -60,6 +60,7 @@ import {
   actualizarTipoEnvioPedido,
   obtenerTodosLosArticulos,
 } from "@/app/actions/ventas-mostrador";
+import { obtenerProveedores } from "@/app/actions/listas";
 import PDFPreview from "./pdf-preview";
 
 type ItemVenta = {
@@ -133,21 +134,35 @@ export default function PedidosVentaEdicionClient() {
   const [busquedaArticulo, setBusquedaArticulo] = useState("");
   const [resultadosBusqueda, setResultadosBusqueda] = useState<any[]>([]);
 
-  // Cargar artículos al inicio
+  // Estados para búsqueda de proveedores
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [busquedaProveedor, setBusquedaProveedor] = useState("");
+  const [resultadosProveedores, setResultadosProveedores] = useState<any[]>([]);
+
+  // Cargar artículos y proveedores al inicio
   useEffect(() => {
-    const cargarArticulos = async () => {
-      const arts = await obtenerTodosLosArticulos();
-      setArticulos(arts);
+    const cargarDatos = async () => {
+      try {
+        const arts = await obtenerTodosLosArticulos();
+        setArticulos(arts);
+
+        const provs = await obtenerProveedores();
+        if (provs && provs.success && 'data' in provs) {
+          setProveedores(provs.data as any[]);
+        }
+      } catch (error) {
+        console.error("Error al cargar datos iniciales:", error);
+      }
     };
-    cargarArticulos();
+    cargarDatos();
   }, []);
 
   // Filtrar artículos según búsqueda
   useEffect(() => {
     if (busquedaArticulo.length > 1) {
       const lowerBusqueda = busquedaArticulo.toLowerCase();
-      const filtrados = articulos.filter(art => 
-        art.nombre.toLowerCase().includes(lowerBusqueda) || 
+      const filtrados = articulos.filter(art =>
+        art.nombre.toLowerCase().includes(lowerBusqueda) ||
         (art.codigo && art.codigo.toLowerCase().includes(lowerBusqueda))
       ).slice(0, 10);
       setResultadosBusqueda(filtrados);
@@ -155,6 +170,21 @@ export default function PedidosVentaEdicionClient() {
       setResultadosBusqueda([]);
     }
   }, [busquedaArticulo, articulos]);
+
+  // Filtrar proveedores según búsqueda
+  useEffect(() => {
+    if (busquedaProveedor.length > 1) {
+      const query = busquedaProveedor.toLowerCase();
+      const filtrados = proveedores.filter(p =>
+        p.razonSocial.toLowerCase().includes(query) ||
+        (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(query)) ||
+        (p.cuit && p.cuit.includes(query))
+      ).slice(0, 10);
+      setResultadosProveedores(filtrados);
+    } else {
+      setResultadosProveedores([]);
+    }
+  }, [busquedaProveedor, proveedores]);
 
   const cargarPedidos = async () => {
     try {
@@ -201,7 +231,7 @@ export default function PedidosVentaEdicionClient() {
           const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
           pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
-          
+
           const blob = pdf.output("blob");
           const url = URL.createObjectURL(blob);
           window.open(url, "_blank");
@@ -241,13 +271,13 @@ export default function PedidosVentaEdicionClient() {
 
   const agregarArticulo = (articulo: any) => {
     if (!editingVenta) return;
-    
+
     const existingItem = editingVenta.items.find(i => i.productoId === articulo.id);
     let newItems;
-    
+
     if (existingItem) {
-      newItems = editingVenta.items.map(i => 
-        i.productoId === articulo.id 
+      newItems = editingVenta.items.map(i =>
+        i.productoId === articulo.id
           ? { ...i, cantidad: i.cantidad + 1, subtotal: (i.cantidad + 1) * i.precio_unit }
           : i
       );
@@ -263,7 +293,7 @@ export default function PedidosVentaEdicionClient() {
         }
       ];
     }
-    
+
     const { total, totalFinal } = recalcularTotales(newItems, editingVenta.interes || 0);
     setEditingVenta({ ...editingVenta, items: newItems, total, totalFinal });
     setBusquedaArticulo("");
@@ -282,11 +312,11 @@ export default function PedidosVentaEdicionClient() {
     if (!editingVenta) return;
     const newItems = [...editingVenta.items];
     const item = { ...newItems[index], [field]: value };
-    
+
     if (field === 'cantidad' || field === 'precio_unit') {
       item.subtotal = Number(item.cantidad) * Number(item.precio_unit);
     }
-    
+
     newItems[index] = item;
     const { total, totalFinal } = recalcularTotales(newItems, editingVenta.interes || 0);
     setEditingVenta({ ...editingVenta, items: newItems, total, totalFinal });
@@ -300,7 +330,22 @@ export default function PedidosVentaEdicionClient() {
 
   const confirmarEdicion = async () => {
     if (!editingVenta || !ventaParaEditar) return;
-    
+
+    // Validar campos según método de pago
+    if (editingVenta.metodo_pago === "Cruzada") {
+      if (!editingVenta.de || !editingVenta.para) {
+        alert("Los campos 'De' y 'Para' son obligatorios para ventas cruzadas. Debes buscar y seleccionar un proveedor.");
+        return;
+      }
+    }
+
+    if (editingVenta.metodo_pago === "A Cuenta Corriente") {
+      if (!editingVenta.para) {
+        alert("Debes buscar y seleccionar un proveedor para ventas a Cuenta Corriente.");
+        return;
+      }
+    }
+
     try {
       setIsProcessing(true);
       const usuario = "Admin"; // TODO: Obtener usuario actual
@@ -340,7 +385,7 @@ export default function PedidosVentaEdicionClient() {
         usuario,
         detalleCambios
       );
-      
+
       if (result.success) {
         setEditingVenta(null);
         setVentaParaEditar(null);
@@ -778,12 +823,11 @@ export default function PedidosVentaEdicionClient() {
                             value={venta.tipoEnvio || "andreani"}
                             onChange={(e) => handleActualizarTipoEnvio(venta.id, e.target.value)}
                             disabled={isProcessing}
-                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer transition-colors ${
-                              (venta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-100 text-red-700 border-red-200' :
+                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer transition-colors ${(venta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-100 text-red-700 border-red-200' :
                               venta.tipoEnvio === 'via cargo' ? 'bg-green-100 text-green-700 border-green-200' :
-                              venta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                              'bg-white border-slate-200'
-                            }`}
+                                venta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
+                                  'bg-white border-slate-200'
+                              }`}
                           >
                             <option value="andreani">Andreani</option>
                             <option value="via cargo">Via Cargo</option>
@@ -791,17 +835,16 @@ export default function PedidosVentaEdicionClient() {
                           </select>
                         </TableCell>
                         <TableCell className="text-center py-4">
-                          <select 
+                          <select
                             value={venta.estadoPedido || "PENDIENTE"}
                             onChange={(e) => handleActualizarEstado(venta.id, e.target.value)}
                             disabled={isProcessing}
-                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${
-                              venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
+                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
                               venta.estadoPedido === 'PREPARADO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                              venta.estadoPedido === 'IMPRESO' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                              venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                              'bg-amber-100 text-amber-700 border-amber-200'
-                            }`}
+                                venta.estadoPedido === 'IMPRESO' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                  venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                                    'bg-amber-100 text-amber-700 border-amber-200'
+                              }`}
                           >
                             <option value="PENDIENTE">Pendiente</option>
                             <option value="LISTO_PARA_PREPARAR">Listo p/ Preparar</option>
@@ -821,20 +864,20 @@ export default function PedidosVentaEdicionClient() {
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
-                               <Button
-                                 variant="outline"
-                                 size="sm"
-                                 onClick={() => handleVerPDF(venta)}
-                                 className="border-blue-600 text-blue-700 hover:bg-blue-50"
-                                 title="Ver PDF del Pedido"
-                                 disabled={isGeneratingPDF}
-                               >
-                                 {isGeneratingPDF && ventaParaFactura?.id === venta.id ? (
-                                   <Loader2 className="h-4 w-4 animate-spin" />
-                                 ) : (
-                                   <Eye className="h-4 w-4" />
-                                 )}
-                               </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleVerPDF(venta)}
+                              className="border-blue-600 text-blue-700 hover:bg-blue-50"
+                              title="Ver PDF del Pedido"
+                              disabled={isGeneratingPDF}
+                            >
+                              {isGeneratingPDF && ventaParaFactura?.id === venta.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </Button>
 
                             <Button
                               variant="outline"
@@ -1108,7 +1151,7 @@ export default function PedidosVentaEdicionClient() {
                   <strong>Fecha:</strong> {new Date(editingVenta.createdAt).toLocaleDateString("es-AR")}
                 </p>
               </div>
-              
+
               <div className="space-y-3">
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Cliente</Label>
@@ -1118,7 +1161,7 @@ export default function PedidosVentaEdicionClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Vendedor</Label>
                   <Input
@@ -1127,7 +1170,7 @@ export default function PedidosVentaEdicionClient() {
                     className="border-slate-300"
                   />
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium mb-1 block">Total</Label>
@@ -1148,7 +1191,7 @@ export default function PedidosVentaEdicionClient() {
                     />
                   </div>
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Total Final</Label>
                   <Input
@@ -1165,7 +1208,7 @@ export default function PedidosVentaEdicionClient() {
                     <Plus className="h-4 w-4" />
                     Artículos del Pedido
                   </Label>
-                  
+
                   {/* Buscador de artículos */}
                   <div className="relative mb-4">
                     <div className="relative">
@@ -1185,7 +1228,7 @@ export default function PedidosVentaEdicionClient() {
                         </button>
                       )}
                     </div>
-                    
+
                     {resultadosBusqueda.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[200px] overflow-y-auto">
                         {resultadosBusqueda.map((art) => (
@@ -1271,7 +1314,7 @@ export default function PedidosVentaEdicionClient() {
                     </Table>
                   </div>
                 </div>
-                
+
                 <div>
                   <Label className="text-sm font-medium mb-1 block">Método de Pago</Label>
                   <select
@@ -1287,6 +1330,7 @@ export default function PedidosVentaEdicionClient() {
                     <option value="Cruzada">Cruzada</option>
                     <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                     <option value="Mixto">Mixto</option>
+                    <option value="A Confirmar">A Confirmar</option>
                   </select>
                 </div>
 
@@ -1350,24 +1394,61 @@ export default function PedidosVentaEdicionClient() {
                         <Input value={editingVenta.de || ""} onChange={(e) => setEditingVenta({ ...editingVenta, de: e.target.value })} className="bg-white border-amber-200" placeholder="Origen" />
                       </div>
                     )}
-                    <div className={`space-y-2 ${editingVenta.metodo_pago !== "Cruzada" ? 'col-span-2' : ''}`}>
-                      <Label className="text-xs font-bold text-amber-700">{editingVenta.metodo_pago === "A Cuenta Corriente" ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.para || ""} onChange={(e) => setEditingVenta({ ...editingVenta, para: e.target.value })} className="bg-white border-amber-200" placeholder="Destino / Proveedor" />
+                    <div className={`space-y-2 relative ${editingVenta.metodo_pago !== "Cruzada" ? 'col-span-2' : ''}`}>
+                      <Label className="text-xs font-bold text-amber-700">
+                        {editingVenta.metodo_pago === "A Cuenta Corriente" ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span>
+                        <span className="text-[10px] font-normal text-slate-400 ml-2">(Busca en la base de datos)</span>
+                      </Label>
+                      <Input
+                        value={busquedaProveedor || editingVenta.para || ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setBusquedaProveedor(val);
+                          // Al escribir, borramos el valor seleccionado para forzar una nueva selección
+                          if (val !== editingVenta.para) {
+                            setEditingVenta({ ...editingVenta, para: "" });
+                          }
+                        }}
+                        className="bg-white border-amber-200"
+                        placeholder={editingVenta.metodo_pago === "A Cuenta Corriente" ? "Escribe para buscar..." : "Escribe para buscar..."}
+                      />
+
+                      {resultadosProveedores.length > 0 && (
+                        <div className="absolute z-[60] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[200px] overflow-y-auto top-full">
+                          {resultadosProveedores.map((prov) => (
+                            <button
+                              key={prov.id}
+                              type="button"
+                              onClick={() => {
+                                setEditingVenta({ ...editingVenta, para: prov.razonSocial });
+                                setBusquedaProveedor(prov.razonSocial);
+                                setResultadosProveedores([]);
+                              }}
+                              className="w-full flex items-center justify-between p-3 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium text-slate-900">{prov.razonSocial}</span>
+                                <span className="text-[10px] text-slate-500">CUIT: {prov.cuit || 'Sin CUIT'}</span>
+                              </div>
+                              <CheckCircle2 className="h-4 w-4 text-amber-500" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
-                
+
                 <div className="pt-2">
                   <Label className="text-sm font-medium mb-1 block">Tipo de Envío</Label>
                   <select
                     value={editingVenta.tipoEnvio || "andreani"}
                     onChange={(e) => setEditingVenta({ ...editingVenta, tipoEnvio: e.target.value })}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 transition-colors ${
-                      (editingVenta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-50 border-red-200 text-red-900' :
+                    className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 transition-colors ${(editingVenta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-50 border-red-200 text-red-900' :
                       editingVenta.tipoEnvio === 'via cargo' ? 'bg-green-50 border-green-200 text-green-900' :
-                      editingVenta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-50 border-yellow-200 text-yellow-900' :
-                      'border-slate-300'
-                    }`}
+                        editingVenta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-50 border-yellow-200 text-yellow-900' :
+                          'border-slate-300'
+                      }`}
                   >
                     <option value="andreani">Andreani</option>
                     <option value="via cargo">Via Cargo</option>
@@ -1392,7 +1473,7 @@ export default function PedidosVentaEdicionClient() {
                     <Upload className="h-4 w-4" />
                     Comprobante PDF
                   </Label>
-                  
+
                   {editingVenta.pdfUrl ? (
                     <div className="flex items-center justify-between bg-green-50 p-3 rounded-xl border border-green-100 mb-3">
                       <div className="flex items-center gap-2 overflow-hidden">
@@ -1410,8 +1491,8 @@ export default function PedidosVentaEdicionClient() {
                         >
                           Ver
                         </Button>
-                        <Label 
-                          htmlFor="pdf-upload" 
+                        <Label
+                          htmlFor="pdf-upload"
                           className="h-7 px-2 flex items-center bg-transparent text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer rounded-md border border-slate-200"
                         >
                           Reemplazar
@@ -1420,8 +1501,8 @@ export default function PedidosVentaEdicionClient() {
                     </div>
                   ) : (
                     <div className="mb-3">
-                      <Label 
-                        htmlFor="pdf-upload" 
+                      <Label
+                        htmlFor="pdf-upload"
                         className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
                         <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -1434,22 +1515,22 @@ export default function PedidosVentaEdicionClient() {
                             {isUploading ? "Subiendo archivo..." : "Click para subir PDF de comprobante"}
                           </p>
                         </div>
-                        <input 
-                          id="pdf-upload" 
-                          type="file" 
-                          accept="application/pdf" 
-                          className="hidden" 
+                        <input
+                          id="pdf-upload"
+                          type="file"
+                          accept="application/pdf"
+                          className="hidden"
                           onChange={handleUploadPDF}
                           disabled={isUploading}
                         />
                       </Label>
                     </div>
                   )}
-                  <input 
-                    id="pdf-upload" 
-                    type="file" 
-                    accept="application/pdf" 
-                    className="hidden" 
+                  <input
+                    id="pdf-upload"
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
                     onChange={handleUploadPDF}
                     disabled={isUploading}
                   />
@@ -1507,7 +1588,7 @@ function PedidoVentaA4({ venta }: { venta: any }) {
   const items = venta.items || [];
   const total = Number(venta.totalFinal || venta.total || 0);
   const iva = total - (total / 1.21);
-  
+
   // Datos estáticos o calculados
   const fechaFactura = new Date(venta.createdAt).toLocaleDateString('es-AR');
   const nroPedido = (venta.numeroVenta || venta.id.slice(0, 8)).toString().padStart(8, '0');

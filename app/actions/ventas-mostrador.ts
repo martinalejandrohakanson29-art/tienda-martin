@@ -1183,13 +1183,15 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
         where: { ventaId }
       });
 
-      // --- NUEVO: Revertir saldo de proveedor si el pedido anterior tenía impacto (Cruzada) ---
+      // --- NUEVO: Revertir saldo de proveedor si el pedido anterior tenía impacto (Cruzada, CC o Mixto) ---
       const oldVenta = await tx.venta.findUnique({
         where: { id: ventaId }
       });
 
-      if (oldVenta && oldVenta.metodo_pago === "Cruzada") {
-        const montoRevertirVal = Number(oldVenta.totalFinal);
+      const esMetodoImpactoOld = oldVenta && (oldVenta.metodo_pago === "Cruzada" || oldVenta.metodo_pago === "A Cuenta Corriente" || oldVenta.metodo_pago === "Mixto");
+
+      if (oldVenta && esMetodoImpactoOld) {
+        const montoRevertirVal = getMontoImpactoProveedor(oldVenta.metodo_pago, oldVenta.info, Number(oldVenta.totalFinal));
 
         if (montoRevertirVal > 0) {
           let proveedor = await tx.proveedor.findUnique({
@@ -1285,8 +1287,10 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
         }
       });
 
-      // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto (Cruzada) ---
-      if (data.metodo_pago === "Cruzada" && data.para) {
+      // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto (Cruzada, CC o Mixto) ---
+      const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
+
+      if (montoImpactoNewVal > 0 && data.para) {
         const idBuscado = data.para;
 
         let proveedor = await tx.proveedor.findUnique({
@@ -1300,7 +1304,7 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
         }
 
         if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(data.totalFinal);
+          const montoDecimal = new Prisma.Decimal(montoImpactoNewVal);
           const nuevoSaldo = proveedor.total.plus(montoDecimal);
 
           await tx.proveedor.update({
@@ -1313,7 +1317,7 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
               proveedorId: proveedor.id,
               tipo: "HABER",
               monto: montoDecimal,
-              descripcion: `EDICIÓN (Pedido): Pago de venta #${oldVenta?.numeroVenta} (${data.cliente})`,
+              descripcion: `EDICIÓN (Pedido): ${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${oldVenta?.numeroVenta} (${data.cliente})`,
               referencia: ventaId,
               saldo: nuevoSaldo
             }
@@ -1368,13 +1372,15 @@ export async function confirmarPedidoVenta(ventaId: string) {
         data: { tipoVenta: "CONFIRMADA" }
       });
 
-      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" o "A Cuenta Corriente" ---
+      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada", "A Cuenta Corriente" o "Mixto" ---
       // Verificamos si ya existe un movimiento para no duplicar (especialmente para Cruzada que ahora se imputa al crear el pedido)
       const movimientoExistente = await tx.movimientoProveedor.findFirst({
         where: { referencia: ventaId, anulado: false }
       });
 
-      if (!movimientoExistente && (venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente") && venta.para) {
+      const montoImpactoVal = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
+
+      if (!movimientoExistente && montoImpactoVal > 0 && venta.para) {
         let proveedor = await tx.proveedor.findUnique({
           where: { id: venta.para }
         }).catch(() => null);
@@ -1386,7 +1392,7 @@ export async function confirmarPedidoVenta(ventaId: string) {
         }
 
         if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(venta.totalFinal);
+          const montoDecimal = new Prisma.Decimal(montoImpactoVal);
           const nuevoSaldo = proveedor.total.plus(montoDecimal);
 
           await tx.proveedor.update({
@@ -1399,7 +1405,7 @@ export async function confirmarPedidoVenta(ventaId: string) {
               proveedorId: proveedor.id,
               tipo: "HABER",
               monto: montoDecimal,
-              descripcion: `${venta.metodo_pago === "Cruzada" ? "Pago de venta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) - Confirmación Pedido`,
+              descripcion: `${venta.metodo_pago === "Cruzada" ? "Pago de venta" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) - Confirmación Pedido`,
               referencia: venta.id,
               saldo: nuevoSaldo
             }

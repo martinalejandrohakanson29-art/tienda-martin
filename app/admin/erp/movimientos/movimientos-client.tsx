@@ -36,7 +36,7 @@ export default function MovimientosClient({
   initialProveedorId,
 }: MovimientosClientProps) {
   const router = useRouter();
-  
+
   const now = new Date();
   const today = format(now, "yyyy-MM-dd");
   const firstDayOfMonth = format(new Date(now.getFullYear(), now.getMonth(), 1), "yyyy-MM-dd");
@@ -241,16 +241,16 @@ export default function MovimientosClient({
     }
 
     const doc = new jsPDF();
-    
+
     // Header
     doc.setFontSize(18);
     doc.setTextColor(0, 0, 0); // Black
     doc.text("Reporte de Movimientos", 14, 22);
-    
+
     doc.setFontSize(10);
     doc.setTextColor(60); // Dark grey
     doc.text(`Generado el: ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: es })}`, 14, 30);
-    
+
     if (appliedStartDate || appliedEndDate) {
       const start = appliedStartDate ? format(new Date(appliedStartDate + "T12:00:00"), "dd/MM/yyyy") : "Inicio";
       const end = appliedEndDate ? format(new Date(appliedEndDate + "T12:00:00"), "dd/MM/yyyy") : "Hoy";

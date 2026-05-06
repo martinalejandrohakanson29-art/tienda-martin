@@ -98,7 +98,7 @@ export async function registrarMovimientoManualProveedor(data: {
               tipo: tipoEmisor,
               monto: esPago ? montoDecimal.negated() : montoDecimal,
               descripcion: descEmisor,
-              referencia: `MANUAL_XFER_${data.tipo}`,
+              referencia: `MANUAL_XFER_${data.tipo}_${data.metodoPago}`,
               saldo: nuevoSaldoEmisor,
               fechaPago: data.fechaPago,
             },

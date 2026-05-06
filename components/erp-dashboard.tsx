@@ -118,17 +118,17 @@ export function ErpDashboard() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/pagos">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
-                  <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400 group-hover:text-white">payments</span>
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400 group-hover:text-white">payments</span>
                 </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Pagos</h3>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Nueva Orden de Pago</h3>
               </Link>
 
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/cobros">
-                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-500 group-hover:text-white transition-all duration-300">
-                  <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400 group-hover:text-white">account_balance_wallet</span>
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400 group-hover:text-white">account_balance_wallet</span>
                 </div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Cobros</h3>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Nueva Orden de Cobro</h3>
               </Link>
 
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-blue-200 dark:border-blue-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/cuenta-corriente">

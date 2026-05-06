@@ -415,7 +415,6 @@ export async function obtenerPagosControl(metodoPago: string, fechaDesde: string
 
     const movimientos = await prisma.movimientoProveedor.findMany({
       where: {
-        tipo: "HABER",
         anulado: false,
         OR: [
           {
@@ -443,7 +442,7 @@ export async function obtenerPagosControl(metodoPago: string, fechaDesde: string
 
     const filtered = [];
     
-    // Obtenemos todos los IDs de referencia que podrían ser ventas para hacer un solo query
+    // Obtenemos todos los IDs de referencia que podrían ser ventas o compras para hacer un solo query
     const referenciaIds = movimientos
       .filter(m => m.referencia && !m.referencia.startsWith("MANUAL"))
       .map(m => m.referencia as string);
@@ -453,20 +452,34 @@ export async function obtenerPagosControl(metodoPago: string, fechaDesde: string
       select: { id: true, metodo_pago: true }
     });
     
+    const compras = await prisma.compra.findMany({
+      where: { id: { in: referenciaIds } },
+      select: { id: true, metodo_pago: true }
+    });
+    
     const ventasMap = new Map(ventas.map(v => [v.id, v.metodo_pago]));
+    const comprasMap = new Map(compras.map(c => [c.id, c.metodo_pago]));
 
     for (const m of movimientos) {
       let mMethod = "";
       let isManual = false;
       
-      if (m.referencia?.startsWith("MANUAL_PAGO_")) {
-        mMethod = m.referencia.split("_")[2];
+      const ref = m.referencia || "";
+      if (ref.startsWith("MANUAL_PAGO_")) {
+        mMethod = ref.split("_")[2];
         isManual = true;
-      } else if (m.referencia?.startsWith("MANUAL_XFER_PAGO")) {
-         mMethod = "Transferencia";
-         isManual = true;
-      } else if (m.referencia && ventasMap.has(m.referencia)) {
-        mMethod = ventasMap.get(m.referencia) || "";
+      } else if (ref.startsWith("MANUAL_COBRO_")) {
+        mMethod = ref.split("_")[2];
+        isManual = true;
+      } else if (ref.startsWith("MANUAL_XFER_")) {
+        // Formato: MANUAL_XFER_PAGO_Method o MANUAL_XFER_COBRO_Method
+        const parts = ref.split("_");
+        mMethod = parts[3] || "Transferencia";
+        isManual = true;
+      } else if (ref && ventasMap.has(ref)) {
+        mMethod = ventasMap.get(ref) || "";
+      } else if (ref && comprasMap.has(ref)) {
+        mMethod = comprasMap.get(ref) || "";
       } else {
         mMethod = "Otro";
       }
@@ -477,9 +490,9 @@ export async function obtenerPagosControl(metodoPago: string, fechaDesde: string
           fecha: m.fechaPago ? m.fechaPago.toISOString() : m.fecha.toISOString(),
           entidad: m.proveedor.razonSocial,
           descripcion: m.descripcion,
-          monto: Number(m.monto),
-          tipo: "PAGO",
-          origen: isManual ? "MANUAL" : (ventasMap.has(m.referencia || "") ? "VENTA" : "SISTEMA"),
+          monto: Math.abs(Number(m.monto)),
+          tipo: m.tipo === "HABER" ? "PAGO" : "COBRO",
+          origen: isManual ? "MANUAL" : (ventasMap.has(ref) ? "VENTA" : (comprasMap.has(ref) ? "COMPRA" : "SISTEMA")),
           metodoPago: mMethod
         });
       }

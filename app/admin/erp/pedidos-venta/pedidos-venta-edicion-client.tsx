@@ -138,6 +138,12 @@ export default function PedidosVentaEdicionClient() {
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [busquedaProveedor, setBusquedaProveedor] = useState("");
   const [resultadosProveedores, setResultadosProveedores] = useState<any[]>([]);
+  
+  // Estados para pago mixto
+  const [metodo1, setMetodo1] = useState("Efectivo");
+  const [monto1, setMonto1] = useState(0);
+  const [metodo2, setMetodo2] = useState("Tarjeta de Crédito");
+  const [monto2, setMonto2] = useState(0);
 
   // Cargar artículos y proveedores al inicio
   useEffect(() => {
@@ -185,6 +191,47 @@ export default function PedidosVentaEdicionClient() {
       setResultadosProveedores([]);
     }
   }, [busquedaProveedor, proveedores]);
+
+  // Efecto para sincronizar campos mixtos cuando se selecciona Mixto o cambia el total
+  useEffect(() => {
+    if (editingVenta?.metodo_pago === "Mixto") {
+      try {
+        const infoObj = JSON.parse(editingVenta.info || "{}");
+        setMetodo1(infoObj.metodo1 || "Efectivo");
+        const m1 = Number(infoObj.monto1) || editingVenta.totalFinal / 2;
+        setMonto1(m1);
+        setMetodo2(infoObj.metodo2 || "Tarjeta de Crédito");
+        setMonto2(editingVenta.totalFinal - m1);
+      } catch (e) {
+        setMetodo1("Efectivo");
+        setMonto1(editingVenta.totalFinal / 2);
+        setMetodo2("Tarjeta de Crédito");
+        setMonto2(editingVenta.totalFinal / 2);
+      }
+    }
+  }, [editingVenta?.metodo_pago]);
+
+  // Efecto para recalcular monto2 cuando cambia monto1 o totalFinal
+  useEffect(() => {
+    if (editingVenta?.metodo_pago === "Mixto") {
+      setMonto2(editingVenta.totalFinal - monto1);
+    }
+  }, [monto1, editingVenta?.totalFinal]);
+
+  // Efecto para actualizar info en editingVenta cuando cambian los campos mixtos
+  useEffect(() => {
+    if (editingVenta?.metodo_pago === "Mixto") {
+      const nuevoInfo = JSON.stringify({
+        metodo1,
+        monto1,
+        metodo2,
+        monto2: editingVenta.totalFinal - monto1
+      });
+      if (editingVenta.info !== nuevoInfo) {
+        setEditingVenta(prev => prev ? { ...prev, info: nuevoInfo } : null);
+      }
+    }
+  }, [metodo1, monto1, metodo2, editingVenta?.totalFinal]);
 
   const cargarPedidos = async () => {
     try {
@@ -342,6 +389,18 @@ export default function PedidosVentaEdicionClient() {
     if (editingVenta.metodo_pago === "A Cuenta Corriente") {
       if (!editingVenta.para) {
         alert("Debes buscar y seleccionar un proveedor para ventas a Cuenta Corriente.");
+        return;
+      }
+    }
+
+    if (editingVenta.metodo_pago === "Mixto") {
+      const infoObj = JSON.parse(editingVenta.info || "{}");
+      const requiereProv = 
+        infoObj.metodo1 === "Cruzada" || infoObj.metodo1 === "A Cuenta Corriente" ||
+        infoObj.metodo2 === "Cruzada" || infoObj.metodo2 === "A Cuenta Corriente";
+        
+      if (requiereProv && !editingVenta.para) {
+        alert("Uno de los métodos de pago requiere seleccionar un proveedor para el impacto en Cuenta Corriente.");
         return;
       }
     }
@@ -1436,6 +1495,111 @@ export default function PedidosVentaEdicionClient() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {editingVenta.metodo_pago === "Mixto" && (
+                  <div className="space-y-4 bg-purple-50/50 p-4 rounded-xl border border-purple-100 animate-in fade-in">
+                    <div className="flex items-center gap-2 text-purple-700 mb-2">
+                      <RefreshCcw className="h-4 w-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Configuración Pago Mixto</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Metodo 1 */}
+                      <div className="space-y-3">
+                        <Label className="text-[10px] font-bold text-purple-800 uppercase">Metodo 1</Label>
+                        <select 
+                          value={metodo1} 
+                          onChange={(e) => setMetodo1(e.target.value)}
+                          className="w-full h-9 rounded-lg border border-purple-200 bg-white px-2 text-sm focus:outline-none"
+                        >
+                          <option value="Efectivo">Efectivo</option>
+                          <option value="Transferencia">Transferencia</option>
+                          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                          <option value="Mercado Pago">Mercado Pago</option>
+                          <option value="Cruzada">Cruzada</option>
+                          <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                          <option value="A Confirmar">A Confirmar</option>
+                        </select>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-purple-600 uppercase">Monto 1</Label>
+                          <Input 
+                            type="number" 
+                            value={monto1} 
+                            onChange={(e) => setMonto1(Number(e.target.value))}
+                            className="h-9 border-purple-200"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Metodo 2 */}
+                      <div className="space-y-3">
+                        <Label className="text-[10px] font-bold text-purple-800 uppercase">Metodo 2</Label>
+                        <select 
+                          value={metodo2} 
+                          onChange={(e) => setMetodo2(e.target.value)}
+                          className="w-full h-9 rounded-lg border border-purple-200 bg-white px-2 text-sm focus:outline-none"
+                        >
+                          <option value="Efectivo">Efectivo</option>
+                          <option value="Transferencia">Transferencia</option>
+                          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                          <option value="Mercado Pago">Mercado Pago</option>
+                          <option value="Cruzada">Cruzada</option>
+                          <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                          <option value="A Confirmar">A Confirmar</option>
+                        </select>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-bold text-purple-600 uppercase">Monto 2 (Restante)</Label>
+                          <div className="h-9 bg-purple-100/50 rounded-lg border border-purple-200 flex items-center px-3 font-bold text-purple-900 text-sm">
+                            $ {monto2.toLocaleString('es-AR')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {(metodo1 === "Cruzada" || metodo1 === "A Cuenta Corriente" || metodo2 === "Cruzada" || metodo2 === "A Cuenta Corriente") && (
+                      <div className="mt-2 pt-2 border-t border-purple-100">
+                        <Label className="text-[10px] font-bold text-amber-700 uppercase">Proveedor para impacto en CC</Label>
+                        <div className="relative mt-1">
+                          <Input
+                            value={busquedaProveedor || editingVenta.para || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setBusquedaProveedor(val);
+                              if (val !== editingVenta.para) {
+                                setEditingVenta({ ...editingVenta, para: "" });
+                              }
+                            }}
+                            className="bg-white border-amber-200 h-9"
+                            placeholder="Buscar proveedor para el impacto..."
+                          />
+                          {resultadosProveedores.length > 0 && (
+                            <div className="absolute z-[60] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[150px] overflow-y-auto top-full">
+                              {resultadosProveedores.map((prov) => (
+                                <button
+                                  key={prov.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingVenta({ ...editingVenta, para: prov.razonSocial });
+                                    setBusquedaProveedor(prov.razonSocial);
+                                    setResultadosProveedores([]);
+                                  }}
+                                  className="w-full flex items-center justify-between p-2 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
+                                >
+                                  <div className="flex flex-col text-xs">
+                                    <span className="font-medium text-slate-900">{prov.razonSocial}</span>
+                                    <span className="text-[9px] text-slate-500">CUIT: {prov.cuit}</span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

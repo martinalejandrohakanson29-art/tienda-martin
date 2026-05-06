@@ -259,17 +259,16 @@ export default function PedidosVentaDetalleClient() {
                   {formatPrice(venta.totalFinal)}
                 </TableCell>
                 <TableCell className="text-center py-4">
-                  <select 
+                  <select
                     value={venta.estadoPedido || "PENDIENTE"}
                     onChange={(e) => handleActualizarEstado(e.target.value)}
                     disabled={isProcessing}
-                    className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${
-                      venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
-                      venta.estadoPedido === 'PREPARADO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                      venta.estadoPedido === 'IMPRESO' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                      venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                      'bg-amber-100 text-amber-700 border-amber-200'
-                    }`}
+                    className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
+                        venta.estadoPedido === 'PREPARADO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                          venta.estadoPedido === 'IMPRESO' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                            venta.estadoPedido === 'LISTO_PARA_PREPARAR' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                              'bg-amber-100 text-amber-700 border-amber-200'
+                      }`}
                   >
                     <option value="PENDIENTE">Pendiente</option>
                     <option value="LISTO_PARA_PREPARAR">Listo p/ Preparar</option>

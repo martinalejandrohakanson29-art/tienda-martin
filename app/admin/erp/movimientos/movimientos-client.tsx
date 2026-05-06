@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { obtenerProveedores, obtenerMovimientosProveedor } from "@/app/actions/listas";
+import { obtenerProveedores, obtenerMovimientosProveedor, obtenerPagosControl } from "@/app/actions/listas";
 
 interface Movimiento {
   id: string;
@@ -59,6 +59,16 @@ export default function MovimientosClient({
   const [showProvList, setShowProvList] = useState(false);
   const [movimientos, setMovimientos] = useState<Movimiento[]>(movimientosIniciales);
   const [isLoadingMovs, setIsLoadingMovs] = useState(false);
+
+  // Estados para la nueva pestaña "Control Movimientos"
+  const [activeTab, setActiveTab] = useState<"historial" | "control">("historial");
+  const [paymentMethod, setPaymentMethod] = useState("Todos");
+  const [controlMovimientos, setControlMovimientos] = useState<any[]>([]);
+  const [isLoadingControl, setIsLoadingControl] = useState(false);
+  const [controlStartDate, setControlStartDate] = useState(today);
+  const [controlEndDate, setControlEndDate] = useState(today);
+
+  const paymentMethods = ["Todos", "Efectivo", "Transferencia", "Cheque", "Dólares", "Cruzada", "A Confirmar", "Otro"];
 
   useEffect(() => {
     const fetchProveedores = async () => {
@@ -113,6 +123,22 @@ export default function MovimientosClient({
   const handleSearch = () => {
     setAppliedStartDate(startDate);
     setAppliedEndDate(endDate);
+  };
+
+  const handleSearchControl = async () => {
+    setIsLoadingControl(true);
+    try {
+      const res = await obtenerPagosControl(paymentMethod, controlStartDate, controlEndDate);
+      if (res.success && res.data) {
+        setControlMovimientos(res.data);
+      } else {
+        toast.error(res.error || "Error al cargar el control de movimientos");
+      }
+    } catch (error) {
+      toast.error("Error de conexión");
+    } finally {
+      setIsLoadingControl(false);
+    }
   };
 
   const filteredMovimientos = useMemo(() => {
@@ -266,229 +292,379 @@ export default function MovimientosClient({
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Header section */}
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/admin/erp"
-              className="p-2 text-slate-500 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all flex items-center justify-center"
-            >
-              <span className="material-symbols-outlined">arrow_back</span>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-                Listado de Movimientos
-              </h1>
-              <p className="text-sm text-slate-500">
-                Historial de saldos y transacciones por proveedor
-              </p>
-            </div>
-          </div>
+      {/* Global Header */}
+      <div className="flex items-center gap-4">
+        <Link
+          href="/admin/erp"
+          className="p-2 text-slate-500 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all flex items-center justify-center"
+        >
+          <span className="material-symbols-outlined">arrow_back</span>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            Listado de Movimientos
+          </h1>
+          <p className="text-sm text-slate-500">
+            {activeTab === "historial"
+              ? "Historial de saldos y transacciones por proveedor"
+              : "Control unificado de pagos y cobros por método"}
+          </p>
+        </div>
+      </div>
 
-            <div className="flex flex-col md:flex-row items-end gap-3 w-full lg:w-auto">
-              <div className="relative w-full md:w-64">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  {isLoadingMovs ? (
-                    <span className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-                  ) : (
-                    <span className="material-symbols-outlined text-slate-400 text-sm">
-                      search
-                    </span>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  className="block w-full pl-10 pr-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
-                  placeholder="Buscar proveedor..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setShowProvList(true);
-                  }}
-                  onFocus={() => setShowProvList(true)}
-                  onBlur={() => setTimeout(() => setShowProvList(false), 200)}
-                />
-                {showProvList && searchTerm.length > 0 && (
-                  <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="p-2 border-b bg-slate-50 dark:bg-slate-800/50">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Proveedores en DB</span>
-                    </div>
-                    {proveedores.filter(p => 
-                      p.razonSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                      (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                      p.cuit?.includes(searchTerm)
-                    ).length > 0 ? (
-                      proveedores.filter(p => 
+      {/* Tabs */}
+      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/50 p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab("historial")}
+          className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "historial"
+            ? "bg-white dark:bg-slate-900 text-[#2b8cee] shadow-sm"
+            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
+        >
+          Historial Proveedores
+        </button>
+        <button
+          onClick={() => setActiveTab("control")}
+          className={`px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "control"
+            ? "bg-white dark:bg-slate-900 text-[#2b8cee] shadow-sm"
+            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
+        >
+          Control Movimientos
+        </button>
+      </div>
+
+      {activeTab === "historial" ? (
+        <>
+          {/* Header section (Filtros Historial) */}
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="flex flex-col md:flex-row items-end gap-3 w-full lg:w-auto">
+                <div className="relative w-full md:w-64">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    {isLoadingMovs ? (
+                      <span className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                    ) : (
+                      <span className="material-symbols-outlined text-slate-400 text-sm">
+                        search
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    className="block w-full pl-10 pr-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm placeholder:text-slate-400 focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
+                    placeholder="Buscar proveedor..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setShowProvList(true);
+                    }}
+                    onFocus={() => setShowProvList(true)}
+                    onBlur={() => setTimeout(() => setShowProvList(false), 200)}
+                  />
+                  {showProvList && searchTerm.length > 0 && (
+                    <div className="absolute z-[60] w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div className="p-2 border-b bg-slate-50 dark:bg-slate-800/50">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Proveedores en DB</span>
+                      </div>
+                      {proveedores.filter(p =>
                         p.razonSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(searchTerm.toLowerCase())) ||
                         p.cuit?.includes(searchTerm)
-                      ).map(p => (
-                        <div
-                          key={p.id}
-                          className="p-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer border-b border-slate-50 dark:border-slate-800 last:border-0 transition-colors"
-                          onClick={() => handleSelectProveedor(p)}
-                        >
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-slate-900 dark:text-white">{p.razonSocial}</span>
-                            <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"} {p.nombreFantasia ? `| ${p.nombreFantasia}` : ""}</span>
+                      ).length > 0 ? (
+                        proveedores.filter(p =>
+                          p.razonSocial.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                          p.cuit?.includes(searchTerm)
+                        ).map(p => (
+                          <div
+                            key={p.id}
+                            className="p-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer border-b border-slate-50 dark:border-slate-800 last:border-0 transition-colors"
+                            onClick={() => handleSelectProveedor(p)}
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-900 dark:text-white">{p.razonSocial}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"} {p.nombreFantasia ? `| ${p.nombreFantasia}` : ""}</span>
+                            </div>
                           </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-4 text-center text-xs text-slate-400 italic">No hay coincidencias en DB</div>
-                    )}
-                  </div>
-                )}
-              </div>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-xs text-slate-400 italic">No hay coincidencias en DB</div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className="flex flex-col gap-1 w-full md:w-40">
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <div className="flex flex-col gap-1 w-full md:w-40">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Desde</label>
+                    <input
+                      type="date"
+                      className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1 w-full md:w-40">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Hasta</label>
+                    <input
+                      type="date"
+                      className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </div>
+                  {(startDate || endDate || searchTerm) && (
+                    <button
+                      onClick={resetAllMovements}
+                      className="mt-5 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                      title="Limpiar filtros"
+                    >
+                      <span className="material-symbols-outlined text-xl">filter_list_off</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSearch}
+                    className="mt-5 flex items-center gap-2 px-4 py-2 bg-[#2b8cee] hover:bg-[#1a76cc] text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-blue-200 dark:shadow-none"
+                  >
+                    <span className="material-symbols-outlined text-lg">search</span>
+                    Buscar
+                  </button>
+
+                  <div className="flex flex-col gap-2 ml-4 pl-4 border-l border-slate-100 dark:border-slate-800">
+                    <button
+                      onClick={handleExportExcel}
+                      className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-200 dark:shadow-none"
+                      title="Exportar a Excel"
+                    >
+                      <span className="material-symbols-outlined text-base">description</span>
+                      Excel
+                    </button>
+                    <button
+                      onClick={handleExportPDF}
+                      className="flex items-center gap-2 px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-rose-200 dark:shadow-none"
+                      title="Exportar a PDF"
+                    >
+                      <span className="material-symbols-outlined text-base">picture_as_pdf</span>
+                      PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Movements Table */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registro</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Real</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredMovimientos.length > 0 ? (
+                    filteredMovimientos.map((m) => (
+                      <tr key={m.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${m.anulado ? "opacity-60 grayscale-[0.5]" : ""}`}>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
+                          <div className="flex flex-col">
+                            <span>{format(new Date(m.fecha), "dd/MM/yy", { locale: es })}</span>
+                            <span className="text-[10px] opacity-50">{format(new Date(m.fecha), "HH:mm", { locale: es })}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
+                          {m.fechaPago ? (
+                            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                              <span className="material-symbols-outlined text-xs">calendar_today</span>
+                              {format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es })}
+                            </div>
+                          ) : (
+                            <span className="text-slate-300 italic">---</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`text-sm font-bold text-slate-900 dark:text-white ${m.anulado ? "line-through" : ""}`}>{m.proveedorNombre}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-black uppercase text-[#2b8cee] mb-0.5">
+                              {m.tipo}
+                            </span>
+                            <p className={`text-sm text-slate-600 dark:text-slate-400 ${m.anulado ? "italic text-red-500 line-through opacity-70" : ""}`}>
+                              {m.anulado && <span className="mr-1">⚠️</span>}
+                              {m.descripcion || "---"}
+                            </p>
+                          </div>
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${m.anulado ? "text-slate-400 line-through" : (m.monto >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")
+                          }`}>
+                          {formatCurrency(m.monto)}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right ${m.anulado ? "text-slate-400" : ""}`}>
+                          {formatCurrency(m.saldo)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          {!m.anulado && (
+                            <button
+                              onClick={() => handleAnular(m.id)}
+                              disabled={isAnulando === m.id}
+                              className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                              title="Anular movimiento"
+                            >
+                              {isAnulando === m.id ? (
+                                <span className="w-5 h-5 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin inline-block" />
+                              ) : (
+                                <span className="material-symbols-outlined text-lg">block</span>
+                              )}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">history</span>
+                          <p className="text-slate-500 font-medium">No se encontraron movimientos.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* SECCIÓN CONTROL MOVIMIENTOS */}
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col md:flex-row items-end gap-3 w-full">
+              <div className="flex flex-col gap-1 w-full md:w-56">
+                <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Método de Pago</label>
+                <select
+                  className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  {paymentMethods.map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1 w-full md:w-44">
                 <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Desde</label>
                 <input
                   type="date"
                   className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  value={controlStartDate}
+                  onChange={(e) => setControlStartDate(e.target.value)}
                 />
               </div>
-              <div className="flex flex-col gap-1 w-full md:w-40">
+              <div className="flex flex-col gap-1 w-full md:w-44">
                 <label className="text-[10px] font-bold text-slate-400 uppercase px-1">Hasta</label>
                 <input
                   type="date"
                   className="block w-full px-3 py-2 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-xl text-sm focus:ring-2 focus:ring-[#2b8cee]/20 focus:border-[#2b8cee] transition-all outline-none"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  value={controlEndDate}
+                  onChange={(e) => setControlEndDate(e.target.value)}
                 />
               </div>
-              {(startDate || endDate || searchTerm) && (
-                <button
-                  onClick={resetAllMovements}
-                  className="mt-5 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
-                  title="Limpiar filtros"
-                >
-                  <span className="material-symbols-outlined text-xl">filter_list_off</span>
-                </button>
-              )}
               <button
-                onClick={handleSearch}
-                className="mt-5 flex items-center gap-2 px-4 py-2 bg-[#2b8cee] hover:bg-[#1a76cc] text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-blue-200 dark:shadow-none"
+                onClick={handleSearchControl}
+                disabled={isLoadingControl}
+                className="flex items-center gap-2 px-6 py-2 bg-[#2b8cee] hover:bg-[#1a76cc] text-white rounded-xl text-sm font-bold transition-all shadow-sm shadow-blue-200 dark:shadow-none disabled:opacity-50"
               >
-                <span className="material-symbols-outlined text-lg">search</span>
-                Buscar
+                {isLoadingControl ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-lg">filter_alt</span>
+                )}
+                Listar Pagos
               </button>
-
-              <div className="flex flex-col gap-2 ml-4 pl-4 border-l border-slate-100 dark:border-slate-800">
-                <button
-                  onClick={handleExportExcel}
-                  className="flex items-center gap-2 px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-emerald-200 dark:shadow-none"
-                  title="Exportar a Excel"
-                >
-                  <span className="material-symbols-outlined text-base">description</span>
-                  Excel
-                </button>
-                <button
-                  onClick={handleExportPDF}
-                  className="flex items-center gap-2 px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-rose-200 dark:shadow-none"
-                  title="Exportar a PDF"
-                >
-                  <span className="material-symbols-outlined text-base">picture_as_pdf</span>
-                  PDF
-                </button>
-              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      {/* Movements Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registro</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Real</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredMovimientos.length > 0 ? (
-                filteredMovimientos.map((m) => (
-                  <tr key={m.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${m.anulado ? "opacity-60 grayscale-[0.5]" : ""}`}>
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
-                      <div className="flex flex-col">
-                        <span>{format(new Date(m.fecha), "dd/MM/yy", { locale: es })}</span>
-                        <span className="text-[10px] opacity-50">{format(new Date(m.fecha), "HH:mm", { locale: es })}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
-                      {m.fechaPago ? (
-                        <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                          <span className="material-symbols-outlined text-xs">calendar_today</span>
-                          {format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es })}
-                        </div>
-                      ) : (
-                        <span className="text-slate-300 italic">---</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-sm font-bold text-slate-900 dark:text-white ${m.anulado ? "line-through" : ""}`}>{m.proveedorNombre}</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-black uppercase text-[#2b8cee] mb-0.5">
-                          {m.tipo}
-                        </span>
-                        <p className={`text-sm text-slate-600 dark:text-slate-400 ${m.anulado ? "italic text-red-500 line-through opacity-70" : ""}`}>
-                          {m.anulado && <span className="mr-1">⚠️</span>}
-                          {m.descripcion || "---"}
-                        </p>
-                      </div>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${m.anulado ? "text-slate-400 line-through" : (m.monto >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")
-                      }`}>
-                      {formatCurrency(m.monto)}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right ${m.anulado ? "text-slate-400" : ""}`}>
-                      {formatCurrency(m.saldo)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      {!m.anulado && (
-                        <button
-                          onClick={() => handleAnular(m.id)}
-                          disabled={isAnulando === m.id}
-                          className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
-                          title="Anular movimiento"
-                        >
-                          {isAnulando === m.id ? (
-                            <span className="w-5 h-5 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin inline-block" />
-                          ) : (
-                            <span className="material-symbols-outlined text-lg">block</span>
-                          )}
-                        </button>
-                      )}
-                    </td>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Origen</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Entidad</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Tipo</th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">history</span>
-                      <p className="text-slate-500 font-medium">No se encontraron movimientos.</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {controlMovimientos.length > 0 ? (
+                    controlMovimientos.map((m) => (
+                      <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
+                          {format(new Date(m.fecha), "dd/MM/yy HH:mm", { locale: es })}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase">
+                            {m.origen}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-bold text-slate-900 dark:text-white">{m.entidad}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-sm text-slate-600 dark:text-slate-400">{m.descripcion}</span>
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-black text-right ${m.tipo === "PAGO" ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
+                          }`}>
+                          {formatCurrency(m.monto)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <span className={`text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-widest ${m.tipo === "PAGO" ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-emerald-600"
+                            }`}>
+                            {m.tipo}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">payments</span>
+                          <p className="text-slate-500 font-medium">No hay registros para mostrar. Selecciona filtros y busca.</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                {controlMovimientos.length > 0 && (
+                  <tfoot>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 font-bold">
+                      <td colSpan={4} className="px-6 py-4 text-right text-sm text-slate-500 uppercase">Balance Total</td>
+                      <td className={`px-6 py-4 text-right text-base ${controlMovimientos.reduce((acc, curr) => acc + (curr.tipo === "PAGO" ? -curr.monto : curr.monto), 0) >= 0
+                        ? "text-emerald-600" : "text-rose-600"
+                        }`}>
+                        {formatCurrency(controlMovimientos.reduce((acc, curr) => acc + (curr.tipo === "PAGO" ? -curr.monto : curr.monto), 0))}
+                      </td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

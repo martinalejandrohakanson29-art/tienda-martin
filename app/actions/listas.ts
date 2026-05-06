@@ -405,3 +405,92 @@ export async function obtenerMovimientosProveedor(proveedorId?: string) {
     return { success: false, error: "No se pudieron cargar los movimientos." };
   }
 }
+
+export async function obtenerPagosControl(metodoPago: string, fechaDesde: string, fechaHasta: string) {
+  try {
+    const inicio = new Date(fechaDesde);
+    inicio.setHours(0, 0, 0, 0);
+    const fin = new Date(fechaHasta);
+    fin.setHours(23, 59, 59, 999);
+
+    const movimientos = await prisma.movimientoProveedor.findMany({
+      where: {
+        tipo: "HABER",
+        anulado: false,
+        OR: [
+          {
+            fechaPago: {
+              gte: inicio,
+              lte: fin,
+            },
+          },
+          {
+            fechaPago: null,
+            fecha: {
+              gte: inicio,
+              lte: fin,
+            }
+          }
+        ],
+      },
+      include: {
+        proveedor: {
+          select: { razonSocial: true }
+        }
+      },
+      orderBy: { fecha: 'desc' }
+    });
+
+    const filtered = [];
+    
+    // Obtenemos todos los IDs de referencia que podrían ser ventas para hacer un solo query
+    const referenciaIds = movimientos
+      .filter(m => m.referencia && !m.referencia.startsWith("MANUAL"))
+      .map(m => m.referencia as string);
+    
+    const ventas = await prisma.venta.findMany({
+      where: { id: { in: referenciaIds } },
+      select: { id: true, metodo_pago: true }
+    });
+    
+    const ventasMap = new Map(ventas.map(v => [v.id, v.metodo_pago]));
+
+    for (const m of movimientos) {
+      let mMethod = "";
+      let isManual = false;
+      
+      if (m.referencia?.startsWith("MANUAL_PAGO_")) {
+        mMethod = m.referencia.split("_")[2];
+        isManual = true;
+      } else if (m.referencia?.startsWith("MANUAL_XFER_PAGO")) {
+         mMethod = "Transferencia";
+         isManual = true;
+      } else if (m.referencia && ventasMap.has(m.referencia)) {
+        mMethod = ventasMap.get(m.referencia) || "";
+      } else {
+        mMethod = "Otro";
+      }
+
+      if (metodoPago === "Todos" || mMethod.toLowerCase().includes(metodoPago.toLowerCase())) {
+        filtered.push({
+          id: m.id,
+          fecha: m.fechaPago ? m.fechaPago.toISOString() : m.fecha.toISOString(),
+          entidad: m.proveedor.razonSocial,
+          descripcion: m.descripcion,
+          monto: Number(m.monto),
+          tipo: "PAGO",
+          origen: isManual ? "MANUAL" : (ventasMap.has(m.referencia || "") ? "VENTA" : "SISTEMA"),
+          metodoPago: mMethod
+        });
+      }
+    }
+
+    return {
+      success: true,
+      data: filtered
+    };
+  } catch (error) {
+    console.error("Error al obtener pagos control:", error);
+    return { success: false, error: "Error al cargar los pagos" };
+  }
+}

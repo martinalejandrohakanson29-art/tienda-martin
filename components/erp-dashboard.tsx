@@ -85,7 +85,6 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400 group-hover:text-white">sell</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Ventas</h3>
-                <p className="text-xs text-slate-500">Registrar Mostrador</p>
               </Link>
 
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/compras">
@@ -93,7 +92,6 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400 group-hover:text-white">shopping_cart</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Compras</h3>
-                <p className="text-xs text-slate-500">Registrar compras</p>
               </Link>
 
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/pedidos-venta">
@@ -101,7 +99,6 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-amber-600 dark:text-amber-400 group-hover:text-white">assignment</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos Venta</h3>
-                <p className="text-xs text-slate-500">Órdenes en proceso</p>
               </Link>
 
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/pedidos-compra">
@@ -109,7 +106,6 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400 group-hover:text-white">inventory_2</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos Compra</h3>
-                <p className="text-xs text-slate-500">Órdenes a proveedores</p>
               </Link>
             </div>
           </div>
@@ -122,19 +118,17 @@ export function ErpDashboard() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/pagos">
-                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-500 group-hover:text-white transition-all duration-300">
-                  <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400 group-hover:text-white">payments</span>
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400 group-hover:text-white">payments</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Pagos</h3>
-                <p className="text-xs text-slate-500">Efectivo/Bancos</p>
               </Link>
 
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/cobros">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center mb-4 group-hover:bg-emerald-500 group-hover:text-white transition-all duration-300">
-                  <span className="material-symbols-outlined text-3xl text-emerald-600 dark:text-emerald-400 group-hover:text-white">account_balance_wallet</span>
+                <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 flex items-center justify-center mb-4 group-hover:bg-rose-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-rose-600 dark:text-rose-400 group-hover:text-white">account_balance_wallet</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Gestionar Cobros</h3>
-                <p className="text-xs text-slate-500">Caja diaria</p>
               </Link>
 
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-blue-200 dark:border-blue-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/cuenta-corriente">
@@ -142,7 +136,6 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-blue-600 dark:text-blue-400 group-hover:text-white">account_balance</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Cuenta Corriente</h3>
-                <p className="text-xs text-slate-500">Saldos Proveedores</p>
               </Link>
 
               <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-indigo-200 dark:border-indigo-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/movimientos">
@@ -150,7 +143,6 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400 group-hover:text-white">history</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Historial Saldo</h3>
-                <p className="text-xs text-slate-500">Listado Movimientos</p>
               </Link>
             </div>
           </div>
@@ -167,7 +159,6 @@ export function ErpDashboard() {
                   <span className="material-symbols-outlined text-3xl text-indigo-600 dark:text-indigo-400 group-hover:text-white">database</span>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Consultar Listas</h3>
-                <p className="text-xs text-slate-500">Precios y Stock</p>
               </Link>
             </div>
           </div>

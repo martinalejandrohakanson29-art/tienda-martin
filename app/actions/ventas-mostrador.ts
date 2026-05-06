@@ -467,6 +467,40 @@ export async function guardarComoPedidoVenta(data: {
   try {
     // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
     const result = await prisma.$transaction(async (tx) => {
+      // 1. Manejo automático del "Sujeto" (Cliente/Proveedor) por DNI/CUIT
+      let sujetoId = null;
+      if (data.docNro && data.docNro !== "0") {
+        const existingSujeto = await tx.proveedor.findFirst({
+          where: { cuit: data.docNro }
+        });
+
+        if (existingSujeto) {
+          await tx.proveedor.update({
+            where: { id: existingSujeto.id },
+            data: {
+              razonSocial: data.cliente,
+              email: data.email || existingSujeto.email,
+              telefono: data.telefono || existingSujeto.telefono,
+              docTipo: data.docTipo,
+              condicionIva: data.condicionIva
+            }
+          });
+          sujetoId = existingSujeto.id;
+        } else {
+          const newSujeto = await tx.proveedor.create({
+            data: {
+              razonSocial: data.cliente,
+              cuit: data.docNro,
+              email: data.email,
+              telefono: data.telefono,
+              docTipo: data.docTipo,
+              condicionIva: data.condicionIva
+            }
+          });
+          sujetoId = newSujeto.id;
+        }
+      }
+
       const venta = await tx.venta.create({
         data: {
           cliente: data.cliente,
@@ -487,6 +521,7 @@ export async function guardarComoPedidoVenta(data: {
           email: data.email,
           eventoOffline: data.eventoOffline ?? false,
           puntoVentaId: data.puntoVentaId || null,
+          sujetoId: sujetoId,
           // ARCA fields
           cae: data.cae,
           vencimientoCae: data.vencimientoCae,
@@ -541,8 +576,10 @@ export async function guardarComoPedidoVenta(data: {
         }
       }
 
-      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada" ---
-      if (data.metodo_pago === "Cruzada" && data.para) {
+      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada", "A Cuenta Corriente" o "Mixto" ---
+      const montoImpactoVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
+
+      if (montoImpactoVal > 0 && data.para) {
         const idBuscado = data.para;
 
         let proveedor = null;
@@ -559,7 +596,7 @@ export async function guardarComoPedidoVenta(data: {
         }
 
         if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(data.totalFinal);
+          const montoDecimal = new Prisma.Decimal(montoImpactoVal);
           const nuevoSaldo = proveedor.total.plus(montoDecimal);
 
           await tx.proveedor.update({
@@ -572,7 +609,7 @@ export async function guardarComoPedidoVenta(data: {
               proveedorId: proveedor.id,
               tipo: "HABER",
               monto: montoDecimal,
-              descripcion: `Pago de venta (Pedido) #${venta.numeroVenta} (${data.cliente})`,
+              descripcion: `${data.metodo_pago === "Cruzada" ? "Pago de venta (Pedido)" : data.metodo_pago === "Mixto" ? "Venta Mixta (Pedido)" : "Venta a CC (Pedido)"} #${venta.numeroVenta} (${data.cliente})`,
               referencia: venta.id,
               saldo: nuevoSaldo
             }

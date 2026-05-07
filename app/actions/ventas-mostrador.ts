@@ -166,14 +166,39 @@ export async function marcarVentaComoRegistrada(id: string) {
 // --- Helpers para procesar pagos mixtos ---
 function extractMontoMixto(info: string | null | undefined, label: string): number {
   if (!info) return 0;
-  // Formato esperado: [Mixto -> Metodo1: $1.234,56 | Metodo2: $7.890,12]
+  
+  // 1. Intentar parsear como JSON primero (formato nuevo de PedidosVentaEdicionClient)
+  try {
+    if (info.trim().startsWith('{')) {
+      const data = JSON.parse(info);
+      if (data.metodo1 === label) return Number(data.monto1) || 0;
+      if (data.metodo2 === label) return Number(data.monto2) || 0;
+      // También soportar campos simples si se guardan así
+      if (data[label]) return Number(data[label]) || 0;
+    }
+  } catch (e) {
+    // No era JSON, continuar con regex
+  }
+
+  // 2. Formato esperado: [Mixto -> Metodo1: $1.234,56 | Metodo2: $7.890,12]
   // La expresión regular busca el label seguido de dos puntos, espacio, signo pesos y el valor numérico
-  const regex = new RegExp(`${label}: \\$([0-9.,]+)`, "i");
+  // Soportamos tanto con signo pesos como sin él, y con puntos/comas o solo puntos
+  const regex = new RegExp(`${label}:\\s*\\$?([0-9.,]+)`, "i");
   const match = info.match(regex);
   if (match && match[1]) {
-    // En AR el formato es 1.234,56 -> quitamos puntos de miles y cambiamos coma por punto decimal
-    const cleanValue = match[1].replace(/\./g, '').replace(',', '.');
-    const parsed = parseFloat(cleanValue);
+    // En AR el formato suele ser 1.234,56 -> quitamos puntos de miles y cambiamos coma por punto decimal
+    // Pero si el valor ya viene como 1234.56 lo detectamos
+    let valueStr = match[1];
+    
+    // Si tiene coma y punto, asumimos punto miles y coma decimal (formato AR)
+    if (valueStr.includes(',') && valueStr.includes('.')) {
+      valueStr = valueStr.replace(/\./g, '').replace(',', '.');
+    } else if (valueStr.includes(',')) {
+      // Si solo tiene coma, asumimos que es el separador decimal
+      valueStr = valueStr.replace(',', '.');
+    }
+    
+    const parsed = parseFloat(valueStr);
     return isNaN(parsed) ? 0 : parsed;
   }
   return 0;
@@ -1417,8 +1442,6 @@ export async function confirmarPedidoVenta(ventaId: string) {
     });
 
     return { success: true, data: result };
-
-    return { success: true };
   } catch (error) {
     console.error("Error al confirmar pedido de venta:", error);
     return { success: false, error: "No se pudo confirmar el pedido de venta" };

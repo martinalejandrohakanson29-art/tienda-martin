@@ -41,6 +41,7 @@ import {
   Search,
   X,
   Minus,
+  Copy,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -144,6 +145,13 @@ export default function PedidosVentaEdicionClient() {
   const [monto1, setMonto1] = useState(0);
   const [metodo2, setMetodo2] = useState("Tarjeta de Crédito");
   const [monto2, setMonto2] = useState(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyInfo = (id: string, info: string) => {
+    navigator.clipboard.writeText(info);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   // Cargar artículos y proveedores al inicio
   useEffect(() => {
@@ -195,13 +203,50 @@ export default function PedidosVentaEdicionClient() {
   // Efecto para sincronizar campos mixtos cuando se selecciona Mixto o cambia el total
   useEffect(() => {
     if (editingVenta?.metodo_pago === "Mixto") {
+      const info = editingVenta.info || "";
       try {
-        const infoObj = JSON.parse(editingVenta.info || "{}");
-        setMetodo1(infoObj.metodo1 || "Efectivo");
-        const m1 = Number(infoObj.monto1) || editingVenta.totalFinal / 2;
-        setMonto1(m1);
-        setMetodo2(infoObj.metodo2 || "Tarjeta de Crédito");
-        setMonto2(editingVenta.totalFinal - m1);
+        // Intentar parsear como JSON
+        if (info.trim().startsWith('{')) {
+          const infoObj = JSON.parse(info);
+          setMetodo1(infoObj.metodo1 || "Efectivo");
+          setMonto1(Number(infoObj.monto1) || editingVenta.totalFinal / 2);
+          setMetodo2(infoObj.metodo2 || "Tarjeta de Crédito");
+          setMonto2(editingVenta.totalFinal - (Number(infoObj.monto1) || editingVenta.totalFinal / 2));
+        } else {
+          // Intentar parsear formato brackets: [Mixto -> Metodo1: $1.000 | Metodo2: $2.000]
+          const extractMonto = (label: string) => {
+            const regex = new RegExp(`${label}:\\s*\\$?([0-9.,]+)`, "i");
+            const match = info.match(regex);
+            if (match && match[1]) {
+              let val = match[1].replace(/\./g, '').replace(',', '.');
+              return parseFloat(val) || 0;
+            }
+            return 0;
+          };
+
+          // Para el método, necesitamos una regex más compleja o buscar los labels conocidos
+          const metodosPosibles = ["Efectivo", "Transferencia", "Tarjeta de Crédito", "Tarjeta de Débito", "Mercado Pago", "Cruzada", "A Cuenta Corriente", "A Confirmar"];
+          
+          let m1 = "Efectivo";
+          let m2 = "Tarjeta de Crédito";
+          
+          // Buscar qué métodos están en el string
+          const foundMethods = [];
+          for (const m of metodosPosibles) {
+            if (info.includes(`${m}:`)) {
+              foundMethods.push(m);
+            }
+          }
+          
+          if (foundMethods.length >= 1) m1 = foundMethods[0];
+          if (foundMethods.length >= 2) m2 = foundMethods[1];
+
+          const v1 = extractMonto(m1);
+          setMetodo1(m1);
+          setMonto1(v1 || editingVenta.totalFinal / 2);
+          setMetodo2(m2);
+          setMonto2(editingVenta.totalFinal - (v1 || editingVenta.totalFinal / 2));
+        }
       } catch (e) {
         setMetodo1("Efectivo");
         setMonto1(editingVenta.totalFinal / 2);
@@ -209,7 +254,7 @@ export default function PedidosVentaEdicionClient() {
         setMonto2(editingVenta.totalFinal / 2);
       }
     }
-  }, [editingVenta?.metodo_pago]);
+  }, [editingVenta?.metodo_pago, editingVenta?.id]);
 
   // Efecto para recalcular monto2 cuando cambia monto1 o totalFinal
   useEffect(() => {
@@ -394,10 +439,9 @@ export default function PedidosVentaEdicionClient() {
     }
 
     if (editingVenta.metodo_pago === "Mixto") {
-      const infoObj = JSON.parse(editingVenta.info || "{}");
       const requiereProv = 
-        infoObj.metodo1 === "Cruzada" || infoObj.metodo1 === "A Cuenta Corriente" ||
-        infoObj.metodo2 === "Cruzada" || infoObj.metodo2 === "A Cuenta Corriente";
+        metodo1 === "Cruzada" || metodo1 === "A Cuenta Corriente" ||
+        metodo2 === "Cruzada" || metodo2 === "A Cuenta Corriente";
         
       if (requiereProv && !editingVenta.para) {
         alert("Uno de los métodos de pago requiere seleccionar un proveedor para el impacto en Cuenta Corriente.");
@@ -964,7 +1008,27 @@ export default function PedidosVentaEdicionClient() {
                           <TableCell colSpan={8} className="py-3 px-6">
                             {venta.info && (
                               <div className="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200">
-                                <p className="text-[10px] font-bold text-amber-800 uppercase mb-1">Observaciones / Datos de Envío:</p>
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-[10px] font-bold text-amber-800 uppercase">Observaciones / Datos de Envío:</p>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-6 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100/50 gap-1 text-[10px] font-bold uppercase transition-all"
+                                    onClick={() => handleCopyInfo(venta.id, venta.info || "")}
+                                  >
+                                    {copiedId === venta.id ? (
+                                      <>
+                                        <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                        Copiado
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="h-3 w-3" />
+                                        Copiar
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
                                 <p className="text-sm text-slate-700 whitespace-pre-wrap">{venta.info}</p>
                               </div>
                             )}

@@ -66,7 +66,12 @@ export default function GestionFondosClient({
     setSelectedProveedorId(p.id);
     setSearchTerm(p.razonSocial);
     setShowDropdown(false);
-    if (isPago) setAQuien(p.razonSocial);
+    if (isPago) {
+      setAQuien(p.razonSocial);
+    } else {
+      setDeQuien(p.razonSocial);
+      setAQuien("Caja Central");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,14 +162,14 @@ export default function GestionFondosClient({
         <div className="lg:col-span-2">
           <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-6">
             <div className="space-y-4">
-              <div className="relative">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <div className="relative group">
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                   Proveedor *
                 </label>
                 <div className="relative">
                   <input
                     type="text"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none transition-all group-hover:border-slate-300 dark:group-hover:border-slate-700"
                     placeholder="Escribe para buscar proveedor..."
                     value={searchTerm}
                     onChange={(e) => {
@@ -181,20 +186,20 @@ export default function GestionFondosClient({
                 </div>
 
                 {showDropdown && filteredProveedores.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-60 overflow-y-auto">
+                  <div className="absolute z-30 w-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
                     {filteredProveedores.map((p) => (
                       <button
                         key={p.id}
                         type="button"
-                        className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between border-b border-slate-100 dark:border-slate-800 last:border-0"
+                        className="w-full text-left px-4 py-4 hover:bg-[#2b8cee]/5 dark:hover:bg-[#2b8cee]/10 transition-colors flex items-center justify-between border-b border-slate-100 dark:border-slate-800 last:border-0"
                         onClick={() => handleSelectProveedor(p)}
                       >
                         <div>
                           <p className="text-sm font-bold text-slate-900 dark:text-white">{p.razonSocial}</p>
-                          <p className="text-[10px] text-slate-500 uppercase tracking-tighter">ID: {p.id}</p>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5">ID: {p.id}</p>
                         </div>
                         <div className="text-right">
-                          <p className={`text-xs font-bold ${p.total >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                          <p className={`text-xs font-black ${p.total >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                             {formatCurrency(p.total)}
                           </p>
                         </div>
@@ -204,23 +209,23 @@ export default function GestionFondosClient({
                 )}
                 
                 {showDropdown && searchTerm && filteredProveedores.length === 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl p-4 text-center">
+                  <div className="absolute z-30 w-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl p-6 text-center">
                     <p className="text-sm text-slate-500">No se encontraron proveedores.</p>
                   </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="group">
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                     Monto *
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                     <input
                       type="number"
                       step="0.01"
-                      className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none transition-all group-hover:border-slate-300 dark:group-hover:border-slate-700"
                       placeholder="0.00"
                       value={monto}
                       onChange={(e) => setMonto(e.target.value)}
@@ -229,148 +234,179 @@ export default function GestionFondosClient({
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Método de Pago *
-                  </label>
-                  <select
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
-                    value={metodoPago}
-                    onChange={(e) => setMetodoPago(e.target.value)}
-                    required
-                  >
-                    <option value="Efectivo">Efectivo</option>
-                    <option value="Transferencia">Transferencia</option>
-                    <option value="Cheque">Cheque</option>
-                    <option value="Dólares">Dólares</option>
-                    <option value="Cruzada">Cruzada</option>
-                    <option value="Otro">Otro</option>
-                  </select>
-                </div>
+                {isPago && (
+                  <div className="group">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                      Método de Pago *
+                    </label>
+                    <div className="relative">
+                      <select
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none appearance-none transition-all group-hover:border-slate-300 dark:group-hover:border-slate-700"
+                        value={metodoPago}
+                        onChange={(e) => setMetodoPago(e.target.value)}
+                        required
+                      >
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Cheque">Cheque</option>
+                        <option value="Dólares">Dólares</option>
+                        <option value="Cruzada">Cruzada</option>
+                        <option value="Otro">Otro</option>
+                      </select>
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 pointer-events-none">
+                        keyboard_arrow_down
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="group">
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                     Fecha Real (Opcional)
                   </label>
                   <div className="relative">
                     <input
                       type="date"
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none transition-all group-hover:border-slate-300 dark:group-hover:border-slate-700"
                       value={fechaPago}
                       onChange={(e) => setFechaPago(e.target.value)}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 pointer-events-none">
-                      calendar_today
-                    </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    Deja vacío para usar la fecha de hoy. Útil para pagos realizados días atrás.
+                  <p className="text-[10px] text-slate-400 mt-2 ml-1">
+                    Deja vacío para usar la fecha de hoy. Útil para registros retroactivos.
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                      De (Emisor) *
-                    </label>
-                    <select
-                      className="px-4 py-2 text-sm font-bold rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-[#2b8cee]/20 cursor-pointer"
-                      value={deMode}
-                      onChange={(e) => {
-                        setDeMode(e.target.value as "manual" | "proveedor");
-                        setDeQuien("");
-                      }}
-                    >
-                      <option value="manual">Cargar a mano emisor</option>
-                      <option value="proveedor">Proveedor</option>
-                    </select>
-                  </div>
-
-                  {deMode === "manual" ? (
-                    <div className="relative">
-                      <input
-                        type="text"
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
-                        placeholder="Escribe nombre del emisor..."
-                        value={deQuien}
-                        onChange={(e) => setDeQuien(e.target.value)}
-                        required
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400">
-                        edit_note
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="relative">
-                      <div className="relative">
-                        <input
-                          type="text"
-                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
-                          placeholder="Busca proveedor..."
-                          value={deQuien}
-                          onChange={(e) => {
-                            setDeQuien(e.target.value);
-                            setShowDeDropdown(true);
-                          }}
-                          onFocus={() => setShowDeDropdown(true)}
-                          onBlur={() => setTimeout(() => setShowDeDropdown(false), 200)}
-                          required
-                        />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400">
-                          person_search
-                        </span>
-                      </div>
-
-                      {showDeDropdown && deFilteredProveedores.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-                          {deFilteredProveedores.map((p) => (
+              {isPago && (
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Emisor Section */}
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                            De (Emisor) *
+                          </label>
+                          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
                             <button
-                              key={p.id}
                               type="button"
-                              className="w-full text-left px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between border-b border-slate-100 dark:border-slate-800 last:border-0"
-                              onClick={() => {
-                                setDeQuien(p.razonSocial);
-                                setSelectedEmisorProveedorId(p.id);
-                                setShowDeDropdown(false);
-                              }}
+                              onClick={() => { setDeMode("manual"); setDeQuien(""); }}
+                              className={`px-3 py-1 text-[10px] font-black uppercase tracking-tighter rounded-md transition-all ${
+                                deMode === "manual" 
+                                  ? "bg-white dark:bg-slate-700 text-[#2b8cee] shadow-sm" 
+                                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                              }`}
                             >
-                              <span className="text-sm text-slate-700 dark:text-slate-300">{p.razonSocial}</span>
+                              Manual
                             </button>
-                          ))}
+                            <button
+                              type="button"
+                              onClick={() => { setDeMode("proveedor"); setDeQuien(""); }}
+                              className={`px-3 py-1 text-[10px] font-black uppercase tracking-tighter rounded-md transition-all ${
+                                deMode === "proveedor" 
+                                  ? "bg-white dark:bg-slate-700 text-[#2b8cee] shadow-sm" 
+                                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                              }`}
+                            >
+                              Proveedor
+                            </button>
+                          </div>
                         </div>
-                      )}
+
+                        {deMode === "manual" ? (
+                          <div className="relative group">
+                            <input
+                              type="text"
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none transition-all group-hover:border-slate-300 dark:group-hover:border-slate-700"
+                              placeholder="Escribe nombre del emisor..."
+                              value={deQuien}
+                              onChange={(e) => setDeQuien(e.target.value)}
+                              required
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-xl">
+                              edit_note
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="relative group">
+                            <input
+                              type="text"
+                              className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none transition-all group-hover:border-slate-300 dark:group-hover:border-slate-700"
+                              placeholder="Busca proveedor..."
+                              value={deQuien}
+                              onChange={(e) => {
+                                setSearchTerm(e.target.value); // Reusing search term logic if needed or just deQuien
+                                setDeQuien(e.target.value);
+                                setShowDeDropdown(true);
+                              }}
+                              onFocus={() => setShowDeDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowDeDropdown(false), 200)}
+                              required
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-xl">
+                              person_search
+                            </span>
+
+                            {showDeDropdown && deFilteredProveedores.length > 0 && (
+                              <div className="absolute z-20 w-full mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl max-h-48 overflow-y-auto animate-in fade-in slide-in-from-top-1 duration-200">
+                                {deFilteredProveedores.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    className="w-full text-left px-4 py-3 hover:bg-[#2b8cee]/5 dark:hover:bg-[#2b8cee]/10 transition-colors flex items-center justify-between border-b border-slate-100 dark:border-slate-800 last:border-0"
+                                    onClick={() => {
+                                      setDeQuien(p.razonSocial);
+                                      setSelectedEmisorProveedorId(p.id);
+                                      setShowDeDropdown(false);
+                                    }}
+                                  >
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{p.razonSocial}</span>
+                                    <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500">ID: {p.id}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                      A (Receptor) *
-                    </label>
-                    <div className="h-[38px]" /> {/* Altura exacta del select para alinear los inputs */}
+                    {/* Receptor Section */}
+                    <div className="space-y-3">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center h-[28px]"> {/* Align with Emisor label row height */}
+                          <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                            A (Receptor) *
+                          </label>
+                        </div>
+                        <div className="relative group">
+                          <input
+                            type="text"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none transition-all group-hover:border-slate-300 dark:group-hover:border-slate-700"
+                            placeholder="Quien recibe los fondos"
+                            value={aQuien}
+                            onChange={(e) => setAQuien(e.target.value)}
+                            required
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-xl">
+                            person
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <input
-                    type="text"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
-                    placeholder="Quien recibe los fondos"
-                    value={aQuien}
-                    onChange={(e) => setAQuien(e.target.value)}
-                    required
-                  />
                 </div>
-              </div>
+              )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+
+              <div className="group">
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
                   Descripción / Observaciones
                 </label>
                 <textarea
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:ring-2 focus:ring-[#2b8cee]/20 outline-none transition-all group-hover:border-slate-300 dark:group-hover:border-slate-700"
                   rows={3}
                   placeholder="Detalles adicionales del movimiento..."
                   value={descripcion}

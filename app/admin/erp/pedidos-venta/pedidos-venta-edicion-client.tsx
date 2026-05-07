@@ -218,19 +218,25 @@ export default function PedidosVentaEdicionClient() {
             const regex = new RegExp(`${label}:\\s*\\$?([0-9.,]+)`, "i");
             const match = info.match(regex);
             if (match && match[1]) {
-              let val = match[1].replace(/\./g, '').replace(',', '.');
-              return parseFloat(val) || 0;
+              let valStr = match[1];
+              // Lógica segura para es-AR
+              if (valStr.includes(',') && valStr.includes('.')) {
+                valStr = valStr.replace(/\./g, '').replace(',', '.');
+              } else if (valStr.includes('.')) {
+                const parts = valStr.split('.');
+                if (parts[parts.length - 1].length === 3) valStr = valStr.replace(/\./g, '');
+              } else if (valStr.includes(',')) {
+                valStr = valStr.replace(',', '.');
+              }
+              return parseFloat(valStr) || 0;
             }
             return 0;
           };
 
-          // Para el método, necesitamos una regex más compleja o buscar los labels conocidos
-          const metodosPosibles = ["Efectivo", "Transferencia", "Tarjeta de Crédito", "Tarjeta de Débito", "Mercado Pago", "Cruzada", "A Cuenta Corriente", "A Confirmar"];
-          
+          const metodosPosibles = ["Efectivo", "Tarjeta de Crédito", "Tarjeta de Débito", "MercadoLibre", "MercadoPago", "Cruzada", "A Cuenta Corriente", "A Confirmar"];
           let m1 = "Efectivo";
           let m2 = "Tarjeta de Crédito";
           
-          // Buscar qué métodos están en el string
           const foundMethods = [];
           for (const m of metodosPosibles) {
             if (info.includes(`${m}:`)) {
@@ -248,6 +254,7 @@ export default function PedidosVentaEdicionClient() {
           setMonto2(editingVenta.totalFinal - (v1 || editingVenta.totalFinal / 2));
         }
       } catch (e) {
+        console.error("Error al parsear info mixta:", e);
         setMetodo1("Efectivo");
         setMonto1(editingVenta.totalFinal / 2);
         setMetodo2("Tarjeta de Crédito");

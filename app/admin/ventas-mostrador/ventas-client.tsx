@@ -983,8 +983,68 @@ export default function VentasMostradorClient({
     setEditCliente(venta.cliente || "");
     setEditMetodoPago(venta.metodo_pago === "Mixto" ? "Efectivo" : (venta.metodo_pago === "mercadopago (ML)" ? "MercadoLibre" : (venta.metodo_pago || "Efectivo")));
     setIsEditPagoMixto(venta.metodo_pago === "Mixto");
-    setEditMontoPago1(venta.total / 2); // default
-    setEditMetodoPago2("Tarjeta de Crédito"); // default
+
+    // Lógica para cargar montos y métodos reales si es Pago Mixto
+    if (venta.metodo_pago === "Mixto") {
+      const info = venta.info || "";
+      try {
+        if (info.trim().startsWith('{')) {
+          const infoObj = JSON.parse(info);
+          setEditMetodoPago(infoObj.metodo1 || "Efectivo");
+          setEditMontoPago1(Number(infoObj.monto1) || (Number(venta.total) / 2));
+          setEditMetodoPago2(infoObj.metodo2 || "Tarjeta de Crédito");
+        } else {
+          // Formato [Mixto -> Metodo1: $10.000 | Metodo2: $90.000]
+          const extractMonto = (label: string) => {
+            const regex = new RegExp(`${label}:\\s*\\$?([0-9.,]+)`, "i");
+            const match = info.match(regex);
+            if (match && match[1]) {
+              // Usamos la lógica segura que ya implementamos en el backend
+              let valStr = match[1];
+              if (valStr.includes(',') && valStr.includes('.')) {
+                valStr = valStr.replace(/\./g, '').replace(',', '.');
+              } else if (valStr.includes('.')) {
+                const parts = valStr.split('.');
+                if (parts[parts.length - 1].length === 3) valStr = valStr.replace(/\./g, '');
+              } else if (valStr.includes(',')) {
+                valStr = valStr.replace(',', '.');
+              }
+              return parseFloat(valStr) || 0;
+            }
+            return 0;
+          };
+
+          const metodosPosibles = ["Efectivo", "Tarjeta de Crédito", "Tarjeta de Débito", "MercadoLibre", "MercadoPago", "Cruzada", "A Cuenta Corriente", "A Confirmar"];
+          let m1 = "Efectivo";
+          let m2 = "Tarjeta de Crédito";
+          
+          const foundMethods = [];
+          for (const m of metodosPosibles) {
+            // Buscamos el método seguido de : para evitar falsos positivos
+            if (info.includes(`${m}:`)) {
+              foundMethods.push(m);
+            }
+          }
+          
+          if (foundMethods.length >= 1) m1 = foundMethods[0];
+          if (foundMethods.length >= 2) m2 = foundMethods[1];
+
+          const v1 = extractMonto(m1);
+          setEditMetodoPago(m1);
+          setEditMontoPago1(v1 || (Number(venta.total) / 2));
+          setEditMetodoPago2(m2);
+        }
+      } catch (e) {
+        console.error("Error al parsear info mixta en edición:", e);
+        setEditMetodoPago("Efectivo");
+        setEditMontoPago1(Number(venta.total) / 2);
+        setEditMetodoPago2("Tarjeta de Crédito");
+      }
+    } else {
+      setEditMetodoPago(venta.metodo_pago === "mercadopago (ML)" ? "MercadoLibre" : (venta.metodo_pago || "Efectivo"));
+      setEditMontoPago1(Number(venta.total) / 2);
+      setEditMetodoPago2("Tarjeta de Crédito");
+    }
 
     setEditInteresTarjeta(Number(venta.interes) || 0);
     setEditDni(venta.dni || "");

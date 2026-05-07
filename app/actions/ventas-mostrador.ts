@@ -190,12 +190,20 @@ function extractMontoMixto(info: string | null | undefined, label: string): numb
     // Pero si el valor ya viene como 1234.56 lo detectamos
     let valueStr = match[1];
     
-    // Si tiene coma y punto, asumimos punto miles y coma decimal (formato AR)
+    // Si tiene coma y punto, asumimos punto miles y coma decimal (formato AR: 1.234,56)
     if (valueStr.includes(',') && valueStr.includes('.')) {
       valueStr = valueStr.replace(/\./g, '').replace(',', '.');
     } else if (valueStr.includes(',')) {
-      // Si solo tiene coma, asumimos que es el separador decimal
+      // Si solo tiene coma, asumimos que es el separador decimal (formato: 1234,56)
       valueStr = valueStr.replace(',', '.');
+    } else if (valueStr.includes('.')) {
+      // En AR, toLocaleString('es-AR') usa el punto como separador de miles.
+      // Si solo hay un punto y está seguido de exactamente 3 dígitos, es muy probable que sea miles.
+      // Ejemplo: "143.100" -> "143100". Si fuera decimal sería "143,100" o "143.1"
+      const parts = valueStr.split('.');
+      if (parts[parts.length - 1].length === 3) {
+        valueStr = valueStr.replace(/\./g, '');
+      }
     }
     
     const parsed = parseFloat(valueStr);
@@ -668,10 +676,11 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
       });
 
       const esMetodoImpactoOld = oldVenta && (oldVenta.metodo_pago === "Cruzada" || oldVenta.metodo_pago === "A Cuenta Corriente" || oldVenta.metodo_pago === "Mixto");
+      const montoRevertirVal = (oldVenta && esMetodoImpactoOld) ? getMontoImpactoProveedor(oldVenta.metodo_pago, oldVenta.info, Number(oldVenta.totalFinal)) : 0;
+      const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
+      const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0;
 
-      if (oldVenta && esMetodoImpactoOld) {
-        const montoRevertirVal = getMontoImpactoProveedor(oldVenta.metodo_pago, oldVenta.info, Number(oldVenta.totalFinal));
-
+      if (oldVenta && esMetodoImpactoOld && !esMismoImpacto) {
         if (montoRevertirVal > 0) {
           let proveedor = await tx.proveedor.findUnique({
             where: { id: oldVenta.para || "" }
@@ -778,9 +787,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
       });
 
       // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto ---
-      const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
-
-      if (montoImpactoNewVal > 0 && data.para) {
+      if (montoImpactoNewVal > 0 && data.para && !esMismoImpacto) {
         const idBuscado = data.para;
 
         let proveedor = await tx.proveedor.findUnique({
@@ -1214,10 +1221,11 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
       });
 
       const esMetodoImpactoOld = oldVenta && (oldVenta.metodo_pago === "Cruzada" || oldVenta.metodo_pago === "A Cuenta Corriente" || oldVenta.metodo_pago === "Mixto");
+      const montoRevertirVal = (oldVenta && esMetodoImpactoOld) ? getMontoImpactoProveedor(oldVenta.metodo_pago, oldVenta.info, Number(oldVenta.totalFinal)) : 0;
+      const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
+      const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0;
 
-      if (oldVenta && esMetodoImpactoOld) {
-        const montoRevertirVal = getMontoImpactoProveedor(oldVenta.metodo_pago, oldVenta.info, Number(oldVenta.totalFinal));
-
+      if (oldVenta && esMetodoImpactoOld && !esMismoImpacto) {
         if (montoRevertirVal > 0) {
           let proveedor = await tx.proveedor.findUnique({
             where: { id: oldVenta.para || "" }
@@ -1313,9 +1321,7 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
       });
 
       // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto (Cruzada, CC o Mixto) ---
-      const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
-
-      if (montoImpactoNewVal > 0 && data.para) {
+      if (montoImpactoNewVal > 0 && data.para && !esMismoImpacto) {
         const idBuscado = data.para;
 
         let proveedor = await tx.proveedor.findUnique({

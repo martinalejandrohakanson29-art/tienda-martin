@@ -413,10 +413,29 @@ export async function crearVentaMostrador(data: {
       const montoImpactoVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
 
       if (montoImpactoVal > 0 && data.para) {
-        const idBuscado = data.para;
+        let impactos: { id?: string, razonSocial?: string, monto: number }[] = [];
 
-        let proveedor = null;
-        if (idBuscado) {
+        // Intentar parsear si es JSON (múltiples proveedores)
+        try {
+          if (data.para.trim().startsWith('[') || data.para.trim().startsWith('{')) {
+            const parsed = JSON.parse(data.para);
+            if (Array.isArray(parsed)) {
+              impactos = parsed;
+            } else {
+              impactos = [parsed];
+            }
+          } else {
+            impactos = [{ razonSocial: data.para, monto: montoImpactoVal }];
+          }
+        } catch (e) {
+          impactos = [{ razonSocial: data.para, monto: montoImpactoVal }];
+        }
+
+        for (const imp of impactos) {
+          const idBuscado = imp.id || imp.razonSocial;
+          if (!idBuscado) continue;
+
+          let proveedor = null;
           proveedor = await tx.proveedor.findUnique({
             where: { id: idBuscado }
           }).catch(() => null);
@@ -426,27 +445,29 @@ export async function crearVentaMostrador(data: {
               where: { razonSocial: idBuscado }
             });
           }
-        }
 
-        if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(montoImpactoVal);
-          const nuevoSaldo = proveedor.total.plus(montoDecimal);
+          if (proveedor) {
+            const montoDecimal = new Prisma.Decimal(imp.monto || (impactos.length === 1 ? montoImpactoVal : 0));
+            if (montoDecimal.isZero()) continue;
 
-          await tx.proveedor.update({
-            where: { id: proveedor.id },
-            data: { total: nuevoSaldo }
-          });
+            const nuevoSaldo = proveedor.total.plus(montoDecimal);
 
-          await tx.movimientoProveedor.create({
-            data: {
-              proveedorId: proveedor.id,
-              tipo: "HABER",
-              monto: montoDecimal,
-              descripcion: `${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta (Cruzada/CC)" : "Venta a CC"} #${venta.numeroVenta} (${data.cliente})`,
-              referencia: venta.id,
-              saldo: nuevoSaldo
-            }
-          });
+            await tx.proveedor.update({
+              where: { id: proveedor.id },
+              data: { total: nuevoSaldo }
+            });
+
+            await tx.movimientoProveedor.create({
+              data: {
+                proveedorId: proveedor.id,
+                tipo: "HABER",
+                monto: montoDecimal,
+                descripcion: `${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta (Cruzada/CC)" : "Venta a CC"} #${venta.numeroVenta} (${data.cliente})`,
+                referencia: venta.id,
+                saldo: nuevoSaldo
+              }
+            });
+          }
         }
       }
 
@@ -613,10 +634,28 @@ export async function guardarComoPedidoVenta(data: {
       const montoImpactoVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
 
       if (montoImpactoVal > 0 && data.para) {
-        const idBuscado = data.para;
+        let impactos: { id?: string, razonSocial?: string, monto: number }[] = [];
 
-        let proveedor = null;
-        if (idBuscado) {
+        try {
+          if (data.para.trim().startsWith('[') || data.para.trim().startsWith('{')) {
+            const parsed = JSON.parse(data.para);
+            if (Array.isArray(parsed)) {
+              impactos = parsed;
+            } else {
+              impactos = [parsed];
+            }
+          } else {
+            impactos = [{ razonSocial: data.para, monto: montoImpactoVal }];
+          }
+        } catch (e) {
+          impactos = [{ razonSocial: data.para, monto: montoImpactoVal }];
+        }
+
+        for (const imp of impactos) {
+          const idBuscado = imp.id || imp.razonSocial;
+          if (!idBuscado) continue;
+
+          let proveedor = null;
           proveedor = await tx.proveedor.findUnique({
             where: { id: idBuscado }
           }).catch(() => null);
@@ -626,27 +665,29 @@ export async function guardarComoPedidoVenta(data: {
               where: { razonSocial: idBuscado }
             });
           }
-        }
 
-        if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(montoImpactoVal);
-          const nuevoSaldo = proveedor.total.plus(montoDecimal);
+          if (proveedor) {
+            const montoDecimal = new Prisma.Decimal(imp.monto || (impactos.length === 1 ? montoImpactoVal : 0));
+            if (montoDecimal.isZero()) continue;
 
-          await tx.proveedor.update({
-            where: { id: proveedor.id },
-            data: { total: nuevoSaldo }
-          });
+            const nuevoSaldo = proveedor.total.plus(montoDecimal);
 
-          await tx.movimientoProveedor.create({
-            data: {
-              proveedorId: proveedor.id,
-              tipo: "HABER",
-              monto: montoDecimal,
-              descripcion: `${data.metodo_pago === "Cruzada" ? "Pago de venta (Pedido)" : data.metodo_pago === "Mixto" ? "Venta Mixta (Pedido)" : "Venta a CC (Pedido)"} #${venta.numeroVenta} (${data.cliente})`,
-              referencia: venta.id,
-              saldo: nuevoSaldo
-            }
-          });
+            await tx.proveedor.update({
+              where: { id: proveedor.id },
+              data: { total: nuevoSaldo }
+            });
+
+            await tx.movimientoProveedor.create({
+              data: {
+                proveedorId: proveedor.id,
+                tipo: "HABER",
+                monto: montoDecimal,
+                descripcion: `${data.metodo_pago === "Cruzada" ? "Pago de venta (Pedido)" : data.metodo_pago === "Mixto" ? "Venta Mixta (Pedido)" : "Venta a CC (Pedido)"} #${venta.numeroVenta} (${data.cliente})`,
+                referencia: venta.id,
+                saldo: nuevoSaldo
+              }
+            });
+          }
         }
       }
 
@@ -681,19 +722,36 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
       const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0;
 
       if (oldVenta && esMetodoImpactoOld && !esMismoImpacto) {
-        if (montoRevertirVal > 0) {
+        let impactosOld: { id?: string, razonSocial?: string, monto: number }[] = [];
+        try {
+          if (oldVenta.para && (oldVenta.para.trim().startsWith('[') || oldVenta.para.trim().startsWith('{'))) {
+            const parsed = JSON.parse(oldVenta.para);
+            impactosOld = Array.isArray(parsed) ? parsed : [parsed];
+          } else if (oldVenta.para) {
+            impactosOld = [{ razonSocial: oldVenta.para, monto: montoRevertirVal }];
+          }
+        } catch (e) {
+          if (oldVenta.para) impactosOld = [{ razonSocial: oldVenta.para, monto: montoRevertirVal }];
+        }
+
+        for (const imp of impactosOld) {
+          const idBuscado = imp.id || imp.razonSocial;
+          if (!idBuscado) continue;
+
           let proveedor = await tx.proveedor.findUnique({
-            where: { id: oldVenta.para || "" }
+            where: { id: idBuscado }
           }).catch(() => null);
 
           if (!proveedor) {
             proveedor = await tx.proveedor.findFirst({
-              where: { razonSocial: oldVenta.para || "" }
+              where: { razonSocial: idBuscado }
             });
           }
 
           if (proveedor) {
-            const montoRevertir = new Prisma.Decimal(montoRevertirVal);
+            const montoRevertir = new Prisma.Decimal(imp.monto || (impactosOld.length === 1 ? montoRevertirVal : 0));
+            if (montoRevertir.isZero()) continue;
+
             const nuevoSaldo = proveedor.total.minus(montoRevertir);
 
             await tx.proveedor.update({
@@ -788,37 +846,54 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
 
       // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto ---
       if (montoImpactoNewVal > 0 && data.para && !esMismoImpacto) {
-        const idBuscado = data.para;
-
-        let proveedor = await tx.proveedor.findUnique({
-          where: { id: idBuscado || "" }
-        }).catch(() => null);
-
-        if (!proveedor) {
-          proveedor = await tx.proveedor.findFirst({
-            where: { razonSocial: data.para || "" }
-          });
+        let impactos: { id?: string, razonSocial?: string, monto: number }[] = [];
+        try {
+          if (data.para.trim().startsWith('[') || data.para.trim().startsWith('{')) {
+            const parsed = JSON.parse(data.para);
+            impactos = Array.isArray(parsed) ? parsed : [parsed];
+          } else {
+            impactos = [{ razonSocial: data.para, monto: montoImpactoNewVal }];
+          }
+        } catch (e) {
+          impactos = [{ razonSocial: data.para, monto: montoImpactoNewVal }];
         }
 
-        if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(montoImpactoNewVal);
-          const nuevoSaldo = proveedor.total.plus(montoDecimal);
+        for (const imp of impactos) {
+          const idBuscado = imp.id || imp.razonSocial;
+          if (!idBuscado) continue;
 
-          await tx.proveedor.update({
-            where: { id: proveedor.id },
-            data: { total: nuevoSaldo }
-          });
+          let proveedor = await tx.proveedor.findUnique({
+            where: { id: idBuscado }
+          }).catch(() => null);
 
-          await tx.movimientoProveedor.create({
-            data: {
-              proveedorId: proveedor.id,
-              tipo: "HABER",
-              monto: montoDecimal,
-              descripcion: `EDICIÓN: ${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta (Cruzada/CC)" : "Venta a CC"} #${oldVenta?.numeroVenta} (${data.cliente})`,
-              referencia: ventaId,
-              saldo: nuevoSaldo
-            }
-          });
+          if (!proveedor) {
+            proveedor = await tx.proveedor.findFirst({
+              where: { razonSocial: idBuscado }
+            });
+          }
+
+          if (proveedor) {
+            const montoImpacto = new Prisma.Decimal(imp.monto || (impactos.length === 1 ? montoImpactoNewVal : 0));
+            if (montoImpacto.isZero()) continue;
+
+            const nuevoSaldo = proveedor.total.plus(montoImpacto);
+
+            await tx.proveedor.update({
+              where: { id: proveedor.id },
+              data: { total: nuevoSaldo }
+            });
+
+            await tx.movimientoProveedor.create({
+              data: {
+                proveedorId: proveedor.id,
+                tipo: "HABER",
+                monto: montoImpacto,
+                descripcion: `EDICIÓN: ${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta (Cruzada/CC)" : "Venta a CC"} #${oldVenta?.numeroVenta} (${data.cliente})`,
+                referencia: ventaId,
+                saldo: nuevoSaldo
+              }
+            });
+          }
         }
       }
 
@@ -972,44 +1047,63 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
       if (venta && esMetodoImpactoDel) {
         const montoRevertirVal = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
 
-        if (montoRevertirVal > 0) {
-          let proveedor = await tx.proveedor.findUnique({
-            where: { id: venta.para || "" }
-          }).catch(() => null);
-
-          if (!proveedor) {
-            proveedor = await tx.proveedor.findFirst({
-              where: { razonSocial: venta.para || "" }
-            });
+        if (montoRevertirVal > 0 && venta.para) {
+          let impactos: { id?: string, razonSocial?: string, monto: number }[] = [];
+          try {
+            if (venta.para.trim().startsWith('[') || venta.para.trim().startsWith('{')) {
+              const parsed = JSON.parse(venta.para);
+              impactos = Array.isArray(parsed) ? parsed : [parsed];
+            } else {
+              impactos = [{ razonSocial: venta.para, monto: montoRevertirVal }];
+            }
+          } catch (e) {
+            impactos = [{ razonSocial: venta.para, monto: montoRevertirVal }];
           }
 
-          if (proveedor) {
-            const montoRevertir = new Prisma.Decimal(montoRevertirVal);
-            const nuevoSaldo = proveedor.total.minus(montoRevertir);
+          for (const imp of impactos) {
+            const idBuscado = imp.id || imp.razonSocial;
+            if (!idBuscado) continue;
 
-            await tx.proveedor.update({
-              where: { id: proveedor.id },
-              data: { total: nuevoSaldo }
-            });
+            let proveedor = await tx.proveedor.findUnique({
+              where: { id: idBuscado }
+            }).catch(() => null);
 
-            // Marcar el movimiento original como anulado
-            await tx.movimientoProveedor.updateMany({
-              where: { referencia: venta.id, proveedorId: proveedor.id },
-              data: { anulado: true }
-            });
+            if (!proveedor) {
+              proveedor = await tx.proveedor.findFirst({
+                where: { razonSocial: idBuscado }
+              });
+            }
 
-            // Crear un movimiento de anulación para que el historial sea claro
-            await tx.movimientoProveedor.create({
-              data: {
-                proveedorId: proveedor.id,
-                tipo: "EGRESO",
-                monto: montoRevertir.negated(),
-                descripcion: `ANULACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) eliminada`,
-                referencia: venta.id,
-                saldo: nuevoSaldo,
-                anulado: true
-              }
-            });
+            if (proveedor) {
+              const montoRevertir = new Prisma.Decimal(imp.monto || (impactos.length === 1 ? montoRevertirVal : 0));
+              if (montoRevertir.isZero()) continue;
+
+              const nuevoSaldo = proveedor.total.minus(montoRevertir);
+
+              await tx.proveedor.update({
+                where: { id: proveedor.id },
+                data: { total: nuevoSaldo }
+              });
+
+              // Marcar el movimiento original como anulado
+              await tx.movimientoProveedor.updateMany({
+                where: { referencia: venta.id, proveedorId: proveedor.id },
+                data: { anulado: true }
+              });
+
+              // Crear un movimiento de anulación para que el historial sea claro
+              await tx.movimientoProveedor.create({
+                data: {
+                  proveedorId: proveedor.id,
+                  tipo: "EGRESO",
+                  monto: montoRevertir.negated(),
+                  descripcion: `ANULACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) eliminada`,
+                  referencia: venta.id,
+                  saldo: nuevoSaldo,
+                  anulado: true
+                }
+              });
+            }
           }
         }
       }

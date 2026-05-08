@@ -1421,10 +1421,10 @@ export default function PedidosVentaEdicionClient() {
                               </div>
                               <div className="flex items-center gap-3">
                                 <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${art.stock <= 0
-                                    ? 'bg-red-50 text-red-600 border-red-100'
-                                    : art.stock <= 5
-                                      ? 'bg-orange-50 text-orange-600 border-orange-100'
-                                      : 'bg-green-50 text-green-600 border-green-100'
+                                  ? 'bg-red-50 text-red-600 border-red-100'
+                                  : art.stock <= 5
+                                    ? 'bg-orange-50 text-orange-600 border-orange-100'
+                                    : 'bg-green-50 text-green-600 border-green-100'
                                   }`}>
                                   STOCK: {art.stock}
                                 </span>
@@ -1854,7 +1854,7 @@ export default function PedidosVentaEdicionClient() {
             </div>
           </DialogFooter>
         </DialogContent>
-    </Dialog>
+      </Dialog>
 
       {/* Modal Nuevo Proveedor */}
       <Dialog open={isAddProvModalOpen} onOpenChange={setIsAddProvModalOpen}>

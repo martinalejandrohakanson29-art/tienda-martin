@@ -180,6 +180,8 @@ export default function VentasMostradorClient({
   const [transaccionId, setTransaccionId] = useState("");
   const [deCruzada, setDeCruzada] = useState("");
   const [paraCruzada, setParaCruzada] = useState("");
+  const [proveedoresCruzada, setProveedoresCruzada] = useState<{ id: string, razonSocial: string, monto: number }[]>([]);
+  const [showProvListMulti, setShowProvListMulti] = useState<number | null>(null);
 
   // --- ESTADOS PARA MERCADOLIBRE Y MERCADOPAGO ---
   const [mlIdVenta, setMlIdVenta] = useState("");
@@ -430,6 +432,22 @@ export default function VentasMostradorClient({
       setVentasRealizadas(res.data || []);
     }
     setIsLoadingVentas(false);
+  };
+
+  const renderParaDisplay = (para: string) => {
+    if (!para) return "-";
+    if (para.trim().startsWith('[') || para.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(para);
+        if (Array.isArray(parsed)) {
+          return `${parsed[0]?.razonSocial || parsed[0]?.nombre || "?"} (+${parsed.length - 1})`;
+        }
+        return parsed.razonSocial || parsed.nombre || para;
+      } catch (e) {
+        return para;
+      }
+    }
+    return para;
   };
 
   const copiarAlPortapapeles = (texto: string) => {
@@ -754,6 +772,29 @@ export default function VentasMostradorClient({
     }
   };
 
+  const agregarProveedorCruzada = () => {
+    if (proveedoresCruzada.length < 4) {
+      setProveedoresCruzada([...proveedoresCruzada, { id: "", razonSocial: "", monto: 0 }]);
+    }
+  };
+
+  const eliminarProveedorCruzada = (index: number) => {
+    const newList = proveedoresCruzada.filter((_, i) => i !== index);
+    setProveedoresCruzada(newList);
+  };
+
+  const actualizarProveedorCruzada = (index: number, field: string, value: any) => {
+    const newList = [...proveedoresCruzada];
+    newList[index] = { ...newList[index], [field]: value };
+    setProveedoresCruzada(newList);
+  };
+
+  useEffect(() => {
+    if (isFinalizarModalOpen && metodoPago === "Cruzada" && proveedoresCruzada.length === 0) {
+      setProveedoresCruzada([{ id: "", razonSocial: "", monto: totalFinalCalculado }]);
+    }
+  }, [isFinalizarModalOpen, metodoPago, totalFinalCalculado]);
+
   const handleFinalizarVenta = async (overrideComoPedido?: boolean | React.MouseEvent) => {
     const isPedido = typeof overrideComoPedido === 'boolean' ? overrideComoPedido : isGuardarComoPedido;
 
@@ -766,7 +807,8 @@ export default function VentasMostradorClient({
     if (requiereMercadoPago && !mlIdVenta.trim()) {
       alert("El Id de pago es OBLIGATORIO para MercadoPago."); return;
     }
-    if (requiereCruzada && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para pagos Cruzados."); return; }
+    if (requiereCruzada && !isPagoMixto && (!deCruzada.trim() || proveedoresCruzada.length === 0)) { alert("'De' y al menos un proveedor son obligatorios para pagos Cruzados."); return; }
+    if (requiereCruzada && isPagoMixto && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para Cruzada en pago Mixto."); return; }
     if (requiereCuentaCorriente && !paraCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
 
     const clienteFinal = cliente;
@@ -802,12 +844,18 @@ export default function VentasMostradorClient({
       const dniFinal = (requiereMercadoLibre || requiereMercadoPago) ? (mlDni || dni || cuitBusqueda) : (dni || cuitBusqueda);
       const docNroFinal = docNro || (cuitBusqueda.length > 6 ? cuitBusqueda : "");
 
+      // Si es Cruzada (no mixto), usamos la lista de proveedores
+      let paraFinal = paraCruzada;
+      if (metodoPago === "Cruzada" && !isPagoMixto) {
+        paraFinal = JSON.stringify(proveedoresCruzada);
+      }
+
       const resultado = isPedido
         ? await guardarComoPedidoVenta({
           cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
           interes: interesTarjeta,
           totalFinal: totalFinalCalculado,
-          items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+          items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraFinal,
           email, eventoOffline, puntoVentaId,
           docTipo, docNro: docNroFinal, condicionIva, tipoComprobante: tipoFacturaSugerida,
           mlIdVenta, mlIdEnvio, mlMla, mlDni
@@ -816,7 +864,7 @@ export default function VentasMostradorClient({
           cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
           interes: interesTarjeta,
           totalFinal: totalFinalCalculado,
-          items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraCruzada,
+          items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraFinal,
           email, eventoOffline, puntoVentaId,
           solicitarFactura: solicitarFactura,
           // ARCA fields para guardar el snapshot
@@ -1879,7 +1927,7 @@ export default function VentasMostradorClient({
                                   }}
                                   title="Click para copiar"
                                 >
-                                  {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
+                                  {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? renderParaDisplay(v.para) : (v.transaccionId || "-")}
                                 </TableCell>
                                 <TableCell
                                   className="py-4 text-xs text-slate-500 max-w-[200px] cursor-pointer hover:text-blue-600 transition-colors"
@@ -2191,7 +2239,7 @@ export default function VentasMostradorClient({
                               }}
                               title="Click para copiar"
                             >
-                              {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.para || "-") : (v.transaccionId || "-")}
+                              {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? renderParaDisplay(v.para) : (v.transaccionId || "-")}
                             </TableCell>
                             <TableCell
                               className="py-4 text-xs text-slate-500 max-w-[200px] cursor-pointer hover:text-blue-600 transition-colors"
@@ -2504,7 +2552,110 @@ export default function VentasMostradorClient({
                   </div>
                 )}
 
-                {(requiereCruzada || requiereCuentaCorriente) && (
+                {requiereCruzada && !isPagoMixto && (
+                  <div className="space-y-3 bg-amber-50/50 p-4 rounded-xl border border-amber-100 animate-in fade-in">
+                    <div className="flex justify-between items-center mb-1">
+                      <Label className="text-xs font-bold text-amber-700">Pago Cruzada: Detalle de Proveedores</Label>
+                      {proveedoresCruzada.length < 4 && (
+                        <Button 
+                          type="button" 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-7 text-[10px] font-bold border-amber-300 text-amber-700 hover:bg-amber-100"
+                          onClick={agregarProveedorCruzada}
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Añadir Persona
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold text-amber-600 uppercase">Origen (De)</Label>
+                        <Input 
+                          value={deCruzada} 
+                          onChange={(e) => setDeCruzada(e.target.value)} 
+                          className="h-9 bg-white border-amber-200" 
+                          placeholder="¿Quién envía el dinero?" 
+                        />
+                      </div>
+
+                      {proveedoresCruzada.map((item, idx) => (
+                        <div key={idx} className="flex gap-2 items-start bg-white/50 p-2 rounded-lg border border-amber-100/50 relative">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-[10px] font-bold text-slate-500 uppercase">Proveedor {idx + 1}</Label>
+                            <div className="relative">
+                              <Input
+                                value={item.razonSocial}
+                                onChange={(e) => {
+                                  actualizarProveedorCruzada(idx, 'razonSocial', e.target.value);
+                                  setShowProvListMulti(idx);
+                                }}
+                                onFocus={() => setShowProvListMulti(idx)}
+                                className="h-9 bg-white border-amber-200 text-xs"
+                                placeholder="Buscar..."
+                              />
+                              {showProvListMulti === idx && proveedores.length > 0 && (
+                                <div className="absolute z-[110] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-40 overflow-y-auto">
+                                  {proveedores
+                                    .filter(p => p.razonSocial.toLowerCase().includes(item.razonSocial.toLowerCase()) || p.cuit.includes(item.razonSocial))
+                                    .map(p => (
+                                      <div
+                                        key={p.id}
+                                        className="p-2 hover:bg-amber-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
+                                        onClick={() => {
+                                          actualizarProveedorCruzada(idx, 'razonSocial', p.razonSocial);
+                                          actualizarProveedorCruzada(idx, 'id', p.id);
+                                          setShowProvListMulti(null);
+                                        }}
+                                      >
+                                        <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                                        <p className="text-[9px] text-slate-400">{p.cuit}</p>
+                                      </div>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="w-28 space-y-1">
+                            <Label className="text-[10px] font-bold text-slate-500 uppercase">Monto</Label>
+                            <Input 
+                              type="number" 
+                              value={item.monto} 
+                              onChange={(e) => actualizarProveedorCruzada(idx, 'monto', Number(e.target.value))}
+                              className="h-9 bg-white border-amber-200 text-xs font-bold text-amber-900" 
+                            />
+                          </div>
+
+                          {proveedoresCruzada.length > 1 && (
+                            <Button 
+                              type="button" 
+                              size="icon" 
+                              variant="ghost" 
+                              className="h-9 w-9 mt-5 text-red-400 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => eliminarProveedorCruzada(idx)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex justify-between items-center p-2 bg-amber-100/50 rounded-lg border border-amber-200 mt-2">
+                      <span className="text-[10px] font-bold text-amber-700 uppercase">Suma Total Cruzada:</span>
+                      <span className={`text-sm font-black ${Math.abs(proveedoresCruzada.reduce((acc, curr) => acc + curr.monto, 0) - totalFinalCalculado) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
+                        $ {proveedoresCruzada.reduce((acc, curr) => acc + curr.monto, 0).toLocaleString('es-AR')} / $ {totalFinalCalculado.toLocaleString('es-AR')}
+                      </span>
+                    </div>
+                    {Math.abs(proveedoresCruzada.reduce((acc, curr) => acc + curr.monto, 0) - totalFinalCalculado) >= 0.01 && (
+                      <p className="text-[10px] text-red-500 font-bold text-center">La suma debe coincidir con el total de la venta.</p>
+                    )}
+                  </div>
+                )}
+
+                {((requiereCruzada && isPagoMixto) || requiereCuentaCorriente) && (
                   <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
                     {requiereCruzada && (
                       <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
@@ -2543,19 +2694,13 @@ export default function VentasMostradorClient({
                                       </div>
                                       <div className="text-right">
                                         <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>
-                                          {formatCurrency(p.total)}
+                                          $ {Number(p.total).toLocaleString('es-AR')}
                                         </p>
                                         <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
                                       </div>
                                     </div>
                                   </div>
                                 ))}
-                              <div
-                                className="p-2 text-center text-xs text-indigo-600 font-bold hover:bg-indigo-50 cursor-pointer sticky bottom-0 bg-white border-t border-slate-100"
-                                onClick={() => setShowProvList(false)}
-                              >
-                                Cerrar lista
-                              </div>
                             </div>
                           )}
                         </div>

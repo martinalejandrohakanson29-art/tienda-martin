@@ -66,7 +66,8 @@ import {
   actualizarTipoEnvioPedido,
   obtenerTodosLosArticulos,
 } from "@/app/actions/ventas-mostrador";
-import { obtenerProveedores } from "@/app/actions/listas";
+import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
+import { consultarPadron } from "@/app/actions/afip";
 import PDFPreview from "./pdf-preview";
 
 type ItemVenta = {
@@ -138,7 +139,6 @@ export default function PedidosVentaEdicionClient() {
   // Estados para búsqueda de artículos
   const [articulos, setArticulos] = useState<any[]>([]);
   const [busquedaArticulo, setBusquedaArticulo] = useState("");
-  const [resultadosBusqueda, setResultadosBusqueda] = useState<any[]>([]);
 
   // Estados para búsqueda de proveedores
   const [proveedores, setProveedores] = useState<any[]>([]);
@@ -151,6 +151,20 @@ export default function PedidosVentaEdicionClient() {
   const [metodo2, setMetodo2] = useState("Tarjeta de Crédito");
   const [monto2, setMonto2] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Estados para búsqueda en Padrón ARCA
+  const [isSearchingPadron, setIsSearchingPadron] = useState(false);
+
+  // Estados para creación rápida de proveedor
+  const [isAddProvModalOpen, setIsAddProvModalOpen] = useState(false);
+  const [isCreatingProv, setIsCreatingProv] = useState(false);
+  const [newProvData, setNewProvData] = useState({
+    razonSocial: "",
+    cuit: "",
+    nombreFantasia: "",
+    email: "",
+    telefono: ""
+  });
 
   const handleCopyInfo = (id: string, info: string) => {
     navigator.clipboard.writeText(info);
@@ -176,18 +190,20 @@ export default function PedidosVentaEdicionClient() {
     cargarDatos();
   }, []);
 
-  // Filtrar artículos según búsqueda
-  useEffect(() => {
-    if (busquedaArticulo.length > 1) {
-      const lowerBusqueda = busquedaArticulo.toLowerCase();
-      const filtrados = articulos.filter(art =>
-        art.nombre.toLowerCase().includes(lowerBusqueda) ||
-        (art.codigo && art.codigo.toLowerCase().includes(lowerBusqueda))
-      ).slice(0, 10);
-      setResultadosBusqueda(filtrados);
-    } else {
-      setResultadosBusqueda([]);
-    }
+  const resultadosBusqueda = useMemo(() => {
+    if (busquedaArticulo.trim().length < 2) return [];
+    const queryWords = busquedaArticulo.toLowerCase().trim().split(/\s+/);
+    return articulos.filter(art => {
+      const nombreLower = art.nombre.toLowerCase();
+      const idLower = art.id.toLowerCase();
+      return queryWords.every(word => {
+        if (/^\d+$/.test(word)) {
+          const regexNumerico = new RegExp(`(?:^|[^0-9])${word}(?:[^0-9]|$)`);
+          return regexNumerico.test(nombreLower) || regexNumerico.test(idLower);
+        }
+        return nombreLower.includes(word) || idLower.includes(word);
+      });
+    }).slice(0, 15);
   }, [busquedaArticulo, articulos]);
 
   // Filtrar proveedores según búsqueda
@@ -204,6 +220,80 @@ export default function PedidosVentaEdicionClient() {
       setResultadosProveedores([]);
     }
   }, [busquedaProveedor, proveedores]);
+
+  const handleBuscarPadron = async (cuit: string) => {
+    const cleanCuit = cuit.replace(/\D/g, '');
+    if (!cleanCuit || cleanCuit.length < 7) {
+      alert("Ingresa un CUIT (11 dígitos) o DNI (7-8 dígitos) válido");
+      return;
+    }
+
+    setIsSearchingPadron(true);
+    try {
+      const res = await consultarPadron(cleanCuit);
+      if (res.success && editingVenta) {
+        setEditingVenta({
+          ...editingVenta,
+          cliente: res.nombre || "Sin Nombre",
+          dni: res.cuit || cleanCuit
+        });
+      } else {
+        alert(res.error || "No se encontraron datos en el padrón");
+      }
+    } catch (e) {
+      alert("Error al consultar el padrón ARCA");
+    } finally {
+      setIsSearchingPadron(false);
+    }
+  };
+
+  const handleBuscarPadronProv = async () => {
+    if (!newProvData.cuit) {
+      alert("Ingresa un CUIT/DNI para buscar");
+      return;
+    }
+    setIsSearchingPadron(true);
+    try {
+      const res = await consultarPadron(newProvData.cuit);
+      if (res.success) {
+        setNewProvData({
+          ...newProvData,
+          razonSocial: res.nombre,
+          cuit: res.cuit || newProvData.cuit
+        });
+      } else {
+        alert(res.error || "No se encontró el CUIT");
+      }
+    } catch (e) {
+      alert("Error al consultar padrón");
+    } finally {
+      setIsSearchingPadron(false);
+    }
+  };
+
+  const handleCrearProveedorRapido = async () => {
+    if (!newProvData.razonSocial || !newProvData.cuit) {
+      alert("Razón Social y CUIT son obligatorios");
+      return;
+    }
+    setIsCreatingProv(true);
+    try {
+      const res = await crearProveedor(newProvData);
+      if (res.success && res.data && editingVenta) {
+        const nuevo = res.data as any;
+        setProveedores(prev => [nuevo, ...prev]);
+        setEditingVenta({ ...editingVenta, para: nuevo.razonSocial });
+        setIsAddProvModalOpen(false);
+        setNewProvData({ razonSocial: "", cuit: "", nombreFantasia: "", email: "", telefono: "" });
+      } else {
+        alert("Error al crear proveedor: " + (res.error || "Error desconocido"));
+      }
+    } catch (error) {
+      alert("Error al conectar con el servidor");
+    } finally {
+      setIsCreatingProv(false);
+    }
+  };
 
   // Efecto para sincronizar campos mixtos cuando se selecciona Mixto o cambia el total
   useEffect(() => {
@@ -401,7 +491,6 @@ export default function PedidosVentaEdicionClient() {
     const { total, totalFinal } = recalcularTotales(newItems, editingVenta.interes || 0);
     setEditingVenta({ ...editingVenta, items: newItems, total, totalFinal });
     setBusquedaArticulo("");
-    setResultadosBusqueda([]);
   };
 
   const eliminarArticulo = (index: number) => {
@@ -1326,9 +1415,17 @@ export default function PedidosVentaEdicionClient() {
                             className="w-full flex items-center justify-between p-4 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left group"
                           >
                             <div className="flex flex-col gap-1">
-                              <span className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">{art.nombre}</span>
+                              <div className="flex items-center gap-2">
+                                {art.esPack && <span className="bg-purple-100 text-purple-700 text-[9px] font-black px-1.5 py-0.5 rounded border border-purple-200 uppercase">Pack</span>}
+                                <span className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">{art.nombre}</span>
+                              </div>
                               <div className="flex items-center gap-3">
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${art.stock <= 0 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${art.stock <= 0
+                                    ? 'bg-red-50 text-red-600 border-red-100'
+                                    : art.stock <= 5
+                                      ? 'bg-orange-50 text-orange-600 border-orange-100'
+                                      : 'bg-green-50 text-green-600 border-green-100'
+                                  }`}>
                                   STOCK: {art.stock}
                                 </span>
                                 <span className="text-xs text-slate-400 font-mono">ID: {art.id}</span>
@@ -1444,11 +1541,24 @@ export default function PedidosVentaEdicionClient() {
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold text-slate-500 uppercase">DNI / CUIT</Label>
-                        <Input
-                          value={editingVenta.dni || ""}
-                          onChange={(e) => setEditingVenta({ ...editingVenta, dni: e.target.value })}
-                          className="h-10 border-slate-200 rounded-xl"
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                            value={editingVenta.dni || ""}
+                            onChange={(e) => setEditingVenta({ ...editingVenta, dni: e.target.value })}
+                            className="h-10 border-slate-200 rounded-xl"
+                            placeholder="DNI o CUIT"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            disabled={isSearchingPadron}
+                            onClick={() => handleBuscarPadron(editingVenta.dni || "")}
+                            className="h-10 w-10 shrink-0 border-slate-200 hover:bg-amber-50 hover:text-amber-600 transition-all rounded-xl"
+                            title="Buscar en Padrón ARCA"
+                          >
+                            {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+                          </Button>
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</Label>
@@ -1566,37 +1676,51 @@ export default function PedidosVentaEdicionClient() {
                         )}
                         <div className="space-y-1.5 relative">
                           <Label className="text-[10px] font-bold text-amber-700 uppercase">Destino / Proveedor (Para)</Label>
-                          <Input
-                            value={busquedaProveedor || editingVenta.para || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setBusquedaProveedor(val);
-                              if (val !== editingVenta.para) setEditingVenta({ ...editingVenta, para: "" });
-                            }}
-                            className="h-10 bg-white border-amber-200"
-                            placeholder="Escribe para buscar proveedor..."
-                          />
-                          {resultadosProveedores.length > 0 && (
-                            <div className="absolute z-[110] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[150px] overflow-y-auto bottom-full">
-                              {resultadosProveedores.map((prov) => (
-                                <button
-                                  key={prov.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingVenta({ ...editingVenta, para: prov.razonSocial });
-                                    setBusquedaProveedor(prov.razonSocial);
-                                    setResultadosProveedores([]);
-                                  }}
-                                  className="w-full flex items-center justify-between p-3 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
-                                >
-                                  <div className="flex flex-col">
-                                    <span className="text-xs font-bold text-slate-900">{prov.razonSocial}</span>
-                                    <span className="text-[9px] text-slate-400">{prov.cuit}</span>
-                                  </div>
-                                </button>
-                              ))}
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Input
+                                value={busquedaProveedor || editingVenta.para || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setBusquedaProveedor(val);
+                                  if (val !== editingVenta.para) setEditingVenta({ ...editingVenta, para: "" });
+                                }}
+                                className="h-10 bg-white border-amber-200"
+                                placeholder="Escribe para buscar proveedor..."
+                              />
+                              {resultadosProveedores.length > 0 && (
+                                <div className="absolute z-[110] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[150px] overflow-y-auto bottom-full">
+                                  {resultadosProveedores.map((prov) => (
+                                    <button
+                                      key={prov.id}
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingVenta({ ...editingVenta, para: prov.razonSocial });
+                                        setBusquedaProveedor(prov.razonSocial);
+                                        setResultadosProveedores([]);
+                                      }}
+                                      className="w-full flex items-center justify-between p-3 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-slate-900">{prov.razonSocial}</span>
+                                        <span className="text-[9px] text-slate-400">{prov.cuit}</span>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          )}
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              type="button"
+                              onClick={() => setIsAddProvModalOpen(true)}
+                              className="h-10 w-10 shrink-0 border-amber-200 hover:bg-amber-100 hover:text-amber-700 transition-all rounded-xl bg-white shadow-sm"
+                              title="Nuevo Proveedor"
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1728,6 +1852,98 @@ export default function PedidosVentaEdicionClient() {
                 </Button>
               </div>
             </div>
+          </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+      {/* Modal Nuevo Proveedor */}
+      <Dialog open={isAddProvModalOpen} onOpenChange={setIsAddProvModalOpen}>
+        <DialogContent className="sm:max-w-[450px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl font-bold text-slate-900">
+              <div className="bg-amber-100 p-2 rounded-xl">
+                <User className="h-5 w-5 text-amber-600" />
+              </div>
+              Nuevo Proveedor
+            </DialogTitle>
+            <DialogDescription>
+              Crea un nuevo proveedor rápidamente. Puedes buscar los datos por CUIT en el padrón ARCA.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-5 py-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CUIT / DNI</Label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <CreditCard className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                  <Input
+                    value={newProvData.cuit}
+                    onChange={(e) => setNewProvData({ ...newProvData, cuit: e.target.value })}
+                    placeholder="20-XXXXXXXX-X"
+                    className="h-10 pl-9 rounded-xl border-slate-200 bg-slate-50 focus:bg-white transition-all"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleBuscarPadronProv}
+                  disabled={isSearchingPadron}
+                  className="h-10 w-10 shrink-0 border-slate-200 hover:bg-amber-50 hover:text-amber-600 transition-all rounded-xl"
+                  title="Buscar en Padrón ARCA"
+                >
+                  {isSearchingPadron ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Razón Social</Label>
+              <Input
+                value={newProvData.razonSocial}
+                onChange={(e) => setNewProvData({ ...newProvData, razonSocial: e.target.value })}
+                className="h-11 rounded-xl border-slate-200 bg-slate-50 focus:bg-white transition-all font-bold"
+                placeholder="Nombre de la empresa"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nombre Fantasía</Label>
+              <Input
+                value={newProvData.nombreFantasia}
+                onChange={(e) => setNewProvData({ ...newProvData, nombreFantasia: e.target.value })}
+                className="h-10 rounded-xl border-slate-200 bg-slate-50 focus:bg-white transition-all"
+                placeholder="Nombre comercial"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Teléfono</Label>
+                <Input
+                  value={newProvData.telefono}
+                  onChange={(e) => setNewProvData({ ...newProvData, telefono: e.target.value })}
+                  className="h-10 rounded-xl border-slate-200 bg-slate-50 focus:bg-white transition-all"
+                  placeholder="Ej: 11 1234 5678"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email</Label>
+                <Input
+                  value={newProvData.email}
+                  onChange={(e) => setNewProvData({ ...newProvData, email: e.target.value })}
+                  className="h-10 rounded-xl border-slate-200 bg-slate-50 focus:bg-white transition-all"
+                  placeholder="proveedor@empresa.com"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" onClick={() => setIsAddProvModalOpen(false)} className="rounded-xl font-bold">Cancelar</Button>
+            <Button
+              onClick={handleCrearProveedorRapido}
+              disabled={isCreatingProv}
+              className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl px-8 font-black shadow-lg shadow-amber-200 transition-all active:scale-95"
+            >
+              {isCreatingProv ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+              Guardar Proveedor
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

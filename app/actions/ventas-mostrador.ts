@@ -1386,8 +1386,11 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
           detalle: detalleCambios
         }
       });
+    }, {
+      timeout: 20000
     });
 
+    revalidatePath("/admin/erp/pedidos-venta");
     return { success: true };
   } catch (error) {
     console.error("Error al actualizar pedido de venta:", error);

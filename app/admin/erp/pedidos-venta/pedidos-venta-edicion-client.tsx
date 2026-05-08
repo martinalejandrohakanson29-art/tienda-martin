@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -42,6 +43,10 @@ import {
   X,
   Minus,
   Copy,
+  User,
+  CreditCard,
+  Percent,
+  Save,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -139,7 +144,7 @@ export default function PedidosVentaEdicionClient() {
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [busquedaProveedor, setBusquedaProveedor] = useState("");
   const [resultadosProveedores, setResultadosProveedores] = useState<any[]>([]);
-  
+
   // Estados para pago mixto
   const [metodo1, setMetodo1] = useState("Efectivo");
   const [monto1, setMonto1] = useState(0);
@@ -236,14 +241,14 @@ export default function PedidosVentaEdicionClient() {
           const metodosPosibles = ["Efectivo", "Tarjeta de Crédito", "Tarjeta de Débito", "MercadoLibre", "MercadoPago", "Cruzada", "A Cuenta Corriente", "A Confirmar"];
           let m1 = "Efectivo";
           let m2 = "Tarjeta de Crédito";
-          
+
           const foundMethods = [];
           for (const m of metodosPosibles) {
             if (info.includes(`${m}:`)) {
               foundMethods.push(m);
             }
           }
-          
+
           if (foundMethods.length >= 1) m1 = foundMethods[0];
           if (foundMethods.length >= 2) m2 = foundMethods[1];
 
@@ -446,14 +451,24 @@ export default function PedidosVentaEdicionClient() {
     }
 
     if (editingVenta.metodo_pago === "Mixto") {
-      const requiereProv = 
+      const requiereProv =
         metodo1 === "Cruzada" || metodo1 === "A Cuenta Corriente" ||
         metodo2 === "Cruzada" || metodo2 === "A Cuenta Corriente";
-        
+
       if (requiereProv && !editingVenta.para) {
         alert("Uno de los métodos de pago requiere seleccionar un proveedor para el impacto en Cuenta Corriente.");
         return;
       }
+    }
+
+    let infoParaEnviar = editingVenta.info;
+    if (editingVenta.metodo_pago === "Mixto") {
+      infoParaEnviar = JSON.stringify({
+        metodo1,
+        monto1,
+        metodo2,
+        monto2: editingVenta.totalFinal - monto1
+      });
     }
 
     try {
@@ -463,29 +478,10 @@ export default function PedidosVentaEdicionClient() {
       const result = await actualizarPedidoVenta(
         ventaParaEditar.id,
         {
-          cliente: editingVenta.cliente,
-          vendedor: editingVenta.vendedor,
-          total: editingVenta.total,
-          interes: editingVenta.interes,
-          totalFinal: editingVenta.totalFinal,
-          metodo_pago: editingVenta.metodo_pago,
-          dni: editingVenta.dni,
-          telefono: editingVenta.telefono,
-          info: editingVenta.info,
-          cupon: editingVenta.cupon,
-          transaccionId: editingVenta.transaccionId,
-          de: editingVenta.de,
-          para: editingVenta.para,
-          email: editingVenta.email,
-          eventoOffline: editingVenta.eventoOffline,
-          puntoVentaId: editingVenta.puntoVentaId,
-          mlIdVenta: editingVenta.mlIdVenta,
-          mlIdEnvio: editingVenta.mlIdEnvio,
-          mlMla: editingVenta.mlMla,
-          mlDni: editingVenta.mlDni,
-          tipoEnvio: editingVenta.tipoEnvio,
+          ...editingVenta,
+          info: infoParaEnviar,
           items: editingVenta.items.map(item => ({
-            id: item.productoId,
+            productoId: item.productoId,
             nombre: item.nombre,
             cantidad: item.cantidad,
             precio_unit: item.precio_unit,
@@ -1017,9 +1013,9 @@ export default function PedidosVentaEdicionClient() {
                               <div className="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200">
                                 <div className="flex items-center justify-between mb-1">
                                   <p className="text-[10px] font-bold text-amber-800 uppercase">Observaciones / Datos de Envío:</p>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
                                     className="h-6 px-2 text-amber-600 hover:text-amber-700 hover:bg-amber-100/50 gap-1 text-[10px] font-bold uppercase transition-all"
                                     onClick={() => handleCopyInfo(venta.id, venta.info || "")}
                                   >
@@ -1259,182 +1255,165 @@ export default function PedidosVentaEdicionClient() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] rounded-2xl border-amber-200">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-amber-900">
-              <Edit className="h-5 w-5" />
-              Editar Pedido de Venta
-            </DialogTitle>
+        <DialogContent className="max-w-[1200px] w-[95vw] h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-2 border-amber-200 shadow-2xl">
+          <DialogHeader className="p-6 bg-amber-50 border-b border-amber-100 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-amber-900">
+                  <Edit className="h-6 w-6" />
+                  Editar Pedido de Venta
+                </DialogTitle>
+                <div className="text-amber-700 font-medium text-sm mt-1">
+                  Modifica los artículos, el cliente, la forma de pago o los datos de envío.
+                </div>
+              </div>
+              {editingVenta && (
+                <div className="flex gap-4">
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-amber-600 uppercase block">ID Pedido</span>
+                    <span className="text-sm font-mono font-bold text-amber-900 bg-white px-2 py-0.5 rounded border border-amber-200">
+                      {editingVenta.id.slice(0, 8)}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-amber-600 uppercase block">Fecha</span>
+                    <span className="text-sm font-bold text-amber-900">
+                      {new Date(editingVenta.createdAt).toLocaleDateString("es-AR")}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </DialogHeader>
+
           {isProcessing ? (
-            <div className="py-8 text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-amber-600 mx-auto mb-4" />
-              <p className="text-slate-600">Cargando datos del pedido...</p>
+            <div className="flex-grow flex flex-col items-center justify-center bg-white">
+              <Loader2 className="h-12 w-12 animate-spin text-amber-600 mb-4" />
+              <p className="text-slate-600 font-medium text-lg">Cargando datos del pedido...</p>
             </div>
           ) : editingVenta ? (
-            <div className="mt-4 space-y-4 max-h-[60vh] overflow-y-auto">
-              <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
-                <p className="text-sm text-amber-800">
-                  <strong>ID Pedido:</strong> {editingVenta.id.slice(0, 8)}
-                </p>
-                <p className="text-sm text-amber-800">
-                  <strong>Fecha:</strong> {new Date(editingVenta.createdAt).toLocaleDateString("es-AR")}
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Cliente</Label>
-                  <Input
-                    value={editingVenta.cliente}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, cliente: e.target.value })}
-                    className="border-slate-300"
-                  />
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Vendedor</Label>
-                  <Input
-                    value={editingVenta.vendedor}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, vendedor: e.target.value })}
-                    className="border-slate-300"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium mb-1 block">Total</Label>
-                    <Input
-                      type="number"
-                      readOnly
-                      value={editingVenta.total}
-                      className="border-slate-300 bg-slate-50"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium mb-1 block">Interés</Label>
-                    <Input
-                      type="number"
-                      value={editingVenta.interes}
-                      onChange={(e) => handleInteresChange(Number(e.target.value))}
-                      className="border-slate-300"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Total Final</Label>
-                  <Input
-                    type="number"
-                    readOnly
-                    value={editingVenta.totalFinal}
-                    className="border-slate-300 bg-slate-100 font-bold"
-                  />
-                </div>
-
-                {/* Sección de Artículos */}
-                <div className="pt-4 border-t border-slate-200">
-                  <Label className="text-sm font-bold text-slate-700 mb-2 block flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Artículos del Pedido
+            <div className="flex-grow overflow-hidden flex flex-col md:flex-row bg-slate-50/30">
+              {/* Columna Izquierda: Artículos y Búsqueda */}
+              <div className="flex-[1.8] flex flex-col p-6 overflow-hidden border-r border-slate-100 bg-white">
+                <div className="mb-4">
+                  <Label className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                    <Plus className="h-4 w-4 text-amber-600" />
+                    Añadir Artículos al Pedido
                   </Label>
-
-                  {/* Buscador de artículos */}
-                  <div className="relative mb-4">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                      <Input
-                        placeholder="Buscar artículo por nombre o código..."
-                        value={busquedaArticulo}
-                        onChange={(e) => setBusquedaArticulo(e.target.value)}
-                        className="pl-10 border-amber-200 focus:ring-amber-500/20"
-                      />
-                      {busquedaArticulo && (
-                        <button
-                          onClick={() => setBusquedaArticulo("")}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                    <Input
+                      placeholder="Buscar artículo por nombre, ID o código..."
+                      value={busquedaArticulo}
+                      onChange={(e) => setBusquedaArticulo(e.target.value)}
+                      className="pl-12 h-12 text-base border-slate-200 rounded-2xl focus:ring-amber-500/20 focus:border-amber-500 transition-all shadow-sm"
+                    />
+                    {busquedaArticulo && (
+                      <button
+                        onClick={() => setBusquedaArticulo("")}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    )}
 
                     {resultadosBusqueda.length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[200px] overflow-y-auto">
+                      <div className="absolute z-[100] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-[350px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200">
                         {resultadosBusqueda.map((art) => (
                           <button
                             key={art.id}
                             onClick={() => agregarArticulo(art)}
-                            className="w-full flex items-center justify-between p-3 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
+                            className="w-full flex items-center justify-between p-4 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left group"
                           >
-                            <div className="flex flex-col">
-                              <span className="text-sm font-medium text-slate-900">{art.nombre}</span>
-                              <span className="text-xs text-slate-500">Stock: {art.stock} | {formatPrice(art.precio)}</span>
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors">{art.nombre}</span>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${art.stock <= 0 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                                  STOCK: {art.stock}
+                                </span>
+                                <span className="text-xs text-slate-400 font-mono">ID: {art.id}</span>
+                              </div>
                             </div>
-                            <Plus className="h-4 w-4 text-amber-500" />
+                            <div className="flex items-center gap-4">
+                              <span className="font-bold text-slate-900">{formatPrice(art.precio)}</span>
+                              <div className="bg-amber-100 text-amber-600 p-2 rounded-xl opacity-0 group-hover:opacity-100 transition-all">
+                                <Plus className="h-4 w-4" />
+                              </div>
+                            </div>
                           </button>
                         ))}
                       </div>
                     )}
                   </div>
+                </div>
 
-                  {/* Tabla de artículos actuales */}
-                  <div className="border border-slate-200 rounded-xl overflow-hidden mb-4">
+                <div className="flex-grow flex flex-col border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="overflow-y-auto flex-grow h-full bg-white">
                     <Table>
-                      <TableHeader className="bg-slate-50">
+                      <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                         <TableRow>
-                          <TableHead className="text-[10px] uppercase font-bold py-2">Articulo</TableHead>
-                          <TableHead className="text-[10px] uppercase font-bold py-2 text-center w-24">Cant.</TableHead>
-                          <TableHead className="text-[10px] uppercase font-bold py-2 text-right w-32">P. Unit</TableHead>
-                          <TableHead className="text-[10px] uppercase font-bold py-2 text-right w-32">Subtotal</TableHead>
-                          <TableHead className="text-[10px] uppercase font-bold py-2 w-10"></TableHead>
+                          <TableHead className="text-[10px] uppercase font-black py-4 pl-6 tracking-widest text-slate-500">Artículo</TableHead>
+                          <TableHead className="text-[10px] uppercase font-black py-4 text-center w-28 tracking-widest text-slate-500">Cantidad</TableHead>
+                          <TableHead className="text-[10px] uppercase font-black py-4 text-right w-40 tracking-widest text-slate-500">Precio Unit.</TableHead>
+                          <TableHead className="text-[10px] uppercase font-black py-4 text-right w-40 tracking-widest text-slate-500">Subtotal</TableHead>
+                          <TableHead className="w-16"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {editingVenta.items.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-8 text-slate-400 italic text-sm">
-                              No hay artículos en este pedido
+                            <TableCell colSpan={5} className="text-center py-24">
+                              <div className="flex flex-col items-center gap-3 opacity-30">
+                                <Plus className="h-12 w-12" />
+                                <p className="text-lg italic font-medium">No hay artículos cargados</p>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ) : (
                           editingVenta.items.map((item, idx) => (
-                            <TableRow key={idx} className="hover:bg-slate-50/50">
-                              <TableCell className="py-2">
-                                <p className="text-sm font-medium text-slate-900 line-clamp-1">{item.nombre}</p>
+                            <TableRow key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                              <TableCell className="py-4 pl-6">
+                                <div className="flex flex-col gap-1">
+                                  <p className="text-sm font-bold text-slate-800 line-clamp-2">{item.nombre}</p>
+                                  <p className="text-[9px] text-slate-400 font-mono uppercase tracking-tighter">
+                                    {item.productoId || "N/A"}
+                                  </p>
+                                </div>
                               </TableCell>
-                              <TableCell className="py-2">
-                                <div className="flex items-center justify-center gap-1">
+                              <TableCell className="py-4">
+                                <div className="flex justify-center">
                                   <Input
                                     type="number"
                                     value={item.cantidad}
                                     onChange={(e) => actualizarItem(idx, 'cantidad', Number(e.target.value))}
-                                    className="h-8 w-16 text-center text-xs p-1"
+                                    className="h-9 w-20 text-center font-bold text-slate-900 border-slate-200 bg-slate-50/50 focus:bg-white transition-all rounded-lg"
                                   />
                                 </div>
                               </TableCell>
-                              <TableCell className="py-2 text-right">
-                                <div className="flex items-center justify-end">
-                                  <span className="text-xs text-slate-400 mr-1">$</span>
+                              <TableCell className="py-4 text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className="text-xs text-slate-400">$</span>
                                   <Input
                                     type="number"
                                     value={item.precio_unit}
                                     onChange={(e) => actualizarItem(idx, 'precio_unit', Number(e.target.value))}
-                                    className="h-8 w-24 text-right text-xs p-1"
+                                    className="h-9 w-32 text-right font-bold text-slate-900 border-slate-200 bg-slate-50/50 focus:bg-white transition-all rounded-lg"
                                   />
                                 </div>
                               </TableCell>
-                              <TableCell className="py-2 text-right text-sm font-medium">
-                                {formatPrice(item.subtotal)}
+                              <TableCell className="py-4 text-right pr-4">
+                                <span className="text-base font-black text-slate-900">
+                                  {formatPrice(item.subtotal)}
+                                </span>
                               </TableCell>
-                              <TableCell className="py-2 text-center">
+                              <TableCell className="py-4 text-center">
                                 <Button
                                   variant="ghost"
                                   size="icon"
                                   onClick={() => eliminarArticulo(idx)}
-                                  className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  className="h-10 w-10 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
                                 >
-                                  <Trash2 className="h-4 w-4" />
+                                  <Trash2 className="h-5 w-5" />
                                 </Button>
                               </TableCell>
                             </TableRow>
@@ -1444,211 +1423,161 @@ export default function PedidosVentaEdicionClient() {
                     </Table>
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Método de Pago</Label>
-                  <select
-                    value={editingVenta.metodo_pago}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, metodo_pago: e.target.value })}
-                    className="w-full h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-                  >
-                    <option value="Efectivo">Efectivo</option>
-                    <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                    <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                    <option value="MercadoLibre">MercadoLibre</option>
-                    <option value="MercadoPago">MercadoPago</option>
-                    <option value="Cruzada">Cruzada</option>
-                    <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                    <option value="Mixto">Mixto</option>
-                    <option value="A Confirmar">A Confirmar</option>
-                  </select>
+              {/* Columna Derecha: Datos de Cliente, Pago y Envío */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Sección Cliente */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
+                    <User className="h-4 w-4" /> Datos del Cliente
+                  </h3>
+                  <div className="grid gap-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase">Nombre Completo / Razón Social</Label>
+                      <Input
+                        value={editingVenta.cliente}
+                        onChange={(e) => setEditingVenta({ ...editingVenta, cliente: e.target.value })}
+                        className="h-11 border-slate-200 rounded-xl font-medium"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold text-slate-500 uppercase">DNI / CUIT</Label>
+                        <Input
+                          value={editingVenta.dni || ""}
+                          onChange={(e) => setEditingVenta({ ...editingVenta, dni: e.target.value })}
+                          className="h-10 border-slate-200 rounded-xl"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold text-slate-500 uppercase">Teléfono</Label>
+                        <Input
+                          value={editingVenta.telefono || ""}
+                          onChange={(e) => setEditingVenta({ ...editingVenta, telefono: e.target.value })}
+                          className="h-10 border-slate-200 rounded-xl"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase">Vendedor</Label>
+                      <Input
+                        value={editingVenta.vendedor}
+                        onChange={(e) => setEditingVenta({ ...editingVenta, vendedor: e.target.value })}
+                        className="h-10 border-slate-200 rounded-xl"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Campos Dinámicos según Método de Pago */}
-                {(editingVenta.metodo_pago === "Tarjeta de Crédito" || editingVenta.metodo_pago === "Tarjeta de Débito") && (
-                  <div className="grid grid-cols-2 gap-3 bg-blue-50/50 p-3 rounded-xl border border-blue-100 animate-in fade-in">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-blue-700">DNI <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.dni || ""} onChange={(e) => setEditingVenta({ ...editingVenta, dni: e.target.value })} className="bg-white border-blue-200" />
+                {/* Sección Pago */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" /> Pago y Facturación
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase">Método de Pago</Label>
+                      <select
+                        value={editingVenta.metodo_pago}
+                        onChange={(e) => setEditingVenta({ ...editingVenta, metodo_pago: e.target.value })}
+                        className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                        <option value="MercadoLibre">MercadoLibre</option>
+                        <option value="MercadoPago">MercadoPago</option>
+                        <option value="Cruzada">Cruzada</option>
+                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                        <option value="Mixto">Mixto</option>
+                        <option value="A Confirmar">A Confirmar</option>
+                      </select>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-blue-700">Teléfono <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.telefono || ""} onChange={(e) => setEditingVenta({ ...editingVenta, telefono: e.target.value })} className="bg-white border-blue-200" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-blue-700">N° Cupón <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.cupon || ""} onChange={(e) => setEditingVenta({ ...editingVenta, cupon: e.target.value })} className="bg-white border-blue-200" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-blue-700">ID Transacción <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.transaccionId || ""} onChange={(e) => setEditingVenta({ ...editingVenta, transaccionId: e.target.value })} className="bg-white border-blue-200" />
-                    </div>
-                  </div>
-                )}
 
-                {(editingVenta.metodo_pago === "MercadoLibre" || editingVenta.metodo_pago === "mercadopago (ML)") && (
-                  <div className="grid grid-cols-2 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-indigo-700">Id Venta <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.mlIdVenta || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlIdVenta: e.target.value })} className="bg-white border-indigo-200" placeholder="Obligatorio" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-indigo-700">Id Envío <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.mlIdEnvio || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlIdEnvio: e.target.value })} className="bg-white border-indigo-200" placeholder="Obligatorio" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-indigo-700">MLA <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.mlMla || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlMla: e.target.value })} className="bg-white border-indigo-200" placeholder="Obligatorio" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-indigo-700">Dni <span className="text-slate-400">(Opcional)</span></Label>
-                      <Input value={editingVenta.mlDni || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlDni: e.target.value })} className="bg-white border-indigo-200" placeholder="DNI del cliente" />
-                    </div>
-                  </div>
-                )}
-
-                {editingVenta.metodo_pago === "MercadoPago" && (
-                  <div className="grid grid-cols-1 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-indigo-700">Id de pago <span className="text-red-500">*</span></Label>
-                      <Input value={editingVenta.mlIdVenta || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlIdVenta: e.target.value })} className="bg-white border-indigo-200" placeholder="Obligatorio" />
-                    </div>
-                  </div>
-                )}
-
-                {(editingVenta.metodo_pago === "Cruzada" || editingVenta.metodo_pago === "A Cuenta Corriente") && (
-                  <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
-                    {editingVenta.metodo_pago === "Cruzada" && (
-                      <div className="space-y-2">
-                        <Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label>
-                        <Input value={editingVenta.de || ""} onChange={(e) => setEditingVenta({ ...editingVenta, de: e.target.value })} className="bg-white border-amber-200" placeholder="Origen" />
+                    {/* Campos condicionales según método */}
+                    {(editingVenta.metodo_pago === "Tarjeta de Crédito" || editingVenta.metodo_pago === "Tarjeta de Débito") && (
+                      <div className="grid grid-cols-2 gap-3 bg-blue-50/30 p-4 rounded-2xl border border-blue-100 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="space-y-1.5 col-span-2">
+                          <Label className="text-[10px] font-bold text-blue-700 uppercase">Interés aplicado</Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              value={editingVenta.interes}
+                              onChange={(e) => handleInteresChange(Number(e.target.value))}
+                              className="h-10 pl-8 font-black text-blue-700 border-blue-200 bg-white"
+                            />
+                            <Percent className="absolute left-2.5 top-3 h-4 w-4 text-blue-400" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-bold text-blue-700 uppercase">N° Cupón</Label>
+                          <Input value={editingVenta.cupon || ""} onChange={(e) => setEditingVenta({ ...editingVenta, cupon: e.target.value })} className="h-9 bg-white border-blue-200" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-bold text-blue-700 uppercase">Transacción</Label>
+                          <Input value={editingVenta.transaccionId || ""} onChange={(e) => setEditingVenta({ ...editingVenta, transaccionId: e.target.value })} className="h-9 bg-white border-blue-200" />
+                        </div>
                       </div>
                     )}
-                    <div className={`space-y-2 relative ${editingVenta.metodo_pago !== "Cruzada" ? 'col-span-2' : ''}`}>
-                      <Label className="text-xs font-bold text-amber-700">
-                        {editingVenta.metodo_pago === "A Cuenta Corriente" ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span>
-                        <span className="text-[10px] font-normal text-slate-400 ml-2">(Busca en la base de datos)</span>
-                      </Label>
-                      <Input
-                        value={busquedaProveedor || editingVenta.para || ""}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setBusquedaProveedor(val);
-                          // Al escribir, borramos el valor seleccionado para forzar una nueva selección
-                          if (val !== editingVenta.para) {
-                            setEditingVenta({ ...editingVenta, para: "" });
-                          }
-                        }}
-                        className="bg-white border-amber-200"
-                        placeholder={editingVenta.metodo_pago === "A Cuenta Corriente" ? "Escribe para buscar..." : "Escribe para buscar..."}
-                      />
 
-                      {resultadosProveedores.length > 0 && (
-                        <div className="absolute z-[60] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[200px] overflow-y-auto top-full">
-                          {resultadosProveedores.map((prov) => (
-                            <button
-                              key={prov.id}
-                              type="button"
-                              onClick={() => {
-                                setEditingVenta({ ...editingVenta, para: prov.razonSocial });
-                                setBusquedaProveedor(prov.razonSocial);
-                                setResultadosProveedores([]);
-                              }}
-                              className="w-full flex items-center justify-between p-3 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
-                            >
-                              <div className="flex flex-col">
-                                <span className="text-sm font-medium text-slate-900">{prov.razonSocial}</span>
-                                <span className="text-[10px] text-slate-500">CUIT: {prov.cuit || 'Sin CUIT'}</span>
-                              </div>
-                              <CheckCircle2 className="h-4 w-4 text-amber-500" />
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {editingVenta.metodo_pago === "Mixto" && (
-                  <div className="space-y-4 bg-purple-50/50 p-4 rounded-xl border border-purple-100 animate-in fade-in">
-                    <div className="flex items-center gap-2 text-purple-700 mb-2">
-                      <RefreshCcw className="h-4 w-4" />
-                      <span className="text-xs font-bold uppercase tracking-wider">Configuración Pago Mixto</span>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Metodo 1 */}
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-purple-800 uppercase">Metodo 1</Label>
-                        <select 
-                          value={metodo1} 
-                          onChange={(e) => setMetodo1(e.target.value)}
-                          className="w-full h-9 rounded-lg border border-purple-200 bg-white px-2 text-sm focus:outline-none"
-                        >
-                          <option value="Efectivo">Efectivo</option>
-                          <option value="Transferencia">Transferencia</option>
-                          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                          <option value="Mercado Pago">Mercado Pago</option>
-                          <option value="Cruzada">Cruzada</option>
-                          <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                          <option value="A Confirmar">A Confirmar</option>
-                        </select>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-bold text-purple-600 uppercase">Monto 1</Label>
-                          <Input 
-                            type="number" 
-                            value={monto1} 
-                            onChange={(e) => setMonto1(Number(e.target.value))}
-                            className="h-9 border-purple-200"
-                          />
-                        </div>
+                    {(editingVenta.metodo_pago === "MercadoLibre" || editingVenta.metodo_pago === "mercadopago (ML)") && (
+                      <div className="grid grid-cols-2 gap-3 bg-indigo-50/30 p-4 rounded-2xl border border-indigo-100 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="space-y-1.5"><Label className="text-[10px] font-bold text-indigo-700 uppercase">ID Venta ML</Label><Input value={editingVenta.mlIdVenta || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlIdVenta: e.target.value })} className="h-9 bg-white border-indigo-200 font-mono text-[10px]" /></div>
+                        <div className="space-y-1.5"><Label className="text-[10px] font-bold text-indigo-700 uppercase">ID Envío ML</Label><Input value={editingVenta.mlIdEnvio || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlIdEnvio: e.target.value })} className="h-9 bg-white border-indigo-200 font-mono text-[10px]" /></div>
+                        <div className="space-y-1.5 col-span-2"><Label className="text-[10px] font-bold text-indigo-700 uppercase">MLA</Label><Input value={editingVenta.mlMla || ""} onChange={(e) => setEditingVenta({ ...editingVenta, mlMla: e.target.value })} className="h-9 bg-white border-indigo-200 font-mono text-[10px]" /></div>
                       </div>
+                    )}
 
-                      {/* Metodo 2 */}
-                      <div className="space-y-3">
-                        <Label className="text-[10px] font-bold text-purple-800 uppercase">Metodo 2</Label>
-                        <select 
-                          value={metodo2} 
-                          onChange={(e) => setMetodo2(e.target.value)}
-                          className="w-full h-9 rounded-lg border border-purple-200 bg-white px-2 text-sm focus:outline-none"
-                        >
-                          <option value="Efectivo">Efectivo</option>
-                          <option value="Transferencia">Transferencia</option>
-                          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                          <option value="Mercado Pago">Mercado Pago</option>
-                          <option value="Cruzada">Cruzada</option>
-                          <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                          <option value="A Confirmar">A Confirmar</option>
-                        </select>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] font-bold text-purple-600 uppercase">Monto 2 (Restante)</Label>
-                          <div className="h-9 bg-purple-100/50 rounded-lg border border-purple-200 flex items-center px-3 font-bold text-purple-900 text-sm">
-                            $ {monto2.toLocaleString('es-AR')}
+                    {editingVenta.metodo_pago === "Mixto" && (
+                      <div className="space-y-4 bg-purple-50/30 p-4 rounded-2xl border border-purple-100 animate-in fade-in zoom-in-95 duration-200">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-bold text-purple-700 uppercase">Pago 1</Label>
+                            <select value={metodo1} onChange={(e) => setMetodo1(e.target.value)} className="w-full h-9 rounded-lg border border-purple-200 bg-white px-2 text-xs">
+                              <option value="Efectivo">Efectivo</option>
+                              <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                              <option value="Mercado Pago">Mercado Pago</option>
+                            </select>
+                            <Input type="number" value={monto1} onChange={(e) => setMonto1(Number(e.target.value))} className="h-9 font-bold text-purple-900 border-purple-200" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-bold text-purple-700 uppercase">Pago 2</Label>
+                            <select value={metodo2} onChange={(e) => setMetodo2(e.target.value)} className="w-full h-9 rounded-lg border border-purple-200 bg-white px-2 text-xs">
+                              <option value="Efectivo">Efectivo</option>
+                              <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                              <option value="Mercado Pago">Mercado Pago</option>
+                            </select>
+                            <div className="h-9 flex items-center px-3 bg-purple-100 rounded-lg text-xs font-black text-purple-900">
+                              {formatPrice(monto2)}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    )}
 
-                    {(metodo1 === "Cruzada" || metodo1 === "A Cuenta Corriente" || metodo2 === "Cruzada" || metodo2 === "A Cuenta Corriente") && (
-                      <div className="mt-2 pt-2 border-t border-purple-100">
-                        <Label className="text-[10px] font-bold text-amber-700 uppercase">Proveedor para impacto en CC</Label>
-                        <div className="relative mt-1">
+                    {(editingVenta.metodo_pago === "Cruzada" || editingVenta.metodo_pago === "A Cuenta Corriente") && (
+                      <div className="space-y-3 bg-amber-50/30 p-4 rounded-2xl border border-amber-100 animate-in fade-in zoom-in-95 duration-200">
+                        {editingVenta.metodo_pago === "Cruzada" && (
+                          <div className="space-y-1.5">
+                            <Label className="text-[10px] font-bold text-amber-700 uppercase">Origen (De)</Label>
+                            <Input value={editingVenta.de || ""} onChange={(e) => setEditingVenta({ ...editingVenta, de: e.target.value })} className="h-9 bg-white border-amber-200" />
+                          </div>
+                        )}
+                        <div className="space-y-1.5 relative">
+                          <Label className="text-[10px] font-bold text-amber-700 uppercase">Destino / Proveedor (Para)</Label>
                           <Input
                             value={busquedaProveedor || editingVenta.para || ""}
                             onChange={(e) => {
                               const val = e.target.value;
                               setBusquedaProveedor(val);
-                              if (val !== editingVenta.para) {
-                                setEditingVenta({ ...editingVenta, para: "" });
-                              }
+                              if (val !== editingVenta.para) setEditingVenta({ ...editingVenta, para: "" });
                             }}
-                            className="bg-white border-amber-200 h-9"
-                            placeholder="Buscar proveedor para el impacto..."
+                            className="h-10 bg-white border-amber-200"
+                            placeholder="Escribe para buscar proveedor..."
                           />
                           {resultadosProveedores.length > 0 && (
-                            <div className="absolute z-[60] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[150px] overflow-y-auto top-full">
+                            <div className="absolute z-[110] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[150px] overflow-y-auto bottom-full">
                               {resultadosProveedores.map((prov) => (
                                 <button
                                   key={prov.id}
@@ -1658,11 +1587,11 @@ export default function PedidosVentaEdicionClient() {
                                     setBusquedaProveedor(prov.razonSocial);
                                     setResultadosProveedores([]);
                                   }}
-                                  className="w-full flex items-center justify-between p-2 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
+                                  className="w-full flex items-center justify-between p-3 hover:bg-amber-50 border-b border-slate-50 last:border-0 transition-colors text-left"
                                 >
-                                  <div className="flex flex-col text-xs">
-                                    <span className="font-medium text-slate-900">{prov.razonSocial}</span>
-                                    <span className="text-[9px] text-slate-500">CUIT: {prov.cuit}</span>
+                                  <div className="flex flex-col">
+                                    <span className="text-xs font-bold text-slate-900">{prov.razonSocial}</span>
+                                    <span className="text-[9px] text-slate-400">{prov.cuit}</span>
                                   </div>
                                 </button>
                               ))}
@@ -1672,134 +1601,133 @@ export default function PedidosVentaEdicionClient() {
                       </div>
                     )}
                   </div>
-                )}
-
-                <div className="pt-2">
-                  <Label className="text-sm font-medium mb-1 block">Tipo de Envío</Label>
-                  <select
-                    value={editingVenta.tipoEnvio || "andreani"}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, tipoEnvio: e.target.value })}
-                    className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500/20 transition-colors ${(editingVenta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-50 border-red-200 text-red-900' :
-                      editingVenta.tipoEnvio === 'via cargo' ? 'bg-green-50 border-green-200 text-green-900' :
-                        editingVenta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-50 border-yellow-200 text-yellow-900' :
-                          'border-slate-300'
-                      }`}
-                  >
-                    <option value="andreani">Andreani</option>
-                    <option value="via cargo">Via Cargo</option>
-                    <option value="Retiran aca">Retiran aca</option>
-                  </select>
                 </div>
 
-                <div>
-                  <Label className="text-sm font-medium mb-1 block">Información Adicional</Label>
-                  <Textarea
-                    value={editingVenta.info || ""}
-                    onChange={(e) => setEditingVenta({ ...editingVenta, info: e.target.value })}
-                    placeholder="Observaciones, datos de envío, etc."
-                    className="border-slate-300"
-                    rows={3}
-                  />
+                {/* Sección Envío y Notas */}
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
+                    <Clock className="h-4 w-4" /> Envío y Observaciones
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase">Tipo de Envío</Label>
+                      <select
+                        value={editingVenta.tipoEnvio || "andreani"}
+                        onChange={(e) => setEditingVenta({ ...editingVenta, tipoEnvio: e.target.value })}
+                        className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500/20 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="andreani">Andreani</option>
+                        <option value="via cargo">Via Cargo</option>
+                        <option value="Retiran aca">Retiran aca</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[10px] font-bold text-slate-500 uppercase">Notas del Pedido</Label>
+                      <Textarea
+                        value={editingVenta.info || ""}
+                        onChange={(e) => setEditingVenta({ ...editingVenta, info: e.target.value })}
+                        placeholder="Dirección, referencias, detalles de entrega..."
+                        className="min-h-[100px] border-slate-200 rounded-xl text-sm"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Sección de carga de PDF */}
-                <div className="pt-4 border-t border-slate-200">
-                  <Label className="text-sm font-bold text-slate-700 mb-2 block flex items-center gap-2">
-                    <Upload className="h-4 w-4" />
-                    Comprobante PDF
-                  </Label>
-
+                {/* Sección PDF */}
+                <div className="bg-slate-900 p-5 rounded-2xl shadow-lg space-y-4">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-800 pb-3 flex items-center gap-2">
+                    <Upload className="h-4 w-4 text-amber-500" /> Comprobante PDF
+                  </h3>
                   {editingVenta.pdfUrl ? (
-                    <div className="flex items-center justify-between bg-green-50 p-3 rounded-xl border border-green-100 mb-3">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <File className="h-4 w-4 text-green-600 flex-shrink-0" />
-                        <span className="text-xs text-green-700 truncate font-medium">
-                          PDF Adjunto: {editingVenta.pdfUrl.split('/').pop()}
+                    <div className="flex items-center justify-between bg-slate-800 p-3 rounded-xl border border-slate-700">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="p-2 bg-green-500/20 rounded-lg">
+                          <File className="h-5 w-5 text-green-500" />
+                        </div>
+                        <span className="text-xs text-slate-300 truncate font-medium max-w-[150px]">
+                          PDF Adjunto
                         </span>
                       </div>
                       <div className="flex gap-2">
                         <Button
                           variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-green-700 hover:bg-green-100"
+                          size="icon"
+                          className="h-9 w-9 text-slate-400 hover:text-white hover:bg-slate-700"
                           onClick={() => window.open(editingVenta.pdfUrl!, '_blank')}
                         >
-                          Ver
+                          <Eye className="h-5 w-5" />
                         </Button>
                         <Label
                           htmlFor="pdf-upload"
-                          className="h-7 px-2 flex items-center bg-transparent text-xs font-medium text-slate-500 hover:text-slate-700 cursor-pointer rounded-md border border-slate-200"
+                          className="h-9 w-9 flex items-center justify-center text-amber-500 hover:text-amber-400 hover:bg-slate-700 cursor-pointer rounded-lg border border-slate-700 transition-all"
                         >
-                          Reemplazar
+                          <RefreshCcw className="h-5 w-5" />
                         </Label>
                       </div>
                     </div>
                   ) : (
-                    <div className="mb-3">
-                      <Label
-                        htmlFor="pdf-upload"
-                        className={`flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                          {isUploading ? (
-                            <Loader2 className="h-6 w-6 animate-spin text-amber-600 mb-2" />
-                          ) : (
-                            <Upload className="h-6 w-6 text-slate-400 mb-2" />
-                          )}
-                          <p className="text-xs text-slate-500">
-                            {isUploading ? "Subiendo archivo..." : "Click para subir PDF de comprobante"}
-                          </p>
-                        </div>
-                        <input
-                          id="pdf-upload"
-                          type="file"
-                          accept="application/pdf"
-                          className="hidden"
-                          onChange={handleUploadPDF}
-                          disabled={isUploading}
-                        />
-                      </Label>
-                    </div>
+                    <Label
+                      htmlFor="pdf-upload"
+                      className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-700 rounded-2xl cursor-pointer hover:bg-slate-800 hover:border-amber-500/50 transition-all ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="flex flex-col items-center justify-center pt-4 pb-4">
+                        {isUploading ? (
+                          <Loader2 className="h-8 w-8 animate-spin text-amber-500 mb-2" />
+                        ) : (
+                          <Upload className="h-8 w-8 text-slate-600 mb-2" />
+                        )}
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                          {isUploading ? "Subiendo..." : "Subir Comprobante PDF"}
+                        </p>
+                      </div>
+                      <input id="pdf-upload" type="file" accept="application/pdf" className="hidden" onChange={handleUploadPDF} disabled={isUploading} />
+                    </Label>
                   )}
-                  <input
-                    id="pdf-upload"
-                    type="file"
-                    accept="application/pdf"
-                    className="hidden"
-                    onChange={handleUploadPDF}
-                    disabled={isUploading}
-                  />
                 </div>
               </div>
             </div>
           ) : null}
-          <DialogFooter>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setIsEditDialogOpen(false);
-                setVentaParaEditar(null);
-              }}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={confirmarEdicion}
-              disabled={isProcessing}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Guardar Cambios
-                </>
-              )}
-            </Button>
+
+          <DialogFooter className="p-6 bg-white border-t border-slate-100 flex-shrink-0">
+            <div className="flex flex-col md:flex-row items-center justify-between w-full gap-6">
+              <div className="flex items-center gap-8">
+                <div className="text-left">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block tracking-widest">Subtotal Artículos</span>
+                  <div className="text-xl font-bold text-slate-600">$ {editingVenta?.total.toLocaleString('es-AR')}</div>
+                </div>
+                <div className="h-10 w-px bg-slate-100"></div>
+                <div className="text-left">
+                  <span className="text-[10px] font-bold text-amber-600 uppercase block tracking-widest">Total Final a Cobrar</span>
+                  <div className="text-3xl font-black text-slate-900 tracking-tighter">$ {editingVenta?.totalFinal.toLocaleString('es-AR')}</div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 w-full md:w-auto">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => {
+                    setIsEditDialogOpen(false);
+                    setVentaParaEditar(null);
+                  }}
+                  className="flex-1 md:flex-none h-14 px-8 rounded-2xl border-slate-200 text-slate-600 hover:bg-slate-50 font-bold"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={confirmarEdicion}
+                  disabled={isProcessing}
+                  size="lg"
+                  className="flex-1 md:flex-none h-14 px-12 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-xl shadow-amber-600/20 transition-all hover:shadow-amber-600/30 active:scale-95"
+                >
+                  {isProcessing ? (
+                    <><Loader2 className="h-5 w-5 mr-3 animate-spin" /> Guardando...</>
+                  ) : (
+                    <><Save className="h-5 w-5 mr-3" /> Guardar Cambios</>
+                  )}
+                </Button>
+              </div>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1965,6 +1965,15 @@ export default function PedidosVentaEdicionClient() {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingEliminarPDF !== null}
+        onOpenChange={(open) => { if (!open) setPendingEliminarPDF(null); }}
+        title="Eliminar PDF"
+        description="¿Está seguro que desea eliminar el PDF de este pedido?"
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={handleEliminarPDFConfirm}
+      />
     </div>
   );
 }
@@ -2075,16 +2084,6 @@ function PedidoVentaA4({ venta }: { venta: any }) {
           </div>
         </div>
       </div>
-
-      <ConfirmDialog
-        open={pendingEliminarPDF !== null}
-        onOpenChange={(open) => { if (!open) setPendingEliminarPDF(null); }}
-        title="Eliminar PDF"
-        description="¿Está seguro que desea eliminar el PDF de este pedido?"
-        confirmLabel="Eliminar"
-        variant="danger"
-        onConfirm={handleEliminarPDFConfirm}
-      />
     </div>
   );
 }

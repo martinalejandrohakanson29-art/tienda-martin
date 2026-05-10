@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import Link from "next/link";
 import {
   Table,
@@ -132,6 +133,7 @@ export default function PedidosVentaEdicionClient() {
   const [selectedVentaIds, setSelectedVentaIds] = useState<Set<string>>(new Set());
   const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [pendingEliminarPDF, setPendingEliminarPDF] = useState<string | null>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [ventaParaFactura, setVentaParaFactura] = useState<Venta | null>(null);
   const facturaRef = React.useRef<HTMLDivElement>(null);
@@ -735,9 +737,14 @@ export default function PedidosVentaEdicionClient() {
     }
   };
 
-  const handleEliminarPDF = async (ventaId: string) => {
-    if (!window.confirm("¿Está seguro que desea eliminar el PDF de este pedido?")) return;
+  const handleEliminarPDF = (ventaId: string) => {
+    setPendingEliminarPDF(ventaId);
+  };
 
+  const handleEliminarPDFConfirm = async () => {
+    if (!pendingEliminarPDF) return;
+    const ventaId = pendingEliminarPDF;
+    setPendingEliminarPDF(null);
     try {
       setIsProcessing(true);
       const result = await eliminarPDFPedido(ventaId);
@@ -2068,6 +2075,16 @@ function PedidoVentaA4({ venta }: { venta: any }) {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingEliminarPDF !== null}
+        onOpenChange={(open) => { if (!open) setPendingEliminarPDF(null); }}
+        title="Eliminar PDF"
+        description="¿Está seguro que desea eliminar el PDF de este pedido?"
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={handleEliminarPDFConfirm}
+      />
     </div>
   );
 }

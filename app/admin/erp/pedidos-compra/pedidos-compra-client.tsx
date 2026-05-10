@@ -51,6 +51,7 @@ import {
   actualizarFechaCompra,
 } from "@/app/actions/compras";
 import { obtenerProveedores } from "@/app/actions/listas";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type ItemCompra = {
   id?: string;
@@ -104,6 +105,7 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedCompras, setExpandedCompras] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pendingN8NSync, setPendingN8NSync] = useState(false);
 
   // Editing state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -353,7 +355,7 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
     alert(`Se han procesado ${successCount} descargas.`);
   };
 
-  const handleSincronizarN8N = async () => {
+  const handleSincronizarN8N = () => {
     const pedidosIds = selectedIds.size > 0
       ? Array.from(selectedIds)
       : compras.map(v => v.id);
@@ -363,8 +365,15 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
       return;
     }
 
-    if (!window.confirm(`¿Desea enviar ${selectedIds.size > 0 ? 'los pedidos seleccionados' : 'todos los pedidos listados'} a n8n?`)) return;
+    setPendingN8NSync(true);
+  };
 
+  const handleSincronizarN8NConfirm = async () => {
+    const pedidosIds = selectedIds.size > 0
+      ? Array.from(selectedIds)
+      : compras.map(v => v.id);
+
+    setPendingN8NSync(false);
     setIsProcessing(true);
     try {
       const response = await fetch('/api/webhooks/n8n/pedidos-compra', {
@@ -1157,6 +1166,15 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingN8NSync}
+        onOpenChange={setPendingN8NSync}
+        title="Sincronizar con n8n"
+        description={`¿Desea enviar ${selectedIds.size > 0 ? 'los pedidos seleccionados' : 'todos los pedidos listados'} a n8n?`}
+        confirmLabel="Sincronizar"
+        onConfirm={handleSincronizarN8NConfirm}
+      />
     </div>
   );
 }

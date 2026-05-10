@@ -54,6 +54,7 @@ import {
   actualizarTipoEnvioPedido,
 } from "@/app/actions/ventas-mostrador";
 import PDFPreview from "./pdf-preview";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type ItemVenta = {
   productoId?: string | null;
@@ -110,6 +111,7 @@ export default function PedidosVentaClient() {
   const [ventaParaEditar, setVentaParaEditar] = useState<Venta | null>(null);
   const [editingVenta, setEditingVenta] = useState<Venta | null>(null);
   const [selectedVentaIds, setSelectedVentaIds] = useState<Set<string>>(new Set());
+  const [pendingN8NSync, setPendingN8NSync] = useState(false);
 
   const cargarPedidos = async () => {
     try {
@@ -327,9 +329,9 @@ export default function PedidosVentaClient() {
     alert(`Se han procesado ${exitos} descargas correctamente.`);
   };
 
-  const handleSincronizarN8N = async () => {
-    const pedidosIds = selectedVentaIds.size > 0 
-      ? Array.from(selectedVentaIds) 
+  const handleSincronizarN8N = () => {
+    const pedidosIds = selectedVentaIds.size > 0
+      ? Array.from(selectedVentaIds)
       : ventas.map(v => v.id);
 
     if (pedidosIds.length === 0) {
@@ -337,8 +339,15 @@ export default function PedidosVentaClient() {
       return;
     }
 
-    if (!window.confirm(`¿Desea enviar ${selectedVentaIds.size > 0 ? 'los pedidos seleccionados' : 'todos los pedidos listados'} a n8n para su procesamiento?`)) return;
+    setPendingN8NSync(true);
+  };
 
+  const handleSincronizarN8NConfirm = async () => {
+    const pedidosIds = selectedVentaIds.size > 0
+      ? Array.from(selectedVentaIds)
+      : ventas.map(v => v.id);
+
+    setPendingN8NSync(false);
     setIsProcessing(true);
     try {
       const response = await fetch('/api/webhooks/n8n/pedidos-venta', {
@@ -1058,6 +1067,15 @@ export default function PedidosVentaClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={pendingN8NSync}
+        onOpenChange={setPendingN8NSync}
+        title="Sincronizar con n8n"
+        description={`¿Desea enviar ${selectedVentaIds.size > 0 ? 'los pedidos seleccionados' : 'todos los pedidos listados'} a n8n para su procesamiento?`}
+        confirmLabel="Sincronizar"
+        onConfirm={handleSincronizarN8NConfirm}
+      />
     </div>
   );
 }

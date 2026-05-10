@@ -1,6 +1,7 @@
 import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { prisma } from "@/lib/prisma" // Importamos tu instancia de Prisma
+import { prisma } from "@/lib/prisma"
+import bcrypt from "bcryptjs"
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -18,9 +19,8 @@ export const authOptions: NextAuthOptions = {
                     where: { username: credentials.username }
                 });
 
-                // 2. Verificamos si existe y si la contraseña coincide
-                // Nota: Por ahora es comparación directa. Más adelante te enseño a encriptarlas.
-                if (user && user.password === credentials.password) {
+                // 2. Verificamos si existe y si la contraseña coincide (bcrypt)
+                if (user && await bcrypt.compare(credentials.password, user.password)) {
                     return {
                         id: user.id,
                         name: user.username,

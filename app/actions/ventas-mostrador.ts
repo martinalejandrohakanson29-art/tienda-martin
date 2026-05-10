@@ -166,7 +166,7 @@ export async function marcarVentaComoRegistrada(id: string) {
 // --- Helpers para procesar pagos mixtos ---
 function extractMontoMixto(info: string | null | undefined, label: string): number {
   if (!info) return 0;
-  
+
   // 1. Intentar parsear como JSON primero (formato nuevo de PedidosVentaEdicionClient)
   try {
     if (info.trim().startsWith('{')) {
@@ -189,7 +189,7 @@ function extractMontoMixto(info: string | null | undefined, label: string): numb
     // En AR el formato suele ser 1.234,56 -> quitamos puntos de miles y cambiamos coma por punto decimal
     // Pero si el valor ya viene como 1234.56 lo detectamos
     let valueStr = match[1];
-    
+
     // Si tiene coma y punto, asumimos punto miles y coma decimal (formato AR: 1.234,56)
     if (valueStr.includes(',') && valueStr.includes('.')) {
       valueStr = valueStr.replace(/\./g, '').replace(',', '.');
@@ -205,7 +205,7 @@ function extractMontoMixto(info: string | null | undefined, label: string): numb
         valueStr = valueStr.replace(/\./g, '');
       }
     }
-    
+
     const parsed = parseFloat(valueStr);
     return isNaN(parsed) ? 0 : parsed;
   }

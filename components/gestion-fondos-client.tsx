@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { registrarMovimientoManualProveedor, anularMovimientoProveedor } from "@/app/actions/erp";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -40,6 +41,7 @@ export default function GestionFondosClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAnulando, setIsAnulando] = useState<string | null>(null);
   const [fechaPago, setFechaPago] = useState("");
+  const [pendingAnulacion, setPendingAnulacion] = useState<string | null>(null);
 
   const filteredProveedores = useMemo(() => {
     return proveedores.filter((p) =>
@@ -108,11 +110,10 @@ export default function GestionFondosClient({
     }
   };
 
-  const handleAnular = async (id: string) => {
-    if (!confirm("¿Estás seguro de que deseas anular este movimiento?")) {
-      return;
-    }
-
+  const handleAnularConfirm = async () => {
+    if (!pendingAnulacion) return;
+    const id = pendingAnulacion;
+    setPendingAnulacion(null);
     setIsAnulando(id);
     try {
       const result = await anularMovimientoProveedor(id);
@@ -593,7 +594,7 @@ export default function GestionFondosClient({
                       <td className="px-6 py-3 whitespace-nowrap text-center">
                         {!m.anulado && (
                           <button
-                            onClick={() => handleAnular(m.id)}
+                            onClick={() => setPendingAnulacion(m.id)}
                             disabled={isAnulando === m.id}
                             className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
                             title="Anular"
@@ -617,7 +618,16 @@ export default function GestionFondosClient({
           </div>
         </div>
       )}
-    </div>
 
+      <ConfirmDialog
+        open={pendingAnulacion !== null}
+        onOpenChange={(open) => { if (!open) setPendingAnulacion(null); }}
+        title="Anular movimiento"
+        description="Esta acción revertirá el impacto en el saldo del proveedor. Los saldos históricos se recalcularán en cascada."
+        confirmLabel="Anular"
+        variant="danger"
+        onConfirm={handleAnularConfirm}
+      />
+    </div>
   );
 }

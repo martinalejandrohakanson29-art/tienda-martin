@@ -4,6 +4,7 @@ import React, { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { actualizarProveedor, eliminarProveedor } from "@/app/actions/listas";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -48,6 +49,7 @@ export default function CuentaCorrienteClient({
   // States for Edit Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedProveedor, setSelectedProveedor] = useState<Proveedor | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const [editForm, setEditForm] = useState({
     razonSocial: "",
     nombreFantasia: "",
@@ -110,18 +112,23 @@ export default function CuentaCorrienteClient({
     setIsEditModalOpen(true);
   };
 
-  const handleDeleteClick = async (id: string, name: string) => {
-    if (confirm(`¿Estás seguro de que deseas eliminar al proveedor "${name}"? Esta acción no se puede deshacer.`)) {
-      startTransition(async () => {
-        const res = await eliminarProveedor(id);
-        if (res.success) {
-          toast.success("Proveedor eliminado correctamente");
-          router.refresh();
-        } else {
-          toast.error(res.error || "Error al eliminar");
-        }
-      });
-    }
+  const handleDeleteClick = (id: string, name: string) => {
+    setPendingDelete({ id, name });
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!pendingDelete) return;
+    const { id } = pendingDelete;
+    setPendingDelete(null);
+    startTransition(async () => {
+      const res = await eliminarProveedor(id);
+      if (res.success) {
+        toast.success("Proveedor eliminado correctamente");
+        router.refresh();
+      } else {
+        toast.error(res.error || "Error al eliminar");
+      }
+    });
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -518,6 +525,17 @@ export default function CuentaCorrienteClient({
           </p>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
+        title="Eliminar proveedor"
+        description={`¿Estás seguro de que deseas eliminar a "${pendingDelete?.name}"? Esta acción eliminará también todos sus movimientos y no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+        isLoading={isPending}
+      />
 
       {/* Edit Modal */}
       {isEditModalOpen && (

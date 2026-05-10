@@ -1,6 +1,8 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/authOptions"
 
 // Función para obtener todos los artículos para la vista de listas
 export async function obtenerArticulosParaListas() {
@@ -287,6 +289,11 @@ export async function actualizarProveedor(id: string, data: {
   total?: number;
   aliasCbu?: string | null;
 }) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any).role !== "ADMIN") {
+    return { success: false, error: "No autorizado" }
+  }
+
   try {
     const proveedor = await prisma.proveedor.update({
       where: { id },
@@ -332,6 +339,11 @@ export async function crearProveedor(data: {
   total?: number;
   aliasCbu?: string | null;
 }) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any).role !== "ADMIN") {
+    return { success: false, error: "No autorizado" }
+  }
+
   try {
     const proveedor = await prisma.proveedor.create({
       data: {
@@ -360,6 +372,11 @@ export async function crearProveedor(data: {
 }
 
 export async function eliminarProveedor(id: string) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any).role !== "ADMIN") {
+    return { success: false, error: "No autorizado" }
+  }
+
   try {
     await prisma.proveedor.delete({
       where: { id }
@@ -372,11 +389,15 @@ export async function eliminarProveedor(id: string) {
 }
 
 export async function obtenerMovimientosProveedor(proveedorId?: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) return { success: false, error: "No autenticado", data: [] }
+
   try {
     const where = proveedorId ? { proveedorId } : {};
     const movimientos = await prisma.movimientoProveedor.findMany({
       where,
       orderBy: { fecha: 'desc' },
+      take: 500,
       include: {
         proveedor: {
           select: { razonSocial: true }
@@ -407,6 +428,9 @@ export async function obtenerMovimientosProveedor(proveedorId?: string) {
 }
 
 export async function obtenerPagosControl(metodoPago: string, fechaDesde: string, fechaHasta: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) return { success: false, error: "No autenticado", data: [] }
+
   try {
     const inicio = new Date(fechaDesde);
     inicio.setHours(0, 0, 0, 0);

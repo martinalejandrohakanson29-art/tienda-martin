@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-Content package.json)",
+      "Bash(Select-String \"bcrypt\")",
+      "PowerShell(cd \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\" ; $env:PRISMA_MIGRATE_SKIP_GENERATE = \"1\" ; npx prisma migrate dev --name add_gemelo_field --create-only 2>&1)"
+    ]
+  }
+}

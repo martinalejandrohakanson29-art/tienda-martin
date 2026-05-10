@@ -791,8 +791,12 @@ model MovimientoProveedor {
   updatedAt   DateTime  @updatedAt
   anulado     Boolean   @default(false)
   fechaPago   DateTime?
+  gemeloCId   String?
   proveedor   Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
 
+  @@index([proveedorId, fecha])
+  @@index([referencia])
+  @@index([anulado])
   @@map("movimientos_proveedor")
 }
 

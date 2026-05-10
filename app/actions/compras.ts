@@ -2,8 +2,25 @@
 
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
+import { requireAdmin } from "@/lib/auth-guard"
+import { recalcularSaldosProveedor } from "@/lib/proveedor-ledger"
+
+type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+
+async function syncPackStock(tx: TxClient, packId: string, packItems: { componenteId: string; cantidad: number }[]) {
+  const componentes = await tx.articuloMostrador.findMany({
+    where: { id: { in: packItems.map(p => p.componenteId) } },
+    select: { id: true, stock: true },
+  });
+  const stockMap = new Map(componentes.map(c => [c.id, c.stock]));
+  const stockPack = Math.min(
+    ...packItems.map(p => Math.floor((stockMap.get(p.componenteId) ?? 0) / p.cantidad))
+  );
+  await tx.articuloMostrador.update({ where: { id: packId }, data: { stock: stockPack } });
+}
 
 export async function obtenerTodosLosArticulos() {
+  await requireAdmin();
   try {
     const articulos = await prisma.articuloMostrador.findMany({
       orderBy: { nombre: 'asc' },
@@ -47,6 +64,7 @@ export async function obtenerTodosLosArticulos() {
 }
 
 export async function obtenerComprasPorRango(fechaDesde: string, fechaHasta: string) {
+  await requireAdmin();
   try {
     const inicioRango = new Date(fechaDesde);
     inicioRango.setHours(0, 0, 0, 0);
@@ -96,6 +114,7 @@ export async function obtenerComprasPorRango(fechaDesde: string, fechaHasta: str
 }
 
 export async function obtenerPedidosCompra(fechaDesde: string, fechaHasta: string, estadoPedido?: string) {
+  await requireAdmin();
   try {
     const inicioRango = new Date(fechaDesde);
     inicioRango.setHours(0, 0, 0, 0);
@@ -153,6 +172,7 @@ export async function obtenerPedidosCompra(fechaDesde: string, fechaHasta: strin
 }
 
 export async function obtenerPedidoCompraPorId(compraId: string) {
+  await requireAdmin();
   try {
     const compra = await prisma.compra.findUnique({
       where: { id: compraId },
@@ -205,6 +225,7 @@ export async function guardarComoPedidoCompra(data: {
   fechaCompra?: string,
   fechaIngreso?: string
 }) {
+  await requireAdmin();
   try {
     const result = await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.create({
@@ -237,7 +258,6 @@ export async function guardarComoPedidoCompra(data: {
         }
       });
 
-      // Incrementar stock y opcionalmente actualizar costos
       for (const item of data.items) {
         const prodId = item.productoId || item.id;
         if (!prodId) continue;
@@ -254,6 +274,7 @@ export async function guardarComoPedidoCompra(data: {
               data: { stock: { increment: packItem.cantidad * item.cantidad } }
             });
           }
+          await syncPackStock(tx, prodId, articuloBase.packItems);
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
           const margen = item.margenGanancia ?? 50;
@@ -292,6 +313,7 @@ export async function guardarComoPedidoCompra(data: {
 }
 
 export async function confirmarPedidoCompra(compraId: string, data?: { impactarCostos: boolean, items: any[], usuario: string }) {
+  await requireAdmin();
   try {
     const result = await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.update({
@@ -299,7 +321,6 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
         data: { tipoCompra: "CONFIRMADA" }
       });
 
-      // Si se pasaron items y se solicitó impactar costos
       if (data && data.items && data.impactarCostos) {
         for (const item of data.items) {
           const prodId = item.productoId || item.id;
@@ -334,7 +355,6 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
         }
       }
 
-      // Impactar en cuenta corriente del proveedor si corresponde
       if ((compra.metodo_pago === "A Cuenta Corriente") && (compra.proveedorId || compra.proveedor)) {
         const idBuscado = compra.proveedorId || compra.proveedor;
 
@@ -381,6 +401,7 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
 }
 
 export async function actualizarEstadoPedidoCompra(compraId: string, estadoPedido: string) {
+  await requireAdmin();
   try {
     await prisma.compra.update({
       where: { id: compraId },
@@ -394,6 +415,7 @@ export async function actualizarEstadoPedidoCompra(compraId: string, estadoPedid
 }
 
 export async function actualizarFechaCompra(compraId: string, nuevaFecha: string) {
+  await requireAdmin();
   try {
     await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.update({
@@ -401,7 +423,6 @@ export async function actualizarFechaCompra(compraId: string, nuevaFecha: string
         data: { fechaCarga: new Date(nuevaFecha) }
       });
 
-      // Si tiene movimientos en cuenta corriente, actualizarlos también
       if (compra.metodo_pago === "A Cuenta Corriente") {
         await tx.movimientoProveedor.updateMany({
           where: { referencia: compraId },
@@ -417,9 +438,9 @@ export async function actualizarFechaCompra(compraId: string, nuevaFecha: string
 }
 
 export async function actualizarPedidoCompra(compraId: string, data: any, usuario: string, detalleCambios: string) {
+  await requireAdmin();
   try {
     await prisma.$transaction(async (tx) => {
-      // 1. Revertir stock de los items anteriores
       const oldItems = await tx.compraItem.findMany({
         where: { compraId }
       });
@@ -437,6 +458,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
                 data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
               });
             }
+            await syncPackStock(tx, oldItem.productoId, articuloBase.packItems);
           } else {
             await tx.articuloMostrador.update({
               where: { id: oldItem.productoId },
@@ -446,12 +468,10 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         }
       }
 
-      // 2. Borrar items viejos
       await tx.compraItem.deleteMany({
         where: { compraId }
       });
 
-      // 3. Actualizar compra y crear nuevos items
       const updatedCompra = await tx.compra.update({
         where: { id: compraId },
         data: {
@@ -483,7 +503,6 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         }
       });
 
-      // 4. Incrementar stock de los nuevos items and optionally impact costs
       for (const newItem of data.items) {
         const prodId = newItem.productoId || newItem.id;
         if (!prodId) continue;
@@ -499,6 +518,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
               data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
             });
           }
+          await syncPackStock(tx, prodId, articuloBase.packItems);
         } else {
           const updateData: any = { stock: { increment: newItem.cantidad } };
           const margen = newItem.margenGanancia ?? 50;
@@ -528,7 +548,6 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         }
       }
 
-      // 5. Auditoria
       await tx.compraAuditoria.create({
         data: {
           compraId: compraId,
@@ -547,6 +566,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
 }
 
 export async function eliminarPedidoCompra(compraId: string) {
+  await requireAdmin();
   try {
     await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.findUnique({
@@ -556,7 +576,6 @@ export async function eliminarPedidoCompra(compraId: string) {
 
       if (!compra) throw new Error("Pedido no encontrado");
 
-      // Revertir stock
       for (const item of compra.items) {
         if (item.productoId) {
           const articuloBase = await tx.articuloMostrador.findUnique({
@@ -570,6 +589,7 @@ export async function eliminarPedidoCompra(compraId: string) {
                 data: { stock: { decrement: packItem.cantidad * item.cantidad } }
               });
             }
+            await syncPackStock(tx, item.productoId, articuloBase.packItems);
           } else {
             await tx.articuloMostrador.update({
               where: { id: item.productoId },
@@ -610,9 +630,9 @@ export async function crearCompra(data: {
   fechaCompra?: string,
   fechaIngreso?: string
 }) {
+  await requireAdmin();
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Crear la compra
       const compra = await tx.compra.create({
         data: {
           proveedor: data.proveedor,
@@ -643,7 +663,6 @@ export async function crearCompra(data: {
         }
       });
 
-      // 2. Incrementar stock (es una compra) y opcionalmente actualizar costos
       for (const item of data.items) {
         const prodId = item.productoId || item.id;
         if (!prodId) continue;
@@ -660,6 +679,7 @@ export async function crearCompra(data: {
               data: { stock: { increment: packItem.cantidad * item.cantidad } }
             });
           }
+          await syncPackStock(tx, prodId, articuloBase.packItems);
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
           const margen = item.margenGanancia ?? 50;
@@ -687,7 +707,6 @@ export async function crearCompra(data: {
         }
       }
 
-      // 3. Impactar en cuenta corriente del proveedor si corresponde
       if ((data.metodo_pago === "A Cuenta Corriente") && (data.proveedorId || data.proveedor)) {
         const idBuscado = data.proveedorId || data.proveedor;
 
@@ -755,9 +774,9 @@ export async function actualizarCompra(compraId: string, data: {
   fechaCompra?: string,
   fechaIngreso?: string
 }, usuario: string, detalleCambios: string) {
+  await requireAdmin();
   try {
     await prisma.$transaction(async (tx) => {
-      // 1. Revertir stock de los items anteriores
       const oldItems = await tx.compraItem.findMany({
         where: { compraId }
       });
@@ -766,7 +785,6 @@ export async function actualizarCompra(compraId: string, data: {
         where: { id: compraId }
       });
 
-      // Revertir saldo de proveedor si era A Cuenta Corriente
       if (oldCompra && (oldCompra.metodo_pago === "A Cuenta Corriente")) {
         let proveedor = await tx.proveedor.findUnique({
           where: { id: oldCompra.proveedorId || oldCompra.proveedor || "" }
@@ -791,10 +809,11 @@ export async function actualizarCompra(compraId: string, data: {
             where: { referencia: compraId, proveedorId: proveedor.id, anulado: false },
             data: { anulado: true }
           });
+
+          await recalcularSaldosProveedor(tx, proveedor.id);
         }
       }
 
-      // Revertir el stock
       for (const oldItem of oldItems) {
         if (oldItem.productoId) {
           const articuloBase = await tx.articuloMostrador.findUnique({
@@ -808,6 +827,7 @@ export async function actualizarCompra(compraId: string, data: {
                 data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
               });
             }
+            await syncPackStock(tx, oldItem.productoId, articuloBase.packItems);
           } else {
             await tx.articuloMostrador.update({
               where: { id: oldItem.productoId },
@@ -817,12 +837,10 @@ export async function actualizarCompra(compraId: string, data: {
         }
       }
 
-      // 2. Borrar items viejos
       await tx.compraItem.deleteMany({
         where: { compraId }
       });
 
-      // 3. Actualizar compra y crear nuevos items
       await tx.compra.update({
         where: { id: compraId },
         data: {
@@ -854,7 +872,6 @@ export async function actualizarCompra(compraId: string, data: {
         }
       });
 
-      // 4. Aplicar saldo nuevo si es A Cuenta Corriente
       if ((data.metodo_pago === "A Cuenta Corriente") && (data.proveedorId || data.proveedor)) {
         let proveedor = await tx.proveedor.findUnique({
           where: { id: data.proveedorId || data.proveedor || "" }
@@ -889,7 +906,6 @@ export async function actualizarCompra(compraId: string, data: {
         }
       }
 
-      // 5. Incrementar stock de los nuevos items y opcionalmente actualizar costos
       for (const newItem of data.items) {
         const prodId = newItem.productoId || newItem.id;
         if (!prodId) continue;
@@ -904,6 +920,7 @@ export async function actualizarCompra(compraId: string, data: {
               data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
             });
           }
+          await syncPackStock(tx, prodId, articuloBase.packItems);
         } else {
           const updateData: any = { stock: { increment: newItem.cantidad } };
           const margen = newItem.margenGanancia ?? 50;
@@ -931,7 +948,6 @@ export async function actualizarCompra(compraId: string, data: {
         }
       }
 
-      // 6. Auditoria
       await tx.compraAuditoria.create({
         data: {
           compraId: compraId,
@@ -950,6 +966,7 @@ export async function actualizarCompra(compraId: string, data: {
 }
 
 export async function eliminarCompra(compraId: string, usuario: string) {
+  await requireAdmin();
   try {
     await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.findUnique({
@@ -959,7 +976,6 @@ export async function eliminarCompra(compraId: string, usuario: string) {
 
       if (!compra) throw new Error("Compra no encontrada");
 
-      // 1. Revertir stock
       for (const item of compra.items) {
         if (item.productoId) {
           const articuloBase = await tx.articuloMostrador.findUnique({
@@ -973,6 +989,7 @@ export async function eliminarCompra(compraId: string, usuario: string) {
                 data: { stock: { decrement: packItem.cantidad * item.cantidad } }
               });
             }
+            await syncPackStock(tx, item.productoId, articuloBase.packItems);
           } else {
             await tx.articuloMostrador.update({
               where: { id: item.productoId },
@@ -982,7 +999,6 @@ export async function eliminarCompra(compraId: string, usuario: string) {
         }
       }
 
-      // 2. Revertir saldo de proveedor
       if (compra.metodo_pago === "A Cuenta Corriente") {
         let proveedor = await tx.proveedor.findUnique({
           where: { id: compra.proveedorId || compra.proveedor || "" }
@@ -1019,10 +1035,11 @@ export async function eliminarCompra(compraId: string, usuario: string) {
               anulado: true
             }
           });
+
+          await recalcularSaldosProveedor(tx, proveedor.id);
         }
       }
 
-      // 3. Auditoria
       await tx.compraAuditoria.create({
         data: {
           compraId: compraId,
@@ -1045,6 +1062,7 @@ export async function eliminarCompra(compraId: string, usuario: string) {
 }
 
 export async function obtenerHistorialCompra(compraId: string) {
+  await requireAdmin();
   try {
     const historial = await prisma.compraAuditoria.findMany({
       where: { compraId: compraId },
@@ -1058,6 +1076,7 @@ export async function obtenerHistorialCompra(compraId: string) {
 }
 
 export async function obtenerURLDescargaPDFCompra(compraId: string, fileName?: string) {
+  await requireAdmin();
   try {
     const compra = await prisma.compra.findUnique({
       where: { id: compraId },

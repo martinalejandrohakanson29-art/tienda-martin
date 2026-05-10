@@ -14,6 +14,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { z } from "zod"
 import { requireAdmin } from "@/lib/auth-guard"
+import { recalcularSaldosProveedor } from "@/lib/proveedor-ledger"
 
 // ─── Tipos compartidos ────────────────────────────────────────────────────────
 
@@ -104,17 +105,20 @@ async function aplicarImpactoProveedorTx(
   referencia: string,
 ) {
   const impactos = parsearImpactos(para, montoTotal);
-  await Promise.all(impactos.map(async (imp) => {
+  for (const imp of impactos) {
     const proveedor = await resolverProveedor(tx, imp);
-    if (!proveedor) return;
+    if (!proveedor) {
+      console.warn(`[aplicarImpactoProveedorTx] Proveedor no encontrado: ${imp.id ?? imp.razonSocial}`);
+      continue;
+    }
     const monto = new Prisma.Decimal(imp.monto || montoTotal);
-    if (monto.isZero()) return;
+    if (monto.isZero()) continue;
     const nuevoSaldo = proveedor.total.plus(monto);
     await tx.proveedor.update({ where: { id: proveedor.id }, data: { total: nuevoSaldo } });
     await tx.movimientoProveedor.create({
       data: { proveedorId: proveedor.id, tipo: "HABER", monto, descripcion, referencia, saldo: nuevoSaldo },
     });
-  }));
+  }
 }
 
 async function revertirImpactoProveedorTx(
@@ -125,11 +129,14 @@ async function revertirImpactoProveedorTx(
   descripcionAnulacion?: string,
 ) {
   const impactos = parsearImpactos(para, montoTotal);
-  await Promise.all(impactos.map(async (imp) => {
+  for (const imp of impactos) {
     const proveedor = await resolverProveedor(tx, imp);
-    if (!proveedor) return;
+    if (!proveedor) {
+      console.warn(`[revertirImpactoProveedorTx] Proveedor no encontrado: ${imp.id ?? imp.razonSocial}`);
+      continue;
+    }
     const monto = new Prisma.Decimal(imp.monto || montoTotal);
-    if (monto.isZero()) return;
+    if (monto.isZero()) continue;
     const nuevoSaldo = proveedor.total.minus(monto);
     await tx.proveedor.update({ where: { id: proveedor.id }, data: { total: nuevoSaldo } });
     await tx.movimientoProveedor.updateMany({
@@ -149,7 +156,8 @@ async function revertirImpactoProveedorTx(
         },
       });
     }
-  }));
+    await recalcularSaldosProveedor(tx, proveedor.id);
+  }
 }
 
 type StockItem = { productoId?: string; id?: string; cantidad: number }
@@ -159,27 +167,39 @@ async function ajustarStockItemsTx(
   items: StockItem[],
   modo: "decrement" | "increment",
 ) {
-  await Promise.all(items.map(async (item) => {
+  for (const item of items) {
     const articuloId = item.productoId || item.id;
-    if (!articuloId) return;
+    if (!articuloId) continue;
     const articuloBase = await tx.articuloMostrador.findUnique({
       where: { id: articuloId },
       include: { packItems: true },
     });
     if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-      await Promise.all(articuloBase.packItems.map(packItem =>
-        tx.articuloMostrador.updateMany({
+      for (const packItem of articuloBase.packItems) {
+        await tx.articuloMostrador.update({
           where: { id: packItem.componenteId },
           data: { stock: { [modo]: packItem.cantidad * item.cantidad } },
-        })
-      ));
+        });
+      }
+      const componentesActualizados = await tx.articuloMostrador.findMany({
+        where: { id: { in: articuloBase.packItems.map(p => p.componenteId) } },
+        select: { id: true, stock: true },
+      });
+      const stockMap = new Map(componentesActualizados.map(c => [c.id, c.stock]));
+      const stockPack = Math.min(
+        ...articuloBase.packItems.map(p => Math.floor((stockMap.get(p.componenteId) ?? 0) / p.cantidad))
+      );
+      await tx.articuloMostrador.update({
+        where: { id: articuloId },
+        data: { stock: stockPack },
+      });
     } else {
-      await tx.articuloMostrador.updateMany({
+      await tx.articuloMostrador.update({
         where: { id: articuloId },
         data: { stock: { [modo]: item.cantidad } },
       });
     }
-  }));
+  }
 }
 
 export async function obtenerTodosLosArticulos() {
@@ -269,6 +289,7 @@ export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: str
 export const obtenerVentasPorFecha = (fecha: string) => obtenerVentasPorRango(fecha);
 
 export async function marcarVentaComoRegistrada(id: string) {
+  await requireAdmin();
   try {
     await prisma.venta.update({
       where: { id },
@@ -378,6 +399,7 @@ export async function crearVentaMostrador(data: {
   mlMla?: string,
   mlDni?: string
 }) {
+  await requireAdmin();
   try {
     let arcaData = {
       cae: data.cae,
@@ -555,6 +577,7 @@ export async function guardarComoPedidoVenta(data: {
   mlDni?: string,
   tipoEnvio?: string
 }) {
+  await requireAdmin();
   try {
     // Usamos transacción para asegurar que Venta y Stock se actualicen juntos
     const result = await prisma.$transaction(async (tx) => {
@@ -662,6 +685,7 @@ export async function guardarComoPedidoVenta(data: {
 // --- FUNCIONES PARA EDICIÓN Y AUDITORÍA ---
 
 export async function actualizarVentaMostrador(ventaId: string, rawData: unknown, usuario: string, detalleCambios: string) {
+  await requireAdmin();
   const parsed = ActualizarVentaSchema.safeParse(rawData);
   if (!parsed.success) {
     console.error("[actualizarVentaMostrador] datos inválidos:", parsed.error.flatten());
@@ -684,7 +708,7 @@ export async function actualizarVentaMostrador(ventaId: string, rawData: unknown
       const esMetodoImpactoOld = oldVenta && (oldVenta.metodo_pago === "Cruzada" || oldVenta.metodo_pago === "A Cuenta Corriente" || oldVenta.metodo_pago === "Mixto");
       const montoRevertirVal = (oldVenta && esMetodoImpactoOld) ? getMontoImpactoProveedor(oldVenta.metodo_pago, oldVenta.info, Number(oldVenta.totalFinal)) : 0;
       const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
-      const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0;
+      const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0 && oldVenta.metodo_pago === data.metodo_pago;
 
       if (oldVenta && esMetodoImpactoOld && !esMismoImpacto && oldVenta.para) {
         await revertirImpactoProveedorTx(tx, oldVenta.para, montoRevertirVal, ventaId);
@@ -758,6 +782,7 @@ export async function actualizarVentaMostrador(ventaId: string, rawData: unknown
       });
     });
 
+    revalidatePath("/admin/ventas-mostrador");
     return { success: true };
   } catch (error) {
     console.error("Error al actualizar venta:", error);
@@ -766,6 +791,7 @@ export async function actualizarVentaMostrador(ventaId: string, rawData: unknown
 }
 
 export async function obtenerHistorialVenta(ventaId: string) {
+  await requireAdmin();
   try {
     const historial = await prisma.ventaAuditoria.findMany({
       where: { ventaId: ventaId },
@@ -781,6 +807,7 @@ export async function obtenerHistorialVenta(ventaId: string) {
 // --- NUEVO: ACTUALIZAR PRECIO BASE DEL ARTÍCULO ---
 
 export async function actualizarPrecioArticuloDB(articuloId: string, nuevoPrecio: number, usuario: string) {
+  await requireAdmin();
   try {
     await prisma.$transaction(async (tx) => {
       // 1. Buscamos el artículo para saber el precio anterior
@@ -826,6 +853,7 @@ export async function actualizarPrecioArticuloDB(articuloId: string, nuevoPrecio
  * que los precios iniciales sean correctos
  */
 export async function sincronizarArticulosMostrador() {
+  await requireAdmin();
   try {
     const articulos = await prisma.articuloMostrador.findMany({
       select: {
@@ -857,6 +885,7 @@ export async function sincronizarArticulosMostrador() {
 }
 
 export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
+  await requireAdmin();
   try {
     // Usamos transacción para asegurar que Venta y sus items se eliminen juntos
     await prisma.$transaction(async (tx) => {
@@ -897,6 +926,7 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
 
 // Funciones para pedidos de venta
 export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string, estadoPedido?: string) {
+  await requireAdmin();
   try {
     const inicioRango = new Date(fechaDesde);
     inicioRango.setHours(0, 0, 0, 0);
@@ -959,6 +989,7 @@ export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string
 
 // Función para obtener un pedido por ID para editar
 export async function obtenerPedidoPorId(ventaId: string) {
+  await requireAdmin();
   try {
     const venta = await prisma.venta.findUnique({
       where: { id: ventaId },
@@ -1002,6 +1033,7 @@ export async function obtenerPedidoPorId(ventaId: string) {
 }
 
 export async function actualizarEstadoPedido(ventaId: string, estadoPedido: string) {
+  await requireAdmin();
   try {
     await prisma.venta.update({
       where: { id: ventaId },
@@ -1015,6 +1047,7 @@ export async function actualizarEstadoPedido(ventaId: string, estadoPedido: stri
 }
 
 export async function actualizarTipoEnvioPedido(ventaId: string, tipoEnvio: string) {
+  await requireAdmin();
   try {
     await prisma.venta.update({
       where: { id: ventaId },
@@ -1029,6 +1062,7 @@ export async function actualizarTipoEnvioPedido(ventaId: string, tipoEnvio: stri
 }
 
 export async function actualizarEstadoPedidoMasivo(ventaIds: string[], estadoPedido: string) {
+  await requireAdmin();
   try {
     await prisma.venta.updateMany({
       where: { id: { in: ventaIds } },
@@ -1043,6 +1077,7 @@ export async function actualizarEstadoPedidoMasivo(ventaIds: string[], estadoPed
 
 // Función para actualizar un pedido de venta
 export async function actualizarPedidoVenta(ventaId: string, rawData: unknown, usuario: string, detalleCambios: string) {
+  await requireAdmin();
   const parsed = VentaBaseUpdateSchema.safeParse(rawData);
   if (!parsed.success) {
     console.error("[actualizarPedidoVenta] datos inválidos:", parsed.error.flatten());
@@ -1065,7 +1100,7 @@ export async function actualizarPedidoVenta(ventaId: string, rawData: unknown, u
       const esMetodoImpactoOld = oldVenta && (oldVenta.metodo_pago === "Cruzada" || oldVenta.metodo_pago === "A Cuenta Corriente" || oldVenta.metodo_pago === "Mixto");
       const montoRevertirVal = (oldVenta && esMetodoImpactoOld) ? getMontoImpactoProveedor(oldVenta.metodo_pago, oldVenta.info, Number(oldVenta.totalFinal)) : 0;
       const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
-      const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0;
+      const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0 && oldVenta.metodo_pago === data.metodo_pago;
 
       if (oldVenta && esMetodoImpactoOld && !esMismoImpacto && oldVenta.para && montoRevertirVal > 0) {
         await revertirImpactoProveedorTx(tx, oldVenta.para, montoRevertirVal, ventaId);
@@ -1134,6 +1169,7 @@ export async function actualizarPedidoVenta(ventaId: string, rawData: unknown, u
 }
 
 export async function confirmarPedidoVenta(ventaId: string) {
+  await requireAdmin();
   try {
     const result = await prisma.$transaction(async (tx) => {
       const venta = await tx.venta.update({
@@ -1144,7 +1180,7 @@ export async function confirmarPedidoVenta(ventaId: string) {
       // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada", "A Cuenta Corriente" o "Mixto" ---
       // Verificamos si ya existe un movimiento para no duplicar (especialmente para Cruzada que ahora se imputa al crear el pedido)
       const movimientoExistente = await tx.movimientoProveedor.findFirst({
-        where: { referencia: ventaId, anulado: false }
+        where: { referencia: ventaId }
       });
 
       const montoImpactoVal = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
@@ -1165,6 +1201,7 @@ export async function confirmarPedidoVenta(ventaId: string) {
 }
 
 export async function eliminarPedidoVenta(ventaId: string) {
+  await requireAdmin();
   try {
     await prisma.$transaction(async (tx) => {
       const venta = await tx.venta.findUnique({
@@ -1173,6 +1210,15 @@ export async function eliminarPedidoVenta(ventaId: string) {
       });
 
       if (!venta) throw new Error("Pedido no encontrado");
+
+      const esMetodoImpactoDel = venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente" || venta.metodo_pago === "Mixto";
+      if (esMetodoImpactoDel && venta.para) {
+        const montoRevertir = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
+        if (montoRevertir > 0) {
+          const descAnulacion = `ANULACIÓN: ${venta.metodo_pago === "Cruzada" ? "Pedido Cruzada" : venta.metodo_pago === "Mixto" ? "Pedido Mixto" : "Pedido a CC"} #${venta.numeroVenta} (${venta.cliente}) eliminado`;
+          await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId, descAnulacion);
+        }
+      }
 
       await ajustarStockItemsTx(tx, venta.items.filter(i => i.productoId).map(i => ({ productoId: i.productoId!, cantidad: i.cantidad })), "increment");
 
@@ -1187,6 +1233,7 @@ export async function eliminarPedidoVenta(ventaId: string) {
 }
 
 export async function subirPDFPedido(ventaId: string, formData: FormData) {
+  await requireAdmin();
   const file = formData.get('file') as File;
   if (!file) return { success: false, error: "No se proporcionó ningún archivo" };
 
@@ -1246,6 +1293,7 @@ export async function subirPDFPedido(ventaId: string, formData: FormData) {
 }
 
 export async function obtenerURLDescargaPDF(ventaId: string, fileName?: string) {
+  await requireAdmin();
   try {
     const venta = await prisma.venta.findUnique({
       where: { id: ventaId },
@@ -1269,6 +1317,7 @@ export async function obtenerURLDescargaPDF(ventaId: string, fileName?: string) 
 }
 
 export async function subirPDFLote(ventaIds: string[], formData: FormData) {
+  await requireAdmin();
   if (!ventaIds || ventaIds.length === 0) {
     return { success: false, error: "No se seleccionaron pedidos" };
   }
@@ -1312,6 +1361,7 @@ export async function subirPDFLote(ventaIds: string[], formData: FormData) {
 }
 
 export async function eliminarPDFPedido(ventaId: string) {
+  await requireAdmin();
   try {
     await prisma.venta.update({
       where: { id: ventaId },
@@ -1325,6 +1375,7 @@ export async function eliminarPDFPedido(ventaId: string) {
 }
 
 export async function generarFacturaARCA(ventaId: string) {
+  await requireAdmin();
   try {
     const venta = await prisma.venta.findUnique({
       where: { id: ventaId },
@@ -1373,6 +1424,7 @@ export async function generarFacturaARCA(ventaId: string) {
 }
 
 export async function cancelarVenta(ventaId: string) {
+  await requireAdmin();
   const venta = await prisma.venta.findUnique({
     where: { id: ventaId },
     include: { items: true }
@@ -1416,6 +1468,14 @@ export async function cancelarVenta(ventaId: string) {
             ) : new Date(),
           }
         });
+        const esMetodoImpacto = venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente" || venta.metodo_pago === "Mixto";
+        if (esMetodoImpacto && venta.para) {
+          const montoRevertir = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
+          if (montoRevertir > 0) {
+            const descAnulacion = `CANCELACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente})`;
+            await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId, descAnulacion);
+          }
+        }
         await ajustarStockItemsTx(tx, stockItems, "increment");
       });
       revalidatePath("/admin/ventas-mostrador");
@@ -1434,6 +1494,14 @@ export async function cancelarVenta(ventaId: string) {
       where: { id: ventaId },
       data: { estadoPedido: "CANCELADO" }
     });
+    const esMetodoImpacto = venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente" || venta.metodo_pago === "Mixto";
+    if (esMetodoImpacto && venta.para) {
+      const montoRevertir = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
+      if (montoRevertir > 0) {
+        const descAnulacion = `CANCELACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente})`;
+        await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId, descAnulacion);
+      }
+    }
     await ajustarStockItemsTx(tx, stockItems, "increment");
   });
   revalidatePath("/admin/ventas-mostrador");

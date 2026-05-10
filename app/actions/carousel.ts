@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { requireAdmin } from "@/lib/auth-guard"
 
 export async function getCarouselItems() {
     return await prisma.carouselItem.findMany({
@@ -11,6 +12,7 @@ export async function getCarouselItems() {
 
 // 👇 Actualizado para recibir URL y TIPO
 export async function createCarouselItem(data: { mediaUrl: string; mediaUrlMobile?: string; mediaType: string; order?: number }) {
+    await requireAdmin();
     const item = await prisma.carouselItem.create({
         data: {
             ...data,
@@ -23,6 +25,7 @@ export async function createCarouselItem(data: { mediaUrl: string; mediaUrlMobil
 }
 
 export async function deleteCarouselItem(id: string) {
+    await requireAdmin();
     await prisma.carouselItem.delete({
         where: { id },
     })
@@ -31,6 +34,7 @@ export async function deleteCarouselItem(id: string) {
 }
 
 export async function updateCarouselOrder(items: { id: string; order: number }[]) {
+    await requireAdmin();
     for (const item of items) {
         await prisma.carouselItem.update({
             where: { id: item.id },

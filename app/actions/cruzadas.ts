@@ -23,11 +23,11 @@ export async function getTransferenciasCruzadas() {
             // Extraemos la "Key" (la ruta) de la URL que guardó n8n
             // n8n guarda algo como: https://.../customizable-cart-gdywtci/cruzadas/foto.jpg
             // Necesitamos solo: cruzadas/foto.jpg
-            const urlParts = item.imageUrl.split(`${process.env.S3_BUCKET || 'customizable-cart-gdywtci'}/`);
+            const urlParts = item.imageUrl.split(`${process.env.S3_BUCKET_NAME}/`);
             const key = urlParts.length > 1 ? urlParts[1] : item.imageUrl;
 
             const command = new GetObjectCommand({
-              Bucket: process.env.S3_BUCKET || "customizable-cart-gdywtci",
+              Bucket: process.env.S3_BUCKET_NAME!,
               Key: key,
             });
 

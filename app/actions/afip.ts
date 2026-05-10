@@ -12,7 +12,7 @@ const BASE_REGISTRACION = isProduction
     : path.join(process.cwd(), 'Registracion');
 
 const AFIP_CONFIG = {
-    CUIT: process.env.AFIP_CUIT || "20269957361",
+    CUIT: process.env.AFIP_CUIT!,
     certPath: path.join(BASE_REGISTRACION, process.env.AFIP_CERT_FILE || 'certificado.crt'),
     keyPath: path.join(BASE_REGISTRACION, process.env.AFIP_KEY_FILE || 'privada.key'),
     urlWsaa: process.env.AFIP_WSAA_URL || "https://wsaa.afip.gov.ar/ws/services/LoginCms",
@@ -28,12 +28,7 @@ async function obtenerTicketAcceso(servicio: string = 'wsfe') {
     const envHash = AFIP_CONFIG.urlWsaa.includes('homo') ? 'homo' : 'prod';
     const cachePath = path.join(BASE_REGISTRACION, `ticket_cache_${servicio}_${envHash}.json`);
 
-    console.log(`🔍 [AFIP] Configuración actual para ${servicio}:`, {
-        urlWsaa: AFIP_CONFIG.urlWsaa,
-        certPath: AFIP_CONFIG.certPath,
-        keyPath: AFIP_CONFIG.keyPath,
-        cuit: AFIP_CONFIG.CUIT
-    });
+    console.log(`🔍 [AFIP] Configurando servicio "${servicio}" | env: ${envHash} | cert: ${AFIP_CONFIG.certPath}`);
 
     // Verificación física en la ruta absoluta
     if (!fs.existsSync(AFIP_CONFIG.certPath)) {

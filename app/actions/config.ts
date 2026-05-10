@@ -3,6 +3,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { requireAdmin } from "@/lib/auth-guard"
 
 /**
  * Obtiene la configuración global de la tienda (Dólar, FOB, etc.)
@@ -16,6 +17,7 @@ export async function getConfig() {
  * Actualiza la configuración y RECALCULA todos los costos de los artículos
  */
 export async function updateConfig(data: any) {
+    await requireAdmin();
     // 1. Buscamos si ya existe una configuración
     const existingConfig = await prisma.config.findFirst()
     let config;

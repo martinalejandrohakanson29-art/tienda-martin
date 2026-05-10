@@ -1,7 +1,7 @@
 "use server"
 
-// 👇 AQUÍ ESTÁ EL CAMBIO: agregamos las llaves { } alrededor de prisma
 import { prisma } from "@/lib/prisma"
+import { requireAdmin } from "@/lib/auth-guard"
 
 export async function getVentasWeb() {
     try {
@@ -21,6 +21,7 @@ export async function getVentasWeb() {
 }
 
 export async function updateVentaWebStatus(id: string, paymentId: string, status: string) {
+    await requireAdmin();
     try {
         await prisma.webSale.update({
             where: { id },
@@ -34,6 +35,7 @@ export async function updateVentaWebStatus(id: string, paymentId: string, status
 }
 
 export async function updateVentaWebCliente(id: string, clienteData: any) {
+    await requireAdmin();
     try {
         await prisma.webSale.update({
             where: { id },

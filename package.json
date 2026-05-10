@@ -6,7 +6,7 @@
     "postinstall": "prisma generate",
     "dev": "next dev",
     "build": "next build",
-    "start": "node -e \"require('fs').existsSync('server.js') ? require('./server.js') : require('./.next/standalone/server.js')\"",
+    "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {

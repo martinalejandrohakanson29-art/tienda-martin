@@ -13,6 +13,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { z } from "zod"
+import { requireAdmin } from "@/lib/auth-guard"
 
 // ─── Tipos compartidos ────────────────────────────────────────────────────────
 
@@ -182,6 +183,7 @@ async function ajustarStockItemsTx(
 }
 
 export async function obtenerTodosLosArticulos() {
+  await requireAdmin();
   try {
     const articulos = await prisma.articuloMostrador.findMany({
       orderBy: { nombre: 'asc' },
@@ -225,6 +227,7 @@ export async function obtenerTodosLosArticulos() {
 }
 
 export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: string) {
+  await requireAdmin();
   try {
     const inicio = new Date(fechaDesde);
     inicio.setHours(0, 0, 0, 0);

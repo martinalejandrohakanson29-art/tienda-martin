@@ -6,7 +6,10 @@
       "PowerShell(cd \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\" ; $env:PRISMA_MIGRATE_SKIP_GENERATE = \"1\" ; npx prisma migrate dev --name add_gemelo_field --create-only 2>&1)",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\" -Force -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch '\\(node_modules|\\\\.next|\\\\.git|\\\\.vercel\\)' } | Select-Object FullName, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Sort-Object FullName)",
       "Bash(git check-ignore *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(grep *)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\\\\app\\\\api\\\\webhooks\\\\n8n\" -Recurse -Filter \"route.ts\")",
+      "Bash(Select-Object FullName)"
     ]
   }
 }

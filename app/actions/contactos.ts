@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { requireAdmin } from "@/lib/auth-guard"
 
 // Definimos el tipo de datos que vamos a recibir
 export type ContactoInput = {
@@ -15,6 +16,7 @@ export type ContactoInput = {
 }
 
 export async function getContactos() {
+  await requireAdmin();
   try {
     const contactos = await prisma.contacto.findMany({
       orderBy: { createdAt: 'desc' }
@@ -27,6 +29,7 @@ export async function getContactos() {
 }
 
 export async function createContacto(data: ContactoInput) {
+  await requireAdmin();
   try {
     const nuevoContacto = await prisma.contacto.create({
       data: {
@@ -48,6 +51,7 @@ export async function createContacto(data: ContactoInput) {
 }
 
 export async function updateContacto(id: string, data: ContactoInput) {
+  await requireAdmin();
   try {
     const contactoActualizado = await prisma.contacto.update({
       where: { id },
@@ -70,6 +74,7 @@ export async function updateContacto(id: string, data: ContactoInput) {
 }
 
 export async function deleteContacto(id: string) {
+  await requireAdmin();
   try {
     await prisma.contacto.delete({
       where: { id }

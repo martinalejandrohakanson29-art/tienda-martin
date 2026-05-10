@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { validateN8nToken } from "@/lib/webhook-guard";
 
 export async function POST(req: Request) {
+  const unauthorized = validateN8nToken(req);
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await req.json();
     

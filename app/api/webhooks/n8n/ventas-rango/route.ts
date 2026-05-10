@@ -1,7 +1,14 @@
 // app/api/webhooks/n8n/ventas-rango/route.ts
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/authOptions";
 
 export async function POST(req: Request) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
   try {
     // Recibimos las fechas que el usuario seleccionó en la pantalla
     const body = await req.json();

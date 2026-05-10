@@ -1,11 +1,12 @@
 "use server"
 
-// IMPORTANTE: prisma debe importarse entre llaves
-import { prisma } from "@/lib/prisma" 
+import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
+import { requireAdmin } from "@/lib/auth-guard"
 
 // 1. Función para obtener todos los registros
 export async function getMayoristas() {
+    await requireAdmin();
     try {
         // CORREGIDO: n minúscula
         const mayoristas = await prisma.numerosMayoristas.findMany({
@@ -22,6 +23,7 @@ export async function getMayoristas() {
 
 // 2. Función para guardar un nuevo registro
 export async function createMayorista(data: { nombre: string; telefono: string }) {
+    await requireAdmin();
     try {
         // CORREGIDO: n minúscula
         const nuevoMayorista = await prisma.numerosMayoristas.create({

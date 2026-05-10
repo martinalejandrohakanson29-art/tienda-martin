@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { validateN8nToken } from "@/lib/webhook-guard";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
+  const unauthorized = validateN8nToken(req);
+  if (unauthorized) return unauthorized;
+
   try {
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get("startDate");
@@ -97,6 +101,9 @@ export async function GET(req: Request) {
  * Endpoint para que n8n pueda "notificar" o "procesar" pedidos específicos
  */
 export async function POST(req: Request) {
+  const unauthorized = validateN8nToken(req);
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await req.json();
     const { pedidosIds, action } = body;
@@ -160,6 +167,9 @@ export async function POST(req: Request) {
  * Endpoint para que n8n pueda actualizar el estado de un pedido
  */
 export async function PATCH(req: Request) {
+  const unauthorized = validateN8nToken(req);
+  if (unauthorized) return unauthorized;
+
   try {
     const body = await req.json();
     const { id, estado } = body;

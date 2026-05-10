@@ -10,11 +10,15 @@ export const useCart = () => {
     const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([])
     const [mounted, setMounted] = useState(false)
 
-    // Función auxiliar para leer siempre la versión más fresca del carrito
-    const getCartFromStorage = () => {
+    const getCartFromStorage = (): { product: Product; quantity: number }[] => {
         if (typeof window === "undefined") return []
-        const stored = localStorage.getItem("cart")
-        return stored ? JSON.parse(stored) : []
+        try {
+            const stored = localStorage.getItem("cart")
+            return stored ? JSON.parse(stored) : []
+        } catch {
+            localStorage.removeItem("cart")
+            return []
+        }
     }
 
     useEffect(() => {

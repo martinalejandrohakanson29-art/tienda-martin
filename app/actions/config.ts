@@ -2,16 +2,14 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
 
-/**
- * Obtiene la configuración global de la tienda (Dólar, FOB, etc.)
- */
-export async function getConfig() {
-    const config = await prisma.config.findFirst()
-    return config
-}
+export const getConfig = unstable_cache(
+    async () => prisma.config.findFirst(),
+    ["config"],
+    { revalidate: 300, tags: ["config"] }
+)
 
 /**
  * Actualiza la configuración y RECALCULA todos los costos de los artículos
@@ -58,10 +56,10 @@ export async function updateConfig(data: any) {
         `;
     }
     
-    // 4. Refrescamos todas las pantallas para que los cambios se vean ya mismo
+    revalidateTag("config")
     revalidatePath("/admin/mercadolibre/articulos")
-    revalidatePath("/admin/mercadolibre/costos") // Para que los Kits de ML se actualicen
-    revalidatePath("/", "layout") 
-    
+    revalidatePath("/admin/mercadolibre/costos")
+    revalidatePath("/", "layout")
+
     return config
 }

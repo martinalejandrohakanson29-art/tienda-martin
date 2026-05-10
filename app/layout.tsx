@@ -29,18 +29,13 @@ export const metadata: Metadata = {
   }
 };
 
-export const dynamic = "force-dynamic";
-
 export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const configData = await getConfig();
-  const categoriesData = await getUniqueCategories();
-
-  const config = JSON.parse(JSON.stringify(configData));
-  const categories = JSON.parse(JSON.stringify(categoriesData));
+  const config = await getConfig();
+  const categories = await getUniqueCategories();
 
   return (
     <html lang="es">

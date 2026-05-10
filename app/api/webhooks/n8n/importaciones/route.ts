@@ -64,8 +64,14 @@ export async function POST(req: Request) {
             // 👇 CAMBIO AQUÍ: Array.from() soluciona el error de compilación en Railway
             for (const [carritoId, orderItems] of Array.from(ordersMap.entries())) {
                 const firstItem = orderItems[0];
-                const [day, month, year] = firstItem.fecha_arribo.split('/');
-                const formattedDate = new Date(`${year}-${month}-${day}`);
+                const rawFecha = firstItem.fecha_arribo ?? "";
+                const fechaParts = rawFecha.split('/');
+                const formattedDate = fechaParts.length === 3
+                    ? new Date(`${fechaParts[2]}-${fechaParts[1]}-${fechaParts[0]}`)
+                    : new Date();
+                if (isNaN(formattedDate.getTime())) {
+                    console.warn(`[importaciones] fecha_arribo inválida para carrito ${carritoId}: "${rawFecha}"`);
+                }
 
                 const purchaseOrder = await prisma.purchaseOrder.upsert({
                     where: { id: carritoId },

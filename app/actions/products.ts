@@ -1,7 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import { revalidatePath } from "next/cache"
+import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
 import { Product } from "@prisma/client"
 
 // Función auxiliar para ordenar: 
@@ -188,21 +188,24 @@ export async function deleteProduct(id: string) {
     revalidatePaths()
 }
 
-export async function getUniqueCategories() {
-  try {
-    const products = await prisma.product.findMany({
-      where: { stock: { gt: 0 } },
-      select: { category: true }
-    })
-    
-    const uniqueCategories = Array.from(new Set(products.map(p => p.category)))
-    return uniqueCategories.sort()
-  } catch (error) {
-    return []
-  }
-}
+export const getUniqueCategories = unstable_cache(
+    async () => {
+        try {
+            const products = await prisma.product.findMany({
+                where: { stock: { gt: 0 } },
+                select: { category: true },
+            })
+            return Array.from(new Set(products.map(p => p.category))).sort()
+        } catch {
+            return []
+        }
+    },
+    ["categories"],
+    { revalidate: 300, tags: ["categories"] }
+)
 
 function revalidatePaths() {
+    revalidateTag("categories")
     revalidatePath("/admin/products")
     revalidatePath("/shop")
     revalidatePath("/")

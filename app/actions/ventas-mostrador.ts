@@ -1600,6 +1600,13 @@ export async function subirPDFPedido(ventaId: string, formData: FormData) {
   const file = formData.get('file') as File;
   if (!file) return { success: false, error: "No se proporcionó ningún archivo" };
 
+  if (file.type !== "application/pdf") {
+    return { success: false, error: "Solo se aceptan archivos PDF" };
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return { success: false, error: "El archivo supera el límite de 10MB" };
+  }
+
   try {
     const buffer = Buffer.from(await file.arrayBuffer());
     // Limpiar nombre de archivo para evitar problemas en URL

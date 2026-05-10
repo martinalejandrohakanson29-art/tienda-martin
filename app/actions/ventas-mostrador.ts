@@ -12,12 +12,66 @@ import {
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { z } from "zod"
 
 // ─── Tipos compartidos ────────────────────────────────────────────────────────
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
 interface ImpactoItem { id?: string; razonSocial?: string; monto: number }
+
+// ─── Schemas de validación ────────────────────────────────────────────────────
+
+const VentaItemSchema = z.object({
+  productoId: z.string().optional(),
+  id: z.string().optional(),
+  nombre: z.string(),
+  cantidad: z.number().int().min(1),
+  precio_unit: z.number().min(0),
+  subtotal: z.number().min(0),
+})
+
+const VentaBaseUpdateSchema = z.object({
+  cliente: z.string().min(1),
+  total: z.number().min(0),
+  interes: z.number().min(0),
+  totalFinal: z.number().min(0),
+  metodo_pago: z.string(),
+  items: z.array(VentaItemSchema).min(1),
+  dni: z.string().nullish(),
+  telefono: z.string().nullish(),
+  info: z.string().nullish(),
+  cupon: z.string().nullish(),
+  transaccionId: z.string().nullish(),
+  de: z.string().nullish(),
+  para: z.string().nullish(),
+  email: z.string().nullish(),
+  eventoOffline: z.boolean().nullish(),
+  puntoVentaId: z.string().nullish(),
+  tipoEnvio: z.string().nullish(),
+  mlIdVenta: z.string().nullish(),
+  mlIdEnvio: z.string().nullish(),
+  mlPackId: z.string().nullish(),
+  mlMla: z.string().nullish(),
+  mlDni: z.string().nullish(),
+})
+
+const ActualizarVentaSchema = VentaBaseUpdateSchema.extend({
+  cae: z.string().optional(),
+  vencimientoCae: z.coerce.date().optional(),
+  facturaNumero: z.number().optional(),
+  facturaPuntoVenta: z.number().optional(),
+  tipoComprobante: z.number().optional(),
+  docTipo: z.number().optional(),
+  docNro: z.string().optional(),
+  condicionIva: z.number().optional(),
+  importeIva: z.number().optional(),
+  alicuotaIva: z.number().optional(),
+})
+
+export type VentaItemData = z.infer<typeof VentaItemSchema>
+export type ActualizarVentaData = z.infer<typeof ActualizarVentaSchema>
+export type ActualizarPedidoData = z.infer<typeof VentaBaseUpdateSchema>
 
 // ─── Helpers internos ────────────────────────────────────────────────────────
 
@@ -291,7 +345,7 @@ export async function crearVentaMostrador(data: {
   total: number,
   interes: number,
   totalFinal: number,
-  items: any[],
+  items: VentaItemData[],
   metodo_pago: string,
   dni?: string,
   telefono?: string,
@@ -313,7 +367,7 @@ export async function crearVentaMostrador(data: {
   docTipo?: number,
   docNro?: string,
   condicionIva?: number,
-  importeIva?: any,
+  importeIva?: number,
   alicuotaIva?: number,
   mlIdVenta?: string,
   mlIdEnvio?: string,
@@ -604,7 +658,14 @@ export async function guardarComoPedidoVenta(data: {
 
 // --- FUNCIONES PARA EDICIÓN Y AUDITORÍA ---
 
-export async function actualizarVentaMostrador(ventaId: string, data: any, usuario: string, detalleCambios: string) {
+export async function actualizarVentaMostrador(ventaId: string, rawData: unknown, usuario: string, detalleCambios: string) {
+  const parsed = ActualizarVentaSchema.safeParse(rawData);
+  if (!parsed.success) {
+    console.error("[actualizarVentaMostrador] datos inválidos:", parsed.error.flatten());
+    return { success: false, error: "Datos de venta inválidos" };
+  }
+  const data = parsed.data;
+
   try {
     await prisma.$transaction(async (tx) => {
       // --- NUEVO: 1. Obtener los items actuales para revertir el stock ---
@@ -646,9 +707,9 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           de: data.de,
           para: data.para,
           email: data.email,
-          eventoOffline: data.eventoOffline,
+          eventoOffline: data.eventoOffline ?? undefined,
           puntoVentaId: data.puntoVentaId || null,
-          tipoEnvio: data.tipoEnvio,
+          tipoEnvio: data.tipoEnvio ?? undefined,
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
           mlPackId: data.mlPackId,
@@ -666,7 +727,7 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
           ...(data.importeIva !== undefined && { importeIva: data.importeIva }),
           ...(data.alicuotaIva !== undefined && { alicuotaIva: data.alicuotaIva }),
           items: {
-            create: data.items.map((item: any) => ({
+            create: data.items.map((item) => ({
               productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,
@@ -978,7 +1039,14 @@ export async function actualizarEstadoPedidoMasivo(ventaIds: string[], estadoPed
 }
 
 // Función para actualizar un pedido de venta
-export async function actualizarPedidoVenta(ventaId: string, data: any, usuario: string, detalleCambios: string) {
+export async function actualizarPedidoVenta(ventaId: string, rawData: unknown, usuario: string, detalleCambios: string) {
+  const parsed = VentaBaseUpdateSchema.safeParse(rawData);
+  if (!parsed.success) {
+    console.error("[actualizarPedidoVenta] datos inválidos:", parsed.error.flatten());
+    return { success: false, error: "Datos del pedido inválidos" };
+  }
+  const data = parsed.data;
+
   try {
     await prisma.$transaction(async (tx) => {
       // 1. Obtener los items actuales para revertir el stock
@@ -1020,16 +1088,16 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
           de: data.de,
           para: data.para,
           email: data.email,
-          eventoOffline: data.eventoOffline,
+          eventoOffline: data.eventoOffline ?? undefined,
           puntoVentaId: data.puntoVentaId || null,
-          tipoEnvio: data.tipoEnvio,
+          tipoEnvio: data.tipoEnvio ?? undefined,
           mlIdVenta: data.mlIdVenta,
           mlIdEnvio: data.mlIdEnvio,
           mlPackId: data.mlPackId,
           mlMla: data.mlMla,
           mlDni: data.mlDni,
           items: {
-            create: data.items.map((item: any) => ({
+            create: data.items.map((item) => ({
               productoId: item.productoId || item.id,
               nombre: item.nombre,
               cantidad: item.cantidad,

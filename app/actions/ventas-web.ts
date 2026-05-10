@@ -3,20 +3,21 @@
 import { prisma } from "@/lib/prisma"
 import { requireAdmin } from "@/lib/auth-guard"
 
-export async function getVentasWeb() {
+export async function getVentasWeb(page: number = 1, pageSize: number = 100) {
     try {
-        const ventas = await prisma.webSale.findMany({
-            include: {
-                items: true
-            },
-            orderBy: {
-                createdAt: 'desc'
-            }
-        });
-        return ventas;
+        const [ventas, total] = await Promise.all([
+            prisma.webSale.findMany({
+                include: { items: true },
+                orderBy: { createdAt: 'desc' },
+                take: pageSize,
+                skip: (page - 1) * pageSize,
+            }),
+            prisma.webSale.count(),
+        ]);
+        return { ventas, total, page, pageSize };
     } catch (error) {
         console.error("Error fetching ventas web:", error);
-        return [];
+        return { ventas: [], total: 0, page, pageSize };
     }
 }
 

@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath, revalidateTag, unstable_cache } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
+import { z } from "zod"
 
 export const getConfig = unstable_cache(
     async () => prisma.config.findFirst(),
@@ -11,51 +12,59 @@ export const getConfig = unstable_cache(
     { revalidate: 300, tags: ["config"] }
 )
 
-/**
- * Actualiza la configuración y RECALCULA todos los costos de los artículos
- */
-export async function updateConfig(data: any) {
+const ConfigSchema = z.object({
+    companyName:           z.string().min(1).max(100).optional(),
+    whatsappNumber:        z.string().max(20).optional(),
+    instagramUrl:          z.string().url().or(z.literal("")).optional(),
+    tiktokUrl:             z.string().url().or(z.literal("")).optional(),
+    welcomeText:           z.string().max(500).optional(),
+    locationUrl:           z.string().url().or(z.literal("")).optional(),
+    paymentMethods:        z.string().max(200).optional(),
+    carouselHeightDesktop: z.string().max(20).optional(),
+    carouselHeightMobile:  z.string().max(20).optional(),
+    logoUrl:               z.string().max(500).optional(),
+    logoHeight:            z.string().max(20).optional(),
+    announcementText:      z.string().max(300).optional(),
+    dolarCotizacion:       z.number().positive().optional(),
+    factorFob:             z.number().positive().optional(),
+    recargoFinanciacion:   z.number().min(0).optional(),
+})
+
+export async function updateConfig(raw: unknown) {
     await requireAdmin();
-    // 1. Buscamos si ya existe una configuración
+
+    const parsed = ConfigSchema.safeParse(raw);
+    if (!parsed.success) {
+        return { error: "Datos de configuración inválidos", details: parsed.error.flatten() };
+    }
+    const data = parsed.data;
+
     const existingConfig = await prisma.config.findFirst()
     let config;
 
-    // 2. Guardamos los nuevos valores (Dólar, FOB, Financiación, etc.)
     if (existingConfig) {
-        config = await prisma.config.update({
-            where: { id: existingConfig.id },
-            data: { ...data },
-        })
+        config = await prisma.config.update({ where: { id: existingConfig.id }, data })
     } else {
-        config = await prisma.config.create({
-            data: { ...data }
-        })
+        config = await prisma.config.create({ data: data as any })
     }
 
-    // 3. ⚡ ACTUALIZACIÓN MASIVA DE PRECIOS ⚡
-    // Si los datos que estamos guardando incluyen valores de costo, 
-    // ejecutamos un comando directo a la base de datos para actualizar TODO.
     if (data.dolarCotizacion !== undefined || data.factorFob !== undefined || data.recargoFinanciacion !== undefined) {
-        
-        // Tomamos los nuevos valores o los que ya estaban guardados
-        const dolar = Number(data.dolarCotizacion ?? existingConfig?.dolarCotizacion ?? 1);
-        const fob = Number(data.factorFob ?? existingConfig?.factorFob ?? 1);
+        const dolar  = Number(data.dolarCotizacion  ?? existingConfig?.dolarCotizacion  ?? 1);
+        const fob    = Number(data.factorFob         ?? existingConfig?.factorFob         ?? 1);
         const financ = Number(data.recargoFinanciacion ?? existingConfig?.recargoFinanciacion ?? 0);
 
-        // SQL Puro: Esto es ultra rápido y actualiza todos los artículos en un milisegundo.
-        // Solo afecta el cálculo si "es_dolar" es TRUE.
         await prisma.$executeRaw`
             UPDATE costos_articulos
-            SET costo_final_ars = CASE 
-                WHEN es_dolar = true THEN 
+            SET costo_final_ars = CASE
+                WHEN es_dolar = true THEN
                     (costo_usd * ${dolar} * ${fob}) * (1 + (${financ} / 100.0))
-                ELSE 
+                ELSE
                     costo_usd
             END,
             fecha_actualizacion = NOW()
         `;
     }
-    
+
     revalidateTag("config")
     revalidatePath("/admin/mercadolibre/articulos")
     revalidatePath("/admin/mercadolibre/costos")

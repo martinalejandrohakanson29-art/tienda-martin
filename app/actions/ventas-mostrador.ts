@@ -6,13 +6,126 @@ import { revalidatePath } from "next/cache";
 import { facturarVenta, generarNotaCredito } from "./afip";
 import { s3Client } from "@/lib/s3"
 import {
-  S3Client,
   PutObjectCommand,
   CreateBucketCommand,
   HeadBucketCommand,
   GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+// ─── Tipos compartidos ────────────────────────────────────────────────────────
+
+type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+
+interface ImpactoItem { id?: string; razonSocial?: string; monto: number }
+
+// ─── Helpers internos ────────────────────────────────────────────────────────
+
+function parsearImpactos(para: string, montoTotal: number): ImpactoItem[] {
+  try {
+    const trimmed = para.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    }
+  } catch {}
+  return [{ razonSocial: para, monto: montoTotal }];
+}
+
+async function resolverProveedor(tx: TxClient, imp: ImpactoItem) {
+  const idBuscado = imp.id || imp.razonSocial;
+  if (!idBuscado) return null;
+  return (
+    await tx.proveedor.findUnique({ where: { id: idBuscado } }).catch(() => null) ??
+    await tx.proveedor.findFirst({ where: { razonSocial: idBuscado } })
+  );
+}
+
+async function aplicarImpactoProveedorTx(
+  tx: TxClient,
+  para: string,
+  montoTotal: number,
+  descripcion: string,
+  referencia: string,
+) {
+  const impactos = parsearImpactos(para, montoTotal);
+  await Promise.all(impactos.map(async (imp) => {
+    const proveedor = await resolverProveedor(tx, imp);
+    if (!proveedor) return;
+    const monto = new Prisma.Decimal(imp.monto || montoTotal);
+    if (monto.isZero()) return;
+    const nuevoSaldo = proveedor.total.plus(monto);
+    await tx.proveedor.update({ where: { id: proveedor.id }, data: { total: nuevoSaldo } });
+    await tx.movimientoProveedor.create({
+      data: { proveedorId: proveedor.id, tipo: "HABER", monto, descripcion, referencia, saldo: nuevoSaldo },
+    });
+  }));
+}
+
+async function revertirImpactoProveedorTx(
+  tx: TxClient,
+  para: string,
+  montoTotal: number,
+  ventaId: string,
+  descripcionAnulacion?: string,
+) {
+  const impactos = parsearImpactos(para, montoTotal);
+  await Promise.all(impactos.map(async (imp) => {
+    const proveedor = await resolverProveedor(tx, imp);
+    if (!proveedor) return;
+    const monto = new Prisma.Decimal(imp.monto || montoTotal);
+    if (monto.isZero()) return;
+    const nuevoSaldo = proveedor.total.minus(monto);
+    await tx.proveedor.update({ where: { id: proveedor.id }, data: { total: nuevoSaldo } });
+    await tx.movimientoProveedor.updateMany({
+      where: { referencia: ventaId, proveedorId: proveedor.id, anulado: false },
+      data: { anulado: true },
+    });
+    if (descripcionAnulacion) {
+      await tx.movimientoProveedor.create({
+        data: {
+          proveedorId: proveedor.id,
+          tipo: "EGRESO",
+          monto: monto.negated(),
+          descripcion: descripcionAnulacion,
+          referencia: ventaId,
+          saldo: nuevoSaldo,
+          anulado: true,
+        },
+      });
+    }
+  }));
+}
+
+type StockItem = { productoId?: string; id?: string; cantidad: number }
+
+async function ajustarStockItemsTx(
+  tx: TxClient,
+  items: StockItem[],
+  modo: "decrement" | "increment",
+) {
+  await Promise.all(items.map(async (item) => {
+    const articuloId = item.productoId || item.id;
+    if (!articuloId) return;
+    const articuloBase = await tx.articuloMostrador.findUnique({
+      where: { id: articuloId },
+      include: { packItems: true },
+    });
+    if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+      await Promise.all(articuloBase.packItems.map(packItem =>
+        tx.articuloMostrador.updateMany({
+          where: { id: packItem.componenteId },
+          data: { stock: { [modo]: packItem.cantidad * item.cantidad } },
+        })
+      ));
+    } else {
+      await tx.articuloMostrador.updateMany({
+        where: { id: articuloId },
+        data: { stock: { [modo]: item.cantidad } },
+      });
+    }
+  }));
+}
 
 export async function obtenerTodosLosArticulos() {
   try {
@@ -57,29 +170,21 @@ export async function obtenerTodosLosArticulos() {
   }
 }
 
-export async function obtenerVentasPorFecha(fechaStr: string) {
+export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: string) {
   try {
-    const inicioDia = new Date(fechaStr);
-    inicioDia.setHours(0, 0, 0, 0);
+    const inicio = new Date(fechaDesde);
+    inicio.setHours(0, 0, 0, 0);
 
-    const finDia = new Date(fechaStr);
-    finDia.setHours(23, 59, 59, 999);
+    const fin = new Date(fechaHasta ?? fechaDesde);
+    fin.setHours(23, 59, 59, 999);
 
     const ventas = await prisma.venta.findMany({
       where: {
         tipoVenta: { not: "PEDIDO" },
-        createdAt: {
-          gte: inicioDia,
-          lte: finDia,
-        },
+        createdAt: { gte: inicio, lte: fin },
       },
-      include: {
-        items: true,
-        puntoVenta: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      include: { items: true, puntoVenta: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     return {
@@ -94,9 +199,9 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
         items: v.items.map(i => ({
           ...i,
           precio_unit: Number(i.precio_unit),
-          subtotal: Number(i.subtotal)
-        }))
-      }))
+          subtotal: Number(i.subtotal),
+        })),
+      })),
     };
   } catch (error) {
     console.error("Error al obtener ventas:", error);
@@ -104,52 +209,7 @@ export async function obtenerVentasPorFecha(fechaStr: string) {
   }
 }
 
-export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta: string) {
-  try {
-    const inicioRango = new Date(fechaDesde);
-    inicioRango.setHours(0, 0, 0, 0);
-
-    const finRango = new Date(fechaHasta);
-    finRango.setHours(23, 59, 59, 999);
-
-    const ventas = await prisma.venta.findMany({
-      where: {
-        tipoVenta: { not: "PEDIDO" },
-        createdAt: {
-          gte: inicioRango,
-          lte: finRango,
-        },
-      },
-      include: {
-        items: true,
-        puntoVenta: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-
-    return {
-      success: true,
-      data: ventas.map(v => ({
-        ...v,
-        puntoVenta: v.puntoVenta || null,
-        total: Number(v.total),
-        interes: Number(v.interes),
-        totalFinal: Number(v.totalFinal),
-        createdAt: v.createdAt.toISOString(),
-        items: v.items.map(i => ({
-          ...i,
-          precio_unit: Number(i.precio_unit),
-          subtotal: Number(i.subtotal)
-        }))
-      }))
-    };
-  } catch (error) {
-    console.error("Error al obtener ventas:", error);
-    return { success: false, error: "Error al cargar el listado" };
-  }
-}
+export const obtenerVentasPorFecha = (fecha: string) => obtenerVentasPorRango(fecha);
 
 export async function marcarVentaComoRegistrada(id: string) {
   try {
@@ -383,92 +443,12 @@ export async function crearVentaMostrador(data: {
         }
       });
 
-      // --- NUEVO: Descontar stock de los artículos vendidos ---
-      for (const item of data.items) {
-        const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: item.productoId || item.id },
-          include: { packItems: true }
-        });
+      await ajustarStockItemsTx(tx, data.items, "decrement");
 
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.updateMany({
-              where: { id: packItem.componenteId },
-              data: { stock: { decrement: packItem.cantidad * item.cantidad } }
-            });
-          }
-        } else {
-          await tx.articuloMostrador.updateMany({
-            where: { id: item.productoId || item.id },
-            data: {
-              stock: {
-                decrement: item.cantidad
-              }
-            }
-          });
-        }
-      }
-
-      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada", "A Cuenta Corriente" o "Mixto" con esas partes ---
       const montoImpactoVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
-
       if (montoImpactoVal > 0 && data.para) {
-        let impactos: { id?: string, razonSocial?: string, monto: number }[] = [];
-
-        // Intentar parsear si es JSON (múltiples proveedores)
-        try {
-          if (data.para.trim().startsWith('[') || data.para.trim().startsWith('{')) {
-            const parsed = JSON.parse(data.para);
-            if (Array.isArray(parsed)) {
-              impactos = parsed;
-            } else {
-              impactos = [parsed];
-            }
-          } else {
-            impactos = [{ razonSocial: data.para, monto: montoImpactoVal }];
-          }
-        } catch (e) {
-          impactos = [{ razonSocial: data.para, monto: montoImpactoVal }];
-        }
-
-        for (const imp of impactos) {
-          const idBuscado = imp.id || imp.razonSocial;
-          if (!idBuscado) continue;
-
-          let proveedor = null;
-          proveedor = await tx.proveedor.findUnique({
-            where: { id: idBuscado }
-          }).catch(() => null);
-
-          if (!proveedor) {
-            proveedor = await tx.proveedor.findFirst({
-              where: { razonSocial: idBuscado }
-            });
-          }
-
-          if (proveedor) {
-            const montoDecimal = new Prisma.Decimal(imp.monto || (impactos.length === 1 ? montoImpactoVal : 0));
-            if (montoDecimal.isZero()) continue;
-
-            const nuevoSaldo = proveedor.total.plus(montoDecimal);
-
-            await tx.proveedor.update({
-              where: { id: proveedor.id },
-              data: { total: nuevoSaldo }
-            });
-
-            await tx.movimientoProveedor.create({
-              data: {
-                proveedorId: proveedor.id,
-                tipo: "HABER",
-                monto: montoDecimal,
-                descripcion: `${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta (Cruzada/CC)" : "Venta a CC"} #${venta.numeroVenta} (${data.cliente})`,
-                referencia: venta.id,
-                saldo: nuevoSaldo
-              }
-            });
-          }
-        }
+        const desc = `${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta (Cruzada/CC)" : "Venta a CC"} #${venta.numeroVenta} (${data.cliente})`;
+        await aplicarImpactoProveedorTx(tx, data.para, montoImpactoVal, desc, venta.id);
       }
 
       return venta;
@@ -481,7 +461,7 @@ export async function crearVentaMostrador(data: {
   }
 }
 
-// --- Función para guardar como pedido de venta (Triggering new deploy) ---
+// --- Función para guardar como pedido de venta ---
 export async function guardarComoPedidoVenta(data: {
   cliente: string,
   vendedor: string,
@@ -604,91 +584,12 @@ export async function guardarComoPedidoVenta(data: {
         }
       });
 
-      // --- Descontar stock de los artículos vendidos ---
-      for (const item of data.items) {
-        const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: item.productoId || item.id },
-          include: { packItems: true }
-        });
+      await ajustarStockItemsTx(tx, data.items, "decrement");
 
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.updateMany({
-              where: { id: packItem.componenteId },
-              data: { stock: { decrement: packItem.cantidad * item.cantidad } }
-            });
-          }
-        } else {
-          await tx.articuloMostrador.updateMany({
-            where: { id: item.productoId || item.id },
-            data: {
-              stock: {
-                decrement: item.cantidad
-              }
-            }
-          });
-        }
-      }
-
-      // --- NUEVO: Actualizar saldo de proveedor si el pago es "Cruzada", "A Cuenta Corriente" o "Mixto" ---
       const montoImpactoVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
-
       if (montoImpactoVal > 0 && data.para) {
-        let impactos: { id?: string, razonSocial?: string, monto: number }[] = [];
-
-        try {
-          if (data.para.trim().startsWith('[') || data.para.trim().startsWith('{')) {
-            const parsed = JSON.parse(data.para);
-            if (Array.isArray(parsed)) {
-              impactos = parsed;
-            } else {
-              impactos = [parsed];
-            }
-          } else {
-            impactos = [{ razonSocial: data.para, monto: montoImpactoVal }];
-          }
-        } catch (e) {
-          impactos = [{ razonSocial: data.para, monto: montoImpactoVal }];
-        }
-
-        for (const imp of impactos) {
-          const idBuscado = imp.id || imp.razonSocial;
-          if (!idBuscado) continue;
-
-          let proveedor = null;
-          proveedor = await tx.proveedor.findUnique({
-            where: { id: idBuscado }
-          }).catch(() => null);
-
-          if (!proveedor) {
-            proveedor = await tx.proveedor.findFirst({
-              where: { razonSocial: idBuscado }
-            });
-          }
-
-          if (proveedor) {
-            const montoDecimal = new Prisma.Decimal(imp.monto || (impactos.length === 1 ? montoImpactoVal : 0));
-            if (montoDecimal.isZero()) continue;
-
-            const nuevoSaldo = proveedor.total.plus(montoDecimal);
-
-            await tx.proveedor.update({
-              where: { id: proveedor.id },
-              data: { total: nuevoSaldo }
-            });
-
-            await tx.movimientoProveedor.create({
-              data: {
-                proveedorId: proveedor.id,
-                tipo: "HABER",
-                monto: montoDecimal,
-                descripcion: `${data.metodo_pago === "Cruzada" ? "Pago de venta (Pedido)" : data.metodo_pago === "Mixto" ? "Venta Mixta (Pedido)" : "Venta a CC (Pedido)"} #${venta.numeroVenta} (${data.cliente})`,
-                referencia: venta.id,
-                saldo: nuevoSaldo
-              }
-            });
-          }
-        }
+        const desc = `${data.metodo_pago === "Cruzada" ? "Pago de venta (Pedido)" : data.metodo_pago === "Mixto" ? "Venta Mixta (Pedido)" : "Venta a CC (Pedido)"} #${venta.numeroVenta} (${data.cliente})`;
+        await aplicarImpactoProveedorTx(tx, data.para, montoImpactoVal, desc, venta.id);
       }
 
       return venta;
@@ -721,82 +622,14 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
       const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
       const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0;
 
-      if (oldVenta && esMetodoImpactoOld && !esMismoImpacto) {
-        let impactosOld: { id?: string, razonSocial?: string, monto: number }[] = [];
-        try {
-          if (oldVenta.para && (oldVenta.para.trim().startsWith('[') || oldVenta.para.trim().startsWith('{'))) {
-            const parsed = JSON.parse(oldVenta.para);
-            impactosOld = Array.isArray(parsed) ? parsed : [parsed];
-          } else if (oldVenta.para) {
-            impactosOld = [{ razonSocial: oldVenta.para, monto: montoRevertirVal }];
-          }
-        } catch (e) {
-          if (oldVenta.para) impactosOld = [{ razonSocial: oldVenta.para, monto: montoRevertirVal }];
-        }
-
-        for (const imp of impactosOld) {
-          const idBuscado = imp.id || imp.razonSocial;
-          if (!idBuscado) continue;
-
-          let proveedor = await tx.proveedor.findUnique({
-            where: { id: idBuscado }
-          }).catch(() => null);
-
-          if (!proveedor) {
-            proveedor = await tx.proveedor.findFirst({
-              where: { razonSocial: idBuscado }
-            });
-          }
-
-          if (proveedor) {
-            const montoRevertir = new Prisma.Decimal(imp.monto || (impactosOld.length === 1 ? montoRevertirVal : 0));
-            if (montoRevertir.isZero()) continue;
-
-            const nuevoSaldo = proveedor.total.minus(montoRevertir);
-
-            await tx.proveedor.update({
-              where: { id: proveedor.id },
-              data: { total: nuevoSaldo }
-            });
-
-            // Marcar movimiento anterior como anulado
-            await tx.movimientoProveedor.updateMany({
-              where: { referencia: ventaId, proveedorId: proveedor.id, anulado: false },
-              data: { anulado: true }
-            });
-          }
-        }
+      if (oldVenta && esMetodoImpactoOld && !esMismoImpacto && oldVenta.para) {
+        await revertirImpactoProveedorTx(tx, oldVenta.para, montoRevertirVal, ventaId);
       }
 
-      // Revertir el stock (sumar lo que se había restado originalmente)
-      for (const oldItem of oldItems) {
-        if (oldItem.productoId) {
-          const articuloBase = await tx.articuloMostrador.findUnique({
-            where: { id: oldItem.productoId },
-            include: { packItems: true }
-          });
-          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-            for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.updateMany({
-                where: { id: packItem.componenteId },
-                data: { stock: { increment: packItem.cantidad * oldItem.cantidad } }
-              });
-            }
-          } else {
-            await tx.articuloMostrador.updateMany({
-              where: { id: oldItem.productoId },
-              data: { stock: { increment: oldItem.cantidad } }
-            });
-          }
-        }
-      }
+      await ajustarStockItemsTx(tx, oldItems.filter(i => i.productoId).map(i => ({ productoId: i.productoId!, cantidad: i.cantidad })), "increment");
 
-      // 2. Borramos los items actuales para reemplazarlos limpios por los nuevos
-      await tx.ventaItem.deleteMany({
-        where: { ventaId }
-      });
+      await tx.ventaItem.deleteMany({ where: { ventaId } });
 
-      // 3. Actualizamos la venta y creamos los nuevos items
       await tx.venta.update({
         where: { id: ventaId },
         data: {
@@ -844,81 +677,13 @@ export async function actualizarVentaMostrador(ventaId: string, data: any, usuar
         }
       });
 
-      // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto ---
       if (montoImpactoNewVal > 0 && data.para && !esMismoImpacto) {
-        let impactos: { id?: string, razonSocial?: string, monto: number }[] = [];
-        try {
-          if (data.para.trim().startsWith('[') || data.para.trim().startsWith('{')) {
-            const parsed = JSON.parse(data.para);
-            impactos = Array.isArray(parsed) ? parsed : [parsed];
-          } else {
-            impactos = [{ razonSocial: data.para, monto: montoImpactoNewVal }];
-          }
-        } catch (e) {
-          impactos = [{ razonSocial: data.para, monto: montoImpactoNewVal }];
-        }
-
-        for (const imp of impactos) {
-          const idBuscado = imp.id || imp.razonSocial;
-          if (!idBuscado) continue;
-
-          let proveedor = await tx.proveedor.findUnique({
-            where: { id: idBuscado }
-          }).catch(() => null);
-
-          if (!proveedor) {
-            proveedor = await tx.proveedor.findFirst({
-              where: { razonSocial: idBuscado }
-            });
-          }
-
-          if (proveedor) {
-            const montoImpacto = new Prisma.Decimal(imp.monto || (impactos.length === 1 ? montoImpactoNewVal : 0));
-            if (montoImpacto.isZero()) continue;
-
-            const nuevoSaldo = proveedor.total.plus(montoImpacto);
-
-            await tx.proveedor.update({
-              where: { id: proveedor.id },
-              data: { total: nuevoSaldo }
-            });
-
-            await tx.movimientoProveedor.create({
-              data: {
-                proveedorId: proveedor.id,
-                tipo: "HABER",
-                monto: montoImpacto,
-                descripcion: `EDICIÓN: ${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta (Cruzada/CC)" : "Venta a CC"} #${oldVenta?.numeroVenta} (${data.cliente})`,
-                referencia: ventaId,
-                saldo: nuevoSaldo
-              }
-            });
-          }
-        }
+        const desc = `EDICIÓN: ${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta (Cruzada/CC)" : "Venta a CC"} #${oldVenta?.numeroVenta} (${data.cliente})`;
+        await aplicarImpactoProveedorTx(tx, data.para, montoImpactoNewVal, desc, ventaId);
       }
 
-      // --- NUEVO: 4. Descontar el stock de los nuevos items ---
-      for (const newItem of data.items) {
-        const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: newItem.productoId || newItem.id },
-          include: { packItems: true }
-        });
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.updateMany({
-              where: { id: packItem.componenteId },
-              data: { stock: { decrement: packItem.cantidad * newItem.cantidad } }
-            });
-          }
-        } else {
-          await tx.articuloMostrador.updateMany({
-            where: { id: newItem.productoId || newItem.id },
-            data: { stock: { decrement: newItem.cantidad } }
-          });
-        }
-      }
+      await ajustarStockItemsTx(tx, data.items, "decrement");
 
-      // 5. Dejamos el registro de qué se cambió
       await tx.ventaAuditoria.create({
         data: {
           ventaId: ventaId,
@@ -1041,110 +806,22 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
         where: { ventaId }
       });
 
-      // --- NUEVO: Revertir saldo de proveedor si la venta tenía impacto (Cruzada, CC o Mixto) ---
       const esMetodoImpactoDel = venta && (venta.metodo_pago === "Cruzada" || venta.metodo_pago === "A Cuenta Corriente" || venta.metodo_pago === "Mixto");
-
-      if (venta && esMetodoImpactoDel) {
+      if (venta && esMetodoImpactoDel && venta.para) {
         const montoRevertirVal = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
-
-        if (montoRevertirVal > 0 && venta.para) {
-          let impactos: { id?: string, razonSocial?: string, monto: number }[] = [];
-          try {
-            if (venta.para.trim().startsWith('[') || venta.para.trim().startsWith('{')) {
-              const parsed = JSON.parse(venta.para);
-              impactos = Array.isArray(parsed) ? parsed : [parsed];
-            } else {
-              impactos = [{ razonSocial: venta.para, monto: montoRevertirVal }];
-            }
-          } catch (e) {
-            impactos = [{ razonSocial: venta.para, monto: montoRevertirVal }];
-          }
-
-          for (const imp of impactos) {
-            const idBuscado = imp.id || imp.razonSocial;
-            if (!idBuscado) continue;
-
-            let proveedor = await tx.proveedor.findUnique({
-              where: { id: idBuscado }
-            }).catch(() => null);
-
-            if (!proveedor) {
-              proveedor = await tx.proveedor.findFirst({
-                where: { razonSocial: idBuscado }
-              });
-            }
-
-            if (proveedor) {
-              const montoRevertir = new Prisma.Decimal(imp.monto || (impactos.length === 1 ? montoRevertirVal : 0));
-              if (montoRevertir.isZero()) continue;
-
-              const nuevoSaldo = proveedor.total.minus(montoRevertir);
-
-              await tx.proveedor.update({
-                where: { id: proveedor.id },
-                data: { total: nuevoSaldo }
-              });
-
-              // Marcar el movimiento original como anulado
-              await tx.movimientoProveedor.updateMany({
-                where: { referencia: venta.id, proveedorId: proveedor.id },
-                data: { anulado: true }
-              });
-
-              // Crear un movimiento de anulación para que el historial sea claro
-              await tx.movimientoProveedor.create({
-                data: {
-                  proveedorId: proveedor.id,
-                  tipo: "EGRESO",
-                  monto: montoRevertir.negated(),
-                  descripcion: `ANULACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) eliminada`,
-                  referencia: venta.id,
-                  saldo: nuevoSaldo,
-                  anulado: true
-                }
-              });
-            }
-          }
+        if (montoRevertirVal > 0) {
+          const descAnulacion = `ANULACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) eliminada`;
+          await revertirImpactoProveedorTx(tx, venta.para, montoRevertirVal, ventaId, descAnulacion);
         }
       }
 
-      // 2. Registrar auditoría de eliminación
       await tx.ventaAuditoria.create({
-        data: {
-          ventaId: ventaId,
-          usuario: usuario,
-          accion: "ELIMINACION_VENTA",
-          detalle: `Venta eliminada por ${usuario}`
-        }
+        data: { ventaId, usuario, accion: "ELIMINACION_VENTA", detalle: `Venta eliminada por ${usuario}` }
       });
 
-      // 3. Revertir el stock de los artículos eliminados
-      for (const item of items) {
-        if (item.productoId) {
-          const articuloBase = await tx.articuloMostrador.findUnique({
-            where: { id: item.productoId },
-            include: { packItems: true }
-          });
-          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-            for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.updateMany({
-                where: { id: packItem.componenteId },
-                data: { stock: { increment: packItem.cantidad * item.cantidad } }
-              });
-            }
-          } else {
-            await tx.articuloMostrador.updateMany({
-              where: { id: item.productoId },
-              data: { stock: { increment: item.cantidad } }
-            });
-          }
-        }
-      }
+      await ajustarStockItemsTx(tx, items.filter(i => i.productoId).map(i => ({ productoId: i.productoId!, cantidad: i.cantidad })), "increment");
 
-      // 4. Eliminar la venta (esto también eliminará los items relacionados debido a onDelete: Cascade)
-      await tx.venta.delete({
-        where: { id: ventaId }
-      });
+      await tx.venta.delete({ where: { id: ventaId } });
     });
 
     return { success: true };
@@ -1319,65 +996,14 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
       const montoImpactoNewVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
       const esMismoImpacto = oldVenta && oldVenta.para === data.para && montoRevertirVal === montoImpactoNewVal && montoRevertirVal > 0;
 
-      if (oldVenta && esMetodoImpactoOld && !esMismoImpacto) {
-        if (montoRevertirVal > 0) {
-          let proveedor = await tx.proveedor.findUnique({
-            where: { id: oldVenta.para || "" }
-          }).catch(() => null);
-
-          if (!proveedor) {
-            proveedor = await tx.proveedor.findFirst({
-              where: { razonSocial: oldVenta.para || "" }
-            });
-          }
-
-          if (proveedor) {
-            const montoRevertir = new Prisma.Decimal(montoRevertirVal);
-            const nuevoSaldo = proveedor.total.minus(montoRevertir);
-
-            await tx.proveedor.update({
-              where: { id: proveedor.id },
-              data: { total: nuevoSaldo }
-            });
-
-            // Marcar movimiento anterior como anulado
-            await tx.movimientoProveedor.updateMany({
-              where: { referencia: ventaId, proveedorId: proveedor.id, anulado: false },
-              data: { anulado: true }
-            });
-          }
-        }
+      if (oldVenta && esMetodoImpactoOld && !esMismoImpacto && oldVenta.para && montoRevertirVal > 0) {
+        await revertirImpactoProveedorTx(tx, oldVenta.para, montoRevertirVal, ventaId);
       }
 
-      // Revertir el stock (sumar lo que se había restado originalmente)
-      for (const oldItem of oldItems) {
-        if (oldItem.productoId) {
-          const articuloBase = await tx.articuloMostrador.findUnique({
-            where: { id: oldItem.productoId },
-            include: { packItems: true }
-          });
-          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-            for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.updateMany({
-                where: { id: packItem.componenteId },
-                data: { stock: { increment: packItem.cantidad * oldItem.cantidad } }
-              });
-            }
-          } else {
-            await tx.articuloMostrador.updateMany({
-              where: { id: oldItem.productoId },
-              data: { stock: { increment: oldItem.cantidad } }
-            });
-          }
-        }
-      }
+      await ajustarStockItemsTx(tx, oldItems.filter(i => i.productoId).map(i => ({ productoId: i.productoId!, cantidad: i.cantidad })), "increment");
 
-      // 2. Borramos los items actuales para reemplazarlos limpios por los nuevos
-      await tx.ventaItem.deleteMany({
-        where: { ventaId }
-      });
+      await tx.ventaItem.deleteMany({ where: { ventaId } });
 
-      // 3. Actualizamos la venta y creamos los nuevos items
       await tx.venta.update({
         where: { id: ventaId },
         data: {
@@ -1408,77 +1034,21 @@ export async function actualizarPedidoVenta(ventaId: string, data: any, usuario:
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
-              subtotal: item.subtotal
+              subtotal: item.subtotal,
             }))
           }
         }
       });
 
-      // --- NUEVO: Aplicar saldo de proveedor si la nueva versión tiene impacto (Cruzada, CC o Mixto) ---
       if (montoImpactoNewVal > 0 && data.para && !esMismoImpacto) {
-        const idBuscado = data.para;
-
-        let proveedor = await tx.proveedor.findUnique({
-          where: { id: idBuscado || "" }
-        }).catch(() => null);
-
-        if (!proveedor) {
-          proveedor = await tx.proveedor.findFirst({
-            where: { razonSocial: data.para || "" }
-          });
-        }
-
-        if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(montoImpactoNewVal);
-          const nuevoSaldo = proveedor.total.plus(montoDecimal);
-
-          await tx.proveedor.update({
-            where: { id: proveedor.id },
-            data: { total: nuevoSaldo }
-          });
-
-          await tx.movimientoProveedor.create({
-            data: {
-              proveedorId: proveedor.id,
-              tipo: "HABER",
-              monto: montoDecimal,
-              descripcion: `EDICIÓN (Pedido): ${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${oldVenta?.numeroVenta} (${data.cliente})`,
-              referencia: ventaId,
-              saldo: nuevoSaldo
-            }
-          });
-        }
+        const desc = `EDICIÓN (Pedido): ${data.metodo_pago === "Cruzada" ? "Pago de venta" : data.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${oldVenta?.numeroVenta} (${data.cliente})`;
+        await aplicarImpactoProveedorTx(tx, data.para, montoImpactoNewVal, desc, ventaId);
       }
 
-      // 4. Descontar el stock de los nuevos items
-      for (const newItem of data.items) {
-        const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: newItem.productoId || newItem.id },
-          include: { packItems: true }
-        });
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.updateMany({
-              where: { id: packItem.componenteId },
-              data: { stock: { decrement: packItem.cantidad * newItem.cantidad } }
-            });
-          }
-        } else {
-          await tx.articuloMostrador.updateMany({
-            where: { id: newItem.productoId || newItem.id },
-            data: { stock: { decrement: newItem.cantidad } }
-          });
-        }
-      }
+      await ajustarStockItemsTx(tx, data.items, "decrement");
 
-      // 5. Dejamos el registro de qué se cambió
       await tx.ventaAuditoria.create({
-        data: {
-          ventaId: ventaId,
-          usuario: usuario,
-          accion: "EDICION_PEDIDO_VENTA",
-          detalle: detalleCambios
-        }
+        data: { ventaId, usuario, accion: "EDICION_PEDIDO_VENTA", detalle: detalleCambios }
       });
     }, {
       timeout: 20000
@@ -1509,36 +1079,8 @@ export async function confirmarPedidoVenta(ventaId: string) {
       const montoImpactoVal = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
 
       if (!movimientoExistente && montoImpactoVal > 0 && venta.para) {
-        let proveedor = await tx.proveedor.findUnique({
-          where: { id: venta.para }
-        }).catch(() => null);
-
-        if (!proveedor) {
-          proveedor = await tx.proveedor.findFirst({
-            where: { razonSocial: venta.para }
-          });
-        }
-
-        if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(montoImpactoVal);
-          const nuevoSaldo = proveedor.total.plus(montoDecimal);
-
-          await tx.proveedor.update({
-            where: { id: proveedor.id },
-            data: { total: nuevoSaldo }
-          });
-
-          await tx.movimientoProveedor.create({
-            data: {
-              proveedorId: proveedor.id,
-              tipo: "HABER",
-              monto: montoDecimal,
-              descripcion: `${venta.metodo_pago === "Cruzada" ? "Pago de venta" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) - Confirmación Pedido`,
-              referencia: venta.id,
-              saldo: nuevoSaldo
-            }
-          });
-        }
+        const desc = `${venta.metodo_pago === "Cruzada" ? "Pago de venta" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) - Confirmación Pedido`;
+        await aplicarImpactoProveedorTx(tx, venta.para, montoImpactoVal, desc, venta.id);
       }
 
       return venta;
@@ -1561,32 +1103,9 @@ export async function eliminarPedidoVenta(ventaId: string) {
 
       if (!venta) throw new Error("Pedido no encontrado");
 
-      // Revertir stock
-      for (const item of venta.items) {
-        if (item.productoId) {
-          const articuloBase = await tx.articuloMostrador.findUnique({
-            where: { id: item.productoId },
-            include: { packItems: true }
-          });
-          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-            for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.updateMany({
-                where: { id: packItem.componenteId },
-                data: { stock: { increment: packItem.cantidad * item.cantidad } }
-              });
-            }
-          } else {
-            await tx.articuloMostrador.updateMany({
-              where: { id: item.productoId },
-              data: { stock: { increment: item.cantidad } }
-            });
-          }
-        }
-      }
+      await ajustarStockItemsTx(tx, venta.items.filter(i => i.productoId).map(i => ({ productoId: i.productoId!, cantidad: i.cantidad })), "increment");
 
-      await tx.venta.delete({
-        where: { id: ventaId }
-      });
+      await tx.venta.delete({ where: { id: ventaId } });
     });
 
     return { success: true };
@@ -1784,13 +1303,18 @@ export async function generarFacturaARCA(ventaId: string) {
 
 export async function cancelarVenta(ventaId: string) {
   const venta = await prisma.venta.findUnique({
-    where: { id: ventaId }
+    where: { id: ventaId },
+    include: { items: true }
   });
 
   if (!venta) throw new Error("Venta no encontrada");
 
+  const stockItems = venta.items
+    .filter(i => i.productoId)
+    .map(i => ({ productoId: i.productoId!, cantidad: i.cantidad }));
+
   if (venta.cae && !venta.info?.includes("ANULADA CON NC")) {
-    // LIMPIEZA CRÍTICA: Quitamos guiones y espacios. 
+    // LIMPIEZA CRÍTICA: Quitamos guiones y espacios.
     // Si no hay docNro, probamos con dni (que a veces tiene el CUIT).
     const cuitLimpio = (venta.docNro || venta.dni || "0").replace(/\D/g, '');
 
@@ -1805,20 +1329,23 @@ export async function cancelarVenta(ventaId: string) {
     });
 
     if (resNC.success) {
-      await prisma.venta.update({
-        where: { id: ventaId },
-        data: {
-          estadoPedido: "CANCELADO",
-          info: `ANULADA CON NC Nro: ${resNC.numero} - CAE: ${resNC.cae}`,
-          cae: resNC.cae,
-          facturaNumero: resNC.numero,
-          tipoComprobante: resNC.tipoComprobante,
-          vencimientoCae: resNC.vencimiento ? new Date(
-            parseInt(resNC.vencimiento.substring(0, 4)),
-            parseInt(resNC.vencimiento.substring(4, 6)) - 1,
-            parseInt(resNC.vencimiento.substring(6, 8))
-          ) : new Date(),
-        }
+      await prisma.$transaction(async (tx) => {
+        await tx.venta.update({
+          where: { id: ventaId },
+          data: {
+            estadoPedido: "CANCELADO",
+            info: `ANULADA CON NC Nro: ${resNC.numero} - CAE: ${resNC.cae}`,
+            cae: resNC.cae,
+            facturaNumero: resNC.numero,
+            tipoComprobante: resNC.tipoComprobante,
+            vencimientoCae: resNC.vencimiento ? new Date(
+              parseInt(resNC.vencimiento.substring(0, 4)),
+              parseInt(resNC.vencimiento.substring(4, 6)) - 1,
+              parseInt(resNC.vencimiento.substring(6, 8))
+            ) : new Date(),
+          }
+        });
+        await ajustarStockItemsTx(tx, stockItems, "increment");
       });
       revalidatePath("/admin/ventas-mostrador");
       return { success: true, message: "Venta cancelada y Nota de Crédito generada." };
@@ -1831,9 +1358,12 @@ export async function cancelarVenta(ventaId: string) {
     }
   }
 
-  await prisma.venta.update({
-    where: { id: ventaId },
-    data: { estadoPedido: "CANCELADO" }
+  await prisma.$transaction(async (tx) => {
+    await tx.venta.update({
+      where: { id: ventaId },
+      data: { estadoPedido: "CANCELADO" }
+    });
+    await ajustarStockItemsTx(tx, stockItems, "increment");
   });
   revalidatePath("/admin/ventas-mostrador");
   return { success: true, message: "Venta cancelada correctamente." };

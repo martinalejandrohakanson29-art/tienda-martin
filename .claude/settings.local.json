@@ -9,7 +9,10 @@
       "Bash(npx tsc *)",
       "Bash(grep *)",
       "Bash(Get-ChildItem \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\\\\app\\\\api\\\\webhooks\\\\n8n\" -Recurse -Filter \"route.ts\")",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(not exist *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

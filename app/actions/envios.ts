@@ -121,6 +121,29 @@ export async function imprimirEtiquetas(ids: string[]) {
 }
 
 /**
+ * Marca un envío como despachado de forma manual
+ */
+export async function marcarComoDespachado(id: string) {
+    try {
+        await prisma.etiquetaML.update({
+            where: { id: id },
+            data: { 
+                status: 'shipped',
+                fechaPreparado: new Date() // Usamos esta fecha para el reporte diario
+            }
+        });
+
+        revalidatePath('/admin/mercadolibre/envios');
+        revalidatePath('/admin/mercadolibre/despachados');
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Error al marcar como despachado:", error);
+        return { success: false, error: error.message || "Error al actualizar el estado" };
+    }
+}
+
+/**
  * Obtiene las etiquetas que aún están en proceso operativo
  * (Esta función alimenta la tabla general de envíos)
  */

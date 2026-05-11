@@ -25,7 +25,7 @@ import {
     Printer,
     Filter
 } from "lucide-react"
-import { actualizarPedidos, imprimirEtiquetas } from "@/app/actions/envios"
+import { actualizarPedidos, imprimirEtiquetas, marcarComoDespachado } from "@/app/actions/envios"
 import { useRouter } from "next/navigation"
 import {
     Dialog,
@@ -35,6 +35,7 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog"
+import { toast } from "sonner"
 
 interface EnviosTableProps {
     envios: any[];
@@ -46,6 +47,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     const [searchTerm, setSearchTerm] = useState("")
     const [isUpdating, setIsUpdating] = useState(false)
     const [isPrinting, setIsPrinting] = useState(false) // Nuevo estado para loading de impresión
+    const [loadingId, setLoadingId] = useState<string | null>(null)
     
     // Estado para filtros
     const [activeFilters, setActiveFilters] = useState<Record<FilterType, boolean>>({
@@ -199,6 +201,33 @@ export function EnviosTable({ envios }: EnviosTableProps) {
             setIsModalOpen(true);
         } finally {
             setIsUpdating(false);
+        }
+    }
+
+    const handleDespachar = async (id: string) => {
+        setLoadingId(id);
+        try {
+            const result = await marcarComoDespachado(id);
+            if (result.success) {
+                toast.success("Envío marcado como despachado");
+                router.refresh();
+            } else {
+                setModalConfig({
+                    title: "Error",
+                    description: result.error || "No se pudo actualizar el estado.",
+                    type: "error"
+                });
+                setIsModalOpen(true);
+            }
+        } catch (error) {
+            setModalConfig({
+                title: "Error Inesperado",
+                description: "Ocurrió un problema al procesar la solicitud.",
+                type: "error"
+            });
+            setIsModalOpen(true);
+        } finally {
+            setLoadingId(null);
         }
     }
 
@@ -411,6 +440,22 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                 <span className={`text-[10px] font-black px-0.5 tracking-tighter whitespace-nowrap ${logistic.className}`}>
                                                     {logistic.label}
                                                 </span>
+                                                {(envio.substatus === 'printed' || envio.substatus === 'ready_for_pickup' || envio.substatus === 'in_packing_list') && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 ml-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-full border border-emerald-100"
+                                                        onClick={() => handleDespachar(envio.id)}
+                                                        disabled={loadingId === envio.id}
+                                                        title="Marcar como Despachado"
+                                                    >
+                                                        {loadingId === envio.id ? (
+                                                            <RefreshCcw className="h-3 w-3 animate-spin" />
+                                                        ) : (
+                                                            <Truck className="h-3 w-3" />
+                                                        )}
+                                                    </Button>
+                                                )}
                                             </div>
                                         </TableCell>
 

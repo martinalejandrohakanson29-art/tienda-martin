@@ -19,8 +19,8 @@ const registrarMovimientoSchema = z.object({
   fechaPago: z.date().optional(),
 })
 
-// Tipo del cliente de transacción Prisma derivado directamente de la instancia
-type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
+// Usamos el tipo oficial de Prisma para el cliente de transacción
+type TxClient = Prisma.TransactionClient
 
 /**
  * Recalcula el campo `saldo` de todos los movimientos activos de un proveedor

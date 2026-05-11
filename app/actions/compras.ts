@@ -281,6 +281,8 @@ export async function guardarComoPedidoCompra(data: {
           const precioPublico = Number(item.costo_unit) * (1 + margen / 100);
 
           if (data.impactarCostos) {
+            updateData.costo = item.costo_unit;
+            updateData.margenGanancia = margen;
             updateData.precio = precioPublico;
           }
 
@@ -686,6 +688,8 @@ export async function crearCompra(data: {
           const precioPublico = Number(item.costo_unit) * (1 + margen / 100);
 
           if (data.impactarCostos) {
+            updateData.costo = item.costo_unit;
+            updateData.margenGanancia = margen;
             updateData.precio = precioPublico;
           }
 
@@ -927,6 +931,8 @@ export async function actualizarCompra(compraId: string, data: {
           const precioPublico = Number(newItem.costo_unit) * (1 + margen / 100);
 
           if (data.impactarCostos) {
+            updateData.costo = newItem.costo_unit;
+            updateData.margenGanancia = margen;
             updateData.precio = precioPublico;
           }
 

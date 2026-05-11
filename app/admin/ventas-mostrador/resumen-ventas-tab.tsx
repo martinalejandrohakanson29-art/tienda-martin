@@ -10,8 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   TrendingUp, TrendingDown, ShoppingBag, DollarSign, BarChart2,
-  RefreshCw, Calendar, Package, CreditCard, Award, Loader2,
-  Receipt, Percent, Clock, Store
+  RefreshCw, Calendar, Loader2, Receipt, Store
 } from "lucide-react";
 import { obtenerResumenVentas } from "@/app/actions/ventas-mostrador";
 
@@ -20,10 +19,9 @@ import { obtenerResumenVentas } from "@/app/actions/ventas-mostrador";
 interface ResumenData {
   kpis: {
     totalVentas: number;
-    montoBrutoML: number;
     montoNeto: number;
-    totalIntereses: number;
-    totalItems: number;
+    montoBrutoML: number;
+    montoNetoML: number;
     ticketPromedio: number;
     facturadas: number;
     noFacturadas: number;
@@ -98,13 +96,13 @@ const PesoTooltip = ({ active, payload, label }: any) => {
 
 // ── KPI Card ───────────────────────────────────────────────────────────────────
 
-function KpiCard({ icon: Icon, label, value, sub, color, badge }: {
-  icon: any; label: string; value: string; sub?: string; color: string; badge?: string;
+function KpiCard({ icon: Icon, label, value, sub, color, badge, iconStyle }: {
+  icon: any; label: string; value: string; sub?: string; color: string; badge?: string; iconStyle?: React.CSSProperties;
 }) {
   return (
     <div className={`bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow`}>
       <div className="flex items-center justify-between">
-        <div className={`p-2.5 rounded-xl ${color}`}>
+        <div className={`p-2.5 rounded-xl ${color}`} style={iconStyle}>
           <Icon className="h-5 w-5" />
         </div>
         {badge && <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider">{badge}</Badge>}
@@ -267,25 +265,45 @@ export default function ResumenVentasTab() {
       {data && !loading && (
         <>
           {/* ── KPIs ── */}
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
-            <KpiCard icon={ShoppingBag} label="Total ventas" value={data.kpis.totalVentas.toLocaleString("es-AR")}
-              color="bg-blue-50 text-blue-600" />
-            <KpiCard icon={TrendingUp} label="Total neto" value={fmtPeso(data.kpis.montoNeto)}
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3">
+
+            {/* Tarjeta única: ventas por punto de venta */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow col-span-2 md:col-span-1">
+              <div className="flex items-center gap-2">
+                <div className="p-2.5 rounded-xl bg-slate-100 text-slate-500">
+                  <Store className="h-5 w-5" />
+                </div>
+                <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider">Cantidad de ventas</p>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {data.porPuntoVenta.map((pv, i) => {
+                  const hex = pv.color && pv.color !== "#000000" ? pv.color : PALETTE[i % PALETTE.length];
+                  return (
+                    <div key={pv.nombre} className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: hex }} />
+                      <span className="text-xs text-slate-600 flex-1 truncate">{pv.nombre}</span>
+                      <span className="text-xs font-black text-slate-900">{pv.cantidad}</span>
+                    </div>
+                  );
+                })}
+                <div className="border-t border-slate-100 pt-1.5 mt-0.5 flex justify-between">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Total</span>
+                  <span className="text-xs font-black text-slate-900">{data.kpis.totalVentas}</span>
+                </div>
+              </div>
+            </div>
+
+            <KpiCard icon={TrendingUp} label="Neto global (Instagram, MercadoLibre, etc.)" value={fmtPeso(data.kpis.montoNeto)}
               color="bg-green-50 text-green-600" badge="Principal" />
-            <KpiCard icon={DollarSign} label="Bruto ML" value={fmtPeso(data.kpis.montoBrutoML)}
-              sub="Solo ventas MercadoLibre"
+            <KpiCard icon={DollarSign} label="Neto ML" value={fmtPeso(data.kpis.montoNetoML)}
+              sub="Neto recibido MercadoLibre"
+              color="bg-emerald-50 text-emerald-600" />
+            <KpiCard icon={TrendingDown} label="Bruto ML" value={fmtPeso(data.kpis.montoBrutoML)}
+              sub="Precio de lista MercadoLibre"
               color="bg-orange-50 text-orange-600" />
-            <KpiCard icon={Percent} label="Intereses" value={fmtPeso(data.kpis.totalIntereses)}
-              color="bg-amber-50 text-amber-600" />
-            <KpiCard icon={Package} label="Ítems vendidos" value={data.kpis.totalItems.toLocaleString("es-AR")}
-              color="bg-purple-50 text-purple-600" />
-            <KpiCard icon={Award} label="Ticket promedio" value={fmtPeso(data.kpis.ticketPromedio)}
-              color="bg-indigo-50 text-indigo-600" />
             <KpiCard icon={Receipt} label="Facturadas" value={data.kpis.facturadas.toLocaleString("es-AR")}
               sub={`${data.kpis.totalVentas > 0 ? Math.round(data.kpis.facturadas / data.kpis.totalVentas * 100) : 0}% del total`}
               color="bg-teal-50 text-teal-600" />
-            <KpiCard icon={CreditCard} label="Sin factura" value={data.kpis.noFacturadas.toLocaleString("es-AR")}
-              color="bg-rose-50 text-rose-500" />
           </div>
 
           {/* ── Fila 1: Evolución temporal ── */}
@@ -314,47 +332,51 @@ export default function ResumenVentasTab() {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* ── Fila 2: Métodos de pago + Puntos de venta ── */}
+          {/* ── Fila 2: Puntos de venta (pie + bar) ── */}
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
 
-            {/* Pie: Métodos de pago */}
-            <ChartCard title="Distribución por método de pago" subtitle="Porcentaje del monto neto total por método">
-              <div className="flex gap-4 items-center">
-                <ResponsiveContainer width="50%" height={230}>
-                  <PieChart>
-                    <Pie data={data.porMetodoPago} dataKey="monto" nameKey="metodo"
-                      cx="50%" cy="50%" outerRadius={90} innerRadius={50}
-                      labelLine={false} label={PieLabel}
-                      onMouseEnter={(_, i) => setActiveMetodoIndex(i)}
-                      onMouseLeave={() => setActiveMetodoIndex(undefined)}>
-                      {data.porMetodoPago.map((entry, i) => (
-                        <Cell key={i}
-                          fill={METODO_COLORS[entry.metodo] || PALETTE[i % PALETTE.length]}
-                          stroke={activeMetodoIndex === i ? "#1e293b" : "white"}
-                          strokeWidth={activeMetodoIndex === i ? 2 : 1}
-                          opacity={activeMetodoIndex === undefined || activeMetodoIndex === i ? 1 : 0.65} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<PesoTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex-1 flex flex-col gap-2">
-                  {data.porMetodoPago.map((m, i) => {
-                    const color = METODO_COLORS[m.metodo] || PALETTE[i % PALETTE.length];
-                    const total = data.porMetodoPago.reduce((s, x) => s + x.monto, 0);
-                    const pct = total > 0 ? (m.monto / total * 100).toFixed(1) : "0";
-                    return (
-                      <div key={m.metodo} className="flex items-center gap-2 group cursor-default"
-                        onMouseEnter={() => setActiveMetodoIndex(i)} onMouseLeave={() => setActiveMetodoIndex(undefined)}>
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-                        <span className="text-xs text-slate-600 flex-1 truncate font-medium">{m.metodo}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{m.cantidad}v</span>
-                        <span className="text-xs font-bold text-slate-700">{pct}%</span>
-                      </div>
-                    );
-                  })}
+            {/* Pie: Punto de venta */}
+            <ChartCard title="Distribución por punto de venta" subtitle="Porcentaje del monto neto total por canal">
+              {data.porPuntoVenta.length === 0 ? (
+                <div className="flex items-center justify-center h-48 text-slate-400 text-sm">Sin datos de puntos de venta</div>
+              ) : (
+                <div className="flex gap-4 items-center">
+                  <ResponsiveContainer width="50%" height={230}>
+                    <PieChart>
+                      <Pie data={data.porPuntoVenta} dataKey="monto" nameKey="nombre"
+                        cx="50%" cy="50%" outerRadius={90} innerRadius={50}
+                        labelLine={false} label={PieLabel}
+                        onMouseEnter={(_, i) => setActiveMetodoIndex(i)}
+                        onMouseLeave={() => setActiveMetodoIndex(undefined)}>
+                        {data.porPuntoVenta.map((entry, i) => (
+                          <Cell key={i}
+                            fill={entry.color !== "#000000" ? entry.color : PALETTE[i % PALETTE.length]}
+                            stroke={activeMetodoIndex === i ? "#1e293b" : "white"}
+                            strokeWidth={activeMetodoIndex === i ? 2 : 1}
+                            opacity={activeMetodoIndex === undefined || activeMetodoIndex === i ? 1 : 0.65} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<PesoTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex-1 flex flex-col gap-2">
+                    {data.porPuntoVenta.map((pv, i) => {
+                      const color = pv.color !== "#000000" ? pv.color : PALETTE[i % PALETTE.length];
+                      const total = data.porPuntoVenta.reduce((s, x) => s + x.monto, 0);
+                      const pct = total > 0 ? (pv.monto / total * 100).toFixed(1) : "0";
+                      return (
+                        <div key={pv.nombre} className="flex items-center gap-2 cursor-default"
+                          onMouseEnter={() => setActiveMetodoIndex(i)} onMouseLeave={() => setActiveMetodoIndex(undefined)}>
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                          <span className="text-xs text-slate-600 flex-1 truncate font-medium">{pv.nombre}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{pv.cantidad}v</span>
+                          <span className="text-xs font-bold text-slate-700">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </ChartCard>
 
             {/* Bar: Por punto de venta */}

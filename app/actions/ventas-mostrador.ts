@@ -1539,8 +1539,7 @@ export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: strin
     const totalVentas = ventas.length;
     const montoNeto = ventas.reduce((s, v) => s + netoVenta(v), 0);
     const montoBrutoML = ventas.reduce((s, v) => s + brutoMLVenta(v), 0);
-    const totalIntereses = ventas.filter(v => !esML(v)).reduce((s, v) => s + Number(v.interes), 0);
-    const totalItems = ventas.reduce((s, v) => s + v.items.reduce((si, i) => si + i.cantidad, 0), 0);
+    const montoNetoML = ventas.filter(esML).reduce((s, v) => s + netoVenta(v), 0);
     const ticketPromedio = totalVentas > 0 ? montoNeto / totalVentas : 0;
     const facturadas = ventas.filter((v) => v.cae).length;
 
@@ -1591,7 +1590,7 @@ export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: strin
     return {
       success: true,
       data: {
-        kpis: { totalVentas, montoNeto, montoBrutoML, totalIntereses, totalItems, ticketPromedio, facturadas, noFacturadas: totalVentas - facturadas },
+        kpis: { totalVentas, montoNeto, montoBrutoML, montoNetoML, ticketPromedio, facturadas, noFacturadas: totalVentas - facturadas },
         porDia: Object.values(byDay),
         porMetodoPago: Object.values(byMetodoPago).sort((a, b) => b.monto - a.monto),
         porPuntoVenta: Object.values(byPuntoVenta).sort((a, b) => b.monto - a.monto),

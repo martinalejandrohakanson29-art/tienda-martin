@@ -271,11 +271,11 @@ export default function ComprasClient({
         productoId: prod.id,
         nombre: prod.nombre,
         cantidad: 1,
-        costo_unit: Number(prod.precio),
-        subtotal: Number(prod.precio),
+        costo_unit: Number(prod.costo) > 0 ? Number(prod.costo) : Number(prod.precio),
+        subtotal: Number(prod.costo) > 0 ? Number(prod.costo) : Number(prod.precio),
         stock: prod.stock,
         ultimaModificacion: prod.ultimaModificacion,
-        margenGanancia: 50
+        margenGanancia: Number(prod.margenGanancia) || 50
       }]);
     }
     setIsModalOpen(false);
@@ -1045,7 +1045,10 @@ export default function ComprasClient({
                   <span className="font-bold text-slate-900">{prod.nombre}</span>
                   <span className="text-[10px] text-slate-400 font-mono">Stock actual: {prod.stock}</span>
                 </div>
-                <p className="font-medium">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-emerald-600">Costo: $ {Number(prod.costo).toLocaleString('es-AR')}</p>
+                  <p className="text-[10px] text-slate-400 font-medium italic">Venta: $ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                </div>
               </button>
             ))}
           </div>

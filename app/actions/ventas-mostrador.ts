@@ -1393,7 +1393,7 @@ export async function generarFacturaARCA(ventaId: string) {
     const resARCA = await facturarVenta({
       monto: Number(venta.totalFinal || venta.total),
       docTipo: venta.docTipo,
-      docNro: parseInt(venta.docNro.replace(/\D/g, '')),
+      docNro: (venta.docNro && venta.docNro !== "0") ? parseInt(venta.docNro.replace(/\D/g, '')) : 0,
       ivaReceptor: venta.condicionIva || 5,
       tipoComprobante: venta.tipoComprobante || undefined
     });

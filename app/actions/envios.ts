@@ -447,12 +447,31 @@ export async function registrarVentasML(
 
                 // Determinamos el nombre del cliente evitando que sea el título del producto
                 let nombreCliente = razonSocial?.trim();
+
+                // Si es Consumidor Final (99) y no se ingresó una razón social manual, 
+                // forzamos "Consumidor Final" para evitar que se cuele el título del producto.
+                if (!nombreCliente && docTipo === 99) {
+                    nombreCliente = "Consumidor Final";
+                }
+
                 if (!nombreCliente) {
-                    // Si no hay razón social manual, evaluamos el nombre que viene de la registración
-                    const nombreRegistracion = v.nombre?.trim();
-                    const tituloProducto = (v as any).titulo?.trim();
+                    // Si no hay razón social manual ni es CF forzado, evaluamos el nombre que viene de la registración
+                    const nombreRegistracion = v.nombre?.trim() || "";
+                    const tituloProducto = (v as any).titulo?.trim() || "";
                     
-                    if (!nombreRegistracion || nombreRegistracion === tituloProducto) {
+                    // Lista de palabras que sugieren que el nombre es en realidad un producto
+                    const suspiciousKeywords = ["Kit", "Cilindro", "Leva", "Motos", "Freno", "Disco", "Ruleman", "Piston", "Juego", "Escape", "Amortiguador", "Cubierta", "Llanta", "Espejo", "Faro", "Bateria"];
+                    const lowerNombre = nombreRegistracion.toLowerCase();
+                    const wordsCount = nombreRegistracion.split(' ').length;
+                    
+                    const matchesAnyItem = recetaDetallada.some(r => r.toLowerCase().trim() === lowerNombre);
+                    const containsKeywords = wordsCount > 3 && suspiciousKeywords.some(k => lowerNombre.includes(k.toLowerCase()));
+                    
+                    if (!nombreRegistracion || 
+                        nombreRegistracion === tituloProducto || 
+                        matchesAnyItem || 
+                        containsKeywords
+                    ) {
                         nombreCliente = "Consumidor Final";
                     } else {
                         nombreCliente = nombreRegistracion;

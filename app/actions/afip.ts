@@ -73,7 +73,11 @@ async function obtenerTicketAcceso(servicio: string = 'wsfe') {
             console.log(`🔄 [AFIP] ${servicio} ya autenticado, intentando recuperar ticket...`);
             const recuperado = (loginTicket as any).ticket;
             if (recuperado) {
-                fs.writeFileSync(cachePath, JSON.stringify(recuperado, null, 2));
+                try {
+                    fs.writeFileSync(cachePath, JSON.stringify(recuperado, null, 2));
+                } catch (e) {
+                    console.error("⚠️ [AFIP] No se pudo escribir cachePath (recuperado):", e);
+                }
                 return recuperado;
             }
         }

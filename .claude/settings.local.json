@@ -12,7 +12,13 @@
       "Bash(Select-Object FullName)",
       "Bash(not exist *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(node -e \"const fs = require\\('fs'\\); const f = fs.readFileSync\\('app/admin/ventas-mostrador/resumen-ventas-tab.tsx','utf8'\\); console.log\\('Lines:', f.split\\('\\\\n'\\).length\\); console.log\\('Has recharts:', f.includes\\('recharts'\\)\\); console.log\\('Has obtenerResumenVentas:', f.includes\\('obtenerResumenVentas'\\)\\);\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const f = fs.readFileSync\\('app/admin/ventas-mostrador/ventas-client.tsx','utf8'\\); console.log\\('Has ResumenVentasTab import:', f.includes\\('ResumenVentasTab'\\)\\); console.log\\('Has resumen tab trigger:', f.includes\\('value=\\\\\"resumen\\\\\"'\\)\\); console.log\\('Has BarChart2 import:', f.includes\\('BarChart2'\\)\\); console.log\\('Tab content lines:'\\); const lines = f.split\\('\\\\n'\\); const idx = lines.findIndex\\(l => l.includes\\('PESTAÑA: RESUMEN'\\)\\); console.log\\(lines.slice\\(idx, idx+5\\).join\\('\\\\n'\\)\\);\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const f = fs.readFileSync\\('app/actions/ventas-mostrador.ts','utf8'\\); console.log\\('Has obtenerResumenVentas:', f.includes\\('export async function obtenerResumenVentas'\\)\\); const lines = f.split\\('\\\\n'\\); const idx = lines.findIndex\\(l => l.includes\\('export async function obtenerResumenVentas'\\)\\); console.log\\('Lines:', idx, '-', idx+5\\); console.log\\(lines.slice\\(idx, idx+6\\).join\\('\\\\n'\\)\\);\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\" -Recurse -Filter \"*.ts\" -o \"*.tsx\")",
+      "Bash(Select-Object -First 20)",
+      "Bash(node -e ' *)"
     ]
   }
 }

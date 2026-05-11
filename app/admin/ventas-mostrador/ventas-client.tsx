@@ -6,7 +6,7 @@ import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft, X
+  ChevronDown, ArrowLeft, X, BarChart2
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -34,6 +34,7 @@ import {
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
 import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
+import ResumenVentasTab from "./resumen-ventas-tab";
 
 type Decimal = {
   toNumber(): number;
@@ -797,6 +798,12 @@ export default function VentasMostradorClient({
     setProveedoresCruzada(newList);
   };
 
+  const actualizarProveedorCruzadaMultiple = (index: number, campos: Record<string, any>) => {
+    const newList = [...proveedoresCruzada];
+    newList[index] = { ...newList[index], ...campos };
+    setProveedoresCruzada(newList);
+  };
+
   useEffect(() => {
     if (isFinalizarModalOpen && metodoPago === "Cruzada" && proveedoresCruzada.length === 0) {
       setProveedoresCruzada([{ id: "", razonSocial: "", monto: totalFinalCalculado }]);
@@ -818,6 +825,38 @@ export default function VentasMostradorClient({
     if (requiereCruzada && !isPagoMixto && (!deCruzada.trim() || proveedoresCruzada.length === 0)) { alert("'De' y al menos un proveedor son obligatorios para pagos Cruzados."); return; }
     if (requiereCruzada && isPagoMixto && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para Cruzada en pago Mixto."); return; }
     if (requiereCuentaCorriente && !paraCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
+
+    // VALIDACIÓN DE PROVEEDOR EXISTENTE
+    const checkProveedorExiste = (nombre: string) => {
+      return proveedores.some(p => p.razonSocial.toLowerCase().trim() === nombre.toLowerCase().trim());
+    };
+
+    if (requiereCruzada && !isPagoMixto) {
+      const nuevosProveedores = [...proveedoresCruzada];
+      for (let i = 0; i < nuevosProveedores.length; i++) {
+        const provEncontrado = proveedores.find(p => p.razonSocial.toLowerCase().trim() === nuevosProveedores[i].razonSocial.toLowerCase().trim());
+        if (!provEncontrado) {
+          alert(`El proveedor "${nuevosProveedores[i].razonSocial}" no existe en la base de datos. Por favor, selecciónalo de la lista o créalo primero.`);
+          return;
+        }
+        // Actualizamos con el nombre exacto de la base de datos
+        nuevosProveedores[i].razonSocial = provEncontrado.razonSocial;
+        nuevosProveedores[i].id = provEncontrado.id;
+      }
+      setProveedoresCruzada(nuevosProveedores);
+    }
+
+    if ((requiereCruzada && isPagoMixto) || requiereCuentaCorriente) {
+      const provEncontrado = proveedores.find(p => p.razonSocial.toLowerCase().trim() === paraCruzada.toLowerCase().trim());
+      if (!provEncontrado) {
+        alert(`El proveedor "${paraCruzada}" no existe en la base de datos. Por favor, selecciónalo de la lista o créalo primero.`);
+        return;
+      }
+      // Actualizamos con el nombre exacto de la base de datos
+      setParaCruzada(provEncontrado.razonSocial);
+      // Usamos una variable local para asegurar que el guardado use el nombre exacto inmediatamente
+      var paraCruzadaExacto = provEncontrado.razonSocial;
+    }
 
     const clienteFinal = cliente;
 
@@ -853,7 +892,7 @@ export default function VentasMostradorClient({
       const docNroFinal = (docNro && docNro !== "0") ? docNro : (cuitBusqueda.length > 6 ? cuitBusqueda : "");
 
       // Si es Cruzada (no mixto), usamos la lista de proveedores
-      let paraFinal = paraCruzada;
+      let paraFinal = paraCruzadaExacto || paraCruzada;
       if (metodoPago === "Cruzada" && !isPagoMixto) {
         paraFinal = JSON.stringify(proveedoresCruzada);
       }
@@ -1177,6 +1216,22 @@ export default function VentasMostradorClient({
     if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
     if (requiereCuentaCorrienteEdit && !editParaCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
 
+    // VALIDACIÓN DE PROVEEDOR EXISTENTE EN EDICIÓN
+    const checkProveedorExiste = (nombre: string) => {
+      return proveedores.some(p => p.razonSocial.toLowerCase().trim() === nombre.toLowerCase().trim());
+    };
+
+    if (requiereCruzadaEdit || requiereCuentaCorrienteEdit) {
+      const provEncontrado = proveedores.find(p => p.razonSocial.toLowerCase().trim() === editParaCruzada.toLowerCase().trim());
+      if (!provEncontrado) {
+        alert(`El proveedor "${editParaCruzada}" no existe en la base de datos. Por favor, selecciónalo de la lista o créalo primero.`);
+        return;
+      }
+      // Actualizamos con el nombre exacto de la base de datos
+      setEditParaCruzada(provEncontrado.razonSocial);
+      var editParaCruzadaExacto = provEncontrado.razonSocial;
+    }
+
     let cambios = [];
     if (ventaOriginalParaComparar.cliente !== editCliente) cambios.push(`Cliente modificado`);
     if (ventaOriginalParaComparar.metodo_pago !== (isEditPagoMixto ? "Mixto" : editMetodoPago)) cambios.push(`Método modificado`);
@@ -1207,7 +1262,7 @@ export default function VentasMostradorClient({
           totalFinal: editTotalFinalCalculado,
           metodo_pago: editMetodoPagoFinal,
           dni: editDni, telefono: editTelefono, info: editInfoFinal, cupon: editCupon,
-          transaccionId: editTransaccionId, de: editDeCruzada, para: editParaCruzada,
+          transaccionId: editTransaccionId, de: editDeCruzada, para: editParaCruzadaExacto || editParaCruzada,
           email: editEmail,
           eventoOffline: editEventoOffline,
           puntoVentaId: editPuntoVentaId,
@@ -1497,6 +1552,9 @@ export default function VentasMostradorClient({
               <TabsTrigger value="listado" className="gap-2 px-6"><ClipboardList className="h-4 w-4" /> Listado de Ventas</TabsTrigger>
               <TabsTrigger value="pedidos" className="gap-2 px-6 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 data-[state=active]:bg-indigo-100 data-[state=active]:text-indigo-900 border border-transparent data-[state=active]:border-indigo-200">
                 <Clock className="h-4 w-4" /> Pedidos de Ventas
+              </TabsTrigger>
+              <TabsTrigger value="resumen" className="gap-2 px-6 bg-blue-50 text-blue-700 hover:bg-blue-100 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 border border-transparent data-[state=active]:border-blue-200">
+                <BarChart2 className="h-4 w-4" /> Resumen de Ventas
               </TabsTrigger>
               <TabsTrigger value="gestion" className="gap-2 px-6 ml-auto bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
                 <Edit className="h-4 w-4" /> Gestión y Edición
@@ -1802,9 +1860,9 @@ export default function VentasMostradorClient({
                     <div className="text-right min-w-[180px]">
                       <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Resumen</p>
                       <div className="flex flex-col gap-0.5">
-                        <p className="text-xl font-black text-slate-900 tracking-tight">Total: ${ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0).toLocaleString('es-AR')}</p>
+                        <p className="text-xl font-black text-slate-900 tracking-tight">Total: ${ventasFiltradas.reduce((acc, v) => acc + (v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)), 0).toLocaleString('es-AR')}</p>
                         <p className="text-sm font-bold text-green-600">Ventas: {ventasFiltradas.length}</p>
-                        <p className="text-[10px] font-medium text-slate-500">Promedio: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + Number(v.totalFinal || v.total), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
+                        <p className="text-[10px] font-medium text-slate-500">Promedio: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + (v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
                       </div>
                     </div>
 
@@ -1952,14 +2010,14 @@ export default function VentasMostradorClient({
                                 >
                                   {v.mlIdVenta ? (
                                     <div className="flex flex-col gap-0.5">
-                                      <span className="text-emerald-600 font-bold whitespace-nowrap">Neto: $ {Number(v.total).toLocaleString('es-AR')}</span>
+                                      <span className="text-orange-500 font-bold whitespace-nowrap">Bruto: $ {Number(v.totalFinal || v.total).toLocaleString('es-AR')}</span>
                                       {v.info && <span className="text-[10px] opacity-70">{v.info}</span>}
                                     </div>
                                   ) : (
                                     v.info || "-"
                                   )}
                                 </TableCell>
-                                <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
+                                <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)).toLocaleString('es-AR')}</TableCell>
                                 <TableCell className="py-4 text-center">
                                   <div className="flex items-center justify-center gap-1">
                                     <button
@@ -2272,14 +2330,14 @@ export default function VentasMostradorClient({
                             >
                               {v.mlIdVenta ? (
                                 <div className="flex flex-col gap-0.5">
-                                  <span className="text-emerald-600 font-bold whitespace-nowrap">Neto: $ {Number(v.total).toLocaleString('es-AR')}</span>
+                                  <span className="text-orange-500 font-bold whitespace-nowrap">Bruto: $ {Number(v.totalFinal || v.total).toLocaleString('es-AR')}</span>
                                   {v.info && <span className="text-[10px] opacity-70">{v.info}</span>}
                                 </div>
                               ) : (
                                 v.info || "-"
                               )}
                             </TableCell>
-                            <TableCell className="font-black text-slate-900 py-4">$ {(v.totalFinal || v.total).toLocaleString('es-AR')}</TableCell>
+                            <TableCell className="font-black text-slate-900 py-4">$ {(v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)).toLocaleString('es-AR')}</TableCell>
                             <TableCell className="text-xs text-slate-500 py-4">{v.vendedor}</TableCell>
                             <TableCell className="py-4 text-right space-x-2 whitespace-nowrap">
                               {!v.info?.includes("ANULADA CON NC") && v.estadoPedido !== "CANCELADO" && (
@@ -2313,6 +2371,10 @@ export default function VentasMostradorClient({
                 </div>
               </div>
             </main>
+          </TabsContent>
+          {/* --- PESTAÑA: RESUMEN DE VENTAS --- */}
+          <TabsContent value="resumen" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
+            <ResumenVentasTab />
           </TabsContent>
         </Tabs>
 
@@ -2627,9 +2689,13 @@ export default function VentasMostradorClient({
                                       <div
                                         key={p.id}
                                         className="p-2 hover:bg-amber-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
-                                        onClick={() => {
-                                          actualizarProveedorCruzada(idx, 'razonSocial', p.razonSocial);
-                                          actualizarProveedorCruzada(idx, 'id', p.id);
+                                        onMouseDown={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          actualizarProveedorCruzadaMultiple(idx, {
+                                            razonSocial: p.razonSocial,
+                                            id: p.id
+                                          });
                                           setShowProvListMulti(null);
                                         }}
                                       >
@@ -2706,7 +2772,9 @@ export default function VentasMostradorClient({
                                   <div
                                     key={p.id}
                                     className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
-                                    onClick={() => {
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
                                       setParaCruzada(p.razonSocial);
                                       setShowProvList(false);
                                     }}
@@ -3044,7 +3112,9 @@ export default function VentasMostradorClient({
                                   <div
                                     key={p.id}
                                     className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
-                                    onClick={() => {
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
                                       setEditParaCruzada(p.razonSocial);
                                       setShowProvListEdit(false);
                                     }}

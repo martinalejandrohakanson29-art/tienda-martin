@@ -1508,4 +1508,99 @@ export async function cancelarVenta(ventaId: string) {
   return { success: true, message: "Venta cancelada correctamente." };
 }
 
+export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: string) {
+  await requireAdmin();
+  try {
+    const inicio = new Date(fechaDesde);
+    inicio.setHours(0, 0, 0, 0);
+    const fin = new Date(fechaHasta);
+    fin.setHours(23, 59, 59, 999);
 
+    const ventas = await prisma.venta.findMany({
+      where: {
+        tipoVenta: { not: "PEDIDO" },
+        createdAt: { gte: inicio, lte: fin },
+      },
+      include: { items: true, puntoVenta: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Para ventas de MercadoLibre: v.total = neto, v.totalFinal = bruto
+    // Para el resto: v.totalFinal = el único valor (neto)
+    const esML = (v: typeof ventas[0]) =>
+      !!v.mlIdVenta || v.puntoVenta?.nombre?.toLowerCase().includes("mercadolibre");
+
+    const netoVenta = (v: typeof ventas[0]) =>
+      esML(v) ? Number(v.total) : Number(v.totalFinal || v.total);
+
+    const brutoMLVenta = (v: typeof ventas[0]) =>
+      esML(v) ? Number(v.totalFinal || v.total) : 0;
+
+    const totalVentas = ventas.length;
+    const montoNeto = ventas.reduce((s, v) => s + netoVenta(v), 0);
+    const montoBrutoML = ventas.reduce((s, v) => s + brutoMLVenta(v), 0);
+    const totalIntereses = ventas.filter(v => !esML(v)).reduce((s, v) => s + Number(v.interes), 0);
+    const totalItems = ventas.reduce((s, v) => s + v.items.reduce((si, i) => si + i.cantidad, 0), 0);
+    const ticketPromedio = totalVentas > 0 ? montoNeto / totalVentas : 0;
+    const facturadas = ventas.filter((v) => v.cae).length;
+
+    const byDay: Record<string, { fecha: string; cantidad: number; bruto: number; neto: number; intereses: number }> = {};
+    for (const v of ventas) {
+      const fecha = v.createdAt.toISOString().split("T")[0];
+      if (!byDay[fecha]) byDay[fecha] = { fecha, cantidad: 0, bruto: 0, neto: 0, intereses: 0 };
+      byDay[fecha].cantidad++;
+      byDay[fecha].neto += netoVenta(v);
+      byDay[fecha].bruto += esML(v) ? brutoMLVenta(v) : netoVenta(v);
+      byDay[fecha].intereses += esML(v) ? 0 : Number(v.interes);
+    }
+
+    const byMetodoPago: Record<string, { metodo: string; cantidad: number; monto: number }> = {};
+    for (const v of ventas) {
+      const metodo = v.metodo_pago || "Otro";
+      if (!byMetodoPago[metodo]) byMetodoPago[metodo] = { metodo, cantidad: 0, monto: 0 };
+      byMetodoPago[metodo].cantidad++;
+      byMetodoPago[metodo].monto += netoVenta(v);
+    }
+
+    const byPuntoVenta: Record<string, { nombre: string; cantidad: number; monto: number; color: string }> = {};
+    for (const v of ventas) {
+      const nombre = v.puntoVenta?.nombre || "Sin punto de venta";
+      const color = v.puntoVenta?.color || "#94a3b8";
+      if (!byPuntoVenta[nombre]) byPuntoVenta[nombre] = { nombre, cantidad: 0, monto: 0, color };
+      byPuntoVenta[nombre].cantidad++;
+      byPuntoVenta[nombre].monto += netoVenta(v);
+    }
+
+    const byProducto: Record<string, { nombre: string; cantidad: number; monto: number }> = {};
+    for (const v of ventas) {
+      for (const item of v.items) {
+        if (!byProducto[item.nombre]) byProducto[item.nombre] = { nombre: item.nombre, cantidad: 0, monto: 0 };
+        byProducto[item.nombre].cantidad += item.cantidad;
+        byProducto[item.nombre].monto += Number(item.subtotal);
+      }
+    }
+
+    const byHora: Record<number, { hora: number; cantidad: number; monto: number }> = {};
+    for (let h = 0; h < 24; h++) byHora[h] = { hora: h, cantidad: 0, monto: 0 };
+    for (const v of ventas) {
+      const hora = new Date(v.createdAt).getHours();
+      byHora[hora].cantidad++;
+      byHora[hora].monto += netoVenta(v);
+    }
+
+    return {
+      success: true,
+      data: {
+        kpis: { totalVentas, montoNeto, montoBrutoML, totalIntereses, totalItems, ticketPromedio, facturadas, noFacturadas: totalVentas - facturadas },
+        porDia: Object.values(byDay),
+        porMetodoPago: Object.values(byMetodoPago).sort((a, b) => b.monto - a.monto),
+        porPuntoVenta: Object.values(byPuntoVenta).sort((a, b) => b.monto - a.monto),
+        topProductos: Object.values(byProducto).sort((a, b) => b.cantidad - a.cantidad).slice(0, 15),
+        porHora: Object.values(byHora),
+      },
+    };
+  } catch (error) {
+    console.error("Error al obtener resumen:", error);
+    return { success: false, error: "Error al obtener resumen de ventas" };
+  }
+}

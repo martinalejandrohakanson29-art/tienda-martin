@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { requireAdmin } from "@/lib/auth-guard"
 import { recalcularSaldosProveedor } from "@/lib/proveedor-ledger"
+import { revalidatePath } from "next/cache";
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
@@ -307,6 +308,7 @@ export async function guardarComoPedidoCompra(data: {
       return compra;
     });
 
+    revalidatePath("/admin/erp/pedidos-compra");
     return { success: true, id: result.id, numeroCompra: result.numeroCompra };
   } catch (error) {
     console.error("Error al guardar pedido de compra:", error);
@@ -395,6 +397,8 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
       return compra;
     });
 
+    revalidatePath("/admin/erp/pedidos-compra");
+    revalidatePath("/admin/compras");
     return { success: true, id: result.id, numeroCompra: result.numeroCompra };
   } catch (error) {
     console.error("Error al confirmar pedido de compra:", error);
@@ -560,6 +564,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
       });
     });
 
+    revalidatePath("/admin/erp/pedidos-compra");
     return { success: true };
   } catch (error) {
     console.error("Error al actualizar pedido de compra:", error);
@@ -753,6 +758,7 @@ export async function crearCompra(data: {
       return compra;
     });
 
+    revalidatePath("/admin/compras");
     return { success: true, id: result.id, numeroCompra: result.numeroCompra };
   } catch (error) {
     console.error("Error al crear compra:", error);
@@ -964,6 +970,7 @@ export async function actualizarCompra(compraId: string, data: {
       });
     });
 
+    revalidatePath("/admin/compras");
     return { success: true };
   } catch (error) {
     console.error("Error al actualizar compra:", error);

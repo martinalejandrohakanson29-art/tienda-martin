@@ -464,8 +464,8 @@ export async function registrarVentasML(
                     const lowerNombre = nombreRegistracion.toLowerCase();
                     const wordsCount = nombreRegistracion.split(' ').length;
                     
-                    const matchesAnyItem = recetaDetallada.some(r => r.toLowerCase().trim() === lowerNombre);
-                    const containsKeywords = wordsCount > 3 && suspiciousKeywords.some(k => lowerNombre.includes(k.toLowerCase()));
+                    const matchesAnyItem = recetaDetallada.some((r: string) => r.toLowerCase().trim() === lowerNombre);
+                    const containsKeywords = wordsCount > 3 && suspiciousKeywords.some((k: string) => lowerNombre.includes(k.toLowerCase()));
                     
                     if (!nombreRegistracion || 
                         nombreRegistracion === tituloProducto || 

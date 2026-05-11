@@ -260,9 +260,28 @@ export function DespachadosClient() {
         try {
             const ids = Array.from(selectedRegistracionIds);
 
+            // VALIDACIÓN: No permitir facturar si no hay artículos vinculados (receta vacía o undefined)
+            const ventasAProcesar = ventasRegistracion.filter(v => ids.includes(v.orderId));
+            const ventasSinArticulos = ventasAProcesar.filter(v => 
+                !v.ids_articulos || 
+                v.ids_articulos.includes('undefined') || 
+                v.ids_articulos.includes('undefinied') ||
+                !v.receta_detallada || 
+                v.receta_detallada.includes('Sin descripción') ||
+                v.receta_detallada.includes('undefined') ||
+                v.receta_detallada.includes('undefinied')
+            );
+
+            if (ventasSinArticulos.length > 0) {
+                const primerId = ventasSinArticulos[0].shippingId || ventasSinArticulos[0].orderId;
+                toast.error(`Error: La venta ${primerId} no tiene artículos vinculados en la base de datos (Receta vacía o indefinida). Debes vincular el MLA con sus artículos internos antes de facturar.`);
+                setIsProcessing(false);
+                return;
+            }
+
             // Lógica de parámetros según tipo de factura
             let docTipo = 99;
-            let docNro = "0";
+            let docNro = "";
             let condicionIva = condicionIvaEncontrada || 5;
 
             if (tipoFactura === 1) { // Factura A
@@ -627,8 +646,8 @@ export function DespachadosClient() {
                                                     <div className="flex flex-col gap-2">
                                                         {group.ventas.map(v => (
                                                             <div key={v.orderId} className="flex flex-col gap-1">
-                                                                {v.ids_articulos ? v.ids_articulos.split(',').map((id: string, idx: number) => {
-                                                                    const cleanId = id.trim(); if (!cleanId) return null;
+                                                                {v.ids_articulos && v.ids_articulos !== 'undefined' && v.ids_articulos !== 'undefinied' ? v.ids_articulos.split(',').map((id: string, idx: number) => {
+                                                                    const cleanId = id.trim(); if (!cleanId || cleanId === 'undefined' || cleanId === 'undefinied') return null;
                                                                     return (
                                                                         <div key={idx} onClick={() => handleCopyText(cleanId)} className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-2 py-0.5 cursor-pointer hover:bg-blue-50 transition-all w-fit">
                                                                             <span className="text-blue-600 font-mono text-[9px] font-bold">{cleanId}</span>
@@ -644,14 +663,14 @@ export function DespachadosClient() {
                                                     <div className="flex flex-col gap-2">
                                                         {group.ventas.map(v => (
                                                             <div key={v.orderId} className="flex flex-col gap-1">
-                                                                {v.receta_detallada ? v.receta_detallada.split('|').map((r: string, idx: number) => {
-                                                                    const cleanR = r.trim(); if (!cleanR) return null;
+                                                                {v.receta_detallada && v.receta_detallada !== 'undefined' && v.receta_detallada !== 'undefinied' ? v.receta_detallada.split('|').map((r: string, idx: number) => {
+                                                                    const cleanR = r.trim(); if (!cleanR || cleanR === 'undefined' || cleanR === 'undefinied') return null;
                                                                     return (
                                                                         <div key={idx} className="text-[10px] text-slate-600 border-l-2 border-amber-400 pl-2 leading-none flex items-center h-[18px]">
                                                                             {cleanR}
                                                                         </div>
                                                                     );
-                                                                }) : <span className="text-[10px] text-slate-400 italic">Sin agregados</span>}
+                                                                }) : <span className="text-[10px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded border border-red-100">Vincular artículos</span>}
                                                             </div>
                                                         ))}
                                                     </div>

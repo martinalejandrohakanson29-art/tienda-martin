@@ -842,7 +842,7 @@ export default function VentasMostradorClient({
       });
 
       const dniFinal = (requiereMercadoLibre || requiereMercadoPago) ? (mlDni || dni || cuitBusqueda) : (dni || cuitBusqueda);
-      const docNroFinal = docNro || (cuitBusqueda.length > 6 ? cuitBusqueda : "");
+      const docNroFinal = (docNro && docNro !== "0") ? docNro : (cuitBusqueda.length > 6 ? cuitBusqueda : "");
 
       // Si es Cruzada (no mixto), usamos la lista de proveedores
       let paraFinal = paraCruzada;
@@ -3816,10 +3816,10 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
 
         {/* DATOS DEL CLIENTE */}
         <div className="border-black border-t-0 p-3 grid grid-cols-2 gap-y-1">
-          <p><span className="font-bold">Razón Social:</span> {venta.cliente || "Consumidor Final"}</p>
+          <p><span className="font-bold">Razón Social:</span> {venta.cliente && venta.cliente !== "0" ? venta.cliente : "Consumidor Final"}</p>
           <p><span className="font-bold">I.V.A.:</span> {venta.condicionIva === 1 ? 'Responsable Inscripto' : venta.condicionIva === 6 ? 'Monotributo' : 'Consumidor Final'}</p>
           <p><span className="font-bold">Domicilio:</span> {venta.domicilio || '-'}</p>
-          <p><span className="font-bold">CUIT/DNI:</span> {venta.docNro || '-'}</p>
+          <p><span className="font-bold">CUIT/DNI:</span> {(venta.docNro && venta.docNro !== "0") ? venta.docNro : '-'}</p>
           <p><span className="font-bold">Localidad:</span> {venta.localidad || 'Córdoba - CORDOBA CAPITAL'}</p>
           <p><span className="font-bold">Vendedor:</span> {venta.vendedor}</p>
         </div>
@@ -3946,9 +3946,9 @@ function PedidoVentaA4({ venta }: { venta: any }) {
 
         {/* DATOS DEL CLIENTE */}
         <div className="border-black border-t-0 p-3 grid grid-cols-2 gap-y-1">
-          <p><span className="font-bold">Razón Social:</span> {venta.cliente || "Consumidor Final"}</p>
+          <p><span className="font-bold">Razón Social:</span> {venta.cliente && venta.cliente !== "0" ? venta.cliente : "Consumidor Final"}</p>
           <p><span className="font-bold">I.V.A.:</span> Consumidor Final</p>
-          <p><span className="font-bold">CUIT/DNI:</span> {venta.dni || venta.docNro || '-'}</p>
+          <p><span className="font-bold">CUIT/DNI:</span> {(venta.dni || venta.docNro) && (venta.dni !== "0" && venta.docNro !== "0") ? (venta.dni || venta.docNro) : '-'}</p>
           <p><span className="font-bold">Vendedor:</span> {venta.vendedor}</p>
           <p className="col-span-2"><span className="font-bold">Obs:</span> {venta.info || '-'}</p>
         </div>

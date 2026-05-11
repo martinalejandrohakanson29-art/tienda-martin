@@ -2037,9 +2037,9 @@ function PedidoVentaA4({ venta }: { venta: any }) {
 
         {/* DATOS DEL CLIENTE */}
         <div className="border-black border-t-0 p-3 grid grid-cols-2 gap-y-1">
-          <p><span className="font-bold">Razón Social:</span> {venta.cliente || "Consumidor Final"}</p>
+          <p><span className="font-bold">Razón Social:</span> {venta.cliente && venta.cliente !== "0" ? venta.cliente : "Consumidor Final"}</p>
           <p><span className="font-bold">I.V.A.:</span> Consumidor Final</p>
-          <p><span className="font-bold">CUIT/DNI:</span> {venta.dni || venta.docNro || '-'}</p>
+          <p><span className="font-bold">CUIT/DNI:</span> {(venta.dni || venta.docNro) && (venta.dni !== "0" && venta.docNro !== "0") ? (venta.dni || venta.docNro) : '-'}</p>
           <p><span className="font-bold">Vendedor:</span> {venta.vendedor}</p>
           <p className="col-span-2"><span className="font-bold">Obs:</span> {venta.info || '-'}</p>
         </div>

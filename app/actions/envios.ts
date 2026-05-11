@@ -439,18 +439,28 @@ export async function registrarVentasML(
                         };
                     });
                 } else {
-                    // Si no hay receta, usamos un item genérico con el MLA
-                    items = [{
-                        productoId: null,
-                        nombre: `Venta MercadoLibre ${v.mla}${v.variation ? ' - Var: ' + v.variation : ''}`,
-                        cantidad: 1,
-                        precio_unit: netoTotal,
-                        subtotal: netoTotal
-                    }];
+                    // ERROR: No permitimos registrar ventas sin receta vinculada
+                    console.error(`[REGISTRACION] La venta ${v.shippingId} no tiene receta vinculada (MLA: ${v.mla})`);
+                    errores++;
+                    continue; // Saltamos esta venta y seguimos con las demás
+                }
+
+                // Determinamos el nombre del cliente evitando que sea el título del producto
+                let nombreCliente = razonSocial?.trim();
+                if (!nombreCliente) {
+                    // Si no hay razón social manual, evaluamos el nombre que viene de la registración
+                    const nombreRegistracion = v.nombre?.trim();
+                    const tituloProducto = (v as any).titulo?.trim();
+                    
+                    if (!nombreRegistracion || nombreRegistracion === tituloProducto) {
+                        nombreCliente = "Consumidor Final";
+                    } else {
+                        nombreCliente = nombreRegistracion;
+                    }
                 }
 
                 const res = await crearVentaMostrador({
-                    cliente: razonSocial || v.nombre || "Cliente MercadoLibre",
+                    cliente: nombreCliente,
                     vendedor: "Sistema MercadoLibre",
                     total: netoTotal,
                     interes: interes,
@@ -471,8 +481,9 @@ export async function registrarVentasML(
                     solicitarFactura: solicitarFactura,
                     tipoComprobante: tipoComprobante,
                     docTipo: docTipo,
-                    docNro: docNro,
-                    condicionIva: condicionIva
+                    docNro: (docNro === "0" || !docNro) ? "" : docNro,
+                    condicionIva: condicionIva,
+                    mlDni: (docNro === "0" || !docNro) ? "" : docNro
                 });
 
                 if (res.success) {

@@ -12,11 +12,11 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { 
-    Search, 
-    Calendar, 
-    RefreshCcw, 
-    CheckCircle2, 
+import {
+    Search,
+    Calendar,
+    RefreshCcw,
+    CheckCircle2,
     AlertCircle,
     Package,
     Truck,
@@ -48,7 +48,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     const [isUpdating, setIsUpdating] = useState(false)
     const [isPrinting, setIsPrinting] = useState(false) // Nuevo estado para loading de impresión
     const [loadingId, setLoadingId] = useState<string | null>(null)
-    
+
     // Estado para filtros
     const [activeFilters, setActiveFilters] = useState<Record<FilterType, boolean>>({
         flex: false,
@@ -120,7 +120,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
     // --- MANEJADOR DE IMPRESIÓN ---
     const handlePrint = async () => {
         if (selectedRows.size === 0) return;
-        
+
         setIsPrinting(true);
         try {
             const idsToPrint = Array.from(selectedRows);
@@ -135,18 +135,18 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                 }
                 const byteArray = new Uint8Array(byteNumbers);
                 const blob = new Blob([byteArray], { type: 'application/pdf' });
-                
+
                 // 2. Crear URL del objeto
                 const url = URL.createObjectURL(blob);
-                
+
                 // --- CAMBIO AQUÍ: FORZAR DESCARGA ---
                 // En lugar de window.open(url, '_blank'), hacemos esto:
                 const link = document.createElement('a');
                 link.href = url;
-                link.setAttribute('download', `etiquetas_ml_${new Date().toISOString().slice(0,10)}.pdf`); // Nombre del archivo
+                link.setAttribute('download', `etiquetas_ml_${new Date().toISOString().slice(0, 10)}.pdf`); // Nombre del archivo
                 document.body.appendChild(link);
                 link.click(); // Simula el clic para descargar
-                
+
                 // Limpieza
                 link.parentNode?.removeChild(link);
                 window.URL.revokeObjectURL(url);
@@ -244,7 +244,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
         const date = new Date(dateString);
         const today = new Date();
         const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
-        
+
         return (
             <div className={`flex items-center justify-center gap-1 font-bold text-[12px] ${isToday ? 'text-emerald-600' : 'text-slate-600'}`}>
                 <Calendar className="h-3 w-3 opacity-70" />
@@ -292,11 +292,11 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                
+
                 <div className="flex items-center gap-2 w-full sm:w-auto">
-                     {/* BOTÓN IMPRIMIR */}
-                     {selectedRows.size > 0 && (
-                        <Button 
+                    {/* BOTÓN IMPRIMIR */}
+                    {selectedRows.size > 0 && (
+                        <Button
                             variant="outline"
                             size="sm"
                             disabled={isPrinting}
@@ -308,8 +308,8 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                         </Button>
                     )}
 
-                    <Button 
-                        onClick={handleActualizar} 
+                    <Button
+                        onClick={handleActualizar}
                         disabled={isUpdating}
                         size="sm"
                         className="w-full sm:w-auto bg-slate-900 h-9 px-4 text-xs font-bold"
@@ -326,46 +326,46 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     <Filter className="w-4 h-4 text-slate-400" />
                     <span className="text-xs font-medium text-slate-500">Filtrar por:</span>
                 </div>
-                
+
                 <div className="flex items-center gap-2 border-r border-slate-200 pr-4 mr-2">
-                    <FilterBadge 
-                        label="Flex" 
-                        active={activeFilters.flex} 
-                        count={counts.flex} 
+                    <FilterBadge
+                        label="Flex"
+                        active={activeFilters.flex}
+                        count={counts.flex}
                         onClick={() => toggleFilter('flex')}
                         colorClass="data-[state=active]:bg-orange-100 data-[state=active]:text-orange-700 data-[state=active]:border-orange-200"
                     />
-                    <FilterBadge 
-                        label="Colecta" 
-                        active={activeFilters.colecta} 
-                        count={counts.colecta} 
+                    <FilterBadge
+                        label="Colecta"
+                        active={activeFilters.colecta}
+                        count={counts.colecta}
                         onClick={() => toggleFilter('colecta')}
                         colorClass="data-[state=active]:bg-blue-100 data-[state=active]:text-blue-700 data-[state=active]:border-blue-200"
                     />
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <FilterBadge 
-                        label="Imprimir" 
-                        active={activeFilters.imprimir} 
-                        count={counts.imprimir} 
+                    <FilterBadge
+                        label="Imprimir"
+                        active={activeFilters.imprimir}
+                        count={counts.imprimir}
                         onClick={() => toggleFilter('imprimir')}
                         colorClass="data-[state=active]:bg-rose-100 data-[state=active]:text-rose-700 data-[state=active]:border-rose-200"
                     />
-                    <FilterBadge 
-                        label="Impreso" 
-                        active={activeFilters.impreso} 
-                        count={counts.impreso} 
+                    <FilterBadge
+                        label="Impreso"
+                        active={activeFilters.impreso}
+                        count={counts.impreso}
                         onClick={() => toggleFilter('impreso')}
                         colorClass="data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-700 data-[state=active]:border-emerald-200"
                     />
                 </div>
 
                 {Object.values(activeFilters).some(Boolean) && (
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => setActiveFilters({flex: false, colecta: false, imprimir: false, impreso: false})}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setActiveFilters({ flex: false, colecta: false, imprimir: false, impreso: false })}
                         className="h-6 px-2 text-[10px] text-slate-400 hover:text-slate-600 ml-auto"
                     >
                         Limpiar filtros
@@ -379,8 +379,8 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                     <TableHeader>
                         <TableRow className="bg-slate-50 hover:bg-slate-50">
                             <TableHead className="w-[40px] px-3">
-                                <input 
-                                    type="checkbox" 
+                                <input
+                                    type="checkbox"
                                     className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 accent-slate-900 cursor-pointer"
                                     checked={selectedRows.size === filteredEnvios.length && filteredEnvios.length > 0}
                                     onChange={toggleAll}
@@ -406,15 +406,15 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                 const logistic = getLogisticConfig(envio.logisticType);
                                 const statusInfo = getStatusConfig(envio);
                                 const isSelected = selectedRows.has(envio.id);
-                                
+
                                 return (
-                                    <TableRow 
-                                        key={envio.id} 
+                                    <TableRow
+                                        key={envio.id}
                                         className={`group transition-colors border-b last:border-0 ${isSelected ? 'bg-slate-50' : 'hover:bg-slate-50/50'}`}
                                     >
                                         <TableCell className="px-3 py-2">
-                                            <input 
-                                                type="checkbox" 
+                                            <input
+                                                type="checkbox"
                                                 className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900 accent-slate-900 cursor-pointer"
                                                 checked={isSelected}
                                                 onChange={() => toggleRow(envio.id)}
@@ -427,7 +427,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                 <span className="text-slate-400 font-medium text-[9px]"> {envio.orderId || 'S/D'}</span>
                                             </div>
                                         </TableCell>
-                                        
+
                                         <TableCell className="px-3 py-2 text-center">
                                             {formatDispatchDate(envio.payBefore)}
                                         </TableCell>
@@ -459,7 +459,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                             </div>
                                         </TableCell>
 
-                                       <TableCell className="px-3 py-2 w-[500px]">
+                                        <TableCell className="px-3 py-2 w-[500px]">
                                             <p className="text-[12px] text-slate-800 font-medium leading-tight line-clamp-2">
                                                 {envio.resumen}
                                             </p>
@@ -474,8 +474,8 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                                                                 const nombres = item.agregadoInfo.nombres_articulos?.split(' | ') || [];
                                                                 const currentId = id.trim();
                                                                 return (
-                                                                    <div 
-                                                                        key={idx} 
+                                                                    <div
+                                                                        key={idx}
                                                                         onClick={() => copyToClipboard(currentId)}
                                                                         title="Clic para copiar ID"
                                                                         className="flex items-center gap-1 bg-slate-100 hover:bg-slate-200 cursor-pointer active:scale-95 transition-all px-2 py-0.5 rounded text-[10px] border border-slate-200 w-fit"
@@ -499,7 +499,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
 
                                         <TableCell className="px-3 py-2 text-right">
                                             <div className="text-slate-600 font-bold text-[10px]">
-                                                {new Date(envio.createdAt).toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit'})}
+                                                {new Date(envio.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}
                                             </div>
                                             <div className="text-slate-400 text-[9px]">
                                                 {new Date(envio.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}hs
@@ -529,7 +529,7 @@ export function EnviosTable({ envios }: EnviosTableProps) {
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
-                        <Button 
+                        <Button
                             onClick={() => setIsModalOpen(false)}
                             className="w-full bg-slate-900 h-10 text-sm"
                         >

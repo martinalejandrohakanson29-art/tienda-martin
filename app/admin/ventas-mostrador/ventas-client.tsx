@@ -316,9 +316,9 @@ export default function VentasMostradorClient({
   const [isPuntoVentaOpenGestion, setIsPuntoVentaOpenGestion] = useState(false);
   const puntoVentaRef = useRef<HTMLDivElement>(null);
   const puntoVentaGestionRef = useRef<HTMLDivElement>(null);
-  const [filtroIdVenta, setFiltroIdVenta] = useState("");
+  const [filtroBusquedaTexto, setFiltroBusquedaTexto] = useState("");
+  const [tipoBusqueda, setTipoBusqueda] = useState<"venta" | "cliente" | "mla_venta" | "mla_envio">("venta");
   const [filtroMetodoPago, setFiltroMetodoPago] = useState("");
-  const [filtroCliente, setFiltroCliente] = useState("");
 
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
@@ -528,18 +528,26 @@ export default function VentasMostradorClient({
     // Filtro Punto de Venta
     const cumplePuntoVenta = filtroPuntoVenta.length > 0 ? filtroPuntoVenta.includes(v.puntoVentaId) : true;
 
-    // Filtro ID Venta (Buscador)
-    const cumpleIdVenta = filtroIdVenta
-      ? (v.numeroVenta?.toString().includes(filtroIdVenta) ||
-        v.id.toLowerCase().includes(filtroIdVenta.toLowerCase()) ||
-        v.dni?.toLowerCase().includes(filtroIdVenta.toLowerCase()))
-      : true;
-
-    // Filtro Cliente
-    const cumpleCliente = filtroCliente
-      ? (v.cliente?.toLowerCase().includes(filtroCliente.toLowerCase()) ||
-        v.dni?.toLowerCase().includes(filtroCliente.toLowerCase()))
-      : true;
+    // Filtro de Búsqueda (Venta, Cliente, MLA Venta, MLA Envío)
+    const cumpleBusqueda = filtroBusquedaTexto ? (() => {
+      const term = filtroBusquedaTexto.toLowerCase();
+      if (tipoBusqueda === "venta") {
+        return v.numeroVenta?.toString().includes(filtroBusquedaTexto) ||
+          v.id.toLowerCase().includes(term) ||
+          v.dni?.toLowerCase().includes(term);
+      }
+      if (tipoBusqueda === "cliente") {
+        return v.cliente?.toLowerCase().includes(term) ||
+          v.dni?.toLowerCase().includes(term);
+      }
+      if (tipoBusqueda === "mla_venta") {
+        return v.mlIdVenta?.toLowerCase().includes(term);
+      }
+      if (tipoBusqueda === "mla_envio") {
+        return v.mlIdEnvio?.toLowerCase().includes(term);
+      }
+      return true;
+    })() : true;
 
     // Filtro Metodo de Pago
     const cumpleMetodoPago = filtroMetodoPago
@@ -548,7 +556,7 @@ export default function VentasMostradorClient({
         : v.metodo_pago === filtroMetodoPago)
       : true;
 
-    return cumpleOffline && cumplePuntoVenta && cumpleIdVenta && cumpleMetodoPago && cumpleCliente;
+    return cumpleOffline && cumplePuntoVenta && cumpleBusqueda && cumpleMetodoPago;
   });
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
@@ -1732,28 +1740,27 @@ export default function VentasMostradorClient({
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar Venta</Label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                        <Input
-                          placeholder="N° Venta o ID..."
-                          value={filtroIdVenta}
-                          onChange={(e) => setFiltroIdVenta(e.target.value)}
-                          className="h-10 w-48 pl-9 text-xs bg-white border-slate-200 rounded-xl"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar Cliente</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                        <Input
-                          placeholder="Nombre o DNI/CUIT..."
-                          value={filtroCliente}
-                          onChange={(e) => setFiltroCliente(e.target.value)}
-                          className="h-10 w-48 pl-9 text-xs bg-white border-slate-200 rounded-xl"
-                        />
+                      <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filtrar por:</Label>
+                      <div className="flex items-center shadow-sm rounded-xl overflow-hidden border border-slate-200 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400 transition-all">
+                        <select
+                          value={tipoBusqueda}
+                          onChange={(e) => setTipoBusqueda(e.target.value as any)}
+                          className="h-10 bg-slate-50 border-r border-slate-200 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 focus:outline-none cursor-pointer hover:bg-slate-100 transition-colors"
+                        >
+                          <option value="venta">Venta</option>
+                          <option value="cliente">Cliente</option>
+                          <option value="mla_venta">Id Venta MLA</option>
+                          <option value="mla_envio">Id Envío MLA</option>
+                        </select>
+                        <div className="relative flex-grow">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                          <Input
+                            placeholder={tipoBusqueda === "venta" ? "N° Venta o ID..." : "Nombre o DNI/CUIT..."}
+                            value={filtroBusquedaTexto}
+                            onChange={(e) => setFiltroBusquedaTexto(e.target.value)}
+                            className="h-10 border-none focus-visible:ring-0 pl-9 text-xs bg-white w-48 shadow-none"
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -1852,8 +1859,8 @@ export default function VentasMostradorClient({
                         <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Ver Artículos</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De / Id venta MLA</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para / Id envio MLA</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Info Extra</TableHead>
                         <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
                         <TableHead className="text-center text-[10px] font-bold uppercase py-3 w-28">Acciones</TableHead>
@@ -1888,7 +1895,16 @@ export default function VentasMostradorClient({
                                   {v.cliente}
                                   {v.dni && <div className="text-[10px] text-blue-600 font-bold mt-0.5">DNI/CUIT: {v.dni}</div>}
                                   {v.email && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{v.email}</div>}
-                                  {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 rounded-full uppercase text-white" style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}>{v.puntoVenta.nombre}</span></div>}
+                                  {v.puntoVenta && (
+                                    <div className="mt-1">
+                                      <span
+                                        className={`inline-block px-2 py-0.5 rounded-full uppercase ${v.puntoVenta.nombre.toLowerCase().includes('mercadolibre') ? 'text-slate-900 font-bold' : 'text-white'}`}
+                                        style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}
+                                      >
+                                        {v.puntoVenta.nombre}
+                                      </span>
+                                    </div>
+                                  )}
                                   {v.eventoOffline && <div className="mt-1"><span className="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded-full uppercase">Offline Event</span></div>}
                                 </TableCell>
 
@@ -2139,28 +2155,27 @@ export default function VentasMostradorClient({
                     </div>
 
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Buscar Venta</Label>
-                      <div className="relative">
-                        <Search className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
-                        <Input
-                          placeholder="N° Venta o ID..."
-                          value={filtroIdVenta}
-                          onChange={(e) => setFiltroIdVenta(e.target.value)}
-                          className="h-10 w-48 pl-9 text-xs bg-white border-amber-200 rounded-xl"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Buscar Cliente</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
-                        <Input
-                          placeholder="Nombre o DNI/CUIT..."
-                          value={filtroCliente}
-                          onChange={(e) => setFiltroCliente(e.target.value)}
-                          className="h-10 w-48 pl-9 text-xs bg-white border-amber-200 rounded-xl"
-                        />
+                      <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Filtrar por:</Label>
+                      <div className="flex items-center shadow-sm rounded-xl overflow-hidden border border-amber-200 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400 transition-all">
+                        <select
+                          value={tipoBusqueda}
+                          onChange={(e) => setTipoBusqueda(e.target.value as any)}
+                          className="h-10 bg-amber-50/50 border-r border-amber-200 px-3 text-[10px] font-bold uppercase tracking-wider text-amber-600 focus:outline-none cursor-pointer hover:bg-amber-100/50 transition-colors"
+                        >
+                          <option value="venta">Venta</option>
+                          <option value="cliente">Cliente</option>
+                          <option value="mla_venta">Id Venta MLA</option>
+                          <option value="mla_envio">Id Envío MLA</option>
+                        </select>
+                        <div className="relative flex-grow">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
+                          <Input
+                            placeholder={tipoBusqueda === "venta" ? "N° Venta o ID..." : "Nombre o DNI/CUIT..."}
+                            value={filtroBusquedaTexto}
+                            onChange={(e) => setFiltroBusquedaTexto(e.target.value)}
+                            className="h-10 border-none focus-visible:ring-0 pl-9 text-xs bg-white w-48 shadow-none"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2182,8 +2197,8 @@ export default function VentasMostradorClient({
                         <TableHead className="text-[10px] font-bold uppercase py-3">Fecha / Hora</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Cliente</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De</TableHead>
-                        <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Cupón / De / Id venta MLA</TableHead>
+                        <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Trans. / Para / Id envio MLA</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3 text-slate-600">Info Extra</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Total Final</TableHead>
                         <TableHead className="text-[10px] font-bold uppercase py-3">Vendedor</TableHead>
@@ -2214,7 +2229,16 @@ export default function VentasMostradorClient({
                             <TableCell className="font-bold text-slate-700 py-4">
                               {v.cliente}
                               {v.dni && <div className="text-[10px] text-blue-600 font-bold mt-0.5">DNI/CUIT: {v.dni}</div>}
-                              {v.puntoVenta && <div className="mt-1"><span className="inline-block px-2 py-0.5 rounded-full uppercase text-white" style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}>{v.puntoVenta.nombre}</span></div>}
+                              {v.puntoVenta && (
+                               <div className="mt-1">
+                                 <span
+                                   className={`inline-block px-2 py-0.5 rounded-full uppercase ${v.puntoVenta.nombre.toLowerCase().includes('mercadolibre') ? 'text-slate-900 font-bold' : 'text-white'}`}
+                                   style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}
+                                 >
+                                   {v.puntoVenta.nombre}
+                                 </span>
+                               </div>
+                             )}
                             </TableCell>
                             <TableCell className="py-4">
                               <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>

@@ -1039,6 +1039,8 @@ export async function actualizarEstadoPedido(ventaId: string, estadoPedido: stri
       where: { id: ventaId },
       data: { estadoPedido }
     });
+    revalidatePath("/admin/erp/pedidos-venta");
+    revalidatePath("/admin/ventas-mostrador");
     return { success: true };
   } catch (error) {
     console.error("Error al actualizar estado del pedido:", error);
@@ -1068,6 +1070,8 @@ export async function actualizarEstadoPedidoMasivo(ventaIds: string[], estadoPed
       where: { id: { in: ventaIds } },
       data: { estadoPedido }
     });
+    revalidatePath("/admin/erp/pedidos-venta");
+    revalidatePath("/admin/ventas-mostrador");
     return { success: true };
   } catch (error) {
     console.error("Error al actualizar estados de pedidos:", error);

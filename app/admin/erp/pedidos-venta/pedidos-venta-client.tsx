@@ -369,18 +369,12 @@ export default function PedidosVentaClient() {
     }
   };
 
-  const handleDownloadPDF = async (ventaId: string, idsParaActualizar?: string[]) => {
+  const handleDownloadPDF = async (ventaId: string) => {
     try {
       setIsProcessing(true);
       const result = await obtenerURLDescargaPDF(ventaId);
       if (result.success && result.url) {
         window.open(result.url, '_blank');
-        
-        // Si se proporcionaron IDs para actualizar (especialmente para lotes), los marcamos como IMPRESO
-        if (idsParaActualizar && idsParaActualizar.length > 0) {
-          await actualizarEstadoPedidoMasivo(idsParaActualizar, "IMPRESO");
-          cargarPedidos();
-        }
       } else {
         alert(result.error || "Error al obtener el enlace de descarga");
       }
@@ -547,7 +541,7 @@ export default function PedidosVentaClient() {
                   key={index}
                   variant="outline"
                   size="sm"
-                  onClick={() => handleDownloadPDF(lote.ids[0], lote.ids)}
+                  onClick={() => handleDownloadPDF(lote.ids[0])}
                   className="bg-white border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-300 transition-all shadow-sm flex flex-col items-start h-auto py-2.5 px-4 gap-2 w-full max-w-2xl"
                   title={`Descargar PDF compartido por ${lote.clientes.length} pedidos`}
                 >

@@ -2,6 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { 
@@ -149,9 +150,9 @@ export default function AuditPage() {
                     <Card key={item.itemId} onClick={() => { setSelectedItem(item); setActiveEvidenceImage(item.evidenceImages[0] || null); setView('ITEM_DETAIL') }} className={`cursor-pointer border-l-4 hover:shadow-md transition-all ${item.status === 'APROBADO' ? 'border-l-green-500' : item.status === 'RECHAZADO' ? 'border-l-red-500' : 'border-l-gray-300'}`}>
                         <CardContent className="p-4 flex items-center gap-4">
                             {/* 2. CORRECCIÓN: Manejamos si no hay imagen de evidencia todavía */}
-                            <div className="h-16 w-16 bg-gray-100 rounded border overflow-hidden flex items-center justify-center shrink-0">
+                            <div className="h-16 w-16 bg-gray-100 rounded border overflow-hidden flex items-center justify-center shrink-0 relative">
                                 {item.evidenceImageUrl ? (
-                                    <img src={item.evidenceImageUrl} className="h-full w-full object-cover" alt="Thumbnail" />
+                                    <Image src={item.evidenceImageUrl} fill sizes="64px" className="object-cover" alt="Thumbnail" />
                                 ) : (
                                     <FolderOpen className="h-6 w-6 text-gray-400" />
                                 )}
@@ -180,15 +181,17 @@ export default function AuditPage() {
                         {activeEvidenceImage ? (
                             <>
                                 <div className="aspect-square bg-white border rounded-2xl overflow-hidden cursor-zoom-in relative group" onClick={() => setExpandedImage(activeEvidenceImage)}>
-                                    <img src={activeEvidenceImage} className="w-full h-full object-contain" alt="Evidencia" />
-                                    <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold">
+                                    <Image src={activeEvidenceImage} fill sizes="(max-width: 768px) 100vw, 50vw" className="object-contain" alt="Evidencia" priority />
+                                    <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold z-10">
                                         FOTO {selectedItem.evidenceImages.indexOf(activeEvidenceImage) + 1} / {selectedItem.evidenceImages.length}
                                         <Maximize2 className="h-3 w-3" />
                                     </div>
                                 </div>
                                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                     {selectedItem.evidenceImages.map((img, i) => (
-                                        <img key={i} src={img} onClick={() => setActiveEvidenceImage(img)} className={`h-20 w-20 object-cover rounded-xl cursor-pointer border-2 transition-all ${activeEvidenceImage === img ? 'border-blue-500 scale-95' : 'border-transparent opacity-60'}`} alt="Thumbnail" />
+                                        <div key={i} className={`relative h-20 w-20 shrink-0 rounded-xl cursor-pointer border-2 transition-all overflow-hidden ${activeEvidenceImage === img ? 'border-blue-500 scale-95' : 'border-transparent opacity-60'}`} onClick={() => setActiveEvidenceImage(img)}>
+                                            <Image src={img} fill sizes="80px" className="object-cover" alt="Thumbnail" />
+                                        </div>
                                     ))}
                                 </div>
                             </>
@@ -245,8 +248,8 @@ export default function AuditPage() {
                         {selectedItem.referenceImageUrl && (
                             <Card className="overflow-hidden border-dashed border-2 bg-gray-50/50 cursor-zoom-in rounded-2xl" onClick={() => setExpandedImage(selectedItem.referenceImageUrl)}>
                                 <CardContent className="p-4 flex items-center gap-4">
-                                    <div className="h-24 w-24 bg-white rounded-lg border p-1 shrink-0">
-                                        <img src={selectedItem.referenceImageUrl} alt="Ref" className="w-full h-full object-contain" />
+                                    <div className="h-24 w-24 bg-white rounded-lg border p-1 shrink-0 relative">
+                                        <Image src={selectedItem.referenceImageUrl} fill sizes="96px" alt="Ref" className="object-contain p-1" />
                                     </div>
                                     <div>
                                         <h4 className="font-bold text-gray-700 text-sm">Imagen de Referencia</h4>

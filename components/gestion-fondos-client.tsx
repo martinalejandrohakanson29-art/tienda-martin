@@ -338,7 +338,6 @@ export default function GestionFondosClient({
                               placeholder="Busca proveedor..."
                               value={deQuien}
                               onChange={(e) => {
-                                setSearchTerm(e.target.value); // Reusing search term logic if needed or just deQuien
                                 setDeQuien(e.target.value);
                                 setShowDeDropdown(true);
                               }}

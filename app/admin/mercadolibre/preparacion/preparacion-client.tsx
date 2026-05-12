@@ -15,7 +15,9 @@ import {
     Layers,
     Barcode,
     AlertTriangle,
-    Hash 
+    Hash,
+    Maximize2,
+    ArrowLeft
 } from "lucide-react"
 import { 
     subirFotoAuditoria, 
@@ -30,13 +32,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog"
-import {
-    Carousel,
-    CarouselContent,
-    CarouselItem,
-    CarouselNext,
-    CarouselPrevious,
-} from "@/components/ui/carousel"
 
 import { Html5Qrcode } from "html5-qrcode"
 
@@ -77,8 +72,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [search, setSearch] = useState("")
     const [loading, setLoading] = useState<string | null>(null)
     const [isFetchingFotos, setIsFetchingFotos] = useState(false)
-    const [viewingFotos, setViewingFotos] = useState<{id: string, fotos: any[]} | null>(null)
-    const [zoom, setZoom] = useState(false)
+    const [viewingFotos, setViewingFotos] = useState<{id: string, fotos: any[], envioData: any} | null>(null)
+    const [activeFoto, setActiveFoto] = useState<string | null>(null)
+    const [expandedImage, setExpandedImage] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     
     const [selectedItem, setSelectedItem] = useState<{envioId: string, itemId: string, mla: string} | null>(null)
@@ -160,12 +156,13 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         fileInputRef.current?.click()
     }
 
-    const handleOpenViewer = async (envioId: string) => {
+    const handleOpenViewer = async (envio: any) => {
         setIsFetchingFotos(true)
         try {
-            const res = await obtenerFotosEnvio(envioId)
+            const res = await obtenerFotosEnvio(envio.id)
             if (res.success) {
-                setViewingFotos({ id: envioId, fotos: res.fotos })
+                setViewingFotos({ id: envio.id, fotos: res.fotos, envioData: envio })
+                setActiveFoto(res.fotos[0]?.url || null)
             } else {
                 toast.error("Error al cargar fotos")
             }
@@ -230,6 +227,104 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             setLoading(null)
             if (fileInputRef.current) fileInputRef.current.value = ""
         }
+    }
+
+    const ImageZoomModal = () => {
+        if (!expandedImage) return null
+        return (
+            <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setExpandedImage(null)}>
+                <button className="absolute top-4 right-4 text-white/70 hover:text-white"><X className="h-8 w-8" /></button>
+                <img src={expandedImage} alt="Zoom" className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" />
+            </div>
+        )
+    }
+
+    if (viewingFotos) {
+        const envio = viewingFotos.envioData;
+        return (
+            <div className="max-w-5xl mx-auto p-4 space-y-6 w-full animate-in fade-in">
+                <ImageZoomModal />
+                <Button variant="outline" onClick={() => { setViewingFotos(null); setActiveFoto(null); }}><ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista</Button>
+                
+                <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                        {activeFoto ? (
+                            <>
+                                <div className="aspect-square bg-white border rounded-2xl overflow-hidden cursor-zoom-in relative group" onClick={() => setExpandedImage(activeFoto)}>
+                                    <img src={activeFoto} className="w-full h-full object-contain" alt="Evidencia" />
+                                    <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold z-10">
+                                        FOTO {viewingFotos.fotos.findIndex((f: any) => f.url === activeFoto) + 1} / {viewingFotos.fotos.length}
+                                        <Maximize2 className="h-3 w-3" />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                                    {viewingFotos.fotos.map((foto: any, i: number) => (
+                                        <div key={i} className={`relative h-20 w-20 shrink-0 rounded-xl cursor-pointer border-2 transition-all overflow-hidden ${activeFoto === foto.url ? 'border-blue-500 scale-95' : 'border-transparent opacity-60'}`} onClick={() => setActiveFoto(foto.url)}>
+                                            <img src={foto.url} className="w-full h-full object-cover" alt="Thumbnail" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="aspect-square bg-gray-50 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-gray-400 p-8 text-center">
+                                <AlertTriangle className="h-12 w-12 mb-4 opacity-20" />
+                                <p className="font-medium">No hay fotos</p>
+                            </div>
+                        )}
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            <Button variant="outline" className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50" onClick={() => handleReject(viewingFotos.id)} disabled={!!loading}><X className="mr-2 h-6 w-6" /> RECHAZAR</Button>
+                            <Button className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700" onClick={() => handleApprove(viewingFotos.id)} disabled={!!loading}>{loading === viewingFotos.id ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} APROBAR</Button>
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-6">
+                        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm space-y-6">
+                            <div>
+                                <h2 className="text-xl font-bold mb-1">Envío: {envio.id}</h2>
+                                <div className="flex gap-2 mb-4">
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                        ORDEN: {envio.orderId || 'S/N'}
+                                    </span>
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                                        {getLogisticName(envio.logisticType)}
+                                    </span>
+                                </div>
+                                
+                                <p className="text-sm font-medium text-slate-700 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                    {renderTextWithQuantity(envio.resumen)}
+                                </p>
+                            </div>
+
+                            <div className="space-y-4">
+                                <h3 className="text-sm font-bold text-slate-500 uppercase">Artículos incluidos:</h3>
+                                {envio.items.map((item: any, idx: number) => {
+                                    const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
+                                    const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
+                                    
+                                    return (
+                                        <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                            <div className="flex flex-col gap-2">
+                                                {nombres.map((nombre: string, nIdx: number) => (
+                                                    <div key={nIdx} className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border-b-4 font-black text-xs uppercase shadow-sm w-fit max-w-full ${getAgregadoColor(nIdx)}`}>
+                                                        <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
+                                                        <span className="break-words">{renderTextWithQuantity(nombre)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-3 text-xs text-slate-500 flex gap-4">
+                                                <span>SKU: <span className="font-bold">{item.sellerSku || 'N/A'}</span></span>
+                                                <span>Cant: <span className="font-bold">{item.quantity || 1}</span></span>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -326,7 +421,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 <Button 
                                     variant="secondary" 
                                     className="w-full mb-4 gap-2 bg-blue-50 text-blue-700 border-none hover:bg-blue-100 h-11 rounded-xl font-bold transition-colors"
-                                    onClick={() => handleOpenViewer(envio.id)}
+                                    onClick={() => handleOpenViewer(envio)}
                                     disabled={isFetchingFotos}
                                 >
                                     {isFetchingFotos ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Eye className="h-4 w-4" /> REVISAR FOTOS</>}
@@ -370,6 +465,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             </div>
 
             {/* Modal del Scanner */}
+            {/* Scanner se mantiene como modal ya que requiere DOM element renderizado sobre lo actual */}
             <Dialog open={showScanner} onOpenChange={setShowScanner}>
                 <DialogContent className="p-0 overflow-hidden bg-black border-none sm:max-w-md">
                     <DialogHeader className="p-4 bg-slate-900 text-white flex-row justify-between items-center space-y-0">
@@ -388,77 +484,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500"></div>
                             <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500"></div>
                         </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            {/* Visor de Fotos */}
-            <Dialog open={!!viewingFotos} onOpenChange={() => { setViewingFotos(null); setZoom(false); }}>
-                <DialogContent className="p-0 overflow-hidden bg-slate-950 border-none h-[95vh] max-w-4xl flex flex-col rounded-t-3xl sm:rounded-3xl">
-                    <DialogHeader className="p-4 bg-slate-900/80 backdrop-blur-md border-b border-white/10 flex-row justify-between items-center space-y-0">
-                        <DialogTitle className="text-white text-base">Fotos Envío {viewingFotos?.id}</DialogTitle>
-                        <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setViewingFotos(null)}>
-                            <X className="h-5 w-5" />
-                        </Button>
-                    </DialogHeader>
-                    
-                    <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black">
-                        {viewingFotos?.fotos.length ? (
-                            <Carousel className="w-full h-full flex items-center justify-center">
-                                <CarouselContent className="h-full items-center">
-                                    {viewingFotos.fotos.map((foto: any) => (
-                                        <CarouselItem key={foto.id} className="flex items-center justify-center h-full">
-                                            <div 
-                                                className={`relative transition-transform duration-300 ease-out h-full w-full flex items-center justify-center p-2 ${zoom ? 'scale-150 cursor-zoom-out' : 'scale-100 cursor-zoom-in'}`} 
-                                                onClick={() => setZoom(!zoom)}
-                                            >
-                                                <img 
-                                                    src={foto.url} 
-                                                    alt="Auditoría" 
-                                                    className="max-h-full max-w-full w-auto h-auto object-contain select-none shadow-2xl rounded-md" 
-                                                />
-                                            </div>
-                                        </CarouselItem>
-                                    ))}
-                                </CarouselContent>
-                                {viewingFotos.fotos.length > 1 && !zoom && (
-                                    <>
-                                        <CarouselPrevious className="left-6 bg-white/20 hover:bg-white/40 border-none text-white h-12 w-12" />
-                                        <CarouselNext className="right-6 bg-white/20 hover:bg-white/40 border-none text-white h-12 w-12" />
-                                    </>
-                                )}
-                            </Carousel>
-                        ) : (
-                            <div className="text-center text-white/40">
-                                <Loader2 className="h-10 w-10 mx-auto mb-2 animate-spin opacity-20" />
-                                <p>Cargando fotos...</p>
-                            </div>
-                        )}
-                    </div>
-                    
-                    <div className="p-6 bg-slate-900 border-t border-white/10 grid grid-cols-4 gap-4">
-                        <Button 
-                            variant="destructive" 
-                            className="col-span-1 h-16 rounded-2xl bg-red-600/20 text-red-500 border-red-500/20 hover:bg-red-600 hover:text-white transition-all shadow-lg"
-                            onClick={() => handleReject(viewingFotos?.id!)}
-                            disabled={loading === viewingFotos?.id}
-                        >
-                            <AlertTriangle className="h-7 w-7" />
-                        </Button>
-                        <Button 
-                            className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white h-16 rounded-2xl font-bold text-xl shadow-xl transition-all active:scale-95" 
-                            onClick={() => handleApprove(viewingFotos?.id!)} 
-                            disabled={loading === viewingFotos?.id}
-                        >
-                            {loading === viewingFotos?.id ? <Loader2 className="animate-spin h-7 w-7" /> : <><CheckCircle2 className="mr-2 h-7 w-7" /> APROBAR</>}
-                        </Button>
-                        <Button 
-                            variant="outline" 
-                            className="col-span-1 h-16 rounded-2xl border-white/20 text-white bg-white/5 hover:bg-white/10 transition-all" 
-                            onClick={() => setZoom(!zoom)}
-                        >
-                            <Search className="h-7 w-7" />
-                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

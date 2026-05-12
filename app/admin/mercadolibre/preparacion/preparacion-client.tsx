@@ -2,6 +2,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
+import Image from "next/image"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { 
@@ -75,7 +76,22 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [viewingFotos, setViewingFotos] = useState<{id: string, fotos: any[], envioData: any} | null>(null)
     const [activeFoto, setActiveFoto] = useState<string | null>(null)
     const [expandedImage, setExpandedImage] = useState<string | null>(null)
+    const [zoomScale, setZoomScale] = useState(1)
+    const [zoomOrigin, setZoomOrigin] = useState('center')
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    useEffect(() => {
+        if (!expandedImage) {
+            setZoomScale(1)
+            setZoomOrigin('center')
+        }
+    }, [expandedImage])
+
+    const zoomTo = (e: React.MouseEvent, s: number, o: string) => {
+        e.stopPropagation();
+        setZoomScale(s);
+        setZoomOrigin(o);
+    };
     
     const [selectedItem, setSelectedItem] = useState<{envioId: string, itemId: string, mla: string} | null>(null)
 
@@ -229,21 +245,38 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     }
 
-    const ImageZoomModal = () => {
-        if (!expandedImage) return null
-        return (
-            <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setExpandedImage(null)}>
-                <button className="absolute top-4 right-4 text-white/70 hover:text-white"><X className="h-8 w-8" /></button>
-                <img src={expandedImage} alt="Zoom" className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" />
-            </div>
-        )
-    }
-
     if (viewingFotos) {
         const envio = viewingFotos.envioData;
         return (
             <div className="max-w-5xl mx-auto p-4 space-y-6 w-full animate-in fade-in">
-                <ImageZoomModal />
+                {expandedImage && (
+                    <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setExpandedImage(null)}>
+                        <div className="absolute top-4 left-0 right-0 flex justify-center z-50 pointer-events-none">
+                            <div className="bg-slate-900/80 p-2 rounded-xl flex gap-2 pointer-events-auto border border-white/20 shadow-xl flex-wrap justify-center max-w-[90vw]">
+                                <Button variant="secondary" size="sm" className={zoomScale === 1 ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 1, 'center')}>1x</Button>
+                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'top left' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'top left')}>↖️ 2x</Button>
+                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'top right' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'top right')}>↗️ 2x</Button>
+                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'bottom left' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'bottom left')}>↙️ 2x</Button>
+                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'bottom right' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'bottom right')}>↘️ 2x</Button>
+                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'center' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'center')}>⊙ 2x</Button>
+                                <Button variant="secondary" size="sm" className={zoomScale === 3 && zoomOrigin === 'center' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 3, 'center')}>🔍 3x</Button>
+                            </div>
+                        </div>
+                        <button className="absolute top-4 right-4 text-white/70 hover:text-white z-50 bg-black/50 rounded-full p-1" onClick={(e) => { e.stopPropagation(); setExpandedImage(null); }}><X className="h-8 w-8" /></button>
+                        
+                        <div className="w-full h-full flex items-center justify-center overflow-hidden">
+                            <div className="relative w-full h-full transition-all duration-300 ease-in-out" style={{ transform: `scale(${zoomScale})`, transformOrigin: zoomOrigin }}>
+                                <Image 
+                                    src={expandedImage} 
+                                    alt="Zoom" 
+                                    fill
+                                    className="object-contain rounded shadow-2xl"
+                                    unoptimized
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <Button variant="outline" onClick={() => { setViewingFotos(null); setActiveFoto(null); }}><ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista</Button>
                 
                 <div className="grid md:grid-cols-2 gap-8">
@@ -251,7 +284,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         {activeFoto ? (
                             <>
                                 <div className="aspect-square bg-white border rounded-2xl overflow-hidden cursor-zoom-in relative group" onClick={() => setExpandedImage(activeFoto)}>
-                                    <img src={activeFoto} className="w-full h-full object-contain" alt="Evidencia" />
+                                    <Image src={activeFoto} fill className="object-contain" alt="Evidencia" unoptimized priority />
                                     <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold z-10">
                                         FOTO {viewingFotos.fotos.findIndex((f: any) => f.url === activeFoto) + 1} / {viewingFotos.fotos.length}
                                         <Maximize2 className="h-3 w-3" />
@@ -260,7 +293,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                     {viewingFotos.fotos.map((foto: any, i: number) => (
                                         <div key={i} className={`relative h-20 w-20 shrink-0 rounded-xl cursor-pointer border-2 transition-all overflow-hidden ${activeFoto === foto.url ? 'border-blue-500 scale-95' : 'border-transparent opacity-60'}`} onClick={() => setActiveFoto(foto.url)}>
-                                            <img src={foto.url} className="w-full h-full object-cover" alt="Thumbnail" />
+                                            <Image src={foto.url} fill className="object-cover" alt="Thumbnail" unoptimized />
                                         </div>
                                     ))}
                                 </div>

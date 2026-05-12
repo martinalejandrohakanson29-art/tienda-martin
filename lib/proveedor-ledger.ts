@@ -21,4 +21,10 @@ export async function recalcularSaldosProveedor(tx: TxClient, proveedorId: strin
             data: { saldo },
         })
     }
+    
+    // Sincronizar el total del proveedor con la suma de los movimientos válidos
+    await tx.proveedor.update({
+        where: { id: proveedorId },
+        data: { total: saldo }
+    })
 }

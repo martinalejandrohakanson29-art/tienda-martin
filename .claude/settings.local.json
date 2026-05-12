@@ -18,7 +18,10 @@
       "Bash(node -e \"const fs = require\\('fs'\\); const f = fs.readFileSync\\('app/actions/ventas-mostrador.ts','utf8'\\); console.log\\('Has obtenerResumenVentas:', f.includes\\('export async function obtenerResumenVentas'\\)\\); const lines = f.split\\('\\\\n'\\); const idx = lines.findIndex\\(l => l.includes\\('export async function obtenerResumenVentas'\\)\\); console.log\\('Lines:', idx, '-', idx+5\\); console.log\\(lines.slice\\(idx, idx+6\\).join\\('\\\\n'\\)\\);\")",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\" -Recurse -Filter \"*.ts\" -o \"*.tsx\")",
       "Bash(Select-Object -First 20)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\\\\app\" -Recurse -Filter \"*movimiento*\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(head *)"
     ]
   }
 }

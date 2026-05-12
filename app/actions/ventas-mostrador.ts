@@ -84,7 +84,7 @@ function parsearImpactos(para: string, montoTotal: number): ImpactoItem[] {
       const parsed = JSON.parse(trimmed);
       return Array.isArray(parsed) ? parsed : [parsed];
     }
-  } catch {}
+  } catch { }
   return [{ razonSocial: para, monto: montoTotal }];
 }
 

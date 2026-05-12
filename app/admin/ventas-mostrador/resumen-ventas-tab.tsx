@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList,
   PieChart, Pie, Cell, AreaChart, Area, LineChart, Line, Sector,
 } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -385,7 +385,7 @@ export default function ResumenVentasTab() {
                 <div className="flex items-center justify-center h-48 text-slate-400 text-sm">Sin datos de puntos de venta</div>
               ) : (
                 <ResponsiveContainer width="100%" height={230}>
-                  <BarChart data={data.porPuntoVenta} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
+                  <BarChart data={data.porPuntoVenta} layout="vertical" margin={{ top: 0, right: 90, left: 10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                     <XAxis type="number" tickFormatter={v => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: "#94a3b8" }} />
                     <YAxis type="category" dataKey="nombre" width={120} tick={{ fontSize: 11, fill: "#64748b" }} />
@@ -394,6 +394,8 @@ export default function ResumenVentasTab() {
                       {data.porPuntoVenta.map((entry, i) => (
                         <Cell key={i} fill={entry.color !== "#000000" ? entry.color : PALETTE[i % PALETTE.length]} />
                       ))}
+                      <LabelList dataKey="monto" position="right" style={{ fontSize: 11, fill: "#334155", fontWeight: 600 }}
+                        formatter={(v: number) => v >= 1_000_000 ? `$${(v / 1_000_000).toFixed(1)}M` : `$${(v / 1_000).toFixed(0)}k`} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import { z } from "zod"
+import { recalcularSaldosProveedor } from "@/lib/proveedor-ledger"
 
 const registrarMovimientoSchema = z.object({
   proveedorId: z.string().min(1, "Se requiere el proveedor"),
@@ -21,27 +22,6 @@ const registrarMovimientoSchema = z.object({
 
 // Usamos el tipo oficial de Prisma para el cliente de transacción
 type TxClient = Prisma.TransactionClient
-
-/**
- * Recalcula el campo `saldo` de todos los movimientos activos de un proveedor
- * en orden cronológico. Debe llamarse siempre que se anule un movimiento para
- * mantener el ledger consistente (Opción A: cascada de saldos).
- */
-async function recalcularSaldos(tx: TxClient, proveedorId: string) {
-  const movimientos = await tx.movimientoProveedor.findMany({
-    where: { proveedorId, anulado: false },
-    orderBy: { fecha: "asc" },
-  })
-
-  let saldo = new Prisma.Decimal(0)
-  for (const mov of movimientos) {
-    saldo = saldo.plus(mov.monto)
-    await tx.movimientoProveedor.update({
-      where: { id: mov.id },
-      data: { saldo },
-    })
-  }
-}
 
 export async function registrarMovimientoManualProveedor(data: {
   proveedorId: string
@@ -166,17 +146,12 @@ export async function anularMovimientoProveedor(movimientoId: string) {
       // 1. Cargar el movimiento con su proveedor
       const movimiento = await tx.movimientoProveedor.findUnique({
         where: { id: movimientoId },
-        include: { proveedor: true },
       })
 
       if (!movimiento) throw new Error("Movimiento no encontrado")
       if (movimiento.anulado) throw new Error("El movimiento ya está anulado")
 
-      // 2. Revertir impacto financiero del proveedor principal y marcar anulado
-      await tx.proveedor.update({
-        where: { id: movimiento.proveedorId },
-        data: { total: movimiento.proveedor.total.minus(movimiento.monto) },
-      })
+      // 2. Marcar el movimiento principal como anulado
       await tx.movimientoProveedor.update({
         where: { id: movimientoId },
         data: { anulado: true },
@@ -186,26 +161,21 @@ export async function anularMovimientoProveedor(movimientoId: string) {
       if (movimiento.gemeloCId) {
         const gemelo = await tx.movimientoProveedor.findUnique({
           where: { id: movimiento.gemeloCId },
-          include: { proveedor: true },
         })
 
         if (gemelo && !gemelo.anulado) {
-          await tx.proveedor.update({
-            where: { id: gemelo.proveedorId },
-            data: { total: gemelo.proveedor.total.minus(gemelo.monto) },
-          })
           await tx.movimientoProveedor.update({
             where: { id: gemelo.id },
             data: { anulado: true },
           })
 
-          // Recalcular ledger del proveedor emisor
-          await recalcularSaldos(tx, gemelo.proveedorId)
+          // Recalcular ledger del proveedor emisor desde cero
+          await recalcularSaldosProveedor(tx, gemelo.proveedorId)
         }
       }
 
-      // 4. Recalcular ledger del proveedor principal (cascada de saldos históricos)
-      await recalcularSaldos(tx, movimiento.proveedorId)
+      // 4. Recalcular ledger del proveedor principal desde cero (cascada de saldos históricos)
+      await recalcularSaldosProveedor(tx, movimiento.proveedorId)
     })
 
     revalidatePath("/admin/erp/movimientos")

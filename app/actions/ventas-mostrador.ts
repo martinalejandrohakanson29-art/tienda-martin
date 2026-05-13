@@ -126,7 +126,6 @@ async function revertirImpactoProveedorTx(
   para: string,
   montoTotal: number,
   ventaId: string,
-  descripcionAnulacion?: string,
 ) {
   const impactos = parsearImpactos(para, montoTotal);
   for (const imp of impactos) {
@@ -137,25 +136,10 @@ async function revertirImpactoProveedorTx(
     }
     const monto = new Prisma.Decimal(imp.monto || montoTotal);
     if (monto.isZero()) continue;
-    const nuevoSaldo = proveedor.total.minus(monto);
-    await tx.proveedor.update({ where: { id: proveedor.id }, data: { total: nuevoSaldo } });
     await tx.movimientoProveedor.updateMany({
       where: { referencia: ventaId, proveedorId: proveedor.id, anulado: false },
       data: { anulado: true },
     });
-    if (descripcionAnulacion) {
-      await tx.movimientoProveedor.create({
-        data: {
-          proveedorId: proveedor.id,
-          tipo: "EGRESO",
-          monto: monto.negated(),
-          descripcion: descripcionAnulacion,
-          referencia: ventaId,
-          saldo: nuevoSaldo,
-          anulado: true,
-        },
-      });
-    }
     await recalcularSaldosProveedor(tx, proveedor.id);
   }
 }
@@ -903,8 +887,7 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
       if (venta && esMetodoImpactoDel && venta.para) {
         const montoRevertirVal = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
         if (montoRevertirVal > 0) {
-          const descAnulacion = `ANULACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente}) eliminada`;
-          await revertirImpactoProveedorTx(tx, venta.para, montoRevertirVal, ventaId, descAnulacion);
+          await revertirImpactoProveedorTx(tx, venta.para, montoRevertirVal, ventaId);
         }
       }
 
@@ -1219,8 +1202,7 @@ export async function eliminarPedidoVenta(ventaId: string) {
       if (esMetodoImpactoDel && venta.para) {
         const montoRevertir = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
         if (montoRevertir > 0) {
-          const descAnulacion = `ANULACIÓN: ${venta.metodo_pago === "Cruzada" ? "Pedido Cruzada" : venta.metodo_pago === "Mixto" ? "Pedido Mixto" : "Pedido a CC"} #${venta.numeroVenta} (${venta.cliente}) eliminado`;
-          await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId, descAnulacion);
+          await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId);
         }
       }
 
@@ -1476,8 +1458,7 @@ export async function cancelarVenta(ventaId: string) {
         if (esMetodoImpacto && venta.para) {
           const montoRevertir = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
           if (montoRevertir > 0) {
-            const descAnulacion = `CANCELACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente})`;
-            await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId, descAnulacion);
+            await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId);
           }
         }
         await ajustarStockItemsTx(tx, stockItems, "increment");
@@ -1502,8 +1483,7 @@ export async function cancelarVenta(ventaId: string) {
     if (esMetodoImpacto && venta.para) {
       const montoRevertir = getMontoImpactoProveedor(venta.metodo_pago, venta.info, Number(venta.totalFinal));
       if (montoRevertir > 0) {
-        const descAnulacion = `CANCELACIÓN: ${venta.metodo_pago === "Cruzada" ? "Venta Cruzada" : venta.metodo_pago === "Mixto" ? "Venta Mixta" : "Venta a CC"} #${venta.numeroVenta} (${venta.cliente})`;
-        await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId, descAnulacion);
+        await revertirImpactoProveedorTx(tx, venta.para, montoRevertir, ventaId);
       }
     }
     await ajustarStockItemsTx(tx, stockItems, "increment");

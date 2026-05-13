@@ -35,7 +35,7 @@ interface ResumenData {
 
 // ── Paleta de colores ──────────────────────────────────────────────────────────
 
-const PALETTE = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#f97316","#84cc16","#ec4899","#6366f1","#14b8a6","#e11d48"];
+const PALETTE = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#84cc16", "#ec4899", "#6366f1", "#14b8a6", "#e11d48"];
 
 const METODO_COLORS: Record<string, string> = {
   "Efectivo": "#10b981",
@@ -205,7 +205,7 @@ export default function ResumenVentasTab() {
           <div className="flex flex-wrap items-center gap-2 ml-auto">
             {/* Presets */}
             <div className="flex gap-1.5">
-              {[["hoy","Hoy"],["7d","7 días"],["30d","30 días"],["mes","Este mes"],["año","Este año"]].map(([key, label]) => (
+              {[["hoy", "Hoy"], ["7d", "7 días"], ["30d", "30 días"], ["mes", "Este mes"], ["año", "Este año"]].map(([key, label]) => (
                 <Button key={key} variant="outline" size="sm" onClick={() => preset(key)}
                   className="h-8 px-3 text-xs font-semibold border-slate-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 rounded-lg">
                   {label}

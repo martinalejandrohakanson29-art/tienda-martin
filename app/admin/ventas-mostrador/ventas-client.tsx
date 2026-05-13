@@ -1034,6 +1034,7 @@ export default function VentasMostradorClient({
     setMlIdVenta(""); setMlIdEnvio(""); setMlMla(""); setMlDni("");
     setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(6);
     setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false); setSolicitarFactura(false);
+    setProveedoresCruzada([]); setIsGuardarComoPedido(false);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
     // Restaurar "Mostrador" como punto de venta por defecto
     if (puntosVenta && puntosVenta.length > 0) {

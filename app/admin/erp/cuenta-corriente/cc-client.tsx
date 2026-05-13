@@ -158,12 +158,7 @@ export default function CuentaCorrienteClient({
       "Email": p.email || "---",
       "Telefono": p.telefono || "---",
       "Celular": p.celular || "---",
-      "Saldo Anterior": p.saldoAnterior,
-      "Saldo Vencido": p.saldoVencido,
-      "15-30 dias": p.dias15 + p.dias30,
-      "45-60 dias": p.dias45 + p.dias60,
-      "+60 dias": p.mas60,
-      "Total": p.total,
+      "Saldo Total": p.total,
       "Alias/CBU": p.aliasCbu || "---",
     }));
 
@@ -187,14 +182,13 @@ export default function CuentaCorrienteClient({
     const tableData = processedProveedores.map((p) => [
       p.razonSocial,
       p.cuit || "---",
-      formatCurrency(p.saldoAnterior),
-      formatCurrency(p.saldoVencido),
+      p.nombreFantasia || "---",
       formatCurrency(p.total),
     ]);
 
     autoTable(doc, {
       startY: 40,
-      head: [["Proveedor", "CUIT", "S. Anterior", "S. Vencido", "Total"]],
+      head: [["Proveedor", "CUIT", "Nombre Fantasía", "Saldo Total"]],
       body: tableData,
       theme: "striped",
       headStyles: { fillColor: [43, 140, 238] },
@@ -377,34 +371,7 @@ export default function CuentaCorrienteClient({
                   </p>
                 )}
 
-                {/* Account Aging Summary */}
-                <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase text-slate-400 font-bold">Anterior</span>
-                    <span className="text-sm font-semibold">{formatCurrency(proveedor.saldoAnterior)}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase text-slate-400 font-bold">Vencido</span>
-                    <span className={`text-sm font-semibold ${proveedor.saldoVencido < 0 ? 'text-red-500' : proveedor.saldoVencido > 0 ? 'text-emerald-500' : ''}`}>
-                      {formatCurrency(proveedor.saldoVencido)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex-grow space-y-3">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500">15 - 30 días</span>
-                    <span className="font-medium">{formatCurrency(proveedor.dias15 + proveedor.dias30)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500">45 - 60 días</span>
-                    <span className="font-medium">{formatCurrency(proveedor.dias45 + proveedor.dias60)}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-500">+ 60 días</span>
-                    <span className="font-medium">{formatCurrency(proveedor.mas60)}</span>
-                  </div>
-                </div>
+                <div className="flex-grow" />
 
                 <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                   <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -447,8 +414,6 @@ export default function CuentaCorrienteClient({
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Proveedor</th>
-                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Anterior</th>
-                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Vencido</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Saldo Total</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Acciones</th>
                   </tr>
@@ -467,12 +432,6 @@ export default function CuentaCorrienteClient({
                           )}
                           <span className="text-[10px] text-slate-400 font-mono mt-0.5">{proveedor.cuit || "---"}</span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-right text-sm text-slate-600 dark:text-slate-400 font-medium">
-                        {formatCurrency(proveedor.saldoAnterior)}
-                      </td>
-                      <td className={`px-6 py-4 text-right text-sm font-semibold ${proveedor.saldoVencido < 0 ? 'text-red-500' : proveedor.saldoVencido > 0 ? 'text-emerald-500' : 'text-slate-600 dark:text-slate-400'}`}>
-                        {formatCurrency(proveedor.saldoVencido)}
                       </td>
                       <td className={`px-6 py-4 text-right text-base font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
                         {formatCurrency(proveedor.total)}

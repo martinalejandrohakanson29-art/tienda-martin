@@ -360,37 +360,43 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
       }
 
       if ((compra.metodo_pago === "A Cuenta Corriente") && (compra.proveedorId || compra.proveedor)) {
-        const idBuscado = compra.proveedorId || compra.proveedor;
+        const movimientoExistente = await tx.movimientoProveedor.findFirst({
+          where: { referencia: compraId, anulado: false }
+        });
 
-        let proveedor = await tx.proveedor.findUnique({
-          where: { id: idBuscado || "" }
-        }).catch(() => null);
+        if (!movimientoExistente) {
+          const idBuscado = compra.proveedorId || compra.proveedor;
 
-        if (!proveedor) {
-          proveedor = await tx.proveedor.findFirst({
-            where: { razonSocial: compra.proveedor || "" }
-          });
-        }
+          let proveedor = await tx.proveedor.findUnique({
+            where: { id: idBuscado || "" }
+          }).catch(() => null);
 
-        if (proveedor) {
-          const montoDecimal = new Prisma.Decimal(compra.totalFinal);
-          const nuevoSaldo = proveedor.total.minus(montoDecimal);
+          if (!proveedor) {
+            proveedor = await tx.proveedor.findFirst({
+              where: { razonSocial: compra.proveedor || "" }
+            });
+          }
 
-          await tx.proveedor.update({
-            where: { id: proveedor.id },
-            data: { total: nuevoSaldo }
-          });
+          if (proveedor) {
+            const montoDecimal = new Prisma.Decimal(compra.totalFinal);
+            const nuevoSaldo = proveedor.total.minus(montoDecimal);
 
-          await tx.movimientoProveedor.create({
-            data: {
-              proveedorId: proveedor.id,
-              tipo: "DEBE",
-              monto: montoDecimal.negated(),
-              descripcion: `Compra a CC #${compra.numeroCompra} - Confirmación Pedido`,
-              referencia: compra.id,
-              saldo: nuevoSaldo
-            }
-          });
+            await tx.proveedor.update({
+              where: { id: proveedor.id },
+              data: { total: nuevoSaldo }
+            });
+
+            await tx.movimientoProveedor.create({
+              data: {
+                proveedorId: proveedor.id,
+                tipo: "DEBE",
+                monto: montoDecimal.negated(),
+                descripcion: `Compra a CC #${compra.numeroCompra} - Confirmación Pedido`,
+                referencia: compra.id,
+                saldo: nuevoSaldo
+              }
+            });
+          }
         }
       }
 
@@ -434,6 +440,21 @@ export async function actualizarFechaCompra(compraId: string, nuevaFecha: string
           where: { referencia: compraId },
           data: { fecha: new Date(nuevaFecha) }
         });
+
+        // Al cambiar la fecha el movimiento reordena en la línea de tiempo,
+        // lo que invalida los saldos acumulados de todos los movimientos del proveedor.
+        const idBuscado = compra.proveedorId || compra.proveedor;
+        let proveedor = await tx.proveedor.findUnique({
+          where: { id: idBuscado || "" }
+        }).catch(() => null);
+        if (!proveedor) {
+          proveedor = await tx.proveedor.findFirst({
+            where: { razonSocial: compra.proveedor || "" }
+          });
+        }
+        if (proveedor) {
+          await recalcularSaldosProveedor(tx, proveedor.id);
+        }
       }
     });
     return { success: true };
@@ -450,6 +471,21 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
       const oldItems = await tx.compraItem.findMany({
         where: { compraId }
       });
+
+      // Revertir CC si el pedido ya fue confirmado y tiene movimientos activos
+      const movimientosCC = await tx.movimientoProveedor.findMany({
+        where: { referencia: compraId, anulado: false }
+      });
+      if (movimientosCC.length > 0) {
+        await tx.movimientoProveedor.updateMany({
+          where: { referencia: compraId, anulado: false },
+          data: { anulado: true }
+        });
+        const proveedorIds = [...new Set(movimientosCC.map(m => m.proveedorId))];
+        for (const provId of proveedorIds) {
+          await recalcularSaldosProveedor(tx, provId);
+        }
+      }
 
       for (const oldItem of oldItems) {
         if (oldItem.productoId) {
@@ -554,6 +590,36 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         }
       }
 
+      // Aplicar nuevo impacto en CC si corresponde (solo si fue o es un pedido confirmado)
+      if ((data.metodo_pago === "A Cuenta Corriente") && (data.proveedorId || data.proveedor) && updatedCompra.tipoCompra === "CONFIRMADA") {
+        let proveedor = await tx.proveedor.findUnique({
+          where: { id: data.proveedorId || data.proveedor || "" }
+        }).catch(() => null);
+        if (!proveedor) {
+          proveedor = await tx.proveedor.findFirst({
+            where: { razonSocial: data.proveedor || "" }
+          });
+        }
+        if (proveedor) {
+          const montoDecimal = new Prisma.Decimal(data.totalFinal);
+          const nuevoSaldo = proveedor.total.minus(montoDecimal);
+          await tx.proveedor.update({
+            where: { id: proveedor.id },
+            data: { total: nuevoSaldo }
+          });
+          await tx.movimientoProveedor.create({
+            data: {
+              proveedorId: proveedor.id,
+              tipo: "DEBE",
+              monto: montoDecimal.negated(),
+              descripcion: `EDICIÓN: Compra a CC #${updatedCompra.numeroCompra}`,
+              referencia: compraId,
+              saldo: nuevoSaldo
+            }
+          });
+        }
+      }
+
       await tx.compraAuditoria.create({
         data: {
           compraId: compraId,
@@ -582,6 +648,22 @@ export async function eliminarPedidoCompra(compraId: string) {
       });
 
       if (!compra) throw new Error("Pedido no encontrado");
+
+      // Revertir impacto en CC si el pedido fue confirmado (y ya tiene movimientos activos)
+      const movimientosCC = await tx.movimientoProveedor.findMany({
+        where: { referencia: compraId, anulado: false }
+      });
+
+      if (movimientosCC.length > 0) {
+        await tx.movimientoProveedor.updateMany({
+          where: { referencia: compraId, anulado: false },
+          data: { anulado: true }
+        });
+        const proveedorIds = [...new Set(movimientosCC.map(m => m.proveedorId))];
+        for (const proveedorId of proveedorIds) {
+          await recalcularSaldosProveedor(tx, proveedorId);
+        }
+      }
 
       for (const item of compra.items) {
         if (item.productoId) {
@@ -807,14 +889,6 @@ export async function actualizarCompra(compraId: string, data: {
         }
 
         if (proveedor) {
-          const montoRevertir = new Prisma.Decimal(oldCompra.totalFinal);
-          const nuevoSaldo = proveedor.total.plus(montoRevertir);
-
-          await tx.proveedor.update({
-            where: { id: proveedor.id },
-            data: { total: nuevoSaldo }
-          });
-
           await tx.movimientoProveedor.updateMany({
             where: { referencia: compraId, proveedorId: proveedor.id, anulado: false },
             data: { anulado: true }
@@ -1024,29 +1098,9 @@ export async function eliminarCompra(compraId: string, usuario: string) {
         }
 
         if (proveedor) {
-          const montoRevertir = new Prisma.Decimal(compra.totalFinal);
-          const nuevoSaldo = proveedor.total.plus(montoRevertir);
-
-          await tx.proveedor.update({
-            where: { id: proveedor.id },
-            data: { total: nuevoSaldo }
-          });
-
           await tx.movimientoProveedor.updateMany({
             where: { referencia: compra.id, proveedorId: proveedor.id },
             data: { anulado: true }
-          });
-
-          await tx.movimientoProveedor.create({
-            data: {
-              proveedorId: proveedor.id,
-              tipo: "HABER",
-              monto: montoRevertir,
-              descripcion: `ANULACIÓN: Compra a CC #${compra.numeroCompra} eliminada`,
-              referencia: compra.id,
-              saldo: nuevoSaldo,
-              anulado: true
-            }
           });
 
           await recalcularSaldosProveedor(tx, proveedor.id);

@@ -14,6 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { actualizarProveedor, crearProveedor, eliminarProveedor } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Proveedor {
   id: string;
@@ -43,6 +44,11 @@ export default function ProveedoresClient({
   const [formData, setFormData] = useState<Partial<Proveedor>>({});
   const [isSearching, setIsSearching] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Estados para el Modal de Confirmación de Eliminación
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const [proveedorAEliminar, setProveedorAEliminar] = useState<Proveedor | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Filtro de búsqueda
   const proveedoresFiltrados = useMemo(() => {
@@ -153,14 +159,25 @@ export default function ProveedoresClient({
     }
   };
 
-  const handleEliminar = async (id: string) => {
-    if (!confirm("¿Estás seguro de eliminar este proveedor?")) return;
+  const handleEliminar = (proveedor: Proveedor) => {
+    setProveedorAEliminar(proveedor);
+    setIsConfirmDeleteOpen(true);
+  };
 
-    const res = await eliminarProveedor(id);
-    if (res.success) {
-      setProveedores(prev => prev.filter(p => p.id !== id));
-    } else {
-      alert("Error: " + res.error);
+  const confirmarEliminar = async () => {
+    if (!proveedorAEliminar) return;
+    setIsDeleting(true);
+    try {
+      const res = await eliminarProveedor(proveedorAEliminar.id);
+      if (res.success) {
+        setProveedores(prev => prev.filter(p => p.id !== proveedorAEliminar.id));
+        setIsConfirmDeleteOpen(false);
+        setProveedorAEliminar(null);
+      } else {
+        alert("Error: " + res.error);
+      }
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -273,7 +290,7 @@ export default function ProveedoresClient({
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleEliminar(p.id)}
+                            onClick={() => handleEliminar(p)}
                             className="text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg h-8 px-2"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -323,6 +340,19 @@ export default function ProveedoresClient({
           )}
         </div>
       </main>
+
+      {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
+      <ConfirmDialog
+        open={isConfirmDeleteOpen}
+        onOpenChange={(open) => { if (!isDeleting) { setIsConfirmDeleteOpen(open); if (!open) setProveedorAEliminar(null); } }}
+        title="Eliminar proveedor"
+        description={`¿Estás seguro de eliminar a "${proveedorAEliminar?.razonSocial}"? Esta acción no se puede deshacer y puede afectar movimientos de cuenta corriente asociados.`}
+        confirmLabel="Sí, eliminar"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onConfirm={confirmarEliminar}
+        isLoading={isDeleting}
+      />
 
       {/* MODAL DE EDICIÓN / CREACIÓN */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

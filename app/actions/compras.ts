@@ -481,7 +481,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           where: { referencia: compraId, anulado: false },
           data: { anulado: true }
         });
-        const proveedorIds = [...new Set(movimientosCC.map(m => m.proveedorId))];
+        const proveedorIds = Array.from(new Set(movimientosCC.map(m => m.proveedorId)));
         for (const provId of proveedorIds) {
           await recalcularSaldosProveedor(tx, provId);
         }
@@ -659,7 +659,7 @@ export async function eliminarPedidoCompra(compraId: string) {
           where: { referencia: compraId, anulado: false },
           data: { anulado: true }
         });
-        const proveedorIds = [...new Set(movimientosCC.map(m => m.proveedorId))];
+        const proveedorIds = Array.from(new Set(movimientosCC.map(m => m.proveedorId)));
         for (const proveedorId of proveedorIds) {
           await recalcularSaldosProveedor(tx, proveedorId);
         }

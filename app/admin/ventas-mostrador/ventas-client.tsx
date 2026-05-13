@@ -160,6 +160,7 @@ export default function VentasMostradorClient({
 
   // --- ESTADOS PARA NUEVA VENTA ---
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [expandirPacks, setExpandirPacks] = useState(true);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
   const [isGuardarComoPedido, setIsGuardarComoPedido] = useState(false);
@@ -624,19 +625,43 @@ export default function VentasMostradorClient({
 
   // --- FUNCIONES NUEVA VENTA ---
   const agregarProductoAVenta = (prod: Articulo) => {
-    // Si es un pack, expandirlo en sus componentes
     if (prod.esPack && prod.packItems && prod.packItems.length > 0) {
-      const componentes = prod.packItems.map(packItem => ({
-        id: crypto.randomUUID(),
-        productoId: packItem.componenteId,
-        nombre: packItem.componente.nombre,
-        cantidad: packItem.cantidad,
-        precio_unit: Number(packItem.componente.precio),
-        subtotal: Number(packItem.cantidad * packItem.componente.precio),
-        stock: packItem.componente.stock,
-        ultimaModificacion: prod.ultimaModificacion
-      }));
-      setItems(prev => [...prev, ...componentes]);
+      if (expandirPacks) {
+        // Modo expandido: agregar cada componente como línea separada
+        const componentes = prod.packItems.map(packItem => ({
+          id: crypto.randomUUID(),
+          productoId: packItem.componenteId,
+          nombre: packItem.componente.nombre,
+          cantidad: packItem.cantidad,
+          precio_unit: Number(packItem.componente.precio),
+          subtotal: Number(packItem.cantidad * packItem.componente.precio),
+          stock: packItem.componente.stock,
+          ultimaModificacion: prod.ultimaModificacion
+        }));
+        setItems(prev => [...prev, ...componentes]);
+      } else {
+        // Modo pack: agregar como ítem único con el ID y precio del pack
+        const existe = items.find(item => item.productoId === prod.id);
+        if (existe) {
+          setItems(items.map(item =>
+            item.productoId === prod.id
+              ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.precio_unit }
+              : item
+          ));
+        } else {
+          setItems(prev => [...prev, {
+            id: crypto.randomUUID(),
+            productoId: prod.id,
+            nombre: prod.nombre,
+            cantidad: 1,
+            precio_unit: Number(prod.precio),
+            subtotal: Number(prod.precio),
+            stock: prod.stock,
+            esPack: true,
+            ultimaModificacion: prod.ultimaModificacion
+          }]);
+        }
+      }
     } else {
       // No es pack, agregar como normal
       const existe = items.find(item => item.productoId === prod.id);
@@ -880,22 +905,10 @@ export default function VentasMostradorClient({
     try {
       setIsSubmitting(true);
 
-      // Preparar items para guardar: expandir packs en sus componentes
-      const itemsParaGuardar = items.flatMap(item => {
-        const articulo = articulos.find(a => a.id === item.productoId);
-        if (articulo?.esPack && articulo.packItems) {
-          // Expandir pack en sus componentes
-          return articulo.packItems.map(packItem => ({
-            ...item,
-            productoId: packItem.componenteId,
-            nombre: packItem.componente.nombre,
-            precio_unit: Number(packItem.componente.precio),
-            subtotal: Number(packItem.cantidad * packItem.componente.precio),
-            stock: packItem.componente.stock
-          }));
-        }
-        return item;
-      });
+      // Los items se guardan tal como están:
+      // - Modo expandido: cada componente ya tiene productoId del componente
+      // - Modo pack (esPack=true): el servidor desglosa el stock por componentes en ajustarStockItemsTx
+      const itemsParaGuardar = items;
 
       const dniFinal = (requiereMercadoLibre || requiereMercadoPago) ? (mlDni || dni || cuitBusqueda) : (dni || cuitBusqueda);
       const docNroFinal = (docNro && docNro !== "0") ? docNro : (cuitBusqueda.length > 6 ? cuitBusqueda : "");
@@ -1611,7 +1624,10 @@ export default function VentasMostradorClient({
                               <TableCell className="font-medium text-slate-700 py-3">
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center gap-2">
-                                    <span
+                                    {item.esPack && (
+                                    <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-200 uppercase shrink-0">Pack</span>
+                                  )}
+                                  <span
                                       onClick={() => copiarAlPortapapeles(item.nombre)}
                                       className="text-base cursor-pointer hover:text-blue-600 transition-colors"
                                       title="Copiar Nombre"
@@ -2392,7 +2408,17 @@ export default function VentasMostradorClient({
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
             <div className="p-6 bg-white border-b relative">
-              <DialogTitle className="text-lg font-bold text-slate-900 mb-3 flex items-center gap-2"><Search className="h-4 w-4 text-blue-600" /> Buscador Instantáneo</DialogTitle>
+              <div className="flex items-center justify-between mb-3">
+                <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2"><Search className="h-4 w-4 text-blue-600" /> Buscador Instantáneo</DialogTitle>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Checkbox
+                    checked={expandirPacks}
+                    onCheckedChange={(v) => setExpandirPacks(!!v)}
+                    className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                  />
+                  <span className="text-xs font-semibold text-slate-500">Detallar artículos del pack</span>
+                </label>
+              </div>
               <div className="relative"><Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" /><input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre o ID..." className="flex h-12 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-12 py-6 text-base outline-none focus:border-blue-500 transition-all" /></div>
             </div>
             <div className="h-[500px] overflow-y-auto p-4 bg-white">

@@ -678,6 +678,7 @@ export default function VentasMostradorClient({
 
       if (res.success) {
         setCliente(res.nombre || "Sin Nombre");
+        setParaCruzada(res.nombre || "Sin Nombre");
         if (res.cuit) {
           setDocNro(res.cuit);
           setDocTipo(res.cuit.length === 11 ? 80 : 96);
@@ -714,6 +715,7 @@ export default function VentasMostradorClient({
 
   const handleSelectSujeto = (s: any) => {
     setCliente(s.razonSocial);
+    setParaCruzada(s.razonSocial);
     setDocNro(s.cuit || "");
     setCuitBusqueda(s.cuit || "");
     setDocTipo(s.docTipo || (s.cuit?.length > 8 ? 80 : 96));
@@ -848,14 +850,21 @@ export default function VentasMostradorClient({
 
     if ((requiereCruzada && isPagoMixto) || requiereCuentaCorriente) {
       const provEncontrado = proveedores.find(p => p.razonSocial.toLowerCase().trim() === paraCruzada.toLowerCase().trim());
+      var paraCruzadaExacto: string;
       if (!provEncontrado) {
-        alert(`El proveedor "${paraCruzada}" no existe en la base de datos. Por favor, selecciónalo de la lista o créalo primero.`);
-        return;
+        // Permitir si es el mismo cliente del padrón con CUIT/DNI (el server action lo crea antes de aplicar el impacto)
+        const esNuevoDelPadron = !!docNro && docNro !== "0" &&
+          paraCruzada.toLowerCase().trim() === cliente.toLowerCase().trim();
+        if (!esNuevoDelPadron) {
+          alert(`El proveedor "${paraCruzada}" no existe en la base de datos. Por favor, selecciónalo de la lista o créalo primero.`);
+          return;
+        }
+        paraCruzadaExacto = paraCruzada;
+      } else {
+        // Actualizamos con el nombre exacto de la base de datos
+        setParaCruzada(provEncontrado.razonSocial);
+        paraCruzadaExacto = provEncontrado.razonSocial;
       }
-      // Actualizamos con el nombre exacto de la base de datos
-      setParaCruzada(provEncontrado.razonSocial);
-      // Usamos una variable local para asegurar que el guardado use el nombre exacto inmediatamente
-      var paraCruzadaExacto = provEncontrado.razonSocial;
     }
 
     const clienteFinal = cliente;

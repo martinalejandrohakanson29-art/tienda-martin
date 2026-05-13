@@ -67,11 +67,8 @@ export async function obtenerTodosLosArticulos() {
 export async function obtenerComprasPorRango(fechaDesde: string, fechaHasta: string) {
   await requireAdmin();
   try {
-    const inicioRango = new Date(fechaDesde);
-    inicioRango.setHours(0, 0, 0, 0);
-
-    const finRango = new Date(fechaHasta);
-    finRango.setHours(23, 59, 59, 999);
+    const inicioRango = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const finRango = new Date(`${fechaHasta}T23:59:59.999-03:00`);
 
     const compras = await prisma.compra.findMany({
       where: {
@@ -117,11 +114,8 @@ export async function obtenerComprasPorRango(fechaDesde: string, fechaHasta: str
 export async function obtenerPedidosCompra(fechaDesde: string, fechaHasta: string, estadoPedido?: string) {
   await requireAdmin();
   try {
-    const inicioRango = new Date(fechaDesde);
-    inicioRango.setHours(0, 0, 0, 0);
-
-    const finRango = new Date(fechaHasta);
-    finRango.setHours(23, 59, 59, 999);
+    const inicioRango = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const finRango = new Date(`${fechaHasta}T23:59:59.999-03:00`);
 
     const where: any = {
       tipoCompra: "PEDIDO",

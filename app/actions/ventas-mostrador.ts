@@ -233,11 +233,8 @@ export async function obtenerTodosLosArticulos() {
 export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: string) {
   await requireAdmin();
   try {
-    const inicio = new Date(fechaDesde);
-    inicio.setHours(0, 0, 0, 0);
-
-    const fin = new Date(fechaHasta ?? fechaDesde);
-    fin.setHours(23, 59, 59, 999);
+    const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const fin = new Date(`${fechaHasta ?? fechaDesde}T23:59:59.999-03:00`);
 
     const ventas = await prisma.venta.findMany({
       where: {
@@ -911,11 +908,8 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
 export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string, estadoPedido?: string) {
   await requireAdmin();
   try {
-    const inicioRango = new Date(fechaDesde);
-    inicioRango.setHours(0, 0, 0, 0);
-
-    const finRango = new Date(fechaHasta);
-    finRango.setHours(23, 59, 59, 999);
+    const inicioRango = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const finRango = new Date(`${fechaHasta}T23:59:59.999-03:00`);
 
     const where: any = {
       tipoVenta: "PEDIDO",
@@ -1495,10 +1489,8 @@ export async function cancelarVenta(ventaId: string) {
 export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: string) {
   await requireAdmin();
   try {
-    const inicio = new Date(fechaDesde);
-    inicio.setHours(0, 0, 0, 0);
-    const fin = new Date(fechaHasta);
-    fin.setHours(23, 59, 59, 999);
+    const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const fin = new Date(`${fechaHasta}T23:59:59.999-03:00`);
 
     const ventas = await prisma.venta.findMany({
       where: {

@@ -4,10 +4,10 @@ import { prisma } from "@/lib/prisma";
 
 export async function getVisitasComparativas(r1: { from: string; to: string }, r2: { from: string; to: string }) {
   // Convertimos las fechas del front a formato de Base de Datos
-  const dateR1From = new Date(`${r1.from}T00:00:00Z`);
-  const dateR1To = new Date(`${r1.to}T23:59:59Z`);
-  const dateR2From = new Date(`${r2.from}T00:00:00Z`);
-  const dateR2To = new Date(`${r2.to}T23:59:59Z`);
+  const dateR1From = new Date(`${r1.from}T00:00:00-03:00`);
+  const dateR1To = new Date(`${r1.to}T23:59:59.999-03:00`);
+  const dateR2From = new Date(`${r2.from}T00:00:00-03:00`);
+  const dateR2To = new Date(`${r2.to}T23:59:59.999-03:00`);
 
   // Buscamos todas las visitas que correspondan a cualquiera de los dos rangos
   const visitas = await prisma.itemVisitaDiaria.findMany({

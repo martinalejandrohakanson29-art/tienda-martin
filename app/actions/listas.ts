@@ -432,10 +432,8 @@ export async function obtenerPagosControl(metodoPago: string, fechaDesde: string
   if (!session) return { success: false, error: "No autenticado", data: [] }
 
   try {
-    const inicio = new Date(fechaDesde);
-    inicio.setHours(0, 0, 0, 0);
-    const fin = new Date(fechaHasta);
-    fin.setHours(23, 59, 59, 999);
+    const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const fin = new Date(`${fechaHasta}T23:59:59.999-03:00`);
 
     const movimientos = await prisma.movimientoProveedor.findMany({
       where: {

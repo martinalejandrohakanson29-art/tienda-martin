@@ -205,11 +205,8 @@ export async function getEtiquetasML() {
 export async function getEtiquetasPreparadas(fecha: string) {
     try {
         // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día de forma segura
-        const startOfDay = new Date(`${fecha}T03:00:00Z`);
-
-        const endOfDay = new Date(`${fecha}T03:00:00Z`);
-        endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
-        endOfDay.setUTCMilliseconds(-1); // 02:59:59.999 del día siguiente UTC
+        const startOfDay = new Date(`${fecha}T00:00:00-03:00`);
+        const endOfDay = new Date(`${fecha}T23:59:59.999-03:00`);
 
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
@@ -274,11 +271,8 @@ export async function getVentasRegistracion(fecha?: string) {
 
         if (fecha && fecha !== "undefined" && fecha !== "null") {
             // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día de forma segura
-            const startOfDay = new Date(`${fecha}T03:00:00Z`);
-
-            const endOfDay = new Date(`${fecha}T03:00:00Z`);
-            endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
-            endOfDay.setUTCMilliseconds(-1);
+            const startOfDay = new Date(`${fecha}T00:00:00-03:00`);
+            const endOfDay = new Date(`${fecha}T23:59:59.999-03:00`);
 
             where.createdAt = {
                 gte: startOfDay,

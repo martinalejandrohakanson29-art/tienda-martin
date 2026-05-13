@@ -848,9 +848,9 @@ export default function VentasMostradorClient({
       setProveedoresCruzada(nuevosProveedores);
     }
 
+    let paraCruzadaExacto: string | undefined;
     if ((requiereCruzada && isPagoMixto) || requiereCuentaCorriente) {
       const provEncontrado = proveedores.find(p => p.razonSocial.toLowerCase().trim() === paraCruzada.toLowerCase().trim());
-      var paraCruzadaExacto: string;
       if (!provEncontrado) {
         // Permitir si es el mismo cliente del padrón con CUIT/DNI (el server action lo crea antes de aplicar el impacto)
         const esNuevoDelPadron = !!docNro && docNro !== "0" &&

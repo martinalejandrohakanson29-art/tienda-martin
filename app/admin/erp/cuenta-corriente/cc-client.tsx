@@ -199,6 +199,46 @@ export default function CuentaCorrienteClient({
     window.open(pdfOutput, "_blank");
   };
 
+  const handleReporteSaldosConsolidados = () => {
+    const deudas = proveedoresIniciales
+      .filter((p) => p.total < -1)
+      .sort((a, b) => a.total - b.total);
+
+    const totalDeuda = deudas.reduce((acc, p) => acc + p.total, 0);
+
+    const doc = new jsPDF();
+    const date = new Date().toLocaleDateString("es-AR");
+
+    doc.setFontSize(18);
+    doc.text("Reporte de Saldos Consolidados", 14, 22);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Fecha: ${date}`, 14, 30);
+    doc.setTextColor(0);
+
+    const tableData = deudas.map((p) => [
+      p.razonSocial,
+      p.cuit || "---",
+      p.nombreFantasia || "---",
+      p.aliasCbu || "---",
+      formatCurrency(p.total),
+    ]);
+
+    autoTable(doc, {
+      startY: 37,
+      head: [["Proveedor", "CUIT", "Nombre Fantasía", "Alias / CBU", "Saldo"]],
+      body: tableData,
+      theme: "striped",
+      headStyles: { fillColor: [109, 40, 217] },
+      styles: { fontSize: 8 },
+      foot: [["", "", "", "TOTAL DEUDA", formatCurrency(totalDeuda)]],
+      footStyles: { fillColor: [30, 30, 30], textColor: [255, 255, 255], fontStyle: "bold" },
+    });
+
+    const pdfOutput = doc.output("bloburl");
+    window.open(pdfOutput, "_blank");
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Header section */}
@@ -312,6 +352,14 @@ export default function CuentaCorrienteClient({
             >
               <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
               PDF
+            </button>
+            <button
+              onClick={handleReporteSaldosConsolidados}
+              className="px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-700 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+              title="Reporte de Saldos Consolidados"
+            >
+              <span className="material-symbols-outlined text-sm">summarize</span>
+              Saldos Consolidados
             </button>
           </div>
 

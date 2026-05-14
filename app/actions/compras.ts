@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { requireAdmin } from "@/lib/auth-guard"
-import { recalcularSaldosProveedor } from "@/lib/proveedor-ledger"
+import { recalcularSaldosProveedorConBase, revertirMovimientoEnLedger } from "@/lib/proveedor-ledger"
 import { revalidatePath } from "next/cache";
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
@@ -447,7 +447,7 @@ export async function actualizarFechaCompra(compraId: string, nuevaFecha: string
           });
         }
         if (proveedor) {
-          await recalcularSaldosProveedor(tx, proveedor.id);
+          await recalcularSaldosProveedorConBase(tx, proveedor.id);
         }
       }
     });
@@ -475,9 +475,8 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           where: { referencia: compraId, anulado: false },
           data: { anulado: true }
         });
-        const proveedorIds = Array.from(new Set(movimientosCC.map(m => m.proveedorId)));
-        for (const provId of proveedorIds) {
-          await recalcularSaldosProveedor(tx, provId);
+        for (const mov of movimientosCC) {
+          await revertirMovimientoEnLedger(tx, mov.id);
         }
       }
 
@@ -653,9 +652,8 @@ export async function eliminarPedidoCompra(compraId: string) {
           where: { referencia: compraId, anulado: false },
           data: { anulado: true }
         });
-        const proveedorIds = Array.from(new Set(movimientosCC.map(m => m.proveedorId)));
-        for (const proveedorId of proveedorIds) {
-          await recalcularSaldosProveedor(tx, proveedorId);
+        for (const mov of movimientosCC) {
+          await revertirMovimientoEnLedger(tx, mov.id);
         }
       }
 
@@ -883,12 +881,16 @@ export async function actualizarCompra(compraId: string, data: {
         }
 
         if (proveedor) {
+          const movsAAnular = await tx.movimientoProveedor.findMany({
+            where: { referencia: compraId, proveedorId: proveedor.id, anulado: false },
+          });
           await tx.movimientoProveedor.updateMany({
             where: { referencia: compraId, proveedorId: proveedor.id, anulado: false },
             data: { anulado: true }
           });
-
-          await recalcularSaldosProveedor(tx, proveedor.id);
+          for (const mov of movsAAnular) {
+            await revertirMovimientoEnLedger(tx, mov.id);
+          }
         }
       }
 
@@ -1092,12 +1094,16 @@ export async function eliminarCompra(compraId: string, usuario: string) {
         }
 
         if (proveedor) {
+          const movsAAnular = await tx.movimientoProveedor.findMany({
+            where: { referencia: compra.id, proveedorId: proveedor.id, anulado: false },
+          });
           await tx.movimientoProveedor.updateMany({
             where: { referencia: compra.id, proveedorId: proveedor.id },
             data: { anulado: true }
           });
-
-          await recalcularSaldosProveedor(tx, proveedor.id);
+          for (const mov of movsAAnular) {
+            await revertirMovimientoEnLedger(tx, mov.id);
+          }
         }
       }
 

@@ -14,7 +14,7 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { z } from "zod"
 import { requireAdmin } from "@/lib/auth-guard"
-import { recalcularSaldosProveedor } from "@/lib/proveedor-ledger"
+import { revertirMovimientoEnLedger } from "@/lib/proveedor-ledger"
 
 // ─── Tipos compartidos ────────────────────────────────────────────────────────
 
@@ -136,11 +136,16 @@ async function revertirImpactoProveedorTx(
     }
     const monto = new Prisma.Decimal(imp.monto || montoTotal);
     if (monto.isZero()) continue;
+    const movsAAnular = await tx.movimientoProveedor.findMany({
+      where: { referencia: ventaId, proveedorId: proveedor.id, anulado: false },
+    });
     await tx.movimientoProveedor.updateMany({
       where: { referencia: ventaId, proveedorId: proveedor.id, anulado: false },
       data: { anulado: true },
     });
-    await recalcularSaldosProveedor(tx, proveedor.id);
+    for (const mov of movsAAnular) {
+      await revertirMovimientoEnLedger(tx, mov.id);
+    }
   }
 }
 

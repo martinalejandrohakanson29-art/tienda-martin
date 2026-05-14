@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import { z } from "zod"
-import { recalcularSaldosProveedor } from "@/lib/proveedor-ledger"
+import { revertirMovimientoEnLedger } from "@/lib/proveedor-ledger"
 
 const registrarMovimientoSchema = z.object({
   proveedorId: z.string().min(1, "Se requiere el proveedor"),
@@ -169,13 +169,13 @@ export async function anularMovimientoProveedor(movimientoId: string) {
             data: { anulado: true },
           })
 
-          // Recalcular ledger del proveedor emisor desde cero
-          await recalcularSaldosProveedor(tx, gemelo.proveedorId)
+          // Revertir el impacto del gemelo en el ledger del emisor (incremental, preserva saldo base)
+          await revertirMovimientoEnLedger(tx, gemelo.id)
         }
       }
 
-      // 4. Recalcular ledger del proveedor principal desde cero (cascada de saldos históricos)
-      await recalcularSaldosProveedor(tx, movimiento.proveedorId)
+      // 4. Revertir el impacto del movimiento principal en el ledger del receptor
+      await revertirMovimientoEnLedger(tx, movimientoId)
     })
 
     revalidatePath("/admin/erp/movimientos")

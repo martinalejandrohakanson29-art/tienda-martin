@@ -52,6 +52,13 @@ interface VentaRendimiento {
   items: ItemRendimiento[];
 }
 
+interface VentaConAjuste extends VentaRendimiento {
+  gananciaEfectiva: number;
+  marcacionEfectiva: number | null;
+  margenEfectivo: number | null;
+  esAjustado: boolean;
+}
+
 interface Props {
   puntosVenta: PuntoVenta[];
   fechaDesdeInicial: string;
@@ -72,6 +79,10 @@ export default function RendimientoVentasTab({ puntosVenta, fechaDesdeInicial, f
   const [filtroBusqueda, setFiltroBusqueda] = useState("");
   const [filtroMetodoPago, setFiltroMetodoPago] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  const [marcacionInstagram, setMarcacionInstagram] = useState("");
+  const [marcacionMayorista, setMarcacionMayorista] = useState("");
+  const [marcacionMostrador, setMarcacionMostrador] = useState("");
 
   const cargar = useCallback(async (desde: string, hasta: string) => {
     if (!desde || !hasta) return;
@@ -103,14 +114,45 @@ export default function RendimientoVentasTab({ puntosVenta, fechaDesdeInicial, f
     });
   }, [ventas, filtroPuntoVenta, filtroMetodoPago, filtroBusqueda]);
 
+  const ventasConAjuste = useMemo((): VentaConAjuste[] => {
+    const mktInsta = parseFloat(marcacionInstagram) || 0;
+    const mktMayor = parseFloat(marcacionMayorista) || 0;
+    const mktMostr = parseFloat(marcacionMostrador) || 0;
+    return ventasFiltradas.map(v => {
+      const pvNombre = v.puntoVenta?.nombre?.toLowerCase() || '';
+      let markup = 0;
+      if (pvNombre.includes('instagram')) markup = mktInsta;
+      else if (pvNombre.includes('mayorista')) markup = mktMayor;
+      else if (pvNombre.includes('mostrador')) markup = mktMostr;
+      const esAjustado = markup > 0 && (v.costoTotal === 0 || v.tieneCostoParcial);
+      if (esAjustado) {
+        const margenDecimal = markup / (100 + markup);
+        return {
+          ...v,
+          gananciaEfectiva: v.neto * margenDecimal,
+          marcacionEfectiva: markup,
+          margenEfectivo: margenDecimal * 100,
+          esAjustado: true,
+        };
+      }
+      return {
+        ...v,
+        gananciaEfectiva: v.ganancia,
+        marcacionEfectiva: v.margenPct,
+        margenEfectivo: v.neto > 0 ? (v.ganancia / v.neto) * 100 : null,
+        esAjustado: false,
+      };
+    });
+  }, [ventasFiltradas, marcacionInstagram, marcacionMayorista, marcacionMostrador]);
+
   const totales = useMemo(() => {
-    const totalNeto = ventasFiltradas.reduce((a, v) => a + v.neto, 0);
-    const totalCosto = ventasFiltradas.reduce((a, v) => a + v.costoTotal, 0);
-    const totalGanancia = ventasFiltradas.reduce((a, v) => a + v.ganancia, 0);
+    const totalNeto = ventasConAjuste.reduce((a, v) => a + v.neto, 0);
+    const totalCosto = ventasConAjuste.reduce((a, v) => a + v.costoTotal, 0);
+    const totalGanancia = ventasConAjuste.reduce((a, v) => a + v.gananciaEfectiva, 0);
     const margenGlobal = totalCosto > 0 ? (totalGanancia / totalCosto) * 100 : null;
-    const conParcial = ventasFiltradas.filter(v => v.tieneCostoParcial).length;
+    const conParcial = ventasConAjuste.filter(v => v.tieneCostoParcial && !v.esAjustado).length;
     return { totalNeto, totalCosto, totalGanancia, margenGlobal, conParcial };
-  }, [ventasFiltradas]);
+  }, [ventasConAjuste]);
 
   const toggleRow = (id: string) => {
     setExpandedRows(prev => {
@@ -215,6 +257,31 @@ export default function RendimientoVentasTab({ puntosVenta, fechaDesdeInicial, f
             </Popover>
           </div>
 
+          {/* Marcación manual para PVs sin costo */}
+          <div className="flex flex-wrap items-end gap-4 pt-3 border-t border-slate-100 w-full">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider self-center">% Marcación estimada</span>
+            {([
+              { label: 'Instagram', value: marcacionInstagram, set: setMarcacionInstagram },
+              { label: 'Mayorista', value: marcacionMayorista, set: setMarcacionMayorista },
+              { label: 'Mostrador', value: marcacionMostrador, set: setMarcacionMostrador },
+            ] as { label: string; value: string; set: (v: string) => void }[]).map(({ label, value, set }) => (
+              <div key={label} className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-slate-500">{label}</span>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={value}
+                    onChange={e => set(e.target.value)}
+                    className="h-8 w-20 border-slate-200 text-slate-700 rounded-lg text-xs pr-5"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none">%</span>
+                </div>
+              </div>
+            ))}
+            <span className="text-[10px] text-slate-300 italic self-center">— Solo aplica a ventas sin costo completo</span>
+          </div>
+
           {/* KPIs resumen */}
           {cargado && (
             <div className="ml-auto flex flex-wrap gap-6 items-end">
@@ -298,16 +365,16 @@ export default function RendimientoVentasTab({ puntosVenta, fechaDesdeInicial, f
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ventasFiltradas.length === 0 ? (
+                {ventasConAjuste.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={11} className="py-20 text-center text-slate-400 italic">
                       No se encontraron ventas con estos filtros
                     </TableCell>
                   </TableRow>
                 ) : (
-                  ventasFiltradas.map((v) => {
+                  ventasConAjuste.map((v) => {
                     const expanded = expandedRows.has(v.id);
-                    const gananciaPositiva = v.ganancia >= 0;
+                    const gananciaPositiva = v.gananciaEfectiva >= 0;
                     return (
                       <React.Fragment key={v.id}>
                         <TableRow
@@ -393,14 +460,15 @@ export default function RendimientoVentasTab({ puntosVenta, fechaDesdeInicial, f
                               {gananciaPositiva
                                 ? <TrendingUp className="h-3.5 w-3.5" />
                                 : <TrendingDown className="h-3.5 w-3.5" />}
-                              {fmtARS(v.ganancia)}
+                              {fmtARS(v.gananciaEfectiva)}
+                              {v.esAjustado && <span className="text-[8px] font-bold text-amber-500 bg-amber-50 border border-amber-200 px-1 py-0.5 rounded ml-0.5">~est</span>}
                             </div>
                           </TableCell>
-                          <TableCell className={`text-right py-4 font-bold text-xs ${v.margenPct !== null ? colorMargen(v.margenPct) : 'text-slate-300'}`}>
-                            {v.margenPct !== null ? fmtPct(v.margenPct) : <span className="italic text-[10px]">—</span>}
+                          <TableCell className={`text-right py-4 font-bold text-xs ${v.marcacionEfectiva !== null ? colorMargen(v.marcacionEfectiva) : 'text-slate-300'}`}>
+                            {v.marcacionEfectiva !== null ? fmtPct(v.marcacionEfectiva) : <span className="italic text-[10px]">—</span>}
                           </TableCell>
-                          <TableCell className={`text-right py-4 font-bold text-xs ${v.neto > 0 ? colorMargen((v.ganancia / v.neto) * 100) : 'text-slate-300'}`}>
-                            {v.neto > 0 ? fmtPct((v.ganancia / v.neto) * 100) : <span className="italic text-[10px]">—</span>}
+                          <TableCell className={`text-right py-4 font-bold text-xs ${v.margenEfectivo !== null ? colorMargen(v.margenEfectivo) : 'text-slate-300'}`}>
+                            {v.margenEfectivo !== null ? fmtPct(v.margenEfectivo) : <span className="italic text-[10px]">—</span>}
                           </TableCell>
                         </TableRow>
 

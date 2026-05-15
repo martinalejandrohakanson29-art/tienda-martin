@@ -123,6 +123,7 @@ export default function PedidosVentaEdicionClient() {
   const [isEliminarDialogOpen, setIsEliminarDialogOpen] = useState(false);
   const [ventaParaEliminar, setVentaParaEliminar] = useState<Venta | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
   const [expandedVentas, setExpandedVentas] = useState<Set<string>>(new Set());
   const [isPDFPreviewOpen, setIsPDFPreviewOpen] = useState(false);
   const [ventaParaPDF, setVentaParaPDF] = useState<Venta | null>(null);
@@ -718,28 +719,32 @@ export default function PedidosVentaEdicionClient() {
   };
 
   const handleActualizarEstado = async (ventaId: string, nuevoEstado: string) => {
+    setVentas(prev => prev.map(v => v.id === ventaId ? { ...v, estadoPedido: nuevoEstado } : v));
+    setProcessingIds(prev => new Set([...prev, ventaId]));
     try {
-      setIsProcessing(true);
       await actualizarEstadoPedido(ventaId, nuevoEstado);
-      cargarPedidos();
+      await cargarPedidos();
     } catch (err) {
       console.error("Error al actualizar estado:", err);
       alert("Error al actualizar el estado. Intente nuevamente.");
+      await cargarPedidos();
     } finally {
-      setIsProcessing(false);
+      setProcessingIds(prev => { const next = new Set(prev); next.delete(ventaId); return next; });
     }
   };
 
   const handleActualizarTipoEnvio = async (ventaId: string, nuevoTipo: string) => {
+    setVentas(prev => prev.map(v => v.id === ventaId ? { ...v, tipoEnvio: nuevoTipo } : v));
+    setProcessingIds(prev => new Set([...prev, ventaId]));
     try {
-      setIsProcessing(true);
       await actualizarTipoEnvioPedido(ventaId, nuevoTipo);
-      cargarPedidos();
+      await cargarPedidos();
     } catch (err) {
       console.error("Error al actualizar tipo de envío:", err);
       alert("Error al actualizar el tipo de envío. Intente nuevamente.");
+      await cargarPedidos();
     } finally {
-      setIsProcessing(false);
+      setProcessingIds(prev => { const next = new Set(prev); next.delete(ventaId); return next; });
     }
   };
 
@@ -1108,7 +1113,7 @@ export default function PedidosVentaEdicionClient() {
                           <select
                             value={venta.tipoEnvio || "andreani"}
                             onChange={(e) => handleActualizarTipoEnvio(venta.id, e.target.value)}
-                            disabled={isProcessing}
+                            disabled={processingIds.has(venta.id)}
                             className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer transition-colors ${(venta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-100 text-red-700 border-red-200' :
                               venta.tipoEnvio === 'via cargo' ? 'bg-green-100 text-green-700 border-green-200' :
                                 venta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
@@ -1124,7 +1129,7 @@ export default function PedidosVentaEdicionClient() {
                           <select
                             value={venta.estadoPedido || "PENDIENTE"}
                             onChange={(e) => handleActualizarEstado(venta.id, e.target.value)}
-                            disabled={isProcessing}
+                            disabled={processingIds.has(venta.id)}
                             className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer ${venta.estadoPedido === 'DESPACHADO' ? 'bg-green-100 text-green-700 border-green-200' :
                               venta.estadoPedido === 'PREPARADO' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                                 venta.estadoPedido === 'IMPRESO' ? 'bg-orange-100 text-orange-700 border-orange-200' :

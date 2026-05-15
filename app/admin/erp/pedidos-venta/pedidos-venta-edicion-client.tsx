@@ -720,7 +720,7 @@ export default function PedidosVentaEdicionClient() {
 
   const handleActualizarEstado = async (ventaId: string, nuevoEstado: string) => {
     setVentas(prev => prev.map(v => v.id === ventaId ? { ...v, estadoPedido: nuevoEstado } : v));
-    setProcessingIds(prev => new Set([...prev, ventaId]));
+    setProcessingIds(prev => new Set(Array.from(prev).concat(ventaId)));
     try {
       await actualizarEstadoPedido(ventaId, nuevoEstado);
       await cargarPedidos();
@@ -735,7 +735,7 @@ export default function PedidosVentaEdicionClient() {
 
   const handleActualizarTipoEnvio = async (ventaId: string, nuevoTipo: string) => {
     setVentas(prev => prev.map(v => v.id === ventaId ? { ...v, tipoEnvio: nuevoTipo } : v));
-    setProcessingIds(prev => new Set([...prev, ventaId]));
+    setProcessingIds(prev => new Set(Array.from(prev).concat(ventaId)));
     try {
       await actualizarTipoEnvioPedido(ventaId, nuevoTipo);
       await cargarPedidos();

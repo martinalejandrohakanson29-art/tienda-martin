@@ -836,6 +836,7 @@ model VentaMLRegistracion {
   nombre     String?
   neto       Decimal? @db.Decimal(20, 2)
   bruto      Decimal? @db.Decimal(20, 2)
+  cantidad   Int?
   variation  String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

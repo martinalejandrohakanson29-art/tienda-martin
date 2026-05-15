@@ -25,7 +25,10 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\\\\app\\\\admin\\\\erp\" -Recurse -Force)",
       "Bash(Select-Object FullName, PSIsContainer)",
       "Bash(Sort-Object FullName)",
-      "Bash(Get-ChildItem -Recurse -File)"
+      "Bash(Get-ChildItem -Recurse -File)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\" -Recurse -Directory)",
+      "Bash(Format-Table FullName)",
+      "Bash(npx prisma *)"
     ]
   }
 }

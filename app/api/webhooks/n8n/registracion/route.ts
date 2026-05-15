@@ -40,6 +40,8 @@ export async function POST(req: Request) {
 
             const orderId = String(venta.orderId || venta.ventaId);
 
+            const cantidad = venta.cantidad != null ? Math.max(1, parseInt(String(venta.cantidad)) || 1) : null;
+
             return prisma.ventaMLRegistracion.upsert({
                 where: { orderId },
                 update: {
@@ -50,8 +52,9 @@ export async function POST(req: Request) {
                     nombre: venta.nombre || null,
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,
+                    cantidad: cantidad,
                     variation: venta.variation || null,
-                    createdAt: createdAt // Actualizamos la fecha para el filtrado correcto
+                    createdAt: createdAt
                 },
                 create: {
                     orderId,
@@ -62,6 +65,7 @@ export async function POST(req: Request) {
                     nombre: venta.nombre || null,
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,
+                    cantidad: cantidad,
                     variation: venta.variation || null,
                     createdAt: createdAt
                 }

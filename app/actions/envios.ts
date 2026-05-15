@@ -332,7 +332,7 @@ export async function getVentasRegistracion(fecha?: string) {
                 ids_articulos,
                 receta_detallada,
                 titulo: labelItem?.title || `Venta ML`,
-                cantidad: labelItem?.quantity || 1
+                cantidad: (venta.cantidad && venta.cantidad > 0) ? venta.cantidad : (labelItem?.quantity || 1)
             };
         }));
 
@@ -415,6 +415,7 @@ export async function registrarVentasML(
                 const netoTotal = Number(v.neto || 0);
                 const brutoTotal = Number(v.bruto || 0);
                 const interes = brutoTotal - netoTotal;
+                const cantidadVenta = Math.max(1, Number(v.cantidad) || 1);
 
                 let items: any[] = [];
 
@@ -434,25 +435,27 @@ export async function registrarVentasML(
                         return sum + Number(info?.precio || 0);
                     }, 0);
 
+                    // netoTotal ya es el total de la orden (todas las unidades).
+                    // precio_unit = parte proporcional del neto por 1 unidad de cada componente.
+                    // cantidad = cantidadVenta → stock se descuenta correctamente por el nro de unidades vendidas.
                     items = idsArticulos.map((idArt: string, idx: number) => {
                         const info = articulosMap.get(idArt);
                         const nombre = info?.nombre || recetaDetallada[idx] || `Producto ML ${v.mla}`;
                         const precioBase = info ? Number(info.precio) : 0;
 
-                        // Distribuimos el neto proporcionalmente al precio base, o equitativamente si no hay precios
                         let precioUnit = 0;
                         if (totalPreciosBase > 0) {
-                            precioUnit = (precioBase / totalPreciosBase) * netoTotal;
+                            precioUnit = (precioBase / totalPreciosBase) * (netoTotal / cantidadVenta);
                         } else {
-                            precioUnit = netoTotal / idsArticulos.length;
+                            precioUnit = netoTotal / idsArticulos.length / cantidadVenta;
                         }
 
                         return {
                             productoId: idArt,
                             nombre: nombre,
-                            cantidad: 1, // En ML las cantidades suelen venir ya multiplicadas en la receta o ser 1
+                            cantidad: cantidadVenta,
                             precio_unit: precioUnit,
-                            subtotal: precioUnit
+                            subtotal: precioUnit * cantidadVenta
                         };
                     });
                 } else {

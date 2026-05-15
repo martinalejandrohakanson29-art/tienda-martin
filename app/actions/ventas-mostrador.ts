@@ -274,6 +274,107 @@ export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: str
 
 export const obtenerVentasPorFecha = (fecha: string) => obtenerVentasPorRango(fecha);
 
+export async function obtenerVentasRendimiento(fechaDesde: string, fechaHasta: string) {
+  await requireAdmin();
+  try {
+    const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const fin = new Date(`${fechaHasta}T23:59:59.999-03:00`);
+
+    const ventas = await prisma.venta.findMany({
+      where: {
+        tipoVenta: { not: "PEDIDO" },
+        createdAt: { gte: inicio, lte: fin },
+      },
+      include: { items: true, puntoVenta: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Batch: recolectar todos los productoId de los items
+    const todosLosIds = Array.from(new Set(
+      ventas.flatMap(v => v.items.map(i => i.productoId).filter(Boolean) as string[])
+    ));
+
+    // Buscar costos en CostosArticulos (ventas ML) y ArticuloMostrador (ventas POS) en paralelo
+    const [costosArt, costosPos] = await Promise.all([
+      todosLosIds.length > 0
+        ? prisma.costosArticulos.findMany({
+            where: { id_articulo: { in: todosLosIds } },
+            select: { id_articulo: true, costo_final_ars: true },
+          })
+        : [],
+      todosLosIds.length > 0
+        ? prisma.articuloMostrador.findMany({
+            where: { id: { in: todosLosIds } },
+            select: { id: true, costo: true },
+          })
+        : [],
+    ]);
+
+    const costoArtMap = new Map(costosArt.map(c => [c.id_articulo, Number(c.costo_final_ars || 0)]));
+    const costoPosMap = new Map(costosPos.map(c => [c.id, Number(c.costo || 0)]));
+
+    return {
+      success: true,
+      data: ventas.map(v => {
+        const esML = !!v.mlIdVenta;
+        const neto = esML ? Number(v.total) : Number(v.totalFinal || v.total);
+
+        let costoTotal = 0;
+        let tieneCostoParcial = false;
+
+        for (const item of v.items) {
+          if (!item.productoId) { tieneCostoParcial = true; continue; }
+          // Prioridad: CostosArticulos (SKU ML), luego ArticuloMostrador (POS)
+          const costo = costoArtMap.get(item.productoId) ?? costoPosMap.get(item.productoId);
+          if (costo !== undefined) {
+            costoTotal += costo * item.cantidad;
+          } else {
+            tieneCostoParcial = true;
+          }
+        }
+
+        const ganancia = neto - costoTotal;
+        const margenPct = costoTotal > 0 ? (ganancia / costoTotal) * 100 : null;
+
+        return {
+          id: v.id,
+          numeroVenta: v.numeroVenta,
+          createdAt: v.createdAt.toISOString(),
+          cliente: v.cliente,
+          metodo_pago: v.metodo_pago,
+          mlIdVenta: v.mlIdVenta,
+          cupon: v.cupon,
+          de: v.de,
+          puntoVenta: v.puntoVenta || null,
+          total: Number(v.total),
+          totalFinal: Number(v.totalFinal),
+          interes: Number(v.interes),
+          neto,
+          costoTotal,
+          ganancia,
+          margenPct,
+          tieneCostoParcial,
+          itemsCount: v.items.length,
+          items: v.items.map(i => ({
+            id: i.id,
+            productoId: i.productoId,
+            nombre: i.nombre,
+            cantidad: i.cantidad,
+            precio_unit: Number(i.precio_unit),
+            subtotal: Number(i.subtotal),
+            costo: i.productoId
+              ? (costoArtMap.get(i.productoId) ?? costoPosMap.get(i.productoId) ?? null)
+              : null,
+          })),
+        };
+      }),
+    };
+  } catch (error) {
+    console.error("Error al obtener rendimiento de ventas:", error);
+    return { success: false, error: "Error al cargar el rendimiento" };
+  }
+}
+
 export async function marcarVentaComoRegistrada(id: string) {
   await requireAdmin();
   try {

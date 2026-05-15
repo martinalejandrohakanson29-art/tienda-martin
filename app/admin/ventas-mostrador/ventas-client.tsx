@@ -6,7 +6,7 @@ import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft, X, BarChart2
+  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -35,6 +35,7 @@ import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/ap
 import { consultarPadron } from "@/app/actions/afip";
 import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
 import ResumenVentasTab from "./resumen-ventas-tab";
+import RendimientoVentasTab from "./rendimiento-ventas-tab";
 
 type Decimal = {
   toNumber(): number;
@@ -1576,10 +1577,13 @@ export default function VentasMostradorClient({
               <TabsTrigger value="pedidos" className="gap-2 px-6 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 data-[state=active]:bg-indigo-100 data-[state=active]:text-indigo-900 border border-transparent data-[state=active]:border-indigo-200">
                 <Clock className="h-4 w-4" /> Pedidos de Ventas
               </TabsTrigger>
-              <TabsTrigger value="resumen" className="gap-2 px-6 bg-blue-50 text-blue-700 hover:bg-blue-100 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 border border-transparent data-[state=active]:border-blue-200">
+              <TabsTrigger value="resumen" className="gap-2 px-6 ml-auto bg-blue-50 text-blue-700 hover:bg-blue-100 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 border border-transparent data-[state=active]:border-blue-200">
                 <BarChart2 className="h-4 w-4" /> Resumen de Ventas
               </TabsTrigger>
-              <TabsTrigger value="gestion" className="gap-2 px-6 ml-auto bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
+              <TabsTrigger value="rendimiento" className="gap-2 px-6 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-900 border border-transparent data-[state=active]:border-emerald-200">
+                <TrendingUp className="h-4 w-4" /> Rendimiento de Ventas
+              </TabsTrigger>
+              <TabsTrigger value="gestion" className="gap-2 px-6 bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
                 <Edit className="h-4 w-4" /> Gestión y Edición
               </TabsTrigger>
             </TabsList>
@@ -2166,8 +2170,8 @@ export default function VentasMostradorClient({
                         <DateRangeCalendar
                           fechaDesde={fechaDesde}
                           fechaHasta={fechaHasta}
-                          setFechaDesde={(date) => { setFechaDesdeTemp(date); cargarVentas(date, fechaHasta); }}
-                          setFechaHasta={(date) => { setFechaHastaTemp(date); cargarVentas(fechaDesde, date); }}
+                          setFechaDesde={(date) => { setFechaDesde(date); cargarVentas(date, fechaHasta); }}
+                          setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
                           onApply={() => { }}
                         />
                         <Button variant="outline" size="icon" onClick={() => cargarVentas(fechaDesde, fechaHasta)} disabled={isLoadingVentas} className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
@@ -2401,6 +2405,14 @@ export default function VentasMostradorClient({
           {/* --- PESTAÑA: RESUMEN DE VENTAS --- */}
           <TabsContent value="resumen" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
             <ResumenVentasTab />
+          </TabsContent>
+          {/* --- PESTAÑA: RENDIMIENTO DE VENTAS --- */}
+          <TabsContent value="rendimiento" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
+            <RendimientoVentasTab
+              puntosVenta={puntosVenta}
+              fechaDesdeInicial={fechaDesde}
+              fechaHastaInicial={fechaHasta}
+            />
           </TabsContent>
         </Tabs>
 

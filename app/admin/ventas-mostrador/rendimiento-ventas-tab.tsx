@@ -119,28 +119,62 @@ export default function RendimientoVentasTab({ puntosVenta, fechaDesdeInicial, f
     const mktMayor = parseFloat(marcacionMayorista) || 0;
     const mktMostr = parseFloat(marcacionMostrador) || 0;
     return ventasFiltradas.map(v => {
+      // ML nunca se toca: su pvNombre no coincide con ningún patrón → markup = 0
       const pvNombre = v.puntoVenta?.nombre?.toLowerCase() || '';
       let markup = 0;
       if (pvNombre.includes('instagram')) markup = mktInsta;
       else if (pvNombre.includes('mayorista')) markup = mktMayor;
       else if (pvNombre.includes('mostrador')) markup = mktMostr;
-      const esAjustado = markup > 0 && (v.costoTotal === 0 || v.tieneCostoParcial);
-      if (esAjustado) {
-        const margenDecimal = markup / (100 + markup);
+
+      // Costo completo y real: usar datos del backend sin ajuste
+      if (!v.tieneCostoParcial && v.costoTotal > 0) {
         return {
           ...v,
-          gananciaEfectiva: v.neto * margenDecimal,
+          gananciaEfectiva: v.ganancia,
+          marcacionEfectiva: v.margenPct,
+          margenEfectivo: v.neto > 0 ? (v.ganancia / v.neto) * 100 : null,
+          esAjustado: false,
+        };
+      }
+
+      // Sin markup definido: no se puede estimar, mostrar ganancia parcial sin porcentajes
+      if (markup === 0) {
+        return {
+          ...v,
+          gananciaEfectiva: v.ganancia,
+          marcacionEfectiva: null,
+          margenEfectivo: null,
+          esAjustado: false,
+        };
+      }
+
+      // Caso híbrido: algunos items tienen costo real, otros no
+      // Se calcula ítem por ítem: real donde hay costo, estimado por markup donde no
+      if (v.costoTotal > 0 && v.items.some(i => i.costo === null)) {
+        const margenDecimal = markup / (100 + markup);
+        const gananciaEfectiva = v.items.reduce((sum, item) => {
+          if (item.costo !== null) {
+            return sum + (item.subtotal - item.costo * item.cantidad);
+          }
+          return sum + item.subtotal * margenDecimal;
+        }, 0);
+        return {
+          ...v,
+          gananciaEfectiva,
           marcacionEfectiva: markup,
-          margenEfectivo: margenDecimal * 100,
+          margenEfectivo: v.neto > 0 ? (gananciaEfectiva / v.neto) * 100 : null,
           esAjustado: true,
         };
       }
+
+      // Sin costo en absoluto: aplicar markup sobre el neto completo
+      const margenDecimal = markup / (100 + markup);
       return {
         ...v,
-        gananciaEfectiva: v.ganancia,
-        marcacionEfectiva: v.margenPct,
-        margenEfectivo: v.neto > 0 ? (v.ganancia / v.neto) * 100 : null,
-        esAjustado: false,
+        gananciaEfectiva: v.neto * margenDecimal,
+        marcacionEfectiva: markup,
+        margenEfectivo: margenDecimal * 100,
+        esAjustado: true,
       };
     });
   }, [ventasFiltradas, marcacionInstagram, marcacionMayorista, marcacionMostrador]);

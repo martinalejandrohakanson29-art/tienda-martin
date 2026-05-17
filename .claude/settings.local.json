@@ -28,7 +28,8 @@
       "Bash(Get-ChildItem -Recurse -File)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\" -Recurse -Directory)",
       "Bash(Format-Table FullName)",
-      "Bash(npx prisma *)"
+      "Bash(npx prisma *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\" -Recurse -Force)"
     ]
   }
 }

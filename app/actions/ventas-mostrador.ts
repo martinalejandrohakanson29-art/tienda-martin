@@ -310,8 +310,16 @@ export async function obtenerVentasRendimiento(fechaDesde: string, fechaHasta: s
         : [],
     ]);
 
-    const costoArtMap = new Map(costosArt.map(c => [c.id_articulo, Number(c.costo_final_ars || 0)]));
-    const costoPosMap = new Map(costosPos.map(c => [c.id, Number(c.costo || 0)]));
+    const costoArtMap = new Map(
+      costosArt
+        .filter(c => c.costo_final_ars !== null)
+        .map(c => [c.id_articulo, Number(c.costo_final_ars)])
+    );
+    const costoPosMap = new Map(
+      costosPos
+        .filter(c => c.costo !== null)
+        .map(c => [c.id, Number(c.costo)])
+    );
 
     return {
       success: true,

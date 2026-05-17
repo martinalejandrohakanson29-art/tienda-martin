@@ -24,6 +24,7 @@ interface Movimiento {
   saldo: number;
   anulado: boolean;
   fechaPago: string | null;
+  fechaIngreso: string | null;
   proveedorNombre: string;
 }
 
@@ -121,6 +122,7 @@ export default function MovimientosClient({
   // Estados para los filtros aplicados (solo para las fechas)
   const [appliedStartDate, setAppliedStartDate] = useState(firstDayOfMonth);
   const [appliedEndDate, setAppliedEndDate] = useState(today);
+  const [sortBy, setSortBy] = useState<"fecha" | "fechaReal">("fecha");
 
   const handleSearch = () => {
     setAppliedStartDate(startDate);
@@ -144,7 +146,7 @@ export default function MovimientosClient({
   };
 
   const filteredMovimientos = useMemo(() => {
-    return movimientos.filter((m) => {
+    const filtered = movimientos.filter((m) => {
       const matchesSearch =
         m.proveedorNombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (m.descripcion && m.descripcion.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -165,7 +167,21 @@ export default function MovimientosClient({
 
       return true;
     });
-  }, [movimientos, searchTerm, appliedStartDate, appliedEndDate]);
+
+    if (sortBy === "fechaReal") {
+      return [...filtered].sort((a, b) => {
+        const dateA = a.fechaIngreso ?? a.fechaPago;
+        const dateB = b.fechaIngreso ?? b.fechaPago;
+        if (!dateA && !dateB) return 0;
+        if (!dateA) return 1;
+        if (!dateB) return -1;
+        return new Date(dateB).getTime() - new Date(dateA).getTime();
+      });
+    }
+
+    // default: por fecha de carga desc (ya viene así del servidor)
+    return [...filtered].sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  }, [movimientos, searchTerm, appliedStartDate, appliedEndDate, sortBy]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-AR", {
@@ -203,7 +219,11 @@ export default function MovimientosClient({
 
     const dataToExport = filteredMovimientos.map((m) => ({
       Registro: format(new Date(m.fecha), "dd/MM/yyyy HH:mm", { locale: es }),
-      "Fecha Real (Pago)": m.fechaPago ? format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es }) : "---",
+      "Fecha Real": m.fechaIngreso
+        ? format(new Date(m.fechaIngreso), "dd/MM/yyyy", { locale: es }) + " (ingreso)"
+        : m.fechaPago
+          ? format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es }) + " (pago)"
+          : "---",
       Proveedor: m.proveedorNombre,
       Tipo: m.tipo,
       Descripción: m.descripcion || "---",
@@ -265,7 +285,11 @@ export default function MovimientosClient({
     const tableColumn = ["Registro", "F. Real", "Proveedor", "Tipo", "Descripción", "Monto", "Saldo"];
     const tableRows = activeMovimientos.map(m => [
       format(new Date(m.fecha), "dd/MM/yy HH:mm"),
-      m.fechaPago ? format(new Date(m.fechaPago), "dd/MM/yy") : "---",
+      m.fechaIngreso
+        ? format(new Date(m.fechaIngreso), "dd/MM/yy") + " (ing.)"
+        : m.fechaPago
+          ? format(new Date(m.fechaPago), "dd/MM/yy") + " (pago)"
+          : "---",
       m.proveedorNombre,
       m.tipo,
       m.descripcion || "---",
@@ -461,8 +485,24 @@ export default function MovimientosClient({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Registro</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Real</th>
+                    <th
+                      className={`px-6 py-4 text-xs font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${sortBy === "fecha" ? "text-[#2b8cee]" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                      onClick={() => setSortBy("fecha")}
+                    >
+                      <div className="flex items-center gap-1">
+                        Registro
+                        {sortBy === "fecha" && <span className="material-symbols-outlined text-sm">arrow_downward</span>}
+                      </div>
+                    </th>
+                    <th
+                      className={`px-6 py-4 text-xs font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${sortBy === "fechaReal" ? "text-[#2b8cee]" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                      onClick={() => setSortBy("fechaReal")}
+                    >
+                      <div className="flex items-center gap-1">
+                        Fecha Real
+                        {sortBy === "fechaReal" && <span className="material-symbols-outlined text-sm">arrow_downward</span>}
+                      </div>
+                    </th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
@@ -481,10 +521,21 @@ export default function MovimientosClient({
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
-                          {m.fechaPago ? (
-                            <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                              <span className="material-symbols-outlined text-xs">calendar_today</span>
-                              {format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es })}
+                          {m.fechaIngreso ? (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                                <span className="material-symbols-outlined text-xs">event_available</span>
+                                {format(new Date(m.fechaIngreso), "dd/MM/yyyy", { locale: es })}
+                              </div>
+                              <span className="text-[10px] text-slate-400">ingreso</span>
+                            </div>
+                          ) : m.fechaPago ? (
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                                <span className="material-symbols-outlined text-xs">calendar_today</span>
+                                {format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es })}
+                              </div>
+                              <span className="text-[10px] text-slate-400">pago</span>
                             </div>
                           ) : (
                             <span className="text-slate-300 italic">---</span>

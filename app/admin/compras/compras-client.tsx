@@ -48,6 +48,7 @@ interface ItemCompra {
   stock: number;
   ultimaModificacion?: string | null;
   margenGanancia?: number;
+  precioPublico?: number;
 }
 
 export default function ComprasClient({
@@ -86,6 +87,7 @@ export default function ComprasClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
+  const [isConfirmResumenOpen, setIsConfirmResumenOpen] = useState(false);
   const [items, setItems] = useState<ItemCompra[]>([]);
   const [proveedor, setProveedor] = useState("");
   const [proveedorId, setProveedorId] = useState("");
@@ -266,16 +268,19 @@ export default function ComprasClient({
         item.productoId === prod.id ? { ...item, cantidad: item.cantidad + 1, subtotal: (item.cantidad + 1) * item.costo_unit } : item
       ));
     } else {
+      const costoInit = Number(prod.costo) > 0 ? Number(prod.costo) : Number(prod.precio);
+      const margenInit = Number(prod.margenGanancia) || 50;
       setItems([...items, {
         id: crypto.randomUUID(),
         productoId: prod.id,
         nombre: prod.nombre,
         cantidad: 1,
-        costo_unit: Number(prod.costo) > 0 ? Number(prod.costo) : Number(prod.precio),
-        subtotal: Number(prod.costo) > 0 ? Number(prod.costo) : Number(prod.precio),
+        costo_unit: costoInit,
+        subtotal: costoInit,
         stock: prod.stock,
         ultimaModificacion: prod.ultimaModificacion,
-        margenGanancia: Number(prod.margenGanancia) || 50
+        margenGanancia: margenInit,
+        precioPublico: Math.round(costoInit * (1 + margenInit / 100))
       }]);
     }
     setIsModalOpen(false);
@@ -384,7 +389,7 @@ export default function ComprasClient({
     setImpactarCostos(false);
     setFechaCompra(new Date().toISOString().split('T')[0]);
     setFechaIngreso("");
-    setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
+    setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false); setIsConfirmResumenOpen(false);
   };
 
   // --- FUNCIONES EDICIÓN ---
@@ -407,16 +412,21 @@ export default function ComprasClient({
     setEditImpactarCostos(false);
     setEditFechaCompra(new Date(compra.fechaCarga || compra.createdAt).toISOString().split('T')[0]);
     setEditFechaIngreso(compra.fechaIngreso ? new Date(compra.fechaIngreso).toISOString().split('T')[0] : "");
-    setEditItems(compra.items.map((i: any) => ({
-      id: i.id || crypto.randomUUID(),
-      productoId: i.productoId,
-      nombre: i.nombre,
-      cantidad: i.cantidad,
-      costo_unit: Number(i.costo_unit),
-      subtotal: Number(i.subtotal),
-      stock: articulos.find(a => a.id === i.productoId)?.stock || 0,
-      margenGanancia: i.margenGanancia || 50
-    })));
+    setEditItems(compra.items.map((i: any) => {
+      const c = Number(i.costo_unit);
+      const m = i.margenGanancia || 50;
+      return {
+        id: i.id || crypto.randomUUID(),
+        productoId: i.productoId,
+        nombre: i.nombre,
+        cantidad: i.cantidad,
+        costo_unit: c,
+        subtotal: Number(i.subtotal),
+        stock: articulos.find(a => a.id === i.productoId)?.stock || 0,
+        margenGanancia: m,
+        precioPublico: Math.round(c * (1 + m / 100))
+      };
+    }));
     setIsEditMainModalOpen(true);
   };
 
@@ -573,39 +583,41 @@ export default function ComprasClient({
                           <TableCell className="text-center py-3">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-slate-400 text-xs">$</span>
-                              <Input 
-                                type="text" 
+                              <Input
+                                type="text"
                                 inputMode="decimal"
-                                value={item.costo_unit} 
+                                value={item.costo_unit}
                                 onChange={(e) => {
                                   const val = e.target.value.replace(',', '.');
                                   const newCost = parseFloat(val);
                                   if (!isNaN(newCost)) {
-                                    setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost } : i));
+                                    const newPrecio = Math.round(newCost * (1 + (item.margenGanancia ?? 50) / 100));
+                                    setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
                                   } else if (e.target.value === "") {
-                                    setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: 0, subtotal: 0 } : i));
+                                    setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: 0, subtotal: 0, precioPublico: 0 } : i));
                                   }
-                                }} 
-                                className={`w-28 h-8 ${inputSinFlechas}`} 
+                                }}
+                                className={`w-28 h-8 ${inputSinFlechas}`}
                               />
                             </div>
                           </TableCell>
                           <TableCell className="text-center py-3">
                             <div className="flex items-center justify-center gap-1">
-                              <Input 
-                                type="text" 
+                              <Input
+                                type="text"
                                 inputMode="decimal"
-                                value={item.margenGanancia ?? 50} 
+                                value={item.margenGanancia ?? 50}
                                 onChange={(e) => {
                                   const val = e.target.value.replace(',', '.');
                                   const newMargin = parseFloat(val);
                                   if (!isNaN(newMargin)) {
-                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin } : i));
+                                    const newPrecio = Math.round(item.costo_unit * (1 + newMargin / 100));
+                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin, precioPublico: newPrecio } : i));
                                   } else if (e.target.value === "") {
-                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: 0 } : i));
+                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: 0, precioPublico: item.costo_unit } : i));
                                   }
-                                }} 
-                                className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`} 
+                                }}
+                                className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`}
                               />
                               <span className="text-slate-400 text-xs">%</span>
                             </div>
@@ -613,22 +625,22 @@ export default function ComprasClient({
                           <TableCell className="text-center py-3">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-emerald-600 text-xs">$</span>
-                              <Input 
-                                type="text" 
+                              <Input
+                                type="text"
                                 inputMode="decimal"
-                                value={Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))} 
+                                value={item.precioPublico ?? Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))}
                                 onChange={(e) => {
                                   const val = e.target.value.replace(/\D/g, '');
                                   const newPrice = parseInt(val);
                                   const cost = item.costo_unit;
-                                  if (!isNaN(newPrice) && cost > 0) {
-                                    const newMargin = Math.round(((newPrice - cost) / cost) * 100 * 100) / 100;
-                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin } : i));
+                                  if (!isNaN(newPrice)) {
+                                    const newMargin = cost > 0 ? Math.round(((newPrice - cost) / cost) * 100 * 100) / 100 : 0;
+                                    setItems(items.map(i => i.id === item.id ? { ...i, precioPublico: newPrice, margenGanancia: newMargin } : i));
                                   } else if (val === "") {
-                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: -100 } : i));
+                                    setItems(items.map(i => i.id === item.id ? { ...i, precioPublico: 0, margenGanancia: 0 } : i));
                                   }
                                 }}
-                                className={`w-28 h-8 ${inputSinFlechas} text-emerald-600 font-bold`} 
+                                className={`w-28 h-8 ${inputSinFlechas} text-emerald-600 font-bold`}
                               />
                             </div>
                           </TableCell>
@@ -1062,7 +1074,7 @@ export default function ComprasClient({
             <div className="grid gap-4 py-4">
               <div className="space-y-2 relative">
                 <Label className="text-xs font-bold text-slate-500 uppercase">Proveedor</Label>
-                <Input value={proveedor} onChange={(e) => { setProveedor(e.target.value); setShowProvList(true); }} onFocus={() => setShowProvList(true)} className="pl-9" />
+                <Input value={proveedor} onChange={(e) => { setProveedor(e.target.value); setShowProvList(true); }} className="pl-9" />
                 <User className="absolute left-3 top-9 h-4 w-4 text-slate-400" />
                 {showProvList && (
                   <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto mt-1 animate-in fade-in zoom-in-95 duration-200">
@@ -1182,11 +1194,17 @@ export default function ComprasClient({
               </div>
               <div className="space-y-3 pt-3 border-t border-slate-200/60">
                 <Button
-                  onClick={handleFinalizarCompra}
+                  onClick={() => {
+                    if (metodoPago === "A Cuenta Corriente" && !proveedorId) {
+                      alert("Debe seleccionar un proveedor de la lista para compras a Cuenta Corriente.");
+                      return;
+                    }
+                    setIsConfirmResumenOpen(true);
+                  }}
                   disabled={items.length === 0 || isSubmitting}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-emerald-600/10"
                 >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Confirmar Compra</>}
+                  <CheckCircle className="h-5 w-5 mr-2" /> Confirmar Compra
                 </Button>
                 <Button
                   onClick={handleGuardarPedidoCompra}
@@ -1201,6 +1219,100 @@ export default function ComprasClient({
             <DialogFooter className="mt-2">
               <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
             </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Resumen / Confirmación final */}
+      <Dialog open={isConfirmResumenOpen} onOpenChange={setIsConfirmResumenOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+          <div className="p-6">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" /> Resumen de la Compra
+              </DialogTitle>
+              <DialogDescription className="text-sm text-slate-500 mt-1">
+                Revisá los datos antes de confirmar el registro.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-5 space-y-2">
+              {/* Proveedor */}
+              <div className="flex justify-between items-center bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
+                <span className="text-xs font-bold text-indigo-400 uppercase tracking-wide">Proveedor</span>
+                <span className="text-sm font-bold text-indigo-800">{proveedor || <span className="italic font-normal text-indigo-300">Sin especificar</span>}</span>
+              </div>
+
+              {/* Método de pago */}
+              <div className="flex justify-between items-center bg-violet-50 border border-violet-100 rounded-xl px-4 py-3">
+                <span className="text-xs font-bold text-violet-400 uppercase tracking-wide">Método de Pago</span>
+                <span className="text-sm font-bold text-violet-800">{metodoPago}</span>
+              </div>
+
+              {/* Comprobante */}
+              {comprobante && (
+                <div className="flex justify-between items-center bg-sky-50 border border-sky-100 rounded-xl px-4 py-3">
+                  <span className="text-xs font-bold text-sky-400 uppercase tracking-wide">Comprobante N°</span>
+                  <span className="text-sm font-bold text-sky-800">{comprobante}</span>
+                </div>
+              )}
+
+              {/* Fecha */}
+              <div className="flex justify-between items-center bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Fecha de Carga</span>
+                <span className="text-sm font-bold text-slate-700">{fechaCompra}</span>
+              </div>
+
+              {/* Totales */}
+              <div className="rounded-2xl overflow-hidden border border-slate-200 mt-1">
+                <div className="flex justify-between items-center bg-white px-4 py-3 border-b border-slate-100">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Subtotal</span>
+                  <span className="text-sm font-bold text-slate-700">$ {totalBase.toLocaleString('es-AR')}</span>
+                </div>
+                {interes > 0 && (
+                  <div className="flex justify-between items-center bg-orange-50 px-4 py-3 border-b border-orange-100">
+                    <span className="text-xs font-bold text-orange-400 uppercase tracking-wide">Recargo</span>
+                    <span className="text-sm font-bold text-orange-700">+ $ {interes.toLocaleString('es-AR')}</span>
+                  </div>
+                )}
+                {descuento > 0 && (
+                  <div className="flex justify-between items-center bg-emerald-50 px-4 py-3 border-b border-emerald-100">
+                    <span className="text-xs font-bold text-emerald-500 uppercase tracking-wide">Descuento</span>
+                    <span className="text-sm font-bold text-emerald-700">− $ {descuento.toLocaleString('es-AR')}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center bg-emerald-600 px-4 py-4">
+                  <span className="text-xs font-bold text-emerald-100 uppercase tracking-wide">Total Final</span>
+                  <span className="text-2xl font-black text-white">$ {totalFinalCalculado.toLocaleString('es-AR')}</span>
+                </div>
+              </div>
+
+              {/* Impactar costos */}
+              {impactarCostos && (
+                <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+                  <Database className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                  <span className="font-semibold">Esta compra impactará en los costos</span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-2">
+              <Button
+                onClick={handleFinalizarCompra}
+                disabled={isSubmitting}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-emerald-600/10"
+              >
+                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar Compra</>}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setIsConfirmResumenOpen(false)}
+                className="w-full rounded-xl"
+                disabled={isSubmitting}
+              >
+                Volver y editar
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1362,38 +1474,40 @@ export default function ComprasClient({
                         </TableCell>
                         <TableCell className="text-center"><Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.costo_unit } : i))} className="w-16 mx-auto h-8 text-center" /></TableCell>
                         <TableCell className="text-center">
-                          <Input 
-                            type="text" 
+                          <Input
+                            type="text"
                             inputMode="decimal"
-                            value={item.costo_unit} 
+                            value={item.costo_unit}
                             onChange={(e) => {
                               const val = e.target.value.replace(',', '.');
                               const newCost = parseFloat(val);
                               if (!isNaN(newCost)) {
-                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost } : i));
+                                const newPrecio = Math.round(newCost * (1 + (item.margenGanancia ?? 50) / 100));
+                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
                               } else if (e.target.value === "") {
-                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: 0, subtotal: 0 } : i));
+                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: 0, subtotal: 0, precioPublico: 0 } : i));
                               }
-                            }} 
-                            className="w-28 mx-auto h-8 text-center" 
+                            }}
+                            className="w-28 mx-auto h-8 text-center"
                           />
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <Input 
-                              type="text" 
+                            <Input
+                              type="text"
                               inputMode="decimal"
-                              value={item.margenGanancia ?? 50} 
+                              value={item.margenGanancia ?? 50}
                               onChange={(e) => {
                                 const val = e.target.value.replace(',', '.');
                                 const newMargin = parseFloat(val);
                                 if (!isNaN(newMargin)) {
-                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin } : i));
+                                  const newPrecio = Math.round(item.costo_unit * (1 + newMargin / 100));
+                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin, precioPublico: newPrecio } : i));
                                 } else if (e.target.value === "") {
-                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: 0 } : i));
+                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: 0, precioPublico: item.costo_unit } : i));
                                 }
-                              }} 
-                              className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`} 
+                              }}
+                              className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`}
                             />
                             <span className="text-slate-400 text-xs">%</span>
                           </div>
@@ -1401,22 +1515,22 @@ export default function ComprasClient({
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
                             <span className="text-emerald-600 text-xs">$</span>
-                            <Input 
-                              type="text" 
+                            <Input
+                              type="text"
                               inputMode="decimal"
-                              value={Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))} 
+                              value={item.precioPublico ?? Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))}
                               onChange={(e) => {
                                 const val = e.target.value.replace(/\D/g, '');
                                 const newPrice = parseInt(val);
                                 const cost = item.costo_unit;
-                                if (!isNaN(newPrice) && cost > 0) {
-                                  const newMargin = Math.round(((newPrice - cost) / cost) * 100 * 100) / 100;
-                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin } : i));
+                                if (!isNaN(newPrice)) {
+                                  const newMargin = cost > 0 ? Math.round(((newPrice - cost) / cost) * 100 * 100) / 100 : 0;
+                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, precioPublico: newPrice, margenGanancia: newMargin } : i));
                                 } else if (val === "") {
-                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: -100 } : i));
+                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, precioPublico: 0, margenGanancia: 0 } : i));
                                 }
                               }}
-                              className={`w-28 h-8 ${inputSinFlechas} text-emerald-600 font-bold`} 
+                              className={`w-28 h-8 ${inputSinFlechas} text-emerald-600 font-bold`}
                             />
                           </div>
                         </TableCell>

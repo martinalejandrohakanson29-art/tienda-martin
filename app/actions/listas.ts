@@ -405,6 +405,16 @@ export async function obtenerMovimientosProveedor(proveedorId?: string) {
       }
     });
 
+    // Traer fechaIngreso de las compras referenciadas
+    const referencias = Array.from(new Set(movimientos.map(m => m.referencia).filter(Boolean))) as string[];
+    const comprasRef = referencias.length > 0
+      ? await prisma.compra.findMany({
+          where: { id: { in: referencias } },
+          select: { id: true, fechaIngreso: true }
+        })
+      : [];
+    const compraFechaMap = new Map(comprasRef.map(c => [c.id, c.fechaIngreso]));
+
     return {
       success: true,
       data: movimientos.map(m => ({
@@ -418,6 +428,9 @@ export async function obtenerMovimientosProveedor(proveedorId?: string) {
         saldo: Number(m.saldo),
         anulado: m.anulado,
         fechaPago: m.fechaPago ? m.fechaPago.toISOString() : null,
+        fechaIngreso: compraFechaMap.get(m.referencia ?? '')
+          ? compraFechaMap.get(m.referencia ?? '')!.toISOString()
+          : null,
         proveedorNombre: m.proveedor.razonSocial
       }))
     };

@@ -4,7 +4,7 @@ export async function POST(request: Request) {
     try {
         // 1. Recibimos los datos desde la página web (la lista de gente y los textos)
         const body = await request.json();
-        const { mayoristas, mensaje } = body;
+        const { mayoristas, mensaje, tipo_adjunto } = body;
 
         // Validamos que haya contactos en la lista
         if (!mayoristas || mayoristas.length === 0) {
@@ -23,13 +23,13 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 tipo: "difusion_mayoristas",
                 contactos: mayoristas,
-                // Aquí mandamos los campos exactos para tu nodo "Edit Fields"
+                tipo_adjunto: tipo_adjunto || "imagen",
                 plantilla: {
                     titulo: mensaje.titulo,
                     descripcion1: mensaje.descripcion1,
                     descripcion2: mensaje.descripcion2,
                     precio: mensaje.precio,
-                    "url foto": mensaje.url_foto // Lo mandamos con espacio tal como lo pide tu n8n
+                    "url foto": mensaje.url_foto
                 }
             }),
         });

@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon } from "lucide-react"
+import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon, FileText } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Importamos las acciones para guardar y leer la base de datos
 import { getMayoristas, createMayorista } from "@/app/actions/mayoristas"
@@ -34,6 +35,9 @@ export default function ChatwootPage() {
         precio: "",
         url_foto: ""
     })
+
+    // 4. Tipo de archivo adjunto para la difusión
+    const [tipoAdjunto, setTipoAdjunto] = useState<"imagen" | "pdf">("imagen")
 
     // Función que actualiza lo que escribes en los casilleros de la plantilla
     const handlePlantillaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,9 +104,10 @@ export default function ChatwootPage() {
             const respuesta = await fetch("/api/chatwoot/difusion", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     mayoristas: dbMayoristas,
-                    mensaje: plantilla // Enviamos los 5 campos empaquetados aquí
+                    mensaje: plantilla,
+                    tipo_adjunto: tipoAdjunto
                 }),
             })
 
@@ -218,10 +223,34 @@ export default function ChatwootPage() {
                                 <Input id="precio" placeholder="Ej: $115.000" value={plantilla.precio} onChange={handlePlantillaChange} disabled={enviando} />
                             </div>
 
-                            {/* CAMPO 5: URL FOTO */}
+                            {/* CAMPO 5: TIPO DE ADJUNTO */}
                             <div className="space-y-1 pt-2 border-t mt-2">
+                                <Label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                    5. Tipo de Archivo Adjunto
+                                </Label>
+                                <Select value={tipoAdjunto} onValueChange={(v) => setTipoAdjunto(v as "imagen" | "pdf")} disabled={enviando}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="imagen">
+                                            <span className="flex items-center gap-2">
+                                                <ImageIcon size={14} /> Imagen
+                                            </span>
+                                        </SelectItem>
+                                        <SelectItem value="pdf">
+                                            <span className="flex items-center gap-2">
+                                                <FileText size={14} /> PDF
+                                            </span>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* CAMPO 6: URL FOTO */}
+                            <div className="space-y-1">
                                 <Label htmlFor="url_foto" className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
-                                    <ImageIcon size={14} /> 5. Link de la Imagen (URL Foto)
+                                    <ImageIcon size={14} /> 6. Link del Archivo (URL)
                                 </Label>
                                 <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
                             </div>

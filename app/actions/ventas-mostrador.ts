@@ -15,6 +15,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { z } from "zod"
 import { requireAdmin } from "@/lib/auth-guard"
 import { revertirMovimientoEnLedger } from "@/lib/proveedor-ledger"
+import { triggerNotification } from "@/lib/notify"
 
 // ─── Tipos compartidos ────────────────────────────────────────────────────────
 
@@ -494,7 +495,8 @@ export async function crearVentaMostrador(data: {
   mlMla?: string,
   mlDni?: string
 }) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const currentUserId = (session.user as any).id as string | undefined
   try {
     let arcaData = {
       cae: data.cae,
@@ -628,6 +630,12 @@ export async function crearVentaMostrador(data: {
       return venta;
     });
 
+    triggerNotification({
+      eventType: "VENTA_MOSTRADOR_CREADA",
+      sourceUserId: currentUserId,
+      title: `Nueva venta de mostrador #${result.numeroVenta}`,
+      body: `Cliente: ${data.cliente} — Total: $${Number(data.totalFinal).toLocaleString("es-AR")}`,
+    })
     return { success: true, id: result.id, numeroVenta: result.numeroVenta };
   } catch (error) {
     console.error("Error al crear venta:", error);
@@ -1159,12 +1167,20 @@ export async function obtenerPedidoPorId(ventaId: string) {
 }
 
 export async function actualizarEstadoPedido(ventaId: string, estadoPedido: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const currentUserId = (session.user as any).id as string | undefined
   try {
-    await prisma.venta.update({
+    const venta = await prisma.venta.update({
       where: { id: ventaId },
-      data: { estadoPedido }
+      data: { estadoPedido },
+      select: { numeroVenta: true },
     });
+    triggerNotification({
+      eventType: "ESTADO_PEDIDO_CHANGED",
+      sourceUserId: currentUserId,
+      title: `Estado de pedido #${venta.numeroVenta} actualizado`,
+      body: `Nuevo estado: ${estadoPedido}`,
+    })
     revalidatePath("/admin/erp/pedidos-venta");
     revalidatePath("/admin/ventas-mostrador");
     return { success: true };
@@ -1190,12 +1206,19 @@ export async function actualizarTipoEnvioPedido(ventaId: string, tipoEnvio: stri
 }
 
 export async function actualizarEstadoPedidoMasivo(ventaIds: string[], estadoPedido: string) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const currentUserId = (session.user as any).id as string | undefined
   try {
     await prisma.venta.updateMany({
       where: { id: { in: ventaIds } },
       data: { estadoPedido }
     });
+    triggerNotification({
+      eventType: "ESTADO_PEDIDO_CHANGED",
+      sourceUserId: currentUserId,
+      title: `${ventaIds.length} pedido(s) actualizados`,
+      body: `Nuevo estado: ${estadoPedido}`,
+    })
     revalidatePath("/admin/erp/pedidos-venta");
     revalidatePath("/admin/ventas-mostrador");
     return { success: true };

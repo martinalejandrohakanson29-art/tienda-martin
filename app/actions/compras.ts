@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { requireAdmin } from "@/lib/auth-guard"
 import { recalcularSaldosProveedorConBase, revertirMovimientoEnLedger } from "@/lib/proveedor-ledger"
+import { triggerNotification } from "@/lib/notify"
 import { revalidatePath } from "next/cache";
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
@@ -220,7 +221,8 @@ export async function guardarComoPedidoCompra(data: {
   fechaCompra?: string,
   fechaIngreso?: string
 }) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const currentUserId = (session.user as any).id as string | undefined
   try {
     const result = await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.create({
@@ -302,6 +304,12 @@ export async function guardarComoPedidoCompra(data: {
       return compra;
     });
 
+    triggerNotification({
+      eventType: "PEDIDO_COMPRA_CREADO",
+      sourceUserId: currentUserId,
+      title: `Nuevo pedido de compra #${result.numeroCompra}`,
+      body: `Proveedor: ${data.proveedor} — Total: $${Number(data.totalFinal).toLocaleString("es-AR")}`,
+    })
     revalidatePath("/admin/erp/pedidos-compra");
     return { success: true, id: result.id, numeroCompra: result.numeroCompra };
   } catch (error) {

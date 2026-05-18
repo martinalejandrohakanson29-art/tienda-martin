@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { SessionProvider } from "next-auth/react";
+import { NotificationListener } from "@/components/notification-listener";
 
 export default function AdminLayout({
   children,
@@ -19,6 +20,7 @@ export default function AdminLayout({
 
   return (
     <SessionProvider>
+    <NotificationListener />
     <div className="flex flex-col md:flex-row min-h-screen bg-white">
       
       {/* BARRA LATERAL (Se oculta si no estamos en el dashboard principal) */}

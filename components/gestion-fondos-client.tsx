@@ -574,7 +574,7 @@ export default function GestionFondosClient({
                         {format(new Date(m.fecha), "dd/MM/yy HH:mm", { locale: es })}
                       </td>
                       <td className="px-6 py-3 whitespace-nowrap text-slate-500 text-xs font-bold">
-                        {m.fechaPago ? format(new Date(m.fechaPago), "dd/MM/yy", { locale: es }) : "---"}
+                        {format(m.fechaPago ? new Date(m.fechaPago) : new Date(m.fecha), "dd/MM/yy", { locale: es })}
                       </td>
                       <td className={`px-6 py-3 whitespace-nowrap font-bold ${m.anulado ? "line-through text-slate-400" : ""}`}>
                         {m.proveedorNombre}

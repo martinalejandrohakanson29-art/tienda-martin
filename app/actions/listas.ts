@@ -522,7 +522,8 @@ export async function obtenerPagosControl(metodoPago: string, fechaDesde: string
       if (metodoPago === "Todos" || mMethod.toLowerCase().includes(metodoPago.toLowerCase())) {
         filtered.push({
           id: m.id,
-          fecha: m.fechaPago ? m.fechaPago.toISOString() : m.fecha.toISOString(),
+          fechaRegistro: m.fecha.toISOString(),
+          fechaReal: m.fechaPago ? m.fechaPago.toISOString() : m.fecha.toISOString(),
           entidad: m.proveedor.razonSocial,
           descripcion: m.descripcion,
           monto: Math.abs(Number(m.monto)),

@@ -220,10 +220,10 @@ export default function MovimientosClient({
     const dataToExport = filteredMovimientos.map((m) => ({
       Registro: format(new Date(m.fecha), "dd/MM/yyyy HH:mm", { locale: es }),
       "Fecha Real": m.fechaIngreso
-        ? format(new Date(m.fechaIngreso), "dd/MM/yyyy", { locale: es }) + " (ingreso)"
+        ? format(new Date(m.fechaIngreso), "dd/MM/yyyy", { locale: es })
         : m.fechaPago
-          ? format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es }) + " (pago)"
-          : "---",
+          ? format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es })
+          : format(new Date(m.fecha), "dd/MM/yyyy", { locale: es }),
       Proveedor: m.proveedorNombre,
       Tipo: m.tipo,
       Descripción: m.descripcion || "---",
@@ -286,10 +286,10 @@ export default function MovimientosClient({
     const tableRows = activeMovimientos.map(m => [
       format(new Date(m.fecha), "dd/MM/yy HH:mm"),
       m.fechaIngreso
-        ? format(new Date(m.fechaIngreso), "dd/MM/yy") + " (ing.)"
+        ? format(new Date(m.fechaIngreso), "dd/MM/yy")
         : m.fechaPago
-          ? format(new Date(m.fechaPago), "dd/MM/yy") + " (pago)"
-          : "---",
+          ? format(new Date(m.fechaPago), "dd/MM/yy")
+          : format(new Date(m.fecha), "dd/MM/yy"),
       m.proveedorNombre,
       m.tipo,
       m.descripcion || "---",
@@ -520,25 +520,11 @@ export default function MovimientosClient({
                             <span className="text-[10px] opacity-50">{format(new Date(m.fecha), "HH:mm", { locale: es })}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white">
-                          {m.fechaIngreso ? (
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-                                <span className="material-symbols-outlined text-xs">event_available</span>
-                                {format(new Date(m.fechaIngreso), "dd/MM/yyyy", { locale: es })}
-                              </div>
-                              <span className="text-[10px] text-slate-400">ingreso</span>
-                            </div>
-                          ) : m.fechaPago ? (
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
-                                <span className="material-symbols-outlined text-xs">calendar_today</span>
-                                {format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es })}
-                              </div>
-                              <span className="text-[10px] text-slate-400">pago</span>
-                            </div>
-                          ) : (
-                            <span className="text-slate-300 italic">---</span>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
+                          {format(
+                            new Date(m.fechaIngreso ?? m.fechaPago ?? m.fecha),
+                            "dd/MM/yy",
+                            { locale: es }
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -650,7 +636,8 @@ export default function MovimientosClient({
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">F. Registro</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Real</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Origen</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Entidad</th>
                     <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
@@ -663,7 +650,10 @@ export default function MovimientosClient({
                     controlMovimientos.map((m) => (
                       <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
-                          {format(new Date(m.fecha), "dd/MM/yy HH:mm", { locale: es })}
+                          {format(new Date(m.fechaRegistro), "dd/MM/yy HH:mm", { locale: es })}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {format(new Date(m.fechaReal), "dd/MM/yy", { locale: es })}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase">
@@ -690,7 +680,7 @@ export default function MovimientosClient({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center">
+                      <td colSpan={7} className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center">
                           <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">payments</span>
                           <p className="text-slate-500 font-medium">No hay registros para mostrar. Selecciona filtros y busca.</p>
@@ -702,7 +692,7 @@ export default function MovimientosClient({
                 {controlMovimientos.length > 0 && (
                   <tfoot>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 font-bold">
-                      <td colSpan={4} className="px-6 py-4 text-right text-sm text-slate-500 uppercase">Balance Total</td>
+                      <td colSpan={5} className="px-6 py-4 text-right text-sm text-slate-500 uppercase">Balance Total</td>
                       <td className={`px-6 py-4 text-right text-base ${controlMovimientos.reduce((acc, curr) => acc + (curr.tipo === "PAGO" ? -curr.monto : curr.monto), 0) >= 0
                         ? "text-emerald-600" : "text-rose-600"
                         }`}>

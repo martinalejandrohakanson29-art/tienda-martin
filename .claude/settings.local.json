@@ -32,7 +32,9 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\" -Recurse -Force)",
       "Bash(npx next *)",
       "Bash(node -e \"const { Package } = require\\('lucide-react'\\); console.log\\(typeof Package\\);\")",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\" -Force)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

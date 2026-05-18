@@ -1025,7 +1025,7 @@ export async function obtenerPedidosAndreaniPendientes() {
       where: {
         tipoVenta: "PEDIDO",
         estadoPedido: {
-          in: ["LISTO_PARA_PREPARAR", "LISTO P/PREPARAR"],
+          in: ["LISTO_PARA_PREPARAR", "LISTO P/PREPARAR", "PREPARADO"],
         },
         tipoEnvio: {
           in: ["andreani", "ANDREANI"],

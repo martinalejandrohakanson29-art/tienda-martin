@@ -1024,8 +1024,12 @@ export async function obtenerPedidosAndreaniPendientes() {
     const ventas = await prisma.venta.findMany({
       where: {
         tipoVenta: "PEDIDO",
-        estadoPedido: "LISTO P/PREPARAR",
-        tipoEnvio: "andreani",
+        estadoPedido: {
+          in: ["LISTO_PARA_PREPARAR", "LISTO P/PREPARAR"],
+        },
+        tipoEnvio: {
+          in: ["andreani", "ANDREANI"],
+        },
       },
       include: { items: true },
       orderBy: { createdAt: "desc" },

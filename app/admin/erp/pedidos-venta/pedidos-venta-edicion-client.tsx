@@ -1111,10 +1111,10 @@ export default function PedidosVentaEdicionClient() {
                         </TableCell>
                         <TableCell className="text-center py-4">
                           <select
-                            value={venta.tipoEnvio || "andreani"}
+                            value={(venta.tipoEnvio || "andreani").toLowerCase()}
                             onChange={(e) => handleActualizarTipoEnvio(venta.id, e.target.value)}
                             disabled={processingIds.has(venta.id)}
-                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer transition-colors ${(venta.tipoEnvio || "andreani") === 'andreani' ? 'bg-red-100 text-red-700 border-red-200' :
+                            className={`text-[10px] uppercase font-bold rounded-lg px-2 py-1.5 border outline-none cursor-pointer transition-colors ${(venta.tipoEnvio || "andreani").toLowerCase() === 'andreani' ? 'bg-red-100 text-red-700 border-red-200' :
                               venta.tipoEnvio === 'via cargo' ? 'bg-green-100 text-green-700 border-green-200' :
                                 venta.tipoEnvio === 'Retiran aca' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
                                   'bg-white border-slate-200'
@@ -1896,7 +1896,7 @@ export default function PedidosVentaEdicionClient() {
                     <div className="space-y-1.5">
                       <Label className="text-[10px] font-bold text-slate-500 uppercase">Tipo de Envío</Label>
                       <select
-                        value={editingVenta.tipoEnvio || "andreani"}
+                        value={(editingVenta.tipoEnvio || "andreani").toLowerCase()}
                         onChange={(e) => setEditingVenta({ ...editingVenta, tipoEnvio: e.target.value })}
                         className="w-full h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-amber-500/20 transition-all appearance-none cursor-pointer"
                       >

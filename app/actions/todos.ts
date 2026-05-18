@@ -18,7 +18,7 @@ export async function createTodo(formData: FormData) {
                 content,
                 priority,
                 userId,
-                isShared: true 
+                isShared: true
             }
         })
         revalidatePath("/admin")

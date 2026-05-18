@@ -6,7 +6,7 @@ import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp
+  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp, Package
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -36,6 +36,7 @@ import { consultarPadron } from "@/app/actions/afip";
 import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
 import ResumenVentasTab from "./resumen-ventas-tab";
 import RendimientoVentasTab from "./rendimiento-ventas-tab";
+import EnviosAndreaniTab from "./envios-andreani-tab";
 
 type Decimal = {
   toNumber(): number;
@@ -1577,6 +1578,9 @@ export default function VentasMostradorClient({
               <TabsTrigger value="pedidos" className="gap-2 px-6 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 data-[state=active]:bg-indigo-100 data-[state=active]:text-indigo-900 border border-transparent data-[state=active]:border-indigo-200">
                 <Clock className="h-4 w-4" /> Pedidos de Ventas
               </TabsTrigger>
+              <TabsTrigger value="andreani" className="gap-2 px-6 bg-rose-50 text-rose-700 hover:bg-rose-100 data-[state=active]:bg-rose-100 data-[state=active]:text-rose-900 border border-transparent data-[state=active]:border-rose-200">
+                <Package className="h-4 w-4" /> Envíos Andreani
+              </TabsTrigger>
               <TabsTrigger value="resumen" className="gap-2 px-6 ml-auto bg-blue-50 text-blue-700 hover:bg-blue-100 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 border border-transparent data-[state=active]:border-blue-200">
                 <BarChart2 className="h-4 w-4" /> Resumen de Ventas
               </TabsTrigger>
@@ -2405,6 +2409,10 @@ export default function VentasMostradorClient({
           {/* --- PESTAÑA: RESUMEN DE VENTAS --- */}
           <TabsContent value="resumen" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
             <ResumenVentasTab />
+          </TabsContent>
+          {/* --- PESTAÑA: ENVÍOS ANDREANI --- */}
+          <TabsContent value="andreani" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
+            <EnviosAndreaniTab />
           </TabsContent>
           {/* --- PESTAÑA: RENDIMIENTO DE VENTAS --- */}
           <TabsContent value="rendimiento" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">

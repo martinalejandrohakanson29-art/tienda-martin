@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🚀 n8n Andreani Envío Express</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ---------------------------------
+    VARIABLES DE DISEÑO - PALETA CLARA Y FRESCA
+    --------------------------------- */
+    :root{
+        /* Colores alegres, claros y frescos */
+        --primary-color: #FF6B6B; /* CORAL VIBRANTE - Botones/CTA */
+        --primary-hover: #E85757; /* Un tono más oscuro de coral para hover */
+        --accent-color: #007AFF; /* AZUL BRILLANTE - Títulos/Foco */
+        --bg-main: #F0F8FF; /* FONDO PRINCIPAL: Azul Cielo Muy Suave */
+        --bg-card: #FFFFFF; /* Fondo de Tarjetas: Blanco Puro para Limpieza */
+        --border-color: #CBD5E1; /* Borde: Gris Suave */
+        --text-main: #1E293B; /* Slate 900 (Texto Principal, oscuro para contraste) */
+        --text-muted: #64748B; /* Slate 500 (Texto Secundario) */
+        --ok-color: #10B981; /* Emerald 500 */
+        --warn-color: #F59E0B; /* Amber 500 */
+        --bad-color: #EF4444; /* Red 500 */
+        --bg-code: #F8FAFC; /* Fondo de Pre/Textarea/Input (Gris muy claro) */
+        --shadow-elevation: 0 4px 15px rgba(0,0,0,0.1); /* Sombra más sutil */
+
+        /* Colores Secundarios para Botones */
+        --secondary-btn-bg: #4ECDC4; /* Verde Menta Claro/Turquesa */
+        --secondary-btn-hover: #3AA9A2; /* Menta más oscuro */
+    }
+    
+    /* ---------------------------------
+    ESTILOS BASE (ANCHO MODIFICADO)
+    --------------------------------- */
+    *{box-sizing:border-box}
+    body{
+        margin:0;
+        font-family:'Poppins', sans-serif;
+        background:var(--bg-main);
+        color:var(--text-main);
+        min-height:100vh;
+        display:flex;
+        align-items:flex-start;
+        justify-content:center;
+        padding:30px 20px;
+        overflow-y: auto;
+        scroll-behavior: smooth;
+    }
+    .wrap{
+        width:100%;
+        max-width:1500px; /* <<-- AUMENTADO PARA MÁS ANCHO */
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:30px;
+        align-items:flex-start;
+    }
+    @media (max-width: 900px) {
+      .wrap {
+        grid-template-columns: 1fr;
+        gap: 40px;
+      }
+    }
+    
+    /* ---------------------------------
+    TARJETAS (CARDS)
+    --------------------------------- */
+    .card{
+        background:var(--bg-card);
+        border:1px solid var(--border-color);
+        border-radius:20px;
+        padding:30px;
+        box-shadow:var(--shadow-elevation); 
+        display:flex;
+        flex-direction:column;
+        gap:15px;
+        min-height: 500px;
+    }
+    h1{
+        margin:0;
+        font-size:1.8rem;
+        color:var(--accent-color);
+        font-weight: 800;
+        letter-spacing: -0.5px;
+    }
+    .muted{color:var(--text-muted);font-size:.9rem;margin:0}
+    
+    /* ---------------------------------
+    INPUTS/TEXTAREAS/SELECTS
+    --------------------------------- */
+    textarea, input, select{
+        width:100%;
+        border-radius:12px;
+        border:1px solid var(--border-color);
+        background:var(--bg-code);
+        color:var(--text-main);
+        padding:12px 15px;
+        font-size:1rem;
+        transition:border-color 0.3s, box-shadow 0.3s;
+    }
+    /* Altura del textarea aumentada para evitar scroll */
+    textarea{
+        height:350px;
+        min-height: 150px;
+        resize:vertical;
+    }
+    input:focus, select:focus, textarea:focus{
+        border-color:var(--primary-color);
+        outline:none;
+        /* Efecto de 'glow' */
+        box-shadow:0 0 0 3px rgba(255, 107, 107, 0.4); 
+    }
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+    .field{display:flex;flex-direction:column;gap:6px;}
+    .small{
+        font-size:.7rem;
+        color:var(--text-muted);
+        font-weight:700;
+        text-transform:uppercase;
+        letter-spacing:1px;
+    }
+
+    /* ---------------------------------
+    BOTONES
+    --------------------------------- */
+    .btn{
+        display:inline-flex;
+        align-items:center;
+        gap:10px;
+        padding:10px 20px;
+        border-radius:10px;
+        font-weight:700;
+        cursor:pointer;
+        transition:all 0.3s cubic-bezier(.17,.67,.83,.67);
+        border:none;
+        font-size:1rem;
+        box-shadow:0 4px 10px rgba(0,0,0,0.2);
+    }
+    .btn-primary{
+        background:var(--primary-color);
+        color:var(--bg-card);
+    }
+    .btn-primary:hover:not(:disabled){
+        background:var(--primary-hover);
+        transform:translateY(-3px);
+        box-shadow:0 8px 15px rgba(255, 107, 107, 0.4);
+    }
+    .btn-secondary{
+        background:var(--secondary-btn-bg);
+        color:var(--text-main);
+        box-shadow:0 4px 10px rgba(78, 205, 196, 0.2);
+    }
+    .btn-secondary:hover:not(:disabled){
+        background:var(--secondary-btn-hover);
+        transform:translateY(-1px);
+        box-shadow:0 6px 12px rgba(78, 205, 196, 0.3);
+    }
+    .btn:disabled{
+        opacity:0.4;
+        cursor:not-allowed;
+        transform:none;
+        box-shadow:none;
+    }
+
+  
+    /* ---------------------------------
+    CÓDIGO / PREVISUALIZACIÓN
+    --------------------------------- */
+    pre{
+        margin:0;
+        white-space:pre-wrap;
+        word-break:break-word;
+        background:var(--bg-code);
+        border:1px solid var(--border-color);
+        border-radius:12px;
+        padding:15px;
+        min-height:100px;
+        max-height: 350px;
+        flex-grow: 1; 
+        overflow:auto;
+        font-family:'monospace';
+        font-size:0.9rem; /* <<-- LIGERAMENTE REDUCIDO PARA QUE ENTRE MEJOR */
+        line-height: 1.4; /* <<-- LIGERAMENTE REDUCIDO */
+        color: var(--text-main);
+    }
+    /* ---------------------------------
+    ESTADOS / PILLS / CHIPS
+    --------------------------------- */
+    .pill{
+        display:inline-block;
+        border-radius:50px;
+        padding:6px 14px;
+        font-weight:800;
+        font-size:.85rem;
+        text-transform:uppercase;
+        letter-spacing:1px;
+        transition: all 0.5s ease;
+    }
+    /* Ajuste de colores de fondo para estados */
+    .ok{background:#A7F3D0;border:1px solid var(--ok-color);color:#065F46;}
+    .warn{background:#FDE68A;border:1px solid var(--warn-color);color:#78350F;}
+    .bad{background:#FECACA;border:1px solid var(--bad-color);color:#7F1D1D;}
+    
+    .alerts{display:flex;flex-wrap:wrap;gap:8px;}
+    .chip{
+        border-radius:8px;
+        padding:7px 12px;
+        font-size:.8rem;
+        font-weight:700;
+        border:1px solid transparent;
+        background:var(--bg-code);
+        color:var(--text-main);
+        transition: transform 0.2s;
+    }
+    .chip:hover{
+        transform: scale(1.03);
+    }
+    /* Los chips de estado sí tienen fondos sólidos/fuertes */
+    .chip.bad{background:var(--bad-color);border-color:var(--bad-color);color:var(--bg-card)}
+    .chip.warn{background:var(--warn-color);border-color:var(--warn-color);color:var(--text-main)}
+    .chip.ok{background:var(--ok-color);border-color:var(--ok-color);color:var(--bg-card)}
+
+    /* ---------------------------------
+    OTROS AJUSTES DE MAQUETACIÓN
+    --------------------------------- */
+    .grid{
+        display:grid;
+        grid-template-columns:1fr;
+        gap:15px;
+    }
+    .hr{height:1px;background:var(--border-color);margin:20px 0;}
+    .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:15px;}
+    .controls .field input{height:44px;}
+    .sel{min-width:280px;padding:12px 15px;height:44px;} 
+    .details-row {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin: 10px 0 15px 0;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1><span style="color:var(--accent-color)">📦</span> Entrada de Pedido</h1>
+      <p class="muted">1. Carga o pega el texto del cliente. Luego, **Procesar con IA**.</p>
+
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn btn-secondary" id="btnLoadCover">📥 Cargar pedidos de Cover</button>
+        <select id="pedidoSelect" class="sel">
+          <option value="">Elegí un pedido…</option>
+        </select>
+      </div>
+
+      <textarea id="raw" placeholder="Pega aquí los datos del cliente, por ejemplo:
+Nombre completo: ...
+DNI: ...
+Domicilio: ...
+..."></textarea>
+
+      <div class="hr"></div>
+      <div class="row">
+        <button class="btn btn-primary" id="btnProcess">⚙️ Procesar con IA</button>
+        <button class="btn btn-primary" id="btnConfirm" disabled>✅ Confirmar y agregar a hoja</button>
+        <button class="btn btn-secondary" id="btnDownload">⬇️ Descargar XLSX</button>
+      </div>
+
+      <div class="hr"></div>
+      <p class="small">✅ PEDIDOS AGREGADOS EN ESTA SESIÓN:</p>
+      <div id="addedList" class="alerts"></div>
+      </section>
+
+    <section class="card">
+      <h1><span style="color:var(--primary-color)">✨</span> Previsualización y Validación</h1>
+      <p class="muted">2. Revisa los datos, corrige lo necesario y Confirma.</p>
+
+      <p class="small">📦 DIMENSIONES Y VALOR POR DEFECTO:</p>
+      <div class="controls">
+        <div class="field"><label class="small">Peso (grs)</label><input id="peso_grs" type="number" placeholder="500" min="1" /></div>
+        <div class="field"><label class="small">Alto (cm)</label><input id="alto_cm" type="number" placeholder="10" min="1" /></div>
+        <div class="field"><label class="small">Ancho (cm)</label><input id="ancho_cm" type="number" placeholder="10" min="1" /></div>
+        <div class="field"><label class="small">Valor declarado ($)</label><input id="valor_declarado" type="number" placeholder="100000" min="1" /></div>
+      </div>
+      
+      <div class="hr"></div>
+      <p class="small">⚠️ AVISOS DE VALIDACIÓN:</p>
+      <div id="alerts" class="alerts"></div>
+      
+      <p class="small">📋 DATOS FINALES PARA LA HOJA:</p>
+      <pre id="prettyOut"></pre>
+      <pre id="jsonOut" style="display:none">{}</pre>
+
+      <div class="hr"></div>
+      <div class="details-row">
+        <span id="badge" class="pill warn">Esperando…</span>
+        <span id="summary" class="muted">—</span>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label class="small">Provincia / Localidad / CP</label>
+          <input id="plc" readonly />
+        </div>
+        <div class="field">
+          <label class="small">Sugerencias (CP / Localidad)</label>
+          <input id="sugs" readonly />
+        </div>
+      </div>
+
+      <div style="display:none">
+        <input id="EP_PROCESS" />
+        <input id="EP_APPEND" />
+        <input id="EP_DOWNLOAD" />
+        <input id="EP_CLEAR" />
+        <input id="EP_COVER" />
+      </div>
+
+    </section>
+  </main>
+
+  <script>
+  // **********************************
+  // LÓGICA JAVASCRIPT: SIN MODIFICACIONES
+  // EL CÓDIGO ORIGINAL DEL USUARIO SE MANTIENE AQUÍ.
+  // **********************************
+  window.addEventListener('DOMContentLoaded', () => {
+    console.log('[Andreani Front] init');
+
+    // ===== util =====
+    const $ = (id) => document.getElementById(id);
+    const safeText = (el, v) => { if (el) el.textContent = v; };
+    const safeVal  = (el, v) => { if (el) el.value = v; };
+
+    // ===== ENDPOINTS por defecto (configurados para los inputs ocultos) =====
+    const EP_DEFAULTS = {
+      EP_PROCESS:  'https://n8n.revolucionmotos.tech/webhook/andreani/process',
+      EP_APPEND:   'https://n8n.revolucionmotos.tech/webhook/andreani/append',
+      EP_DOWNLOAD: 'https://n8n.revolucionmotos.tech/webhook/andreani/download',
+      EP_CLEAR:    'https://n8n.revolucionmotos.tech/webhook/andreani/clear',
+      EP_COVER:    'https://n8n.revolucionmotos.tech/webhook/cover-pedidos-pendientes'
+    };
+    const getEP = (id) => {
+      const val = $(id)?.value?.trim();
+      return val || EP_DEFAULTS[id];
+    };
+
+    // Inicializar los inputs ocultos con los valores por defecto
+    ['EP_PROCESS','EP_APPEND','EP_DOWNLOAD','EP_CLEAR','EP_COVER'].forEach(id=>{
+      const el = $(id);
+      if (el && !el.value) safeVal(el, EP_DEFAULTS[id]);
+    });
+
+    // ===== refs =====
+    const badge = $("badge");
+    const summary = $("summary");
+    const jsonOut = $("jsonOut");    // oculto
+    const prettyOut = $("prettyOut"); // visible
+    const plc = $("plc");
+    const sugs = $("sugs");
+    const alerts = $("alerts");
+    const btnProcess = $("btnProcess");
+    const btnConfirm = $("btnConfirm");
+    const btnDownload = $("btnDownload");
+    const btnLoadCover = $("btnLoadCover");
+    const pedidoSelect = $("pedidoSelect");
+    const addedList = $("addedList"); // NUEVO
+
+    let coverPedidos = [];
+    let addedItems = []; // NUEVO: pedidos agregados en esta sesión
+
+    // ===== helpers estado (sin cambios en la lógica) =====
+    function setStatus(state, text){
+      if (badge) badge.className = 'pill ' + (state==='OK' ? 'ok' : state==='CORREGIDO' ? 'warn' : state==='REVISAR' ? 'bad' : 'warn');
+      safeText(badge, state || '—');
+      safeText(summary, text || '');
+    }
+    function buildPLC(d){
+      const prov = (d.provincia||'').toString().toUpperCase();
+      const loc  = (d.partido_o_localidad || d.ciudad || '').toString().toUpperCase();
+      const cp   = (d.cp||'').toString();
+      return `${prov} / ${loc} / ${cp}`;
+    }
+
+    // OBTENER ETIQUETA
+    function getCurrentPedidoLabel(){
+      if (pedidoSelect && pedidoSelect.value){
+        const opt = pedidoSelect.options[pedidoSelect.selectedIndex];
+        if (opt && opt.textContent) return opt.textContent.trim();
+      }
+      const rawEl = $("raw");
+      if (rawEl && rawEl.value){
+        const line = rawEl.value.split(/\r?\n/).find(l => l.trim());
+        if (line) return line.trim().toUpperCase();
+      }
+      return 'Pedido manual';
+    }
+
+    // RENDERIZAR LISTA AGREGADA
+    function renderAddedList(){
+      if (!addedList) return;
+      addedList.innerHTML = '';
+      addedItems.forEach(lbl => {
+        const s = document.createElement('span');
+        s.className = 'chip ok';
+        s.textContent = lbl;
+        addedList.appendChild(s);
+      });
+    }
+
+    // FORMATO DNI
+    function formatDni(dni){
+      const digits = String(dni || '').replace(/\D/g, '');
+      if (digits.length === 8){
+        return digits.replace(/(\d{2})(\d{3})(\d{3})/, '$1.$2.$3');
+      }
+      if (digits.length === 7){
+        return digits.replace(/(\d{1})(\d{3})(\d{3})/, '$1.$2.$3');
+      }
+      return digits;
+    }
+
+    // EXTRAER REFERENCIA
+    function extractReferencia(ref){
+      if (!ref) return '';
+      let txt = String(ref);
+      const m = txt.match(/referencia\s*de\s*casa\s*[:\-]?\s*(.+)$/i);
+      if (m && m[1]){
+        txt = m[1];
+      }
+      txt = txt.replace(/[.,;]+$/,'').trim().toUpperCase();
+      return txt;
+    }
+
+    // CONSTRUYE TEXTO FINAL (Pretty)
+    function buildPretty(d){
+      if (!d || typeof d !== 'object') return '';
+
+      const nombre = (d.nombre || '').toString().trim();
+      const apellido = (d.apellido || '').toString().trim();
+      const nombreCompleto = `${apellido} ${nombre}`.trim().toUpperCase();
+
+      const dni = formatDni(d.dni);
+      const calle = (d.calle || '').toString().toUpperCase();
+      const numero = (d.numero || '').toString().toUpperCase();
+      const ciudad = (d.ciudad || d.partido_o_localidad || '').toString().toUpperCase();
+      const provincia = (d.provincia || '').toString().toUpperCase();
+      const cp = (d.cp || '').toString().toUpperCase();
+      const email = (d.email || '').toString();
+
+      const telCod = (d.tel_codigo || '').toString().trim();
+      const telNum = (d.tel_numero || '').toString().trim();
+      let tel = '';
+      if (telCod && telNum) tel = `${telCod}-${telNum}`;
+      else tel = (telCod + telNum).trim();
+
+      const referencias = extractReferencia(d.referencias || '');
+
+      const peso = d.peso_grs ?? '';
+      const alto = d.alto_cm ?? '';
+      const ancho = d.ancho_cm ?? '';
+      const valorDec = d.valor_declarado ?? '';
+
+      const lines = [];
+      if (nombreCompleto) lines.push(nombreCompleto);
+      if (dni) lines.push(`DNI:${dni}`);
+      if (calle || numero) lines.push(`DOMICILIO: ${calle} ${numero}`.trim());
+      if (ciudad) lines.push(`CIUDAD: ${ciudad}`);
+      if (provincia) lines.push(`PROVINCIA: ${provincia}`);
+      if (tel) lines.push(`TEL:${tel}`);
+      if (email) lines.push(`E-MAIL: ${email}`);
+      if (cp) lines.push(`CODIGO POSTAL:${cp}`);
+      if (referencias) lines.push(`REFERENCIA DE CASA: ${referencias}`);
+      if (peso !== '') lines.push(`PESO: ${peso}`);
+      if (alto !== '') lines.push(`ALTO: ${alto}`);
+      if (ancho !== '') lines.push(`ANCHO: ${ancho}`);
+      if (valorDec !== '') lines.push(`VALOR DECLARADO: ${valorDec}`);
+
+      return lines.join('\n');
+    }
+
+    // WHITELIST A PAYLOAD FINAL
+    function toFinalPayload(d){
+      const keep = [
+        'peso_grs','alto_cm','ancho_cm','profundidad_cm','valor_declarado',
+        'nombre','apellido','dni','email','tel_codigo','tel_numero',
+        'calle','numero','depto','ciudad','partido_o_localidad','provincia','cp','referencias',
+        'telefono_estado','telefono_msg'
+      ];
+      const src = { ...d };
+      if (!src.tel_codigo && src.cel_codigo) src.tel_codigo = src.cel_codigo;
+      if (!src.tel_numero && src.cel_numero) src.tel_numero = src.cel_numero;
+      src.tel_codigo = (src.tel_codigo ?? '').toString().trim();
+      src.tel_numero = (src.tel_numero ?? '').toString().trim();
+
+      const out = {};
+      keep.forEach(k => { if (k in src) out[k] = src[k]; });
+      return out;
+    }
+
+    // DEFAULTS
+    const DEFAULTS = { peso_grs: 500, alto_cm: 10, ancho_cm: 10, valor_declarado: 100000 };
+    function applyDefaults(finalD){
+      for (const k of Object.keys(DEFAULTS)){
+        const v = finalD[k];
+        if (v === undefined || v === null || (typeof v === 'string' && v.trim() === '')){
+          finalD[k] = DEFAULTS[k];
+        }
+      }
+      return finalD;
+    }
+
+    // ESCRIBIR CONTROLES (PESO/ALTO/ANCHO/VALOR)
+    function writeControls(finalD){
+      const setNum = (id, val) => { const el = document.getElementById(id); if (el) el.value = (val ?? ''); };
+      setNum('peso_grs', finalD.peso_grs ?? '');
+      setNum('alto_cm', finalD.alto_cm ?? '');
+      setNum('ancho_cm', finalD.ancho_cm ?? '');
+      setNum('valor_declarado', finalD.valor_declarado ?? '');
+    }
+
+    // LEER CONTROLES
+    function readControlsInto(finalD){
+      const readNum = (id) => { const el = document.getElementById(id); if (!el) return undefined; const n = Number(el.value); return Number.isFinite(n) && n>0 ? n : undefined; };
+      const p = readNum('peso_grs'); if (p !== undefined) finalD.peso_grs = p;
+      const a = readNum('alto_cm'); if (a !== undefined) finalD.alto_cm = a;
+      const an = readNum('ancho_cm'); if (an !== undefined) finalD.ancho_cm = an;
+      const vd = readNum('valor_declarado'); if (vd !== undefined) finalD.valor_declarado = vd;
+      return finalD;
+    }
+
+    // OBTENER FALTANTES
+    function getMissing(finalD){
+      const miss = [];
+      const has = (v) => v !== undefined && v !== null && String(v).trim() !== '';
+
+      if (!has(finalD.dni)) miss.push('Falta DNI');
+
+      const telEstadoOk = String(finalD.telefono_estado || '').toUpperCase() === 'OK';
+      const telOK = (has(finalD.tel_codigo) && has(finalD.tel_numero)) || telEstadoOk;
+      if (!telOK) miss.push('Falta teléfono (código y número)');
+
+      const email = String(finalD.email || '');
+      if (!/.+@.+\..+/.test(email)) miss.push('Email faltante o inválido');
+
+      if (!has(finalD.numero)) miss.push('Falta altura de calle');
+      return miss;
+    }
+    
+    // OBTENER ADVERTENCIAS
+    function getWarnings(finalD){
+      const warns = [];
+      const numero = String(finalD.numero ?? '').trim();
+      if (numero === '0') warns.push('Altura no provista (se usa 0)');
+      return warns;
+    }
+
+    // RENDERIZAR ALERTAS
+    function renderAlerts(miss, warns){
+      if (!alerts) return;
+      alerts.innerHTML = '';
+      (warns||[]).forEach(w => { const s=document.createElement('span'); s.className='chip warn'; s.textContent=w; alerts.appendChild(s); });
+      (miss||[]).forEach(m => { const s=document.createElement('span'); s.className='chip bad'; s.textContent=m; alerts.appendChild(s); });
+
+      try{
+        const cur = JSON.parse(jsonOut?.textContent || '{}');
+        const estado = String(cur.telefono_estado || '').toUpperCase();
+        const msg = (cur.telefono_msg || '').toString().trim();
+        if (msg && estado !== 'OK'){
+          const s=document.createElement('span');
+          s.className='chip warn';
+          s.textContent = msg;
+          alerts.appendChild(s);
+        }
+      }catch(e){}
+    }
+
+    // LLAMADA AJAX A N8N (POST)
+    async function callJSON(url, body){
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body ?? {})
+      });
+      const ct = res.headers.get('content-type') || '';
+      const text = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${text?.slice(0,400) || '(sin cuerpo)'}`);
+      if (!ct.includes('application/json')) throw new Error(`Respuesta no JSON: ${text?.slice(0,400) || '(sin cuerpo)'}`);
+      if (!text) throw new Error('El servidor respondió JSON vacío');
+      try { return JSON.parse(text); } catch(e){ throw new Error(`JSON inválido: ${text?.slice(0,400)}`); }
+    }
+
+    // ===================================
+    // FUNCIÓN PRINCIPAL: PROCESAR CON IA
+    // ===================================
+    async function onProcess(){
+      try{
+        setStatus('…','Procesando');
+        const ep = getEP('EP_PROCESS');
+        const raw = $("raw")?.value.trim() || '';
+        if (!raw) throw new Error('Pegá el texto del cliente en Entrada cruda, o elegí un pedido de Cover');
+
+        const payload = { body: { raw } };
+        const out = await callJSON(ep, payload);
+        let d = out?.data ?? out;
+        if (Array.isArray(d)) d = d[0] ?? {};
+
+        safeVal(plc, buildPLC(d));
+        const estado = d.validacion_cp || 'OK';
+        const info = d.motivo_validacion || '';
+        const sug = [d.localidad_sugerida, d.cp_sugerido].filter(Boolean).join(' · ');
+        safeVal(sugs, sug);
+        setStatus(estado, info || '');
+
+        let finalD = toFinalPayload(d);
+        finalD = applyDefaults(finalD);
+        writeControls(finalD);
+
+        if (jsonOut) jsonOut.textContent = JSON.stringify(finalD);
+        if (prettyOut) prettyOut.textContent = buildPretty(finalD);
+
+        const miss = getMissing(finalD);
+        const warns = getWarnings(finalD);
+        renderAlerts(miss, warns);
+        const mustReview = (estado === 'REVISAR') || miss.length > 0;
+        if (btnConfirm) btnConfirm.disabled = mustReview;
+      }catch(err){
+        console.error('[Andreani Front] onProcess error:', err);
+        setStatus('REVISAR', err.message);
+        if (jsonOut) jsonOut.textContent = JSON.stringify({ error: err.message });
+        if (prettyOut) prettyOut.textContent = 'Error: ' + err.message;
+        if (btnConfirm) btnConfirm.disabled = true;
+      }
+    }
+
+    // ===================================
+    // FUNCIÓN: CONFIRMAR Y AGREGAR
+    // ===================================
+    async function onConfirm(){
+      try{
+        const ep = getEP('EP_APPEND');
+        const finalText = (jsonOut?.textContent || '{}');
+        const d = JSON.parse(finalText);
+        await callJSON(ep, { data: d });
+        setStatus('OK', 'Agregado a la hoja Carga');
+        const rawEl = $("raw");
+        if (rawEl) rawEl.value = '';
+
+        const label = getCurrentPedidoLabel();
+        if (label){
+          if (!addedItems.includes(label)) addedItems.push(label);
+          renderAddedList();
+        }
+
+      }catch(err){
+        console.error('[Andreani Front] onConfirm error:', err);
+        setStatus('REVISAR', err.message);
+      }
+    }
+
+    // ===================================
+    // FUNCIÓN: DESCARGA + CLEAR
+    // ===================================
+    function onDownload(){
+      try {
+        const epDownload = getEP('EP_DOWNLOAD');
+        const epClear    = getEP('EP_CLEAR');
+
+        const btn = document.getElementById('btnDownload');
+        if (btn) { btn.disabled = true; btn.textContent = 'Descargando…'; }
+
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = epDownload;
+
+        let cleared = false;
+
+        async function doClear(){
+          if (cleared) return;
+          cleared = true;
+          try {
+            const res = await fetch(epClear, { method: 'POST', keepalive: true });
+            if (!res.ok) throw new Error(`Clear falló (${res.status})`);
+
+            addedItems = [];
+            renderAddedList();
+
+            alert('Listo: descarga iniciada y la hoja “Carga” quedó vacía.');
+          } catch (e) {
+            console.error(e);
+            alert('Descarga ok, pero falló el borrado de "Carga". Revisá n8n/CORS/token.');
+          } finally {
+            setTimeout(() => iframe.remove(), 2000);
+            if (btn) { btn.disabled = false; btn.textContent = '⬇️ Descargar XLSX'; }
+          }
+        }
+
+        const fallback = setTimeout(doClear, 2000);
+        iframe.onload = async () => {
+          clearTimeout(fallback);
+          await doClear();
+        };
+
+        document.body.appendChild(iframe);
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
+    // ===================================
+    // FUNCIÓN: CARGAR PEDIDOS COVER
+    // ===================================
+    async function loadPedidosCover(){
+      try{
+        setStatus('…','Cargando pedidos de Cover');
+        const ep = getEP('EP_COVER');
+        const res = await fetch(ep);
+        const ct = res.headers.get('content-type') || '';
+        const text = await res.text();
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0,200)}`);
+        if (!ct.includes('application/json')) throw new Error('Respuesta no JSON desde Cover');
+
+        const data = JSON.parse(text);
+        if (!Array.isArray(data)) throw new Error('Formato inesperado: se esperaba un arreglo');
+
+        coverPedidos = data;
+
+        if (pedidoSelect){
+          pedidoSelect.innerHTML = '<option value="">Elegí un pedido…</option>';
+          data.forEach(p => {
+            const numero = p.numero_pedido || '';
+            const numCorto = numero ? numero.replace(/^0+/, '') : '';
+            const lineas = Array.isArray(p.observaciones_lineas) ? p.observaciones_lineas : [];
+
+            const nombreLinea = lineas.find(l => {
+              if (!l) return false;
+              const t = l.trim();
+              if (!t) return false;
+              const upper = t.toUpperCase();
+              if (upper === 'OBSERVACIONES') return false;
+              const pref = ['DNI:','DOMICILIO:','CIUDAD:','PROVINCIA:','TEL:','TELEFONO:','E-MAIL:','CODIGO POSTAL:','REFERENCIA','REFERENCIAS'];
+              if (pref.some(pfx => upper.startsWith(pfx))) return false;
+              return true;
+            }) || '';
+
+            const nombre = (p.nombre_responsable || nombreLinea || '').trim() || 'sin nombre';
+
+            const label = numCorto
+              ? `${numCorto} - ${nombre}`
+              : nombre;
+
+            const opt = document.createElement('option');
+            opt.value = numero;
+            opt.textContent = label;
+            pedidoSelect.appendChild(opt);
+          });
+        }
+
+        setStatus('OK', `Se cargaron ${data.length} pedidos de Cover`);
+      }catch(err){
+        console.error('[Andreani Front] loadPedidosCover error:', err);
+        setStatus('REVISAR', 'No se pudieron cargar pedidos de Cover: ' + err.message);
+      }
+    }
+
+    // ===================================
+    // FUNCIÓN: CAMBIO EN SELECT DE PEDIDOS
+    // ===================================
+    function onPedidoChange(){
+      if (!pedidoSelect) return;
+      const id = pedidoSelect.value;
+      if (!id) return;
+      const pedido = coverPedidos.find(p => (p.numero_pedido || '') === id);
+      if (!pedido) return;
+
+      const lineas = Array.isArray(pedido.observaciones_lineas)
+        ? pedido.observaciones_lineas
+        : (pedido.observaciones_raw ? String(pedido.observaciones_raw).split(/\r?\n/) : []);
+
+      const rawEl = $("raw");
+      if (rawEl){
+        rawEl.value = lineas.join('\n');
+        rawEl.scrollTop = 0;
+      }
+      setStatus('OK', `Pedido ${id} copiado al cuadro de texto`);
+    }
+
+    // ===================================
+    // EVENTOS
+    // ===================================
+    if (btnProcess) btnProcess.addEventListener('click', onProcess);
+    if (btnConfirm) btnConfirm.addEventListener('click', onConfirm);
+    if (btnDownload) btnDownload.addEventListener('click', onDownload);
+    if (btnLoadCover) btnLoadCover.addEventListener('click', loadPedidosCover);
+    if (pedidoSelect) pedidoSelect.addEventListener('change', onPedidoChange);
+
+    // Actualizar al cambiar peso/alto/ancho/valor
+    ['peso_grs','alto_cm','ancho_cm','valor_declarado'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('input', () => {
+        try{
+          const current = JSON.parse(jsonOut?.textContent || '{}');
+          readControlsInto(current);
+          const withDefaults = applyDefaults(current);
+          if (jsonOut) jsonOut.textContent = JSON.stringify(withDefaults);
+          if (prettyOut) prettyOut.textContent = buildPretty(withDefaults);
+          const miss = getMissing(withDefaults);
+          const warns = getWarnings(withDefaults);
+          renderAlerts(miss, warns);
+          if (btnConfirm) btnConfirm.disabled = miss.length > 0;
+        }catch(e){}
+      });
+    });
+
+    console.log('[Andreani Front] wired');
+  });
+  </script>
+</body>
+</html>

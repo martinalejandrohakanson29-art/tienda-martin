@@ -29,7 +29,10 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\" -Recurse -Directory)",
       "Bash(Format-Table FullName)",
       "Bash(npx prisma *)",
-      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\" -Recurse -Force)"
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\marti\\\\OneDrive\\\\Desktop\\\\proyecto\\\\tienda-martin\" -Recurse -Force)",
+      "Bash(npx next *)",
+      "Bash(node -e \"const { Package } = require\\('lucide-react'\\); console.log\\(typeof Package\\);\")",
+      "Bash(git stash *)"
     ]
   }
 }

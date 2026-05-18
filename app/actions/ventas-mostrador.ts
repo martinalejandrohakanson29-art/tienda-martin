@@ -1018,6 +1018,37 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
   }
 }
 
+export async function obtenerPedidosAndreaniPendientes() {
+  await requireAdmin();
+  try {
+    const ventas = await prisma.venta.findMany({
+      where: {
+        tipoVenta: "PEDIDO",
+        estadoPedido: "LISTO P/PREPARAR",
+        tipoEnvio: "andreani",
+      },
+      include: { items: true },
+      orderBy: { createdAt: "desc" },
+    });
+    return ventas.map(v => ({
+      ...v,
+      total: Number(v.total),
+      interes: Number(v.interes),
+      totalFinal: Number(v.totalFinal),
+      createdAt: v.createdAt.toISOString(),
+      items: v.items.map(i => ({
+        ...i,
+        productoId: i.productoId || null,
+        precio_unit: Number(i.precio_unit),
+        subtotal: Number(i.subtotal),
+      })),
+    }));
+  } catch (error) {
+    console.error("Error al obtener pedidos Andreani pendientes:", error);
+    return [];
+  }
+}
+
 // Funciones para pedidos de venta
 export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string, estadoPedido?: string) {
   await requireAdmin();

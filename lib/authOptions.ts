@@ -19,12 +19,12 @@ export const authOptions: NextAuthOptions = {
                     where: { username: credentials.username }
                 });
 
-                // 2. Verificamos si existe y si la contraseña coincide (bcrypt)
-                if (user && await bcrypt.compare(credentials.password, user.password)) {
+                // 2. Verificamos si existe, está activo y la contraseña coincide (bcrypt)
+                if (user && user.isActive && await bcrypt.compare(credentials.password, user.password)) {
                     return {
                         id: user.id,
                         name: user.username,
-                        role: user.role, // Traemos el ROL (ADMIN o USER)
+                        role: user.role,
                     }
                 }
                 

@@ -9,11 +9,30 @@ datasource db {
 }
 
 model User {
-  id       String @id @default(cuid())
-  username String @unique
-  password String
-  role     Role   @default(USER)
-  todos    Todo[]
+  id                 String             @id @default(cuid())
+  username           String             @unique
+  password           String
+  name               String?
+  role               Role               @default(USER)
+  isActive           Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  todos              Todo[]
+  notifRulesAsTarget NotificationRule[] @relation("NotificationRuleTarget")
+  notifRulesAsSource NotificationRule[] @relation("NotificationRuleSource")
+}
+
+model NotificationRule {
+  id           String   @id @default(cuid())
+  name         String
+  eventType    String
+  sourceUserId String?
+  targetUserId String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  targetUser   User     @relation("NotificationRuleTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  sourceUser   User?    @relation("NotificationRuleSource", fields: [sourceUserId], references: [id], onDelete: SetNull)
 }
 
 model Todo {
@@ -845,6 +864,7 @@ model VentaMLRegistracion {
 }
 
 enum Role {
+  SUPER_ADMIN
   ADMIN
   USER
 }

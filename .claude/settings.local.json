@@ -34,7 +34,9 @@
       "Bash(node -e \"const { Package } = require\\('lucide-react'\\); console.log\\(typeof Package\\);\")",
       "Bash(git stash *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\" -Force)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem *)",
+      "PowerShell(cd \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\"; $env:PRISMA_MIGRATE_SKIP_SEED = \"1\"; npx prisma migrate dev --name add_super_admin_and_notification_rules --skip-seed 2>&1)"
     ]
   }
 }

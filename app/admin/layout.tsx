@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { SessionProvider } from "next-auth/react";
 
 export default function AdminLayout({
   children,
@@ -17,6 +18,7 @@ export default function AdminLayout({
   const isFullscreenPage = pathname !== "/admin";
 
   return (
+    <SessionProvider>
     <div className="flex flex-col md:flex-row min-h-screen bg-white">
       
       {/* BARRA LATERAL (Se oculta si no estamos en el dashboard principal) */}
@@ -57,5 +59,6 @@ export default function AdminLayout({
         </div>
       </main>
     </div>
+    </SessionProvider>
   );
 }

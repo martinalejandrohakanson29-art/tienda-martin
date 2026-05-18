@@ -2,10 +2,10 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Package, Settings, Image as ImageIcon, Wrench, LogOut } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { LayoutDashboard, Package, Settings, Image as ImageIcon, Wrench, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
-// 👇 CORRECCIÓN: Quitamos las llaves { } porque es una exportación por defecto
-import SignOutButton from "@/components/sign-out-button" 
+import SignOutButton from "@/components/sign-out-button"
 
 const routes = [
     {
@@ -13,35 +13,51 @@ const routes = [
         icon: LayoutDashboard,
         href: "/admin",
         color: "text-sky-500",
+        roles: ["USER", "ADMIN", "SUPER_ADMIN"],
     },
     {
         label: "Productos",
         icon: Package,
         href: "/admin/products",
         color: "text-violet-500",
+        roles: ["USER", "ADMIN", "SUPER_ADMIN"],
     },
     {
         label: "Carrusel",
         icon: ImageIcon,
         href: "/admin/carousel",
         color: "text-pink-700",
+        roles: ["USER", "ADMIN", "SUPER_ADMIN"],
     },
     {
         label: "Configuración",
         icon: Settings,
         href: "/admin/config",
         color: "text-orange-700",
+        roles: ["USER", "ADMIN", "SUPER_ADMIN"],
     },
     {
         label: "Herramientas",
         icon: Wrench,
         href: "/admin/tools",
         color: "text-gray-500",
+        roles: ["USER", "ADMIN", "SUPER_ADMIN"],
+    },
+    {
+        label: "Usuarios",
+        icon: Users,
+        href: "/admin/usuarios",
+        color: "text-purple-400",
+        roles: ["SUPER_ADMIN"],
     },
 ]
 
 export function AdminNav({ className }: { className?: string }) {
     const pathname = usePathname()
+    const { data: session } = useSession()
+    const userRole = (session?.user as any)?.role as string | undefined
+
+    const visibleRoutes = routes.filter(r => !userRole || r.roles.includes(userRole))
 
     return (
         <div className={cn("space-y-4 py-4 flex flex-col h-full bg-slate-900 text-white", className)}>
@@ -52,7 +68,7 @@ export function AdminNav({ className }: { className?: string }) {
                     </h1>
                 </Link>
                 <div className="space-y-1">
-                    {routes.map((route) => (
+                    {visibleRoutes.map((route) => (
                         <Link
                             key={route.href}
                             href={route.href}
@@ -69,13 +85,11 @@ export function AdminNav({ className }: { className?: string }) {
                     ))}
                 </div>
             </div>
-            
-            {/* Botón de Salir al final */}
+
             <div className="px-3 py-4 border-t border-slate-800">
-                 {/* Usamos el componente que importamos */}
-                 <div className="px-3">
+                <div className="px-3">
                     <SignOutButton />
-                 </div>
+                </div>
             </div>
         </div>
     )

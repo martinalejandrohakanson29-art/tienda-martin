@@ -1,14 +1,13 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
-import { toast } from "sonner"
-import { Bell } from "lucide-react"
+import { createPortal } from "react-dom"
+import { Bell, X } from "lucide-react"
 
 function playNotificationSound() {
     try {
         const ctx = new AudioContext()
-
         const playTone = (freq: number, start: number, duration: number, volume = 0.25) => {
             const osc = ctx.createOscillator()
             const gain = ctx.createGain()
@@ -22,7 +21,6 @@ function playNotificationSound() {
             osc.start(start)
             osc.stop(start + duration)
         }
-
         playTone(880, ctx.currentTime, 0.18)
         playTone(1100, ctx.currentTime + 0.16, 0.22)
     } catch {
@@ -38,9 +36,92 @@ type NotifRow = {
     createdAt: string
 }
 
+type DisplayNotif = NotifRow & { displayId: string }
+
+const AUTO_DISMISS_MS = 8000
+
+function NotificationCard({ notif, onClose }: { notif: DisplayNotif; onClose: (id: string) => void }) {
+    const [visible, setVisible] = useState(false)
+    const [progress, setProgress] = useState(100)
+    const startRef = useRef<number>(Date.now())
+    const rafRef = useRef<number | null>(null)
+
+    useEffect(() => {
+        // Pequeño delay para que la animación de entrada se note
+        requestAnimationFrame(() => setVisible(true))
+
+        function tick() {
+            const elapsed = Date.now() - startRef.current
+            const remaining = Math.max(0, 100 - (elapsed / AUTO_DISMISS_MS) * 100)
+            setProgress(remaining)
+            if (remaining > 0) {
+                rafRef.current = requestAnimationFrame(tick)
+            } else {
+                handleClose()
+            }
+        }
+        rafRef.current = requestAnimationFrame(tick)
+
+        return () => {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current)
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    function handleClose() {
+        setVisible(false)
+        setTimeout(() => onClose(notif.displayId), 300)
+    }
+
+    return (
+        <div
+            style={{
+                transform: visible ? "translateX(0)" : "translateX(110%)",
+                opacity: visible ? 1 : 0,
+                transition: "transform 0.3s ease, opacity 0.3s ease",
+            }}
+            className="w-80 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden"
+        >
+            {/* Barra de progreso */}
+            <div className="h-1 bg-gray-100">
+                <div
+                    className="h-full bg-amber-400 transition-none"
+                    style={{ width: `${progress}%` }}
+                />
+            </div>
+
+            <div className="flex items-start gap-3 px-4 py-3.5">
+                <div className="shrink-0 mt-0.5 w-8 h-8 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+                    <Bell className="w-4 h-4 text-amber-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm leading-snug">{notif.title}</p>
+                    {notif.body && (
+                        <p className="text-xs text-gray-500 mt-0.5 leading-snug">{notif.body}</p>
+                    )}
+                </div>
+                <button
+                    onClick={handleClose}
+                    className="shrink-0 mt-0.5 text-gray-300 hover:text-gray-600 transition-colors"
+                >
+                    <X className="w-4 h-4" />
+                </button>
+            </div>
+        </div>
+    )
+}
+
 export function NotificationListener() {
     const { data: session } = useSession()
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const [notifs, setNotifs] = useState<DisplayNotif[]>([])
+    const [mounted, setMounted] = useState(false)
+
+    useEffect(() => { setMounted(true) }, [])
+
+    const dismiss = useCallback((displayId: string) => {
+        setNotifs(prev => prev.filter(n => n.displayId !== displayId))
+    }, [])
 
     useEffect(() => {
         if (!session) return
@@ -50,15 +131,12 @@ export function NotificationListener() {
                 const res = await fetch("/api/notifications/unread", { cache: "no-store" })
                 if (!res.ok) return
                 const notifications: NotifRow[] = await res.json()
-
                 for (const notif of notifications) {
                     playNotificationSound()
-                    toast(notif.title, {
-                        description: notif.body ?? undefined,
-                        icon: <Bell className="w-4 h-4 text-amber-500" />,
-                        duration: 10000,
-                        className: "border border-amber-200 bg-amber-50",
-                    })
+                    setNotifs(prev => [
+                        ...prev,
+                        { ...notif, displayId: `${notif.id}-${Date.now()}` },
+                    ])
                 }
             } catch {
                 // error de red, ignorar
@@ -66,11 +144,19 @@ export function NotificationListener() {
         }
 
         intervalRef.current = setInterval(poll, 5000)
-
-        return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current)
-        }
+        return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
     }, [session])
 
-    return null
+    if (!mounted || notifs.length === 0) return null
+
+    return createPortal(
+        <div className="fixed bottom-5 right-5 z-[9999] flex flex-col-reverse gap-2.5 pointer-events-none">
+            {notifs.map(n => (
+                <div key={n.displayId} className="pointer-events-auto">
+                    <NotificationCard notif={n} onClose={dismiss} />
+                </div>
+            ))}
+        </div>,
+        document.body
+    )
 }

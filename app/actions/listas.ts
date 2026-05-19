@@ -290,7 +290,7 @@ export async function actualizarProveedor(id: string, data: {
   aliasCbu?: string | null;
 }) {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as any).role !== "ADMIN") {
+  if (!session) {
     return { success: false, error: "No autorizado" }
   }
 
@@ -340,7 +340,7 @@ export async function crearProveedor(data: {
   aliasCbu?: string | null;
 }) {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as any).role !== "ADMIN") {
+  if (!session) {
     return { success: false, error: "No autorizado" }
   }
 
@@ -373,7 +373,7 @@ export async function crearProveedor(data: {
 
 export async function eliminarProveedor(id: string) {
   const session = await getServerSession(authOptions)
-  if (!session || (session.user as any).role !== "ADMIN") {
+  if (!session) {
     return { success: false, error: "No autorizado" }
   }
 

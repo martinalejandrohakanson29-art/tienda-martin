@@ -93,9 +93,13 @@ export default function ChatwootPage() {
     const handleEnviarDifusion = async () => {
         if (dbMayoristas.length === 0) return
         
-        // Validación para asegurarnos de que no mandes un mensaje vacío por error
-        if (!plantilla.titulo || !plantilla.precio) {
+        // Validación según tipo de adjunto
+        if (tipoAdjunto === "imagen" && (!plantilla.titulo || !plantilla.precio)) {
             alert("Por favor, completa al menos el Título y el Precio para enviar la difusión.")
+            return
+        }
+        if (tipoAdjunto === "pdf" && (!plantilla.titulo || !plantilla.url_foto)) {
+            alert("Por favor, completa el texto del mensaje y el link del PDF para enviar la difusión.")
             return
         }
 
@@ -196,37 +200,13 @@ export default function ChatwootPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        
+
                         {/* CASILLEROS PARA LA PLANTILLA */}
                         <div className="space-y-3 bg-slate-50 p-4 rounded-md border border-slate-200">
-                            {/* CAMPO 1: TÍTULO */}
+                            {/* TIPO DE ADJUNTO: PRIMER CAMPO */}
                             <div className="space-y-1">
-                                <Label htmlFor="titulo" className="text-xs font-bold text-slate-500 uppercase">1. Título del Producto</Label>
-                                <Input id="titulo" placeholder="Ej: TAPA CDI 125" value={plantilla.titulo} onChange={handlePlantillaChange} disabled={enviando} />
-                            </div>
-                            
-                            {/* CAMPOS 2 Y 3: DESCRIPCIONES */}
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="space-y-1">
-                                    <Label htmlFor="descripcion1" className="text-xs font-bold text-slate-500 uppercase">2. Descripción 1</Label>
-                                    <Input id="descripcion1" placeholder="Ej: * IDEAL POTENCIACION" value={plantilla.descripcion1} onChange={handlePlantillaChange} disabled={enviando} />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="descripcion2" className="text-xs font-bold text-slate-500 uppercase">3. Descripción 2</Label>
-                                    <Input id="descripcion2" placeholder="Ej: * MAS POTENCIA" value={plantilla.descripcion2} onChange={handlePlantillaChange} disabled={enviando} />
-                                </div>
-                            </div>
-
-                            {/* CAMPO 4: PRECIO */}
-                            <div className="space-y-1">
-                                <Label htmlFor="precio" className="text-xs font-bold text-slate-500 uppercase">4. Precio</Label>
-                                <Input id="precio" placeholder="Ej: $115.000" value={plantilla.precio} onChange={handlePlantillaChange} disabled={enviando} />
-                            </div>
-
-                            {/* CAMPO 5: TIPO DE ADJUNTO */}
-                            <div className="space-y-1 pt-2 border-t mt-2">
                                 <Label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
-                                    5. Tipo de Archivo Adjunto
+                                    Tipo de Archivo Adjunto
                                 </Label>
                                 <Select value={tipoAdjunto} onValueChange={(v) => setTipoAdjunto(v as "imagen" | "pdf")} disabled={enviando}>
                                     <SelectTrigger className="w-full">
@@ -247,13 +227,51 @@ export default function ChatwootPage() {
                                 </Select>
                             </div>
 
-                            {/* CAMPO 6: URL FOTO */}
-                            <div className="space-y-1">
-                                <Label htmlFor="url_foto" className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
-                                    <ImageIcon size={14} /> 6. Link del Archivo (URL)
-                                </Label>
-                                <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
-                            </div>
+                            {tipoAdjunto === "imagen" ? (
+                                <>
+                                    {/* CAMPOS IMAGEN: título, descripciones, precio, url */}
+                                    <div className="space-y-1 pt-2 border-t mt-2">
+                                        <Label htmlFor="titulo" className="text-xs font-bold text-slate-500 uppercase">Título del Producto</Label>
+                                        <Input id="titulo" placeholder="Ej: TAPA CDI 125" value={plantilla.titulo} onChange={handlePlantillaChange} disabled={enviando} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="descripcion1" className="text-xs font-bold text-slate-500 uppercase">Descripción 1</Label>
+                                            <Input id="descripcion1" placeholder="Ej: * IDEAL POTENCIACION" value={plantilla.descripcion1} onChange={handlePlantillaChange} disabled={enviando} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="descripcion2" className="text-xs font-bold text-slate-500 uppercase">Descripción 2</Label>
+                                            <Input id="descripcion2" placeholder="Ej: * MAS POTENCIA" value={plantilla.descripcion2} onChange={handlePlantillaChange} disabled={enviando} />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="precio" className="text-xs font-bold text-slate-500 uppercase">Precio</Label>
+                                        <Input id="precio" placeholder="Ej: $115.000" value={plantilla.precio} onChange={handlePlantillaChange} disabled={enviando} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="url_foto" className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                            <ImageIcon size={14} /> Link de la Imagen (URL)
+                                        </Label>
+                                        <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* CAMPOS PDF: texto {{1}} + URL */}
+                                    <div className="space-y-1 pt-2 border-t mt-2">
+                                        <Label htmlFor="titulo" className="text-xs font-bold text-slate-500 uppercase">
+                                            Texto del mensaje <span className="text-emerald-600 normal-case font-mono">{"{{1}}"}</span>
+                                        </Label>
+                                        <Input id="titulo" placeholder="Ej: Lista de precios Mayo 2025" value={plantilla.titulo} onChange={handlePlantillaChange} disabled={enviando} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="url_foto" className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                            <FileText size={14} /> Link del PDF (URL)
+                                        </Label>
+                                        <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
+                                    </div>
+                                </>
+                            )}
                         </div>
                         
                         <div className="pt-2 text-center py-3 bg-emerald-50 border border-emerald-100 rounded-md">

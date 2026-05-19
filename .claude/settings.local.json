@@ -43,7 +43,8 @@
       "Bash(Get-Content \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\\\\app\\\\admin\\\\ventas-mostrador\\\\ventas-client.tsx\")",
       "Bash(Measure-Object -Line)",
       "PowerShell(\\(Get-Content \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\\\\app\\\\admin\\\\ventas-mostrador\\\\ventas-client.tsx\" | Measure-Object -Line\\).Lines)",
-      "Bash(findstr *)"
+      "Bash(findstr *)",
+      "Bash(git push *)"
     ]
   }
 }

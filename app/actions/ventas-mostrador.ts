@@ -628,7 +628,7 @@ export async function crearVentaMostrador(data: {
       }
 
       return venta;
-    });
+    }, { timeout: 20000 });
 
     triggerNotification({
       eventType: "VENTA_MOSTRADOR_CREADA",
@@ -776,7 +776,7 @@ export async function guardarComoPedidoVenta(data: {
       }
 
       return venta;
-    });
+    }, { timeout: 20000 });
 
     return { success: true, id: result.id, numeroVenta: result.numeroVenta };
   } catch (error) {
@@ -883,7 +883,7 @@ export async function actualizarVentaMostrador(ventaId: string, rawData: unknown
           detalle: detalleCambios
         }
       });
-    });
+    }, { timeout: 20000 });
 
     revalidatePath("/admin/ventas-mostrador");
     return { success: true };
@@ -1017,7 +1017,7 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
       await ajustarStockItemsTx(tx, items.filter(i => i.productoId).map(i => ({ productoId: i.productoId!, cantidad: i.cantidad })), "increment");
 
       await tx.venta.delete({ where: { id: ventaId } });
-    });
+    }, { timeout: 20000 });
 
     return { success: true };
   } catch (error) {
@@ -1628,7 +1628,7 @@ export async function cancelarVenta(ventaId: string) {
           }
         }
         await ajustarStockItemsTx(tx, stockItems, "increment");
-      });
+      }, { timeout: 20000 });
       revalidatePath("/admin/ventas-mostrador");
       return { success: true, message: "Venta cancelada y Nota de Crédito generada." };
     } else {
@@ -1653,7 +1653,7 @@ export async function cancelarVenta(ventaId: string) {
       }
     }
     await ajustarStockItemsTx(tx, stockItems, "increment");
-  });
+  }, { timeout: 20000 });
   revalidatePath("/admin/ventas-mostrador");
   return { success: true, message: "Venta cancelada correctamente." };
 }

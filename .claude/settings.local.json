@@ -37,7 +37,12 @@
       "Bash(Select-Object Name)",
       "Bash(Get-ChildItem *)",
       "PowerShell(cd \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\"; $env:PRISMA_MIGRATE_SKIP_SEED = \"1\"; npx prisma migrate dev --name add_super_admin_and_notification_rules --skip-seed 2>&1)",
-      "Bash(set \"PRISMA_MIGRATE_SKIP_GENERATE=false\")"
+      "Bash(set \"PRISMA_MIGRATE_SKIP_GENERATE=false\")",
+      "Bash(node -e \"const fs = require\\('fs'\\); const content = fs.readFileSync\\('app/admin/ventas-mostrador/ventas-client.tsx', 'utf8'\\); console.log\\('Lines:', content.split\\('\\\\n'\\).length\\); console.log\\('Size:', content.length\\);\")",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\\\\app\\\\admin\\\\ventas-mostrador\\\\ventas-client.tsx\")",
+      "Bash(Measure-Object -Line)",
+      "PowerShell(\\(Get-Content \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\\\\app\\\\admin\\\\ventas-mostrador\\\\ventas-client.tsx\" | Measure-Object -Line\\).Lines)"
     ]
   }
 }

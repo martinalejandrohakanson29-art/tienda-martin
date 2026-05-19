@@ -186,6 +186,8 @@ export default function VentasMostradorClient({
   const [paraCruzada, setParaCruzada] = useState("");
   const [proveedoresCruzada, setProveedoresCruzada] = useState<{ id: string, razonSocial: string, monto: number }[]>([]);
   const [showProvListMulti, setShowProvListMulti] = useState<number | null>(null);
+  const [paraCuentaCorriente, setParaCuentaCorriente] = useState("");
+  const [showProvListCC, setShowProvListCC] = useState(false);
 
   // --- ESTADOS PARA MERCADOLIBRE Y MERCADOPAGO ---
   const [mlIdVenta, setMlIdVenta] = useState("");
@@ -287,6 +289,8 @@ export default function VentasMostradorClient({
   const [editTransaccionId, setEditTransaccionId] = useState("");
   const [editDeCruzada, setEditDeCruzada] = useState("");
   const [editParaCruzada, setEditParaCruzada] = useState("");
+  const [editParaCuentaCorriente, setEditParaCuentaCorriente] = useState("");
+  const [showProvListCCEdit, setShowProvListCCEdit] = useState(false);
   const [editMlIdVenta, setEditMlIdVenta] = useState("");
   const [editMlIdEnvio, setEditMlIdEnvio] = useState("");
   const [editMlMla, setEditMlMla] = useState("");
@@ -431,11 +435,16 @@ export default function VentasMostradorClient({
   // --- FUNCIONES COMUNES ---
   const cargarVentas = async (fechaDesde: string, fechaHasta: string) => {
     setIsLoadingVentas(true);
-    const res = await obtenerVentasPorRango(fechaDesde, fechaHasta);
-    if (res.success) {
-      setVentasRealizadas(res.data || []);
+    try {
+      const res = await obtenerVentasPorRango(fechaDesde, fechaHasta);
+      if (res.success) {
+        setVentasRealizadas(res.data || []);
+      }
+    } catch (error) {
+      console.error("Error al cargar ventas:", error);
+    } finally {
+      setIsLoadingVentas(false);
     }
-    setIsLoadingVentas(false);
   };
 
   const renderParaDisplay = (para: string) => {
@@ -598,6 +607,7 @@ export default function VentasMostradorClient({
   const requiereMercadoPago = isPagoMixto ? (esMercadoPago(metodoPago) || esMercadoPago(metodoPago2)) : esMercadoPago(metodoPago);
   const requiereCruzada = (isPagoMixto && (metodoPago === "Cruzada" || metodoPago2 === "Cruzada")) || (!isPagoMixto && metodoPago === "Cruzada");
   const requiereCuentaCorriente = (isPagoMixto && (metodoPago === "A Cuenta Corriente" || metodoPago2 === "A Cuenta Corriente")) || (!isPagoMixto && metodoPago === "A Cuenta Corriente");
+  const esMixtoCruzadaCC = isPagoMixto && requiereCruzada && requiereCuentaCorriente;
 
   // --- FUNCIONES PARA IMPRESIÓN ---
   const handleImprimirPresupuesto = () => {
@@ -839,6 +849,12 @@ export default function VentasMostradorClient({
     }
   }, [isFinalizarModalOpen, metodoPago, totalFinalCalculado]);
 
+  useEffect(() => {
+    if (esMixtoCruzadaCC && !paraCuentaCorriente && cliente && cliente !== "Consumidor Final") {
+      setParaCuentaCorriente(cliente);
+    }
+  }, [esMixtoCruzadaCC, cliente]);
+
   const handleFinalizarVenta = async (overrideComoPedido?: boolean | React.MouseEvent) => {
     const isPedido = typeof overrideComoPedido === 'boolean' ? overrideComoPedido : isGuardarComoPedido;
 
@@ -852,8 +868,13 @@ export default function VentasMostradorClient({
       alert("El Id de pago es OBLIGATORIO para MercadoPago."); return;
     }
     if (requiereCruzada && !isPagoMixto && (!deCruzada.trim() || proveedoresCruzada.length === 0)) { alert("'De' y al menos un proveedor son obligatorios para pagos Cruzados."); return; }
-    if (requiereCruzada && isPagoMixto && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para Cruzada en pago Mixto."); return; }
-    if (requiereCuentaCorriente && !paraCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
+    if (esMixtoCruzadaCC) {
+      if (!deCruzada.trim() || !paraCruzada.trim()) { alert("Para el pago Cruzada: 'De' (quien envía) y 'Para' (proveedor) son obligatorios."); return; }
+      if (!paraCuentaCorriente.trim()) { alert("Debe seleccionar el proveedor para la Cuenta Corriente."); return; }
+    } else {
+      if (requiereCruzada && isPagoMixto && (!deCruzada.trim() || !paraCruzada.trim())) { alert("'De' y 'Para' obligatorios para Cruzada en pago Mixto."); return; }
+      if (requiereCuentaCorriente && !paraCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
+    }
 
     // VALIDACIÓN DE PROVEEDOR EXISTENTE
     const checkProveedorExiste = (nombre: string) => {
@@ -876,10 +897,11 @@ export default function VentasMostradorClient({
     }
 
     let paraCruzadaExacto: string | undefined;
-    if ((requiereCruzada && isPagoMixto) || requiereCuentaCorriente) {
+    let paraCCExacto: string | undefined;
+
+    if ((requiereCruzada && isPagoMixto) || (requiereCuentaCorriente && !esMixtoCruzadaCC)) {
       const provEncontrado = proveedores.find(p => p.razonSocial.toLowerCase().trim() === paraCruzada.toLowerCase().trim());
       if (!provEncontrado) {
-        // Permitir si es el mismo cliente del padrón con CUIT/DNI (el server action lo crea antes de aplicar el impacto)
         const esNuevoDelPadron = !!docNro && docNro !== "0" &&
           paraCruzada.toLowerCase().trim() === cliente.toLowerCase().trim();
         if (!esNuevoDelPadron) {
@@ -888,9 +910,24 @@ export default function VentasMostradorClient({
         }
         paraCruzadaExacto = paraCruzada;
       } else {
-        // Actualizamos con el nombre exacto de la base de datos
         setParaCruzada(provEncontrado.razonSocial);
         paraCruzadaExacto = provEncontrado.razonSocial;
+      }
+    }
+
+    if (esMixtoCruzadaCC) {
+      const provCC = proveedores.find(p => p.razonSocial.toLowerCase().trim() === paraCuentaCorriente.toLowerCase().trim());
+      if (!provCC) {
+        const esNuevoDelPadron = !!docNro && docNro !== "0" &&
+          paraCuentaCorriente.toLowerCase().trim() === cliente.toLowerCase().trim();
+        if (!esNuevoDelPadron) {
+          alert(`El proveedor de Cuenta Corriente "${paraCuentaCorriente}" no existe. Selecciónalo de la lista o créalo primero.`);
+          return;
+        }
+        paraCCExacto = paraCuentaCorriente;
+      } else {
+        setParaCuentaCorriente(provCC.razonSocial);
+        paraCCExacto = provCC.razonSocial;
       }
     }
 
@@ -915,10 +952,16 @@ export default function VentasMostradorClient({
       const dniFinal = (requiereMercadoLibre || requiereMercadoPago) ? (mlDni || dni || cuitBusqueda) : (dni || cuitBusqueda);
       const docNroFinal = (docNro && docNro !== "0") ? docNro : (cuitBusqueda.length > 6 ? cuitBusqueda : "");
 
-      // Si es Cruzada (no mixto), usamos la lista de proveedores
       let paraFinal = paraCruzadaExacto || paraCruzada;
       if (metodoPago === "Cruzada" && !isPagoMixto) {
         paraFinal = JSON.stringify(proveedoresCruzada);
+      } else if (esMixtoCruzadaCC) {
+        const montoCruzada = metodoPago === "Cruzada" ? final1 : final2;
+        const montoCC = metodoPago === "A Cuenta Corriente" ? final1 : final2;
+        paraFinal = JSON.stringify([
+          { razonSocial: paraCruzadaExacto || paraCruzada, monto: montoCruzada },
+          { razonSocial: paraCCExacto || paraCuentaCorriente, monto: montoCC },
+        ]);
       }
 
       const resultado = isPedido
@@ -1053,7 +1096,7 @@ export default function VentasMostradorClient({
 
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
-    setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setInteresTarjeta(0);
+    setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setParaCuentaCorriente(""); setInteresTarjeta(0);
     setCuitBusqueda(""); setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
     setMlIdVenta(""); setMlIdEnvio(""); setMlMla(""); setMlDni("");
     setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(6);
@@ -1090,6 +1133,13 @@ export default function VentasMostradorClient({
   const requiereMercadoPagoEdit = isEditPagoMixto ? (esMercadoPago(editMetodoPago) || esMercadoPago(editMetodoPago2)) : esMercadoPago(editMetodoPago);
   const requiereCruzadaEdit = (isEditPagoMixto && (editMetodoPago === "Cruzada" || editMetodoPago2 === "Cruzada")) || (!isEditPagoMixto && editMetodoPago === "Cruzada");
   const requiereCuentaCorrienteEdit = (isEditPagoMixto && (editMetodoPago === "A Cuenta Corriente" || editMetodoPago2 === "A Cuenta Corriente")) || (!isEditPagoMixto && editMetodoPago === "A Cuenta Corriente");
+  const esMixtoCruzadaCCEdit = isEditPagoMixto && requiereCruzadaEdit && requiereCuentaCorrienteEdit;
+
+  useEffect(() => {
+    if (esMixtoCruzadaCCEdit && !editParaCuentaCorriente && editCliente && editCliente !== "Consumidor Final") {
+      setEditParaCuentaCorriente(editCliente);
+    }
+  }, [esMixtoCruzadaCCEdit, editCliente]);
 
   const abrirModalEdicion = async (venta: { id: string; cliente: string; email?: string; metodo_pago: string; totalFinal: number; items: Array<{ productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }>; createdAt: string; total: number; interes: number; dni?: string; telefono?: string; cupon?: string; transaccionId?: string; de?: string; para?: string; eventoOffline?: boolean; info?: string; puntoVentaId?: string; mlIdVenta?: string; mlIdEnvio?: string; mlMla?: string; mlDni?: string; docTipo?: number; docNro?: string; condicionIva?: number; tipoComprobante?: number }) => {
     // Sincronizar artículos con la base de datos para asegurar precios correctos
@@ -1137,7 +1187,7 @@ export default function VentasMostradorClient({
           const metodosPosibles = ["Efectivo", "Tarjeta de Crédito", "Tarjeta de Débito", "MercadoLibre", "MercadoPago", "Cruzada", "A Cuenta Corriente", "A Confirmar"];
           let m1 = "Efectivo";
           let m2 = "Tarjeta de Crédito";
-          
+
           const foundMethods = [];
           for (const m of metodosPosibles) {
             // Buscamos el método seguido de : para evitar falsos positivos
@@ -1145,7 +1195,7 @@ export default function VentasMostradorClient({
               foundMethods.push(m);
             }
           }
-          
+
           if (foundMethods.length >= 1) m1 = foundMethods[0];
           if (foundMethods.length >= 2) m2 = foundMethods[1];
 
@@ -1172,7 +1222,21 @@ export default function VentasMostradorClient({
     setEditCupon(venta.cupon || "");
     setEditTransaccionId(venta.transaccionId || "");
     setEditDeCruzada(venta.de || "");
-    setEditParaCruzada(venta.para || "");
+    // Si el campo para es un JSON array (mixto Cruzada+CC), separar en los dos campos
+    const paraVal = venta.para || "";
+    try {
+      const paraParsed = paraVal.trim().startsWith('[') ? JSON.parse(paraVal) : null;
+      if (Array.isArray(paraParsed) && paraParsed.length === 2) {
+        setEditParaCruzada(paraParsed[0]?.razonSocial || "");
+        setEditParaCuentaCorriente(paraParsed[1]?.razonSocial || "");
+      } else {
+        setEditParaCruzada(paraVal);
+        setEditParaCuentaCorriente("");
+      }
+    } catch {
+      setEditParaCruzada(paraVal);
+      setEditParaCuentaCorriente("");
+    }
     setEditEmail(venta.email || "");
     setEditEventoOffline(venta.eventoOffline || false);
     setEditPuntoVentaId(venta.puntoVentaId || "");
@@ -1238,23 +1302,44 @@ export default function VentasMostradorClient({
     if (requiereMercadoPagoEdit && !editMlIdVenta.trim()) {
       alert("El Id de pago es OBLIGATORIO para MercadoPago."); return;
     }
-    if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
-    if (requiereCuentaCorrienteEdit && !editParaCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
+    if (esMixtoCruzadaCCEdit) {
+      if (!editDeCruzada.trim() || !editParaCruzada.trim()) { alert("Para el pago Cruzada: 'De' (quien envía) y 'Para' (proveedor) son obligatorios."); return; }
+      if (!editParaCuentaCorriente.trim()) { alert("Debe seleccionar el proveedor para la Cuenta Corriente."); return; }
+    } else {
+      if (requiereCruzadaEdit && (!editDeCruzada.trim() || !editParaCruzada.trim())) { alert("'De' y 'Para' son obligatorios para transferencias Cruzadas."); return; }
+      if (requiereCuentaCorrienteEdit && !editParaCruzada.trim()) { alert("Debe seleccionar un proveedor para la Cuenta Corriente."); return; }
+    }
 
     // VALIDACIÓN DE PROVEEDOR EXISTENTE EN EDICIÓN
-    const checkProveedorExiste = (nombre: string) => {
-      return proveedores.some(p => p.razonSocial.toLowerCase().trim() === nombre.toLowerCase().trim());
-    };
+    let editParaCruzadaExacto: string | undefined;
+    let editParaCCExacto: string | undefined;
 
-    if (requiereCruzadaEdit || requiereCuentaCorrienteEdit) {
+    if ((requiereCruzadaEdit || requiereCuentaCorrienteEdit) && !esMixtoCruzadaCCEdit) {
       const provEncontrado = proveedores.find(p => p.razonSocial.toLowerCase().trim() === editParaCruzada.toLowerCase().trim());
       if (!provEncontrado) {
         alert(`El proveedor "${editParaCruzada}" no existe en la base de datos. Por favor, selecciónalo de la lista o créalo primero.`);
         return;
       }
-      // Actualizamos con el nombre exacto de la base de datos
       setEditParaCruzada(provEncontrado.razonSocial);
-      var editParaCruzadaExacto = provEncontrado.razonSocial;
+      editParaCruzadaExacto = provEncontrado.razonSocial;
+    }
+
+    if (esMixtoCruzadaCCEdit) {
+      const provCruzada = proveedores.find(p => p.razonSocial.toLowerCase().trim() === editParaCruzada.toLowerCase().trim());
+      if (!provCruzada) {
+        alert(`El proveedor de Cruzada "${editParaCruzada}" no existe en la base de datos. Por favor, selecciónalo de la lista o créalo primero.`);
+        return;
+      }
+      setEditParaCruzada(provCruzada.razonSocial);
+      editParaCruzadaExacto = provCruzada.razonSocial;
+
+      const provCC = proveedores.find(p => p.razonSocial.toLowerCase().trim() === editParaCuentaCorriente.toLowerCase().trim());
+      if (!provCC) {
+        alert(`El proveedor de Cuenta Corriente "${editParaCuentaCorriente}" no existe. Selecciónalo de la lista o créalo primero.`);
+        return;
+      }
+      setEditParaCuentaCorriente(provCC.razonSocial);
+      editParaCCExacto = provCC.razonSocial;
     }
 
     let cambios = [];
@@ -1287,7 +1372,13 @@ export default function VentasMostradorClient({
           totalFinal: editTotalFinalCalculado,
           metodo_pago: editMetodoPagoFinal,
           dni: editDni, telefono: editTelefono, info: editInfoFinal, cupon: editCupon,
-          transaccionId: editTransaccionId, de: editDeCruzada, para: editParaCruzadaExacto || editParaCruzada,
+          transaccionId: editTransaccionId, de: editDeCruzada,
+          para: esMixtoCruzadaCCEdit
+            ? JSON.stringify([
+              { razonSocial: editParaCruzadaExacto || editParaCruzada, monto: editMetodoPago === "Cruzada" ? editFinal1 : editFinal2 },
+              { razonSocial: editParaCCExacto || editParaCuentaCorriente, monto: editMetodoPago === "A Cuenta Corriente" ? editFinal1 : editFinal2 },
+            ])
+            : (editParaCruzadaExacto || editParaCruzada),
           email: editEmail,
           eventoOffline: editEventoOffline,
           puntoVentaId: editPuntoVentaId,
@@ -1633,9 +1724,9 @@ export default function VentasMostradorClient({
                                 <div className="flex flex-col gap-1">
                                   <div className="flex items-center gap-2">
                                     {item.esPack && (
-                                    <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-200 uppercase shrink-0">Pack</span>
-                                  )}
-                                  <span
+                                      <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-200 uppercase shrink-0">Pack</span>
+                                    )}
+                                    <span
                                       onClick={() => copiarAlPortapapeles(item.nombre)}
                                       className="text-base cursor-pointer hover:text-blue-600 transition-colors"
                                       title="Copiar Nombre"
@@ -2322,15 +2413,15 @@ export default function VentasMostradorClient({
                               {v.cliente}
                               {v.dni && <div className="text-[10px] text-blue-600 font-bold mt-0.5">DNI/CUIT: {v.dni}</div>}
                               {v.puntoVenta && (
-                               <div className="mt-1">
-                                 <span
-                                   className={`inline-block px-2 py-0.5 rounded-full uppercase ${v.puntoVenta.nombre.toLowerCase().includes('mercadolibre') ? 'text-slate-900 font-bold' : 'text-white'}`}
-                                   style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}
-                                 >
-                                   {v.puntoVenta.nombre}
-                                 </span>
-                               </div>
-                             )}
+                                <div className="mt-1">
+                                  <span
+                                    className={`inline-block px-2 py-0.5 rounded-full uppercase ${v.puntoVenta.nombre.toLowerCase().includes('mercadolibre') ? 'text-slate-900 font-bold' : 'text-white'}`}
+                                    style={{ backgroundColor: v.puntoVenta.color || '#10b981' }}
+                                  >
+                                    {v.puntoVenta.nombre}
+                                  </span>
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell className="py-4">
                               <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase whitespace-nowrap ${v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' : v.metodo_pago === 'Mixto' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -2612,6 +2703,7 @@ export default function VentasMostradorClient({
                         <option value="MercadoLibre">MercadoLibre</option>
                         <option value="MercadoPago">MercadoPago</option>
                         <option value="Cruzada">Cruzada</option>
+                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
                       </select>
                       <div>
                         <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base a pagar 1</Label>
@@ -2699,10 +2791,10 @@ export default function VentasMostradorClient({
                     <div className="flex justify-between items-center mb-1">
                       <Label className="text-xs font-bold text-amber-700">Pago Cruzada: Detalle de Proveedores</Label>
                       {proveedoresCruzada.length < 4 && (
-                        <Button 
-                          type="button" 
-                          size="sm" 
-                          variant="outline" 
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
                           className="h-7 text-[10px] font-bold border-amber-300 text-amber-700 hover:bg-amber-100"
                           onClick={agregarProveedorCruzada}
                         >
@@ -2714,11 +2806,11 @@ export default function VentasMostradorClient({
                     <div className="space-y-3">
                       <div className="space-y-1.5">
                         <Label className="text-[10px] font-bold text-amber-600 uppercase">Origen (De)</Label>
-                        <Input 
-                          value={deCruzada} 
-                          onChange={(e) => setDeCruzada(e.target.value)} 
-                          className="h-9 bg-white border-amber-200" 
-                          placeholder="¿Quién envía el dinero?" 
+                        <Input
+                          value={deCruzada}
+                          onChange={(e) => setDeCruzada(e.target.value)}
+                          className="h-9 bg-white border-amber-200"
+                          placeholder="¿Quién envía el dinero?"
                         />
                       </div>
 
@@ -2763,22 +2855,22 @@ export default function VentasMostradorClient({
                               )}
                             </div>
                           </div>
-                          
+
                           <div className="w-28 space-y-1">
                             <Label className="text-[10px] font-bold text-slate-500 uppercase">Monto</Label>
-                            <Input 
-                              type="number" 
-                              value={item.monto} 
+                            <Input
+                              type="number"
+                              value={item.monto}
                               onChange={(e) => actualizarProveedorCruzada(idx, 'monto', Number(e.target.value))}
-                              className="h-9 bg-white border-amber-200 text-xs font-bold text-amber-900" 
+                              className="h-9 bg-white border-amber-200 text-xs font-bold text-amber-900"
                             />
                           </div>
 
                           {proveedoresCruzada.length > 1 && (
-                            <Button 
-                              type="button" 
-                              size="icon" 
-                              variant="ghost" 
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
                               className="h-9 w-9 mt-5 text-red-400 hover:text-red-600 hover:bg-red-50"
                               onClick={() => eliminarProveedorCruzada(idx)}
                             >
@@ -2801,7 +2893,108 @@ export default function VentasMostradorClient({
                   </div>
                 )}
 
-                {((requiereCruzada && isPagoMixto) || requiereCuentaCorriente) && (
+                {/* MIXTO: Cruzada + Cuenta Corriente — dos secciones separadas */}
+                {esMixtoCruzadaCC && (
+                  <div className="space-y-3 animate-in fade-in">
+                    {/* Sección Cruzada */}
+                    <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-xs font-bold text-amber-800 uppercase">Pago Cruzada</Label>
+                        <span className="text-xs font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-lg">
+                          $ {(metodoPago === "Cruzada" ? final1 : final2).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-bold text-amber-700 uppercase">Quien Envía (De) <span className="text-red-500">*</span></Label>
+                          <Input
+                            value={deCruzada}
+                            onChange={(e) => setDeCruzada(e.target.value)}
+                            className="bg-white border-amber-200 h-9 text-sm"
+                            placeholder="Nombre de quien envía..."
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-bold text-amber-700 uppercase">Proveedor (Para) <span className="text-red-500">*</span></Label>
+                          <div className="relative">
+                            <Input
+                              value={paraCruzada}
+                              onChange={(e) => { setParaCruzada(e.target.value); setShowProvList(true); }}
+                              onFocus={() => setShowProvList(true)}
+                              className="bg-white border-amber-200 h-9 text-sm"
+                              placeholder="Buscar proveedor..."
+                            />
+                            {showProvList && proveedores.length > 0 && (
+                              <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto">
+                                {proveedores
+                                  .filter(p => p.razonSocial.toLowerCase().includes(paraCruzada.toLowerCase()) || p.cuit.includes(paraCruzada))
+                                  .map(p => (
+                                    <div key={p.id} className="p-2 hover:bg-amber-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
+                                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setParaCruzada(p.razonSocial); setShowProvList(false); }}>
+                                      <div className="flex justify-between items-start">
+                                        <div><p className="font-bold text-slate-800">{p.razonSocial}</p><p className="text-[9px] text-slate-400">{p.cuit}</p></div>
+                                        <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sección Cuenta Corriente */}
+                    <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-xs font-bold text-emerald-800 uppercase">Cuenta Corriente</Label>
+                        <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg">
+                          $ {(metodoPago === "A Cuenta Corriente" ? final1 : final2).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold text-emerald-700 uppercase">Proveedor / Cuenta <span className="text-red-500">*</span></Label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              value={paraCuentaCorriente}
+                              onChange={(e) => { setParaCuentaCorriente(e.target.value); setShowProvListCC(true); }}
+                              onFocus={() => setShowProvListCC(true)}
+                              className="bg-white border-emerald-200 h-9 text-sm"
+                              placeholder="Buscar proveedor..."
+                            />
+                            {showProvListCC && proveedores.length > 0 && (
+                              <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto">
+                                {proveedores
+                                  .filter(p => p.razonSocial.toLowerCase().includes(paraCuentaCorriente.toLowerCase()) || p.cuit.includes(paraCuentaCorriente))
+                                  .map(p => (
+                                    <div key={p.id} className="p-2 hover:bg-emerald-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
+                                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setParaCuentaCorriente(p.razonSocial); setShowProvListCC(false); }}>
+                                      <div className="flex justify-between items-start">
+                                        <div><p className="font-bold text-slate-800">{p.razonSocial}</p><p className="text-[9px] text-slate-400">{p.cuit}</p></div>
+                                        <div className="text-right">
+                                          <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</p>
+                                          <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                          <Button type="button" size="icon" variant="outline"
+                            className="border-emerald-200 text-emerald-600 hover:bg-emerald-50 h-9 w-9 shrink-0"
+                            onClick={() => setIsAddProveedorModalOpen(true)} title="Nuevo Proveedor">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mixto con solo Cruzada, o solo Cuenta Corriente (sin el otro) */}
+                {((requiereCruzada && isPagoMixto && !esMixtoCruzadaCC) || (requiereCuentaCorriente && !esMixtoCruzadaCC)) && (
                   <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
                     {requiereCruzada && (
                       <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
@@ -2812,10 +3005,7 @@ export default function VentasMostradorClient({
                         <div className="relative flex-1">
                           <Input
                             value={paraCruzada}
-                            onChange={(e) => {
-                              setParaCruzada(e.target.value);
-                              setShowProvList(true);
-                            }}
+                            onChange={(e) => { setParaCruzada(e.target.value); setShowProvList(true); }}
                             onFocus={() => setShowProvList(true)}
                             className="bg-white border-amber-200"
                             placeholder="Buscar proveedor..."
@@ -3138,7 +3328,103 @@ export default function VentasMostradorClient({
                   </div>
                 )}
 
-                {(requiereCruzadaEdit || requiereCuentaCorrienteEdit) && (
+                {/* EDICIÓN MIXTO: Cruzada + Cuenta Corriente — dos secciones separadas */}
+                {esMixtoCruzadaCCEdit && (
+                  <div className="space-y-3 animate-in fade-in">
+                    {/* Sección Cruzada */}
+                    <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-xs font-bold text-amber-800 uppercase">Pago Cruzada</Label>
+                        <span className="text-xs font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-lg">
+                          $ {(editMetodoPago === "Cruzada" ? editFinal1 : editFinal2).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-bold text-amber-700 uppercase">Quien Envía (De) <span className="text-red-500">*</span></Label>
+                          <Input value={editDeCruzada} onChange={(e) => setEditDeCruzada(e.target.value)} className="bg-white border-amber-200 h-9 text-sm" placeholder="Nombre de quien envía..." />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[10px] font-bold text-amber-700 uppercase">Proveedor (Para) <span className="text-red-500">*</span></Label>
+                          <div className="relative">
+                            <Input
+                              value={editParaCruzada}
+                              onChange={(e) => { setEditParaCruzada(e.target.value); setShowProvListEdit(true); }}
+                              onFocus={() => setShowProvListEdit(true)}
+                              className="bg-white border-amber-200 h-9 text-sm"
+                              placeholder="Buscar proveedor..."
+                            />
+                            {showProvListEdit && proveedores.length > 0 && (
+                              <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto">
+                                {proveedores
+                                  .filter(p => p.razonSocial.toLowerCase().includes(editParaCruzada.toLowerCase()) || p.cuit.includes(editParaCruzada))
+                                  .map(p => (
+                                    <div key={p.id} className="p-2 hover:bg-amber-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
+                                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditParaCruzada(p.razonSocial); setShowProvListEdit(false); }}>
+                                      <div className="flex justify-between items-start">
+                                        <div><p className="font-bold text-slate-800">{p.razonSocial}</p><p className="text-[9px] text-slate-400">{p.cuit}</p></div>
+                                        <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>{formatCurrency(p.total)}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sección Cuenta Corriente */}
+                    <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <Label className="text-xs font-bold text-emerald-800 uppercase">Cuenta Corriente</Label>
+                        <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-lg">
+                          $ {(editMetodoPago === "A Cuenta Corriente" ? editFinal1 : editFinal2).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[10px] font-bold text-emerald-700 uppercase">Proveedor / Cuenta <span className="text-red-500">*</span></Label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Input
+                              value={editParaCuentaCorriente}
+                              onChange={(e) => { setEditParaCuentaCorriente(e.target.value); setShowProvListCCEdit(true); }}
+                              onFocus={() => setShowProvListCCEdit(true)}
+                              className="bg-white border-emerald-200 h-9 text-sm"
+                              placeholder="Buscar proveedor..."
+                            />
+                            {showProvListCCEdit && proveedores.length > 0 && (
+                              <div className="absolute z-[100] w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-44 overflow-y-auto">
+                                {proveedores
+                                  .filter(p => p.razonSocial.toLowerCase().includes(editParaCuentaCorriente.toLowerCase()) || p.cuit.includes(editParaCuentaCorriente))
+                                  .map(p => (
+                                    <div key={p.id} className="p-2 hover:bg-emerald-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
+                                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditParaCuentaCorriente(p.razonSocial); setShowProvListCCEdit(false); }}>
+                                      <div className="flex justify-between items-start">
+                                        <div><p className="font-bold text-slate-800">{p.razonSocial}</p><p className="text-[9px] text-slate-400">{p.cuit}</p></div>
+                                        <div className="text-right">
+                                          <p className={`text-xs font-bold ${p.total < 0 ? 'text-red-500' : p.total > 0 ? 'text-emerald-500' : 'text-slate-600'}`}>{formatCurrency(p.total)}</p>
+                                          <p className="text-[8px] text-slate-400 uppercase font-bold">Saldo</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+                          <Button type="button" size="icon" variant="outline"
+                            className="border-emerald-200 text-emerald-600 hover:bg-emerald-50 h-9 w-9 shrink-0"
+                            onClick={() => setIsAddProveedorModalOpen(true)} title="Nuevo Proveedor">
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cruzada simple o CC simple (sin el otro) */}
+                {(requiereCruzadaEdit || requiereCuentaCorrienteEdit) && !esMixtoCruzadaCCEdit && (
                   <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-200 animate-in fade-in">
                     {requiereCruzadaEdit && (
                       <div className="space-y-2">
@@ -3152,10 +3438,7 @@ export default function VentasMostradorClient({
                         <div className="relative flex-1">
                           <Input
                             value={editParaCruzada}
-                            onChange={(e) => {
-                              setEditParaCruzada(e.target.value);
-                              setShowProvListEdit(true);
-                            }}
+                            onChange={(e) => { setEditParaCruzada(e.target.value); setShowProvListEdit(true); }}
                             onFocus={() => setShowProvListEdit(true)}
                             className="bg-white border-amber-200"
                             placeholder="Buscar proveedor..."

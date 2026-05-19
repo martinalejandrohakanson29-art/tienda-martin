@@ -4422,9 +4422,9 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
               <tr key={i}>
                 <td className="border-black p-2 text-center">{item.cantidad} Un</td>
                 <td className="border-black p-2">{item.nombre}</td>
-                <td className="border-black p-2 text-center">21,00</td>
-                <td className="border-black p-2 text-right">{(Number(item.precio_unit) / 1.21).toLocaleString('es-AR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
-                <td className="border-black p-2 text-right">{(Number(item.subtotal) / 1.21).toLocaleString('es-AR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
+                <td className="border-black p-2 text-center">{isTypeC ? '-' : '21,00'}</td>
+                <td className="border-black p-2 text-right">{Number(item.precio_unit).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td className="border-black p-2 text-right">{Number(item.subtotal).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               </tr>
             ))}
           </tbody>
@@ -4454,6 +4454,10 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
         <div className="w-1/3 border-black p-0">
           {!isTypeC && (
             <>
+              <div className="flex justify-between border-b border-black p-1 px-2">
+                <span className="font-bold uppercase">Subtotal:</span>
+                <span>$ {neto.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+              </div>
               <div className="flex justify-between border-b border-black p-1 px-2">
                 <span className="font-bold uppercase">IVA 21%:</span>
                 <span>$ {iva.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>

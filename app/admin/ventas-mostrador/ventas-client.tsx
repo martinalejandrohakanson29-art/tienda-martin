@@ -210,6 +210,7 @@ export default function VentasMostradorClient({
   const [ventaParaPedido, setVentaParaPedido] = useState<any>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [isFacturando, setIsFacturando] = useState(false);
+  const [isEliminando, setIsEliminando] = useState(false);
   const [tipoFacturaSugerida, setTipoFacturaSugerida] = useState<number>(6); // B por defecto para Responsable Inscripto
   const [solicitarFactura, setSolicitarFactura] = useState(false);
   const [sujetoId, setSujetoId] = useState<string | null>(null);
@@ -1461,17 +1462,32 @@ export default function VentasMostradorClient({
 
   const handleEliminarVenta = async () => {
     if (!ventaAEliminar) return;
-
-    const res = await eliminarVentaMostrador(ventaAEliminar.id, vendedorNombre);
-
-    if (res.success) {
-      mostrarMensajeExito("¡Venta eliminada exitosamente!");
-      setIsEliminarModalOpen(false);
-      setVentaAEliminar(null);
-      // Recargar las ventas
-      cargarVentas(fechaDesde, fechaHasta);
-    } else {
-      alert("No se pudo eliminar la venta: " + res.error);
+    setIsEliminando(true);
+    try {
+      if (ventaAEliminar.cae && !ventaAEliminar.info?.includes("ANULADA CON NC")) {
+        // Venta con factura ARCA: generar Nota de Crédito y marcar como CANCELADA
+        const res = await cancelarVenta(ventaAEliminar.id);
+        if (res.success) {
+          mostrarMensajeExito(res.message || "Venta cancelada con Nota de Crédito generada.");
+          setIsEliminarModalOpen(false);
+          setVentaAEliminar(null);
+          cargarVentas(fechaDesde, fechaHasta);
+        } else {
+          alert("Error al generar Nota de Crédito: " + res.error + (res.details ? "\n" + JSON.stringify(res.details) : ""));
+        }
+      } else {
+        const res = await eliminarVentaMostrador(ventaAEliminar.id, vendedorNombre);
+        if (res.success) {
+          mostrarMensajeExito("¡Venta eliminada exitosamente!");
+          setIsEliminarModalOpen(false);
+          setVentaAEliminar(null);
+          cargarVentas(fechaDesde, fechaHasta);
+        } else {
+          alert("No se pudo eliminar la venta: " + res.error);
+        }
+      }
+    } finally {
+      setIsEliminando(false);
     }
   };
 
@@ -2242,6 +2258,13 @@ export default function VentasMostradorClient({
                                         </div>
                                       </div>
                                     )}
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); abrirModalEliminacion(v); }}
+                                      className="p-2 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 transition-all border border-transparent"
+                                      title={v.cae && !v.info?.includes("ANULADA CON NC") ? "Anular venta (genera NC en ARCA)" : "Eliminar venta"}
+                                    >
+                                      <Trash2 className="h-5 w-5" />
+                                    </button>
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -3778,39 +3801,64 @@ export default function VentasMostradorClient({
 
         {/* --- MODAL DE CONFIRMACIÓN DE ELIMINACIÓN DE VENTA --- */}
         <Dialog open={isEliminarModalOpen} onOpenChange={setIsEliminarModalOpen}>
-          <DialogContent className="sm:max-w-[450px] rounded-3xl p-6 border-2 border-red-400 shadow-2xl">
+          <DialogContent className={`sm:max-w-[450px] rounded-3xl p-6 border-2 shadow-2xl ${ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC") ? 'border-rose-400' : 'border-red-400'}`}>
             <DialogHeader>
               <DialogTitle className="text-xl font-bold flex items-center gap-2 text-red-900">
-                <AlertTriangle className="h-5 w-5 text-red-600" /> Confirmar Eliminación de Venta
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                {ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC")
+                  ? "Anular Venta con Nota de Crédito"
+                  : "Confirmar Eliminación de Venta"}
               </DialogTitle>
               <DialogDescription className="text-slate-600">
-                Esta acción eliminará permanentemente la venta y todos sus datos relacionados.
+                {ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC")
+                  ? "Esta venta tiene una factura ARCA. Se generará una Nota de Crédito y se revertirán todos los efectos."
+                  : "Esta acción eliminará permanentemente la venta y todos sus datos relacionados."}
               </DialogDescription>
             </DialogHeader>
 
             <div className="py-4 space-y-4">
-              {/* Advertencia visual */}
-              <div className="p-4 bg-red-50/50 rounded-xl border border-red-200 flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-grow">
-                  <p className="text-sm font-bold text-red-900 mb-1">⚠️ ¡ATENCIÓN!</p>
-                  <p className="text-xs text-red-700 leading-relaxed">
-                    Esta acción es <b>irreversible</b>. Se eliminará:
-                    <ul className="list-disc list-inside mt-1 space-y-0.5">
-                      <li>Los datos principales de la venta</li>
-                      <li>Todos los items de la venta</li>
-                      <li>El historial de auditoría de la venta</li>
-                    </ul>
-                  </p>
+              {ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC") ? (
+                <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-200 flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-grow">
+                    <p className="text-sm font-bold text-rose-900 mb-1">Venta con Factura ARCA</p>
+                    <p className="text-xs text-rose-700 leading-relaxed">
+                      Se ejecutará el siguiente flujo:
+                      <ul className="list-disc list-inside mt-1 space-y-0.5">
+                        <li>Generación de <b>Nota de Crédito</b> en ARCA</li>
+                        <li>Devolución de stock de todos los artículos</li>
+                        <li>Reversión de cuenta corriente / cruzada si aplica</li>
+                        <li>La venta quedará registrada como <b>CANCELADA</b></li>
+                      </ul>
+                    </p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="p-4 bg-red-50/50 rounded-xl border border-red-200 flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-grow">
+                    <p className="text-sm font-bold text-red-900 mb-1">⚠️ ¡ATENCIÓN!</p>
+                    <p className="text-xs text-red-700 leading-relaxed">
+                      Esta acción es <b>irreversible</b>. Se ejecutará:
+                      <ul className="list-disc list-inside mt-1 space-y-0.5">
+                        <li>Devolución de stock de todos los artículos</li>
+                        <li>Reversión de cuenta corriente / cruzada si aplica</li>
+                        <li>Eliminación permanente del registro de venta</li>
+                      </ul>
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Información de la venta a eliminar */}
               {ventaAEliminar && (
                 <div className="p-4 bg-white rounded-xl border border-slate-200">
-                  <p className="text-xs text-slate-500 font-bold uppercase mb-1">Venta a Eliminar</p>
+                  <p className="text-xs text-slate-500 font-bold uppercase mb-1">Venta a {ventaAEliminar.cae && !ventaAEliminar.info?.includes("ANULADA CON NC") ? "Anular" : "Eliminar"}</p>
                   <p className="text-sm font-medium text-slate-900">{ventaAEliminar.cliente}</p>
                   <p className="text-xs text-slate-500 mt-1">ID: {ventaAEliminar.id}</p>
+                  {ventaAEliminar.cae && (
+                    <p className="text-xs text-blue-600 font-bold mt-1">CAE: {ventaAEliminar.cae}</p>
+                  )}
                   <p className="text-sm font-bold text-slate-700 mt-2">Total: ${ventaAEliminar.totalFinal?.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</p>
                   <p className="text-xs text-slate-500 mt-1">Fecha: {new Date(ventaAEliminar.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
                 </div>
@@ -3818,11 +3866,17 @@ export default function VentasMostradorClient({
             </div>
 
             <DialogFooter className="gap-3 mt-2">
-              <Button variant="outline" onClick={() => setIsEliminarModalOpen(false)} className="border-slate-300 text-slate-700 hover:bg-slate-100">
+              <Button variant="outline" onClick={() => setIsEliminarModalOpen(false)} disabled={isEliminando} className="border-slate-300 text-slate-700 hover:bg-slate-100">
                 Cancelar
               </Button>
-              <Button onClick={handleEliminarVenta} className="bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold px-6 shadow-md">
-                <Trash2 className="h-4 w-4 mr-2" /> Eliminar Venta
+              <Button onClick={handleEliminarVenta} disabled={isEliminando} className={`text-white rounded-xl font-bold px-6 shadow-md ${ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC") ? 'bg-rose-600 hover:bg-rose-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                {isEliminando ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Procesando...</>
+                ) : ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC") ? (
+                  <><AlertTriangle className="h-4 w-4 mr-2" /> Anular con NC</>
+                ) : (
+                  <><Trash2 className="h-4 w-4 mr-2" /> Eliminar Venta</>
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -493,7 +493,9 @@ export async function crearVentaMostrador(data: {
   mlIdEnvio?: string,
   mlPackId?: string,
   mlMla?: string,
-  mlDni?: string
+  mlDni?: string,
+  // Fecha original de la venta (ej: fecha real de ML, para que el registro quede en el día correcto)
+  fechaOriginal?: Date,
 }) {
   const session = await requireAdmin();
   const currentUserId = (session.user as any).id as string | undefined
@@ -607,6 +609,8 @@ export async function crearVentaMostrador(data: {
           mlPackId: data.mlPackId,
           mlMla: data.mlMla,
           mlDni: data.mlDni,
+          // Si viene fecha original (ej. de ML), la usamos para que la venta quede en el día correcto
+          ...(data.fechaOriginal ? { createdAt: data.fechaOriginal } : {}),
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -1749,5 +1753,46 @@ export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: strin
   } catch (error) {
     console.error("Error al obtener resumen:", error);
     return { success: false, error: "Error al obtener resumen de ventas" };
+  }
+}
+
+export async function buscarVentaGlobalPorMLId(mlId: string) {
+  await requireAdmin();
+  try {
+    const term = mlId.trim();
+    if (term.length < 4) return { success: false, error: "Ingresá al menos 4 caracteres" };
+
+    const ventas = await prisma.venta.findMany({
+      where: {
+        tipoVenta: { not: "PEDIDO" },
+        OR: [
+          { mlIdVenta: { contains: term } },
+          { mlIdEnvio: { contains: term } },
+        ],
+      },
+      include: { items: true, puntoVenta: true },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+    });
+
+    return {
+      success: true,
+      data: ventas.map(v => ({
+        ...v,
+        puntoVenta: v.puntoVenta || null,
+        total: Number(v.total),
+        interes: Number(v.interes),
+        totalFinal: Number(v.totalFinal),
+        createdAt: v.createdAt.toISOString(),
+        items: v.items.map(i => ({
+          ...i,
+          precio_unit: Number(i.precio_unit),
+          subtotal: Number(i.subtotal),
+        })),
+      })),
+    };
+  } catch (error) {
+    console.error("Error en búsqueda global ML:", error);
+    return { success: false, error: "Error al buscar" };
   }
 }

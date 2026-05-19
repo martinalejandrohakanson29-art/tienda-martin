@@ -29,7 +29,7 @@ import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
-  generarFacturaARCA, cancelarVenta
+  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
@@ -327,6 +327,8 @@ export default function VentasMostradorClient({
   const [filtroBusquedaTexto, setFiltroBusquedaTexto] = useState("");
   const [tipoBusqueda, setTipoBusqueda] = useState<"venta" | "cliente" | "mla_venta" | "mla_envio">("venta");
   const [filtroMetodoPago, setFiltroMetodoPago] = useState("");
+  const [ventasGlobales, setVentasGlobales] = useState<any[] | null>(null);
+  const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
 
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
@@ -391,6 +393,11 @@ export default function VentasMostradorClient({
   useEffect(() => {
     cargarVentas(fechaDesde, fechaHasta);
   }, [fechaDesde, fechaHasta]);
+
+  // Limpiar resultados globales cuando el usuario cambia el término de búsqueda
+  useEffect(() => {
+    setVentasGlobales(null);
+  }, [filtroBusquedaTexto, tipoBusqueda]);
   // Efecto para sincronizar fechaDesde y fechaHasta con la fecha actual al cargar
   useEffect(() => {
     const hoy = new Date().toISOString().split('T')[0];
@@ -433,6 +440,21 @@ export default function VentasMostradorClient({
 
 
   // --- FUNCIONES COMUNES ---
+  const handleBuscarGlobal = async () => {
+    if (!filtroBusquedaTexto.trim()) return;
+    setIsSearchingGlobal(true);
+    try {
+      const res = await buscarVentaGlobalPorMLId(filtroBusquedaTexto.trim());
+      if (res.success) {
+        setVentasGlobales(res.data || []);
+      }
+    } catch (error) {
+      console.error("Error en búsqueda global:", error);
+    } finally {
+      setIsSearchingGlobal(false);
+    }
+  };
+
   const cargarVentas = async (fechaDesde: string, fechaHasta: string) => {
     setIsLoadingVentas(true);
     try {
@@ -571,6 +593,10 @@ export default function VentasMostradorClient({
 
     return cumpleOffline && cumplePuntoVenta && cumpleBusqueda && cumpleMetodoPago;
   });
+
+  const esBusquedaML = tipoBusqueda === "mla_venta" || tipoBusqueda === "mla_envio";
+  const mostrandoGlobal = ventasFiltradas.length === 0 && ventasGlobales !== null && ventasGlobales.length > 0;
+  const ventasParaTabla = mostrandoGlobal ? ventasGlobales! : ventasFiltradas;
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
   const esMercadoLibre = (m: string) => m === "MercadoLibre" || m === "mercadopago (ML)";
@@ -2050,10 +2076,39 @@ export default function VentasMostradorClient({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {ventasFiltradas.length === 0 ? (
-                        <TableRow><TableCell colSpan={10} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
+                      {mostrandoGlobal && (
+                        <TableRow>
+                          <TableCell colSpan={10} className="py-2 px-4 bg-amber-50 border-b border-amber-200">
+                            <p className="text-xs text-amber-700 font-semibold">⚠ Resultados fuera del rango de fechas seleccionado — {ventasGlobales!.length} venta/s encontrada/s en el historial completo</p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {ventasParaTabla.length === 0 ? (
+                        esBusquedaML && filtroBusquedaTexto.length >= 4 ? (
+                          <TableRow>
+                            <TableCell colSpan={10} className="py-16 text-center space-y-3">
+                              <p className="text-slate-400 italic text-sm mb-3">No se encontraron ventas en el rango de fechas seleccionado.</p>
+                              <Button
+                                onClick={handleBuscarGlobal}
+                                disabled={isSearchingGlobal}
+                                variant="outline"
+                                size="sm"
+                                className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                              >
+                                {isSearchingGlobal
+                                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Buscando en todo el historial...</>
+                                  : <>Buscar en todas las fechas</>}
+                              </Button>
+                              {ventasGlobales !== null && ventasGlobales.length === 0 && (
+                                <p className="text-xs text-red-500 mt-2">No se encontró esta venta en ningún registro del sistema.</p>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          <TableRow><TableCell colSpan={10} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
+                        )
                       ) : (
-                        ventasFiltradas.map((v) => {
+                        ventasParaTabla.map((v) => {
                           const isExpanded = expandedVentas.has(v.id);
                           return (
                             <React.Fragment key={v.id}>
@@ -2389,10 +2444,39 @@ export default function VentasMostradorClient({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {ventasFiltradas.length === 0 ? (
-                        <TableRow><TableCell colSpan={10} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
+                      {mostrandoGlobal && (
+                        <TableRow>
+                          <TableCell colSpan={10} className="py-2 px-4 bg-amber-50 border-b border-amber-200">
+                            <p className="text-xs text-amber-700 font-semibold">⚠ Resultados fuera del rango de fechas seleccionado — {ventasGlobales!.length} venta/s encontrada/s en el historial completo</p>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {ventasParaTabla.length === 0 ? (
+                        esBusquedaML && filtroBusquedaTexto.length >= 4 ? (
+                          <TableRow>
+                            <TableCell colSpan={10} className="py-16 text-center space-y-3">
+                              <p className="text-slate-400 italic text-sm mb-3">No se encontraron ventas en el rango de fechas seleccionado.</p>
+                              <Button
+                                onClick={handleBuscarGlobal}
+                                disabled={isSearchingGlobal}
+                                variant="outline"
+                                size="sm"
+                                className="border-blue-300 text-blue-600 hover:bg-blue-50"
+                              >
+                                {isSearchingGlobal
+                                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Buscando en todo el historial...</>
+                                  : <>Buscar en todas las fechas</>}
+                              </Button>
+                              {ventasGlobales !== null && ventasGlobales.length === 0 && (
+                                <p className="text-xs text-red-500 mt-2">No se encontró esta venta en ningún registro del sistema.</p>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          <TableRow><TableCell colSpan={10} className="py-20 text-center text-slate-400 italic">No se encontraron ventas con estos filtros</TableCell></TableRow>
+                        )
                       ) : (
-                        ventasFiltradas.map((v) => (
+                        ventasParaTabla.map((v) => (
                           <TableRow key={v.id} className="hover:bg-slate-50/50">
                             <TableCell className="py-4">
                               <span

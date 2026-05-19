@@ -319,6 +319,14 @@ export function DespachadosClient() {
 
             if (res.success) {
                 toast.success(res.message || "Ventas registradas con éxito");
+                if (res.erroresDetalle && res.erroresDetalle.length > 0) {
+                    res.erroresDetalle.forEach((e: { orderId: string; shippingId: string; motivo: string }) => {
+                        toast.error(
+                            `Venta NO registrada — Envío: ${e.shippingId}\nMotivo: ${e.motivo}`,
+                            { duration: 15000 }
+                        );
+                    });
+                }
                 const resReg = await getVentasRegistracion(fecha);
                 if (resReg.success) setVentasRegistracion(resReg.data);
                 setSelectedRegistracionIds(new Set());

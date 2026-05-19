@@ -404,7 +404,7 @@ export async function registrarVentasML(
         if (ventasAProcesar.length === 0) return { success: false, error: "No se encontraron las ventas seleccionadas" };
 
         let procesados = 0;
-        let errores = 0;
+        let erroresDetalle: { orderId: string; shippingId: string; motivo: string }[] = [];
 
         for (const v of ventasAProcesar) {
             try {
@@ -459,10 +459,9 @@ export async function registrarVentasML(
                         };
                     });
                 } else {
-                    // ERROR: No permitimos registrar ventas sin receta vinculada
                     console.error(`[REGISTRACION] La venta ${v.shippingId} no tiene receta vinculada (MLA: ${v.mla})`);
-                    errores++;
-                    continue; // Saltamos esta venta y seguimos con las demás
+                    erroresDetalle.push({ orderId: v.orderId, shippingId: v.shippingId, motivo: `Sin receta vinculada (MLA: ${v.mla})` });
+                    continue;
                 }
 
                 // Determinamos el nombre del cliente evitando que sea el título del producto
@@ -507,10 +506,10 @@ export async function registrarVentasML(
                     items: items,
                     metodo_pago: "MercadoLibre",
                     info: `Neto ML: $${netoTotal.toLocaleString('es-AR')}`,
-                    cupon: v.orderId,          // ID Venta en campo cupon
-                    de: v.orderId,             // ID Venta en campo de
-                    transaccionId: v.shippingId, // ID Envío en campo transaccionId (para que se vea en la columna Trans.)
-                    para: v.shippingId,        // ID Envío en campo para
+                    cupon: v.orderId,
+                    de: v.orderId,
+                    transaccionId: v.shippingId,
+                    para: v.shippingId,
                     mlIdVenta: v.orderId,
                     mlIdEnvio: v.shippingId,
                     mlPackId: v.packId ?? undefined,
@@ -522,22 +521,23 @@ export async function registrarVentasML(
                     docTipo: docTipo,
                     docNro: (docNro === "0" || !docNro) ? "" : docNro,
                     condicionIva: condicionIva,
-                    mlDni: (docNro === "0" || !docNro) ? "" : docNro
+                    mlDni: (docNro === "0" || !docNro) ? "" : docNro,
+                    // Fecha original de la venta en ML para que quede registrada en el día correcto
+                    fechaOriginal: v.createdAt ? new Date(v.createdAt) : undefined,
                 });
 
                 if (res.success) {
                     procesados++;
-                    // Si son muchas facturas, damos un respiro al servidor/AFIP
                     if (solicitarFactura && ventasAProcesar.length > 5) {
                         await new Promise(resolve => setTimeout(resolve, 1500));
                     }
                 } else {
                     console.error(`Error procesando venta ${v.shippingId}:`, res.error);
-                    errores++;
+                    erroresDetalle.push({ orderId: v.orderId, shippingId: v.shippingId, motivo: res.error || "Error desconocido" });
                 }
-            } catch (err) {
+            } catch (err: any) {
                 console.error(`Error fatal procesando venta ${v.shippingId}:`, err);
-                errores++;
+                erroresDetalle.push({ orderId: v.orderId, shippingId: v.shippingId, motivo: err?.message || "Error fatal" });
             }
         }
 
@@ -551,7 +551,8 @@ export async function registrarVentasML(
 
         return {
             success: true,
-            message: `Proceso finalizado. Registrados: ${procesados}, Errores: ${errores}`
+            message: `Proceso finalizado. Registrados: ${procesados}${erroresDetalle.length > 0 ? `, Errores: ${erroresDetalle.length}` : ''}`,
+            erroresDetalle,
         };
 
     } catch (error: any) {

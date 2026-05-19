@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { createPortal } from "react-dom"
-import { Bell, X } from "lucide-react"
+import { Bell } from "lucide-react"
 
 function playNotificationSound() {
     try {
@@ -21,8 +21,13 @@ function playNotificationSound() {
             osc.start(start)
             osc.stop(start + duration)
         }
-        playTone(880, ctx.currentTime, 0.18)
-        playTone(1100, ctx.currentTime + 0.16, 0.22)
+        const t = ctx.currentTime
+        // Primera repetición
+        playTone(880,  t,        0.18)
+        playTone(1100, t + 0.16, 0.22)
+        // Segunda repetición (con pausa de 0.1s entre ambas)
+        playTone(880,  t + 0.5,  0.18)
+        playTone(1100, t + 0.66, 0.22)
     } catch {
         // AudioContext no disponible
     }
@@ -38,34 +43,11 @@ type NotifRow = {
 
 type DisplayNotif = NotifRow & { displayId: string }
 
-const AUTO_DISMISS_MS = 8000
-
 function NotificationCard({ notif, onClose }: { notif: DisplayNotif; onClose: (id: string) => void }) {
     const [visible, setVisible] = useState(false)
-    const [progress, setProgress] = useState(100)
-    const startRef = useRef<number>(Date.now())
-    const rafRef = useRef<number | null>(null)
 
     useEffect(() => {
-        // Pequeño delay para que la animación de entrada se note
         requestAnimationFrame(() => setVisible(true))
-
-        function tick() {
-            const elapsed = Date.now() - startRef.current
-            const remaining = Math.max(0, 100 - (elapsed / AUTO_DISMISS_MS) * 100)
-            setProgress(remaining)
-            if (remaining > 0) {
-                rafRef.current = requestAnimationFrame(tick)
-            } else {
-                handleClose()
-            }
-        }
-        rafRef.current = requestAnimationFrame(tick)
-
-        return () => {
-            if (rafRef.current) cancelAnimationFrame(rafRef.current)
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     function handleClose() {
@@ -82,14 +64,6 @@ function NotificationCard({ notif, onClose }: { notif: DisplayNotif; onClose: (i
             }}
             className="w-80 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden"
         >
-            {/* Barra de progreso */}
-            <div className="h-1 bg-gray-100">
-                <div
-                    className="h-full bg-amber-400 transition-none"
-                    style={{ width: `${progress}%` }}
-                />
-            </div>
-
             <div className="flex items-start gap-3 px-4 py-3.5">
                 <div className="shrink-0 mt-0.5 w-8 h-8 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
                     <Bell className="w-4 h-4 text-amber-500" />
@@ -100,11 +74,13 @@ function NotificationCard({ notif, onClose }: { notif: DisplayNotif; onClose: (i
                         <p className="text-xs text-gray-500 mt-0.5 leading-snug">{notif.body}</p>
                     )}
                 </div>
+            </div>
+            <div className="px-4 pb-3.5 flex justify-end">
                 <button
                     onClick={handleClose}
-                    className="shrink-0 mt-0.5 text-gray-300 hover:text-gray-600 transition-colors"
+                    className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-white transition-colors"
                 >
-                    <X className="w-4 h-4" />
+                    Aceptar
                 </button>
             </div>
         </div>

@@ -595,6 +595,8 @@ export default function VentasMostradorClient({
     return cumpleOffline && cumplePuntoVenta && cumpleBusqueda && cumpleMetodoPago;
   });
 
+  const ventasActivasFiltradas = ventasFiltradas.filter(v => v.estadoPedido !== "CANCELADO");
+
   const esBusquedaML = tipoBusqueda === "mla_venta" || tipoBusqueda === "mla_envio";
   const mostrandoGlobal = ventasFiltradas.length === 0 && ventasGlobales !== null && ventasGlobales.length > 0;
   const ventasParaTabla = mostrandoGlobal ? ventasGlobales! : ventasFiltradas;
@@ -1581,12 +1583,11 @@ export default function VentasMostradorClient({
 
   // Top 5 artículos más vendidos en el rango de fechas filtrado
   const topItemsVentas = useMemo(() => {
-    if (!ventasFiltradas || ventasFiltradas.length === 0) return [];
+    if (!ventasActivasFiltradas || ventasActivasFiltradas.length === 0) return [];
 
     const itemCounts: Record<string, { nombre: string; total: number }> = {};
 
-    // Iterar sobre todas las ventas filtradas y contar cada artículo vendido
-    ventasFiltradas.forEach((venta) => {
+    ventasActivasFiltradas.forEach((venta) => {
       if (venta.items && venta.items.length > 0) {
         venta.items.forEach((item: any) => {
           const nombre = item.nombre || '';
@@ -1594,26 +1595,24 @@ export default function VentasMostradorClient({
             if (!itemCounts[nombre]) {
               itemCounts[nombre] = { nombre, total: 0 };
             }
-            // Cada artículo vendido cuenta como 1 (independientemente de la cantidad)
             itemCounts[nombre].total += 1;
           }
         });
       }
     });
 
-    // Ordenar por cantidad descendente y tomar los top 5
     return Object.values(itemCounts)
       .sort((a, b) => b.total - a.total)
       .slice(0, 5);
-  }, [ventasFiltradas]);
+  }, [ventasActivasFiltradas]);
 
   // Ventas agrupadas por método de pago
   const ventasPorMetodo = useMemo(() => {
-    if (!ventasFiltradas || ventasFiltradas.length === 0) return [];
+    if (!ventasActivasFiltradas || ventasActivasFiltradas.length === 0) return [];
 
     const totals: Record<string, number> = {};
 
-    ventasFiltradas.forEach((venta) => {
+    ventasActivasFiltradas.forEach((venta) => {
       const metodo = venta.metodo_pago || 'Desconocido';
       totals[metodo] = (totals[metodo] || 0) + Number(venta.totalFinal || venta.total);
     });
@@ -1621,7 +1620,7 @@ export default function VentasMostradorClient({
     return Object.entries(totals)
       .map(([metodo, total]) => ({ metodo, total }))
       .sort((a, b) => b.total - a.total);
-  }, [ventasFiltradas]);
+  }, [ventasActivasFiltradas]);
 
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
@@ -2027,9 +2026,9 @@ export default function VentasMostradorClient({
                     <div className="text-right min-w-[180px]">
                       <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Resumen</p>
                       <div className="flex flex-col gap-0.5">
-                        <p className="text-xl font-black text-slate-900 tracking-tight">Total: ${ventasFiltradas.reduce((acc, v) => acc + (v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)), 0).toLocaleString('es-AR')}</p>
-                        <p className="text-sm font-bold text-green-600">Ventas: {ventasFiltradas.length}</p>
-                        <p className="text-[10px] font-medium text-slate-500">Promedio: ${ventasFiltradas.length > 0 ? Math.round(ventasFiltradas.reduce((acc, v) => acc + (v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)), 0) / ventasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
+                        <p className="text-xl font-black text-slate-900 tracking-tight">Total: ${ventasActivasFiltradas.reduce((acc, v) => acc + (v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)), 0).toLocaleString('es-AR')}</p>
+                        <p className="text-sm font-bold text-green-600">Ventas: {ventasActivasFiltradas.length}{ventasFiltradas.length !== ventasActivasFiltradas.length && <span className="text-red-400 ml-1 font-medium text-xs">({ventasFiltradas.length - ventasActivasFiltradas.length} anulada/s)</span>}</p>
+                        <p className="text-[10px] font-medium text-slate-500">Promedio: ${ventasActivasFiltradas.length > 0 ? Math.round(ventasActivasFiltradas.reduce((acc, v) => acc + (v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)), 0) / ventasActivasFiltradas.length).toLocaleString('es-AR') : '0'}</p>
                       </div>
                     </div>
 
@@ -2126,17 +2125,25 @@ export default function VentasMostradorClient({
                       ) : (
                         ventasParaTabla.map((v) => {
                           const isExpanded = expandedVentas.has(v.id);
+                          const isAnulada = v.estadoPedido === "CANCELADO";
                           return (
                             <React.Fragment key={v.id}>
-                              <TableRow className="hover:bg-slate-50/50 align-top transition-colors">
+                              <TableRow className={`align-top transition-colors ${isAnulada ? 'bg-red-50/70 hover:bg-red-50' : 'hover:bg-slate-50/50'}`}>
                                 <TableCell className="py-4">
-                                  <span
-                                    className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors"
-                                    title={`Click para copiar ID completo: ${v.id}`}
-                                    onClick={() => copiarAlPortapapeles(v.id)}
-                                  >
-                                    {v.numeroVenta || v.id.slice(0, 8)}
-                                  </span>
+                                  <div className="flex flex-col gap-1.5">
+                                    <span
+                                      className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200 cursor-pointer hover:text-blue-600 transition-colors w-fit"
+                                      title={`Click para copiar ID completo: ${v.id}`}
+                                      onClick={() => copiarAlPortapapeles(v.id)}
+                                    >
+                                      {v.numeroVenta || v.id.slice(0, 8)}
+                                    </span>
+                                    {isAnulada && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-md w-fit">
+                                        <X className="h-3 w-3" /> ANULADA
+                                      </span>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell className="py-4">
                                   <div className="flex flex-col gap-1">
@@ -2213,7 +2220,11 @@ export default function VentasMostradorClient({
                                     v.info || "-"
                                   )}
                                 </TableCell>
-                                <TableCell className="text-right font-black text-slate-900 py-4">$ {(v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)).toLocaleString('es-AR')}</TableCell>
+                                <TableCell className="text-right py-4">
+                                  <span className={`font-black ${isAnulada ? 'text-red-400 line-through' : 'text-slate-900'}`}>
+                                    $ {(v.mlIdVenta ? Number(v.total) : Number(v.totalFinal || v.total)).toLocaleString('es-AR')}
+                                  </span>
+                                </TableCell>
                                 <TableCell className="py-4 text-center">
                                   <div className="flex items-center justify-center gap-1">
                                     <button

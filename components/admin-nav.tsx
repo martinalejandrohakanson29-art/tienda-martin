@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { LayoutDashboard, Package, Settings, Image as ImageIcon, Wrench, Users } from "lucide-react"
+import { LayoutDashboard, Package, Settings, Image as ImageIcon, Wrench, Users, Globe } from "lucide-react"
 import { cn } from "@/lib/utils"
 import SignOutButton from "@/components/sign-out-button"
 
@@ -13,6 +13,13 @@ const routes = [
         icon: LayoutDashboard,
         href: "/admin",
         color: "text-sky-500",
+        roles: ["USER", "ADMIN", "SUPER_ADMIN"],
+    },
+    {
+        label: "Volver a la Tienda",
+        icon: Globe,
+        href: "/",
+        color: "text-emerald-400",
         roles: ["USER", "ADMIN", "SUPER_ADMIN"],
     },
     {

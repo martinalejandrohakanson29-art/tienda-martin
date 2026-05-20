@@ -1,7 +1,7 @@
 // app/admin/mercadolibre/composicion/composicion-table.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
   const [selectedComponent, setSelectedComponent] = useState<any>(null); // Para mostrar el componente seleccionado
 
   const [searchArticulo, setSearchArticulo] = useState("");
+  const [searchArticuloKitModal, setSearchArticuloKitModal] = useState("");
 
   // --- COMBINAR KITS CON MAESTROS SIN RECETA ---
   const combinedKits = [...kits];
@@ -78,17 +79,47 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     });
   }
 
-  // --- LÓGICA DE FILTRADO ---
-  const filteredKits = combinedKits.filter(k => {
-    const term = filter.toLowerCase();
-    return (
-      k.mla?.toLowerCase().includes(term) ||
-      k.id_articulo?.toLowerCase().includes(term) ||
-      k.nombre_articulo?.toLowerCase().includes(term) ||
-      k.user_product_id?.toLowerCase().includes(term) ||
-      k.family_id?.toLowerCase().includes(term)
-    );
-  });
+  // --- AGRUPAR POR MLA + variation_id ---
+  const allGroups = combinedKits.reduce((acc: any[], item) => {
+    const key = `${item.mla}||${item.variation_id || ''}`;
+    let group = acc.find((g: any) => g.key === key);
+    if (!group) {
+      group = {
+        key,
+        mla: item.mla,
+        variation_id: item.variation_id,
+        nombre_variante: item.nombre_variante,
+        user_product_id: item.user_product_id,
+        family_id: item.family_id,
+        components: [],
+        isDummy: false
+      };
+      acc.push(group);
+    }
+    if (item.isDummy) {
+      group.isDummy = true;
+    } else {
+      group.components.push(item);
+    }
+    return acc;
+  }, []);
+
+  // --- FILTRADO A NIVEL DE GRUPO ---
+  const kitGroups = filter
+    ? allGroups.filter((group: any) => {
+        const term = filter.toLowerCase();
+        return (
+          group.mla?.toLowerCase().includes(term) ||
+          group.user_product_id?.toLowerCase().includes(term) ||
+          group.family_id?.toLowerCase().includes(term) ||
+          group.nombre_variante?.toLowerCase().includes(term) ||
+          group.components.some((c: any) =>
+            c.id_articulo?.toLowerCase().includes(term) ||
+            c.nombre_articulo?.toLowerCase().includes(term)
+          )
+        );
+      })
+    : allGroups;
 
   const sugerenciasArticulos = searchArticulo.length > 1
     ? articulos.filter(a =>
@@ -97,12 +128,19 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     ).slice(0, 5)
     : [];
 
+  const sugerenciasArticulosKitModal = searchArticuloKitModal.length > 1
+    ? articulos.filter(a =>
+      a.id_articulo.toLowerCase().includes(searchArticuloKitModal.toLowerCase()) ||
+      a.descripcion?.toLowerCase().includes(searchArticuloKitModal.toLowerCase())
+    ).slice(0, 5)
+    : [];
+
   // --- HANDLERS DEL MODAL DE RECETAS (KIT) ---
   const handleOpenModal = (item: any = null) => {
     setEditingItem(item || {
       mla: "", variation_id: "", nombre_variante: "", id_articulo: "", cantidad: 1, nombre_articulo: ""
     });
-    setSearchArticulo("");
+    setSearchArticuloKitModal("");
     setIsModalOpen(true);
   };
 
@@ -115,7 +153,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
       cantidad: 1,
       nombre_articulo: ""
     });
-    setSearchArticulo("");
+    setSearchArticuloKitModal("");
     setIsModalOpen(true);
   };
 
@@ -133,7 +171,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
       const res = await upsertKitComponent(editingItem);
       if (res.success) {
         setIsModalOpen(false);
-        setSearchArticulo("");
+        setSearchArticuloKitModal("");
       } else {
         alert("Error al guardar: " + res.error);
       }
@@ -147,7 +185,10 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
 
   const handleDelete = async (id: number) => {
     if (confirm("¿Eliminar este artículo del kit?")) {
-      await deleteKitComponent(id);
+      const res = await deleteKitComponent(id);
+      if (!res.success) {
+        alert("Error al eliminar el componente. Intente nuevamente.");
+      }
     }
   };
 
@@ -173,6 +214,8 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     });
     setRecipeComponents([]);
     setNewComponent({ id_articulo: "", cantidad: 1, nombre_articulo: "" });
+    setSearchArticulo("");
+    setSelectedComponent(null);
     setIsUnifiedModalOpen(true);
   };
 
@@ -282,66 +325,114 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredKits.map((item) => (
-              <TableRow key={item.id} className="hover:bg-blue-50/20 transition-colors border-slate-100">
-                <TableCell className="font-mono text-blue-600 font-bold text-xs">{item.mla}</TableCell>
-                <TableCell>
-                  {item.user_product_id ? (
-                    <Badge variant="outline" className="font-mono text-[10px] text-blue-600 bg-blue-50 border-blue-200">
-                      {item.user_product_id}
-                    </Badge>
-                  ) : (
-                    <span className="text-slate-300 text-xs">-</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {item.family_id ? (
-                    <span className="font-mono text-[10px] text-purple-600 max-w-[130px] truncate block" title={item.family_id}>
-                      {item.family_id}
-                    </span>
-                  ) : (
-                    <span className="text-slate-300 text-xs">-</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold uppercase bg-slate-100 px-2 py-1 rounded text-slate-500 w-fit">
-                      {item.nombre_variante || "Única"}
-                    </span>
-                    {item.variation_id && (
-                      <span className="text-[9px] text-slate-400 font-mono mt-0.5">{item.variation_id}</span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className={`text-[11px] uppercase ${item.isDummy ? "text-orange-600" : "text-slate-600"}`}>
-                  <span className="font-mono font-bold mr-2 text-slate-800">{item.id_articulo}</span>
-                  {item.nombre_articulo}
-                </TableCell>
-                <TableCell className="text-center font-black text-slate-700 text-sm">
-                  {item.isDummy ? "-" : item.cantidad}
-                </TableCell>
-                <TableCell className="text-center">
-                  <div className="flex justify-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => handleAddIngredientToKit(item)} className="h-8 w-8 text-green-600 hover:bg-green-50" title={item.isDummy ? "Agregar componente" : "Agregar otro componente"}>
-                      <CopyPlus className="h-4 w-4" />
-                    </Button>
-                    {!item.isDummy && (
-                      <Button variant="ghost" size="icon" onClick={() => handleOpenModal(item)} className="h-8 w-8 text-blue-600 hover:bg-blue-50" title="Editar receta">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
-                    {!item.isDummy ? (
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id as number)} className="h-8 w-8 text-red-600 hover:bg-red-50" title="Eliminar componente">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+            {kitGroups.map((group: any) => (
+              <Fragment key={group.key}>
+                {/* Fila cabecera del grupo (1 por MLA + variante) */}
+                <TableRow className="bg-blue-50/40 hover:bg-blue-100/40 transition-colors border-b-0">
+                  <TableCell className="font-mono text-blue-700 font-bold text-xs py-3">{group.mla}</TableCell>
+                  <TableCell className="py-3">
+                    {group.user_product_id ? (
+                      <Badge variant="outline" className="font-mono text-[10px] text-blue-600 bg-blue-50 border-blue-200">
+                        {group.user_product_id}
+                      </Badge>
                     ) : (
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteMaster(item.mla, item.variation_id)} className="h-8 w-8 text-red-600 hover:bg-red-50" title="Eliminar producto sin receta">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <span className="text-slate-300 text-xs">-</span>
                     )}
-                  </div>
-                </TableCell>
-              </TableRow>
+                  </TableCell>
+                  <TableCell className="py-3">
+                    {group.family_id ? (
+                      <span className="font-mono text-[10px] text-purple-600 max-w-[130px] truncate block" title={group.family_id}>
+                        {group.family_id}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 text-xs">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold uppercase bg-slate-100 px-2 py-1 rounded text-slate-500 w-fit">
+                        {group.nombre_variante || "Única"}
+                      </span>
+                      {group.variation_id && (
+                        <span className="text-[9px] text-slate-400 font-mono mt-0.5">{group.variation_id}</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell colSpan={2} className="py-3">
+                    <span className="text-xs text-slate-400 italic">
+                      {group.components.length === 0
+                        ? "Sin receta"
+                        : `${group.components.length} componente${group.components.length !== 1 ? "s" : ""}`}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center py-3">
+                    <div className="flex justify-center gap-1">
+                      <Button
+                        variant="ghost" size="icon"
+                        onClick={() => handleAddIngredientToKit(group)}
+                        className="h-8 w-8 text-green-600 hover:bg-green-50"
+                        title="Agregar componente a este producto"
+                      >
+                        <CopyPlus className="h-4 w-4" />
+                      </Button>
+                      {group.components.length === 0 && (
+                        <Button
+                          variant="ghost" size="icon"
+                          onClick={() => handleDeleteMaster(group.mla, group.variation_id)}
+                          className="h-8 w-8 text-red-600 hover:bg-red-50"
+                          title="Eliminar producto sin receta"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+
+                {/* Sub-filas de componentes */}
+                {group.components.map((comp: any) => (
+                  <TableRow key={comp.id} className="hover:bg-slate-50 border-slate-100 bg-white">
+                    <TableCell colSpan={4} className="py-2 border-l-2 border-blue-100" />
+                    <TableCell className="text-[11px] uppercase text-slate-600 py-2 pl-6">
+                      <span className="font-mono font-bold mr-2 text-slate-800">{comp.id_articulo}</span>
+                      {comp.nombre_articulo}
+                    </TableCell>
+                    <TableCell className="text-center font-black text-slate-700 text-sm py-2">
+                      {comp.cantidad}
+                    </TableCell>
+                    <TableCell className="text-center py-2">
+                      <div className="flex justify-center gap-1">
+                        <Button
+                          variant="ghost" size="icon"
+                          onClick={() => handleOpenModal(comp)}
+                          className="h-7 w-7 text-blue-600 hover:bg-blue-50"
+                          title="Editar componente"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost" size="icon"
+                          onClick={() => handleDelete(comp.id as number)}
+                          className="h-7 w-7 text-red-600 hover:bg-red-50"
+                          title="Eliminar componente"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+
+                {/* Mensaje si no tiene componentes */}
+                {group.components.length === 0 && (
+                  <TableRow className="bg-white border-slate-100">
+                    <TableCell colSpan={4} className="py-2 border-l-2 border-orange-100" />
+                    <TableCell colSpan={3} className="py-2 pl-6 text-orange-500 text-xs italic">
+                      Sin componentes — usá el botón + para agregar la receta
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
             ))}
           </TableBody>
         </Table>
@@ -394,17 +485,20 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input
                   placeholder="Buscar insumo..."
-                  value={searchArticulo}
-                  onChange={e => setSearchArticulo(e.target.value)}
+                  value={searchArticuloKitModal}
+                  onChange={e => setSearchArticuloKitModal(e.target.value)}
                   className="pl-10 border-blue-200"
                 />
               </div>
-              {sugerenciasArticulos.length > 0 && (
+              {sugerenciasArticulosKitModal.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-auto">
-                  {sugerenciasArticulos.map((art) => (
+                  {sugerenciasArticulosKitModal.map((art) => (
                     <div
                       key={art.id_articulo}
-                      onClick={() => handleSelectArticulo(art)}
+                      onClick={() => {
+                        setEditingItem({ ...editingItem, id_articulo: art.id_articulo, nombre_articulo: art.descripcion });
+                        setSearchArticuloKitModal("");
+                      }}
                       className="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between"
                     >
                       <span className="text-xs font-bold text-blue-600">{art.id_articulo}</span>

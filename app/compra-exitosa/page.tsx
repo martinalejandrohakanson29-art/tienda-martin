@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Send, CheckCircle2, AlertCircle } from "lucide-react";
+import { Send, CheckCircle2, AlertCircle, ShoppingBag, Home } from "lucide-react";
+import Link from "next/link";
 import { useCart } from "@/hooks/use-cart";
 // Importamos nuestras nuevas acciones
 import { updateVentaWebStatus, updateVentaWebCliente } from "@/app/actions/ventas-web";
@@ -190,6 +191,21 @@ ID de Pago MP: ${paymentId}
             <Send className="w-5 h-5" />
             Confirmar Envío por WhatsApp
           </Button>
+
+          <div className="flex flex-col sm:flex-row gap-4 mt-6 pt-6 border-t">
+              <Link href="/shop" className="flex-1">
+                  <Button type="button" variant="outline" className="w-full gap-2 py-5 border-gray-300 text-gray-700 hover:bg-gray-50">
+                      <ShoppingBag className="w-4 h-4" />
+                      Seguir Comprando
+                  </Button>
+              </Link>
+              <Link href="/" className="flex-1">
+                  <Button type="button" variant="ghost" className="w-full gap-2 py-5 text-gray-500 hover:text-gray-900">
+                      <Home className="w-4 h-4" />
+                      Ir al Inicio
+                  </Button>
+              </Link>
+          </div>
         </CardContent>
     </Card>
   );

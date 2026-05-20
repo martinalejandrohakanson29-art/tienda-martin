@@ -3,8 +3,9 @@
 import { AdminNav } from "@/components/admin-nav";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Menu } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { Menu, ArrowLeft, LayoutDashboard, Globe } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { SessionProvider } from "next-auth/react";
 import { NotificationListener } from "@/components/notification-listener";
 
@@ -14,9 +15,11 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   
   // El panel solo se muestra si la ruta es exactamente "/admin"
   const isFullscreenPage = pathname !== "/admin";
+  const isLoginPage = pathname === "/admin/login";
 
   return (
     <SessionProvider>
@@ -56,8 +59,50 @@ export default function AdminLayout({
             Cambiamos overflow-hidden por overflow-y-auto para permitir el scroll 
             y quitamos h-screen para que el contenido pueda expandirse.
         */}
-        <div className={isFullscreenPage ? "p-0 min-h-screen" : "p-4 md:p-8"}>
-            {children}
+        <div className={isFullscreenPage ? "flex flex-col min-h-screen bg-slate-50" : "p-4 md:p-8"}>
+            {!isLoginPage && isFullscreenPage && (
+                <header className="sticky top-0 z-50 w-full border-b bg-slate-900 text-white shadow-md">
+                    <div className="mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => router.back()}
+                                className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors"
+                            >
+                                <ArrowLeft className="h-4 w-4" />
+                                <span>Atrás</span>
+                            </Button>
+                            <span className="text-slate-700">|</span>
+                            <Link href="/admin">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors font-semibold"
+                                >
+                                    <LayoutDashboard className="h-4 w-4 text-yellow-400" />
+                                    <span>Panel Revolución</span>
+                                </Button>
+                            </Link>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <Link href="/">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center gap-2 border-slate-700 text-slate-200 hover:bg-slate-800 rounded-full px-4"
+                                >
+                                    <Globe className="h-4 w-4 text-emerald-400" />
+                                    <span>Ver Tienda</span>
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+                </header>
+            )}
+            <div className={isFullscreenPage ? "flex-1 p-4 md:p-8" : ""}>
+                {children}
+            </div>
         </div>
       </main>
     </div>

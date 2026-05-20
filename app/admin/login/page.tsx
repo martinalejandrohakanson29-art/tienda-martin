@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { Lock } from "lucide-react"
+import { Lock, ArrowLeft } from "lucide-react"
+import Link from "next/link"
 
 export default function LoginPage() {
     const router = useRouter()
@@ -88,10 +89,14 @@ export default function LoginPage() {
                             />
                         </div>
                     </CardContent>
-                    <CardFooter>
+                    <CardFooter className="flex flex-col gap-4">
                         <Button className="w-full" type="submit" disabled={loading}>
                             {loading ? "Ingresando..." : "Ingresar"}
                         </Button>
+                        <Link href="/" className="text-sm text-gray-500 hover:text-primary transition-colors flex items-center gap-1.5 mt-2">
+                            <ArrowLeft className="h-4 w-4" />
+                            Volver a la Tienda
+                        </Link>
                     </CardFooter>
                 </form>
             </Card>

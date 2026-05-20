@@ -4,6 +4,9 @@ import AddToCart from "./add-to-cart"
 import { formatPrice } from "@/lib/utils"
 import { Metadata, ResolvingMetadata } from "next"
 import PixelProductView from "@/components/pixel-product-view" // 👈 1. IMPORTANTE: Importamos el componente del Píxel
+import Link from "next/link"
+import { Button } from "@/components/ui/button"
+import { Home, ArrowLeft } from "lucide-react"
 import {
   Carousel,
   CarouselContent,
@@ -67,6 +70,29 @@ export default async function ProductPage({ params }: { params: { id: string } }
         <div className="container mx-auto px-4 py-12">
             {/* 👇 2. Disparamos el evento ViewContent de Meta */}
             <PixelProductView product={product} />
+
+            {/* Navegación y Botón Atrás */}
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-8 border-b pb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Link href="/" className="hover:text-primary transition-colors flex items-center gap-1">
+                        <Home className="h-4 w-4" />
+                        <span>Inicio</span>
+                    </Link>
+                    <span>/</span>
+                    <Link href="/shop" className="hover:text-primary transition-colors">
+                        <span>Tienda</span>
+                    </Link>
+                    <span>/</span>
+                    <span className="text-gray-900 font-medium truncate max-w-[200px]">{product.title}</span>
+                </div>
+
+                <Link href="/shop">
+                    <Button variant="ghost" size="sm" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+                        <ArrowLeft className="h-4 w-4" />
+                        Volver a la Tienda
+                    </Button>
+                </Link>
+            </div>
 
             <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
                 

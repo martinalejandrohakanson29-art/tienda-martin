@@ -67,7 +67,7 @@ export default function CrearPublicacionesPage() {
   // ==========================================
   const handleProcesarFotos = async () => {
     setIsProcessingImage(true);
-    const WEBHOOK_FOTOS = "https://n8n-on-render-production-52f0.up.railway.app/webhook/prueba-imagenes"; 
+    const WEBHOOK_FOTOS = "https://n8n.revolucionmotos.tech/webhook/prueba-imagenes";
 
     try {
       const response = await fetch(WEBHOOK_FOTOS, {
@@ -105,7 +105,7 @@ export default function CrearPublicacionesPage() {
     setIaTermino(false);
     setPublicacionExitosa(false);
 
-    const WEBHOOK_GENERAR = "https://n8n-on-render-production-52f0.up.railway.app/webhook/generar-publicacion"; 
+    const WEBHOOK_GENERAR = "https://n8n.revolucionmotos.tech/webhook/generar-publicacion";
 
     const borrador_titulo = `${producto} ${marca}. Características: ${caracteristicas}`;
     const payload = {
@@ -154,7 +154,7 @@ export default function CrearPublicacionesPage() {
     }
 
     setIsPublishing(true);
-    const WEBHOOK_PUBLICAR = "https://n8n-on-render-production-52f0.up.railway.app/webhook/subir_publicaciones";
+    const WEBHOOK_PUBLICAR = "https://n8n.revolucionmotos.tech/webhook/subir_publicaciones";
 
     const arregloImagenes = [{ source: urlFoto }];
     

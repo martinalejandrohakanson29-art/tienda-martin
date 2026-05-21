@@ -27,6 +27,45 @@ import { actualizarPrecioArticuloDB, sincronizarArticulosMostrador } from "@/app
 import { crearArticuloMostrador } from "@/app/actions/listas";
 import { PedidosCompraClient } from "@/app/admin/erp/pedidos-compra/pedidos-compra-client";
 
+function DecimalInput({ value, onChange, className, ...props }: {
+  value: number
+  onChange: (val: number) => void
+  className?: string
+  [key: string]: any
+}) {
+  const [display, setDisplay] = React.useState(value === 0 ? "" : String(value))
+
+  React.useEffect(() => {
+    const isTypingDecimal = display.endsWith(".") || display.endsWith(",")
+    const current = parseFloat(display.replace(",", "."))
+    if (!isTypingDecimal && current !== value) {
+      setDisplay(value === 0 ? "" : String(value))
+    }
+  }, [value])
+
+  return (
+    <Input
+      {...props}
+      type="text"
+      inputMode="decimal"
+      value={display}
+      className={className}
+      onChange={(e) => {
+        const raw = e.target.value
+        if (raw !== "" && !/^-?\d*[.,]?\d*$/.test(raw)) return
+        setDisplay(raw)
+        const parsed = parseFloat(raw.replace(",", "."))
+        if (!isNaN(parsed)) onChange(parsed)
+        else if (raw === "" || raw === "-") onChange(0)
+      }}
+      onBlur={() => {
+        const parsed = parseFloat(display.replace(",", "."))
+        setDisplay(isNaN(parsed) ? "" : String(parsed))
+      }}
+    />
+  )
+}
+
 interface Articulo {
   id: string;
   nombre: string;
@@ -583,19 +622,11 @@ export default function ComprasClient({
                           <TableCell className="text-center py-3">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-slate-400 text-xs">$</span>
-                              <Input
-                                type="text"
-                                inputMode="decimal"
+                              <DecimalInput
                                 value={item.costo_unit}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(',', '.');
-                                  const newCost = parseFloat(val);
-                                  if (!isNaN(newCost)) {
-                                    const newPrecio = Math.round(newCost * (1 + (item.margenGanancia ?? 50) / 100));
-                                    setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
-                                  } else if (e.target.value === "") {
-                                    setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: 0, subtotal: 0, precioPublico: 0 } : i));
-                                  }
+                                onChange={(newCost) => {
+                                  const newPrecio = Math.round(newCost * (1 + (item.margenGanancia ?? 50) / 100));
+                                  setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
                                 }}
                                 className={`w-28 h-8 ${inputSinFlechas}`}
                               />
@@ -603,19 +634,11 @@ export default function ComprasClient({
                           </TableCell>
                           <TableCell className="text-center py-3">
                             <div className="flex items-center justify-center gap-1">
-                              <Input
-                                type="text"
-                                inputMode="decimal"
+                              <DecimalInput
                                 value={item.margenGanancia ?? 50}
-                                onChange={(e) => {
-                                  const val = e.target.value.replace(',', '.');
-                                  const newMargin = parseFloat(val);
-                                  if (!isNaN(newMargin)) {
-                                    const newPrecio = Math.round(item.costo_unit * (1 + newMargin / 100));
-                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin, precioPublico: newPrecio } : i));
-                                  } else if (e.target.value === "") {
-                                    setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: 0, precioPublico: item.costo_unit } : i));
-                                  }
+                                onChange={(newMargin) => {
+                                  const newPrecio = Math.round(item.costo_unit * (1 + newMargin / 100));
+                                  setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin, precioPublico: newPrecio } : i));
                                 }}
                                 className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`}
                               />
@@ -1142,11 +1165,11 @@ export default function ComprasClient({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <Label className="text-xs font-bold text-slate-500 uppercase">Recargo ($)</Label>
-                  <Input type="number" value={interes} onChange={(e) => setInteres(Number(e.target.value))} />
+                  <DecimalInput value={interes} onChange={setInteres} />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs font-bold text-slate-500 uppercase">Descuento ($)</Label>
-                  <Input type="number" value={descuento} onChange={(e) => setDescuento(Number(e.target.value))} />
+                  <DecimalInput value={descuento} onChange={setDescuento} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -1430,11 +1453,11 @@ export default function ComprasClient({
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recargo ($)</Label>
-                <Input type="number" value={editInteres} onChange={(e) => setEditInteres(Number(e.target.value))} className="h-12 bg-slate-50" />
+                <DecimalInput value={editInteres} onChange={setEditInteres} className="h-12 bg-slate-50" />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descuento ($)</Label>
-                <Input type="number" value={editDescuento} onChange={(e) => setEditDescuento(Number(e.target.value))} className="h-12 bg-slate-50" />
+                <DecimalInput value={editDescuento} onChange={setEditDescuento} className="h-12 bg-slate-50" />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Carga</Label>
@@ -1474,38 +1497,22 @@ export default function ComprasClient({
                         </TableCell>
                         <TableCell className="text-center"><Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.costo_unit } : i))} className="w-16 mx-auto h-8 text-center" /></TableCell>
                         <TableCell className="text-center">
-                          <Input
-                            type="text"
-                            inputMode="decimal"
+                          <DecimalInput
                             value={item.costo_unit}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(',', '.');
-                              const newCost = parseFloat(val);
-                              if (!isNaN(newCost)) {
-                                const newPrecio = Math.round(newCost * (1 + (item.margenGanancia ?? 50) / 100));
-                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
-                              } else if (e.target.value === "") {
-                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: 0, subtotal: 0, precioPublico: 0 } : i));
-                              }
+                            onChange={(newCost) => {
+                              const newPrecio = Math.round(newCost * (1 + (item.margenGanancia ?? 50) / 100));
+                              setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
                             }}
                             className="w-28 mx-auto h-8 text-center"
                           />
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <Input
-                              type="text"
-                              inputMode="decimal"
+                            <DecimalInput
                               value={item.margenGanancia ?? 50}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(',', '.');
-                                const newMargin = parseFloat(val);
-                                if (!isNaN(newMargin)) {
-                                  const newPrecio = Math.round(item.costo_unit * (1 + newMargin / 100));
-                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin, precioPublico: newPrecio } : i));
-                                } else if (e.target.value === "") {
-                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: 0, precioPublico: item.costo_unit } : i));
-                                }
+                              onChange={(newMargin) => {
+                                const newPrecio = Math.round(item.costo_unit * (1 + newMargin / 100));
+                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin, precioPublico: newPrecio } : i));
                               }}
                               className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`}
                             />
@@ -1620,19 +1627,17 @@ export default function ComprasClient({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-600 uppercase">Costo ($)</Label>
-                <Input 
-                  type="number" 
-                  value={newArtData.costo} 
-                  onChange={(e) => handleCostoArtChange(Number(e.target.value))} 
+                <DecimalInput
+                  value={newArtData.costo ?? 0}
+                  onChange={handleCostoArtChange}
                   className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-emerald-500"
                 />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-600 uppercase">% Ganancia</Label>
-                <Input 
-                  type="number" 
-                  value={newArtData.margenGanancia} 
-                  onChange={(e) => handleMargenArtChange(Number(e.target.value))} 
+                <DecimalInput
+                  value={newArtData.margenGanancia ?? 0}
+                  onChange={handleMargenArtChange}
                   className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-emerald-500"
                 />
               </div>
@@ -1642,10 +1647,9 @@ export default function ComprasClient({
               <Label className="text-xs font-bold text-emerald-600 uppercase mb-2 block">Precio Final de Venta</Label>
               <div className="flex items-center gap-3">
                 <span className="text-2xl font-black text-emerald-900">$</span>
-                <Input 
-                  type="number" 
-                  value={newArtData.precio} 
-                  onChange={(e) => setNewArtData({...newArtData, precio: Number(e.target.value)})} 
+                <DecimalInput
+                  value={newArtData.precio}
+                  onChange={(val) => setNewArtData({...newArtData, precio: val})}
                   className="font-black text-2xl bg-white border-emerald-200 text-emerald-700 focus-visible:ring-emerald-500 h-12"
                 />
               </div>

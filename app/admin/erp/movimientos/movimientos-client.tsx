@@ -316,7 +316,7 @@ export default function MovimientosClient({
     const saldoPositivo = saldoActual >= 0;
 
     const boxY = finalY + 12;
-    doc.setFillColor(...(saldoPositivo ? [209, 250, 229] : [255, 228, 230]) as [number, number, number]);
+    doc.setFillColor(...(saldoPositivo ? [255, 228, 230] : [209, 250, 229]) as [number, number, number]);
     doc.roundedRect(14, boxY, pageWidth - 28, 30, 3, 3, 'F');
 
     doc.setFontSize(10);
@@ -326,7 +326,7 @@ export default function MovimientosClient({
 
     doc.setFontSize(24);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(...(saldoPositivo ? [4, 120, 87] : [190, 18, 60]) as [number, number, number]);
+    doc.setTextColor(...(saldoPositivo ? [190, 18, 60] : [4, 120, 87]) as [number, number, number]);
     doc.text(formatCurrency(saldoActual), pageWidth - 18, boxY + 22, { align: 'right' });
     doc.setFont("helvetica", "normal");
 

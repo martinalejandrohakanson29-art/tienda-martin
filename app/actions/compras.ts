@@ -9,9 +9,14 @@ import { revalidatePath } from "next/cache";
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
-// Interpreta un string "YYYY-MM-DD" como medianoche en Argentina (UTC-3)
-// evitando que new Date("2024-05-21") lo trate como UTC y muestre el día anterior
-const toArgDate = (dateStr: string) => new Date(`${dateStr}T00:00:00-03:00`)
+// Interpreta un string "YYYY-MM-DD" como medianoche en Argentina (UTC-3).
+// Devuelve null si la string está vacía o no tiene formato válido, para
+// no pasarle un Invalid Date a Prisma (acepta fechas futuras sin restricción).
+const toArgDate = (dateStr: string | null | undefined): Date | null => {
+  if (!dateStr) return null
+  const d = new Date(`${dateStr}T00:00:00-03:00`)
+  return isNaN(d.getTime()) ? null : d
+}
 
 async function upsertCostosML(tx: TxClient, prodId: string, item: any, costoEnArs: number, fob: number) {
   await tx.costosArticulos.upsert({
@@ -258,8 +263,8 @@ export async function guardarComoPedidoCompra(data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
-          fechaCarga: data.fechaCompra ? toArgDate(data.fechaCompra) : undefined,
-          fechaIngreso: data.fechaIngreso ? toArgDate(data.fechaIngreso) : null,
+          fechaCarga: toArgDate(data.fechaCompra) ?? undefined,
+          fechaIngreso: toArgDate(data.fechaIngreso),
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -454,13 +459,13 @@ export async function actualizarFechaCompra(compraId: string, nuevaFecha: string
     await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.update({
         where: { id: compraId },
-        data: { fechaCarga: toArgDate(nuevaFecha) }
+        data: { fechaCarga: toArgDate(nuevaFecha) ?? new Date() }
       });
 
       if (compra.metodo_pago === "A Cuenta Corriente") {
         await tx.movimientoProveedor.updateMany({
           where: { referencia: compraId },
-          data: { fecha: toArgDate(nuevaFecha) }
+          data: { fecha: toArgDate(nuevaFecha) ?? new Date() }
         });
 
         // Al cambiar la fecha el movimiento reordena en la línea de tiempo,
@@ -555,8 +560,8 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
-          fechaCarga: data.fechaCompra ? toArgDate(data.fechaCompra) : undefined,
-          fechaIngreso: data.fechaIngreso ? toArgDate(data.fechaIngreso) : null,
+          fechaCarga: toArgDate(data.fechaCompra) ?? undefined,
+          fechaIngreso: toArgDate(data.fechaIngreso),
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id,
@@ -766,8 +771,8 @@ export async function crearCompra(data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
-          fechaCarga: data.fechaCompra ? toArgDate(data.fechaCompra) : undefined,
-          fechaIngreso: data.fechaIngreso ? toArgDate(data.fechaIngreso) : null,
+          fechaCarga: toArgDate(data.fechaCompra) ?? undefined,
+          fechaIngreso: toArgDate(data.fechaIngreso),
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -860,7 +865,7 @@ export async function crearCompra(data: {
               descripcion: `Compra a CC #${compra.numeroCompra}`,
               referencia: compra.id,
               saldo: nuevoSaldo,
-              fecha: data.fechaCompra ? toArgDate(data.fechaCompra) : undefined
+              fecha: toArgDate(data.fechaCompra) ?? undefined
             }
           });
         }
@@ -979,8 +984,8 @@ export async function actualizarCompra(compraId: string, data: {
           comprobante: data.comprobante,
           transaccionId: data.transaccionId,
           proveedorId: data.proveedorId || null,
-          fechaCarga: data.fechaCompra ? toArgDate(data.fechaCompra) : undefined,
-          fechaIngreso: data.fechaIngreso ? toArgDate(data.fechaIngreso) : null,
+          fechaCarga: toArgDate(data.fechaCompra) ?? undefined,
+          fechaIngreso: toArgDate(data.fechaIngreso),
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id,
@@ -1022,7 +1027,7 @@ export async function actualizarCompra(compraId: string, data: {
               descripcion: `EDICIÓN: Compra a CC #${oldCompra?.numeroCompra}`,
               referencia: compraId,
               saldo: nuevoSaldo,
-              fecha: data.fechaCompra ? toArgDate(data.fechaCompra) : undefined
+              fecha: toArgDate(data.fechaCompra) ?? undefined
             }
           });
         }

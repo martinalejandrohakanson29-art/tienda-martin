@@ -9,6 +9,14 @@ import { revalidatePath } from "next/cache";
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
+async function upsertCostosML(tx: TxClient, prodId: string, item: any, costoEnArs: number, fob: number) {
+  await tx.costosArticulos.upsert({
+    where: { id_articulo: prodId },
+    update: { costo_usd: item.costo_unit, es_dolar: true, costo_final_ars: costoEnArs * fob, fecha_actualizacion: new Date() },
+    create: { id_articulo: prodId, descripcion: item.nombre, costo_usd: item.costo_unit, es_dolar: true, costo_final_ars: costoEnArs * fob }
+  })
+}
+
 async function syncPackStock(tx: TxClient, packId: string, packItems: { componenteId: string; cantidad: number }[]) {
   const componentes = await tx.articuloMostrador.findMany({
     where: { id: { in: packItems.map(p => p.componenteId) } },
@@ -218,11 +226,16 @@ export async function guardarComoPedidoCompra(data: {
   transaccionId?: string,
   proveedorId?: string,
   impactarCostos?: boolean,
+  moneda?: 'ARS' | 'USD',
   fechaCompra?: string,
   fechaIngreso?: string
 }) {
   const session = await requireAdmin();
   const currentUserId = (session.user as any).id as string | undefined
+  const moneda = data.moneda ?? 'ARS'
+  const config = (data.impactarCostos && moneda === 'USD') ? await prisma.config.findFirst() : null
+  const dolar = Number(config?.dolarCotizacion ?? 1)
+  const fob = Number(config?.factorFob ?? 1)
   try {
     const result = await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.create({
@@ -275,26 +288,26 @@ export async function guardarComoPedidoCompra(data: {
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
           const margen = item.margenGanancia ?? 50;
-          const precioPublico = Number(item.costo_unit) * (1 + margen / 100);
+          const costoEnArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+          const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
           if (data.impactarCostos) {
-            updateData.costo = item.costo_unit;
+            updateData.costo = costoEnArs;
             updateData.margenGanancia = margen;
             updateData.precio = precioPublico;
           }
 
-          await tx.articuloMostrador.update({
-            where: { id: prodId },
-            data: updateData
-          });
+          await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
 
           if (data.impactarCostos && articuloBase) {
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoEnArs, fob)
+            const costoStr = moneda === 'USD' ? `U$S ${Number(item.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
                 articuloId: prodId,
                 usuario: data.comprador,
                 accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado por Pedido de Compra #${compra.numeroCompra} (Costo: $${Number(item.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
+                detalle: `Actualizado por Pedido de Compra #${compra.numeroCompra} (Costo: ${costoStr}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${precioPublico.toLocaleString('es-AR')}`
               }
             });
           }
@@ -318,8 +331,12 @@ export async function guardarComoPedidoCompra(data: {
   }
 }
 
-export async function confirmarPedidoCompra(compraId: string, data?: { impactarCostos: boolean, items: any[], usuario: string }) {
+export async function confirmarPedidoCompra(compraId: string, data?: { impactarCostos: boolean, items: any[], usuario: string, moneda?: 'ARS' | 'USD' }) {
   await requireAdmin();
+  const moneda: 'ARS' | 'USD' = data?.moneda ?? 'ARS'
+  const config = (data?.impactarCostos && moneda === 'USD') ? await prisma.config.findFirst() : null
+  const dolar = Number(config?.dolarCotizacion ?? 1)
+  const fob = Number(config?.factorFob ?? 1)
   try {
     const result = await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.update({
@@ -338,23 +355,22 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
 
           if (articuloBase && !articuloBase.esPack) {
             const margen = item.margenGanancia ?? 50;
-            const precioPublico = Number(item.costo_unit) * (1 + margen / 100);
+            const costoEnArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+            const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
             await tx.articuloMostrador.update({
               where: { id: prodId },
-              data: {
-                costo: item.costo_unit,
-                margenGanancia: margen,
-                precio: precioPublico
-              }
+              data: { costo: costoEnArs, margenGanancia: margen, precio: precioPublico }
             });
 
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoEnArs, fob)
+            const costoStr = moneda === 'USD' ? `U$S ${Number(item.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
                 articuloId: prodId,
                 usuario: data.usuario || "Admin",
                 accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado al confirmar Pedido #${compra.numeroCompra} (Costo: $${Number(item.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
+                detalle: `Actualizado al confirmar Pedido #${compra.numeroCompra} (Costo: ${costoStr}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${precioPublico.toLocaleString('es-AR')}`
               }
             });
           }
@@ -468,6 +484,10 @@ export async function actualizarFechaCompra(compraId: string, nuevaFecha: string
 
 export async function actualizarPedidoCompra(compraId: string, data: any, usuario: string, detalleCambios: string) {
   await requireAdmin();
+  const moneda: 'ARS' | 'USD' = data.moneda ?? 'ARS'
+  const config = (data.impactarCostos && moneda === 'USD') ? await prisma.config.findFirst() : null
+  const dolar = Number(config?.dolarCotizacion ?? 1)
+  const fob = Number(config?.factorFob ?? 1)
   try {
     await prisma.$transaction(async (tx) => {
       const oldItems = await tx.compraItem.findMany({
@@ -565,26 +585,26 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         } else {
           const updateData: any = { stock: { increment: newItem.cantidad } };
           const margen = newItem.margenGanancia ?? 50;
-          const precioPublico = Number(newItem.costo_unit) * (1 + margen / 100);
+          const costoEnArs = moneda === 'USD' ? Number(newItem.costo_unit) * dolar : Number(newItem.costo_unit)
+          const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
           if (data.impactarCostos) {
-            updateData.costo = newItem.costo_unit;
+            updateData.costo = costoEnArs;
             updateData.margenGanancia = margen;
             updateData.precio = precioPublico;
           }
 
-          await tx.articuloMostrador.update({
-            where: { id: prodId },
-            data: updateData
-          });
+          await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
 
           if (data.impactarCostos && articuloBase) {
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, newItem, costoEnArs, fob)
+            const costoStr = moneda === 'USD' ? `U$S ${Number(newItem.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
                 articuloId: prodId,
                 usuario: usuario,
                 accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado por Edición de Pedido #${updatedCompra.numeroCompra} (Costo: $${Number(newItem.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
+                detalle: `Actualizado por Edición de Pedido #${updatedCompra.numeroCompra} (Costo: ${costoStr}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${precioPublico.toLocaleString('es-AR')}`
               }
             });
           }
@@ -716,10 +736,15 @@ export async function crearCompra(data: {
   transaccionId?: string,
   proveedorId?: string,
   impactarCostos?: boolean,
+  moneda?: 'ARS' | 'USD',
   fechaCompra?: string,
   fechaIngreso?: string
 }) {
   await requireAdmin();
+  const moneda = data.moneda ?? 'ARS'
+  const config = (data.impactarCostos && moneda === 'USD') ? await prisma.config.findFirst() : null
+  const dolar = Number(config?.dolarCotizacion ?? 1)
+  const fob = Number(config?.factorFob ?? 1)
   try {
     const result = await prisma.$transaction(async (tx) => {
       const compra = await tx.compra.create({
@@ -772,26 +797,26 @@ export async function crearCompra(data: {
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
           const margen = item.margenGanancia ?? 50;
-          const precioPublico = Number(item.costo_unit) * (1 + margen / 100);
+          const costoEnArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+          const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
           if (data.impactarCostos) {
-            updateData.costo = item.costo_unit;
+            updateData.costo = costoEnArs;
             updateData.margenGanancia = margen;
             updateData.precio = precioPublico;
           }
 
-          await tx.articuloMostrador.update({
-            where: { id: prodId },
-            data: updateData
-          });
+          await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
 
           if (data.impactarCostos && articuloBase) {
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoEnArs, fob)
+            const costoStr = moneda === 'USD' ? `U$S ${Number(item.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
                 articuloId: prodId,
                 usuario: data.comprador,
                 accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado por Compra #${compra.numeroCompra} (Costo: $${Number(item.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
+                detalle: `Actualizado por Compra #${compra.numeroCompra} (Costo: ${costoStr}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${precioPublico.toLocaleString('es-AR')}`
               }
             });
           }
@@ -863,10 +888,15 @@ export async function actualizarCompra(compraId: string, data: {
   transaccionId?: string,
   items: any[],
   impactarCostos?: boolean,
+  moneda?: 'ARS' | 'USD',
   fechaCompra?: string,
   fechaIngreso?: string
 }, usuario: string, detalleCambios: string) {
   await requireAdmin();
+  const moneda = data.moneda ?? 'ARS'
+  const config = (data.impactarCostos && moneda === 'USD') ? await prisma.config.findFirst() : null
+  const dolar = Number(config?.dolarCotizacion ?? 1)
+  const fob = Number(config?.factorFob ?? 1)
   try {
     await prisma.$transaction(async (tx) => {
       const oldItems = await tx.compraItem.findMany({
@@ -1012,26 +1042,26 @@ export async function actualizarCompra(compraId: string, data: {
         } else {
           const updateData: any = { stock: { increment: newItem.cantidad } };
           const margen = newItem.margenGanancia ?? 50;
-          const precioPublico = Number(newItem.costo_unit) * (1 + margen / 100);
+          const costoEnArs = moneda === 'USD' ? Number(newItem.costo_unit) * dolar : Number(newItem.costo_unit)
+          const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
           if (data.impactarCostos) {
-            updateData.costo = newItem.costo_unit;
+            updateData.costo = costoEnArs;
             updateData.margenGanancia = margen;
             updateData.precio = precioPublico;
           }
 
-          await tx.articuloMostrador.update({
-            where: { id: prodId },
-            data: updateData
-          });
+          await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
 
           if (data.impactarCostos && articuloBase) {
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, newItem, costoEnArs, fob)
+            const costoStr = moneda === 'USD' ? `U$S ${Number(newItem.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
                 articuloId: prodId,
                 usuario: usuario,
                 accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado por Edición de Compra #${oldCompra?.numeroCompra} (Costo: $${Number(newItem.costo_unit).toLocaleString('es-AR')}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${Number(precioPublico).toLocaleString('es-AR')}`
+                detalle: `Actualizado por Edición de Compra #${oldCompra?.numeroCompra} (Costo: ${costoStr}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${precioPublico.toLocaleString('es-AR')}`
               }
             });
           }

@@ -253,6 +253,88 @@ export default function MovimientosClient({
     toast.success("Reporte Excel generado");
   };
 
+  const handleExportPDFCliente = () => {
+    const activeMovimientos = filteredMovimientos.filter(m => !m.anulado);
+
+    if (activeMovimientos.length === 0) {
+      toast.error("No hay movimientos para exportar");
+      return;
+    }
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const provNombre = searchTerm || "Todos los proveedores";
+
+    doc.setFontSize(20);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Estado de Cuenta", 14, 22);
+
+    doc.setFontSize(13);
+    doc.setTextColor(60);
+    doc.text(provNombre, 14, 32);
+
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    doc.text(`Generado el: ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: es })}`, 14, 40);
+
+    let startY = 48;
+    if (appliedStartDate || appliedEndDate) {
+      const start = appliedStartDate ? format(new Date(appliedStartDate + "T12:00:00"), "dd/MM/yyyy") : "Inicio";
+      const end = appliedEndDate ? format(new Date(appliedEndDate + "T12:00:00"), "dd/MM/yyyy") : "Hoy";
+      doc.text(`Período: ${start} al ${end}`, 14, 46);
+      startY = 52;
+    }
+
+    const simplifyTipo = (tipo: string): string => {
+      return tipo.toUpperCase() === "DEBE" ? "Pago" : "Compra";
+    };
+
+    const tableColumn = ["Fecha", "Concepto", "Monto", "Saldo"];
+    const tableRows = activeMovimientos.map(m => [
+      format(new Date(m.fechaIngreso ?? m.fechaPago ?? m.fecha), "dd/MM/yyyy"),
+      simplifyTipo(m.tipo),
+      formatCurrency(m.monto),
+      formatCurrency(m.saldo),
+    ]);
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY,
+      theme: 'grid',
+      headStyles: { fillColor: [43, 140, 238], textColor: [255, 255, 255], fontStyle: 'bold', lineWidth: 0.1 },
+      styles: { fontSize: 9, cellPadding: 3, textColor: [0, 0, 0] },
+      columnStyles: {
+        2: { halign: 'right' },
+        3: { halign: 'right', fontStyle: 'bold' },
+      },
+    });
+
+    const saldoActual = activeMovimientos[0]?.saldo ?? 0;
+    const finalY = (doc as any).lastAutoTable.finalY;
+    const saldoPositivo = saldoActual >= 0;
+
+    const boxY = finalY + 12;
+    doc.setFillColor(...(saldoPositivo ? [209, 250, 229] : [255, 228, 230]) as [number, number, number]);
+    doc.roundedRect(14, boxY, pageWidth - 28, 30, 3, 3, 'F');
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont("helvetica", "normal");
+    doc.text("SALDO ACTUAL", 24, boxY + 10);
+
+    doc.setFontSize(24);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...(saldoPositivo ? [4, 120, 87] : [190, 18, 60]) as [number, number, number]);
+    doc.text(formatCurrency(saldoActual), pageWidth - 18, boxY + 22, { align: 'right' });
+    doc.setFont("helvetica", "normal");
+
+    const pdfUrl = doc.output('bloburl');
+    window.open(pdfUrl, '_blank');
+    toast.success("Estado de cuenta generado");
+  };
+
   const handleExportPDF = () => {
     const activeMovimientos = filteredMovimientos.filter(m => !m.anulado);
 
@@ -472,6 +554,14 @@ export default function MovimientosClient({
                     >
                       <span className="material-symbols-outlined text-base">picture_as_pdf</span>
                       PDF
+                    </button>
+                    <button
+                      onClick={handleExportPDFCliente}
+                      className="flex items-center gap-2 px-4 py-1.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-violet-200 dark:shadow-none"
+                      title="Estado de cuenta para cliente"
+                    >
+                      <span className="material-symbols-outlined text-base">person_check</span>
+                      Cliente
                     </button>
                   </div>
                 </div>

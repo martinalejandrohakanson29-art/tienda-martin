@@ -39,7 +39,6 @@ export async function getSupplierProducts(dateFrom?: string, dateTo?: string) {
 
         const products = await prisma.supplierProduct.findMany({
             include: {
-                stock: true,
                 purchaseItems: {
                     where: { purchaseOrder: { status: "PENDIENTE" } },
                     include: { purchaseOrder: true }
@@ -47,6 +46,13 @@ export async function getSupplierProducts(dateFrom?: string, dateTo?: string) {
             },
             orderBy: { sku: 'asc' }
         })
+
+        // Stock desde ArticuloMostrador (id = sku)
+        const articulos = await prisma.articuloMostrador.findMany({
+            select: { id: true, stock: true }
+        })
+        const stockMap = new Map<string, number>()
+        for (const a of articulos) stockMap.set(a.id, a.stock)
 
         // Ventas del mostrador en el rango: VentaItem.productoId === SupplierProduct.sku
         const salesData = await prisma.ventaItem.groupBy({
@@ -77,7 +83,7 @@ export async function getSupplierProducts(dateFrom?: string, dateTo?: string) {
             const salesInRange = salesMap.get(p.sku) ?? 0
             // Normalizar a velocidad mensual según el rango real seleccionado
             const velocity = (salesInRange / effectiveDays) * 30
-            const stock = p.stock?.stockExternal || 0
+            const stock = stockMap.get(p.sku) ?? 0
             const coverage = velocity > 0
                 ? Number((stock / velocity).toFixed(1))
                 : (stock > 0 ? 999 : 0)

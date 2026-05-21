@@ -39,11 +39,10 @@ export default function CrearPublicacionesPage() {
   // ==========================================
   // 2. ESTADOS: PASO 2 (BORRADOR BASE)
   // ==========================================
-  const [producto, setProducto] = useState("");
+  const [titulo, setTitulo] = useState("");
   const [marca, setMarca] = useState("");
-  const [caracteristicas, setCaracteristicas] = useState("");
-  const [costo, setCosto] = useState("");
-  const [rentabilidad, setRentabilidad] = useState("60");
+  const [descripcionCompatibilidad, setDescripcionCompatibilidad] = useState("");
+  const [componentes, setComponentes] = useState("");
 
   // ==========================================
   // 3. ESTADOS: PASO 3 (REVISIÓN DE IA)
@@ -107,11 +106,11 @@ export default function CrearPublicacionesPage() {
 
     const WEBHOOK_GENERAR = "https://n8n.revolucionmotos.tech/webhook/generar-publicacion";
 
-    const borrador_titulo = `${producto} ${marca}. Características: ${caracteristicas}`;
     const payload = {
-      borrador_titulo: borrador_titulo,
-      costo_producto: Number(costo),
-      rentabilidad_esperada_porcentaje: Number(rentabilidad),
+      titulo: titulo,
+      descripcion_compatibilidad: descripcionCompatibilidad,
+      marca: marca,
+      componentes: componentes,
       url_foto: urlFoto,
     };
 
@@ -330,45 +329,39 @@ export default function CrearPublicacionesPage() {
                 <CardDescription>Información detallada para que la IA arme la publicación.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                
-                <div className="space-y-2">
-                  <Label className="text-base">¿Qué producto es?</Label>
-                  <Input placeholder="Ej: Casco Moto Integral..." className="h-12 text-lg" value={producto} onChange={(e) => setProducto(e.target.value)} />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label className="text-base">Marca y Modelo</Label>
-                  <Input placeholder="Ej: LS2 FF352..." className="h-12 text-lg" value={marca} onChange={(e) => setMarca(e.target.value)} />
-                </div>
 
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-base">Costo de compra ($)</Label>
-                    <Input type="number" placeholder="Ej: 50000" className="h-12 text-lg" value={costo} onChange={(e) => setCosto(e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-base">Rentabilidad (%)</Label>
-                    <Input type="number" placeholder="Ej: 60" className="h-12 text-lg" value={rentabilidad} onChange={(e) => setRentabilidad(e.target.value)} />
-                  </div>
+                <div className="space-y-2">
+                  <Label className="text-base">Título</Label>
+                  <Input placeholder="Ej: Casco Moto Integral LS2 FF352 Negro Mate Talle L" className="h-12 text-lg" value={titulo} onChange={(e) => setTitulo(e.target.value)} />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-base">Características Claves / Extras</Label>
-                  <Textarea placeholder="Ej: Color negro mate, talle L..." rows={4} className="resize-none text-lg" value={caracteristicas} onChange={(e) => setCaracteristicas(e.target.value)} />
+                  <Label className="text-base">Descripción y Compatibilidad</Label>
+                  <Textarea placeholder="Ej: Casco homologado DOT. Compatible con Honda CB300, Yamaha MT-03..." rows={4} className="resize-none text-lg" value={descripcionCompatibilidad} onChange={(e) => setDescripcionCompatibilidad(e.target.value)} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-base">Marca</Label>
+                  <Input placeholder="Ej: LS2" className="h-12 text-lg" value={marca} onChange={(e) => setMarca(e.target.value)} />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-base">Componentes</Label>
+                  <Textarea placeholder="Ej: Casco exterior ABS, visera antirayos UVA/UVB, interior desmontable..." rows={4} className="resize-none text-lg" value={componentes} onChange={(e) => setComponentes(e.target.value)} />
                 </div>
 
                 <div className="flex items-center justify-between pt-6 border-t border-gray-100">
-                  <Button 
+                  <Button
                     variant="outline"
-                    onClick={() => setCurrentStep(1)} 
+                    onClick={() => setCurrentStep(1)}
                     className="h-12 px-6"
                   >
                     <ArrowLeft className="mr-2 h-4 w-4" /> Atrás
                   </Button>
 
-                  <Button 
+                  <Button
                     onClick={handleGenerarConIA}
-                    disabled={!producto || !costo || !urlFoto}
+                    disabled={!titulo || !urlFoto}
                     className="bg-rose-600 hover:bg-rose-700 text-white gap-2 h-12 px-8 text-lg shadow-md disabled:bg-gray-300"
                   >
                     <Sparkles className="h-5 w-5" /> Generar con IA y Continuar

@@ -462,6 +462,7 @@ export default function ComprasClient({
     setEditTelefono(compra.telefono || "");
     setEditTransaccionId(compra.transaccionId || "");
     setEditImpactarCostos(false);
+    setEditMoneda((compra.moneda as 'ARS' | 'USD') || 'ARS');
     setEditFechaCompra(new Date(compra.fechaCarga || compra.createdAt).toISOString().split('T')[0]);
     setEditFechaIngreso(compra.fechaIngreso ? new Date(compra.fechaIngreso).toISOString().split('T')[0] : "");
     setEditItems(compra.items.map((i: any) => {

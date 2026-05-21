@@ -8,7 +8,7 @@ export default async function ComprasPage() {
   const [articulos, session, config] = await Promise.all([
     obtenerTodosLosArticulos(),
     getServerSession(authOptions),
-    prisma.config.findFirst({ select: { dolarCotizacion: true } })
+    prisma.config.findFirst({ select: { dolarCotizacion: true, factorFob: true } })
   ])
 
   return (
@@ -17,6 +17,7 @@ export default async function ComprasPage() {
         articulosIniciales={articulos}
         compradorNombre={session?.user?.name || "Comprador General"}
         dolarCotizacion={Number(config?.dolarCotizacion ?? 1)}
+        factorFob={Number(config?.factorFob ?? 1)}
       />
     </div>
   )

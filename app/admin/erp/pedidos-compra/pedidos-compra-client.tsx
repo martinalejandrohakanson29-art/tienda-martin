@@ -70,6 +70,7 @@ type Compra = {
   descuento: number;
   totalFinal: number;
   metodo_pago: string;
+  moneda?: 'ARS' | 'USD';
   createdAt: string;
   fechaCarga?: string;
   fechaIngreso?: string | null;
@@ -86,9 +87,11 @@ type Compra = {
 
 interface PedidosCompraClientProps {
   initialData: any[];
+  dolarCotizacion?: number;
+  factorFob?: number;
 }
 
-export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
+export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFob = 1 }: PedidosCompraClientProps) {
   const [compras, setCompras] = useState<Compra[]>(initialData as Compra[]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1020,6 +1023,9 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                                 }}
                               />
                             </div>
+                            {(editingCompra?.moneda ?? 'ARS') === 'USD' && item.costo_unit > 0 && (
+                              <div className="text-[10px] text-blue-500 text-center mt-0.5">= ${Math.round(item.costo_unit * dolarCotizacion * factorFob).toLocaleString('es-AR')}</div>
+                            )}
                           </TableCell>
                           <TableCell className="text-center py-3">
                             <div className="flex items-center justify-center gap-1">
@@ -1048,7 +1054,7 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                                 type="text"
                                 inputMode="decimal"
                                 className="w-24 h-8 text-center text-xs font-bold text-emerald-600 border-slate-200"
-                                value={Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))}
+                                value={Math.round(((editingCompra?.moneda ?? 'ARS') === 'USD' ? item.costo_unit * dolarCotizacion * factorFob : item.costo_unit) * (1 + (item.margenGanancia ?? 50) / 100))}
                                 onChange={e => {
                                   const val = parseInt(e.target.value.replace(/\D/g, '')) || 0;
                                   const cost = item.costo_unit;
@@ -1113,17 +1119,37 @@ export function PedidosCompraClient({ initialData }: PedidosCompraClientProps) {
                   </div>
 
                   <div className="flex flex-col items-end gap-4">
-                    <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex items-center space-x-3 shadow-sm">
-                      <input
-                        type="checkbox"
-                        id="editImpactarCostos"
-                        checked={impactarCostos}
-                        onChange={(e) => setImpactarCostos(e.target.checked)}
-                        className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
-                      />
-                      <Label htmlFor="editImpactarCostos" className="text-sm font-bold text-amber-900 cursor-pointer">
-                        Impactar costos y actualizar precios públicos
-                      </Label>
+                    <div className="bg-amber-50 px-4 py-2 rounded-xl border border-amber-100 flex items-center gap-4 shadow-sm flex-wrap">
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          id="editImpactarCostos"
+                          checked={impactarCostos}
+                          onChange={(e) => setImpactarCostos(e.target.checked)}
+                          className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                        />
+                        <Label htmlFor="editImpactarCostos" className="text-sm font-bold text-amber-900 cursor-pointer">
+                          Impactar costos y actualizar precios públicos
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-1 bg-white rounded-lg p-0.5 border border-amber-200">
+                        <button
+                          type="button"
+                          onClick={() => setEditingCompra(prev => prev ? { ...prev, moneda: 'ARS' } : null)}
+                          className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${(editingCompra?.moneda ?? 'ARS') === 'ARS' ? 'bg-slate-100 shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                        >$ ARS</button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingCompra(prev => prev ? { ...prev, moneda: 'USD' } : null)}
+                          className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${(editingCompra?.moneda ?? 'ARS') === 'USD' ? 'bg-blue-100 shadow text-blue-700' : 'text-slate-400 hover:text-slate-600'}`}
+                        >U$S USD</button>
+                      </div>
+                      {(editingCompra?.moneda ?? 'ARS') === 'USD' && (
+                        <span className="text-[11px] text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5">
+                          Cotización: <span className="font-bold">${dolarCotizacion.toLocaleString('es-AR')}</span>
+                          {impactarCostos && " · guardará en ARS"}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex gap-3">

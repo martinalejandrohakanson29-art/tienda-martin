@@ -100,11 +100,13 @@ const formatFecha = (iso: string) => {
 export default function ComprasClient({
   articulosIniciales,
   compradorNombre,
-  dolarCotizacion
+  dolarCotizacion,
+  factorFob
 }: {
   articulosIniciales: Articulo[],
   compradorNombre: string,
-  dolarCotizacion: number
+  dolarCotizacion: number,
+  factorFob: number
 }) {
   // --- ESTADOS GENERALES ---
   const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
@@ -640,14 +642,15 @@ export default function ComprasClient({
                               <DecimalInput
                                 value={item.costo_unit}
                                 onChange={(newCost) => {
-                                  const newPrecio = Math.round((moneda === 'USD' ? newCost * dolarCotizacion : newCost) * (1 + (item.margenGanancia ?? 50) / 100));
+                                  const costoArs = moneda === 'USD' ? newCost * dolarCotizacion * factorFob : newCost;
+                                  const newPrecio = Math.round(costoArs * (1 + (item.margenGanancia ?? 50) / 100));
                                   setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
                                 }}
                                 className={`w-28 h-8 ${inputSinFlechas}`}
                               />
                             </div>
                             {moneda === 'USD' && item.costo_unit > 0 && (
-                              <div className="text-[10px] text-blue-500 text-center mt-0.5">= ${Math.round(item.costo_unit * dolarCotizacion).toLocaleString('es-AR')}</div>
+                              <div className="text-[10px] text-blue-500 text-center mt-0.5">= ${Math.round(item.costo_unit * dolarCotizacion * factorFob).toLocaleString('es-AR')}</div>
                             )}
                           </TableCell>
                           <TableCell className="text-center py-3">
@@ -891,7 +894,7 @@ export default function ComprasClient({
 
         <TabsContent value="pedidos" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full bg-white">
           <div className="flex-grow overflow-auto">
-            <PedidosCompraClient initialData={[]} />
+            <PedidosCompraClient initialData={[]} dolarCotizacion={dolarCotizacion} factorFob={factorFob} />
           </div>
         </TabsContent>
 
@@ -1548,11 +1551,15 @@ export default function ComprasClient({
                           <DecimalInput
                             value={item.costo_unit}
                             onChange={(newCost) => {
-                              const newPrecio = Math.round(newCost * (1 + (item.margenGanancia ?? 50) / 100));
+                              const costoArs = editMoneda === 'USD' ? newCost * dolarCotizacion * factorFob : newCost;
+                              const newPrecio = Math.round(costoArs * (1 + (item.margenGanancia ?? 50) / 100));
                               setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
                             }}
                             className="w-28 mx-auto h-8 text-center"
                           />
+                          {editMoneda === 'USD' && item.costo_unit > 0 && (
+                            <div className="text-[10px] text-blue-500 text-center mt-0.5">= ${Math.round(item.costo_unit * dolarCotizacion * factorFob).toLocaleString('es-AR')}</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-center">
                           <div className="flex items-center justify-center gap-1">
@@ -1610,7 +1617,7 @@ export default function ComprasClient({
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-wrap">
                   <div className="flex items-center space-x-2">
                     <input
                       type="checkbox"
@@ -1622,16 +1629,24 @@ export default function ComprasClient({
                     <Label htmlFor="editImpactarCostos" className="text-sm font-medium text-slate-700 cursor-pointer">Impactar compra en costos</Label>
                   </div>
                   <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
-                    <button type="button" onClick={() => setEditMoneda('ARS')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${editMoneda === 'ARS' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}>$ ARS</button>
-                    <button type="button" onClick={() => setEditMoneda('USD')} className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${editMoneda === 'USD' ? 'bg-white shadow text-blue-700' : 'text-slate-400 hover:text-slate-600'}`}>U$S USD</button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMoneda('ARS')}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${editMoneda === 'ARS' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
+                    >$ ARS</button>
+                    <button
+                      type="button"
+                      onClick={() => setEditMoneda('USD')}
+                      className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${editMoneda === 'USD' ? 'bg-white shadow text-blue-700' : 'text-slate-400 hover:text-slate-600'}`}
+                    >U$S USD</button>
                   </div>
+                  {editMoneda === 'USD' && (
+                    <p className="text-[11px] text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5">
+                      Cotización: <span className="font-bold">${dolarCotizacion.toLocaleString('es-AR')}</span>
+                      {editImpactarCostos && " · guardará en ARS"}
+                    </p>
+                  )}
                 </div>
-                {editMoneda === 'USD' && (
-                  <p className="text-[11px] text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5">
-                    Costos en dólares · Cotización: <span className="font-bold">${dolarCotizacion.toLocaleString('es-AR')}</span>
-                    {editImpactarCostos && " · Se guardará el equivalente en ARS"}
-                  </p>
-                )}
                 <div className="flex gap-3">
                   <Button variant="ghost" onClick={() => setIsEditMainModalOpen(false)} className="h-12 px-6 rounded-xl">Cancelar</Button>
                   <Button onClick={handleGuardarEdicion} disabled={isSubmitting} className="h-12 px-10 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-md shadow-amber-500/20">Guardar Cambios</Button>

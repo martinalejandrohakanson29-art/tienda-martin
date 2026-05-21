@@ -38,12 +38,6 @@ export async function getSupplierProducts(dateFrom?: string, dateTo?: string) {
         const effectiveDays = Math.min(daysInRange, daysSinceStart)
 
         const products = await prisma.supplierProduct.findMany({
-            include: {
-                purchaseItems: {
-                    where: { purchaseOrder: { status: "PENDIENTE" } },
-                    include: { purchaseOrder: true }
-                }
-            },
             orderBy: { sku: 'asc' }
         })
 
@@ -53,6 +47,30 @@ export async function getSupplierProducts(dateFrom?: string, dateTo?: string) {
         })
         const stockMap = new Map<string, number>()
         for (const a of articulos) stockMap.set(a.id, a.stock)
+
+        // Ingresos futuros: pedidos de compra pendientes de proveedores China
+        const pedidosChina = await prisma.compra.findMany({
+            where: {
+                tipoCompra: 'PEDIDO',
+                proveedor: { in: ['CHINA-MATT', 'CHINA-BOGGIE'] }
+            },
+            include: { items: { select: { productoId: true, cantidad: true } } },
+            orderBy: { numeroCompra: 'asc' }
+        })
+
+        // Mapa: sku -> lista de ingresos futuros por pedido
+        const futurosPorSku = new Map<string, Record<string, { quantity: number, supplier: string }>>()
+        for (const pedido of pedidosChina) {
+            const key = `#${pedido.numeroCompra}`
+            for (const item of pedido.items) {
+                if (!item.productoId) continue
+                if (!futurosPorSku.has(item.productoId)) futurosPorSku.set(item.productoId, {})
+                futurosPorSku.get(item.productoId)![key] = {
+                    quantity: item.cantidad,
+                    supplier: pedido.proveedor
+                }
+            }
+        }
 
         // Ventas del mostrador en el rango: VentaItem.productoId === SupplierProduct.sku
         const salesData = await prisma.ventaItem.groupBy({
@@ -88,12 +106,7 @@ export async function getSupplierProducts(dateFrom?: string, dateTo?: string) {
                 ? Number((stock / velocity).toFixed(1))
                 : (stock > 0 ? 999 : 0)
 
-            const futureArrivals: Record<string, { quantity: number, supplier: string }> = {}
-            p.purchaseItems.forEach(item => {
-                const po = item.purchaseOrder
-                const orderKey = po.externalId || po.id
-                futureArrivals[orderKey] = { quantity: item.quantity, supplier: po.supplier }
-            })
+            const futureArrivals = futurosPorSku.get(p.sku) ?? {}
 
             return {
                 id: p.id,

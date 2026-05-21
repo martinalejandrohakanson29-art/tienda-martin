@@ -90,6 +90,13 @@ interface ItemCompra {
   precioPublico?: number;
 }
 
+// Muestra la fecha de un ISO string en formato argentino (dd/mm/yyyy) leyendo
+// directamente la parte de fecha UTC para evitar que el offset -03:00 desplace al día anterior.
+const formatFecha = (iso: string) => {
+  const [y, m, d] = iso.split('T')[0].split('-')
+  return `${d}/${m}/${y}`
+}
+
 export default function ComprasClient({
   articulosIniciales,
   compradorNombre,
@@ -741,6 +748,7 @@ export default function ComprasClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Responsable</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Recargo</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Descuento</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3">Acciones</TableHead>
                     </TableRow>
@@ -758,13 +766,13 @@ export default function ComprasClient({
                             </TableCell>
                             <TableCell className="py-4">
                               {c.fechaIngreso ? (
-                                <span className="text-[10px] text-blue-600 font-bold whitespace-nowrap">{new Date(c.fechaIngreso).toLocaleDateString('es-AR')}</span>
+                                <span className="text-[10px] text-blue-600 font-bold whitespace-nowrap">{formatFecha(c.fechaIngreso)}</span>
                               ) : (
                                 <span className="text-[10px] text-slate-300 italic">-</span>
                               )}
                             </TableCell>
                             <TableCell className="py-4">
-                              <span className="text-[10px] text-slate-700 font-bold whitespace-nowrap">{new Date(c.fechaCarga || c.createdAt).toLocaleDateString('es-AR')}</span>
+                              <span className="text-[10px] text-slate-700 font-bold whitespace-nowrap">{formatFecha(c.fechaCarga || c.createdAt)}</span>
                             </TableCell>
                             <TableCell className="py-4 font-bold text-slate-900">
                               {c.proveedor}
@@ -810,6 +818,11 @@ export default function ComprasClient({
                                 {c.interes > 0 ? `+ $ ${c.interes.toLocaleString('es-AR')}` : "-"}
                               </span>
                             </TableCell>
+                            <TableCell className="text-right py-4">
+                              <span className="text-xs font-mono text-emerald-600 font-bold">
+                                {c.descuento > 0 ? `- $ ${c.descuento.toLocaleString('es-AR')}` : "-"}
+                              </span>
+                            </TableCell>
                             <TableCell className="text-right py-4 font-black text-slate-900">
                               $ {c.totalFinal.toLocaleString('es-AR')}
                             </TableCell>
@@ -831,7 +844,7 @@ export default function ComprasClient({
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell colSpan={7} className="py-0">
+                              <TableCell colSpan={8} className="py-0">
                                 <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
                                   {c.items?.length > 0 ? (
                                     c.items.map((item: any) => (
@@ -917,13 +930,14 @@ export default function ComprasClient({
                       <TableHead className="text-[10px] font-bold uppercase py-3">Responsable</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Método / Comprobante</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Recargo</TableHead>
+                      <TableHead className="text-right text-[10px] font-bold uppercase py-3">Descuento</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Total Final</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3 w-40">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {comprasRealizadas.length === 0 ? (
-                      <TableRow><TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">No se encontraron compras</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={11} className="py-20 text-center text-slate-400 italic">No se encontraron compras</TableCell></TableRow>
                     ) : (
                       comprasRealizadas.map((v) => {
                         const isExpanded = expandedCompras.has(v.id);
@@ -940,13 +954,13 @@ export default function ComprasClient({
                               </TableCell>
                               <TableCell className="py-4">
                                 {v.fechaIngreso ? (
-                                  <span className="text-xs font-bold text-blue-600">{new Date(v.fechaIngreso).toLocaleDateString('es-AR')}</span>
+                                  <span className="text-xs font-bold text-blue-600">{formatFecha(v.fechaIngreso)}</span>
                                 ) : (
                                   <span className="text-xs text-slate-300 italic">-</span>
                                 )}
                               </TableCell>
                               <TableCell className="py-4">
-                                <span className="text-xs font-bold text-slate-700">{new Date(v.fechaCarga || v.createdAt).toLocaleDateString('es-AR')}</span>
+                                <span className="text-xs font-bold text-slate-700">{formatFecha(v.fechaCarga || v.createdAt)}</span>
                               </TableCell>
                               <TableCell className="py-4 font-bold text-slate-900">
                                 {v.proveedor}
@@ -993,6 +1007,9 @@ export default function ComprasClient({
                               <TableCell className="text-right py-4 font-mono text-xs text-amber-600 font-bold">
                                 {v.interes > 0 ? `+ $ ${v.interes.toLocaleString('es-AR')}` : "-"}
                               </TableCell>
+                              <TableCell className="text-right py-4 font-mono text-xs text-emerald-600 font-bold">
+                                {v.descuento > 0 ? `- $ ${v.descuento.toLocaleString('es-AR')}` : "-"}
+                              </TableCell>
                               <TableCell className="text-right py-4">
                                 <span className="text-base font-black text-slate-900">$ {v.totalFinal.toLocaleString('es-AR')}</span>
                               </TableCell>
@@ -1027,7 +1044,7 @@ export default function ComprasClient({
                                     </div>
                                   </div>
                                 </TableCell>
-                                <TableCell colSpan={7} className="py-0">
+                                <TableCell colSpan={8} className="py-0">
                                   <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
                                     {v.items?.length > 0 ? (
                                       v.items.map((item: any) => (

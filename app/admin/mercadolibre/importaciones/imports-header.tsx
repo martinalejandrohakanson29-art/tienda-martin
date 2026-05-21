@@ -30,25 +30,14 @@ export function ImportsHeader() {
     }
 
     const handleSync = async () => {
-        if (!dates.from || !dates.to) {
-            toast.error("Por favor selecciona un rango de fechas")
-            return
-        }
-
         setIsSyncing(true)
         const syncToast = toast.loading("Iniciando limpieza de datos...")
 
         try {
             await clearPendingOrders()
-            toast.loading("Sincronizando con Cover (n8n)...", { id: syncToast })
+            toast.loading("Actualizando stock y órdenes de compra...", { id: syncToast })
 
-            const [respVentas, respStock, respCarritos] = await Promise.all([
-                // 👇 CAMBIO CLAVE: Ahora llamamos a ventas-cover
-                fetch("https://n8n.revolucionmotos.tech/webhook/ventas-cover", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ from: dates.from, to: dates.to })
-                }),
+            const [respStock, respCarritos] = await Promise.all([
                 fetch("https://n8n.revolucionmotos.tech/webhook/actualizar-stock-proveedor", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" }
@@ -58,9 +47,9 @@ export function ImportsHeader() {
                 })
             ])
 
-            if (respVentas.ok && respStock.ok && respCarritos.ok) {
-                toast.success("🚀 Datos de Cover actualizados con éxito.", { id: syncToast })
-                router.refresh() 
+            if (respStock.ok && respCarritos.ok) {
+                toast.success("Stock y órdenes actualizados con éxito.", { id: syncToast })
+                router.refresh()
             } else {
                 toast.warning("Atención: Algunos procesos devolvieron error.", { id: syncToast })
             }
@@ -82,7 +71,7 @@ export function ImportsHeader() {
                 </Link>
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Tablero de Importaciones</h1>
-                    <p className="text-sm text-slate-500">Métricas actualizadas desde Sistema Cover</p>
+                    <p className="text-sm text-slate-500">Ventas desde mostrador · Stock desde Cover</p>
                 </div>
             </div>
             
@@ -90,7 +79,7 @@ export function ImportsHeader() {
                 <DateRangePicker onRangeChange={handleRangeChange} />
                 <Button onClick={handleSync} disabled={isSyncing} variant="default" className="gap-2 bg-blue-600">
                     <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                    {isSyncing ? 'Sincronizando...' : 'Actualizar de Cover'}
+                    {isSyncing ? 'Sincronizando...' : 'Actualizar Stock'}
                 </Button>
             </div>
         </div>

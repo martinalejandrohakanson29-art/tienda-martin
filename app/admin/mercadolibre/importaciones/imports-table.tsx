@@ -58,11 +58,12 @@ declare module '@tanstack/react-table' {
 interface ImportsTableProps {
   data: ImportItem[]
   lastUpdate: Date | null
+  effectiveDays: number
 }
 
 type StatusFilterType = "all" | "red" | "yellow" | "green"
 
-export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
+export function ImportsTable({ data, lastUpdate, effectiveDays }: ImportsTableProps) {
   const searchParams = useSearchParams()
   
   const [sorting, setSorting] = React.useState<SortingState>([
@@ -331,6 +332,11 @@ export function ImportsTable({ data, lastUpdate }: ImportsTableProps) {
               onChange={(e) => setSafetyMargin(Number(e.target.value))}
               className="w-12 h-7 p-1 text-center text-xs font-bold border-none focus:ring-0"
             />
+          </div>
+
+          <div className="text-[10px] text-slate-500 flex items-center gap-1 bg-slate-100 px-2 py-1 rounded">
+            <span className="font-semibold text-slate-700">{effectiveDays}d</span>
+            <span>de datos · consumo mensual estimado</span>
           </div>
 
           {lastUpdate && (

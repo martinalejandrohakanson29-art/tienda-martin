@@ -17,11 +17,28 @@ export async function clearPendingOrders() {
     }
 }
 
-export async function getSupplierProducts() {
+export async function getSupplierProducts(dateFrom?: string, dateTo?: string) {
     try {
+        // Rango de fechas: por defecto últimos 30 días
+        const to = dateTo ? new Date(dateTo) : new Date()
+        to.setHours(23, 59, 59, 999)
+        const from = dateFrom ? new Date(dateFrom) : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000)
+        from.setHours(0, 0, 0, 0)
+
+        const daysInRange = Math.max(1, Math.round((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)))
+
+        // Días reales con datos disponibles: evita subestimar si el sistema tiene menos historial que el rango seleccionado
+        const firstVenta = await prisma.venta.findFirst({
+            where: { tipoVenta: { not: 'PEDIDO' } },
+            orderBy: { createdAt: 'asc' },
+            select: { createdAt: true }
+        })
+        const systemStart = firstVenta?.createdAt ?? from
+        const daysSinceStart = Math.max(1, Math.round((to.getTime() - systemStart.getTime()) / (1000 * 60 * 60 * 24)))
+        const effectiveDays = Math.min(daysInRange, daysSinceStart)
+
         const products = await prisma.supplierProduct.findMany({
             include: {
-                ventas: true, 
                 stock: true,
                 purchaseItems: {
                     where: { purchaseOrder: { status: "PENDIENTE" } },
@@ -31,82 +48,95 @@ export async function getSupplierProducts() {
             orderBy: { sku: 'asc' }
         })
 
-        const lastVentasUpdate = await prisma.importVentas.findFirst({
-            orderBy: { updatedAt: 'desc' },
-            select: { updatedAt: true }
+        // Ventas del mostrador en el rango: VentaItem.productoId === SupplierProduct.sku
+        const salesData = await prisma.ventaItem.groupBy({
+            by: ['productoId'],
+            _sum: { cantidad: true },
+            where: {
+                productoId: { not: null },
+                venta: {
+                    createdAt: { gte: from, lte: to },
+                    tipoVenta: { not: 'PEDIDO' }
+                }
+            }
         })
 
-        // 1. Mapeo inicial de todos los productos (tal cual vienen de la DB)
-        let mappedData = products.map(p => {
-            const ventas = p.ventas?.salesLast30 || 0;
-            const velocity = ventas / 1; 
-            const stock = p.stock?.stockExternal || 0;
-            const coverage = velocity > 0 
-                ? Number((stock / velocity).toFixed(1)) 
-                : (stock > 0 ? 999 : 0);
+        const salesMap = new Map<string, number>()
+        for (const s of salesData) {
+            if (s.productoId) salesMap.set(s.productoId, s._sum.cantidad ?? 0)
+        }
 
-            const futureArrivals: Record<string, { quantity: number, supplier: string }> = {};
+        const lastVenta = await prisma.venta.findFirst({
+            where: { createdAt: { gte: from, lte: to }, tipoVenta: { not: 'PEDIDO' } },
+            orderBy: { createdAt: 'desc' },
+            select: { createdAt: true }
+        })
+
+        // 1. Mapeo inicial
+        let mappedData = products.map(p => {
+            const salesInRange = salesMap.get(p.sku) ?? 0
+            // Normalizar a velocidad mensual según el rango real seleccionado
+            const velocity = (salesInRange / effectiveDays) * 30
+            const stock = p.stock?.stockExternal || 0
+            const coverage = velocity > 0
+                ? Number((stock / velocity).toFixed(1))
+                : (stock > 0 ? 999 : 0)
+
+            const futureArrivals: Record<string, { quantity: number, supplier: string }> = {}
             p.purchaseItems.forEach(item => {
-                const po = item.purchaseOrder;
-                const orderKey = po.externalId || po.id;
-                futureArrivals[orderKey] = {
-                    quantity: item.quantity,
-                    supplier: po.supplier
-                };
-            });
+                const po = item.purchaseOrder
+                const orderKey = po.externalId || po.id
+                futureArrivals[orderKey] = { quantity: item.quantity, supplier: po.supplier }
+            })
 
             return {
                 id: p.id,
                 sku: p.sku,
                 name: p.name,
-                salesLast30: ventas,
+                salesLast30: salesInRange,
                 stockExternal: stock,
                 salesVelocity: velocity,
                 monthsCoverage: coverage,
-                futureArrivals 
+                futureArrivals
             }
         })
 
-        // --- 2. LÓGICA DE SUMA CRUZADA (AJUSTE INTERNO) ---
-        
-        const skusOrigen = ["485797", "485801"];
-        const skusDestino = ["483329", "483374"];
+        // 2. Suma cruzada entre SKUs relacionados
+        const skusOrigen = ["485797", "485801"]
+        const skusDestino = ["483329", "483374"]
 
-        // Calculamos la suma total de ventas de los dos productos "origen"
         const ventasExtraTotales = mappedData
             .filter(item => skusOrigen.includes(item.sku))
-            .reduce((total, item) => total + item.salesLast30, 0);
+            .reduce((total, item) => total + item.salesLast30, 0)
 
-        // Aplicamos esa suma a cada uno de los productos "destino"
         mappedData = mappedData.map(item => {
             if (skusDestino.includes(item.sku)) {
-                const nuevasVentas = item.salesLast30 + ventasExtraTotales;
-                const nuevaVelocidad = nuevasVentas / 1; // Mantenemos lógica de velocidad = ventas / 1
-                
-                // Recalculamos la cobertura con las nuevas ventas
-                const nuevaCobertura = nuevaVelocidad > 0 
-                    ? Number((item.stockExternal / nuevaVelocidad).toFixed(1)) 
-                    : (item.stockExternal > 0 ? 999 : 0);
+                const nuevasVentas = item.salesLast30 + ventasExtraTotales
+                const nuevaVelocidad = (nuevasVentas / effectiveDays) * 30
+                const nuevaCobertura = nuevaVelocidad > 0
+                    ? Number((item.stockExternal / nuevaVelocidad).toFixed(1))
+                    : (item.stockExternal > 0 ? 999 : 0)
 
                 return {
                     ...item,
                     salesLast30: nuevasVentas,
                     salesVelocity: nuevaVelocidad,
                     monthsCoverage: nuevaCobertura
-                };
+                }
             }
-            return item;
-        });
+            return item
+        })
 
-        // 3. Filtramos para ocultar los SKUs de origen en la tabla
-        const finalData = mappedData.filter(item => !skusOrigen.includes(item.sku));
+        // 3. Ocultar SKUs origen de la tabla
+        const finalData = mappedData.filter(item => !skusOrigen.includes(item.sku))
 
         return {
             data: finalData,
-            lastUpdate: lastVentasUpdate?.updatedAt || null
+            lastUpdate: lastVenta?.createdAt || null,
+            effectiveDays
         }
     } catch (error) {
         console.error("Error obteniendo productos:", error)
-        return { data: [], lastUpdate: null }
+        return { data: [], lastUpdate: null, effectiveDays: 30 }
     }
 }

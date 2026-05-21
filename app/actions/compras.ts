@@ -297,7 +297,8 @@ export async function guardarComoPedidoCompra(data: {
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
           const margen = item.margenGanancia ?? 50;
-          const costoEnArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+          const costoBaseArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+          const costoEnArs = moneda === 'USD' ? costoBaseArs * fob : costoBaseArs
           const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
           if (data.impactarCostos) {
@@ -309,7 +310,7 @@ export async function guardarComoPedidoCompra(data: {
           await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
 
           if (data.impactarCostos && articuloBase) {
-            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoEnArs, fob)
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoBaseArs, fob)
             const costoStr = moneda === 'USD' ? `U$S ${Number(item.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
@@ -364,7 +365,8 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
 
           if (articuloBase && !articuloBase.esPack) {
             const margen = item.margenGanancia ?? 50;
-            const costoEnArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+            const costoBaseArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+            const costoEnArs = moneda === 'USD' ? costoBaseArs * fob : costoBaseArs
             const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
             await tx.articuloMostrador.update({
@@ -372,7 +374,7 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
               data: { costo: costoEnArs, margenGanancia: margen, precio: precioPublico }
             });
 
-            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoEnArs, fob)
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoBaseArs, fob)
             const costoStr = moneda === 'USD' ? `U$S ${Number(item.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
@@ -594,7 +596,8 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         } else {
           const updateData: any = { stock: { increment: newItem.cantidad } };
           const margen = newItem.margenGanancia ?? 50;
-          const costoEnArs = moneda === 'USD' ? Number(newItem.costo_unit) * dolar : Number(newItem.costo_unit)
+          const costoBaseArs = moneda === 'USD' ? Number(newItem.costo_unit) * dolar : Number(newItem.costo_unit)
+          const costoEnArs = moneda === 'USD' ? costoBaseArs * fob : costoBaseArs
           const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
           if (data.impactarCostos) {
@@ -606,7 +609,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
 
           if (data.impactarCostos && articuloBase) {
-            if (moneda === 'USD') await upsertCostosML(tx, prodId, newItem, costoEnArs, fob)
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, newItem, costoBaseArs, fob)
             const costoStr = moneda === 'USD' ? `U$S ${Number(newItem.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
@@ -806,7 +809,8 @@ export async function crearCompra(data: {
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
           const margen = item.margenGanancia ?? 50;
-          const costoEnArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+          const costoBaseArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
+          const costoEnArs = moneda === 'USD' ? costoBaseArs * fob : costoBaseArs
           const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
           if (data.impactarCostos) {
@@ -818,7 +822,7 @@ export async function crearCompra(data: {
           await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
 
           if (data.impactarCostos && articuloBase) {
-            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoEnArs, fob)
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoBaseArs, fob)
             const costoStr = moneda === 'USD' ? `U$S ${Number(item.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {
@@ -1051,7 +1055,8 @@ export async function actualizarCompra(compraId: string, data: {
         } else {
           const updateData: any = { stock: { increment: newItem.cantidad } };
           const margen = newItem.margenGanancia ?? 50;
-          const costoEnArs = moneda === 'USD' ? Number(newItem.costo_unit) * dolar : Number(newItem.costo_unit)
+          const costoBaseArs = moneda === 'USD' ? Number(newItem.costo_unit) * dolar : Number(newItem.costo_unit)
+          const costoEnArs = moneda === 'USD' ? costoBaseArs * fob : costoBaseArs
           const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
           if (data.impactarCostos) {
@@ -1063,7 +1068,7 @@ export async function actualizarCompra(compraId: string, data: {
           await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
 
           if (data.impactarCostos && articuloBase) {
-            if (moneda === 'USD') await upsertCostosML(tx, prodId, newItem, costoEnArs, fob)
+            if (moneda === 'USD') await upsertCostosML(tx, prodId, newItem, costoBaseArs, fob)
             const costoStr = moneda === 'USD' ? `U$S ${Number(newItem.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
             await tx.articuloAuditoria.create({
               data: {

@@ -244,21 +244,13 @@ export default function CuentaCorrienteClient({
       {/* Header section */}
       <div className="flex flex-col gap-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/admin/erp"
-              className="p-2 text-slate-500 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all flex items-center justify-center"
-            >
-              <span className="material-symbols-outlined">arrow_back</span>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-                Cuenta Corriente
-              </h1>
-              <p className="text-sm text-slate-500">
-                Gestión de saldos y vencimientos de proveedores
-              </p>
-            </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              Cuenta Corriente
+            </h1>
+            <p className="text-sm text-slate-500">
+              Gestión de saldos y vencimientos de proveedores
+            </p>
           </div>
 
           <div className="relative max-w-md w-full">

@@ -21,6 +21,18 @@ export default function AdminLayout({
   const isFullscreenPage = pathname !== "/admin";
   const isLoginPage = pathname === "/admin/login";
 
+  // Secciones que ya tienen su propia barra de navegación, botón atrás, o son dashboards a pantalla completa.
+  const hasLocalHeader = 
+    pathname.startsWith("/admin/ventas-mostrador") ||
+    pathname.startsWith("/admin/compras") ||
+    pathname.startsWith("/admin/erp") ||
+    pathname.startsWith("/admin/listas") ||
+    pathname.startsWith("/admin/mercadolibre") ||
+    pathname.startsWith("/admin/todos") ||
+    pathname.startsWith("/admin/usuarios");
+
+  const showGlobalHeader = !isLoginPage && isFullscreenPage && !hasLocalHeader;
+
   return (
     <SessionProvider>
     <NotificationListener />
@@ -55,12 +67,9 @@ export default function AdminLayout({
             </div>
         )}
 
-        {/* CONTENEDOR DE CONTENIDO: 
-            Cambiamos overflow-hidden por overflow-y-auto para permitir el scroll 
-            y quitamos h-screen para que el contenido pueda expandirse.
-        */}
+        {/* CONTENEDOR DE CONTENIDO */}
         <div className={isFullscreenPage ? "flex flex-col min-h-screen bg-slate-50" : "p-4 md:p-8"}>
-            {!isLoginPage && isFullscreenPage && (
+            {showGlobalHeader && (
                 <header className="sticky top-0 z-50 w-full border-b bg-slate-900 text-white shadow-md">
                     <div className="mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -100,7 +109,7 @@ export default function AdminLayout({
                     </div>
                 </header>
             )}
-            <div className={isFullscreenPage ? "flex-1 p-4 md:p-8" : ""}>
+            <div className={isFullscreenPage ? (hasLocalHeader ? "flex-1 flex flex-col min-h-0" : "flex-1 p-4 md:p-8") : ""}>
                 {children}
             </div>
         </div>

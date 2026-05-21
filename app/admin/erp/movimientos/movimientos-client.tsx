@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { anularMovimientoProveedor } from "@/app/actions/erp";
@@ -399,24 +398,15 @@ export default function MovimientosClient({
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Global Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          href="/admin/erp"
-          className="p-2 text-slate-500 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all flex items-center justify-center"
-        >
-          <span className="material-symbols-outlined">arrow_back</span>
-        </Link>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Listado de Movimientos
-          </h1>
-          <p className="text-sm text-slate-500">
-            {activeTab === "historial"
-              ? "Historial de saldos y transacciones por proveedor"
-              : "Control unificado de pagos y cobros por método"}
-          </p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          Listado de Movimientos
+        </h1>
+        <p className="text-sm text-slate-500">
+          {activeTab === "historial"
+            ? "Historial de saldos y transacciones por proveedor"
+            : "Control unificado de pagos y cobros por método"}
+        </p>
       </div>
 
       {/* Tabs */}

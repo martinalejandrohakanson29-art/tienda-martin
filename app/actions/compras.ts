@@ -286,41 +286,28 @@ export async function guardarComoPedidoCompra(data: {
           include: { packItems: true }
         });
 
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.update({
-              where: { id: packItem.componenteId },
-              data: { stock: { increment: packItem.cantidad * item.cantidad } }
-            });
-          }
-          await syncPackStock(tx, prodId, articuloBase.packItems);
-        } else {
-          const updateData: any = { stock: { increment: item.cantidad } };
+        // PEDIDO: no se toca el stock hasta que la mercadería llegue y se confirme
+        if (!articuloBase?.esPack && data.impactarCostos && articuloBase) {
           const margen = item.margenGanancia ?? 50;
           const costoBaseArs = moneda === 'USD' ? Number(item.costo_unit) * dolar : Number(item.costo_unit)
           const costoEnArs = moneda === 'USD' ? costoBaseArs * fob : costoBaseArs
           const precioPublico = Math.round(costoEnArs * (1 + margen / 100));
 
-          if (data.impactarCostos) {
-            updateData.costo = costoEnArs;
-            updateData.margenGanancia = margen;
-            updateData.precio = precioPublico;
-          }
+          await tx.articuloMostrador.update({
+            where: { id: prodId },
+            data: { costo: costoEnArs, margenGanancia: margen, precio: precioPublico }
+          });
 
-          await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
-
-          if (data.impactarCostos && articuloBase) {
-            if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoBaseArs, fob)
-            const costoStr = moneda === 'USD' ? `U$S ${Number(item.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
-            await tx.articuloAuditoria.create({
-              data: {
-                articuloId: prodId,
-                usuario: data.comprador,
-                accion: "MODIFICACION_PRECIO_BASE",
-                detalle: `Actualizado por Pedido de Compra #${compra.numeroCompra} (Costo: ${costoStr}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${precioPublico.toLocaleString('es-AR')}`
-              }
-            });
-          }
+          if (moneda === 'USD') await upsertCostosML(tx, prodId, item, costoBaseArs, fob)
+          const costoStr = moneda === 'USD' ? `U$S ${Number(item.costo_unit).toLocaleString('es-AR')} = $${costoEnArs.toLocaleString('es-AR')}` : `$${costoEnArs.toLocaleString('es-AR')}`
+          await tx.articuloAuditoria.create({
+            data: {
+              articuloId: prodId,
+              usuario: data.comprador,
+              accion: "MODIFICACION_PRECIO_BASE",
+              detalle: `Actualizado por Pedido de Compra #${compra.numeroCompra} (Costo: ${costoStr}, Margen: ${margen}%). De $${Number(articuloBase.precio).toLocaleString('es-AR')} a $${precioPublico.toLocaleString('es-AR')}`
+            }
+          });
         }
       }
 
@@ -349,10 +336,42 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
   const fob = Number(config?.factorFob ?? 1)
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const pedidoActual = await tx.compra.findUnique({
+        where: { id: compraId },
+        include: { items: true }
+      });
+      if (!pedidoActual) throw new Error("Pedido no encontrado");
+
       const compra = await tx.compra.update({
         where: { id: compraId },
         data: { tipoCompra: "CONFIRMADA" }
       });
+
+      // Incrementar stock al confirmar: la mercadería llegó
+      for (const item of pedidoActual.items) {
+        const prodId = item.productoId;
+        if (!prodId) continue;
+
+        const articuloBase = await tx.articuloMostrador.findUnique({
+          where: { id: prodId },
+          include: { packItems: true }
+        });
+
+        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+          for (const packItem of articuloBase.packItems) {
+            await tx.articuloMostrador.update({
+              where: { id: packItem.componenteId },
+              data: { stock: { increment: packItem.cantidad * item.cantidad } }
+            });
+          }
+          await syncPackStock(tx, prodId, articuloBase.packItems);
+        } else {
+          await tx.articuloMostrador.update({
+            where: { id: prodId },
+            data: { stock: { increment: item.cantidad } }
+          });
+        }
+      }
 
       if (data && data.items && data.impactarCostos) {
         for (const item of data.items) {
@@ -505,6 +524,8 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         where: { compraId }
       });
 
+      const oldCompra = await tx.compra.findUnique({ where: { id: compraId } });
+
       // Revertir CC si el pedido ya fue confirmado y tiene movimientos activos
       const movimientosCC = await tx.movimientoProveedor.findMany({
         where: { referencia: compraId, anulado: false }
@@ -519,25 +540,28 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         }
       }
 
-      for (const oldItem of oldItems) {
-        if (oldItem.productoId) {
-          const articuloBase = await tx.articuloMostrador.findUnique({
-            where: { id: oldItem.productoId },
-            include: { packItems: true }
-          });
-          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-            for (const packItem of articuloBase.packItems) {
+      // Solo revertir stock si el pedido ya estaba confirmado
+      if (oldCompra?.tipoCompra === "CONFIRMADA") {
+        for (const oldItem of oldItems) {
+          if (oldItem.productoId) {
+            const articuloBase = await tx.articuloMostrador.findUnique({
+              where: { id: oldItem.productoId },
+              include: { packItems: true }
+            });
+            if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+              for (const packItem of articuloBase.packItems) {
+                await tx.articuloMostrador.update({
+                  where: { id: packItem.componenteId },
+                  data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
+                });
+              }
+              await syncPackStock(tx, oldItem.productoId, articuloBase.packItems);
+            } else {
               await tx.articuloMostrador.update({
-                where: { id: packItem.componenteId },
-                data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
+                where: { id: oldItem.productoId },
+                data: { stock: { decrement: oldItem.cantidad } }
               });
             }
-            await syncPackStock(tx, oldItem.productoId, articuloBase.packItems);
-          } else {
-            await tx.articuloMostrador.update({
-              where: { id: oldItem.productoId },
-              data: { stock: { decrement: oldItem.cantidad } }
-            });
           }
         }
       }
@@ -585,16 +609,22 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           include: { packItems: true }
         });
 
+        // Solo aplicar stock si el pedido ya estaba confirmado (la mercadería ya había llegado)
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.update({
-              where: { id: packItem.componenteId },
-              data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
-            });
+          if (oldCompra?.tipoCompra === "CONFIRMADA") {
+            for (const packItem of articuloBase.packItems) {
+              await tx.articuloMostrador.update({
+                where: { id: packItem.componenteId },
+                data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
+              });
+            }
+            await syncPackStock(tx, prodId, articuloBase.packItems);
           }
-          await syncPackStock(tx, prodId, articuloBase.packItems);
         } else {
-          const updateData: any = { stock: { increment: newItem.cantidad } };
+          const updateData: any = {};
+          if (oldCompra?.tipoCompra === "CONFIRMADA") {
+            updateData.stock = { increment: newItem.cantidad };
+          }
           const margen = newItem.margenGanancia ?? 50;
           const costoBaseArs = moneda === 'USD' ? Number(newItem.costo_unit) * dolar : Number(newItem.costo_unit)
           const costoEnArs = moneda === 'USD' ? costoBaseArs * fob : costoBaseArs
@@ -606,7 +636,9 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
             updateData.precio = precioPublico;
           }
 
-          await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
+          if (Object.keys(updateData).length > 0) {
+            await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
+          }
 
           if (data.impactarCostos && articuloBase) {
             if (moneda === 'USD') await upsertCostosML(tx, prodId, newItem, costoBaseArs, fob)
@@ -945,25 +977,28 @@ export async function actualizarCompra(compraId: string, data: {
         }
       }
 
-      for (const oldItem of oldItems) {
-        if (oldItem.productoId) {
-          const articuloBase = await tx.articuloMostrador.findUnique({
-            where: { id: oldItem.productoId },
-            include: { packItems: true }
-          });
-          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-            for (const packItem of articuloBase.packItems) {
+      // Solo revertir stock si era una compra confirmada (los PEDIDO no tienen stock contabilizado)
+      if (oldCompra?.tipoCompra !== "PEDIDO") {
+        for (const oldItem of oldItems) {
+          if (oldItem.productoId) {
+            const articuloBase = await tx.articuloMostrador.findUnique({
+              where: { id: oldItem.productoId },
+              include: { packItems: true }
+            });
+            if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+              for (const packItem of articuloBase.packItems) {
+                await tx.articuloMostrador.update({
+                  where: { id: packItem.componenteId },
+                  data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
+                });
+              }
+              await syncPackStock(tx, oldItem.productoId, articuloBase.packItems);
+            } else {
               await tx.articuloMostrador.update({
-                where: { id: packItem.componenteId },
-                data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
+                where: { id: oldItem.productoId },
+                data: { stock: { decrement: oldItem.cantidad } }
               });
             }
-            await syncPackStock(tx, oldItem.productoId, articuloBase.packItems);
-          } else {
-            await tx.articuloMostrador.update({
-              where: { id: oldItem.productoId },
-              data: { stock: { decrement: oldItem.cantidad } }
-            });
           }
         }
       }
@@ -1044,16 +1079,22 @@ export async function actualizarCompra(compraId: string, data: {
           where: { id: prodId },
           include: { packItems: true }
         });
+        // Solo incrementar stock si era una compra confirmada
         if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.update({
-              where: { id: packItem.componenteId },
-              data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
-            });
+          if (oldCompra?.tipoCompra !== "PEDIDO") {
+            for (const packItem of articuloBase.packItems) {
+              await tx.articuloMostrador.update({
+                where: { id: packItem.componenteId },
+                data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
+              });
+            }
+            await syncPackStock(tx, prodId, articuloBase.packItems);
           }
-          await syncPackStock(tx, prodId, articuloBase.packItems);
         } else {
-          const updateData: any = { stock: { increment: newItem.cantidad } };
+          const updateData: any = {};
+          if (oldCompra?.tipoCompra !== "PEDIDO") {
+            updateData.stock = { increment: newItem.cantidad };
+          }
           const margen = newItem.margenGanancia ?? 50;
           const costoBaseArs = moneda === 'USD' ? Number(newItem.costo_unit) * dolar : Number(newItem.costo_unit)
           const costoEnArs = moneda === 'USD' ? costoBaseArs * fob : costoBaseArs
@@ -1065,7 +1106,9 @@ export async function actualizarCompra(compraId: string, data: {
             updateData.precio = precioPublico;
           }
 
-          await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
+          if (Object.keys(updateData).length > 0) {
+            await tx.articuloMostrador.update({ where: { id: prodId }, data: updateData });
+          }
 
           if (data.impactarCostos && articuloBase) {
             if (moneda === 'USD') await upsertCostosML(tx, prodId, newItem, costoBaseArs, fob)
@@ -1111,25 +1154,28 @@ export async function eliminarCompra(compraId: string, usuario: string) {
 
       if (!compra) throw new Error("Compra no encontrada");
 
-      for (const item of compra.items) {
-        if (item.productoId) {
-          const articuloBase = await tx.articuloMostrador.findUnique({
-            where: { id: item.productoId },
-            include: { packItems: true }
-          });
-          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-            for (const packItem of articuloBase.packItems) {
+      // Solo revertir stock si la compra estaba confirmada (los PEDIDO nunca sumaron stock)
+      if (compra.tipoCompra !== "PEDIDO") {
+        for (const item of compra.items) {
+          if (item.productoId) {
+            const articuloBase = await tx.articuloMostrador.findUnique({
+              where: { id: item.productoId },
+              include: { packItems: true }
+            });
+            if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+              for (const packItem of articuloBase.packItems) {
+                await tx.articuloMostrador.update({
+                  where: { id: packItem.componenteId },
+                  data: { stock: { decrement: packItem.cantidad * item.cantidad } }
+                });
+              }
+              await syncPackStock(tx, item.productoId, articuloBase.packItems);
+            } else {
               await tx.articuloMostrador.update({
-                where: { id: packItem.componenteId },
-                data: { stock: { decrement: packItem.cantidad * item.cantidad } }
+                where: { id: item.productoId },
+                data: { stock: { decrement: item.cantidad } }
               });
             }
-            await syncPackStock(tx, item.productoId, articuloBase.packItems);
-          } else {
-            await tx.articuloMostrador.update({
-              where: { id: item.productoId },
-              data: { stock: { decrement: item.cantidad } }
-            });
           }
         }
       }

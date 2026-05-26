@@ -150,7 +150,7 @@ async function revertirImpactoProveedorTx(
   }
 }
 
-type StockItem = { productoId?: string; id?: string; cantidad: number }
+type StockItem = { productoId?: string; id?: string; nombre?: string; cantidad: number }
 
 async function ajustarStockItemsTx(
   tx: TxClient,
@@ -164,8 +164,19 @@ async function ajustarStockItemsTx(
       where: { id: articuloId },
       include: { packItems: true },
     });
-    if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+    if (!articuloBase) {
+      const nombre = item.nombre ? `"${item.nombre}"` : `ID "${articuloId}"`;
+      throw new Error(`Artículo ${nombre} no encontrado en el sistema. Revisá el mapeo de artículos en la receta.`);
+    }
+    if (articuloBase.esPack && articuloBase.packItems.length > 0) {
       for (const packItem of articuloBase.packItems) {
+        const componente = await tx.articuloMostrador.findUnique({
+          where: { id: packItem.componenteId },
+          select: { id: true, nombre: true },
+        });
+        if (!componente) {
+          throw new Error(`Componente del pack "${articuloBase.nombre}" no encontrado: ID "${packItem.componenteId}". Revisá la composición del pack.`);
+        }
         await tx.articuloMostrador.update({
           where: { id: packItem.componenteId },
           data: { stock: { [modo]: packItem.cantidad * item.cantidad } },
@@ -643,7 +654,8 @@ export async function crearVentaMostrador(data: {
     return { success: true, id: result.id, numeroVenta: result.numeroVenta };
   } catch (error) {
     console.error("Error al crear venta:", error);
-    return { success: false, error: "No se pudo guardar la venta" };
+    const mensaje = error instanceof Error ? error.message : "No se pudo guardar la venta";
+    return { success: false, error: mensaje };
   }
 }
 

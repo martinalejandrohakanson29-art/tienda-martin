@@ -10,9 +10,8 @@ export async function obtenerFaltantes(soloActivos: boolean = true) {
     const faltantes = await prisma.articuloFaltante.findMany({
       where: soloActivos ? { finalizado: false } : undefined,
       include: {
-        articulo: {
-          select: { id: true, nombre: true, stock: true },
-        },
+        articulo: { select: { id: true, nombre: true, stock: true } },
+        proveedor: { select: { id: true, razonSocial: true, nombreFantasia: true } },
       },
       orderBy: { createdAt: "desc" },
     })
@@ -23,6 +22,11 @@ export async function obtenerFaltantes(soloActivos: boolean = true) {
       articuloNombre: f.articulo.nombre,
       stockActual: f.articulo.stock,
       cantidadEstimada: f.cantidadEstimada,
+      prioridad: f.prioridad,
+      proveedorId: f.proveedorId ?? null,
+      proveedorNombre: f.proveedor
+        ? (f.proveedor.nombreFantasia || f.proveedor.razonSocial)
+        : null,
       creadoPor: f.creadoPor,
       finalizado: f.finalizado,
       finalizadoAt: f.finalizadoAt?.toISOString() ?? null,
@@ -38,6 +42,8 @@ export async function obtenerFaltantes(soloActivos: boolean = true) {
 export async function crearFaltante(data: {
   articuloId: string
   cantidadEstimada: number
+  prioridad: string
+  proveedorId?: string | null
   creadoPor: string
 }) {
   await requireAdmin()
@@ -50,6 +56,8 @@ export async function crearFaltante(data: {
       data: {
         articuloId: data.articuloId,
         cantidadEstimada: data.cantidadEstimada,
+        prioridad: data.prioridad,
+        proveedorId: data.proveedorId ?? null,
         creadoPor: data.creadoPor,
       },
     })
@@ -105,6 +113,23 @@ export async function obtenerArticulosParaFaltantes() {
     return articulos
   } catch (error) {
     console.error("Error al obtener artículos:", error)
+    return []
+  }
+}
+
+export async function obtenerProveedoresParaFaltantes() {
+  await requireAdmin()
+  try {
+    const proveedores = await prisma.proveedor.findMany({
+      select: { id: true, razonSocial: true, nombreFantasia: true },
+      orderBy: { razonSocial: "asc" },
+    })
+    return proveedores.map((p) => ({
+      id: p.id,
+      nombre: p.nombreFantasia || p.razonSocial,
+    }))
+  } catch (error) {
+    console.error("Error al obtener proveedores:", error)
     return []
   }
 }

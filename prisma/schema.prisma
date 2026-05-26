@@ -573,6 +573,9 @@ model ArticuloFaltante {
   articuloId       String
   articulo         ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
   cantidadEstimada Int
+  prioridad        String            @default("media")
+  proveedorId      String?
+  proveedor        Proveedor?        @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
   creadoPor        String
   finalizado       Boolean           @default(false)
   finalizadoAt     DateTime?
@@ -822,6 +825,7 @@ model Proveedor {
   compras        Compra[]
   movimientos    MovimientoProveedor[]
   ventasMostrador Venta[]
+  faltantes      ArticuloFaltante[]
   aliasCbu       String?
 
   @@map("proveedores")

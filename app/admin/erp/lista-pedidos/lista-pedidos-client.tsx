@@ -38,6 +38,7 @@ import {
   eliminarFaltante,
   obtenerFaltantes,
   obtenerArticulosParaFaltantes,
+  obtenerProveedoresParaFaltantes,
 } from "@/app/actions/articulos-faltantes"
 
 type Faltante = {
@@ -46,6 +47,9 @@ type Faltante = {
   articuloNombre: string
   stockActual: number
   cantidadEstimada: number
+  prioridad: string
+  proveedorId: string | null
+  proveedorNombre: string | null
   creadoPor: string
   finalizado: boolean
   finalizadoAt: string | null
@@ -58,6 +62,20 @@ type ArticuloSimple = {
   nombre: string
   stock: number
 }
+
+type ProveedorSimple = {
+  id: string
+  nombre: string
+}
+
+const PRIORIDADES = [
+  { value: "alta",  label: "Alta",  cls: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400" },
+  { value: "media", label: "Media", cls: "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" },
+  { value: "baja",  label: "Baja",  cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
+]
+
+const badgePrioridad = (p: string) =>
+  PRIORIDADES.find((x) => x.value === p) ?? PRIORIDADES[1]
 
 interface ListaPedidosClientProps {
   faltantesIniciales: Faltante[]
@@ -90,12 +108,17 @@ export function ListaPedidosClient({
   const [busqueda, setBusqueda] = useState("")
   const [articuloSeleccionado, setArticuloSeleccionado] = useState<ArticuloSimple | null>(null)
   const [cantidad, setCantidad] = useState("")
+  const [prioridad, setPrioridad] = useState("media")
+  const [proveedorSeleccionado, setProveedorSeleccionado] = useState<ProveedorSimple | null>(null)
+  const [busquedaProv, setBusquedaProv] = useState("")
   const [guardando, setGuardando] = useState(false)
 
-  // Artículos: se cargan lazily la primera vez que se abre el modal
+  // Artículos y proveedores: se cargan lazily la primera vez que se abre el modal
   const [articulos, setArticulos] = useState<ArticuloSimple[]>([])
   const [cargandoArticulos, setCargandoArticulos] = useState(false)
   const articulosCargados = useRef(false)
+  const [proveedores, setProveedores] = useState<ProveedorSimple[]>([])
+  const proveedoresCargados = useRef(false)
 
   // Confirmaciones
   const [finalizarId, setFinalizarId] = useState<string | null>(null)
@@ -108,13 +131,24 @@ export function ListaPedidosClient({
     return articulos.filter((a) => quitarAcentos(a.nombre).includes(q)).slice(0, 10)
   }, [busqueda, articulos])
 
+  const proveedoresFiltrados = useMemo(() => {
+    if (!busquedaProv.trim()) return proveedores.slice(0, 8)
+    const q = quitarAcentos(busquedaProv)
+    return proveedores.filter((p) => quitarAcentos(p.nombre).includes(q)).slice(0, 8)
+  }, [busquedaProv, proveedores])
+
   const abrirModal = async () => {
     setModalOpen(true)
     if (!articulosCargados.current) {
       setCargandoArticulos(true)
-      const data = await obtenerArticulosParaFaltantes()
-      setArticulos(data)
+      const [arts, provs] = await Promise.all([
+        obtenerArticulosParaFaltantes(),
+        obtenerProveedoresParaFaltantes(),
+      ])
+      setArticulos(arts)
+      setProveedores(provs)
       articulosCargados.current = true
+      proveedoresCargados.current = true
       setCargandoArticulos(false)
     }
   }
@@ -144,6 +178,8 @@ export function ListaPedidosClient({
     const res = await crearFaltante({
       articuloId: articuloSeleccionado.id,
       cantidadEstimada: cant,
+      prioridad,
+      proveedorId: proveedorSeleccionado?.id ?? null,
       creadoPor: usuarioNombre,
     })
     setGuardando(false)
@@ -152,8 +188,11 @@ export function ListaPedidosClient({
       toast.success("Artículo agregado a la lista")
       setModalOpen(false)
       setBusqueda("")
+      setBusquedaProv("")
       setArticuloSeleccionado(null)
+      setProveedorSeleccionado(null)
       setCantidad("")
+      setPrioridad("media")
       await recargar()
     } else {
       toast.error(res.error ?? "Error al guardar")
@@ -298,6 +337,12 @@ export function ListaPedidosClient({
                   <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">
                     Stock actual
                   </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500 text-center">
+                    Prioridad
+                  </TableHead>
+                  <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Proveedor
+                  </TableHead>
                   <TableHead className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Cargado por
                   </TableHead>
@@ -346,6 +391,21 @@ export function ListaPedidosClient({
                         {f.stockActual}
                       </span>
                     </TableCell>
+                    <TableCell className="text-center">
+                      {(() => {
+                        const p = badgePrioridad(f.prioridad)
+                        return (
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${p.cls}`}>
+                            {p.label}
+                          </span>
+                        )
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-slate-500">
+                        {f.proveedorNombre ?? <span className="text-slate-300 dark:text-slate-600">—</span>}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <span className="text-sm text-slate-500">{f.creadoPor}</span>
                     </TableCell>
@@ -390,7 +450,7 @@ export function ListaPedidosClient({
       </div>
 
       {/* Modal: nuevo faltante */}
-      <Dialog open={modalOpen} onOpenChange={(o) => { setModalOpen(o); if (!o) { setBusqueda(""); setArticuloSeleccionado(null); setCantidad("") } }}>
+      <Dialog open={modalOpen} onOpenChange={(o) => { setModalOpen(o); if (!o) { setBusqueda(""); setBusquedaProv(""); setArticuloSeleccionado(null); setProveedorSeleccionado(null); setCantidad(""); setPrioridad("media") } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Agregar artículo faltante</DialogTitle>
@@ -469,6 +529,73 @@ export function ListaPedidosClient({
                 value={cantidad}
                 onChange={(e) => setCantidad(e.target.value)}
               />
+            </div>
+
+            {/* Prioridad */}
+            <div className="space-y-1.5">
+              <Label>Prioridad</Label>
+              <div className="flex gap-2">
+                {PRIORIDADES.map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setPrioridad(p.value)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                      prioridad === p.value
+                        ? `${p.cls} border-current`
+                        : "border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-300"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Proveedor (opcional) */}
+            <div className="space-y-1.5">
+              <Label>Proveedor <span className="text-slate-400 font-normal">(opcional)</span></Label>
+              {proveedorSeleccionado ? (
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2">
+                  <p className="text-sm font-medium text-slate-900 dark:text-white">
+                    {proveedorSeleccionado.nombre}
+                  </p>
+                  <button
+                    onClick={() => { setProveedorSeleccionado(null); setBusquedaProv("") }}
+                    className="text-xs text-slate-400 hover:text-slate-600 underline"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    placeholder="Buscar proveedor..."
+                    value={busquedaProv}
+                    onChange={(e) => setBusquedaProv(e.target.value)}
+                    className="pl-9"
+                    disabled={cargandoArticulos}
+                  />
+                  {busquedaProv.trim() && (
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                      {proveedoresFiltrados.length === 0 ? (
+                        <p className="px-4 py-3 text-sm text-slate-400">Sin resultados</p>
+                      ) : (
+                        proveedoresFiltrados.map((p) => (
+                          <button
+                            key={p.id}
+                            onClick={() => { setProveedorSeleccionado(p); setBusquedaProv("") }}
+                            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm text-slate-900 dark:text-white"
+                          >
+                            {p.nombre}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

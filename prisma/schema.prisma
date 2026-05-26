@@ -538,6 +538,7 @@ model ArticuloMostrador {
   auditorias   ArticuloAuditoria[]
   componenteOf PackMostradorItem[] @relation("PackComponente")
   packItems    PackMostradorItem[] @relation("PackPadre")
+  faltantes    ArticuloFaltante[]
 
   @@index([nombre])
   @@map("articulos_mostrador")
@@ -565,6 +566,20 @@ model ArticuloAuditoria {
   articulo   ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
 
   @@map("articulos_auditoria")
+}
+
+model ArticuloFaltante {
+  id               String            @id @default(cuid())
+  articuloId       String
+  articulo         ArticuloMostrador @relation(fields: [articuloId], references: [id], onDelete: Cascade)
+  cantidadEstimada Int
+  creadoPor        String
+  finalizado       Boolean           @default(false)
+  finalizadoAt     DateTime?
+  finalizadoPor    String?
+  createdAt        DateTime          @default(now())
+
+  @@map("articulos_faltantes")
 }
 
 model TransferenciaCruzada {

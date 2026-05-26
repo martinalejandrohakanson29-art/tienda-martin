@@ -24,17 +24,17 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
-import { getArticulos } from "@/app/actions/costos";
+import { getArticulosParaPrecio } from "@/app/actions/costos";
 import { createProductWithRecipe } from "@/app/actions/kits";
 import { createManualProduct } from "@/app/actions/ml-maestros";
 
 interface Articulo {
-  id: number;
+  id: number | string;
   id_articulo: string;
   descripcion: string | null;
-  costo_usd: number;
   costo_final_ars: number;
   isKit: boolean;
+  fuente: "catalogo" | "mostrador";
 }
 
 interface SelectedItem extends Articulo {
@@ -113,7 +113,7 @@ export default function CrearPublicacionesPage() {
   useEffect(() => {
     if (currentStep === 3 && articulosDb.length === 0) {
       setLoadingArticulos(true);
-      getArticulos()
+      getArticulosParaPrecio()
         .then((data) => setArticulosDb(data as Articulo[]))
         .finally(() => setLoadingArticulos(false));
     }
@@ -570,12 +570,17 @@ export default function CrearPublicacionesPage() {
                     <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-xl max-h-60 overflow-y-auto">
                       {filteredArticulos.map((art) => (
                         <div
-                          key={art.id_articulo}
+                          key={`${art.fuente}-${art.id_articulo}`}
                           onClick={() => handleAddItem(art)}
                           className="p-3 hover:bg-purple-50 cursor-pointer border-b last:border-b-0 flex justify-between items-center"
                         >
                           <div className="flex flex-col">
-                            <span className="text-sm font-bold text-slate-800">{art.id_articulo}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-slate-800">{art.id_articulo}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${art.fuente === "mostrador" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
+                                {art.fuente === "mostrador" ? "Mostrador" : "Catálogo"}
+                              </span>
+                            </div>
                             <span className="text-xs text-slate-500 line-clamp-1">{art.descripcion}</span>
                           </div>
                           <span className="text-sm font-bold text-emerald-600 whitespace-nowrap ml-2">

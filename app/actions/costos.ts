@@ -112,6 +112,41 @@ export async function getArticulos() {
   } catch (error) { return []; }
 }
 
+// Artículos unificados de CostosArticulos + ArticuloMostrador para el calculador de precio
+export async function getArticulosParaPrecio() {
+  try {
+    const [costos, mostrador, kits] = await Promise.all([
+      prisma.costosArticulos.findMany({ orderBy: { descripcion: 'asc' } }),
+      prisma.articuloMostrador.findMany({ orderBy: { nombre: 'asc' } }),
+      prisma.articulosCompuestos.findMany({ select: { sku_padre: true }, distinct: ['sku_padre'] }),
+    ]);
+
+    const kitSkus = new Set(kits.map((k) => k.sku_padre));
+
+    const deCatalogo = costos.map((art) => ({
+      id: art.id,
+      id_articulo: art.id_articulo,
+      descripcion: art.descripcion,
+      costo_final_ars: art.costo_final_ars ? Number(art.costo_final_ars) : 0,
+      isKit: kitSkus.has(art.id_articulo),
+      fuente: "catalogo" as const,
+    }));
+
+    const deMostrador = mostrador.map((art) => ({
+      id: art.id,
+      id_articulo: art.id,
+      descripcion: art.nombre,
+      costo_final_ars: art.costo ? Number(art.costo) : 0,
+      isKit: false,
+      fuente: "mostrador" as const,
+    }));
+
+    return [...deCatalogo, ...deMostrador];
+  } catch {
+    return [];
+  }
+}
+
 export async function getCostosKits() {
   noStore(); 
   

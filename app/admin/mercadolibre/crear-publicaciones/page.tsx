@@ -407,7 +407,6 @@ export default function CrearPublicacionesPage() {
         {steps.map((step, i) => {
           const stepNum = i + 1;
           const active = currentStep >= stepNum;
-          const color = active ? step.color : "gray";
           return (
             <div key={step.label} className="flex items-center">
               <div className={`flex items-center ${active ? `text-${step.color}-600 font-bold` : "text-gray-400"}`}>

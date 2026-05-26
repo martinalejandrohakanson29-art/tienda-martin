@@ -9,11 +9,12 @@ export async function createManualProduct(data: {
   titulo: string;
   nombre_variante?: string;
   variation_id?: string;
-  user_product_id?: string; // NUEVO CAMPO
-  family_id?: string;       // NUEVO CAMPO
+  user_product_id?: string;
+  family_id?: string;
+  es_nuevo?: boolean;
 }) {
   try {
-    const { mla, titulo, nombre_variante, variation_id, user_product_id, family_id } = data;
+    const { mla, titulo, nombre_variante, variation_id, user_product_id, family_id, es_nuevo } = data;
 
     // 1. Validaciones básicas
     if (!mla || !titulo) {
@@ -58,9 +59,10 @@ export async function createManualProduct(data: {
           nombre_publicacion: cleanTitle,
           nombre_variante: cleanVarName,
           variation_id: cleanVarId,
-          user_product_id: cleanUP, // GUARDAMOS EL UP
-          family_id: cleanFamily,   // GUARDAMOS LA FAMILIA
+          user_product_id: cleanUP,
+          family_id: cleanFamily,
           estado: "active",
+          es_nuevo: es_nuevo ?? false,
           link_publicacion: `https://articulo.mercadolibre.com.ar/${cleanMla}`
         }
       });

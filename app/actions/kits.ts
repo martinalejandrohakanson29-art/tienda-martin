@@ -12,6 +12,7 @@ export async function createProductWithRecipe(data: {
   variation_id?: string;
   user_product_id?: string;
   family_id?: string;
+  es_nuevo?: boolean;
   componentes: Array<{
     id_articulo: string;
     cantidad: number;
@@ -19,7 +20,7 @@ export async function createProductWithRecipe(data: {
   }>;
 }) {
   try {
-    const { mla, titulo, nombre_variante, variation_id, user_product_id, family_id, componentes } = data;
+    const { mla, titulo, nombre_variante, variation_id, user_product_id, family_id, es_nuevo, componentes } = data;
 
     // 1. Validaciones básicas
     if (!mla || !titulo) {
@@ -71,6 +72,7 @@ export async function createProductWithRecipe(data: {
           user_product_id: cleanUP,
           family_id: cleanFamily,
           estado: "active",
+          es_nuevo: es_nuevo ?? false,
           link_publicacion: `https://articulo.mercadolibre.com.ar/${cleanMla}`
         }
       });

@@ -145,9 +145,9 @@ export default function CrearPublicacionesPage() {
 
   const handleAddItem = (art: Articulo) => {
     setSelectedItems((prev) => {
-      const existing = prev.find((p) => p.id_articulo === art.id_articulo);
+      const existing = prev.find((p) => p.id_articulo === art.id_articulo && p.fuente === art.fuente);
       const next = existing
-        ? prev.map((p) => (p.id_articulo === art.id_articulo ? { ...p, cantidad: p.cantidad + 1 } : p))
+        ? prev.map((p) => (p.id_articulo === art.id_articulo && p.fuente === art.fuente ? { ...p, cantidad: p.cantidad + 1 } : p))
         : [...prev, { ...art, cantidad: 1 }];
       syncCostoTotal(next);
       return next;
@@ -155,18 +155,28 @@ export default function CrearPublicacionesPage() {
     setSearchTerm("");
   };
 
-  const handleRemoveItem = (sku: string) => {
+  const handleRemoveItem = (sku: string, fuente: string) => {
     setSelectedItems((prev) => {
-      const next = prev.filter((p) => p.id_articulo !== sku);
+      const next = prev.filter((p) => !(p.id_articulo === sku && p.fuente === fuente));
       syncCostoTotal(next);
       return next;
     });
   };
 
-  const handleUpdateQty = (sku: string, delta: number) => {
+  const handleUpdateQty = (sku: string, fuente: string, delta: number) => {
     setSelectedItems((prev) => {
       const next = prev.map((p) =>
-        p.id_articulo === sku ? { ...p, cantidad: Math.max(1, p.cantidad + delta) } : p
+        p.id_articulo === sku && p.fuente === fuente ? { ...p, cantidad: Math.max(1, p.cantidad + delta) } : p
+      );
+      syncCostoTotal(next);
+      return next;
+    });
+  };
+
+  const handleUpdateCosto = (sku: string, fuente: string, newCosto: number) => {
+    setSelectedItems((prev) => {
+      const next = prev.map((p) =>
+        p.id_articulo === sku && p.fuente === fuente ? { ...p, costo_final_ars: newCosto } : p
       );
       syncCostoTotal(next);
       return next;
@@ -595,21 +605,41 @@ export default function CrearPublicacionesPage() {
                 {selectedItems.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {selectedItems.map((item) => (
-                      <div key={item.id_articulo} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-3 rounded-md border shadow-sm text-sm gap-2">
-                        <div className="flex-1">
-                          <span className="font-bold text-slate-700">{item.id_articulo}</span>
-                          <p className="text-xs text-slate-500 truncate">{item.descripcion}</p>
-                        </div>
-                        <div className="flex items-center gap-3 justify-between sm:justify-end">
-                          <span className="text-slate-500 font-medium">{formatCurrency(item.costo_final_ars)} <span className="text-xs">c/u</span></span>
-                          <div className="flex items-center bg-slate-100 rounded-md border">
-                            <button onClick={() => handleUpdateQty(item.id_articulo, -1)} className="px-3 py-1 hover:bg-slate-200 rounded-l-md">-</button>
-                            <span className="px-3 font-semibold text-slate-700">{item.cantidad}</span>
-                            <button onClick={() => handleUpdateQty(item.id_articulo, 1)} className="px-3 py-1 hover:bg-slate-200 rounded-r-md">+</button>
+                      <div key={`${item.fuente}-${item.id_articulo}`} className="bg-white p-3 rounded-md border shadow-sm text-sm space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-700 truncate">{item.id_articulo}</span>
+                              <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${item.fuente === "mostrador" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
+                                {item.fuente === "mostrador" ? "Mostrador" : "Catálogo"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 truncate">{item.descripcion}</p>
                           </div>
-                          <button onClick={() => handleRemoveItem(item.id_articulo)} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-md">
+                          <button onClick={() => handleRemoveItem(item.id_articulo, item.fuente)} className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-md shrink-0">
                             <Trash2 className="h-4 w-4" />
                           </button>
+                        </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-slate-500 font-medium">Costo&nbsp;c/u&nbsp;$</span>
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-28 h-8 px-2 text-sm font-bold text-emerald-700 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-purple-400 bg-emerald-50"
+                              value={item.costo_final_ars === 0 ? "" : item.costo_final_ars}
+                              onChange={(e) => handleUpdateCosto(item.id_articulo, item.fuente, Number(e.target.value) || 0)}
+                              placeholder="0"
+                            />
+                          </div>
+                          <div className="flex items-center bg-slate-100 rounded-md border">
+                            <button onClick={() => handleUpdateQty(item.id_articulo, item.fuente, -1)} className="px-3 py-1 hover:bg-slate-200 rounded-l-md">-</button>
+                            <span className="px-3 font-semibold text-slate-700">{item.cantidad}</span>
+                            <button onClick={() => handleUpdateQty(item.id_articulo, item.fuente, 1)} className="px-3 py-1 hover:bg-slate-200 rounded-r-md">+</button>
+                          </div>
+                          <span className="text-sm font-bold text-slate-600 ml-auto">
+                            = {formatCurrency(item.costo_final_ars * item.cantidad)}
+                          </span>
                         </div>
                       </div>
                     ))}

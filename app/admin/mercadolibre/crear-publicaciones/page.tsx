@@ -71,8 +71,7 @@ export default function CrearPublicacionesPage() {
   const [marca, setMarca] = useState("");
   const [descripcionCompatibilidad, setDescripcionCompatibilidad] = useState("");
   const [componentesTexto, setComponentesTexto] = useState("");
-  const [articuloPrincipal, setArticuloPrincipal] = useState<Articulo | null>(null);
-  const [articuloPrincipalSearch, setArticuloPrincipalSearch] = useState("");
+  const [articuloPrincipal, setArticuloPrincipal] = useState("");
 
   // ==========================================
   // PASO 3: COMPOSICIÓN + PRECIO
@@ -241,9 +240,7 @@ export default function CrearPublicacionesPage() {
           marca,
           componentes: componentesTexto,
           url_foto: urlFoto,
-          articulo_principal: articuloPrincipal
-            ? (articuloPrincipal.descripcion || articuloPrincipal.id_articulo)
-            : "",
+          articulo_principal: articuloPrincipal,
         }),
       });
       if (!res.ok) throw new Error();
@@ -524,66 +521,12 @@ export default function CrearPublicacionesPage() {
 
               <div className="space-y-2">
                 <Label className="text-base">Artículo Principal (referencia de categoría para n8n)</Label>
-                <p className="text-xs text-gray-500">Buscá el artículo que mejor representa la categoría de esta publicación. Se enviará al workflow para ayudar a determinar la categoría de ML.</p>
-                {articuloPrincipal ? (
-                  <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-lg px-4 py-3">
-                    <div>
-                      <span className="font-bold text-rose-800">{articuloPrincipal.id_articulo}</span>
-                      <p className="text-sm text-rose-600">{articuloPrincipal.descripcion}</p>
-                    </div>
-                    <button
-                      onClick={() => { setArticuloPrincipal(null); setArticuloPrincipalSearch(""); }}
-                      className="text-rose-400 hover:text-rose-600 ml-4 text-sm underline"
-                    >
-                      Cambiar
-                    </button>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                    <Input
-                      placeholder="Buscar artículo por nombre o SKU..."
-                      value={articuloPrincipalSearch}
-                      onChange={(e) => setArticuloPrincipalSearch(e.target.value)}
-                      className="pl-9 h-12 text-base"
-                    />
-                    {articuloPrincipalSearch.trim().length > 0 && (
-                      <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-xl max-h-56 overflow-y-auto">
-                        {articulosDb
-                          .filter(
-                            (art) =>
-                              art.descripcion?.toLowerCase().includes(articuloPrincipalSearch.toLowerCase()) ||
-                              art.id_articulo.toLowerCase().includes(articuloPrincipalSearch.toLowerCase())
-                          )
-                          .slice(0, 8)
-                          .map((art) => (
-                            <div
-                              key={`principal-${art.fuente}-${art.id_articulo}`}
-                              onClick={() => { setArticuloPrincipal(art); setArticuloPrincipalSearch(""); }}
-                              className="p-3 hover:bg-rose-50 cursor-pointer border-b last:border-b-0 flex justify-between items-center"
-                            >
-                              <div className="flex flex-col">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-bold text-slate-800">{art.id_articulo}</span>
-                                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${art.fuente === "mostrador" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
-                                    {art.fuente === "mostrador" ? "Mostrador" : "Catálogo"}
-                                  </span>
-                                </div>
-                                <span className="text-xs text-slate-500 line-clamp-1">{art.descripcion}</span>
-                              </div>
-                            </div>
-                          ))}
-                        {articulosDb.filter(
-                          (art) =>
-                            art.descripcion?.toLowerCase().includes(articuloPrincipalSearch.toLowerCase()) ||
-                            art.id_articulo.toLowerCase().includes(articuloPrincipalSearch.toLowerCase())
-                        ).length === 0 && (
-                          <div className="p-3 text-sm text-slate-400 text-center">Sin resultados</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+                <Input
+                  placeholder="Ej: Carburador CG 125"
+                  className="h-12 text-lg"
+                  value={articuloPrincipal}
+                  onChange={(e) => setArticuloPrincipal(e.target.value)}
+                />
               </div>
 
               <div className="space-y-2">

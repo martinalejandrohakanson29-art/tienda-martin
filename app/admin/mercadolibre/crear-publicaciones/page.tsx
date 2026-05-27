@@ -290,9 +290,10 @@ export default function CrearPublicacionesPage() {
         }),
       });
       if (!res.ok) throw new Error();
-      const data = await res.json();
+      const raw = await res.json();
+      // n8n "Respond to Webhook" con allIncomingItems devuelve un array
+      const data = Array.isArray(raw) ? raw[0] : raw;
 
-      // n8n devuelve los datos del item de ML si está configurado con "Respond to Webhook"
       setMlData({
         id: data.id || data.item_id || "",
         family_id: data.family_id || "",

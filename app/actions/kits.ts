@@ -149,14 +149,14 @@ export async function getComposicionKits() {
     // 3. Buscamos en el "Diccionario" (productos_maestros) esos MLAs específicos
     const maestros = await prisma.productosMaestros.findMany({
       where: { mla: { in: mlasUnicos } },
-      select: { mla: true, variation_id: true, user_product_id: true, family_id: true }
+      select: { mla: true, variation_id: true, user_product_id: true, family_id: true, estado: true, es_nuevo: true }
     });
 
     // 4. Cruzamos los datos: Le pegamos la Familia y el User Product a cada Kit
     const kitsEnriquecidos = kits.map(kit => {
       // Intentamos coincidencia exacta (MLA + Variación)
       let maestro = maestros.find(m => m.mla === kit.mla && m.variation_id === kit.variation_id);
-      
+
       // Si no encuentra la variación exacta, hace fallback al MLA genérico
       if (!maestro) {
         maestro = maestros.find(m => m.mla === kit.mla);
@@ -165,7 +165,9 @@ export async function getComposicionKits() {
       return {
         ...kit,
         user_product_id: maestro?.user_product_id || null,
-        family_id: maestro?.family_id || null
+        family_id: maestro?.family_id || null,
+        estado: maestro?.estado || null,
+        es_nuevo: maestro?.es_nuevo ?? false,
       };
     });
 

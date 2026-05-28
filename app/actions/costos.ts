@@ -187,9 +187,20 @@ export async function getCostosKits() {
 
     const resultadoFinal = Array.from(unificados.values());
 
+    // Traemos es_nuevo desde ProductosMaestros para los MLAs del resultado
+    const mlasUnicos = Array.from(new Set(resultadoFinal.map((i: any) => i.mla as string)));
+    const maestros = await prisma.productosMaestros.findMany({
+      where: { mla: { in: mlasUnicos } },
+      select: { mla: true, variation_id: true, es_nuevo: true },
+    });
+    const esNuevoMap = new Map(
+      maestros.map((m) => [`${m.mla}-${m.variation_id || ''}`, m.es_nuevo ?? false])
+    );
+
     return resultadoFinal.map((item: any) => ({
       ...item,
       costo_total: item.costo_total ? Number(item.costo_total) : 0,
+      es_nuevo: esNuevoMap.get(`${item.mla}-${item.variation_id || ''}`) ?? false,
     }));
 
   } catch (error) { 

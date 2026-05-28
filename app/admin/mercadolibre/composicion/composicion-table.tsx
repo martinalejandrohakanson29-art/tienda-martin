@@ -11,9 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2, PackageOpen } from "lucide-react";
 import { upsertKitComponent, deleteKitComponent, createProductWithRecipe } from "@/app/actions/kits";
 import { deleteManualProduct } from "@/app/actions/ml-maestros";
+import { cn } from "@/lib/utils";
 
 export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], articulos: any[], maestros: any[] }) {
   const [filter, setFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<'active' | 'paused' | 'all' | 'new'>('all');
 
   // MODAL DE RECETAS (El habitual)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -64,7 +66,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
 
       if (!hasKit && !hasKitSimple) {
         combinedKits.push({
-          id: `maestro-${maestro.mla}-${maestro.variation_id || 'base'}`, // Fake ID
+          id: `maestro-${maestro.mla}-${maestro.variation_id || 'base'}`,
           mla: maestro.mla,
           variation_id: maestro.variation_id,
           nombre_variante: maestro.nombre_variante,
@@ -73,6 +75,8 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
           cantidad: 0,
           user_product_id: maestro.user_product_id,
           family_id: maestro.family_id,
+          estado: maestro.estado || null,
+          es_nuevo: maestro.es_nuevo ?? false,
           isDummy: true
         });
       }
@@ -91,6 +95,8 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
         nombre_variante: item.nombre_variante,
         user_product_id: item.user_product_id,
         family_id: item.family_id,
+        estado: item.estado || null,
+        es_nuevo: item.es_nuevo ?? false,
         components: [],
         isDummy: false
       };
@@ -105,21 +111,24 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
   }, []);
 
   // --- FILTRADO A NIVEL DE GRUPO ---
-  const kitGroups = filter
-    ? allGroups.filter((group: any) => {
-        const term = filter.toLowerCase();
-        return (
-          group.mla?.toLowerCase().includes(term) ||
-          group.user_product_id?.toLowerCase().includes(term) ||
-          group.family_id?.toLowerCase().includes(term) ||
-          group.nombre_variante?.toLowerCase().includes(term) ||
-          group.components.some((c: any) =>
-            c.id_articulo?.toLowerCase().includes(term) ||
-            c.nombre_articulo?.toLowerCase().includes(term)
-          )
-        );
-      })
-    : allGroups;
+  const kitGroups = allGroups.filter((group: any) => {
+    if (statusFilter === 'new' && !group.es_nuevo) return false;
+    if (statusFilter === 'active' && group.estado?.toLowerCase() !== 'active') return false;
+    if (statusFilter === 'paused' && group.estado?.toLowerCase() !== 'paused') return false;
+
+    if (!filter) return true;
+    const term = filter.toLowerCase();
+    return (
+      group.mla?.toLowerCase().includes(term) ||
+      group.user_product_id?.toLowerCase().includes(term) ||
+      group.family_id?.toLowerCase().includes(term) ||
+      group.nombre_variante?.toLowerCase().includes(term) ||
+      group.components.some((c: any) =>
+        c.id_articulo?.toLowerCase().includes(term) ||
+        c.nombre_articulo?.toLowerCase().includes(term)
+      )
+    );
+  });
 
   const sugerenciasArticulos = searchArticulo.length > 1
     ? articulos.filter(a =>
@@ -288,25 +297,52 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
   return (
     <div className="space-y-4">
       {/* BARRA SUPERIOR DE ACCIONES */}
-      <div className="flex flex-col md:flex-row gap-4 justify-between items-end md:items-center bg-slate-50 p-4 rounded-xl border border-slate-200">
-        <div className="relative w-full max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder="Buscar por MLA, Receta, UP o Familia..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="pl-10 bg-white border-slate-200"
-          />
+      <div className="flex flex-col gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+        <div className="flex flex-col md:flex-row gap-3 justify-between items-end md:items-center">
+          <div className="relative w-full max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Buscar por MLA, Receta, UP o Familia..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="pl-10 bg-white border-slate-200"
+            />
+          </div>
+
+          <div className="flex gap-2 w-full md:w-auto">
+            <Button
+              onClick={handleOpenUnifiedModal}
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 gap-2 shadow-md flex-1 md:flex-none"
+            >
+              <PackagePlus className="h-4 w-4" />
+              Crear Producto con Receta
+            </Button>
+          </div>
         </div>
 
-        <div className="flex gap-2 w-full md:w-auto">
-          <Button
-            onClick={handleOpenUnifiedModal}
-            className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 gap-2 shadow-md flex-1 md:flex-none"
-          >
-            <PackagePlus className="h-4 w-4" />
-            Crear Producto con Receta
-          </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-500 font-medium">Estado:</span>
+          <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200">
+            {([
+              { id: 'all', label: 'Todos' },
+              { id: 'active', label: 'Activos' },
+              { id: 'paused', label: 'Pausados' },
+              { id: 'new', label: 'Nuevos' },
+            ] as const).map((btn) => (
+              <Button
+                key={btn.id}
+                variant={statusFilter === btn.id ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setStatusFilter(btn.id)}
+                className={cn("h-7 px-3 text-xs font-bold transition-all", statusFilter === btn.id
+                  ? btn.id === 'new' ? "bg-purple-600 text-white shadow-sm" : "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-500 hover:bg-slate-100")}
+              >
+                {btn.label}
+              </Button>
+            ))}
+          </div>
+          <span className="text-xs text-slate-400">{kitGroups.length} publicación{kitGroups.length !== 1 ? 'es' : ''}</span>
         </div>
       </div>
 
@@ -319,6 +355,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               <TableHead className="font-bold text-blue-600 w-[130px]">User Product</TableHead>
               <TableHead className="font-bold text-purple-600 w-[140px]">Familia</TableHead>
               <TableHead className="font-bold text-slate-600">Variante</TableHead>
+              <TableHead className="font-bold text-slate-600 w-[100px]">Estado</TableHead>
               <TableHead className="font-bold text-slate-600">Componente (Insumo)</TableHead>
               <TableHead className="font-bold text-slate-600 text-center w-[80px]">Cant.</TableHead>
               <TableHead className="font-bold text-slate-600 text-center w-[140px]">Acciones</TableHead>
@@ -358,6 +395,18 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                       )}
                     </div>
                   </TableCell>
+                  <TableCell className="py-3">
+                    <div className="flex flex-col gap-1">
+                      {group.estado?.toLowerCase() === 'active'
+                        ? <Badge className="bg-green-100 text-green-700 border-green-200 font-bold uppercase text-[9px] w-fit">Activo</Badge>
+                        : group.estado?.toLowerCase() === 'paused'
+                          ? <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 font-bold uppercase text-[9px] w-fit">Pausado</Badge>
+                          : <Badge variant="secondary" className="text-slate-500 text-[9px] w-fit">{group.estado || 'S/D'}</Badge>}
+                      {group.es_nuevo && (
+                        <Badge className="bg-purple-100 text-purple-700 border-purple-200 font-bold uppercase text-[9px] w-fit">Nuevo</Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell colSpan={2} className="py-3">
                     <span className="text-xs text-slate-400 italic">
                       {group.components.length === 0
@@ -392,7 +441,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 {/* Sub-filas de componentes */}
                 {group.components.map((comp: any) => (
                   <TableRow key={comp.id} className="hover:bg-slate-50 border-slate-100 bg-white">
-                    <TableCell colSpan={4} className="py-2 border-l-2 border-blue-100" />
+                    <TableCell colSpan={5} className="py-2 border-l-2 border-blue-100" />
                     <TableCell className="text-[11px] uppercase text-slate-600 py-2 pl-6">
                       <span className="font-mono font-bold mr-2 text-slate-800">{comp.id_articulo}</span>
                       {comp.nombre_articulo}
@@ -426,7 +475,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 {/* Mensaje si no tiene componentes */}
                 {group.components.length === 0 && (
                   <TableRow className="bg-white border-slate-100">
-                    <TableCell colSpan={4} className="py-2 border-l-2 border-orange-100" />
+                    <TableCell colSpan={5} className="py-2 border-l-2 border-orange-100" />
                     <TableCell colSpan={3} className="py-2 pl-6 text-orange-500 text-xs italic">
                       Sin componentes — usá el botón + para agregar la receta
                     </TableCell>

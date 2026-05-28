@@ -11,18 +11,19 @@ import { cn } from "@/lib/utils";
 
 export function CostosTable({ data }: { data: any[] }) {
   const [filter, setFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<'active' | 'paused' | 'all'>('active');
+  const [statusFilter, setStatusFilter] = useState<'active' | 'paused' | 'all' | 'new'>('active');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedText(text);
-    setTimeout(() => setCopiedText(null), 2000); 
+    setTimeout(() => setCopiedText(null), 2000);
   };
 
   const filteredData = data.filter(item => {
-    if (statusFilter !== 'all' && item.estado?.toLowerCase() !== statusFilter) return false;
+    if (statusFilter === 'new' && !item.es_nuevo) return false;
+    if (statusFilter !== 'all' && statusFilter !== 'new' && item.estado?.toLowerCase() !== statusFilter) return false;
     const searchLower = filter.toLowerCase();
     return (
       item.titulo?.toLowerCase().includes(searchLower) ||
@@ -42,13 +43,20 @@ export function CostosTable({ data }: { data: any[] }) {
       : Number(b.costo_total) - Number(a.costo_total)
   );
 
-  const renderEstadoBadge = (estado: string) => {
-    switch (estado?.toLowerCase()) {
-      case 'active': return <Badge className="bg-green-100 text-green-700 border-green-200 font-bold uppercase text-[9px]">Activo</Badge>;
-      case 'paused': return <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 font-bold uppercase text-[9px]">Pausado</Badge>;
-      default: return <Badge variant="secondary" className="text-slate-500 text-[9px]">{estado || 'S/D'}</Badge>;
-    }
-  };
+  const renderEstadoBadge = (estado: string, esNuevo?: boolean) => (
+    <div className="flex flex-col gap-1">
+      {(() => {
+        switch (estado?.toLowerCase()) {
+          case 'active': return <Badge className="bg-green-100 text-green-700 border-green-200 font-bold uppercase text-[9px]">Activo</Badge>;
+          case 'paused': return <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50 font-bold uppercase text-[9px]">Pausado</Badge>;
+          default: return <Badge variant="secondary" className="text-slate-500 text-[9px]">{estado || 'S/D'}</Badge>;
+        }
+      })()}
+      {esNuevo && (
+        <Badge className="bg-purple-100 text-purple-700 border-purple-200 font-bold uppercase text-[9px]">Nuevo</Badge>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full w-full bg-slate-50">
@@ -67,13 +75,20 @@ export function CostosTable({ data }: { data: any[] }) {
           </div>
 
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-            {[{ id: 'active', label: 'Activos' }, { id: 'paused', label: 'Pausados' }, { id: 'all', label: 'Todos' }].map((btn) => (
+            {([
+              { id: 'active', label: 'Activos' },
+              { id: 'paused', label: 'Pausados' },
+              { id: 'all', label: 'Todos' },
+              { id: 'new', label: 'Nuevos' },
+            ] as const).map((btn) => (
               <Button
                 key={btn.id}
                 variant={statusFilter === btn.id ? "default" : "ghost"}
                 size="sm"
-                onClick={() => setStatusFilter(btn.id as any)}
-                className={cn("h-8 px-4 text-xs font-bold transition-all", statusFilter === btn.id ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-white")}
+                onClick={() => setStatusFilter(btn.id)}
+                className={cn("h-8 px-4 text-xs font-bold transition-all", statusFilter === btn.id
+                  ? btn.id === 'new' ? "bg-purple-600 text-white shadow-sm" : "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-500 hover:bg-white")}
               >
                 {btn.label}
               </Button>
@@ -143,7 +158,7 @@ export function CostosTable({ data }: { data: any[] }) {
                         </div>
                       </TableCell>
 
-                      <TableCell>{renderEstadoBadge(item.estado)}</TableCell>
+                      <TableCell>{renderEstadoBadge(item.estado, item.es_nuevo)}</TableCell>
 
                       <TableCell>
                         <div className="flex flex-col gap-1 py-1">

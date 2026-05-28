@@ -1,13 +1,17 @@
 // components/header.tsx
 import Link from "next/link"
-import { Menu } from "lucide-react"
+import { Menu, LayoutDashboard } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import CartSheet from "@/components/cart-sheet"
 import CategoryMenu from "@/components/category-menu"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/authOptions"
 import HeaderLogo from "@/components/header-logo"
 
 export default async function Header({ config, categories }: { config: any, categories: any }) {
+  const session = await getServerSession(authOptions)
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-[#0D0D0D]/95 backdrop-blur supports-[backdrop-filter]:bg-[#0D0D0D]/80">
       <div className="container mx-auto px-4 h-20 flex items-center justify-between">
@@ -25,6 +29,16 @@ export default async function Header({ config, categories }: { config: any, cate
           <Link href="/" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Inicio</Link>
           <Link href="/shop" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Tienda</Link>
           <CategoryMenu categories={categories} />
+
+          {session && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-full hover:bg-slate-700 transition-all font-bold text-sm shadow-md ml-4"
+            >
+              <LayoutDashboard size={16} className="text-yellow-400" />
+              Dashboard
+            </Link>
+          )}
         </nav>
 
         {/* DERECHA: Carrito + Hamburguesa */}
@@ -41,6 +55,19 @@ export default async function Header({ config, categories }: { config: any, cate
               <div className="flex flex-col gap-4 mt-8">
                 <Link href="/" className="text-lg font-bold text-gray-200 hover:text-white transition-colors">Inicio</Link>
                 <Link href="/shop" className="text-lg font-bold text-gray-200 hover:text-white transition-colors">Tienda Completa</Link>
+
+                {session && (
+                  <>
+                    <div className="h-px bg-white/10 my-2" />
+                    <Link
+                      href="/admin"
+                      className="flex items-center gap-2 text-base font-bold text-white bg-white/10 hover:bg-white/15 p-3 rounded-lg transition-colors"
+                    >
+                      <LayoutDashboard size={20} className="text-yellow-400" />
+                      Ir al Dashboard
+                    </Link>
+                  </>
+                )}
               </div>
             </SheetContent>
           </Sheet>

@@ -87,12 +87,11 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
         )}
       </Carousel>
 
-      {/* Diagonal cut into dark page */}
-      <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10">
-        <svg viewBox="0 0 1440 56" preserveAspectRatio="none" className="w-full block h-8 md:h-14">
-          <polygon points="0,56 1440,0 1440,56" fill="#0D0D0D" />
-        </svg>
-      </div>
+      {/* Fade into dark page */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-24 md:h-36 pointer-events-none z-10"
+        style={{ background: 'linear-gradient(to bottom, transparent, #0D0D0D)' }}
+      />
     </div>
   )
 }

@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2, PackageOpen } from "lucide-react";
 import { upsertKitComponent, deleteKitComponent, createProductWithRecipe } from "@/app/actions/kits";
 import { deleteManualProduct } from "@/app/actions/ml-maestros";
+import { consultarVariantesMLA, type VarianteML } from "@/app/actions/ml-consulta";
 import { cn } from "@/lib/utils";
 
 export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], articulos: any[], maestros: any[] }) {
@@ -48,6 +49,12 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
 
   const [searchArticulo, setSearchArticulo] = useState("");
   const [searchArticuloKitModal, setSearchArticuloKitModal] = useState("");
+
+  // Estados para búsqueda ML (n8n)
+  const [mlSearchInput, setMlSearchInput] = useState("");
+  const [mlSearchLoading, setMlSearchLoading] = useState(false);
+  const [mlSearchResults, setMlSearchResults] = useState<VarianteML[] | null>(null);
+  const [mlSearchError, setMlSearchError] = useState<string | null>(null);
 
   // --- COMBINAR KITS CON MAESTROS SIN RECETA ---
   const combinedKits = [...kits];
@@ -225,6 +232,9 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
     setNewComponent({ id_articulo: "", cantidad: 1, nombre_articulo: "" });
     setSearchArticulo("");
     setSelectedComponent(null);
+    setMlSearchInput("");
+    setMlSearchResults(null);
+    setMlSearchError(null);
     setIsUnifiedModalOpen(true);
   };
 
@@ -251,6 +261,34 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
   // Eliminar componente de la receta
   const handleRemoveRecipeComponent = (id: number) => {
     setRecipeComponents(recipeComponents.filter(c => c.id !== id));
+  };
+
+  // Búsqueda en ML via n8n
+  const handleSearchML = async () => {
+    if (!mlSearchInput.trim()) return;
+    setMlSearchLoading(true);
+    setMlSearchError(null);
+    setMlSearchResults(null);
+    const result = await consultarVariantesMLA(mlSearchInput);
+    if (result.success && result.data) {
+      setMlSearchResults(result.data);
+    } else {
+      setMlSearchError(result.error || "Error desconocido");
+    }
+    setMlSearchLoading(false);
+  };
+
+  const handleSelectVariante = (v: VarianteML) => {
+    setNewProduct({
+      mla: v.mla,
+      titulo: v.titulo,
+      nombre_variante: v.nombre_variante === "Único" ? "" : v.nombre_variante,
+      variation_id: v.variation_id || "",
+      user_product_id: v.user_product_id || "",
+      family_id: v.family_id || "",
+    });
+    setMlSearchResults(null);
+    setMlSearchInput("");
   };
 
   // Guardar producto con receta (unificado)
@@ -593,8 +631,8 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
 
       {/* MODAL UNIFICADO: Crear Producto con Receta */}
       <Dialog open={isUnifiedModalOpen} onOpenChange={setIsUnifiedModalOpen}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b border-slate-100">
             <DialogTitle className="text-xl font-bold text-purple-700 flex items-center gap-2">
               <PackagePlus className="h-5 w-5" />
               Crear Producto con Receta
@@ -603,8 +641,79 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               Complete los datos del producto y agregue sus componentes para crearlo con su receta.
             </DialogDescription>
           </DialogHeader>
-          
-          <form onSubmit={handleSaveProductWithRecipe} className="space-y-6 pt-2">
+
+          <form onSubmit={handleSaveProductWithRecipe} className="flex flex-col flex-1 overflow-hidden">
+          <div className="overflow-y-auto flex-1 px-6 py-4 space-y-6">
+
+            {/* SECCIÓN 0: BUSCAR EN MERCADOLIBRE */}
+            <div className="space-y-3 border-b border-slate-200 pb-5">
+              <h3 className="text-sm font-bold text-slate-500 flex items-center gap-2">
+                <Search className="w-4 h-4" /> Importar datos desde MercadoLibre
+                <span className="text-[10px] font-normal text-slate-400">(opcional — pre-completa el formulario)</span>
+              </h3>
+              <div className="flex gap-2">
+                <Input
+                  value={mlSearchInput}
+                  onChange={e => setMlSearchInput(e.target.value.toUpperCase())}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSearchML(); } }}
+                  placeholder="Ej: MLA3336917582"
+                  className="font-mono uppercase"
+                />
+                <Button
+                  type="button"
+                  onClick={handleSearchML}
+                  disabled={mlSearchLoading || !mlSearchInput.trim()}
+                  className="shrink-0 bg-slate-700 hover:bg-slate-800 text-white"
+                >
+                  {mlSearchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+                </Button>
+              </div>
+
+              {mlSearchError && (
+                <p className="text-xs text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">
+                  {mlSearchError}
+                </p>
+              )}
+
+              {mlSearchResults && mlSearchResults.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500">
+                    {mlSearchResults.length} variante{mlSearchResults.length !== 1 ? "s" : ""} encontrada{mlSearchResults.length !== 1 ? "s" : ""}. Hacé clic para pre-completar el formulario.
+                  </p>
+                  <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
+                    {mlSearchResults.map((v, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => handleSelectVariante(v)}
+                        className="w-full text-left p-2.5 rounded-lg border border-slate-200 hover:border-purple-400 hover:bg-purple-50 transition-colors group"
+                      >
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold font-mono text-purple-700">{v.mla}</span>
+                            {v.variation_id && (
+                              <span className="text-[10px] text-slate-400 font-mono bg-slate-100 px-1 rounded">{v.variation_id}</span>
+                            )}
+                          </div>
+                          <div className="flex gap-1.5 text-[10px]">
+                            <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">${v.precio?.toLocaleString("es-AR")}</span>
+                            <span className="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">Stock: {v.stock}</span>
+                            <span className="bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded capitalize hidden group-hover:inline">{v.logistic_type?.replace("_", " ")}</span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-600 mt-1 truncate">{v.titulo}</p>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{v.nombre_variante}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {mlSearchResults && mlSearchResults.length === 0 && (
+                <p className="text-xs text-slate-400 italic">No se encontraron variantes para ese MLA.</p>
+              )}
+            </div>
+
             {/* SECCIÓN 1: DATOS DEL PRODUCTO */}
             <div className="space-y-3 border-b border-slate-200 pb-4">
               <h3 className="text-sm font-bold text-purple-700 flex items-center gap-2">
@@ -771,8 +880,10 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               </div>
             </div>
 
+          </div>
+
             {/* Footer */}
-            <DialogFooter className="pt-4">
+            <DialogFooter className="px-6 py-4 border-t border-slate-100">
               <Button type="button" variant="ghost" onClick={() => setIsUnifiedModalOpen(false)} disabled={isSubmitting}>
                 Cancelar
               </Button>

@@ -23,6 +23,7 @@ import {
   Database,
   ExternalLink,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
 import { getArticulosParaPrecio } from "@/app/actions/costos";
 import { createProductWithRecipe } from "@/app/actions/kits";
@@ -63,6 +64,7 @@ export default function CrearPublicacionesPage() {
   const [fotoExtra1, setFotoExtra1] = useState("");
   const [fotoExtra2, setFotoExtra2] = useState("");
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [formatoCuadrado, setFormatoCuadrado] = useState(false);
 
   // ==========================================
   // PASO 2: DATOS DEL PRODUCTO
@@ -202,7 +204,7 @@ export default function CrearPublicacionesPage() {
       const res = await fetch("https://n8n.revolucionmotos.tech/webhook/prueba-imagenes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ foto_1: foto1, foto_2: foto2 }),
+        body: JSON.stringify({ foto_1: foto1, foto_2: foto2, formato: formatoCuadrado ? "cuadrado" : "rectangular" }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -446,6 +448,16 @@ export default function CrearPublicacionesPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input placeholder="URL Foto 1..." value={foto1} onChange={(e) => setFoto1(e.target.value)} />
                   <Input placeholder="URL Foto 2..." value={foto2} onChange={(e) => setFoto2(e.target.value)} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="formato-cuadrado"
+                    checked={formatoCuadrado}
+                    onCheckedChange={(v) => setFormatoCuadrado(v === true)}
+                  />
+                  <Label htmlFor="formato-cuadrado" className="text-sm text-blue-800 cursor-pointer">
+                    Foto cuadrada (1200×1200)
+                  </Label>
                 </div>
                 <Button
                   onClick={handleProcesarFotos}

@@ -13,21 +13,22 @@ export default function AddToCart({ product }: { product: any }) {
 
         // 2. 👇 Lógica del Píxel de Meta
         if (typeof window !== "undefined" && (window as any).fbq) {
-            (window as any).fbq('track', 'AddToCart', {
+            const finalPrice = Number(product.price) * (1 - (product.discount || 0) / 100)
+            ;(window as any).fbq("track", "AddToCart", {
                 content_name: product.title,
                 content_ids: [product.id],
-                content_type: 'product',
-                value: product.price,
-                currency: 'ARS'
-            });
+                content_type: "product",
+                contents: [{ id: product.id, quantity: 1, item_price: finalPrice }],
+                value: finalPrice,
+                currency: "ARS",
+            })
         }
     }
 
     return (
-        <Button 
-            onClick={handleAddToCart} // 👈 Cambiamos esto para usar la nueva función
-            size="lg" 
-            className="w-full md:w-auto text-lg px-8"
+        <Button
+            onClick={handleAddToCart}
+            className="w-full h-14 text-base font-black uppercase tracking-wide bg-red-600 hover:bg-red-700 active:bg-red-800 text-white shadow-lg shadow-red-900/30 hover:scale-[1.01] transition-all border-0"
         >
             <ShoppingCart className="mr-2 h-5 w-5" />
             Agregar al Carrito

@@ -31,9 +31,9 @@ export default function CategoryMenu({ categories }: { categories: string[] }) {
     return (
         // 👇 6. Conectamos la referencia al contenedor PADRE
         <div ref={navRef} className="relative z-50">
-            <Button 
-                variant="ghost" 
-                className="font-bold md:font-extrabold text-xs md:text-lg uppercase tracking-wide flex items-center gap-1 md:gap-2 hover:bg-transparent hover:text-blue-600 transition-colors px-1 md:px-4 h-auto py-1 md:py-2"
+            <Button
+                variant="ghost"
+                className="font-bold md:font-extrabold text-xs md:text-sm uppercase tracking-wide flex items-center gap-1 md:gap-2 text-gray-300 hover:text-white hover:bg-transparent transition-colors px-1 md:px-4 h-auto py-1 md:py-2"
                 onClick={() => setOpen(!open)}
             >
                 <Layers className="h-4 w-4 md:h-5 md:w-5" />

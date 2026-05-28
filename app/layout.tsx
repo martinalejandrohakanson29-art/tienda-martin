@@ -9,6 +9,7 @@ import Script from "next/script";
 import ConditionalHeader from "@/components/conditional-header"; 
 import { getConfig } from "@/app/actions/config";
 import { getUniqueCategories } from "@/app/actions/products";
+import PixelPageView from "@/components/pixel-page-view";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -59,6 +60,7 @@ export default async function RootLayout({
           <img height="1" width="1" style={{ display: 'none' }} src={`https://www.facebook.com/tr?id=${process.env.NEXT_PUBLIC_FB_PIXEL_ID}&ev=PageView&noscript=1`} alt="" />
         </noscript>
 
+        <PixelPageView />
         <ConditionalHeader>
             <div className="sticky top-0 z-50 w-full flex flex-col">
                 <AnnouncementBar config={config} />

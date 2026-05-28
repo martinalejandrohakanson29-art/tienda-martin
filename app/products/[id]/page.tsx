@@ -67,41 +67,38 @@ export default async function ProductPage({ params }: { params: { id: string } }
     const videoEmbedUrl = getVideoEmbedUrl(product.videoUrl || "")
 
     return (
-        <div className="container mx-auto px-4 py-12">
-            {/* 👇 2. Disparamos el evento ViewContent de Meta */}
+        <div className="container mx-auto px-4 py-8 md:py-12">
             <PixelProductView product={product} />
 
-            {/* Navegación y Botón Atrás */}
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-8 border-b pb-4">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <Link href="/" className="hover:text-primary transition-colors flex items-center gap-1">
+            {/* Navegación */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-8 border-b border-white/10 pb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
+                    <Link href="/" className="hover:text-gray-200 transition-colors flex items-center gap-1">
                         <Home className="h-4 w-4" />
                         <span>Inicio</span>
                     </Link>
                     <span>/</span>
-                    <Link href="/shop" className="hover:text-primary transition-colors">
-                        <span>Tienda</span>
-                    </Link>
+                    <Link href="/shop" className="hover:text-gray-200 transition-colors">Tienda</Link>
                     <span>/</span>
-                    <span className="text-gray-900 font-medium truncate max-w-[200px]">{product.title}</span>
+                    <span className="text-gray-300 font-medium truncate max-w-[160px] md:max-w-[280px]">{product.title}</span>
                 </div>
-
                 <Link href="/shop">
-                    <Button variant="ghost" size="sm" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+                    <Button variant="ghost" size="sm" className="flex items-center gap-2 text-gray-400 hover:text-white hover:bg-white/10 h-9">
                         <ArrowLeft className="h-4 w-4" />
-                        Volver a la Tienda
+                        Volver
                     </Button>
                 </Link>
             </div>
 
             <div className="grid md:grid-cols-2 gap-8 lg:gap-12 items-start">
-                
-                {/* SECCIÓN DE IMÁGENES / CARRUSEL */}
-                <div className="relative rounded-2xl bg-gray-50 border shadow-sm overflow-hidden">
+
+                {/* IMÁGENES */}
+                <div className="relative rounded-xl bg-white border border-white/10 shadow-lg overflow-hidden">
                     {hasDiscount && (
-                        <span className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-bold shadow-md z-10">
-                            {product.discount}% OFF
-                        </span>
+                        <div className="absolute top-0 left-0 z-10 bg-red-600 text-white text-sm font-black px-4 py-1.5"
+                             style={{ clipPath: 'polygon(0 0, 100% 0, 88% 100%, 0 100%)' }}>
+                            -{product.discount}% OFF
+                        </div>
                     )}
 
                     {images.length > 1 ? (
@@ -110,55 +107,66 @@ export default async function ProductPage({ params }: { params: { id: string } }
                                 {images.map((img, index) => (
                                     <CarouselItem key={index}>
                                         <div className="aspect-square relative">
-                                            <img src={img} alt={`${product.title} - foto ${index + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                            <img src={img} alt={`${product.title} - foto ${index + 1}`} className="w-full h-full object-contain p-4" referrerPolicy="no-referrer" />
                                         </div>
                                     </CarouselItem>
                                 ))}
                             </CarouselContent>
-                            <CarouselPrevious className="left-2 opacity-70 hover:opacity-100" />
-                            <CarouselNext className="right-2 opacity-70 hover:opacity-100" />
+                            <CarouselPrevious className="left-2 bg-black/40 hover:bg-black/70 border-white/20 text-white" />
+                            <CarouselNext className="right-2 bg-black/40 hover:bg-black/70 border-white/20 text-white" />
                         </Carousel>
                     ) : (
                         <div className="aspect-square relative">
-                            <img src={images[0]} alt={product.title} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={images[0]} alt={product.title} className="w-full h-full object-contain p-4" referrerPolicy="no-referrer" />
                         </div>
                     )}
                 </div>
 
                 {/* DETALLES */}
-                <div className="space-y-6">
+                <div className="space-y-5">
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">{product.title}</h1>
-                        <div className="flex gap-2 mt-2">
-                             <span className="badge bg-slate-100 text-slate-800 px-2 py-1 rounded text-xs font-bold border border-slate-200 uppercase">{product.category}</span>
-                             {product.freeShipping && <span className="badge bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-bold border border-red-200">ENVÍO GRATIS</span>}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                            <span className="text-[10px] uppercase font-black text-red-400 bg-red-950 border border-red-900/60 px-2.5 py-1 rounded-full tracking-widest">
+                                {product.category}
+                            </span>
+                            {product.freeShipping && (
+                                <span className="text-[10px] uppercase font-black text-green-400 bg-green-950 border border-green-900/60 px-2.5 py-1 rounded-full tracking-widest">
+                                    ✓ Envío Gratis
+                                </span>
+                            )}
                         </div>
+                        <h1 className="text-2xl md:text-4xl font-black text-white leading-tight">{product.title}</h1>
                     </div>
-                    
+
                     <div className="flex items-end gap-3">
-                        <span className={`text-4xl font-bold ${hasDiscount ? 'text-green-700' : 'text-gray-900'}`}>
-                            {formatPrice(finalPrice)}
-                        </span>
                         {hasDiscount && (
-                            <span className="text-xl text-gray-400 line-through mb-1">
+                            <span className="text-lg text-gray-500 line-through">
                                 {formatPrice(Number(product.price))}
                             </span>
                         )}
+                        <span className={`text-4xl md:text-5xl font-black ${hasDiscount ? 'text-red-400' : 'text-white'}`}>
+                            {formatPrice(finalPrice)}
+                        </span>
                     </div>
 
-                    <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed whitespace-pre-wrap">
-                        <p>{product.description}</p>
-                    </div>
+                    {product.description && (
+                        <div className="text-gray-400 leading-relaxed whitespace-pre-wrap text-sm md:text-base border-t border-white/10 pt-4">
+                            {product.description}
+                        </div>
+                    )}
 
-                    <div className="pt-6 border-t">
+                    <div className="pt-4 border-t border-white/10 space-y-3">
                         <AddToCart product={product} />
-                        <p className="text-sm text-gray-400 mt-4">Stock disponible: {product.stock} unidades</p>
+                        <p className="text-xs text-gray-600">Stock disponible: {product.stock} unidades</p>
                     </div>
 
                     {videoEmbedUrl && (
-                        <div className="mt-8 pt-6 border-t">
-                            <h3 className="text-lg font-bold mb-3">Video del Producto</h3>
-                            <div className="aspect-video w-full rounded-xl overflow-hidden shadow-sm border bg-black">
+                        <div className="pt-5 border-t border-white/10">
+                            <h3 className="text-base font-black uppercase text-white mb-3 flex items-center gap-2">
+                                <div className="w-1 h-5 bg-red-600 rounded-full" />
+                                Video del Producto
+                            </h3>
+                            <div className="aspect-video w-full rounded-lg overflow-hidden bg-black border border-white/10">
                                 <iframe src={videoEmbedUrl} className="w-full h-full" allowFullScreen title="Video del producto" />
                             </div>
                         </div>

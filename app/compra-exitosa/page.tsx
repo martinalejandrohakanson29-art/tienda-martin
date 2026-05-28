@@ -40,28 +40,34 @@ function CompraExitosaContent() {
     }
   }, [cart]);
 
-  // 3. Lógica Meta Pixel
+  // 3. Lógica Meta Pixel — Purchase con deduplicación por payment_id
   useEffect(() => {
     if (
-        typeof window !== "undefined" && 
-        (window as any).fbq && 
-        cart.length > 0 && 
-        paymentId !== "No disponible"
-    ) {
-        const totalValue = cart.reduce((acc, item) => {
-            return acc + (Number(item.product.price) * item.quantity);
-        }, 0);
+      typeof window === "undefined" ||
+      !(window as any).fbq ||
+      cart.length === 0 ||
+      paymentId === "No disponible"
+    ) return
 
-        const contentIds = cart.map((item) => item.product.id);
+    // Evita doble disparo si el usuario recarga la página
+    const dedupKey = `pixel_purchase_${paymentId}`
+    if (sessionStorage.getItem(dedupKey)) return
+    sessionStorage.setItem(dedupKey, "1")
 
-        (window as any).fbq('track', 'Purchase', {
-            value: totalValue,
-            currency: 'ARS',
-            content_ids: contentIds,
-            content_type: 'product',
-            order_id: paymentId
-        });
-    }
+    const contents = cart.map((item) => {
+      const finalPrice = Number(item.product.price) * (1 - (item.product.discount || 0) / 100)
+      return { id: item.product.id, quantity: item.quantity, item_price: finalPrice }
+    })
+    const totalValue = contents.reduce((acc, c) => acc + c.item_price * c.quantity, 0)
+
+    ;(window as any).fbq("track", "Purchase", {
+      value: totalValue,
+      currency: "ARS",
+      content_ids: cart.map((item) => item.product.id),
+      content_type: "product",
+      contents,
+      order_id: paymentId,
+    })
   }, [cart, paymentId]);
 
 

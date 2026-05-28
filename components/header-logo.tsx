@@ -44,7 +44,7 @@ export default function HeaderLogo({ config }: { config: any }) {
                  ) : (
                      // Si NO estamos en Home, mostramos botón de Volver/Inicio
                      <Link href="/">
-                        <Button variant="ghost" className="pl-0 gap-2 font-bold text-gray-700 hover:text-blue-600 hover:bg-transparent">
+                        <Button variant="ghost" className="pl-0 gap-2 font-bold text-gray-200 hover:text-white hover:bg-transparent">
                             <ArrowLeft className="h-5 w-5" />
                             <span className="text-lg">Inicio</span>
                         </Button>

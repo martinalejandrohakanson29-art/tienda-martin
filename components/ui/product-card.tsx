@@ -55,78 +55,91 @@ export default function ProductCard({ product }: ProductCardProps) {
     const hasDiscount = (product.discount || 0) > 0
 
     return (
-        <Card 
+        <Card
             onClick={goToProduct}
-            className="group relative overflow-hidden border-gray-100 hover:shadow-xl transition-all duration-300 cursor-pointer h-full flex flex-col"
+            className="group relative overflow-hidden border-0 ring-1 ring-white/10 hover:ring-red-600/60 bg-[#111] text-white transition-all duration-300 cursor-pointer h-full flex flex-col rounded-lg shadow-lg hover:shadow-[0_8px_30px_rgba(220,38,38,0.2)]"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            <div className="aspect-square relative overflow-hidden bg-gray-100">
-                
-                {/* 👇 BADGE DE DESCUENTO DUPLICADO (X2 de tamaño) */}
+            {/* Red top accent line */}
+            <div className="h-[3px] w-full bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0" />
+
+            {/* Image area — white bg so JPEGs look natural */}
+            <div className="aspect-square relative overflow-hidden bg-white flex-shrink-0">
                 {hasDiscount && (
-                    <span className="absolute top-3 right-3 bg-green-600 text-white text-[20px] font-black px-4 py-2 rounded-full z-10 shadow-md">
+                    <div className="absolute top-0 left-0 z-10 bg-red-600 text-white text-[11px] font-black px-3 py-1 leading-none"
+                         style={{ clipPath: 'polygon(0 0, 100% 0, 88% 100%, 0 100%)' }}>
                         -{product.discount}%
-                    </span>
+                    </div>
                 )}
-                
-                <img 
-                    src={images[currentImageIndex]} 
-                    alt={product.title} 
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+
+                <img
+                    src={images[currentImageIndex]}
+                    alt={product.title}
+                    className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-105"
                     referrerPolicy="no-referrer"
                     onError={(e) => { (e.target as HTMLImageElement).src = "https://via.placeholder.com/400x400?text=Sin+Imagen" }}
                 />
 
                 {images.length > 1 && isHovered && (
                     <>
-                        <button onClick={prevImage} className="absolute left-1 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-1 shadow-md transition-all z-20">
-                            <ChevronLeft size={16} />
+                        <button onClick={prevImage} className="absolute left-1 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black text-white rounded-full p-1 shadow transition-all z-20">
+                            <ChevronLeft size={15} />
                         </button>
-                        <button onClick={nextImage} className="absolute right-1 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-1 shadow-md transition-all z-20">
-                            <ChevronRight size={16} />
+                        <button onClick={nextImage} className="absolute right-1 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black text-white rounded-full p-1 shadow transition-all z-20">
+                            <ChevronRight size={15} />
                         </button>
                     </>
                 )}
+
+                {images.length > 1 && (
+                    <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 pointer-events-none">
+                        {images.map((_, i) => (
+                            <div
+                                key={i}
+                                className={`rounded-full transition-all duration-200 ${i === currentImageIndex ? 'w-3 h-1.5 bg-red-500' : 'w-1.5 h-1.5 bg-gray-400/70'}`}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
 
-            <CardContent className="p-3 flex-1 flex flex-col">
-                <div className="mb-2">
-                    <p className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">
-                        {product.category}
-                    </p>
-                    <h3 className="font-bold text-gray-900 text-sm leading-tight line-clamp-2 h-9 mt-1">
-                        {product.title}
-                    </h3>
-                </div>
+            {/* Info area — dark */}
+            <CardContent className="p-3 flex-1 flex flex-col bg-[#111]">
+                <p className="text-[10px] text-red-400 uppercase tracking-widest font-bold mb-0.5">
+                    {product.category}
+                </p>
+                <h3 className="font-semibold text-gray-100 text-sm leading-tight line-clamp-2 h-9">
+                    {product.title}
+                </h3>
 
-                <div className="mt-auto pt-2 flex items-center gap-3 border-t border-gray-50">
+                <div className="mt-auto pt-2 flex items-center justify-between border-t border-white/10">
                     <div className="flex flex-col">
                         {hasDiscount && (
-                            <span className="text-[10px] text-gray-400 line-through">
+                            <span className="text-[10px] text-gray-500 line-through leading-none mb-0.5">
                                 {formatPrice(Number(product.price))}
                             </span>
                         )}
-                        <span className={`text-lg font-extrabold ${hasDiscount ? 'text-green-700' : 'text-gray-900'}`}>
+                        <span className={`text-lg font-extrabold leading-none ${hasDiscount ? 'text-red-400' : 'text-white'}`}>
                             {formatPrice(finalPrice)}
                         </span>
                     </div>
 
-                   {/* 👇 CARTEL DE ENVÍO GRATIS MÁS GRANDE Y LLAMATIVO */}
-{product.freeShipping && (
-    <div className="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1.5 rounded-lg border border-red-200 animate-pulse shadow-sm">
-        <Truck size={18} className="stroke-[2.5px]" />
-        <span className="text-[12px] font-black uppercase tracking-tight">
-            ¡ENVÍO GRATIS!
-        </span>
-    </div>
-)}
+                    {product.freeShipping && (
+                        <div className="flex items-center gap-1 bg-red-950/70 text-red-400 border border-red-900/50 px-2 py-1 rounded text-[9px] font-black uppercase tracking-tight">
+                            <Truck size={10} />
+                            Envío Gratis
+                        </div>
+                    )}
                 </div>
             </CardContent>
 
-            <CardFooter className="p-3 pt-0">
-                <Button className="w-full bg-slate-900 hover:bg-blue-600 text-white transition-colors shadow-sm" size="sm" onClick={onAddToCart}>
-                    <ShoppingCart size={16} className="mr-2" /> Agregar
+            <CardFooter className="p-3 pt-0 bg-[#111]">
+                <Button
+                    className="w-full bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold transition-all shadow-sm h-10 text-xs sm:text-sm"
+                    onClick={onAddToCart}
+                >
+                    <ShoppingCart size={14} className="mr-1.5" /> Agregar al Carrito
                 </Button>
             </CardFooter>
         </Card>

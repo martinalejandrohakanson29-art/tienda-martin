@@ -5,12 +5,11 @@ import Autoplay from "embla-carousel-autoplay"
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel"
 
 export default function HomeCarousel({ items, config }: { items: any[], config: any }) {
-  // CORRECCIÓN: Usamos la configuración nativa del plugin para el mouse
   const plugin = React.useRef(
-    Autoplay({ 
-        delay: 2000, 
-        stopOnInteraction: false, // Sigue rodando después de que lo tocas
-        stopOnMouseEnter: true    // Se detiene solo si pones el mouse encima
+    Autoplay({
+      delay: 2000,
+      stopOnInteraction: false,
+      stopOnMouseEnter: true,
     })
   )
 
@@ -18,7 +17,6 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
 
   return (
     <div className="w-full relative group">
-      {/* Estilos dinámicos para la altura */}
       <style jsx global>{`
         .dynamic-carousel-height {
           height: ${config?.carouselHeightMobile || '250px'};
@@ -30,7 +28,6 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
         }
       `}</style>
 
-      {/* Eliminamos los eventos manuales onMouse... que causaban el error */}
       <Carousel
         plugins={[plugin.current]}
         className="w-full"
@@ -60,7 +57,6 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
                         style={{ border: 0 }}
                       />
                     </div>
-                    {/* Capa transparente para permitir arrastrar sobre el video */}
                     <div className="absolute inset-0 bg-transparent pointer-events-none md:pointer-events-auto" />
                   </>
                 ) : (
@@ -85,11 +81,18 @@ export default function HomeCarousel({ items, config }: { items: any[], config: 
         </CarouselContent>
         {items.length > 1 && (
           <>
-            <CarouselPrevious className="left-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
-            <CarouselNext className="right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 hover:bg-white z-10" />
+            <CarouselPrevious className="left-4 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 hover:bg-black border-white/20 text-white z-10" />
+            <CarouselNext className="right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 hover:bg-black border-white/20 text-white z-10" />
           </>
         )}
       </Carousel>
+
+      {/* Diagonal cut into dark page */}
+      <div className="absolute bottom-0 left-0 right-0 pointer-events-none z-10">
+        <svg viewBox="0 0 1440 56" preserveAspectRatio="none" className="w-full block h-8 md:h-14">
+          <polygon points="0,56 1440,0 1440,56" fill="#0D0D0D" />
+        </svg>
+      </div>
     </div>
   )
 }

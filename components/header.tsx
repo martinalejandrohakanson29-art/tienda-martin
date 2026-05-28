@@ -19,7 +19,7 @@ export default async function Header({ config, categories }: { config: any, cate
   const session = await getServerSession(authOptions)
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-[#0D0D0D]/95 backdrop-blur supports-[backdrop-filter]:bg-[#0D0D0D]/80">
       <div className="container mx-auto px-4 h-20 flex items-center justify-between">
         
         {/* GRUPO IZQUIERDA: Logo Inteligente + Categorías */}
@@ -36,8 +36,8 @@ export default async function Header({ config, categories }: { config: any, cate
 
         {/* GRUPO CENTRO: Navegación PC */}
         <nav className="hidden md:flex items-center gap-6 flex-1 ml-6">
-          <Link href="/" className="text-sm font-medium hover:text-primary transition-colors">Inicio</Link>
-          <Link href="/shop" className="text-sm font-medium hover:text-primary transition-colors">Tienda</Link>
+          <Link href="/" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Inicio</Link>
+          <Link href="/shop" className="text-sm font-medium text-gray-300 hover:text-white transition-colors">Tienda</Link>
           <CategoryMenu categories={categories} />
 
           {/* BOTÓN DASHBOARD (Solo visible si estás logueado) */}
@@ -58,23 +58,23 @@ export default async function Header({ config, categories }: { config: any, cate
 
             <Sheet>
                 <SheetTrigger asChild>
-                    <Button variant="ghost" size="icon" className="md:hidden">
+                    <Button variant="ghost" size="icon" className="md:hidden text-white hover:bg-white/10">
                         <Menu className="h-5 w-5" />
                     </Button>
                 </SheetTrigger>
-                <SheetContent side="left">
+                <SheetContent side="left" className="bg-[#111] border-white/10 text-white">
                     <div className="flex flex-col gap-4 mt-8">
-                        <Link href="/" className="text-lg font-bold">Inicio</Link>
-                        <Link href="/shop" className="text-lg font-bold">Tienda Completa</Link>
-                        
+                        <Link href="/" className="text-lg font-bold text-gray-200 hover:text-white transition-colors">Inicio</Link>
+                        <Link href="/shop" className="text-lg font-bold text-gray-200 hover:text-white transition-colors">Tienda Completa</Link>
+
                         {session && (
                             <>
-                                <div className="h-px bg-gray-200 my-2"></div>
-                                <Link 
-                                    href="/admin" 
-                                    className="flex items-center gap-2 text-lg font-bold text-slate-900 bg-slate-100 p-3 rounded-lg"
+                                <div className="h-px bg-white/10 my-2"></div>
+                                <Link
+                                    href="/admin"
+                                    className="flex items-center gap-2 text-base font-bold text-white bg-white/10 hover:bg-white/15 p-3 rounded-lg transition-colors"
                                 >
-                                    <LayoutDashboard size={20} className="text-purple-600" />
+                                    <LayoutDashboard size={20} className="text-yellow-400" />
                                     Ir al Dashboard
                                 </Link>
                             </>

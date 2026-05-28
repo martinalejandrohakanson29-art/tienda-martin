@@ -1,19 +1,21 @@
 "use client"
 import { useEffect } from "react"
 
-// Este componente recibe el producto y avisa a Facebook que se vio
 export default function PixelProductView({ product }: { product: any }) {
   useEffect(() => {
-    if (typeof window !== "undefined" && (window as any).fbq) {
-      (window as any).fbq('track', 'ViewContent', {
-        content_name: product.title,
-        content_ids: [product.id],
-        content_type: 'product',
-        value: product.price,
-        currency: 'ARS' // O la moneda que uses
-      });
-    }
-  }, [product]);
+    if (typeof window === "undefined" || !(window as any).fbq) return
 
-  return null; // No renderiza nada visualmente
+    const finalPrice = Number(product.price) * (1 - (product.discount || 0) / 100)
+
+    ;(window as any).fbq("track", "ViewContent", {
+      content_name: product.title,
+      content_ids: [product.id],
+      content_type: "product",
+      contents: [{ id: product.id, quantity: 1, item_price: finalPrice }],
+      value: finalPrice,
+      currency: "ARS",
+    })
+  }, [product.id])
+
+  return null
 }

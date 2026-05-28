@@ -23,7 +23,6 @@ import {
   Database,
   ExternalLink,
 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
 import { getArticulosParaPrecio } from "@/app/actions/costos";
 import { createProductWithRecipe } from "@/app/actions/kits";
@@ -64,7 +63,7 @@ export default function CrearPublicacionesPage() {
   const [fotoExtra1, setFotoExtra1] = useState("");
   const [fotoExtra2, setFotoExtra2] = useState("");
   const [isProcessingImage, setIsProcessingImage] = useState(false);
-  const [formatoCuadrado, setFormatoCuadrado] = useState(false);
+  const [formatoFoto, setFormatoFoto] = useState<"rectangular" | "cuadrado_h" | "cuadrado_v">("rectangular");
 
   // ==========================================
   // PASO 2: DATOS DEL PRODUCTO
@@ -204,7 +203,7 @@ export default function CrearPublicacionesPage() {
       const res = await fetch("https://n8n.revolucionmotos.tech/webhook/prueba-imagenes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ foto_1: foto1, foto_2: foto2, formato: formatoCuadrado ? "cuadrado" : "rectangular" }),
+        body: JSON.stringify({ foto_1: foto1, foto_2: foto2, formato: formatoFoto }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -449,15 +448,29 @@ export default function CrearPublicacionesPage() {
                   <Input placeholder="URL Foto 1..." value={foto1} onChange={(e) => setFoto1(e.target.value)} />
                   <Input placeholder="URL Foto 2..." value={foto2} onChange={(e) => setFoto2(e.target.value)} />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="formato-cuadrado"
-                    checked={formatoCuadrado}
-                    onCheckedChange={(v) => setFormatoCuadrado(v === true)}
-                  />
-                  <Label htmlFor="formato-cuadrado" className="text-sm text-blue-800 cursor-pointer">
-                    Foto cuadrada (1200×1200)
-                  </Label>
+                <div className="space-y-1">
+                  <Label className="text-sm text-blue-800 font-medium">Disposición</Label>
+                  <div className="flex gap-2">
+                    {([
+                      { value: "rectangular", label: "Lado a lado", sub: "1200×630" },
+                      { value: "cuadrado_h", label: "Lado a lado", sub: "1200×1200" },
+                      { value: "cuadrado_v", label: "Apiladas",    sub: "1200×1200" },
+                    ] as const).map(({ value, label, sub }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setFormatoFoto(value)}
+                        className={`flex-1 rounded-md border px-2 py-1.5 text-center text-xs transition-colors ${
+                          formatoFoto === value
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : "border-blue-200 bg-white text-blue-800 hover:bg-blue-50"
+                        }`}
+                      >
+                        <div className="font-medium">{label}</div>
+                        <div className="opacity-75">{sub}</div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <Button
                   onClick={handleProcesarFotos}

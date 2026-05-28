@@ -1,4 +1,6 @@
 // app/admin/mercadolibre/composicion/page.tsx
+export const dynamic = "force-dynamic";
+
 import { getComposicionKits } from "@/app/actions/kits";
 import { getArticulos } from "@/app/actions/costos";
 import { getProductosMaestros } from "@/app/actions/ml-maestros";

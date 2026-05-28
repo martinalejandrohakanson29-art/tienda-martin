@@ -280,12 +280,12 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
 
   const handleSelectVariante = (v: VarianteML) => {
     setNewProduct({
-      mla: v.mla,
-      titulo: v.titulo,
-      nombre_variante: v.nombre_variante === "Único" ? "" : v.nombre_variante,
-      variation_id: v.variation_id || "",
-      user_product_id: v.user_product_id || "",
-      family_id: v.family_id || "",
+      mla: String(v.mla ?? ""),
+      titulo: String(v.titulo ?? ""),
+      nombre_variante: v.nombre_variante === "Único" ? "" : String(v.nombre_variante ?? ""),
+      variation_id: v.variation_id != null ? String(v.variation_id) : "",
+      user_product_id: v.user_product_id != null ? String(v.user_product_id) : "",
+      family_id: v.family_id != null ? String(v.family_id) : "",
     });
     setMlSearchResults(null);
     setMlSearchInput("");

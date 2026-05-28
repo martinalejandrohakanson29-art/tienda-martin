@@ -30,13 +30,13 @@ export async function createProductWithRecipe(data: {
       return { success: false, error: "Debe agregar al menos un componente a la receta." };
     }
 
-    // 2. Preparamos los datos (limpieza)
-    const cleanMla = mla.trim().toUpperCase();
-    const cleanTitle = titulo.trim();
-    const cleanVarName = nombre_variante?.trim() || null;
-    const cleanVarId = variation_id?.trim() || null;
-    const cleanUP = user_product_id?.trim().toUpperCase() || null;
-    const cleanFamily = family_id?.trim() || null;
+    // 2. Preparamos los datos (limpieza — String() garantiza que trim() funcione aunque llegue un número)
+    const cleanMla = String(mla).trim().toUpperCase();
+    const cleanTitle = String(titulo).trim();
+    const cleanVarName = nombre_variante != null ? String(nombre_variante).trim() || null : null;
+    const cleanVarId = variation_id != null ? String(variation_id).trim() || null : null;
+    const cleanUP = user_product_id != null ? String(user_product_id).trim().toUpperCase() || null : null;
+    const cleanFamily = family_id != null ? String(family_id).trim() || null : null;
 
     // 3. Lógica: Check-then-Act para producto maestro
     const existingProduct = await prisma.productosMaestros.findFirst({

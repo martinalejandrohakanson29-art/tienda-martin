@@ -807,7 +807,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                   />
                 </div>
                 {sugerenciasArticulos.length > 0 && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-60 overflow-auto">
+                  <div className="w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-md max-h-48 overflow-auto">
                     {sugerenciasArticulos.map((art) => (
                       <div
                         key={art.id_articulo}

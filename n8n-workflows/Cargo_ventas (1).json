@@ -1,0 +1,975 @@
+{
+  "name": "Cargo_ventas",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1f7cde1-6853-4b73-99f1-f849c8684bc7",
+              "name": "item_id",
+              "value": "={{$json[\"A\"] || $json[\"item_id\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        496,
+        0
+      ],
+      "id": "4d33be10-f219-4298-85e1-3e7d1a800044",
+      "name": "Normalizar MLAs"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/items/{{$json.item_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Call \\'Read_token\\'').item.json[\"Access Token\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {}
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        736,
+        0
+      ],
+      "id": "65269b5b-b831-4b34-977c-5357131d1b4d",
+      "name": "Datos Item",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://api.mercadolibre.com/sites/MLA/listing_prices",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "price",
+              "value": "={{ $json.precioOriginal }}"
+            },
+            {
+              "name": "listing_type_id",
+              "value": "={{ $json.listing_type_id || \"gold_special\" }}"
+            },
+            {
+              "name": "domain_id",
+              "value": "={{ $json.domain_id || \"\" }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Call \\'Read_token\\'').item.json[\"Access Token\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {}
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1168,
+        -64
+      ],
+      "id": "3b1265e2-eded-426b-85c1-6923c06a580d",
+      "name": "Calcular Fee"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1488,
+        176
+      ],
+      "id": "6311201d-ae6f-450d-8ddd-a0ae272f9635",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "43f16176-37d3-4a16-aece-16a7c43381cb",
+              "name": "item_id",
+              "value": "={{ $json.item_id }}",
+              "type": "string"
+            },
+            {
+              "id": "b3a88631-1fe1-4646-a9d3-73869377b50c",
+              "name": "pctCuotas",
+              "value": "={{ $json.pct_cuotas }}",
+              "type": "number"
+            },
+            {
+              "id": "d2534b66-8603-494c-86ab-de4b16c25d44",
+              "name": "costo_cuotas",
+              "value": "={{ $json.costo_cuotas }}",
+              "type": "number"
+            },
+            {
+              "id": "9b8d04e5-2bba-45e9-a70e-3ea8586b5cbc",
+              "name": "sale_fee_amount",
+              "value": "={{ $json.sale_fee_amount }}",
+              "type": "number"
+            },
+            {
+              "id": "47ce0da0-cb43-48f8-b94b-7442fd97c462",
+              "name": "percentage_fee",
+              "value": "={{ $json.percentage_fee }}",
+              "type": "number"
+            },
+            {
+              "id": "8789e43f-ee5d-4323-9729-1d56c51424b2",
+              "name": "envio_list_cost",
+              "value": "={{ $json.envio_list_cost }}",
+              "type": "number"
+            },
+            {
+              "id": "4c4b50aa-a582-4bb5-8516-8546d486145b",
+              "name": "costo_fijo_est",
+              "value": "={{ $json.costo_fijo_est }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1952,
+        192
+      ],
+      "id": "aea69515-6f46-423d-ab04-02382af7e6dd",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lee en paralelo: listing_prices base, inputs y shipping_options\nconst baseItems   = $items(\"Calcular Fee\");            // listing_prices base\nconst inputItems  = $items(\"Code in JavaScript\");      // precios + tags\nconst shipItems   = $items(\"Envios\");                  // shipping_options\n\nfunction num(x, d=0){ const n = Number(x); return Number.isFinite(n) ? n : d; }\n\nfunction extraerEnvio(shipJson) {\n  const options = Array.isArray(shipJson?.options) ? shipJson.options : [];\n\n  // 1) opción a domicilio \"recommended\" o \"always\"\n  let sel = options.find(op =>\n    (op.display === \"recommended\" || op.display === \"always\") &&\n    op.shipping_option_type === \"address\"\n  );\n\n  // 2) si no hay, tomar la primera opción disponible\n  if (!sel && options.length) sel = options[0];\n\n  // defaults\n  let envio_pagado_comprador = 0;\n  let envio_list_cost = 8000; // fallback razonable\n\n  if (sel) {\n    const cost = num(sel.cost, 0);\n    const list_cost = num(sel.list_cost, 0);\n    // Si el comprador paga algo, tu costo es 0; si no paga, tu costo es el list_cost\n    envio_pagado_comprador = cost;\n    envio_list_cost = (cost > 0) ? 0 : list_cost;\n  }\n\n  return { envio_pagado_comprador, envio_list_cost };\n}\n\nreturn inputItems.map((up, idx) => {\n  const U = up.json || {};\n  const B = baseItems[idx]?.json;\n  const S = shipItems?.[idx]?.json;\n\n  // ---- listing_prices base ----\n  const baseObj = Array.isArray(B) ? (B[0] || {}) : (B || {});\n  const sale    = baseObj.sale_fee_details || {};\n\n  // % financiación (de listing_prices base)\n  const baseFin = (typeof sale.financing_add_on_fee === 'number')\n    ? Number(sale.financing_add_on_fee) : null;\n\n  // Monto total de fee devuelto por listing_prices (si viene)\n  const sale_fee_amount = (typeof baseObj.sale_fee_amount === 'number')\n    ? Number(baseObj.sale_fee_amount)\n    : null;\n\n  // % base (top-level o fallback al sale_fee_details)\n  const percentage_fee =\n    (typeof baseObj.percentage_fee === 'number')\n      ? Number(baseObj.percentage_fee)\n      : (typeof sale.meli_percentage_fee === 'number')\n          ? Number(sale.meli_percentage_fee)\n          : null;\n\n  // ---- decidir % cuotas (tu lógica final: tags -> base -> fallback) ----\n  let pct = (U.pctCuotas != null) ? Number(U.pctCuotas) : null;\n  let source = U.cuotasSource || null;\n\n  if (pct === null && baseFin !== null) {\n    pct = baseFin;\n    source = \"listing_prices:base\";\n  }\n  if (pct === null) {\n    pct = U.tiene_mshops_pcj ? 4 : 0;\n    source = U.tiene_mshops_pcj ? \"fallback:mshops 4%\" : \"none\";\n  }\n\n  const precioPublicado = num(U.precioPublicado, 0);\n  const costo_cuotas = +(precioPublicado * (pct / 100)).toFixed(2);\n\n  // ---- envío ----\n  const { envio_pagado_comprador, envio_list_cost } = extraerEnvio(S);\n\n  // ---- costo fijo estimado (derivado de listing_prices) ----\n  // Tomamos como precio base para el cálculo el mismo que usaste para llamar listing_prices base.\n  const precioParaFee = num(U.precioOriginal, precioPublicado);\n\n  const pct_base_fee   = num(\n    (typeof sale.meli_percentage_fee === 'number') ? sale.meli_percentage_fee : percentage_fee,\n    0\n  );\n  const pct_cuotas_fee = num(baseFin, 0);\n\n  let costo_fijo_est = null;\n  if (sale_fee_amount !== null) {\n    const partes_porcentuales = +(precioParaFee * ((pct_base_fee + pct_cuotas_fee) / 100)).toFixed(2);\n    costo_fijo_est = +(Math.max(0, sale_fee_amount - partes_porcentuales)).toFixed(2);\n  }\n\n  return {\n    json: {\n      item_id: U.item_id,\n\n      // cuotas (resultado final)\n      pct_cuotas: pct,\n      costo_cuotas,\n      cuotas_source: source,\n\n      // fees listing_prices base\n      sale_fee_amount,   // monto total de fee devuelto por listing_prices\n      percentage_fee,    // % base (si vino top-level; si no, lo cubre pct_base_fee abajo)\n\n      // envío\n      envio_list_cost,          // lo que te corresponde pagar si el comprador no paga\n      envio_pagado_comprador,   // lo que paga el comprador (si > 0, tu costo es 0)\n\n      // costo fijo estimado (derivado)\n      costo_fijo_est,\n      pct_base_fee,             // % base usado para calcular costo fijo\n      pct_cuotas_fee,           // % cuotas (de listing_prices base) usado para calcular costo fijo\n      precio_para_fee: precioParaFee\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        192
+      ],
+      "id": "5f4af498-571a-404b-ad57-42dbd0c7431c",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1LqvKU2jEOtjhEUcZffdXFtY9zljNBOS2R8ST_g-ArTM",
+          "mode": "list",
+          "cachedResultName": "PRECIOS_ML",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LqvKU2jEOtjhEUcZffdXFtY9zljNBOS2R8ST_g-ArTM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1068802704,
+          "mode": "list",
+          "cachedResultName": "Teorico Ventas",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LqvKU2jEOtjhEUcZffdXFtY9zljNBOS2R8ST_g-ArTM/edit#gid=1068802704"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "item_id": "={{ $json.item_id }}",
+            "Cargo x \nVenta\n$": "={{ $json.sale_fee_amount }}",
+            "Cargo x \nVenta\n%": "={{ $json.percentage_fee }}",
+            "$\nCuotas": "={{ $json.costo_cuotas }}",
+            "%\nCuotas": "={{ $json.pctCuotas }}",
+            "Envío": "={{ $json.envio_list_cost }}",
+            "Costo Fijo": "={{ $json.costo_fijo_est }}"
+          },
+          "matchingColumns": [
+            "item_id"
+          ],
+          "schema": [
+            {
+              "id": "item_id",
+              "displayName": "item_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Precio original",
+              "displayName": "Precio original",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Precio c/ \nDescuento",
+              "displayName": "Precio c/ \nDescuento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Descuento \nTotal",
+              "displayName": "Descuento \nTotal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Descuento \npropio",
+              "displayName": "Descuento \npropio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Descuento \nML",
+              "displayName": "Descuento \nML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "DESCUENTO \nMANUAL",
+              "displayName": "DESCUENTO \nMANUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "PRECIO \nFINAL",
+              "displayName": "PRECIO \nFINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Precio\nFinal\nNuestro",
+              "displayName": "Precio\nFinal\nNuestro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Cargo x \nVenta\n$",
+              "displayName": "Cargo x \nVenta\n$",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Cargo x \nVenta\n%",
+              "displayName": "Cargo x \nVenta\n%",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "$\nCuotas",
+              "displayName": "$\nCuotas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "%\nCuotas",
+              "displayName": "%\nCuotas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Comisión \ntotal",
+              "displayName": "Comisión \ntotal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Envío",
+              "displayName": "Envío",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Costo Fijo",
+              "displayName": "Costo Fijo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Impuesto\n (1,5%)",
+              "displayName": "Impuesto\n (1,5%)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Costo",
+              "displayName": "Costo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "NTEO TEORICO\n$\n",
+              "displayName": "NTEO TEORICO\n$\n",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "GANANCIA\n NETA $",
+              "displayName": "GANANCIA\n NETA $",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Ganancia Teórica\n%\n",
+              "displayName": "Ganancia Teórica\n%\n",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Margen sobre \nVenta (%)",
+              "displayName": "Margen sobre \nVenta (%)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "BEROAS",
+              "displayName": "BEROAS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "INVERSION\n RECOMENDADA",
+              "displayName": "INVERSION\n RECOMENDADA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "VENTAS EXTRAS\nNECESARIAS",
+              "displayName": "VENTAS EXTRAS\nNECESARIAS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2160,
+        -80
+      ],
+      "id": "c81d7544-b358-4b40-b41e-4c6f6ea132a4",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "cyQ53FfYfrrZpDYR",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/items/{{$json.item_id}}/shipping_options",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "zip_code",
+              "value": "1001"
+            },
+            {
+              "name": "quantity",
+              "value": "1"
+            },
+            {
+              "name": "channel",
+              "value": "marketplace"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Call \\'Read_token\\'').item.json[\"Access Token\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {}
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1056,
+        -256
+      ],
+      "id": "5744627a-a4f7-4a0a-9c9b-761ade118b64",
+      "name": "Envios",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cf405a82-8f2a-467f-870e-1ebd2e515420",
+              "name": "envio_list_cost",
+              "value": "={{   (    ($json.options || [])      .filter(o => (o.display === 'recommended' || o.display === 'always') && o.shipping_option_type === 'address')[0]?.list_cost  ) ?? $json.options?.[0]?.list_cost ?? 8000 }}",
+              "type": "number"
+            },
+            {
+              "id": "a179f26a-877d-4775-922c-77fa25b680c5",
+              "name": "envio_pagado_comprador",
+              "value": "={{   (    ($json.options || [])      .filter(o => (o.display === 'recommended' || o.display === 'always') && o.shipping_option_type === 'address')[0]?.cost  ) ?? $json.options?.[0]?.cost ?? 0 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1264,
+        -256
+      ],
+      "id": "6b27692d-f61e-4337-a37f-414541a0b231",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Entrada: item del nodo \"Datos Item\"\n// Salida: inputs para fees + posibles decisiones rápidas de cuotas por tags\nreturn items.map(i => {\n  const it = i.json;\n\n  const precioOriginal  = Number(it.original_price ?? it.price ?? 0);\n  const precioPublicado = Number(it.price ?? it.original_price ?? 0);\n\n  const listing_type_id = it.listing_type_id || \"gold_special\";\n  const domain_id       = it.domain_id || \"\";\n\n  const tags = Array.isArray(it.tags) ? it.tags : [];\n\n  // Tags rápidos (idéntico a tu script)\n  let pctCuotas = null;\n  let cuotasSource = null;\n\n  if (tags.includes(\"pcj-co-funded\")) {\n    pctCuotas   = 4;\n    cuotasSource = \"tag:pcj-co-funded\";\n  } else if (tags.includes(\"pcj-buyer-funded\")) {\n    pctCuotas   = 0;\n    cuotasSource = \"tag:pcj-buyer-funded\";\n  }\n\n  // Tags de campaña que habilitan consulta con &tags=\n  const tagsCampanas = [\n    \"cuota-simple-3\", \"cuota-simple-6\", \"cuota-simple-12\",\n    \"3x_campaign\", \"9x_campaign\", \"12x_campaign\",\n    \"mshops_cuota-simple-3\", \"mshops_cuota-simple-6\",\n    \"mshops_3x_campaign\", \"mshops_9x_campaign\", \"mshops_12x_campaign\"\n  ];\n  const tagCampana = tags.find(t => tagsCampanas.includes(t)) || null;\n\n  // Seguimos pasando también el flag anterior por compatibilidad\n  const tiene_mshops_pcj = tags.includes(\"mshops_pcj-co-funded\");\n\n  return {\n    json: {\n      item_id: it.id,\n      // precios\n      precioOriginal,\n      precioPublicado,\n      // para listing_prices base & campaña\n      listing_type_id,\n      domain_id,\n      tagCampana,\n      // decisiones rápidas (si ya se puede resolver)\n      pctCuotas,      // 4, 0 o null\n      cuotasSource,   // texto debug del origen si ya quedó\n      // compat\n      tiene_mshops_pcj\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        0
+      ],
+      "id": "f91929c0-2314-4af8-a850-d262b59742d2",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://revolucionmotos.tech/api/webhooks/n8n/rentabilidad/fees",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer revolucion_motos_super_secreto_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=item_id",
+              "value": "={{ $json.item_id }}"
+            },
+            {
+              "name": "envio",
+              "value": "={{ $json.envio_list_cost }}"
+            },
+            {
+              "name": "cargo_venta_porc",
+              "value": "={{ $json.percentage_fee }}"
+            },
+            {
+              "name": "cargo_venta_ars",
+              "value": "={{ $json.sale_fee_amount }}"
+            },
+            {
+              "name": "cuotas_ars",
+              "value": "={{ $json.costo_cuotas }}"
+            },
+            {
+              "name": "=cuotas_porc",
+              "value": "={{ $json.pctCuotas }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2272,
+        192
+      ],
+      "id": "b0e1766f-be0b-4baa-8aed-af8f82b1c1cc",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cargo_ventas",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -240,
+        0
+      ],
+      "id": "619a9088-b391-45aa-9504-7ee35dedda5b",
+      "name": "Webhook",
+      "webhookId": "daa1bbb8-511b-4a67-9a45-0d420de201f5"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MUsInFnHGy2zWvn0",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/MUsInFnHGy2zWvn0",
+          "cachedResultName": "Read_token"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -32,
+        0
+      ],
+      "id": "c17154f9-0908-490c-b624-21de8037e6ae",
+      "name": "Call 'Read_token'"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n    mla as \"item_id\", \n    nombre_publicacion as \"title\"\nFROM productos_maestros_old \nWHERE estado = 'active'\nAND ultima_actualizacion >= NOW() - INTERVAL '2 hours';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        176,
+        0
+      ],
+      "id": "57855765-c721-4f1a-a304-1fb9c6eb059b",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Este código crea un objeto con el mensaje de \"status ok\"\nreturn [\n  {\n    json: {\n      status: \"ok\",\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2480,
+        192
+      ],
+      "id": "883baaa5-af31-435e-8132-de241e22a56f",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "xKyzfKSEiX7HuC7j",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/xKyzfKSEiX7HuC7j",
+          "cachedResultName": "Descuentos_ml"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2688,
+        192
+      ],
+      "id": "5a2a48b0-322d-4185-a37d-8f2da2c155a0",
+      "name": "Call 'Descuentos_ml'"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.revolucionmotos.tech",
+            "user-agent": "node",
+            "content-length": "0",
+            "accept": "*/*",
+            "accept-encoding": "br, gzip, deflate",
+            "accept-language": "*",
+            "cache-control": "no-cache",
+            "pragma": "no-cache",
+            "sec-fetch-mode": "cors",
+            "x-forwarded-for": "10.0.1.1",
+            "x-forwarded-host": "n8n.revolucionmotos.tech",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "50a9d52c5318",
+            "x-real-ip": "10.0.1.1"
+          },
+          "params": {},
+          "query": {},
+          "body": {},
+          "webhookUrl": "https://n8n.revolucionmotos.tech/webhook/cargo_ventas",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Normalizar MLAs": {
+      "main": [
+        [
+          {
+            "node": "Envios",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Datos Item",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos Item": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular Fee": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envios": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Calcular Fee",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Read_token'": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        [
+          {
+            "node": "Normalizar MLAs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Call 'Descuentos_ml'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "executionOrder": "v0",
+    "binaryMode": "separate"
+  },
+  "versionId": "93c3d149-0cd5-4682-afec-03d184d3da72",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
+  },
+  "id": "irxdPY4sUwNlQ8UP",
+  "tags": []
+}

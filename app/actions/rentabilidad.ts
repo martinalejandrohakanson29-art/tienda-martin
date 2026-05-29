@@ -6,9 +6,16 @@ import { revalidatePath } from "next/cache";
 // Función para obtener y calcular los datos en tiempo real
 export async function getRentabilidadData() {
   try {
+    // DISTINCT ON mla: una fila por publicación ML (el workflow envía 1 item_id por MLA,
+    // pero updateMany en el webhook activa todas las variantes del mismo MLA).
+    // Preferimos la fila con variation_id = null (publicación base); si no existe, la primera variante.
     const productos = await prisma.productosMaestros.findMany({
       where: { estado: "active" },
-      orderBy: { nombre_publicacion: 'asc' },
+      distinct: ['mla'],
+      orderBy: [
+        { mla: 'asc' },
+        { variation_id: { sort: 'asc', nulls: 'first' } },
+      ],
     });
 
     const cargos = await prisma.mLFees.findMany();

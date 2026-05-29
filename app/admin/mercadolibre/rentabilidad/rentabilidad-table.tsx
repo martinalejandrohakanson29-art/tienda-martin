@@ -29,7 +29,6 @@ interface ProductoRentabilidad {
   cargo_venta_real: number;
   envio_costo: number;
   costo_fijo_ml: number;
-  // Propiedades calculadas para UI y Simulación
   desc_pct_nuestro?: number;
   desc_pct_ml?: number;
   comision_pct?: number;
@@ -38,64 +37,56 @@ interface ProductoRentabilidad {
 
 type SortKey = keyof ProductoRentabilidad;
 
+const getItemId = (item: { item_id: string; variation_id?: string | null }) =>
+  `${item.item_id}-${item.variation_id || ""}`;
+
 export default function RentabilidadTable({ data }: { data: ProductoRentabilidad[] }) {
   const [filter, setFilter] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: "asc" | "desc" }>({
     key: "ganancia_neta",
     direction: "desc",
   });
-
   const [overrides, setOverrides] = useState<Record<string, { desc_pct_nuestro?: string; costo_total?: string }>>({});
 
-  const handleOverride = (id: string, field: 'desc_pct_nuestro' | 'costo_total', value: string) => {
+  // Orden congelado: solo se actualiza al hacer click en un header.
+  // Editar overrides recalcula valores pero NO mueve filas.
+  const [sortedIds, setSortedIds] = useState<string[]>(() =>
+    [...data]
+      .sort((a, b) => b.ganancia_neta - a.ganancia_neta)
+      .map(getItemId)
+  );
+
+  const handleOverride = (id: string, field: "desc_pct_nuestro" | "costo_total", value: string) => {
     setOverrides((prev) => ({
       ...prev,
-      [id]: {
-        ...(prev[id] || {}),
-        [field]: value,
-      },
+      [id]: { ...(prev[id] || {}), [field]: value },
     }));
   };
 
-  const handleSort = (key: SortKey) => {
-    let direction: "asc" | "desc" = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-    setSortConfig({ key, direction });
-  };
-
   const simulatedData = data.map((item) => {
-    const id = `${item.item_id}-${item.variation_id || ""}`;
+    const id = getItemId(item);
     const override = overrides[id];
 
-    // 1. CÁLCULO DE DESCUENTOS BASE
-    const desc_pct_nuestro_real = item.precio_original > 0 
-      ? (1 - (item.precio_final_nuestro / item.precio_original)) * 100 
+    const desc_pct_nuestro_real = item.precio_original > 0
+      ? (1 - (item.precio_final_nuestro / item.precio_original)) * 100
       : 0;
     const desc_pct_ml = Math.max(0, item.desc_pct_total - desc_pct_nuestro_real);
 
-    const simulatedDescNuestro = override?.desc_pct_nuestro !== undefined 
-      ? (override.desc_pct_nuestro === "" ? 0 : Number(override.desc_pct_nuestro)) 
+    const simulatedDescNuestro = override?.desc_pct_nuestro !== undefined
+      ? (override.desc_pct_nuestro === "" ? 0 : Number(override.desc_pct_nuestro))
       : desc_pct_nuestro_real;
 
-    const simulatedCosto = override?.costo_total !== undefined 
-      ? (override.costo_total === "" ? 0 : Number(override.costo_total)) 
+    const simulatedCosto = override?.costo_total !== undefined
+      ? (override.costo_total === "" ? 0 : Number(override.costo_total))
       : item.costo_total;
 
-    // 2. LÓGICA DE COMISIÓN E IMPUESTOS
-    // Calculamos el % de comisión que ML cobra (incluyendo cuotas) sobre el precio público
     const fee_rate = item.precio_final > 0 ? item.cargo_venta_real / item.precio_final : 0;
-    const TAX_RATE = 0.02; // El 2% pedido
+    const TAX_RATE = 0.02;
 
-    // Recalculamos precios basados en la simulación
     const nuevo_precio_final_nuestro = item.precio_original * (1 - simulatedDescNuestro / 100);
     const nuevo_precio_final_publico = item.precio_original * (1 - (simulatedDescNuestro + desc_pct_ml) / 100);
-    
     const nuevo_cargo_venta = nuevo_precio_final_publico * fee_rate;
     const nuevo_impuesto = nuevo_precio_final_publico * TAX_RATE;
-    
-    // El Neto Recibido ahora descuenta también el nuevo 2%
     const nuevo_neto = nuevo_precio_final_nuestro - nuevo_cargo_venta - item.envio_costo - item.costo_fijo_ml - nuevo_impuesto;
     const nueva_ganancia = nuevo_neto - simulatedCosto;
     const nuevo_pct = simulatedCosto > 0 ? (nueva_ganancia / simulatedCosto) * 100 : 0;
@@ -103,7 +94,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     return {
       ...item,
       desc_pct_nuestro: simulatedDescNuestro,
-      desc_pct_ml: desc_pct_ml,
+      desc_pct_ml,
       costo_total: simulatedCosto,
       precio_final: nuevo_precio_final_publico,
       precio_final_nuestro: nuevo_precio_final_nuestro,
@@ -118,19 +109,39 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
 
   const filteredData = simulatedData.filter((item) => {
     const searchLower = filter.toLowerCase().trim();
-    return (item.nombre || "").toLowerCase().includes(searchLower) || 
-           (item.item_id || "").toLowerCase().includes(searchLower) ||
-           (item.nombre_variante || "").toLowerCase().includes(searchLower);
+    return (
+      (item.nombre || "").toLowerCase().includes(searchLower) ||
+      (item.item_id || "").toLowerCase().includes(searchLower) ||
+      (item.nombre_variante || "").toLowerCase().includes(searchLower)
+    );
   });
 
-  const sortedData = [...filteredData].sort((a, b) => {
-    const aValue = a[sortConfig.key] ?? 0;
-    const bValue = b[sortConfig.key] ?? 0;
-    if (typeof aValue === "string" && typeof bValue === "string") {
-      return sortConfig.direction === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-    }
-    return sortConfig.direction === "asc" ? (aValue as number) - (bValue as number) : (bValue as number) - (aValue as number);
-  });
+  // Solo al hacer click en un header: re-ordena sobre simulatedData completo y guarda el orden.
+  const handleSort = (key: SortKey) => {
+    const direction = sortConfig.key === key && sortConfig.direction === "asc" ? "desc" : "asc";
+    setSortConfig({ key, direction });
+
+    const sorted = [...simulatedData].sort((a, b) => {
+      const aValue = (a as any)[key] ?? 0;
+      const bValue = (b as any)[key] ?? 0;
+      if (typeof aValue === "string" && typeof bValue === "string") {
+        return direction === "asc" ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+      }
+      return direction === "asc" ? (aValue as number) - (bValue as number) : (bValue as number) - (aValue as number);
+    });
+    setSortedIds(sorted.map(getItemId));
+  };
+
+  // Aplica el orden congelado sobre los datos filtrados. No cambia al editar overrides.
+  const sortedData = (() => {
+    const dataMap = new Map(filteredData.map((item) => [getItemId(item), item]));
+    const ordered = sortedIds
+      .map((id) => dataMap.get(id))
+      .filter((item): item is NonNullable<typeof item> => item !== undefined);
+    const inOrder = new Set(sortedIds.filter((id) => dataMap.has(id)));
+    const extra = filteredData.filter((item) => !inOrder.has(getItemId(item)));
+    return [...ordered, ...extra];
+  })();
 
   const getPorcentajeStyle = (pct: number) => {
     if (pct <= 40) return "text-red-600 font-black";
@@ -140,7 +151,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
   };
 
   const SortableHead = ({ label, sortKey, className }: { label: string; sortKey: SortKey; className?: string }) => (
-    <TableHead 
+    <TableHead
       className={cn("cursor-pointer hover:bg-slate-200 transition-colors select-none", className)}
       onClick={() => handleSort(sortKey)}
     >
@@ -202,7 +213,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
           </TableHeader>
           <TableBody>
             {sortedData.map((item, index) => {
-              const id = `${item.item_id}-${item.variation_id || ''}`;
+              const id = getItemId(item);
               const isSimulated = overrides[id] !== undefined;
 
               return (
@@ -221,60 +232,55 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                     </div>
                   </TableCell>
                   <TableCell className="text-right text-slate-400 line-through">
-                    ${item.precio_original.toLocaleString('es-AR')}
+                    ${item.precio_original.toLocaleString("es-AR")}
                   </TableCell>
                   <TableCell className="text-right font-medium text-slate-400">
-                    {item.desc_pct_ml ? `${item.desc_pct_ml.toFixed(1)}%` : '-'}
+                    {item.desc_pct_ml ? `${item.desc_pct_ml.toFixed(1)}%` : "-"}
                   </TableCell>
                   <TableCell className="text-right font-bold text-amber-600">
                     <div className="flex justify-end items-center gap-1">
-                      <Input 
+                      <Input
                         type="number"
                         min="0"
                         max="100"
                         className="h-6 w-14 text-right text-[11px] px-1 font-bold text-amber-600 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white"
                         value={overrides[id]?.desc_pct_nuestro !== undefined ? overrides[id].desc_pct_nuestro : (item.desc_pct_nuestro?.toFixed(1) || 0)}
-                        onChange={(e) => handleOverride(id, 'desc_pct_nuestro', e.target.value)}
+                        onChange={(e) => handleOverride(id, "desc_pct_nuestro", e.target.value)}
                       />
                       <span>%</span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-medium text-slate-500">
-                    ${item.precio_final.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                    ${item.precio_final.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell className="text-right font-bold text-slate-900 bg-slate-50">
-                    ${item.precio_final_nuestro.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                    ${item.precio_final_nuestro.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
                     <div className="flex justify-end items-center gap-1">
                       <span className="text-slate-400">$</span>
-                      <Input 
+                      <Input
                         type="number"
                         className="h-6 w-16 text-right text-[11px] px-1 font-bold text-slate-700 border-slate-200 focus-visible:ring-1 focus-visible:ring-amber-500 bg-white"
                         value={overrides[id]?.costo_total !== undefined ? overrides[id].costo_total : Math.round(item.costo_total)}
-                        onChange={(e) => handleOverride(id, 'costo_total', e.target.value)}
+                        onChange={(e) => handleOverride(id, "costo_total", e.target.value)}
                       />
                     </div>
                   </TableCell>
-
-                  {/* COMISIÓN EXPRESADA EN % */}
                   <TableCell className="text-right text-red-600 font-bold">
                     {item.comision_pct?.toFixed(1)}%
                   </TableCell>
-
-                  {/* NUEVA COLUMNA: IMPUESTO 2% */}
                   <TableCell className="text-right text-orange-600 font-bold">
                     {item.impuesto_pct?.toFixed(1)}%
                   </TableCell>
-
                   <TableCell className="text-right text-blue-600 font-medium">
-                    {item.envio_costo > 0 ? `$${item.envio_costo.toLocaleString('es-AR')}` : '-'}
+                    {item.envio_costo > 0 ? `$${item.envio_costo.toLocaleString("es-AR")}` : "-"}
                   </TableCell>
                   <TableCell className="text-right font-bold px-4 text-slate-900 bg-slate-50 border-l border-slate-200">
-                    ${item.neto_teorico.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                    ${item.neto_teorico.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell className="text-right font-black px-4 border-l text-green-700 bg-green-50/30">
-                    ${item.ganancia_neta.toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                    ${item.ganancia_neta.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                   </TableCell>
                   <TableCell className={cn("text-right px-4 border-l bg-slate-50", getPorcentajeStyle(item.ganancia_porcentaje))}>
                     {item.ganancia_porcentaje.toFixed(1)}%

@@ -1,0 +1,1082 @@
+{
+  "name": "Descuentos_ml",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1f7cde1-6853-4b73-99f1-f849c8684bc7",
+              "name": "item_id",
+              "value": "={{$json[\"A\"] || $json[\"item_id\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2736,
+        384
+      ],
+      "id": "17456095-3079-49c3-81d5-c3faf46d73f4",
+      "name": "Normalizar MLAs"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/seller-promotions/users/194083300?app_version=v2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Call \\'Read_token\\'').item.json[\"Access Token\"] }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2544,
+        384
+      ],
+      "id": "b3ad6266-766b-4c1e-b399-7e71d37b9f2d",
+      "name": "Seller Promotions",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Consolidar promos de /seller-promotions/items → 1 fila por MLA con la mejor promo \"started/active\"\n// Soporta: SMART, DOD, PRICE_DISCOUNT (ref_id null). Convierte strings a número y usa fallbacks.\n\nfunction num(x){ const n = Number(x); return Number.isFinite(n) ? n : null; }\nfunction r2(x){ const n = Number(x); return Number.isFinite(n) ? Number(n.toFixed(2)) : null; }\n\n// Este es el nodo que emite la lista de MLAs, en el MISMO orden de ejecución.\n// Cambiá el nombre si tu nodo upstream se llama distinto.\nconst UPSTREAM_NODE = \"Normalizar MLAs\";\n\n// Regex para extraer MLA cuando haya ref_id de tipo OFFER/CANDIDATE\nconst ITEM_RE = /(?:OFFER|CANDIDATE)-MLA(\\d+)-/;\n\n// 1) Leer TODA la entrada del Code (el HTTP puede entregar array o 1-por-ítem)\nconst inItems = $input.all();\n\n// 2) Aplanar promos y adjuntar item_id de contexto (fallback por índice)\nconst promos = [];\nfor (let i = 0; i < inItems.length; i++) {\n  const ctxItemId = $items(UPSTREAM_NODE)[i]?.json?.item_id || null; // p.ej. \"MLA123...\"\n  const v = inItems[i].json;\n\n  const pushPromo = (p) => {\n    // Intentar sacar el MLA desde ref_id si existe\n    let item_id = null;\n    const ref = String(p?.ref_id || \"\");\n    const m = ref.match(ITEM_RE);\n    if (m) item_id = \"MLA\" + m[1];\n    // Fallback: si no hay ref_id (PRICE_DISCOUNT), usar el item_id de contexto\n    if (!item_id) item_id = ctxItemId;\n    if (item_id) promos.push({ ...p, __item_id: item_id });\n  };\n\n  if (Array.isArray(v))        v.forEach(pushPromo);\n  else if (v?.results?.length) v.results.forEach(pushPromo);\n  else if (v && typeof v==='object') pushPromo(v);\n}\n\n// 3) Helpers de precio\nconst getOP = p => num(p?.original_price);\n// Para DOD a veces no hay \"price\" pero sí \"suggested_discounted_price\"\nconst getP  = p => (p?.price != null) ? num(p.price)\n                   : (p?.suggested_discounted_price != null ? num(p.suggested_discounted_price) : null);\n\n// Métrica para ordenar: preferir promos que tengan ambos valores y mayor descuento real\nfunction score(p){\n  const op = getOP(p), pr = getP(p);\n  if (op == null || pr == null) return -Infinity; // de última evitamos elegir promos sin datos clave\n  return op - pr;\n}\n\n// 4) Agrupar por ítem\nconst byItem = new Map();\nfor (const p of promos) {\n  const item_id = p.__item_id;\n  if (!item_id) continue;\n  if (!byItem.has(item_id)) byItem.set(item_id, []);\n  byItem.get(item_id).push(p);\n}\n\n// 5) Por ítem: filtrar started/active → elegir la mejor con datos válidos\nconst out = [];\nfor (const [item_id, arr] of byItem.entries()) {\n  const act = arr.filter(p => {\n    const st = String(p?.status || \"\").toLowerCase();\n    return st === \"started\" || st === \"active\";\n  });\n  if (!act.length) continue;\n\n  // Ordenar por \"score\" (mayor descuento con OP y P válidos)\n  act.sort((a,b) => score(b) - score(a));\n\n  // Tomar la primera con datos válidos; si ninguna tiene ambos, como fallback tomamos la primera \"started\"\n  let best = act.find(p => getOP(p)!=null && getP(p)!=null) || act[0];\n\n  const original_price = getOP(best);\n  const price          = getP(best);\n\n  // Si aún faltan datos clave, no emitimos (evita filas llenas de null)\n  if (original_price == null || price == null) continue;\n\n  const desc_abs_total = original_price - price;\n  const pct_descuento  = original_price > 0 ? r2(100 * desc_abs_total / original_price) : null;\n\n  // Split SOLO si lo trae /items (SMART suele traer; PRICE_DISCOUNT casi nunca)\n  const seller_percentage = num(best?.seller_percentage);\n  const meli_percentage   = num(best?.meli_percentage);\n\n  let seller_desc_abs = null, meli_desc_abs = null;\n  if (seller_percentage != null || meli_percentage != null) {\n    const s = seller_percentage || 0;\n    const m = meli_percentage   || 0;\n    const total = s + m;\n    if (total > 0) {\n      seller_desc_abs = r2(desc_abs_total * (s / total));\n      meli_desc_abs   = r2(desc_abs_total * (m / total));\n    }\n  }\n\n  out.push({\n    json: {\n      item_id,\n      promo_id: best?.id ?? null,\n      promo_type: best?.type ?? null,        // \"SMART\", \"DOD\", \"PRICE_DISCOUNT\", etc.\n      promo_status: best?.status ?? null,    // \"started\"\n      original_price,\n      price,                                 // precio final con descuento (o suggested si no venía \"price\")\n      pct_descuento,                         // % total\n      seller_percentage,                     // puede quedar null si la API no lo da (p.ej. PRICE_DISCOUNT)\n      meli_percentage,                       // idem\n      seller_desc_abs,\n      meli_desc_abs\n    }\n  });\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2112,
+        384
+      ],
+      "id": "b6db54bf-a557-4b0c-9c82-8e1a9652e225",
+      "name": "Parsear promos users"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/seller-promotions/items/{{$items(\"Normalizar MLAs\")[$itemIndex].json.item_id}}?app_version=v2",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Call \\'Read_token\\'').item.json[\"Access Token\"] }}"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {}
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2336,
+        384
+      ],
+      "id": "c200bbc1-03b6-47e0-94f8-41d938624786",
+      "name": "Seller Promotions (items)",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e9f76c08-8546-450d-9a36-7073f46c722b",
+              "name": "precio final",
+              "value": "={{ $json.price }}",
+              "type": "number"
+            },
+            {
+              "id": "f14dc9ea-28db-46ce-b0d8-bb1c3241d6a4",
+              "name": "pct_descuento",
+              "value": "={{ $json.pct_descuento }}",
+              "type": "number"
+            },
+            {
+              "id": "df881fde-3d7e-47b9-a6ed-82f738f48784",
+              "name": "seller_percentage",
+              "value": "={{ $json.seller_percentage }}",
+              "type": "number"
+            },
+            {
+              "id": "cf216ee7-7427-4c10-a961-63c4c3a4ebc6",
+              "name": "meli_percentage",
+              "value": "={{ $json.meli_percentage }}",
+              "type": "number"
+            },
+            {
+              "id": "7211a635-7864-494e-942b-bb3e588bc499",
+              "name": "item_id",
+              "value": "={{ $json.item_id }}",
+              "type": "string"
+            },
+            {
+              "id": "037ed930-73c3-4668-a27c-7161c79f3765",
+              "name": "original_price",
+              "value": "={{ $json.original_price }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1904,
+        384
+      ],
+      "id": "851542d3-5cd4-4fa9-a9a6-1b275b518522",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "item_id",
+        "joinMode": "keepEverything",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1680,
+        288
+      ],
+      "id": "11de3d0d-1031-4dc6-b719-a62c022c9cf4",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0b1f4be5-360d-4a7f-bfde-56b5ab824ecd",
+              "name": "precio final",
+              "value": "={{ $json[\"precio final\"] }}",
+              "type": "number"
+            },
+            {
+              "id": "5f15fddd-0ab1-4ff5-9775-5873012a7c2b",
+              "name": "pct_descuento",
+              "value": "={{ $json.pct_descuento }}",
+              "type": "number"
+            },
+            {
+              "id": "50463a7c-1737-494a-8415-c09303b929cf",
+              "name": "seller_percentage",
+              "value": "={{ $json.seller_percentage }}",
+              "type": "number"
+            },
+            {
+              "id": "55b6f1ba-e677-4140-9437-af9ef0a51d5d",
+              "name": "meli_percentage",
+              "value": "={{ $json.meli_percentage }}",
+              "type": "number"
+            },
+            {
+              "id": "6503bf90-8cfd-44f1-8b24-1d1a7d9d0791",
+              "name": "item_id",
+              "value": "={{ $json.item_id }}",
+              "type": "string"
+            },
+            {
+              "id": "00c4c744-216f-49de-9cb2-427e839a5a8e",
+              "name": "descuento_propio",
+              "value": "NO",
+              "type": "string"
+            },
+            {
+              "id": "9616e633-846a-483c-b2de-93bd4edd0bcb",
+              "name": "original_price",
+              "value": "={{ $json.original_price }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1024,
+        480
+      ],
+      "id": "39518590-5bb7-4884-94cb-1fdcd722e606",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/items/{{ $json.item_id }}/prices ",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Call \\'Read_token\\'').item.json[\"Access Token\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {}
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2512,
+        128
+      ],
+      "id": "888e8c65-37b7-44e3-857e-b73e3bc1368e",
+      "name": "HTTP Request1",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4c106ff1-eb81-4d7a-8d88-45a3fe8024d2",
+              "name": "item_id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "5b497b3a-e009-4cc1-9e57-a010e537a9cc",
+              "name": "precio final",
+              "value": "={{ $json.prices[0].amount }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2160,
+        128
+      ],
+      "id": "26b0be8f-5553-451b-9d39-fdc1dbc3ae9a",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5bbb43f2-9dc5-4306-99d3-5357162b5cda",
+              "leftValue": "={{ $json.seller_percentage }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "empty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1520,
+        288
+      ],
+      "id": "8faa7994-d58d-4b06-97b2-6339484eea3b",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/items/{{ $json.item_id }}/prices ",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Call \\'Read_token\\'').item.json[\"Access Token\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {}
+          },
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1232,
+        144
+      ],
+      "id": "80d69300-a411-4c66-97e1-558b9baa6999",
+      "name": "HTTP Request",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const out = [];\nconst now = new Date();\n\nfunction isActivePromotion(p) {\n  if (p.type !== 'promotion') return false;\n  const startOk = !p.conditions?.start_time || new Date(p.conditions.start_time) <= now;\n  const endOk   = !p.conditions?.end_time   || now < new Date(p.conditions.end_time);\n  const ctx = p.conditions?.context_restrictions || [];\n  const channelOk = (ctx.length === 0) || ctx.includes('channel_marketplace');\n  return startOk && endOk && channelOk;\n}\n\nfunction preferMarketplaceStandard(p) {\n  if (p.type !== 'standard') return false;\n  const ctx = p.conditions?.context_restrictions || [];\n  return (ctx.length === 0) || ctx.includes('channel_marketplace');\n}\n\nfunction sortByLastUpdatedDesc(a, b) {\n  return new Date(b.last_updated || 0) - new Date(a.last_updated || 0);\n}\n\nfor (const item of $input.all()) {\n  const j = item.json;\n  const prices = Array.isArray(j.prices) ? j.prices : [];\n\n  const promoActiva   = prices.filter(isActivePromotion).sort(sortByLastUpdatedDesc)[0];\n  const stdMarket     = prices.filter(preferMarketplaceStandard).sort(sortByLastUpdatedDesc)[0];\n  const stdCualquiera = prices.filter(p => p.type === 'standard').sort(sortByLastUpdatedDesc)[0];\n\n  const precio_promo    = promoActiva?.amount ?? null;\n  const precio_standard = stdMarket?.amount ?? stdCualquiera?.amount ?? j.price ?? j.base_price ?? null;\n  const precio_final_calc = (precio_promo ?? precio_standard ?? null);\n\n  // --- CÁLCULO DE PORCENTAJE ---\n  let pct_descuento = 0;\n  if (precio_standard > 0 && precio_final_calc < precio_standard) {\n    pct_descuento = Number((((precio_standard - precio_final_calc) / precio_standard) * 100).toFixed(2));\n  }\n\n  out.push({\n    json: {\n      item_id: j.id || j.item_id,\n      precio_promo,\n      precio_standard,\n      precio_final_calc,\n      pct_descuento,\n      // En esta rama (/prices) no sabemos el split, \n      // asumimos que es 100% nuestro si hay rebaja manual.\n      seller_percentage: pct_descuento > 0 ? pct_descuento : null,\n      meli_percentage: 0\n    }\n  });\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        144
+      ],
+      "id": "fbb8b3f3-ea1f-4794-aed1-11c3f87647bd",
+      "name": "Calculo descuento"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "fieldsToMatchString": "item_id",
+        "joinMode": "enrichInput2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -496,
+        288
+      ],
+      "id": "fb259544-7bdc-48d6-a0d9-94810e36b054",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0b1f4be5-360d-4a7f-bfde-56b5ab824ecd",
+              "name": "precio final",
+              "value": "={{ $json.precio_final_calc }}",
+              "type": "number"
+            },
+            {
+              "id": "5f15fddd-0ab1-4ff5-9775-5873012a7c2b",
+              "name": "pct_descuento",
+              "value": "={{ $json.pct_descuento }}",
+              "type": "number"
+            },
+            {
+              "id": "50463a7c-1737-494a-8415-c09303b929cf",
+              "name": "seller_percentage",
+              "value": "={{ $json.seller_percentage }}",
+              "type": "number"
+            },
+            {
+              "id": "55b6f1ba-e677-4140-9437-af9ef0a51d5d",
+              "name": "meli_percentage",
+              "value": "={{ $json.meli_percentage }}",
+              "type": "number"
+            },
+            {
+              "id": "6503bf90-8cfd-44f1-8b24-1d1a7d9d0791",
+              "name": "item_id",
+              "value": "={{ $json.item_id }}",
+              "type": "string"
+            },
+            {
+              "id": "4367642c-3843-406c-beb8-ca0d7edb3f37",
+              "name": "descuento_propio",
+              "value": "={{ $json.precio_promo ? \"SI\" : \"NO\" }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -752,
+        144
+      ],
+      "id": "2ded7f79-0858-41a4-8221-1aa344864d91",
+      "name": "Edit Fields4"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1LqvKU2jEOtjhEUcZffdXFtY9zljNBOS2R8ST_g-ArTM",
+          "mode": "list",
+          "cachedResultName": "PRECIOS_ML",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LqvKU2jEOtjhEUcZffdXFtY9zljNBOS2R8ST_g-ArTM/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1068802704,
+          "mode": "list",
+          "cachedResultName": "Teorico Ventas",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1LqvKU2jEOtjhEUcZffdXFtY9zljNBOS2R8ST_g-ArTM/edit#gid=1068802704"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "item_id": "={{ $json.item_id }}",
+            "Descuento \nTotal": "={{ $json.pct_descuento }}",
+            "Descuento \npropio": "={{ $json.seller_percentage }}",
+            "Descuento \nML": "={{ $json.meli_percentage }}",
+            "DESCUENTO \nMANUAL": "={{ $json.descuento_propio }}",
+            "PRECIO \nFINAL": "={{ $json[\"precio final\"] }}",
+            "row_number": 0
+          },
+          "matchingColumns": [
+            "item_id"
+          ],
+          "schema": [
+            {
+              "id": "item_id",
+              "displayName": "item_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Precio original",
+              "displayName": "Precio original",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Precio c/ \nDescuento",
+              "displayName": "Precio c/ \nDescuento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Descuento \nTotal",
+              "displayName": "Descuento \nTotal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Descuento \npropio",
+              "displayName": "Descuento \npropio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Descuento \nML",
+              "displayName": "Descuento \nML",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DESCUENTO \nMANUAL",
+              "displayName": "DESCUENTO \nMANUAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PRECIO \nFINAL",
+              "displayName": "PRECIO \nFINAL",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Precio\nFinal\nNuestro",
+              "displayName": "Precio\nFinal\nNuestro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Cargo x \nVenta\n$",
+              "displayName": "Cargo x \nVenta\n$",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Cargo x \nVenta\n%",
+              "displayName": "Cargo x \nVenta\n%",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "$\nCuotas",
+              "displayName": "$\nCuotas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "%\nCuotas",
+              "displayName": "%\nCuotas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Comisión \ntotal",
+              "displayName": "Comisión \ntotal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Envío",
+              "displayName": "Envío",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Costo Fijo",
+              "displayName": "Costo Fijo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Impuesto\n (1,5%)",
+              "displayName": "Impuesto\n (1,5%)",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Costo",
+              "displayName": "Costo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Ganancia Teórica\n$\n",
+              "displayName": "Ganancia Teórica\n$\n",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "GANANCIA NETA",
+              "displayName": "GANANCIA NETA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "Ganancia Teórica\n%\n",
+              "displayName": "Ganancia Teórica\n%\n",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "BEROAS",
+              "displayName": "BEROAS",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -256,
+        112
+      ],
+      "id": "f9664fcc-3d55-4c15-8ce7-8ac9f7fbb8c2",
+      "name": "Update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "cyQ53FfYfrrZpDYR",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://revolucionmotos.tech/api/webhooks/n8n/rentabilidad/descuentos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer revolucion_motos_super_secreto_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "mla",
+              "value": "={{ $json.item_id }}"
+            },
+            {
+              "name": "precio_final",
+              "value": "={{ $json[\"precio final\"] }}"
+            },
+            {
+              "name": "pct_descuento",
+              "value": "={{ $json.pct_descuento }}"
+            },
+            {
+              "name": "seller_percentage",
+              "value": "={{ $json.seller_percentage }}"
+            },
+            {
+              "name": "meli_percentage",
+              "value": "={{ $json.meli_percentage }}"
+            },
+            {
+              "name": "descuento_propio",
+              "value": "={{ $json.descuento_propio }}"
+            },
+            {
+              "name": "original_price",
+              "value": "={{ $json.original_price }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -240,
+        304
+      ],
+      "id": "dc38817f-088f-4122-a0c8-7301fec2d709",
+      "name": "HTTP Request2",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MUsInFnHGy2zWvn0",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/MUsInFnHGy2zWvn0",
+          "cachedResultName": "Read_token"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -3088,
+        384
+      ],
+      "id": "69594308-2b7f-4a39-8dd4-4d08bd1651a5",
+      "name": "Call 'Read_token'"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lee los MLAs pasados por cargo_ventas via executeWorkflow\nconst input = $('When Executed by Another Workflow').first().json;\nconst mlas = Array.isArray(input.mlas) ? input.mlas : [];\nreturn mlas.map(mla => ({ json: { item_id: mla } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2880,
+        384
+      ],
+      "id": "a13e3297-82e1-420c-b1c4-bcdfef4ae759",
+      "name": "Leer MLAs del trigger"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -3312,
+        384
+      ],
+      "id": "3e9d8b6d-1601-4124-b21b-bf29bfc4a29f",
+      "name": "When Executed by Another Workflow"
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "status": "ok"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Normalizar MLAs": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Seller Promotions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seller Promotions": {
+      "main": [
+        [
+          {
+            "node": "Seller Promotions (items)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear promos users": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seller Promotions (items)": {
+      "main": [
+        [
+          {
+            "node": "Parsear promos users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Calculo descuento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculo descuento": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Read_token'": {
+      "main": [
+        [
+          {
+            "node": "Leer MLAs del trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer MLAs del trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalizar MLAs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "executionOrder": "v0",
+    "binaryMode": "separate"
+  },
+  "versionId": "11b10a26-2ad5-435e-8da6-176da416d80f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
+  },
+  "id": "xKyzfKSEiX7HuC7j",
+  "tags": []
+}

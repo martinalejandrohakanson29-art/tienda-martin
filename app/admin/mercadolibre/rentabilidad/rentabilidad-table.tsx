@@ -29,6 +29,7 @@ interface ProductoRentabilidad {
   cargo_venta_real: number;
   envio_costo: number;
   costo_fijo_ml: number;
+  ventas_30d: number;
   desc_pct_nuestro?: number;
   desc_pct_ml?: number;
   comision_pct?: number;
@@ -197,6 +198,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
               <TableHead className="min-w-[300px] font-bold text-slate-700 text-[11px] cursor-pointer" onClick={() => handleSort("nombre")}>
                 Publicación / Variante
               </TableHead>
+              <SortableHead label="Ventas 30d" sortKey="ventas_30d" className="text-indigo-600" />
               <SortableHead label="P. Original" sortKey="precio_original" className="text-slate-400" />
               <SortableHead label="Dcto ML" sortKey="desc_pct_ml" className="text-slate-400" />
               <SortableHead label="Dcto Nuestro" sortKey="desc_pct_nuestro" className="text-amber-600" />
@@ -230,6 +232,9 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
                         )}
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-center font-bold text-indigo-700">
+                    {item.ventas_30d > 0 ? item.ventas_30d : <span className="text-slate-300">-</span>}
                   </TableCell>
                   <TableCell className="text-right text-slate-400 line-through">
                     ${item.precio_original.toLocaleString("es-AR")}

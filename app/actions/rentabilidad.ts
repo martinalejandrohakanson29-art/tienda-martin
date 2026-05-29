@@ -25,13 +25,42 @@ export async function getRentabilidadData() {
     const descuentosMap = new Map(descuentos.map(d => [d.mla, d]));
 
     const costosMla: any[] = await prisma.$queryRaw`
-      SELECT mla, variation_id, costo_total 
+      SELECT mla, variation_id, costo_total
       FROM vista_costos_productos
     `;
-    
+
     const costosMap = new Map(
       costosMla.map(c => [`${c.mla}-${c.variation_id || ""}`, Number(c.costo_total || 0)])
     );
+
+    // Ventas de ML últimos 30 días por MLA: cuenta órdenes del punto de venta MercadoLibre
+    const hoy = new Date();
+    hoy.setHours(23, 59, 59, 999);
+    const hace30 = new Date(hoy.getTime() - 30 * 24 * 60 * 60 * 1000);
+    hace30.setHours(0, 0, 0, 0);
+
+    // groupBy no soporta filtros por relación, se busca el id primero
+    const pvML = await prisma.puntoVenta.findFirst({
+      where: { nombre: { contains: 'mercadolibre', mode: 'insensitive' } },
+      select: { id: true }
+    });
+
+    const ventasML = pvML ? await prisma.venta.groupBy({
+      by: ['mlMla'],
+      _count: { id: true },
+      where: {
+        puntoVentaId: pvML.id,
+        mlMla: { not: '' },
+        tipoVenta: { not: 'PEDIDO' },
+        createdAt: { gte: hace30, lte: hoy },
+      }
+    }) : [];
+
+    const ventasMLMap = new Map<string, number>();
+    for (const v of ventasML) {
+      // mlMla puede tener espacios al final, se normaliza
+      if (v.mlMla) ventasMLMap.set(v.mlMla.trim(), v._count.id);
+    }
 
     return productos.map(p => {
       const fee = cargosMap.get(p.mla);
@@ -68,6 +97,8 @@ export async function getRentabilidadData() {
       const gananciaNeta = netoTeorico - costoPropio;
       const gananciaPorcentaje = costoPropio > 0 ? (gananciaNeta / costoPropio) * 100 : 0;
 
+      const ventas_30d = ventasMLMap.get(p.mla.trim()) ?? 0;
+
       return {
         item_id: p.mla,
         variation_id: p.variation_id,
@@ -83,7 +114,8 @@ export async function getRentabilidadData() {
         ganancia_porcentaje: gananciaPorcentaje,
         cargo_venta_real: cargoVenta + costoCuotas,
         envio_costo: envio,
-        costo_fijo_ml: costoFijoML
+        costo_fijo_ml: costoFijoML,
+        ventas_30d,
       };
     });
   } catch (error) {

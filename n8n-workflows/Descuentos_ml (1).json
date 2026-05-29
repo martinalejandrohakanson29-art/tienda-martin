@@ -813,24 +813,16 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT \n    mla as \"item_id\", \n    nombre_publicacion as \"title\"\nFROM productos_maestros_old \nWHERE estado = 'active'\nAND ultima_actualizacion >= NOW() - INTERVAL '2 hours'",
-        "options": {}
+        "jsCode": "// Lee los MLAs pasados por cargo_ventas via executeWorkflow\nconst input = $('When Executed by Another Workflow').first().json;\nconst mlas = Array.isArray(input.mlas) ? input.mlas : [];\nreturn mlas.map(mla => ({ json: { item_id: mla } }));"
       },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         -16,
         336
       ],
       "id": "c3c4c5d1-3fff-4a24-9082-791b4a6dd3c3",
-      "name": "Execute a SQL query",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      }
+      "name": "Leer MLAs del trigger"
     },
     {
       "parameters": {
@@ -1034,14 +1026,14 @@
       "main": [
         [
           {
-            "node": "Execute a SQL query",
+            "node": "Leer MLAs del trigger",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Execute a SQL query": {
+    "Leer MLAs del trigger": {
       "main": [
         [
           {

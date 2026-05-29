@@ -692,28 +692,20 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT \n    mla as \"item_id\", \n    nombre_publicacion as \"title\"\nFROM productos_maestros_old \nWHERE estado = 'active'\nAND ultima_actualizacion >= NOW() - INTERVAL '2 hours';",
-        "options": {}
+        "jsCode": "// Lee los MLAs del body del webhook enviados por publicaciones-activas\nconst body = $('Webhook').first().json.body || {};\nconst mlas = Array.isArray(body.mlas) ? body.mlas : [];\nreturn mlas.map(mla => ({ json: { item_id: mla } }));"
       },
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         176,
         0
       ],
       "id": "57855765-c721-4f1a-a304-1fb9c6eb059b",
-      "name": "Execute a SQL query",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      }
+      "name": "Leer MLAs del body"
     },
     {
       "parameters": {
-        "jsCode": "// Este código crea un objeto con el mensaje de \"status ok\"\nreturn [\n  {\n    json: {\n      status: \"ok\",\n    }\n  }\n];"
+        "jsCode": "// Recolecta los MLAs procesados y los pasa a descuentos_ml\nconst mlas = $('Normalizar MLAs').all().map(item => item.json.item_id);\nreturn [{ json: { status: 'ok', mlas } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -913,14 +905,14 @@
       "main": [
         [
           {
-            "node": "Execute a SQL query",
+            "node": "Leer MLAs del body",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Execute a SQL query": {
+    "Leer MLAs del body": {
       "main": [
         [
           {

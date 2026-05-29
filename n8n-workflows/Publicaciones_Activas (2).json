@@ -300,7 +300,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Colapsa todos los items enviados en uno solo para llamar cargo_ventas una única vez\nreturn [{ json: { count: $input.all().length, status: 'done' } }];"
+        "jsCode": "// Recolecta todos los item_ids y los pasa a cargo_ventas\nconst items = $('Edit Fields1').all();\nconst mlas = [...new Set(items.map(item => item.json.item_id))];\nreturn [{ json: { mlas, count: mlas.length } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -312,6 +312,9 @@
       "parameters": {
         "method": "POST",
         "url": "https://n8n.revolucionmotos.tech/webhook/cargo_ventas",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ mlas: $json.mlas }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

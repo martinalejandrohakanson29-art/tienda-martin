@@ -85,6 +85,27 @@ export async function getRentabilidadData() {
   }
 }
 
+// Limpia todos los datos de rentabilidad para una lectura fresca
+export async function clearRentabilidadData() {
+  try {
+    await prisma.$transaction([
+      // Deja los productos sin estado activo (no los borra, preserva el registro)
+      prisma.productosMaestros.updateMany({
+        where: { estado: "active" },
+        data: { estado: null }
+      }),
+      prisma.mLFees.deleteMany({}),
+      prisma.mLDescuentos.deleteMany({}),
+      prisma.rentabilidadCalculada.deleteMany({})
+    ]);
+    revalidatePath("/admin/mercadolibre/rentabilidad");
+    return { success: true };
+  } catch (error) {
+    console.error("Error al limpiar datos de rentabilidad:", error);
+    return { success: false };
+  }
+}
+
 // Función que dispara webhooks y actualiza la tabla física
 export async function triggerRentabilidadUpdate() {
   const webhooks = [

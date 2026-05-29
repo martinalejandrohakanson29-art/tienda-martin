@@ -3,7 +3,8 @@ import { ArrowLeft, TrendingUp, Zap } from "lucide-react";
 import Link from "next/link";
 import RentabilidadTable from "./rentabilidad-table";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
-import RefreshButton from "./refresh-button"; // Importamos el nuevo componente
+import RefreshButton from "./refresh-button";
+import ClearButton from "./clear-button";
 
 export default async function RentabilidadPage() {
   const data = await getRentabilidadData();
@@ -27,8 +28,10 @@ export default async function RentabilidadPage() {
             </h1>
           </div>
           
-          {/* Reemplazamos el Button viejo por el RefreshButton funcional */}
-          <RefreshButton />
+          <div className="flex items-center gap-2">
+            <ClearButton />
+            <RefreshButton />
+          </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">

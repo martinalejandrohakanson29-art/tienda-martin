@@ -106,41 +106,26 @@ export async function clearRentabilidadData() {
   }
 }
 
-// Función que dispara webhooks y actualiza la tabla física
+// Función que limpia datos viejos y dispara la actualización completa
+// publicaciones-activas llama a cargo_ventas internamente al terminar (secuencial)
 export async function triggerRentabilidadUpdate() {
-  const webhooks = [
-  "https://n8n.revolucionmotos.tech/webhook/publicaciones-activas",
-   // "https://n8n.revolucionmotos.tech/webhook/descuentos_ml",
-    "https://n8n.revolucionmotos.tech/webhook/cargo_ventas"
-  ];
-
   try {
-    // 1. Ejecutar webhooks
-    await Promise.all(webhooks.map(url => fetch(url, { method: 'POST', cache: 'no-store' })));
-
-    // 2. Obtener datos frescos calculados
-    const data = await getRentabilidadData();
-
-    // 3. RESET Y CARGA: Sincronizamos con la tabla física RentabilidadCalculada
+    // 1. Limpiar datos viejos para que solo queden los activos reales de ML
     await prisma.$transaction([
-      prisma.rentabilidadCalculada.deleteMany({}), 
-      prisma.rentabilidadCalculada.createMany({
-        data: data.map(item => ({
-          mla: item.item_id,
-          variation_id: item.variation_id,
-          nombre: item.nombre,
-          nombre_variante: item.nombre_variante,
-          precio_original: item.precio_original,
-          desc_pct_total: item.desc_pct_total,
-          precio_final: item.precio_final,
-          precio_final_nuestro: item.precio_final_nuestro,
-          costo_total: item.costo_total,
-          neto_teorico: item.neto_teorico,
-          ganancia_neta: item.ganancia_neta,
-          ganancia_porcentaje: item.ganancia_porcentaje,
-        }))
-      })
+      prisma.productosMaestros.updateMany({
+        where: { estado: "active" },
+        data: { estado: null }
+      }),
+      prisma.mLFees.deleteMany({}),
+      prisma.mLDescuentos.deleteMany({}),
+      prisma.rentabilidadCalculada.deleteMany({})
     ]);
+
+    // 2. Disparar publicaciones-activas; al terminar llama cargo_ventas internamente
+    await fetch("https://n8n.revolucionmotos.tech/webhook/publicaciones-activas", {
+      method: 'POST',
+      cache: 'no-store'
+    });
 
     revalidatePath("/admin/mercadolibre/rentabilidad");
     return { success: true };

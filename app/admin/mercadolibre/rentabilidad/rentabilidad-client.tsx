@@ -4,6 +4,8 @@ import { useState, useMemo } from "react";
 import RentabilidadTable, { type ProductoRentabilidad } from "./rentabilidad-table";
 import OptimizarPreciosButton from "./optimizar-button";
 import type { AjustePrecio } from "@/app/actions/ajuste-precios";
+import { Button } from "@/components/ui/button";
+import { CheckSquare, Square } from "lucide-react";
 
 export default function RentabilidadClient({
   data,
@@ -36,8 +38,38 @@ export default function RentabilidadClient({
     [ajustes, selectedIds]
   );
 
+  const allQualifyingSelected = ajustes.every((a) => selectedIds.has(a.item_id));
+
+  const handleToggleAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allQualifyingSelected) {
+        ajustes.forEach((a) => next.delete(a.item_id));
+      } else {
+        ajustes.forEach((a) => next.add(a.item_id));
+      }
+      return next;
+    });
+  };
+
   const headerActions = (
-    <OptimizarPreciosButton ajustes={ajustesSeleccionados} />
+    <>
+      {ajustes.length > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleToggleAll}
+          className="h-8 text-xs text-slate-500 hover:text-violet-700 hover:bg-violet-50 gap-1.5"
+        >
+          {allQualifyingSelected ? (
+            <><CheckSquare className="h-3.5 w-3.5 text-violet-600" /> Destildar todos</>
+          ) : (
+            <><Square className="h-3.5 w-3.5" /> Tildar todos</>
+          )}
+        </Button>
+      )}
+      <OptimizarPreciosButton ajustes={ajustesSeleccionados} />
+    </>
   );
 
   return (

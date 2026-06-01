@@ -42,7 +42,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Expande el array items del webhook en ítems individuales de n8n\nconst input = $('Webhook').first().json;\nconst items = Array.isArray(input.items) ? input.items : [];\nif (items.length === 0) return [{ json: { error: 'No items received' } }];\nreturn items.map(item => ({ json: item }));"
+        "jsCode": "// Expande el array items del webhook en ítems individuales de n8n\nconst input = $('Webhook').first().json;\n// n8n envuelve el body en $json.body\nconst items = input.body?.items || input.items || [];\nif (items.length === 0) return [{ json: { error: 'No items received' } }];\nreturn items.map(item => ({ json: item }));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

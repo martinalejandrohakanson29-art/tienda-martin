@@ -5,7 +5,7 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "ajuste-precios",
-        "responseMode": "lastNode",
+        "responseMode": "onReceived",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",

@@ -161,14 +161,14 @@ export async function ejecutarAjustesRentabilidad(
   ajustes: { item_id: string; nuevo_precio: number; precio_original: number }[]
 ) {
   try {
-    const res = await fetch(WEBHOOK_AJUSTE, {
+    // fire-and-forget: n8n responde inmediatamente y procesa en background
+    fetch(WEBHOOK_AJUSTE, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ items: ajustes }),
       cache: "no-store",
-    });
+    }).catch(() => {}); // ignorar errores de red silenciosamente
 
-    if (!res.ok) throw new Error(`n8n error: ${res.status}`);
     revalidatePath("/admin/mercadolibre/rentabilidad");
     return { success: true };
   } catch (error) {

@@ -5,6 +5,7 @@ import RentabilidadTable from "./rentabilidad-table";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
 import RefreshButton from "./refresh-button";
 import ClearButton from "./clear-button";
+import OptimizarPreciosButton from "./optimizar-button";
 
 export default async function RentabilidadPage() {
   const data = await getRentabilidadData();
@@ -29,6 +30,7 @@ export default async function RentabilidadPage() {
           </div>
           
           <div className="flex items-center gap-2">
+            <OptimizarPreciosButton />
             <ClearButton />
             <RefreshButton />
           </div>

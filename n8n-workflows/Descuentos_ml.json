@@ -18,10 +18,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -2736,
-        384
+        -4720,
+        560
       ],
-      "id": "17456095-3079-49c3-81d5-c3faf46d73f4",
+      "id": "8a6e6e31-c9e5-4ea2-80e8-bacdaa042080",
       "name": "Normalizar MLAs"
     },
     {
@@ -49,10 +49,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -2544,
-        384
+        -4528,
+        560
       ],
-      "id": "b3ad6266-766b-4c1e-b399-7e71d37b9f2d",
+      "id": "182dced5-985f-440c-b403-ac35ca106029",
       "name": "Seller Promotions",
       "onError": "continueRegularOutput"
     },
@@ -63,10 +63,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2112,
-        384
+        -4096,
+        560
       ],
-      "id": "b6db54bf-a557-4b0c-9c82-8e1a9652e225",
+      "id": "c06a780e-deaf-4c64-bdad-aa48d675da47",
       "name": "Parsear promos users"
     },
     {
@@ -99,10 +99,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -2336,
-        384
+        -4320,
+        560
       ],
-      "id": "c200bbc1-03b6-47e0-94f8-41d938624786",
+      "id": "bcded206-2fcb-4ed7-a41b-acb395379200",
       "name": "Seller Promotions (items)",
       "onError": "continueRegularOutput"
     },
@@ -153,10 +153,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1904,
-        384
+        -3888,
+        560
       ],
-      "id": "851542d3-5cd4-4fa9-a9a6-1b275b518522",
+      "id": "8efff571-36a7-4f3d-80ae-1214f22fd609",
       "name": "Edit Fields"
     },
     {
@@ -169,10 +169,10 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        -1680,
-        288
+        -3664,
+        464
       ],
-      "id": "11de3d0d-1031-4dc6-b719-a62c022c9cf4",
+      "id": "90066589-f4ff-4122-9120-372581d40e1d",
       "name": "Merge"
     },
     {
@@ -182,25 +182,25 @@
             {
               "id": "0b1f4be5-360d-4a7f-bfde-56b5ab824ecd",
               "name": "precio final",
-              "value": "={{ $json[\"precio final\"] }}",
+              "value": "={{ $json.mejor_precio_promo != null && $json.mejor_precio_promo < $json['precio final'] ? $json.mejor_precio_promo : $json['precio final'] }}",
               "type": "number"
             },
             {
               "id": "5f15fddd-0ab1-4ff5-9775-5873012a7c2b",
               "name": "pct_descuento",
-              "value": "={{ $json.pct_descuento }}",
+              "value": "={{ $json.mejor_precio_promo != null && $json.mejor_precio_promo < $json['precio final'] ? Number(((($json.precio_standard_http1||$json.original_price) - $json.mejor_precio_promo) / ($json.precio_standard_http1||$json.original_price) * 100).toFixed(2)) : $json.pct_descuento }}",
               "type": "number"
             },
             {
               "id": "50463a7c-1737-494a-8415-c09303b929cf",
               "name": "seller_percentage",
-              "value": "={{ $json.seller_percentage }}",
+              "value": "={{ $json.mejor_precio_promo != null && $json.mejor_precio_promo < $json['precio final'] ? Number(((($json.precio_standard_http1||$json.original_price) - $json.mejor_precio_promo) / ($json.precio_standard_http1||$json.original_price) * 100).toFixed(2)) : $json.seller_percentage }}",
               "type": "number"
             },
             {
               "id": "55b6f1ba-e677-4140-9437-af9ef0a51d5d",
               "name": "meli_percentage",
-              "value": "={{ $json.meli_percentage }}",
+              "value": "={{ $json.mejor_precio_promo != null && $json.mejor_precio_promo < $json['precio final'] ? 0 : $json.meli_percentage }}",
               "type": "number"
             },
             {
@@ -212,13 +212,13 @@
             {
               "id": "00c4c744-216f-49de-9cb2-427e839a5a8e",
               "name": "descuento_propio",
-              "value": "NO",
+              "value": "={{ $json.mejor_precio_promo != null && $json.mejor_precio_promo < $json['precio final'] ? 'SI' : 'NO' }}",
               "type": "string"
             },
             {
               "id": "9616e633-846a-483c-b2de-93bd4edd0bcb",
               "name": "original_price",
-              "value": "={{ $json.original_price }}",
+              "value": "={{ $json.original_price ?? $json.precio_standard_http1 }}",
               "type": "number"
             }
           ]
@@ -228,10 +228,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1024,
-        480
+        -3008,
+        656
       ],
-      "id": "39518590-5bb7-4884-94cb-1fdcd722e606",
+      "id": "d689c52e-93c8-4229-a0f0-73e879ceafc4",
       "name": "Edit Fields2"
     },
     {
@@ -260,10 +260,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -2512,
-        128
+        -4496,
+        304
       ],
-      "id": "888e8c65-37b7-44e3-857e-b73e3bc1368e",
+      "id": "1431c5ec-8fc9-462d-94cd-ae98b1267cc2",
       "name": "HTTP Request1",
       "onError": "continueRegularOutput"
     },
@@ -279,9 +279,15 @@
             },
             {
               "id": "5b497b3a-e009-4cc1-9e57-a010e537a9cc",
-              "name": "precio final",
-              "value": "={{ $json.prices[0].amount }}",
-              "type": "string"
+              "name": "mejor_precio_promo",
+              "value": "={{ (() => { const now = new Date(); const promos = ($json.prices||[]).filter(p => p.type==='promotion' && (!p.conditions?.start_time || new Date(p.conditions.start_time)<=now) && (!p.conditions?.end_time || now<new Date(p.conditions.end_time)) && (!p.conditions?.context_restrictions?.length || p.conditions.context_restrictions.includes('channel_marketplace'))); return promos.length ? Math.min(...promos.map(p=>p.amount)) : null; })() }}",
+              "type": "number"
+            },
+            {
+              "id": "b3c4d5e6-f7a8-9012-cdef-345678901234",
+              "name": "precio_standard_http1",
+              "value": "={{ ($json.prices||[]).find(p => p.type==='standard')?.amount ?? null }}",
+              "type": "number"
             }
           ]
         },
@@ -290,10 +296,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -2160,
-        128
+        -4144,
+        304
       ],
-      "id": "26b0be8f-5553-451b-9d39-fdc1dbc3ae9a",
+      "id": "d884f80f-e9e6-4de8-ac7e-eddbf43e16f2",
       "name": "Edit Fields3"
     },
     {
@@ -324,10 +330,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -1520,
-        288
+        -3504,
+        464
       ],
-      "id": "8faa7994-d58d-4b06-97b2-6339484eea3b",
+      "id": "ec324d81-372f-4ce3-80d1-7d53de5606e7",
       "name": "If"
     },
     {
@@ -356,10 +362,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -1232,
-        144
+        -3216,
+        320
       ],
-      "id": "80d69300-a411-4c66-97e1-558b9baa6999",
+      "id": "6440c9fa-778c-4623-9e2b-29f89607d827",
       "name": "HTTP Request",
       "onError": "continueRegularOutput"
     },
@@ -370,26 +376,26 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1024,
-        144
+        -3008,
+        320
       ],
-      "id": "fbb8b3f3-ea1f-4794-aed1-11c3f87647bd",
+      "id": "b5ec8067-9d5d-4af0-8e91-a444fc6bf724",
       "name": "Calculo descuento"
     },
     {
       "parameters": {
         "mode": "combine",
         "fieldsToMatchString": "item_id",
-        "joinMode": "enrichInput2",
+        "joinMode": "keepEverything",
         "options": {}
       },
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        -496,
-        288
+        -2480,
+        464
       ],
-      "id": "fb259544-7bdc-48d6-a0d9-94810e36b054",
+      "id": "f6f955db-550b-4d5b-a9b8-5340d9c8ca27",
       "name": "Merge1"
     },
     {
@@ -431,6 +437,12 @@
               "name": "descuento_propio",
               "value": "={{ $json.precio_promo ? \"SI\" : \"NO\" }}",
               "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+              "name": "original_price",
+              "value": "={{ $json.precio_standard }}",
+              "type": "number"
             }
           ]
         },
@@ -439,10 +451,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -752,
-        144
+        -2736,
+        320
       ],
-      "id": "2ded7f79-0858-41a4-8221-1aa344864d91",
+      "id": "4d7b849f-f121-4c61-a403-83a71094441b",
       "name": "Edit Fields4"
     },
     {
@@ -722,10 +734,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        -256,
-        112
+        -2240,
+        288
       ],
-      "id": "f9664fcc-3d55-4c15-8ce7-8ac9f7fbb8c2",
+      "id": "f82a3f58-bec7-499e-a4ce-5db4ce0b9058",
       "name": "Update row in sheet",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -785,10 +797,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -240,
-        304
+        -2224,
+        480
       ],
-      "id": "dc38817f-088f-4122-a0c8-7301fec2d709",
+      "id": "5d9ab338-50b8-4c8a-b355-eddf363b9270",
       "name": "HTTP Request2",
       "onError": "continueRegularOutput"
     },
@@ -814,10 +826,10 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
       "position": [
-        -3088,
-        384
+        -5072,
+        560
       ],
-      "id": "69594308-2b7f-4a39-8dd4-4d08bd1651a5",
+      "id": "992726dd-102a-468a-8846-c461c9e590f6",
       "name": "Call 'Read_token'"
     },
     {
@@ -827,10 +839,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2880,
-        384
+        -4864,
+        560
       ],
-      "id": "a13e3297-82e1-420c-b1c4-bcdfef4ae759",
+      "id": "2741d24b-7c00-477e-8fec-c1555c5bec23",
       "name": "Leer MLAs del trigger"
     },
     {
@@ -840,10 +852,10 @@
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
       "position": [
-        -3312,
-        384
+        -5296,
+        560
       ],
-      "id": "3e9d8b6d-1601-4124-b21b-bf29bfc4a29f",
+      "id": "89448d03-4e49-4574-a953-34cfb549f01b",
       "name": "When Executed by Another Workflow"
     }
   ],
@@ -1072,7 +1084,7 @@
     "executionOrder": "v0",
     "binaryMode": "separate"
   },
-  "versionId": "11b10a26-2ad5-435e-8da6-176da416d80f",
+  "versionId": "a26e94be-7a01-48cb-ba5d-9be177aebafe",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"

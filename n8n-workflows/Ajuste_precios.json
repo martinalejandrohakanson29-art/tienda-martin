@@ -69,7 +69,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ price: $json.nuevo_precio, original_price: $json.precio_original }) }}",
+        "jsonBody": "={{ JSON.stringify({ price: $json.nuevo_precio }) }}",
         "options": {
           "batching": {
             "batch": {

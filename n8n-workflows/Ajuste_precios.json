@@ -52,8 +52,8 @@
     },
     {
       "parameters": {
-        "method": "PUT",
-        "url": "=https://api.mercadolibre.com/items/{{ $json.item_id }}",
+        "method": "POST",
+        "url": "=https://api.mercadolibre.com/seller-promotions/items/{{ $json.item_id }}?app_version=v2",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -69,7 +69,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ price: $json.nuevo_precio }) }}",
+        "jsonBody": "={{ JSON.stringify({ deal_price: $json.nuevo_precio, start_date: new Date().toISOString().slice(0,19), finish_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0,19), promotion_type: 'PRICE_DISCOUNT' }) }}",
         "options": {
           "batching": {
             "batch": {
@@ -88,7 +88,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Consolida resultados: separa OK de errores\nconst results = $input.all();\nconst ok = results.filter(r => r.json.id).length;\nconst errores = results.filter(r => !r.json.id).map(r => r.json);\nreturn [{ json: { total: results.length, ok, errores } }];"
+        "jsCode": "// Consolida resultados: separa OK de errores\n// Respuesta exitosa de seller-promotions: { price, original_price }\nconst results = $input.all();\nconst ok = results.filter(r => r.json.price != null).length;\nconst errores = results.filter(r => r.json.price == null).map(r => r.json);\nreturn [{ json: { total: results.length, ok, errores } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

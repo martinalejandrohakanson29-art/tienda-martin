@@ -40,7 +40,8 @@ function calcularNuevoPrecio(params: {
   if (denominador <= 0) return null;
 
   const x = (precioOriginal * (1 - r * (1 - m)) - K) / denominador;
-  if (x < 0 || x > 0.8) return null;
+  // ML exige descuento entre 5% y 80%
+  if (x < 0.05 || x >= 0.8) return null;
 
   const nuevoPrecio = redondear(precioOriginal * (1 - x));
   // Recalcular seller_pct real después del redondeo

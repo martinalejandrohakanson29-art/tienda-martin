@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Search, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface ProductoRentabilidad {
+export interface ProductoRentabilidad {
   item_id: string;
   variation_id: string | null;
   nombre: string;
@@ -41,7 +41,21 @@ type SortKey = keyof ProductoRentabilidad;
 const getItemId = (item: { item_id: string; variation_id?: string | null }) =>
   `${item.item_id}-${item.variation_id || ""}`;
 
-export default function RentabilidadTable({ data }: { data: ProductoRentabilidad[] }) {
+interface Props {
+  data: ProductoRentabilidad[];
+  selectedIds?: Set<string>;
+  qualifyingIds?: Set<string>;
+  onToggle?: (itemId: string) => void;
+  headerActions?: React.ReactNode;
+}
+
+export default function RentabilidadTable({
+  data,
+  selectedIds,
+  qualifyingIds,
+  onToggle,
+  headerActions,
+}: Props) {
   const [filter, setFilter] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: "asc" | "desc" }>({
     key: "ganancia_neta",
@@ -49,8 +63,6 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
   });
   const [overrides, setOverrides] = useState<Record<string, { desc_pct_nuestro?: string; costo_total?: string }>>({});
 
-  // Orden congelado: solo se actualiza al hacer click en un header.
-  // Editar overrides recalcula valores pero NO mueve filas.
   const [sortedIds, setSortedIds] = useState<string[]>(() =>
     [...data]
       .sort((a, b) => b.ganancia_neta - a.ganancia_neta)
@@ -117,11 +129,9 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     );
   });
 
-  // Solo al hacer click en un header: re-ordena sobre simulatedData completo y guarda el orden.
   const handleSort = (key: SortKey) => {
     const direction = sortConfig.key === key && sortConfig.direction === "asc" ? "desc" : "asc";
     setSortConfig({ key, direction });
-
     const sorted = [...simulatedData].sort((a, b) => {
       const aValue = (a as any)[key] ?? 0;
       const bValue = (b as any)[key] ?? 0;
@@ -133,7 +143,6 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     setSortedIds(sorted.map(getItemId));
   };
 
-  // Aplica el orden congelado sobre los datos filtrados. No cambia al editar overrides.
   const sortedData = (() => {
     const dataMap = new Map(filteredData.map((item) => [getItemId(item), item]));
     const ordered = sortedIds
@@ -167,6 +176,8 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
     </TableHead>
   );
 
+  const hasSelection = !!onToggle;
+
   return (
     <div className="flex flex-col h-full w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-4 border-b border-slate-200 bg-white">
@@ -185,8 +196,11 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
               </button>
             )}
           </div>
-          <div className="text-xs text-slate-500 font-medium">
-            {filteredData.length} ítems analizados
+          <div className="flex items-center gap-3">
+            {headerActions}
+            <div className="text-xs text-slate-500 font-medium whitespace-nowrap">
+              {filteredData.length} ítems analizados
+            </div>
           </div>
         </div>
       </div>
@@ -195,6 +209,7 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
             <TableRow>
+              {hasSelection && <TableHead className="w-8" />}
               <TableHead className="min-w-[300px] font-bold text-slate-700 text-[11px] cursor-pointer" onClick={() => handleSort("nombre")}>
                 Publicación / Variante
               </TableHead>
@@ -217,9 +232,32 @@ export default function RentabilidadTable({ data }: { data: ProductoRentabilidad
             {sortedData.map((item, index) => {
               const id = getItemId(item);
               const isSimulated = overrides[id] !== undefined;
+              const isChecked = selectedIds?.has(item.item_id) ?? false;
+              const isQualifying = qualifyingIds?.has(item.item_id) ?? false;
 
               return (
-                <TableRow key={`${id}-${index}`} className={cn("transition-colors border-slate-100 text-[11px]", isSimulated ? "bg-amber-50/30 hover:bg-amber-50/60" : "bg-white hover:bg-slate-50/80")}>
+                <TableRow
+                  key={`${id}-${index}`}
+                  className={cn(
+                    "transition-colors border-slate-100 text-[11px]",
+                    isChecked && isQualifying
+                      ? "bg-violet-50/40 hover:bg-violet-50/70"
+                      : isSimulated
+                      ? "bg-amber-50/30 hover:bg-amber-50/60"
+                      : "bg-white hover:bg-slate-50/80"
+                  )}
+                >
+                  {hasSelection && (
+                    <TableCell className="w-8 pr-0">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => onToggle?.(item.item_id)}
+                        className="h-4 w-4 rounded border-slate-300 accent-violet-600 cursor-pointer"
+                        title={isQualifying ? "Incluir en optimización" : "No califica (ganancia ≤70%)"}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="flex flex-col leading-tight">
                       <span className="font-semibold text-slate-800 truncate max-w-[280px]">{item.nombre}</span>

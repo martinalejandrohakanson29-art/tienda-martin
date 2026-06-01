@@ -1,15 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, TrendingUp, Zap } from "lucide-react";
 import Link from "next/link";
-import RentabilidadTable from "./rentabilidad-table";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
+import { calcularAjustesRentabilidad } from "@/app/actions/ajuste-precios";
 import RefreshButton from "./refresh-button";
 import ClearButton from "./clear-button";
-import OptimizarPreciosButton from "./optimizar-button";
+import RentabilidadClient from "./rentabilidad-client";
 
 export default async function RentabilidadPage() {
-  const data = await getRentabilidadData();
-  
+  const [data, { ajustes }] = await Promise.all([
+    getRentabilidadData(),
+    calcularAjustesRentabilidad(),
+  ]);
+
   const totalItems = data.length;
   const conDescuento = data.filter(i => i.desc_pct_total > 0).length;
 
@@ -28,9 +31,8 @@ export default async function RentabilidadPage() {
               Análisis de Rentabilidad Real
             </h1>
           </div>
-          
+
           <div className="flex items-center gap-2">
-            <OptimizarPreciosButton />
             <ClearButton />
             <RefreshButton />
           </div>
@@ -47,11 +49,15 @@ export default async function RentabilidadPage() {
               {conDescuento} <Zap className="h-5 w-5 fill-amber-400 text-amber-400" />
             </p>
           </div>
+          <div className="p-4 bg-white border border-violet-100 rounded-lg">
+            <p className="text-xs text-violet-600 font-semibold uppercase tracking-wider mb-1">Para Optimizar</p>
+            <p className="text-2xl font-bold text-slate-900">{ajustes.length}</p>
+          </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden px-6 pb-6 min-h-0">
-        <RentabilidadTable data={data} />
+        <RentabilidadClient data={data} ajustes={ajustes} />
       </div>
     </div>
   );

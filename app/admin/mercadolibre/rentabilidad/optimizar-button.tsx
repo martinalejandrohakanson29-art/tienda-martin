@@ -12,34 +12,23 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, TrendingDown, Zap, CheckCircle2 } from "lucide-react";
-import {
-  calcularAjustesRentabilidad,
-  ejecutarAjustesRentabilidad,
-  type AjustePrecio,
-} from "@/app/actions/ajuste-precios";
+import { ejecutarAjustesRentabilidad, type AjustePrecio } from "@/app/actions/ajuste-precios";
 import { cn } from "@/lib/utils";
 
-export default function OptimizarPreciosButton() {
-  const [calculando, setCalculando] = useState(false);
-  const [ejecutando, setEjecutando] = useState(false);
+export default function OptimizarPreciosButton({
+  ajustes,
+}: {
+  ajustes: AjustePrecio[];
+}) {
   const [open, setOpen] = useState(false);
-  const [ajustes, setAjustes] = useState<AjustePrecio[]>([]);
-  const [estado, setEstado] = useState<"idle" | "sin_cambios" | "enviado" | "error">("idle");
-
-  const handleCalcular = async () => {
-    setCalculando(true);
-    setEstado("idle");
-    const { success, ajustes: data } = await calcularAjustesRentabilidad();
-    setCalculando(false);
-    if (!success) { setEstado("error"); return; }
-    if (data.length === 0) { setEstado("sin_cambios"); return; }
-    setAjustes(data);
-    setOpen(true);
-  };
+  const [ejecutando, setEjecutando] = useState(false);
+  const [enviado, setEnviado] = useState(false);
+  const [error, setError] = useState(false);
 
   const handleEjecutar = async () => {
     setEjecutando(true);
-    const payload = ajustes.map(a => ({
+    setError(false);
+    const payload = ajustes.map((a) => ({
       item_id: a.item_id,
       nuevo_precio: a.nuevo_precio,
       precio_original: a.precio_original,
@@ -48,41 +37,35 @@ export default function OptimizarPreciosButton() {
     setEjecutando(false);
     if (success) {
       setOpen(false);
-      setEstado("enviado");
-      setAjustes([]);
+      setEnviado(true);
     } else {
-      setEstado("error");
+      setError(true);
     }
   };
+
+  if (ajustes.length === 0) return null;
 
   return (
     <div className="flex items-center gap-2">
       <Button
-        onClick={handleCalcular}
-        disabled={calculando}
+        onClick={() => { setEnviado(false); setError(false); setOpen(true); }}
         variant="outline"
-        className="border-violet-300 text-violet-700 hover:bg-violet-50 gap-2"
+        className="border-violet-300 text-violet-700 hover:bg-violet-50 gap-2 h-8 text-xs"
       >
-        {calculando ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : (
-          <TrendingDown className="h-4 w-4" />
-        )}
+        <TrendingDown className="h-3.5 w-3.5" />
         Optimizar precios
+        <span className="bg-violet-100 text-violet-700 font-bold rounded-full px-1.5 py-0.5 text-[10px] leading-none">
+          {ajustes.length}
+        </span>
       </Button>
 
-      {estado === "sin_cambios" && (
-        <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-          <CheckCircle2 className="h-3.5 w-3.5" /> Todos bajo 70%
-        </span>
-      )}
-      {estado === "enviado" && (
+      {enviado && (
         <span className="text-xs text-violet-600 font-medium flex items-center gap-1">
-          <CheckCircle2 className="h-3.5 w-3.5" /> Ajustes enviados a ML
+          <CheckCircle2 className="h-3.5 w-3.5" /> Ajustes enviados
         </span>
       )}
-      {estado === "error" && (
-        <span className="text-xs text-red-500 font-medium">Error al procesar</span>
+      {error && (
+        <span className="text-xs text-red-500 font-medium">Error al enviar</span>
       )}
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -90,11 +73,11 @@ export default function OptimizarPreciosButton() {
           <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-violet-600" />
-              Optimizar precios — {ajustes.length} publicaciones
+              Optimizar precios — {ajustes.length} publicaciones seleccionadas
             </DialogTitle>
             <DialogDescription>
-              Ganancia actual &gt;70%. Se aplicará descuento propio para llevar al 65%.
-              El cambio se aplica directamente en MercadoLibre.
+              Se aplicará descuento propio para llevar la ganancia al 65%.
+              El cambio se aplica directamente en MercadoLibre sin vencimiento.
             </DialogDescription>
           </DialogHeader>
 
@@ -105,9 +88,9 @@ export default function OptimizarPreciosButton() {
                   <th className="text-left p-2 pl-4 font-semibold text-slate-600">Publicación</th>
                   <th className="text-right p-2 font-semibold text-[#d413c3]">Gan. actual</th>
                   <th className="text-right p-2 font-semibold text-slate-400">P. original</th>
-                  <th className="text-right p-2 font-semibold text-slate-600">P. actual (nuestro)</th>
+                  <th className="text-right p-2 font-semibold text-slate-600">P. actual</th>
                   <th className="text-right p-2 pr-4 font-semibold text-violet-700">Nuevo precio</th>
-                  <th className="text-right p-2 pr-4 font-semibold text-amber-600">Dcto. a aplicar</th>
+                  <th className="text-right p-2 pr-4 font-semibold text-amber-600">Dcto. aplicar</th>
                 </tr>
               </thead>
               <tbody>
@@ -163,8 +146,7 @@ export default function OptimizarPreciosButton() {
           <DialogFooter className="p-4 border-t bg-slate-50 rounded-b-lg">
             <div className="flex items-center justify-between w-full">
               <p className="text-xs text-slate-500">
-                Se actualizará <strong>price</strong> y <strong>original_price</strong> en cada publicación de ML.
-                La promoción no tiene vencimiento.
+                Actualiza <strong>price</strong> y <strong>original_price</strong> en ML. Sin vencimiento.
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)} disabled={ejecutando}>

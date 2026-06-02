@@ -310,7 +310,17 @@ export default function MovimientosClient({
       },
     });
 
-    const saldoActual = activeMovimientos[0]?.saldo ?? 0;
+    // El saldo actual debe ser el total REAL de la cuenta corriente del proveedor
+    // (misma fuente de verdad que /admin/erp/cuenta-corriente), no el snapshot del
+    // último movimiento del set filtrado, que puede estar desfasado por el filtro de
+    // fechas o por el orden. Buscamos el proveedor por su id en la lista cargada.
+    const proveedorIds = Array.from(new Set(activeMovimientos.map(m => m.proveedorId)));
+    const proveedorActual = proveedorIds.length === 1
+      ? proveedores.find(p => p.id === proveedorIds[0])
+      : undefined;
+    const saldoActual = proveedorActual
+      ? proveedorActual.total
+      : (activeMovimientos[0]?.saldo ?? 0);
     const finalY = (doc as any).lastAutoTable.finalY;
     const saldoPositivo = saldoActual >= 0;
 

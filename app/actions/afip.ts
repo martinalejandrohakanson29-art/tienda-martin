@@ -3,6 +3,7 @@
 import { LoginTicket, Wsfev1, PersonaServiceA5, PersonaServiceA13 } from 'afip-apis';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
 // Esta es la clave: Ruta absoluta para que no importe el modo standalone
 // Detectamos si estamos en producción (ej: Railway) o local (Windows/Mac)
@@ -10,6 +11,13 @@ const isProduction = process.env.NODE_ENV === 'production' || fs.existsSync('/ap
 const BASE_REGISTRACION = isProduction
     ? '/app/Registracion'
     : path.join(process.cwd(), 'Registracion');
+
+// En producción /app/Registracion es de solo lectura: el cache del ticket de
+// acceso debe escribirse en un directorio con permisos de escritura (/tmp),
+// de lo contrario se re-autentica contra WSAA en cada request (riesgo de que
+// ARCA bloquee por exceso de logins). Los certificados se siguen leyendo de
+// BASE_REGISTRACION.
+const CACHE_DIR = isProduction ? os.tmpdir() : BASE_REGISTRACION;
 
 const AFIP_CONFIG = {
     CUIT: process.env.AFIP_CUIT!,
@@ -26,7 +34,7 @@ async function obtenerTicketAcceso(servicio: string = 'wsfe') {
 
     // El cache depende de la URL para evitar usar tickets de Homologación en Producción
     const envHash = AFIP_CONFIG.urlWsaa.includes('homo') ? 'homo' : 'prod';
-    const cachePath = path.join(BASE_REGISTRACION, `ticket_cache_${servicio}_${envHash}.json`);
+    const cachePath = path.join(CACHE_DIR, `ticket_cache_${servicio}_${envHash}.json`);
 
     console.log(`🔍 [AFIP] Configurando servicio "${servicio}" | env: ${envHash} | cert: ${AFIP_CONFIG.certPath}`);
 

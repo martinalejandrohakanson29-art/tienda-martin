@@ -599,7 +599,8 @@ export default function VentasMostradorClient({
           v.dni?.toLowerCase().includes(term);
       }
       if (tipoBusqueda === "mla_venta") {
-        return v.mlIdVenta?.toLowerCase().includes(term);
+        return v.mlIdVenta?.toLowerCase().includes(term) ||
+          v.mlPackId?.toLowerCase().includes(term);
       }
       if (tipoBusqueda === "mla_envio") {
         return v.mlIdEnvio?.toLowerCase().includes(term);
@@ -2237,14 +2238,28 @@ export default function VentasMostradorClient({
                                   </span>
                                 </TableCell>
                                 <TableCell
-                                  className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"
-                                  onClick={() => {
-                                    const val = (v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "") : (v.cupon || "");
-                                    if (val) copiarAlPortapapeles(val);
-                                  }}
-                                  title="Click para copiar"
+                                  className="py-4 text-xs font-mono text-slate-600"
                                 >
-                                  {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (v.de || "-") : (v.cupon || "-")}
+                                  {(v.metodo_pago === 'Cruzada' || v.metodo_pago === 'Mixto') ? (
+                                    <span className="cursor-pointer hover:text-blue-600 transition-colors" onClick={() => v.de && copiarAlPortapapeles(v.de)} title="Click para copiar">
+                                      {v.de || "-"}
+                                    </span>
+                                  ) : (
+                                    <div className="flex flex-col gap-0.5">
+                                      <span className="cursor-pointer hover:text-blue-600 transition-colors" onClick={() => v.cupon && copiarAlPortapapeles(v.cupon)} title="Click para copiar order ID">
+                                        {v.cupon || "-"}
+                                      </span>
+                                      {v.mlPackId && (
+                                        <span
+                                          className="text-[10px] text-yellow-700 font-bold bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-200 cursor-pointer hover:bg-yellow-100 transition-colors w-fit"
+                                          onClick={() => copiarAlPortapapeles(v.mlPackId)}
+                                          title={`Pack ID: ${v.mlPackId} — Click para copiar`}
+                                        >
+                                          Pack: {v.mlPackId}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                 </TableCell>
                                 <TableCell
                                   className="py-4 text-xs font-mono text-slate-600 cursor-pointer hover:text-blue-600 transition-colors"

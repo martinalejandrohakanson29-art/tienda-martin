@@ -1833,6 +1833,7 @@ export async function buscarVentaGlobalPorMLId(mlId: string) {
         OR: [
           { mlIdVenta: { contains: term } },
           { mlIdEnvio: { contains: term } },
+          { mlPackId: { contains: term } },
         ],
       },
       include: { items: true, puntoVenta: true },

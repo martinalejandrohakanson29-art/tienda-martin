@@ -47,6 +47,7 @@ interface Props {
   qualifyingIds?: Set<string>;
   onToggle?: (itemId: string) => void;
   headerActions?: React.ReactNode;
+  ajustesMap?: Map<string, number>;
 }
 
 export default function RentabilidadTable({
@@ -55,6 +56,7 @@ export default function RentabilidadTable({
   qualifyingIds,
   onToggle,
   headerActions,
+  ajustesMap,
 }: Props) {
   const [filter, setFilter] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: "asc" | "desc" }>({
@@ -219,6 +221,7 @@ export default function RentabilidadTable({
               <SortableHead label="Dcto Nuestro" sortKey="desc_pct_nuestro" className="text-amber-600" />
               <SortableHead label="P. Público" sortKey="precio_final" className="text-slate-500" />
               <SortableHead label="P. Nuestro" sortKey="precio_final_nuestro" className="text-slate-900 bg-slate-100" />
+              <TableHead className="text-right text-violet-700 font-bold text-[11px] bg-violet-50 whitespace-nowrap">P. Optimizado</TableHead>
               <SortableHead label="Costo" sortKey="costo_total" className="text-slate-700 bg-slate-100" />
               <SortableHead label="Comisión %" sortKey="comision_pct" className="text-red-500" />
               <SortableHead label="Impuesto" sortKey="impuesto_pct" className="text-orange-600" />
@@ -298,6 +301,15 @@ export default function RentabilidadTable({
                   </TableCell>
                   <TableCell className="text-right font-bold text-slate-900 bg-slate-50">
                     ${item.precio_final_nuestro.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                  </TableCell>
+                  <TableCell className="text-right font-bold bg-violet-50">
+                    {ajustesMap?.has(item.item_id) ? (
+                      <span className="text-violet-700">
+                        ${ajustesMap.get(item.item_id)!.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
                     <div className="flex justify-end items-center gap-1">

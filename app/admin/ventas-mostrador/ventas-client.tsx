@@ -6,7 +6,7 @@ import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp, Package, BellRing, Bell
+  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp, Package, BellRing, Bell, ArrowRightLeft
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -29,7 +29,7 @@ import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, obtenerVentasMLPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
-  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML
+  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
@@ -1574,6 +1574,80 @@ export default function VentasMostradorClient({
     }
   };
 
+  // ─── Refacturación B → A (comprador pide Factura A) ───────────────────────────
+  const [ventaParaRefacturar, setVentaParaRefacturar] = useState<any | null>(null);
+  const [refacturarCuit, setRefacturarCuit] = useState("");
+  const [refacturarPadron, setRefacturarPadron] = useState<any | null>(null);
+  const [refacturarBuscando, setRefacturarBuscando] = useState(false);
+  const [refacturarProcesando, setRefacturarProcesando] = useState(false);
+
+  const abrirModalRefacturar = (venta: any) => {
+    setVentaParaRefacturar(venta);
+    setRefacturarCuit("");
+    setRefacturarPadron(null);
+  };
+
+  const cerrarModalRefacturar = () => {
+    if (refacturarProcesando) return;
+    setVentaParaRefacturar(null);
+    setRefacturarCuit("");
+    setRefacturarPadron(null);
+  };
+
+  const handleBuscarPadronRefacturar = async () => {
+    const cleanCuit = refacturarCuit.replace(/\D/g, "");
+    if (cleanCuit.length !== 11) {
+      alert("Ingresá un CUIT válido de 11 dígitos.");
+      return;
+    }
+    setRefacturarBuscando(true);
+    setRefacturarPadron(null);
+    try {
+      const res = await consultarPadron(cleanCuit);
+      if (res.success) {
+        setRefacturarPadron(res);
+      } else {
+        alert("No se pudo validar el CUIT: " + res.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error al consultar el padrón de ARCA.");
+    } finally {
+      setRefacturarBuscando(false);
+    }
+  };
+
+  const handleConfirmarRefacturar = async () => {
+    if (!ventaParaRefacturar) return;
+    const cleanCuit = refacturarCuit.replace(/\D/g, "");
+    if (cleanCuit.length !== 11) {
+      alert("Ingresá un CUIT válido de 11 dígitos.");
+      return;
+    }
+    if (!refacturarPadron || refacturarPadron.tipoFactura !== 1) {
+      alert("El CUIT debe ser Responsable Inscripto para emitir Factura A. Verificá con el botón de validación.");
+      return;
+    }
+    setRefacturarProcesando(true);
+    try {
+      const res = await refacturarComoA(ventaParaRefacturar.id, cleanCuit);
+      if (res.success) {
+        mostrarMensajeExito(res.message || "Venta refacturada como Factura A.");
+        setVentaParaRefacturar(null);
+        setRefacturarCuit("");
+        setRefacturarPadron(null);
+        cargarVentas(fechaDesde, fechaHasta);
+      } else {
+        alert("Error al refacturar: " + res.error + (res.details ? "\n" + JSON.stringify(res.details) : ""));
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Ocurrió un error al intentar refacturar la venta.");
+    } finally {
+      setRefacturarProcesando(false);
+    }
+  };
+
   // --- FUNCIONES: MODIFICAR PRECIO EN BASE DE DATOS (MODAL CLÁSICO) ---
 
   const abrirModalPrecioDB = (idArticulo: string, precioInputActual: number) => {
@@ -2373,6 +2447,15 @@ export default function VentasMostradorClient({
                                         >
                                           {isGeneratingPDF && ventaParaFactura?.id === v.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
                                         </button>
+                                        {v.tipoComprobante === 6 && !v.info?.includes("REFACTURADA") && !v.info?.includes("ANULADA CON NC") && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); abrirModalRefacturar(v); }}
+                                            className="p-2 rounded-xl text-violet-500 hover:text-violet-700 hover:bg-violet-50 transition-all border border-transparent"
+                                            title="Refacturar como Factura A (genera NC de la B y emite Factura A con CUIT)"
+                                          >
+                                            <ArrowRightLeft className="h-5 w-5" />
+                                          </button>
+                                        )}
                                         <div className="p-2 text-green-600 bg-green-50 rounded-xl border border-green-100" title={`Facturado - CAE: ${v.cae}`}>
                                           <ShieldCheck className="h-5 w-5" />
                                         </div>
@@ -4109,6 +4192,94 @@ export default function VentasMostradorClient({
                   <><AlertTriangle className="h-4 w-4 mr-2" /> Anular con NC</>
                 ) : (
                   <><Trash2 className="h-4 w-4 mr-2" /> Eliminar Venta</>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* --- MODAL: REFACTURAR B → A (comprador pide Factura A) --- */}
+        <Dialog open={!!ventaParaRefacturar} onOpenChange={(o) => { if (!o) cerrarModalRefacturar(); }}>
+          <DialogContent className="sm:max-w-[480px] rounded-3xl p-6 border-2 border-violet-400 shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-violet-900">
+                <ArrowRightLeft className="h-5 w-5 text-violet-600" /> Refacturar como Factura A
+              </DialogTitle>
+              <DialogDescription className="text-slate-600">
+                Se generará una <b>Nota de Crédito</b> de la Factura B y se emitirá una <b>Factura A</b> con el CUIT del comprador, por el mismo importe. No se modifica el stock ni el estado de la venta.
+              </DialogDescription>
+            </DialogHeader>
+
+            {ventaParaRefacturar && (
+              <div className="py-2 space-y-4">
+                <div className="p-3 bg-violet-50/60 rounded-xl border border-violet-100 flex flex-col gap-1">
+                  <p className="text-[10px] text-violet-700 font-bold uppercase tracking-wider">Factura B a anular</p>
+                  <p className="text-sm font-bold text-slate-900">
+                    N° {(ventaParaRefacturar.facturaNumero || 0).toString().padStart(8, '0')} · PV {(ventaParaRefacturar.facturaPuntoVenta || 9).toString().padStart(4, '0')}
+                  </p>
+                  <p className="text-sm font-bold text-slate-900">
+                    Total: ${Number(ventaParaRefacturar.totalFinal || ventaParaRefacturar.total).toLocaleString('es-AR')}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-600 uppercase">CUIT del comprador (Responsable Inscripto)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      autoFocus
+                      placeholder="30-12345678-9"
+                      value={refacturarCuit}
+                      onChange={(e) => { setRefacturarCuit(e.target.value); setRefacturarPadron(null); }}
+                      className="font-mono h-11 border-violet-200 focus-visible:ring-violet-500"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleBuscarPadronRefacturar}
+                      disabled={refacturarBuscando}
+                      className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold px-4 shrink-0"
+                    >
+                      {refacturarBuscando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+
+                {refacturarPadron && (
+                  refacturarPadron.tipoFactura === 1 ? (
+                    <div className="p-3 bg-green-50 rounded-xl border border-green-200 flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-black text-green-700 uppercase tracking-wide">Responsable Inscripto ✓</span>
+                        <span className="text-sm font-bold text-slate-900">{refacturarPadron.nombre}</span>
+                        {refacturarPadron.domicilio && <span className="text-xs text-slate-500">{refacturarPadron.domicilio}</span>}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-rose-600 mt-0.5 shrink-0" />
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-black text-rose-700 uppercase tracking-wide">No es Responsable Inscripto</span>
+                        <span className="text-sm font-bold text-slate-900">{refacturarPadron.nombre}</span>
+                        <span className="text-xs text-rose-600">No corresponde emitir Factura A para este CUIT.</span>
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={cerrarModalRefacturar} disabled={refacturarProcesando} className="border-slate-300 text-slate-700 hover:bg-slate-100">
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmarRefacturar}
+                disabled={refacturarProcesando || !refacturarPadron || refacturarPadron.tipoFactura !== 1}
+                className="bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-bold px-6 shadow-md disabled:opacity-50"
+              >
+                {refacturarProcesando ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Procesando...</>
+                ) : (
+                  <><ArrowRightLeft className="h-4 w-4 mr-2" /> Emitir Factura A</>
                 )}
               </Button>
             </DialogFooter>

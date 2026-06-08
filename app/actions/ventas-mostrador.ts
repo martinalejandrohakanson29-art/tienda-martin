@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 import { revalidatePath } from "next/cache";
-import { facturarVenta, generarNotaCredito } from "./afip";
+import { facturarVenta, generarNotaCredito, consultarPadron } from "./afip";
 import { s3Client } from "@/lib/s3"
 import {
   PutObjectCommand,
@@ -1739,6 +1739,242 @@ export async function cancelarVenta(ventaId: string) {
   }, { timeout: 20000 });
   revalidatePath("/admin/ventas-mostrador");
   return { success: true, message: "Venta cancelada correctamente." };
+}
+
+// Convierte el vencimiento de ARCA (YYYYMMDD string) a Date
+function parseVtoCae(vto?: string): Date {
+  if (!vto || vto.length < 8) return new Date();
+  return new Date(
+    parseInt(vto.substring(0, 4)),
+    parseInt(vto.substring(4, 6)) - 1,
+    parseInt(vto.substring(6, 8))
+  );
+}
+
+/**
+ * Refactura una venta que se facturó como Consumidor Final (Factura B) cuando
+ * el comprador, siendo Responsable Inscripto, solicita Factura A.
+ *
+ * Secuencia legal con ARCA:
+ *   1. Valida que el CUIT sea Responsable Inscripto (padrón A5).
+ *   2. Emite Nota de Crédito B asociada a la Factura B original (la anula).
+ *   3. Emite Factura A con el CUIT del comprador, por el mismo importe.
+ *
+ * NO toca stock ni el estado de la venta: la operación es real y ya se despachó.
+ * Snapshotea la Factura B original y registra el estado previo completo en
+ * auditoría, de modo que no se pierde ningún dato existente.
+ */
+export async function refacturarComoA(ventaId: string, cuitInput: string) {
+  const session = await requireAdmin();
+  const usuario = (session.user as any)?.name || (session.user as any)?.email || "Admin";
+
+  try {
+    const venta = await prisma.venta.findUnique({ where: { id: ventaId } });
+    if (!venta) return { success: false, error: "Venta no encontrada" };
+    if (!venta.cae) return { success: false, error: "La venta no tiene factura emitida en ARCA" };
+    if (venta.tipoComprobante !== 6) {
+      return { success: false, error: "Solo se puede refacturar como A una Factura B (Consumidor Final)" };
+    }
+    if (venta.info?.includes("REFACTURADA")) {
+      return { success: false, error: "Esta venta ya fue refacturada anteriormente" };
+    }
+
+    const cuitLimpio = (cuitInput || "").replace(/\D/g, "");
+    if (cuitLimpio.length !== 11) {
+      return { success: false, error: "CUIT inválido: deben ser 11 dígitos" };
+    }
+
+    // 1. Validar condición frente al IVA: solo a un RI le corresponde Factura A
+    const padron = await consultarPadron(cuitLimpio);
+    if (!padron.success) {
+      return { success: false, error: `No se pudo validar el CUIT en ARCA: ${padron.error}` };
+    }
+    if (padron.tipoFactura !== 1) {
+      return {
+        success: false,
+        error: `El CUIT ${cuitLimpio} (${padron.nombre || "s/d"}) no es Responsable Inscripto. No corresponde Factura A.`,
+      };
+    }
+
+    const total = Number(venta.totalFinal || venta.total);
+    const neto = parseFloat((total / 1.21).toFixed(2));
+    const importeIva = parseFloat((total - neto).toFixed(2));
+    const ptoVtaOriginal = venta.facturaPuntoVenta || 9;
+
+    // 2. Nota de Crédito B sobre la Factura B original
+    const resNC = await generarNotaCredito({
+      total,
+      docTipo: venta.docTipo || 99,
+      docNro: (venta.docNro || venta.dni || "0").replace(/\D/g, ""),
+      tipoFacturaOriginal: venta.tipoComprobante, // 6
+      puntoVentaOriginal: ptoVtaOriginal,
+      numeroFacturaOriginal: venta.facturaNumero || 0,
+      condicionIva: venta.condicionIva || 5,
+    });
+    if (!resNC.success) {
+      return {
+        success: false,
+        error: "No se pudo generar la Nota de Crédito en ARCA",
+        details: (resNC as any).details || resNC.error,
+      };
+    }
+
+    // 3. Factura A con el CUIT del comprador (mismo importe)
+    const resA = await facturarVenta({
+      monto: total,
+      docTipo: 80, // CUIT
+      docNro: parseInt(cuitLimpio),
+      ivaReceptor: 1, // Responsable Inscripto
+      tipoComprobante: 1, // Factura A
+    });
+    if (!resA.success) {
+      // CRÍTICO: ARCA no es transaccional. La NC ya quedó emitida con CAE.
+      // La persistimos para no perder el dato ni re-emitirla, y avisamos.
+      await prisma.comprobante.create({
+        data: {
+          ventaId,
+          tipo: resNC.tipoComprobante!,
+          puntoVenta: ptoVtaOriginal,
+          numero: resNC.numero!,
+          cae: resNC.cae!,
+          vencimientoCae: parseVtoCae(resNC.vencimiento),
+          docTipo: venta.docTipo,
+          docNro: venta.docNro,
+          condicionIva: venta.condicionIva,
+          cliente: venta.cliente,
+          total: new Prisma.Decimal(total),
+          neto: new Prisma.Decimal(neto),
+          importeIva: new Prisma.Decimal(importeIva),
+          asociadoTipo: 6,
+          asociadoPtoVta: ptoVtaOriginal,
+          asociadoNumero: venta.facturaNumero || 0,
+        },
+      }).catch((e) => console.error("No se pudo persistir la NC huérfana:", e));
+
+      return {
+        success: false,
+        error: `La Nota de Crédito Nro ${resNC.numero} se emitió en ARCA, pero la Factura A fue rechazada. La NC quedó registrada; revisá el motivo y reintentá. NO vuelvas a generar la NC.`,
+        details: (resA as any).details || resA.error,
+      };
+    }
+
+    // 4. Persistir todo en una transacción. No se toca stock ni estado.
+    const infoOriginal = venta.info || "";
+    await prisma.$transaction(async (tx) => {
+      // 4a. Snapshot de la Factura B original (queda anulada por la NC)
+      await tx.comprobante.create({
+        data: {
+          ventaId,
+          tipo: 6,
+          puntoVenta: ptoVtaOriginal,
+          numero: venta.facturaNumero || 0,
+          cae: venta.cae!,
+          vencimientoCae: venta.vencimientoCae,
+          docTipo: venta.docTipo,
+          docNro: venta.docNro,
+          condicionIva: venta.condicionIva,
+          cliente: venta.cliente,
+          total: new Prisma.Decimal(total),
+          anulado: true,
+        },
+      });
+
+      // 4b. Nota de Crédito B
+      await tx.comprobante.create({
+        data: {
+          ventaId,
+          tipo: resNC.tipoComprobante!,
+          puntoVenta: ptoVtaOriginal,
+          numero: resNC.numero!,
+          cae: resNC.cae!,
+          vencimientoCae: parseVtoCae(resNC.vencimiento),
+          docTipo: venta.docTipo,
+          docNro: venta.docNro,
+          condicionIva: venta.condicionIva,
+          cliente: venta.cliente,
+          total: new Prisma.Decimal(total),
+          neto: new Prisma.Decimal(neto),
+          importeIva: new Prisma.Decimal(importeIva),
+          asociadoTipo: 6,
+          asociadoPtoVta: ptoVtaOriginal,
+          asociadoNumero: venta.facturaNumero || 0,
+        },
+      });
+
+      // 4c. Factura A nueva (comprobante vigente)
+      await tx.comprobante.create({
+        data: {
+          ventaId,
+          tipo: 1,
+          puntoVenta: 9,
+          numero: resA.numero!,
+          cae: resA.cae!,
+          vencimientoCae: parseVtoCae(resA.vencimiento),
+          docTipo: 80,
+          docNro: cuitLimpio,
+          condicionIva: 1,
+          cliente: padron.nombre || venta.cliente,
+          total: new Prisma.Decimal(total),
+          neto: new Prisma.Decimal(neto),
+          importeIva: new Prisma.Decimal(importeIva),
+        },
+      });
+
+      // 4d. La venta pasa a apuntar a la Factura A (vigente)
+      await tx.venta.update({
+        where: { id: ventaId },
+        data: {
+          cae: resA.cae,
+          facturaNumero: resA.numero,
+          facturaPuntoVenta: 9,
+          tipoComprobante: 1,
+          docTipo: 80,
+          docNro: cuitLimpio,
+          condicionIva: 1,
+          cliente: padron.nombre || venta.cliente,
+          vencimientoCae: parseVtoCae(resA.vencimiento),
+          importeIva: new Prisma.Decimal(importeIva),
+          alicuotaIva: 5,
+          info: `${infoOriginal ? infoOriginal + " | " : ""}REFACTURADA: Factura B ${venta.facturaNumero} (PV ${ptoVtaOriginal}) anulada con NC ${resNC.numero}, emitida Factura A ${resA.numero} para CUIT ${cuitLimpio}`,
+        },
+      });
+
+      // 4e. Auditoría con el estado fiscal previo completo (cero pérdida de datos)
+      await tx.ventaAuditoria.create({
+        data: {
+          ventaId,
+          usuario,
+          accion: "REFACTURAR_A",
+          detalle: JSON.stringify({
+            resumen: `Factura B ${venta.facturaNumero} → NC ${resNC.numero} → Factura A ${resA.numero} (CUIT ${cuitLimpio})`,
+            estadoPrevio: {
+              cae: venta.cae,
+              facturaNumero: venta.facturaNumero,
+              facturaPuntoVenta: ptoVtaOriginal,
+              tipoComprobante: venta.tipoComprobante,
+              docTipo: venta.docTipo,
+              docNro: venta.docNro,
+              condicionIva: venta.condicionIva,
+              cliente: venta.cliente,
+              vencimientoCae: venta.vencimientoCae,
+            },
+          }),
+        },
+      });
+    }, { timeout: 20000 });
+
+    revalidatePath("/admin/ventas-mostrador");
+    return {
+      success: true,
+      message: `Refacturada: Factura A ${resA.numero} emitida a nombre de ${padron.nombre || cuitLimpio}. Factura B ${venta.facturaNumero} anulada con NC ${resNC.numero}.`,
+      facturaA: resA.numero,
+      nc: resNC.numero,
+      razonSocial: padron.nombre,
+    };
+  } catch (error: any) {
+    console.error("Error en refacturarComoA:", error);
+    return { success: false, error: error.message || "Error interno al refacturar" };
+  }
 }
 
 export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: string) {

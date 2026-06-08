@@ -499,8 +499,45 @@ model Venta {
   auditorias    VentaAuditoria[]
   puntoVenta    PuntoVenta?      @relation(fields: [puntoVentaId], references: [id])
   items         VentaItem[]
+  comprobantes  Comprobante[]
 
   @@map("ventas_mostrador")
+}
+
+// Historial de comprobantes ARCA emitidos para una venta.
+// 1 fila por comprobante (Factura B, Nota de Crédito, Factura A, etc.).
+// La Venta mantiene los campos cae/facturaNumero/tipoComprobante apuntando
+// al comprobante VIGENTE; esta tabla guarda la trazabilidad fiscal completa.
+model Comprobante {
+  id             String    @id @default(cuid())
+  ventaId        String
+  venta          Venta     @relation(fields: [ventaId], references: [id], onDelete: Cascade)
+
+  tipo           Int       // 6=Fact B, 1=Fact A, 8=NC B, 3=NC A, 11=Fact C, 13=NC C
+  puntoVenta     Int       @default(9)
+  numero         Int
+  cae            String
+  vencimientoCae DateTime?
+
+  // Snapshot del receptor y montos al momento de emitir
+  docTipo        Int?      // 80=CUIT, 96=DNI, 99=CF
+  docNro         String?
+  condicionIva   Int?
+  cliente        String?
+  total          Decimal   @db.Decimal(20, 2)
+  neto           Decimal?  @db.Decimal(20, 2)
+  importeIva     Decimal?  @db.Decimal(20, 2)
+
+  // Si es Nota de Crédito: a qué comprobante anula
+  asociadoTipo   Int?
+  asociadoPtoVta Int?
+  asociadoNumero Int?
+
+  anulado        Boolean   @default(false)  // true si este comprobante fue anulado por una NC
+  createdAt      DateTime  @default(now())
+
+  @@index([ventaId])
+  @@map("comprobantes")
 }
 
 model VentaItem {

@@ -26,7 +26,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { DateRangeCalendar } from "./date-range-calendar";
 import {
-  crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, marcarVentaComoRegistrada,
+  crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, obtenerVentasMLPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId
@@ -330,6 +330,9 @@ export default function VentasMostradorClient({
   const [filtroMetodoPago, setFiltroMetodoPago] = useState("");
   const [ventasGlobales, setVentasGlobales] = useState<any[] | null>(null);
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
+  const [ventasML, setVentasML] = useState<any[]>([]);
+  const [mlCargadas, setMlCargadas] = useState(false);
+  const [isLoadingML, setIsLoadingML] = useState(false);
 
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
@@ -458,8 +461,10 @@ export default function VentasMostradorClient({
 
   const cargarVentas = async (fechaDesde: string, fechaHasta: string) => {
     setIsLoadingVentas(true);
+    setVentasML([]);
+    setMlCargadas(false);
     try {
-      const res = await obtenerVentasPorRango(fechaDesde, fechaHasta);
+      const res = await obtenerVentasPorRango(fechaDesde, fechaHasta, true);
       if (res.success) {
         setVentasRealizadas(res.data || []);
       }
@@ -467,6 +472,21 @@ export default function VentasMostradorClient({
       console.error("Error al cargar ventas:", error);
     } finally {
       setIsLoadingVentas(false);
+    }
+  };
+
+  const cargarVentasML = async () => {
+    setIsLoadingML(true);
+    try {
+      const res = await obtenerVentasMLPorRango(fechaDesde, fechaHasta);
+      if (res.success) {
+        setVentasML(res.data || []);
+        setMlCargadas(true);
+      }
+    } catch (error) {
+      console.error("Error al cargar ventas ML:", error);
+    } finally {
+      setIsLoadingML(false);
     }
   };
 
@@ -557,7 +577,9 @@ export default function VentasMostradorClient({
   };
 
 
-  const ventasFiltradas = ventasRealizadas.filter(v => {
+  const todasLasVentas = useMemo(() => [...ventasRealizadas, ...ventasML], [ventasRealizadas, ventasML]);
+
+  const ventasFiltradas = todasLasVentas.filter(v => {
     // Filtro Offline
     const cumpleOffline = mostrarSoloOffline ? v.eventoOffline === true : true;
 
@@ -2019,6 +2041,34 @@ export default function VentasMostradorClient({
                         Solo Offline
                       </Label>
                     </div>
+
+                    {mlCargadas ? (
+                      <div className="flex items-center gap-2 bg-yellow-50 px-3 h-10 rounded-xl border border-yellow-200">
+                        <div className="h-2 w-2 rounded-full bg-yellow-400" />
+                        <span className="text-xs font-bold text-yellow-700">{ventasML.length} ventas ML cargadas</span>
+                        <button
+                          onClick={() => { setVentasML([]); setMlCargadas(false); }}
+                          className="text-yellow-400 hover:text-yellow-600 transition-colors ml-1"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={cargarVentasML}
+                        disabled={isLoadingML || isLoadingVentas}
+                        className="flex items-center gap-2 bg-yellow-50 hover:bg-yellow-100 px-3 h-10 rounded-xl border border-yellow-200 hover:border-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoadingML ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-yellow-600" />
+                        ) : (
+                          <div className="h-2 w-2 rounded-full bg-yellow-300" />
+                        )}
+                        <span className="text-xs font-bold text-yellow-700">
+                          {isLoadingML ? "Cargando ML..." : "Cargar ventas ML"}
+                        </span>
+                      </button>
+                    )}
                   </div>
 
                   {/* BLOQUE DE RESUMEN */}

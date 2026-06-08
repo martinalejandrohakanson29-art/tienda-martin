@@ -247,16 +247,28 @@ export async function obtenerTodosLosArticulos() {
   }
 }
 
-export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: string) {
+export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: string, excluirML?: boolean) {
   await requireAdmin();
   try {
     const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
     const fin = new Date(`${fechaHasta ?? fechaDesde}T23:59:59.999-03:00`);
 
+    const whereML = excluirML
+      ? {
+          mlIdVenta: null as null,
+          NOT: {
+            puntoVenta: {
+              nombre: { contains: "mercadolibre", mode: "insensitive" as const },
+            },
+          },
+        }
+      : {};
+
     const ventas = await prisma.venta.findMany({
       where: {
         tipoVenta: { not: "PEDIDO" },
         createdAt: { gte: inicio, lte: fin },
+        ...whereML,
       },
       include: { items: true, puntoVenta: true },
       orderBy: { createdAt: 'desc' },
@@ -285,6 +297,47 @@ export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: str
 }
 
 export const obtenerVentasPorFecha = (fecha: string) => obtenerVentasPorRango(fecha);
+
+export async function obtenerVentasMLPorRango(fechaDesde: string, fechaHasta?: string) {
+  await requireAdmin();
+  try {
+    const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const fin = new Date(`${fechaHasta ?? fechaDesde}T23:59:59.999-03:00`);
+
+    const ventas = await prisma.venta.findMany({
+      where: {
+        tipoVenta: { not: "PEDIDO" },
+        createdAt: { gte: inicio, lte: fin },
+        OR: [
+          { mlIdVenta: { not: null } },
+          { puntoVenta: { nombre: { contains: "mercadolibre", mode: "insensitive" } } },
+        ],
+      },
+      include: { items: true, puntoVenta: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      success: true,
+      data: ventas.map(v => ({
+        ...v,
+        puntoVenta: v.puntoVenta || null,
+        total: Number(v.total),
+        interes: Number(v.interes),
+        totalFinal: Number(v.totalFinal),
+        createdAt: v.createdAt.toISOString(),
+        items: v.items.map(i => ({
+          ...i,
+          precio_unit: Number(i.precio_unit),
+          subtotal: Number(i.subtotal),
+        })),
+      })),
+    };
+  } catch (error) {
+    console.error("Error al obtener ventas ML:", error);
+    return { success: false, error: "Error al cargar ventas de MercadoLibre" };
+  }
+}
 
 export async function obtenerVentasRendimiento(fechaDesde: string, fechaHasta: string) {
   await requireAdmin();

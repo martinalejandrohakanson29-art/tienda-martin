@@ -338,6 +338,7 @@ export default function VentasMostradorClient({
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
 
   // --- ESTADOS PARA ALERTA ML ---
+  const [isAlertaAnulacionOpen, setIsAlertaAnulacionOpen] = useState(false);
   const [isAlertaMLOpen, setIsAlertaMLOpen] = useState(false);
   const [ventaParaAlerta, setVentaParaAlerta] = useState<any>(null);
   const [alertaActiva, setAlertaActiva] = useState(false);
@@ -1516,7 +1517,11 @@ export default function VentasMostradorClient({
 
   const abrirModalEliminacion = (venta: any) => {
     setVentaAEliminar(venta);
-    setIsEliminarModalOpen(true);
+    if (venta.mlAlerta) {
+      setIsAlertaAnulacionOpen(true);
+    } else {
+      setIsEliminarModalOpen(true);
+    }
   };
 
   const handleEliminarVenta = async () => {
@@ -3990,6 +3995,43 @@ export default function VentasMostradorClient({
           </DialogContent>
         </Dialog>
 
+        {/* --- MODAL ALERTA PREVIA A ANULACIÓN --- */}
+        <Dialog open={isAlertaAnulacionOpen} onOpenChange={setIsAlertaAnulacionOpen}>
+          <DialogContent className="sm:max-w-[440px] rounded-3xl p-6 border-2 border-orange-400 shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-orange-900">
+                <BellRing className="h-5 w-5 text-orange-500" />
+                Esta venta tiene una alerta de reclamo
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 text-sm">
+                Venta #{ventaAEliminar?.numeroVenta} — {ventaAEliminar?.cliente}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              <div className="p-4 bg-orange-50 rounded-xl border border-orange-300 flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-bold text-orange-800">Verificar el estado del reclamo antes de anular</p>
+                  {ventaAEliminar?.mlObservacion && (
+                    <p className="text-xs text-orange-700 italic">"{ventaAEliminar.mlObservacion}"</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <DialogFooter className="gap-2 mt-2">
+              <Button variant="outline" onClick={() => setIsAlertaAnulacionOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => { setIsAlertaAnulacionOpen(false); setIsEliminarModalOpen(true); }}
+                className="rounded-xl font-bold bg-orange-500 hover:bg-orange-600 text-white"
+              >
+                Entendido, continuar con la anulación
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* --- MODAL DE CONFIRMACIÓN DE ELIMINACIÓN DE VENTA --- */}
         <Dialog open={isEliminarModalOpen} onOpenChange={setIsEliminarModalOpen}>
           <DialogContent className={`sm:max-w-[450px] rounded-3xl p-6 border-2 shadow-2xl ${ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC") ? 'border-rose-400' : 'border-red-400'}`}>
@@ -4008,18 +4050,6 @@ export default function VentasMostradorClient({
             </DialogHeader>
 
             <div className="py-4 space-y-4">
-              {ventaAEliminar?.mlAlerta && (
-                <div className="p-4 bg-orange-50 rounded-xl border-2 border-orange-400 flex items-start gap-3">
-                  <BellRing className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-black text-orange-800 uppercase tracking-wide">⚠ Esta venta tiene una alerta de reclamo</p>
-                    <p className="text-xs text-orange-700 mt-1 leading-relaxed">Verificar el estado del reclamo antes de proceder con la anulación.</p>
-                    {ventaAEliminar.mlObservacion && (
-                      <p className="text-xs text-orange-600 mt-1.5 font-medium italic">"{ventaAEliminar.mlObservacion}"</p>
-                    )}
-                  </div>
-                </div>
-              )}
               {ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC") ? (
                 <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-200 flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-rose-600 flex-shrink-0 mt-0.5" />

@@ -1644,6 +1644,20 @@ export async function generarFacturaARCA(ventaId: string) {
   }
 }
 
+export async function actualizarAlertaML(ventaId: string, alerta: boolean, observacion: string) {
+  await requireAdmin();
+  try {
+    await prisma.venta.update({
+      where: { id: ventaId },
+      data: { mlAlerta: alerta, mlObservacion: observacion || null },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar alerta ML:", error);
+    return { success: false, error: "Error al guardar la alerta" };
+  }
+}
+
 export async function cancelarVenta(ventaId: string) {
   await requireAdmin();
   const venta = await prisma.venta.findUnique({

@@ -6,7 +6,7 @@ import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp, Package
+  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp, Package, BellRing, Bell
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -29,7 +29,7 @@ import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, obtenerVentasMLPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
-  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId
+  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
@@ -337,6 +337,13 @@ export default function VentasMostradorClient({
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
 
+  // --- ESTADOS PARA ALERTA ML ---
+  const [isAlertaMLOpen, setIsAlertaMLOpen] = useState(false);
+  const [ventaParaAlerta, setVentaParaAlerta] = useState<any>(null);
+  const [alertaActiva, setAlertaActiva] = useState(false);
+  const [alertaObservacion, setAlertaObservacion] = useState("");
+  const [isGuardandoAlerta, setIsGuardandoAlerta] = useState(false);
+
   // --- ESTADOS PARA EDICIÓN DE PRECIO EN BASE DE DATOS ---
   const [isPriceDbModalOpen, setIsPriceDbModalOpen] = useState(false);
   const [priceDbItem, setPriceDbItem] = useState<Articulo | null>(null);
@@ -487,6 +494,33 @@ export default function VentasMostradorClient({
       console.error("Error al cargar ventas ML:", error);
     } finally {
       setIsLoadingML(false);
+    }
+  };
+
+  const abrirAlertaML = (venta: any) => {
+    setVentaParaAlerta(venta);
+    setAlertaActiva(venta.mlAlerta ?? false);
+    setAlertaObservacion(venta.mlObservacion ?? "");
+    setIsAlertaMLOpen(true);
+  };
+
+  const guardarAlertaML = async () => {
+    if (!ventaParaAlerta) return;
+    setIsGuardandoAlerta(true);
+    try {
+      const res = await actualizarAlertaML(ventaParaAlerta.id, alertaActiva, alertaObservacion);
+      if (res.success) {
+        const actualizar = (lista: any[]) => lista.map(v =>
+          v.id === ventaParaAlerta.id ? { ...v, mlAlerta: alertaActiva, mlObservacion: alertaObservacion || null } : v
+        );
+        setVentasRealizadas(prev => actualizar(prev));
+        setVentasML(prev => actualizar(prev));
+        setIsAlertaMLOpen(false);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsGuardandoAlerta(false);
     }
   };
 
@@ -2179,7 +2213,7 @@ export default function VentasMostradorClient({
                           const isAnulada = v.estadoPedido === "CANCELADO";
                           return (
                             <React.Fragment key={v.id}>
-                              <TableRow className={`align-top transition-colors ${isAnulada ? 'bg-red-50/70 hover:bg-red-50' : 'hover:bg-slate-50/50'}`}>
+                              <TableRow className={`align-top transition-colors ${isAnulada ? 'bg-red-50/70 hover:bg-red-50' : v.mlAlerta ? 'bg-orange-50/60 hover:bg-orange-50' : 'hover:bg-slate-50/50'}`}>
                                 <TableCell className="py-4">
                                   <div className="flex flex-col gap-1.5">
                                     <span
@@ -2192,6 +2226,11 @@ export default function VentasMostradorClient({
                                     {isAnulada && (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white text-[10px] font-black uppercase tracking-widest rounded-md w-fit">
                                         <X className="h-3 w-3" /> ANULADA
+                                      </span>
+                                    )}
+                                    {v.mlAlerta && (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500 text-white text-[10px] font-black uppercase tracking-widest rounded-md w-fit animate-pulse">
+                                        <BellRing className="h-3 w-3" /> RECLAMO
                                       </span>
                                     )}
                                   </div>
@@ -2334,6 +2373,15 @@ export default function VentasMostradorClient({
                                         </div>
                                       </div>
                                     )}
+                                    {v.mlIdVenta && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); abrirAlertaML(v); }}
+                                        className={`p-2 rounded-xl transition-all border ${v.mlAlerta ? 'text-orange-500 bg-orange-50 border-orange-200 hover:bg-orange-100' : 'text-slate-400 hover:text-orange-500 hover:bg-orange-50 border-transparent'}`}
+                                        title={v.mlAlerta ? `Alerta activa: ${v.mlObservacion || ''}` : "Agregar alerta / reclamo ML"}
+                                      >
+                                        {v.mlAlerta ? <BellRing className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
+                                      </button>
+                                    )}
                                     <button
                                       onClick={(e) => { e.stopPropagation(); abrirModalEliminacion(v); }}
                                       className="p-2 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 transition-all border border-transparent"
@@ -2348,6 +2396,22 @@ export default function VentasMostradorClient({
                                 <TableRow className="bg-slate-50/30 border-b-2 border-slate-200">
                                   <TableCell colSpan={3} className="py-0">
                                     <div className="p-3 bg-white border-b border-slate-200">
+                                      {v.mlAlerta && (
+                                        <div className="flex items-start gap-2 mb-3 p-3 bg-orange-50 border border-orange-300 rounded-lg">
+                                          <BellRing className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="text-xs font-black text-orange-700 uppercase tracking-wide">Alerta de Reclamo</span>
+                                            {v.mlObservacion && <span className="text-xs text-orange-600">{v.mlObservacion}</span>}
+                                          </div>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); abrirAlertaML(v); }}
+                                            className="ml-auto text-orange-400 hover:text-orange-600 transition-colors"
+                                            title="Editar alerta"
+                                          >
+                                            <Edit className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
+                                      )}
                                       <div className="flex items-center gap-2 mb-2">
                                         <ChevronDown className="h-4 w-4 text-slate-400" />
                                         <span className="text-xs font-bold text-slate-600 uppercase">Detalles de Artículos</span>
@@ -3872,6 +3936,57 @@ export default function VentasMostradorClient({
               )}
             </div>
             <DialogFooter><Button onClick={() => setIsHistorialModalOpen(false)}>Cerrar</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* --- MODAL ALERTA ML --- */}
+        <Dialog open={isAlertaMLOpen} onOpenChange={setIsAlertaMLOpen}>
+          <DialogContent className="sm:max-w-[440px] rounded-3xl p-6 border-2 border-orange-300 shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-orange-900">
+                <BellRing className="h-5 w-5 text-orange-500" />
+                Alerta de Reclamo ML
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 text-sm">
+                Venta #{ventaParaAlerta?.numeroVenta} — Order: {ventaParaAlerta?.mlIdVenta}
+                {ventaParaAlerta?.mlPackId && <span className="ml-2 text-yellow-600 font-medium">Pack: {ventaParaAlerta.mlPackId}</span>}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col gap-4 py-2">
+              <div
+                onClick={() => setAlertaActiva(!alertaActiva)}
+                className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${alertaActiva ? 'bg-orange-50 border-orange-300' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}
+              >
+                <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${alertaActiva ? 'bg-orange-500 border-orange-500' : 'border-slate-300'}`}>
+                  {alertaActiva && <div className="h-2 w-2 rounded-full bg-white" />}
+                </div>
+                <div>
+                  <p className={`text-sm font-bold ${alertaActiva ? 'text-orange-700' : 'text-slate-500'}`}>
+                    {alertaActiva ? 'Alerta activa' : 'Sin alerta'}
+                  </p>
+                  <p className="text-[11px] text-slate-400">Activá para marcar esta venta como reclamada</p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wide">Observación</Label>
+                <Textarea
+                  value={alertaObservacion}
+                  onChange={(e) => setAlertaObservacion(e.target.value)}
+                  placeholder='Ej: "El comprador usó el producto antes de devolverlo"'
+                  className="resize-none rounded-xl border-slate-200 text-sm min-h-[100px]"
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setIsAlertaMLOpen(false)} className="rounded-xl">Cancelar</Button>
+              <Button
+                onClick={guardarAlertaML}
+                disabled={isGuardandoAlerta}
+                className={`rounded-xl font-bold ${alertaActiva ? 'bg-orange-500 hover:bg-orange-600' : 'bg-slate-600 hover:bg-slate-700'}`}
+              >
+                {isGuardandoAlerta ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Guardar'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 

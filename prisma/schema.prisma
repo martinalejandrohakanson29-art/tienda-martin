@@ -486,6 +486,8 @@ model Venta {
   mlPackId        String?
   mlMla           String?
   mlDni           String?
+  mlAlerta        Boolean          @default(false)
+  mlObservacion   String?
   
   // Desglose Impositivo (Snapshot)
   importeIva      Decimal?       @db.Decimal(20, 2)

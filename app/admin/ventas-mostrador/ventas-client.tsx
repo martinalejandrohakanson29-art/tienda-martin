@@ -4008,6 +4008,18 @@ export default function VentasMostradorClient({
             </DialogHeader>
 
             <div className="py-4 space-y-4">
+              {ventaAEliminar?.mlAlerta && (
+                <div className="p-4 bg-orange-50 rounded-xl border-2 border-orange-400 flex items-start gap-3">
+                  <BellRing className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-black text-orange-800 uppercase tracking-wide">⚠ Esta venta tiene una alerta de reclamo</p>
+                    <p className="text-xs text-orange-700 mt-1 leading-relaxed">Verificar el estado del reclamo antes de proceder con la anulación.</p>
+                    {ventaAEliminar.mlObservacion && (
+                      <p className="text-xs text-orange-600 mt-1.5 font-medium italic">"{ventaAEliminar.mlObservacion}"</p>
+                    )}
+                  </div>
+                </div>
+              )}
               {ventaAEliminar?.cae && !ventaAEliminar?.info?.includes("ANULADA CON NC") ? (
                 <div className="p-4 bg-rose-50/50 rounded-xl border border-rose-200 flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-rose-600 flex-shrink-0 mt-0.5" />

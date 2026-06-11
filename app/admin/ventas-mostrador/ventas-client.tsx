@@ -333,7 +333,6 @@ export default function VentasMostradorClient({
   const [ventasML, setVentasML] = useState<any[]>([]);
   const [mlCargadas, setMlCargadas] = useState(false);
   const [isLoadingML, setIsLoadingML] = useState(false);
-  const [mlDesincronizada, setMlDesincronizada] = useState(false);
 
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
@@ -403,27 +402,16 @@ export default function VentasMostradorClient({
     }
   }, [showSuccess]);
 
-  useEffect(() => {
-    cargarVentas(fechaDesde, fechaHasta);
-  }, [fechaDesde, fechaHasta]);
-
   // Limpiar resultados globales cuando el usuario cambia el término de búsqueda
   useEffect(() => {
     setVentasGlobales(null);
   }, [filtroBusquedaTexto, tipoBusqueda]);
 
-  // Auto-cargar ventas ML al cambiar a búsqueda por ID de MLA
+  // Carga inicial al montar el componente
   useEffect(() => {
-    if ((tipoBusqueda === "mla_venta" || tipoBusqueda === "mla_envio") && !mlCargadas && !isLoadingML) {
-      cargarVentasML();
-    }
+    cargarVentas(fechaDesde, fechaHasta);
+    cargarVentasML();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tipoBusqueda]);
-  // Efecto para sincronizar fechaDesde y fechaHasta con la fecha actual al cargar
-  useEffect(() => {
-    const hoy = new Date().toISOString().split('T')[0];
-    setFechaDesde(hoy);
-    setFechaHasta(hoy);
   }, []);
 
   // Cargar proveedores
@@ -478,9 +466,6 @@ export default function VentasMostradorClient({
 
   const cargarVentas = async (fechaDesde: string, fechaHasta: string) => {
     setIsLoadingVentas(true);
-    if (mlCargadas) setMlDesincronizada(true);
-    setVentasML([]);
-    setMlCargadas(false);
     try {
       const res = await obtenerVentasPorRango(fechaDesde, fechaHasta, true);
       if (res.success) {
@@ -495,7 +480,6 @@ export default function VentasMostradorClient({
 
   const cargarVentasML = async () => {
     setIsLoadingML(true);
-    setMlDesincronizada(false);
     try {
       const res = await obtenerVentasMLPorRango(fechaDesde, fechaHasta);
       if (res.success) {
@@ -509,10 +493,10 @@ export default function VentasMostradorClient({
     }
   };
 
-  const handleRefresh = async () => {
-    const mlWasLoaded = mlCargadas;
-    await cargarVentas(fechaDesde, fechaHasta);
-    if (mlWasLoaded) await cargarVentasML();
+  const handleCargar = async () => {
+    setVentasML([]);
+    setMlCargadas(false);
+    await Promise.all([cargarVentas(fechaDesde, fechaHasta), cargarVentasML()]);
   };
 
   const abrirAlertaML = (venta: any) => {
@@ -2048,7 +2032,7 @@ export default function VentasMostradorClient({
                           setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
                           onApply={() => { }}
                         />
-                        <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoadingVentas || isLoadingML} className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
+                        <Button variant="outline" size="icon" onClick={handleCargar} disabled={isLoadingVentas || isLoadingML} title="Recargar" className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
                           <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
                         </Button>
                       </div>
@@ -2173,53 +2157,17 @@ export default function VentasMostradorClient({
                       </Label>
                     </div>
 
-                    <div className="h-8 w-px bg-slate-200 self-center hidden sm:block" />
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-bold text-yellow-600 uppercase tracking-wider">Ventas ML</Label>
-                      {mlCargadas ? (
-                        <div className="flex items-center gap-2 bg-green-50 px-3 h-10 rounded-xl border border-green-200">
-                          <div className="h-2 w-2 rounded-full bg-green-400" />
-                          <span className="text-xs font-bold text-green-700">{ventasML.length} ventas ML</span>
-                          <button
-                            onClick={() => { setVentasML([]); setMlCargadas(false); setMlDesincronizada(false); }}
-                            className="text-green-400 hover:text-green-600 transition-colors ml-1"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ) : mlDesincronizada ? (
-                        <button
-                          onClick={cargarVentasML}
-                          disabled={isLoadingML || isLoadingVentas}
-                          className="flex items-center gap-2 bg-amber-50 hover:bg-amber-100 px-3 h-10 rounded-xl border border-amber-300 hover:border-amber-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isLoadingML ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600" />
-                          ) : (
-                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                          )}
-                          <span className="text-xs font-bold text-amber-700">
-                            {isLoadingML ? "Cargando ML..." : "Actualizar ventas ML"}
-                          </span>
-                        </button>
+                    <Button
+                      onClick={handleCargar}
+                      disabled={isLoadingVentas || isLoadingML}
+                      className="h-10 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
+                    >
+                      {(isLoadingVentas || isLoadingML) ? (
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" />Cargando...</>
                       ) : (
-                        <button
-                          onClick={cargarVentasML}
-                          disabled={isLoadingML || isLoadingVentas}
-                          className="flex items-center gap-2 bg-yellow-50 hover:bg-yellow-100 px-3 h-10 rounded-xl border border-yellow-200 hover:border-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isLoadingML ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin text-yellow-600" />
-                          ) : (
-                            <div className="h-2 w-2 rounded-full bg-yellow-300" />
-                          )}
-                          <span className="text-xs font-bold text-yellow-700">
-                            {isLoadingML ? "Cargando ML..." : "Cargar ventas ML"}
-                          </span>
-                        </button>
+                        <><Search className="h-3.5 w-3.5" />Cargar</>
                       )}
-                    </div>
+                    </Button>
                   </div>
 
                   {/* BLOQUE DE RESUMEN */}
@@ -2612,7 +2560,7 @@ export default function VentasMostradorClient({
                           setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
                           onApply={() => { }}
                         />
-                        <Button variant="outline" size="icon" onClick={handleRefresh} disabled={isLoadingVentas || isLoadingML} className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
+                        <Button variant="outline" size="icon" onClick={handleCargar} disabled={isLoadingVentas || isLoadingML} title="Recargar" className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
                           <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
                         </Button>
                       </div>

@@ -37,6 +37,7 @@ import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-ven
 import ResumenVentasTab from "./resumen-ventas-tab";
 import RendimientoVentasTab from "./rendimiento-ventas-tab";
 import EnviosAndreaniTab from "./envios-andreani-tab";
+import ConciliacionArcaTab from "./conciliacion-arca-tab";
 
 type Decimal = {
   toNumber(): number;
@@ -1856,6 +1857,9 @@ export default function VentasMostradorClient({
               <TabsTrigger value="rendimiento" className="gap-2 px-6 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-900 border border-transparent data-[state=active]:border-emerald-200">
                 <TrendingUp className="h-4 w-4" /> Rendimiento de Ventas
               </TabsTrigger>
+              <TabsTrigger value="conciliacion" className="gap-2 px-6 bg-violet-50 text-violet-700 hover:bg-violet-100 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-900 border border-transparent data-[state=active]:border-violet-200">
+                <ArrowRightLeft className="h-4 w-4" /> Conciliación ARCA
+              </TabsTrigger>
               <TabsTrigger value="gestion" className="gap-2 px-6 bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
                 <Edit className="h-4 w-4" /> Gestión y Edición
               </TabsTrigger>
@@ -2824,6 +2828,10 @@ export default function VentasMostradorClient({
           {/* --- PESTAÑA: ENVÍOS ANDREANI --- */}
           <TabsContent value="andreani" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
             <EnviosAndreaniTab />
+          </TabsContent>
+          {/* --- PESTAÑA: CONCILIACIÓN ARCA --- */}
+          <TabsContent value="conciliacion" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
+            <ConciliacionArcaTab />
           </TabsContent>
           {/* --- PESTAÑA: RENDIMIENTO DE VENTAS --- */}
           <TabsContent value="rendimiento" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">

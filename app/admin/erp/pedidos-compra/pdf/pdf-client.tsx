@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect } from "react";
+import React from "react";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 import {
   Table,
   TableBody,
@@ -11,10 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import {
-  Printer,
-  ArrowLeft,
-} from "lucide-react";
+import { Printer, ArrowLeft, FileSpreadsheet } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 
 type ItemCompra = {
@@ -53,6 +51,49 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
     window.print();
   };
 
+  const handleExportExcel = () => {
+    const fecha = new Date(pedido.createdAt).toLocaleDateString("es-AR");
+    const hora = new Date(pedido.createdAt).toLocaleTimeString("es-AR").slice(0, 5);
+    const idPedido = pedido.numeroCompra ? String(pedido.numeroCompra) : pedido.id.slice(0, 8);
+
+    const rows: (string | number)[][] = [
+      ["PEDIDO DE COMPRA"],
+      ["ID", idPedido],
+      ["Fecha", `${fecha} ${hora}`],
+      ["Proveedor", pedido.proveedor || "Sin proveedor"],
+      ["Comprador", pedido.comprador],
+      [],
+      ["ARTÍCULOS"],
+      ["Producto", "ID Producto", "Costo Unit.", "Cantidad", "Subtotal"],
+      ...pedido.items.map((item) => [
+        item.nombre,
+        item.productoId || "-",
+        item.costo_unit,
+        item.cantidad,
+        item.subtotal,
+      ]),
+      [],
+      ["TOTALES"],
+      ["Base", pedido.total],
+      ["Interés", pedido.interes],
+      ["Descuento", pedido.descuento],
+      ["Total Final", pedido.totalFinal],
+      [],
+      ["PAGO"],
+      ["Método", pedido.metodo_pago],
+      ["Estado", pedido.estadoPedido || "-"],
+    ];
+
+    if (pedido.info) {
+      rows.push([], ["OBSERVACIONES"], [pedido.info]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pedido");
+    XLSX.writeFile(wb, `pedido-compra-${idPedido}.xlsx`);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 print:bg-white print:m-0 print:p-0">
       <div className="max-w-7xl mx-auto px-4 py-8 print:max-w-none print:w-full print:px-0 print:py-4">
@@ -70,16 +111,28 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
               Detalles del Pedido de Compra
             </h1>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrint}
-            className="border-indigo-600 text-indigo-700 hover:bg-indigo-50"
-            title="Imprimir Pedido"
-          >
-            <Printer className="h-4 w-4 mr-1" />
-            Imprimir
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportExcel}
+              className="border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+              title="Exportar a Excel"
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-1" />
+              Excel
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePrint}
+              className="border-indigo-600 text-indigo-700 hover:bg-indigo-50"
+              title="Imprimir Pedido"
+            >
+              <Printer className="h-4 w-4 mr-1" />
+              Imprimir
+            </Button>
+          </div>
         </div>
 
         {/* Encabezado especial para el PDF */}

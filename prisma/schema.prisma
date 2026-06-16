@@ -200,14 +200,28 @@ model ComposicionKits {
 }
 
 model SupplierProduct {
-  id            String              @id @default(cuid())
-  sku           String              @unique
-  name          String
-  updatedAt     DateTime            @updatedAt
-  stock         ImportStock?
-  ventas        ImportVentas?
-  kitComponents KitComponent[]
-  purchaseItems PurchaseOrderItem[]
+  id                String              @id @default(cuid())
+  sku               String              @unique
+  name              String
+  updatedAt         DateTime            @updatedAt
+  keywordBusqueda   String?
+  seguimientoActivo Boolean             @default(false)
+  stock             ImportStock?
+  ventas            ImportVentas?
+  kitComponents     KitComponent[]
+  purchaseItems     PurchaseOrderItem[]
+}
+
+model SeguimientoPack {
+  id              String   @id @default(cuid())
+  mla             String   @unique
+  nombre          String
+  keywordBusqueda String?
+  activo          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("seguimiento_packs")
 }
 
 model ImportVentas {

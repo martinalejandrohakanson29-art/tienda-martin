@@ -1,9 +1,9 @@
 // app/admin/mercadolibre/page.tsx
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  Truck, 
-  ArrowLeft, 
+import {
+  Truck,
+  ArrowLeft,
   ArrowRight,
   MapPinned,
   PackageCheck,
@@ -12,7 +12,8 @@ import {
   ClipboardCheck,
   PlusSquare,
   Calculator,
-  CalendarRange // Importamos el ícono para la nueva sección
+  CalendarRange,
+  ScanSearch,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -235,6 +236,29 @@ export default function MercadoLibreDashboard() {
             </p>
             <Link href="/admin/mercadolibre/ventas-rango">
               <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 9: SEGUIMIENTO COMPETENCIA */}
+        <Card className="border-l-4 border-l-sky-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-sky-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sky-800 text-xl">
+              <ScanSearch className="h-6 w-6" />
+              Seguimiento Competencia
+            </CardTitle>
+            <CardDescription className="text-sky-700/80 font-medium">
+              Monitoreo de precios en ML
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Configurá keywords de búsqueda por artículo y pack para rastrear precios de la competencia en Mercado Libre.
+            </p>
+            <Link href="/admin/mercadolibre/seguimiento-competencia">
+              <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white gap-2 shadow-sm h-12 text-lg">
                 Entrar <ArrowRight size={18} />
               </Button>
             </Link>

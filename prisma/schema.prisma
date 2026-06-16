@@ -224,6 +224,28 @@ model SeguimientoPack {
   @@map("seguimiento_packs")
 }
 
+model ResultadoCompetencia {
+  id              String   @id @default(cuid())
+  tipo            String   // "ARTICULO" | "PACK"
+  referencia      String   // sku del artículo o mla del pack rastreado
+  keyword         String
+  mlaId           String
+  titulo          String
+  precio          Decimal  @db.Decimal(20, 2)
+  precioOriginal  Decimal? @db.Decimal(20, 2)
+  vendedor        String?
+  esTiendaOficial Boolean  @default(false)
+  envio           String?
+  cuotas          String?
+  stock           String?
+  link            String
+  imagen          String?
+  scrapedAt       DateTime @default(now())
+
+  @@index([referencia, scrapedAt])
+  @@map("resultados_competencia")
+}
+
 model ImportVentas {
   id            String          @id @default(cuid())
   sku           String          @unique

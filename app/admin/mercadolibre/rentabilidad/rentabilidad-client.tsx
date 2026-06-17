@@ -24,6 +24,11 @@ export default function RentabilidadClient({
     [ajustes]
   );
 
+  const tipoMap = useMemo(
+    () => new Map(ajustes.map((a) => [a.item_id, a.tipo])),
+    [ajustes]
+  );
+
   // Pre-seleccionar todos los que califican (ganancia > 70%)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(ajustes.map((a) => a.item_id))
@@ -85,6 +90,7 @@ export default function RentabilidadClient({
       onToggle={handleToggle}
       headerActions={headerActions}
       ajustesMap={ajustesMap}
+      tipoMap={tipoMap}
     />
   );
 }

@@ -457,6 +457,34 @@ model MarketingAutoResponse {
   @@map("marketing_auto_responses")
 }
 
+// Reglas configurables para el motor de ajuste de precios de la sección Rentabilidad.
+// Se evalúan por prioridad ascendente (menor = primero); la primera regla activa
+// cuyas condiciones (AND) matcheen define la acción sugerida para esa publicación.
+model ReglaAjustePrecio {
+  id        String  @id @default(cuid())
+  nombre    String
+  prioridad Int     @default(100) // menor = se evalúa antes
+  activa    Boolean @default(true)
+  tipo      String // "DESCUENTO" | "SUBA"
+
+  // Condiciones (todas opcionales, se combinan con AND). Margen = ganancia %.
+  margenMin Decimal? @db.Decimal(10, 2)
+  margenMax Decimal? @db.Decimal(10, 2)
+  ventasMin Int?
+  ventasMax Int?
+
+  // Acción según tipo:
+  //  - DESCUENTO: targetGanancia = margen % al que se quiere llevar (baja precio vía promoción)
+  //  - SUBA:      subaPct = % de aumento fijo sobre el precio de lista (sube price real)
+  targetGanancia Decimal? @db.Decimal(10, 2)
+  subaPct        Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reglas_ajuste_precio")
+}
+
 model RentabilidadCalculada {
   id                   String   @id @default(cuid())
   mla                  String

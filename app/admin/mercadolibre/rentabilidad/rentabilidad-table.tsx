@@ -48,6 +48,7 @@ interface Props {
   onToggle?: (itemId: string) => void;
   headerActions?: React.ReactNode;
   ajustesMap?: Map<string, number>;
+  tipoMap?: Map<string, "DESCUENTO" | "SUBA">;
 }
 
 export default function RentabilidadTable({
@@ -57,6 +58,7 @@ export default function RentabilidadTable({
   onToggle,
   headerActions,
   ajustesMap,
+  tipoMap,
 }: Props) {
   const [filter, setFilter] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: "asc" | "desc" }>({
@@ -304,8 +306,14 @@ export default function RentabilidadTable({
                   </TableCell>
                   <TableCell className="text-right font-bold bg-violet-50">
                     {ajustesMap?.has(item.item_id) ? (
-                      <span className="text-violet-700">
+                      <span className={cn(
+                        "inline-flex flex-col items-end leading-tight",
+                        tipoMap?.get(item.item_id) === "SUBA" ? "text-emerald-700" : "text-violet-700"
+                      )}>
                         ${ajustesMap.get(item.item_id)!.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                        <span className="text-[8px] font-bold uppercase tracking-wide opacity-70">
+                          {tipoMap?.get(item.item_id) === "SUBA" ? "↑ suba" : "↓ dcto"}
+                        </span>
                       </span>
                     ) : (
                       <span className="text-slate-300">-</span>

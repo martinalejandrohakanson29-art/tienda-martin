@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, TrendingDown, Zap, CheckCircle2 } from "lucide-react";
+import { Loader2, TrendingDown, TrendingUp, Zap, CheckCircle2 } from "lucide-react";
 import { ejecutarAjustesRentabilidad, type AjustePrecio } from "@/app/actions/ajuste-precios";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,9 @@ export default function OptimizarPreciosButton({
   const [enviado, setEnviado] = useState(false);
   const [error, setError] = useState(false);
 
+  const descuentos = useMemo(() => ajustes.filter((a) => a.tipo === "DESCUENTO"), [ajustes]);
+  const subas = useMemo(() => ajustes.filter((a) => a.tipo === "SUBA"), [ajustes]);
+
   const handleEjecutar = async () => {
     setEjecutando(true);
     setError(false);
@@ -32,6 +35,7 @@ export default function OptimizarPreciosButton({
       item_id: a.item_id,
       nuevo_precio: a.nuevo_precio,
       precio_original: a.precio_original,
+      tipo: a.tipo,
     }));
     const { success } = await ejecutarAjustesRentabilidad(payload);
     setEjecutando(false);
@@ -52,8 +56,8 @@ export default function OptimizarPreciosButton({
         variant="outline"
         className="border-violet-300 text-violet-700 hover:bg-violet-50 gap-2 h-8 text-xs"
       >
-        <TrendingDown className="h-3.5 w-3.5" />
-        Optimizar precios
+        <Zap className="h-3.5 w-3.5" />
+        Aplicar ajustes
         <span className="bg-violet-100 text-violet-700 font-bold rounded-full px-1.5 py-0.5 text-[10px] leading-none">
           {ajustes.length}
         </span>
@@ -73,11 +77,21 @@ export default function OptimizarPreciosButton({
           <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-violet-600" />
-              Optimizar precios — {ajustes.length} publicaciones seleccionadas
+              Aplicar ajustes — {ajustes.length} publicaciones seleccionadas
             </DialogTitle>
-            <DialogDescription>
-              Se aplicará descuento propio para llevar la ganancia al 65%.
-              El cambio se aplica directamente en MercadoLibre sin vencimiento.
+            <DialogDescription className="flex flex-wrap gap-3">
+              {descuentos.length > 0 && (
+                <span className="flex items-center gap-1 text-amber-600">
+                  <TrendingDown className="h-3.5 w-3.5" />
+                  {descuentos.length} descuento(s) → promoción en ML
+                </span>
+              )}
+              {subas.length > 0 && (
+                <span className="flex items-center gap-1 text-emerald-600">
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  {subas.length} suba(s) → cambia el precio de lista real
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -86,59 +100,77 @@ export default function OptimizarPreciosButton({
               <thead className="sticky top-0 bg-slate-100 border-b">
                 <tr>
                   <th className="text-left p-2 pl-4 font-semibold text-slate-600">Publicación</th>
+                  <th className="text-center p-2 font-semibold text-slate-600">Acción</th>
                   <th className="text-right p-2 font-semibold text-[#d413c3]">Gan. actual</th>
                   <th className="text-right p-2 font-semibold text-slate-400">P. original</th>
                   <th className="text-right p-2 font-semibold text-slate-600">P. actual</th>
                   <th className="text-right p-2 pr-4 font-semibold text-violet-700">Nuevo precio</th>
-                  <th className="text-right p-2 pr-4 font-semibold text-amber-600">Dcto. aplicar</th>
+                  <th className="text-right p-2 pr-4 font-semibold text-amber-600">Ajuste</th>
                 </tr>
               </thead>
               <tbody>
-                {ajustes.map((a, i) => (
-                  <tr
-                    key={a.item_id}
-                    className={cn(
-                      "border-b border-slate-100",
-                      i % 2 === 0 ? "bg-white" : "bg-slate-50/50"
-                    )}
-                  >
-                    <td className="p-2 pl-4">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-medium text-slate-800 truncate max-w-[220px]">
-                          {a.nombre}
-                        </span>
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="text-[9px] font-mono text-slate-400">{a.item_id}</span>
-                          {a.tiene_campana_ml && (
-                            <Badge variant="secondary" className="text-[9px] h-4 px-1 bg-blue-100 text-blue-700">
-                              Campaña ML
+                {ajustes.map((a, i) => {
+                  const esSuba = a.tipo === "SUBA";
+                  return (
+                    <tr
+                      key={a.item_id}
+                      className={cn(
+                        "border-b border-slate-100",
+                        i % 2 === 0 ? "bg-white" : "bg-slate-50/50"
+                      )}
+                    >
+                      <td className="p-2 pl-4">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-medium text-slate-800 truncate max-w-[200px]">
+                            {a.nombre}
+                          </span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className="text-[9px] font-mono text-slate-400">{a.item_id}</span>
+                            <Badge variant="outline" className="text-[9px] h-4 px-1 text-slate-500">
+                              {a.regla_nombre}
                             </Badge>
-                          )}
-                          {a.nombre_variante && (
-                            <Badge variant="outline" className="text-[9px] h-4 px-1">
-                              {a.nombre_variante}
-                            </Badge>
-                          )}
+                            {a.tiene_campana_ml && (
+                              <Badge variant="secondary" className="text-[9px] h-4 px-1 bg-blue-100 text-blue-700">
+                                Campaña ML
+                              </Badge>
+                            )}
+                            {a.nombre_variante && (
+                              <Badge variant="outline" className="text-[9px] h-4 px-1">
+                                {a.nombre_variante}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="p-2 text-right font-black text-[#d413c3]">
-                      {a.ganancia_actual.toFixed(1)}%
-                    </td>
-                    <td className="p-2 text-right text-slate-400 line-through">
-                      ${a.precio_original.toLocaleString("es-AR")}
-                    </td>
-                    <td className="p-2 text-right text-slate-600 font-medium">
-                      ${a.precio_actual_nuestro.toLocaleString("es-AR")}
-                    </td>
-                    <td className="p-2 pr-4 text-right font-black text-violet-700">
-                      ${a.nuevo_precio.toLocaleString("es-AR")}
-                    </td>
-                    <td className="p-2 pr-4 text-right font-bold text-amber-600">
-                      -{a.nuevo_seller_pct.toFixed(1)}%
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-2 text-center">
+                        {esSuba ? (
+                          <Badge className="text-[9px] h-5 bg-emerald-100 text-emerald-700 gap-0.5 hover:bg-emerald-100">
+                            <TrendingUp className="h-3 w-3" /> Suba
+                          </Badge>
+                        ) : (
+                          <Badge className="text-[9px] h-5 bg-amber-100 text-amber-700 gap-0.5 hover:bg-amber-100">
+                            <TrendingDown className="h-3 w-3" /> Descuento
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-2 text-right font-black text-[#d413c3]">
+                        {a.ganancia_actual.toFixed(1)}%
+                      </td>
+                      <td className="p-2 text-right text-slate-400 line-through">
+                        ${a.precio_original.toLocaleString("es-AR")}
+                      </td>
+                      <td className="p-2 text-right text-slate-600 font-medium">
+                        ${a.precio_actual_nuestro.toLocaleString("es-AR")}
+                      </td>
+                      <td className={cn("p-2 pr-4 text-right font-black", esSuba ? "text-emerald-700" : "text-violet-700")}>
+                        ${a.nuevo_precio.toLocaleString("es-AR")}
+                      </td>
+                      <td className={cn("p-2 pr-4 text-right font-bold", esSuba ? "text-emerald-600" : "text-amber-600")}>
+                        {esSuba ? "+" : "-"}{a.ajuste_pct.toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -146,7 +178,7 @@ export default function OptimizarPreciosButton({
           <DialogFooter className="p-4 border-t bg-slate-50 rounded-b-lg">
             <div className="flex items-center justify-between w-full">
               <p className="text-xs text-slate-500">
-                Actualiza <strong>price</strong> y <strong>original_price</strong> en ML. Sin vencimiento.
+                Descuentos: promoción <strong>PRICE_DISCOUNT</strong>. Subas: actualiza <strong>price</strong> real del ítem.
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)} disabled={ejecutando}>

@@ -6,7 +6,8 @@ import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp, Package, BellRing, Bell, ArrowRightLeft
+  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp, Package, BellRing, Bell, ArrowRightLeft,
+  Maximize2, Camera, ImageOff
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
@@ -32,6 +33,7 @@ import {
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/app/actions/listas";
+import { obtenerFotosEnvio } from "@/app/actions/preparacion";
 import { consultarPadron } from "@/app/actions/afip";
 import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
 import ResumenVentasTab from "./resumen-ventas-tab";
@@ -266,6 +268,11 @@ export default function VentasMostradorClient({
 
   // --- ESTADO PARA ACORDEÓN DE VENTAS ---
   const [expandedVentas, setExpandedVentas] = useState<Set<string>>(new Set());
+
+  // --- ESTADO PARA VISUALIZACIÓN DE FOTOS DE AUDITORÍA (Mercado Libre) ---
+  const [fotosVenta, setFotosVenta] = useState<{ venta: any; fotos: any[] } | null>(null);
+  const [loadingFotosVentaId, setLoadingFotosVentaId] = useState<string | null>(null);
+  const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
 
   // --- ESTADOS PARA EDICIÓN Y AUDITORÍA ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
@@ -505,6 +512,31 @@ export default function VentasMostradorClient({
     setAlertaActiva(venta.mlAlerta ?? false);
     setAlertaObservacion(venta.mlObservacion ?? "");
     setIsAlertaMLOpen(true);
+  };
+
+  // --- VISUALIZAR FOTOS DE AUDITORÍA (preparación ML) ---
+  const handleVerFotosVenta = async (venta: any) => {
+    if (!venta.mlIdEnvio) {
+      alert("Esta venta no tiene Id de Envío de Mercado Libre asociado, no se pueden buscar las fotos.");
+      return;
+    }
+    setLoadingFotosVentaId(venta.id);
+    try {
+      const res = await obtenerFotosEnvio(venta.mlIdEnvio);
+      if (res.success) {
+        setFotosVenta({ venta, fotos: res.fotos });
+        if (!res.fotos || res.fotos.length === 0) {
+          // Se abre el modal igual para informar que no hay fotos cargadas.
+        }
+      } else {
+        alert("No se pudieron obtener las fotos del servidor de imágenes.");
+      }
+    } catch (e) {
+      console.error("Error al obtener fotos de la venta:", e);
+      alert("Fallo la conexión con el servidor de imágenes.");
+    } finally {
+      setLoadingFotosVentaId(null);
+    }
   };
 
   const guardarAlertaML = async () => {
@@ -2450,6 +2482,16 @@ export default function VentasMostradorClient({
                                         </div>
                                       </div>
                                     )}
+                                    {v.mlIdEnvio && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); handleVerFotosVenta(v); }}
+                                        disabled={loadingFotosVentaId === v.id}
+                                        className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent"
+                                        title="Ver foto de preparación / auditoría"
+                                      >
+                                        {loadingFotosVentaId === v.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                                      </button>
+                                    )}
                                     {v.mlIdVenta && (
                                       <button
                                         onClick={(e) => { e.stopPropagation(); abrirAlertaML(v); }}
@@ -4070,6 +4112,67 @@ export default function VentasMostradorClient({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* --- MODAL VISUALIZACIÓN DE FOTOS DE AUDITORÍA (Mercado Libre) --- */}
+        <Dialog open={!!fotosVenta} onOpenChange={(open) => { if (!open) { setFotosVenta(null); setFotoExpandida(null); } }}>
+          <DialogContent className="sm:max-w-[640px] rounded-3xl p-6 border-2 border-indigo-200 shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-indigo-900">
+                <Camera className="h-5 w-5 text-indigo-500" />
+                Fotos de Preparación
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 text-sm">
+                Venta #{fotosVenta?.venta?.numeroVenta} — Envío: {fotosVenta?.venta?.mlIdEnvio}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              {fotosVenta && fotosVenta.fotos.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto">
+                  {fotosVenta.fotos.map((foto: any, i: number) => (
+                    <div
+                      key={foto.id || i}
+                      className="relative aspect-square bg-slate-50 border border-slate-200 rounded-xl overflow-hidden cursor-zoom-in group"
+                      onClick={() => setFotoExpandida(foto.url)}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={foto.url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute top-1.5 left-1.5 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                        {i + 1}/{fotosVenta.fotos.length}
+                        <Maximize2 className="h-3 w-3" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center text-slate-400 py-12 text-center">
+                  <ImageOff className="h-12 w-12 mb-3 opacity-30" />
+                  <p className="font-medium text-sm">No hay fotos cargadas para este envío</p>
+                  <p className="text-xs text-slate-400 mt-1">No se registró ninguna foto en la preparación / auditoría.</p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setFotosVenta(null); setFotoExpandida(null); }} className="rounded-xl">Cerrar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Visor a pantalla completa de la foto seleccionada */}
+        {fotoExpandida && (
+          <div
+            className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+            onClick={() => setFotoExpandida(null)}
+          >
+            <button
+              className="absolute top-4 right-4 text-white/70 hover:text-white z-50 bg-black/50 rounded-full p-1"
+              onClick={(e) => { e.stopPropagation(); setFotoExpandida(null); }}
+            >
+              <X className="h-8 w-8" />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={fotoExpandida} alt="Foto ampliada" className="max-w-full max-h-full object-contain rounded shadow-2xl" />
+          </div>
+        )}
 
         {/* --- MODAL ALERTA PREVIA A ANULACIÓN --- */}
         <Dialog open={isAlertaAnulacionOpen} onOpenChange={setIsAlertaAnulacionOpen}>

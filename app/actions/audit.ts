@@ -3,8 +3,9 @@
 
 import { prisma } from "@/lib/prisma"
 import { s3Client } from "@/lib/s3"
-import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3" 
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner" 
+import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { linkAuditFull } from "@/lib/notify"
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
@@ -166,6 +167,16 @@ export async function auditItem(itemId: string, status: string, envioId: string)
             where: {
                 link: `/admin/mercadolibre/preparacion?envio=${envioId}`,
                 eventType: "ENVIO_LISTO_AUDITORIA",
+            },
+        });
+
+        // Lo mismo para la alerta "Pedido preparado Full": al auditar este ítem (aprobar/
+        // rechazar) borramos su notificación en todos los usuarios. El link lleva envío+ítem,
+        // así que solo se resuelve la alerta del ítem auditado, no la de los demás del envío.
+        await prisma.notification.deleteMany({
+            where: {
+                link: linkAuditFull(envioId, itemId),
+                eventType: "PEDIDO_PREPARADO_FULL",
             },
         });
 

@@ -6,6 +6,9 @@ import { revalidatePath } from "next/cache"
 import { s3Client } from "@/lib/s3"
 import { PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/authOptions"
+import { triggerNotification } from "@/lib/notify"
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME
 
@@ -97,6 +100,11 @@ export async function subirFotoAuditoria(formData: FormData) {
 
     console.log(`[AUDITORIA] Iniciando subida: Envio ${envioId}, Item ${itemId}, File: ${file?.name}`);
 
+    // Identificamos (de forma blanda) quién carga la foto, sin bloquear la subida si falla.
+    const session = await getServerSession(authOptions).catch(() => null);
+    const userId = (session?.user as any)?.id as string | undefined;
+    const username = session?.user?.name as string | undefined;
+
     try {
         if (!file || !envioId || !itemId || !mla) {
             console.error("[AUDITORIA] Faltan datos obligatorios en el FormData");
@@ -117,6 +125,10 @@ export async function subirFotoAuditoria(formData: FormData) {
         await s3Client.send(command);
 
         // 2. Lógica de Base de Datos con Transacción
+        // Capturamos si el pedido recién ahora alcanza el estado PREPARADO (para notificar una sola vez).
+        let notificarPreparado = false;
+        let envioInfo: { orderId: string | null; resumen: string | null } = { orderId: null, resumen: null };
+
         await prisma.$transaction(async (tx) => {
             // A. Registrar auditoría usando el itemId único del producto en la etiqueta
             // Esto evita que variaciones del mismo MLA colisionen
@@ -136,17 +148,40 @@ export async function subirFotoAuditoria(formData: FormData) {
 
             // C. Si todos los productos tienen su foto, marcar el pedido global como PREPARADO
             if (fotosCargadas >= totalItems) {
+                // Leemos el estado previo para detectar la transición real (evita notificar
+                // de nuevo al re-subir una foto de un pedido ya PREPARADO o AUDITADO).
+                const etiquetaPrevia = await tx.etiquetaML.findUnique({
+                    where: { id: envioId },
+                    select: { status: true, orderId: true, resumen: true },
+                });
+
                 await tx.etiquetaML.update({
                     where: { id: envioId },
-                    data: { 
+                    data: {
                         status: "PREPARADO",
                         drivePhotoUrl: fileName // Referencia a la última foto cargada
                     }
                 });
+
+                if (etiquetaPrevia && etiquetaPrevia.status !== "PREPARADO" && etiquetaPrevia.status !== "AUDITADO") {
+                    notificarPreparado = true;
+                    envioInfo = { orderId: etiquetaPrevia.orderId, resumen: etiquetaPrevia.resumen };
+                }
             }
         });
 
         revalidatePath('/admin/mercadolibre/preparacion')
+
+        // 3. Notificación (opción B): se dispara solo cuando el pedido queda completo.
+        if (notificarPreparado) {
+            await triggerNotification({
+                eventType: "PEDIDO_PREPARADO_FOTO",
+                sourceUserId: userId,
+                title: `Pedido preparado${envioInfo.orderId ? ` — Orden ${envioInfo.orderId}` : ""}`,
+                body: `${username ? `${username} cargó` : "Se cargaron"} las fotos del envío ${envioId}${envioInfo.resumen ? ` — ${envioInfo.resumen}` : ""}`,
+            });
+        }
+
         return { success: true, path: fileName }
 
     } catch (error: any) {

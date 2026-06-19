@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { AdminNav } from "@/components/admin-nav";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,12 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  useEffect(() => {
+    const prev = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = "#ffffff";
+    return () => { document.body.style.backgroundColor = prev; };
+  }, []);
   
   // El panel solo se muestra si la ruta es exactamente "/admin"
   const isFullscreenPage = pathname !== "/admin";

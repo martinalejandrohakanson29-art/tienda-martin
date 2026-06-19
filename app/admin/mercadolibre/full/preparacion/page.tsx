@@ -70,7 +70,7 @@ export default function GuiaPreparacionPage() {
                         <ArrowLeft className="h-4 w-4" /> Volver
                     </Button>
                 </Link>
-                <h1 className="text-2xl font-bold text-gray-800">Preparación Full</h1>
+                <h1 className="text-base md:text-2xl font-bold text-gray-800">Preparación Full</h1>
                 <Button variant="outline" onClick={loadShipments}><RefreshCcw className="h-4 w-4" /></Button>
             </div>
 
@@ -85,12 +85,11 @@ export default function GuiaPreparacionPage() {
                 </Select>
                 <div className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
-                    <Input 
-                        placeholder="MLA, SKU o Nombre..." 
+                    <Input
+                        placeholder="MLA, SKU o Nombre..."
                         className="h-14 pl-12 text-lg rounded-xl"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
-                        autoFocus
                     />
                     {loading && <div className="absolute right-4 top-1/2 -translate-y-1/2 animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>}
                 </div>

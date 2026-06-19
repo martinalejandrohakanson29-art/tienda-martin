@@ -12,7 +12,7 @@ import Link from "next/link";
 
 export default function GestionFullPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6 bg-white min-h-screen">
       <div className="flex items-center gap-4">
         <Link href="/admin/mercadolibre">
           <Button variant="ghost" size="sm" className="gap-2">
@@ -20,7 +20,7 @@ export default function GestionFullPage() {
             Volver
           </Button>
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Gestión Envíos FULL</h1>
+        <h1 className="text-xl md:text-3xl font-bold tracking-tight">Gestión Envíos FULL</h1>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

@@ -218,12 +218,12 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
 
   if (body.length === 0 && !isProcessingWorkflow) {
     return (
-      <Card className="flex flex-col items-center justify-center p-20 border-dashed border-2 bg-gray-50/50">
+      <Card className="flex flex-col items-center justify-center p-6 md:p-20 border-dashed border-2 bg-gray-50/50">
         <div className="text-center space-y-6">
           <div className="bg-blue-100 p-6 rounded-full w-24 h-24 flex items-center justify-center mx-auto text-blue-600">
             <RefreshCw className="h-12 w-12" />
           </div>
-          <Button onClick={handleStartProcess} className="bg-blue-600 h-16 px-10 text-xl font-black shadow-xl gap-3">
+          <Button onClick={handleStartProcess} className="bg-blue-600 h-14 md:h-16 px-6 md:px-10 text-base md:text-xl font-black shadow-xl gap-3">
             <PlayCircle className="h-6 w-6" /> PROCESAR HISTORIAL DE VENTAS Y STOCK
           </Button>
         </div>
@@ -233,7 +233,7 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
 
   if (isProcessingWorkflow) {
     return (
-      <Card className="flex flex-col items-center justify-center p-20 h-[60vh]">
+      <Card className="flex flex-col items-center justify-center p-6 md:p-20 h-[60vh]">
         <div className="flex flex-col items-center gap-8">
           <div className="relative">
             <div className="absolute inset-0 bg-blue-400/20 rounded-full animate-ping"></div>
@@ -254,9 +254,9 @@ export default function PlanningTable({ initialHeaders = [], initialBody = [] }:
   return (
     <Card className="h-full flex flex-col shadow-none border-0"> 
       <CardHeader className="flex flex-col gap-2 pb-4 px-0">
-        <div className="flex flex-row items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-xl font-bold">Planificación ({body.length} filas)</CardTitle>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 flex-wrap">
                 {totalQuantity > 0 && (
                   <div className="flex flex-col items-end px-3 py-1 bg-blue-50 border border-blue-100 rounded-md">
                     <span className="text-[9px] uppercase font-bold text-blue-600">Total a enviar</span>

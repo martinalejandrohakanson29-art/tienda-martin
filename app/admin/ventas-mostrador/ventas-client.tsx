@@ -33,7 +33,7 @@ import {
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/app/actions/listas";
-import { obtenerFotosEnvio } from "@/app/actions/preparacion";
+import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
 import { consultarPadron } from "@/app/actions/afip";
 import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
 import ResumenVentasTab from "./resumen-ventas-tab";
@@ -273,6 +273,8 @@ export default function VentasMostradorClient({
   const [fotosVenta, setFotosVenta] = useState<{ venta: any; fotos: any[] } | null>(null);
   const [loadingFotosVentaId, setLoadingFotosVentaId] = useState<string | null>(null);
   const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
+  // Set de mlIdEnvio que tienen al menos una foto cargada (habilita el botón "Ver foto")
+  const [enviosConFoto, setEnviosConFoto] = useState<Set<string>>(new Set());
 
   // --- ESTADOS PARA EDICIÓN Y AUDITORÍA ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
@@ -692,6 +694,26 @@ export default function VentasMostradorClient({
   const esBusquedaML = tipoBusqueda === "mla_venta" || tipoBusqueda === "mla_envio";
   const mostrandoGlobal = ventasFiltradas.length === 0 && ventasGlobales !== null && ventasGlobales.length > 0;
   const ventasParaTabla = mostrandoGlobal ? ventasGlobales! : ventasFiltradas;
+
+  // Clave estable con todos los mlIdEnvio presentes (para evitar re-consultas en cada render)
+  const enviosIdsKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const lista of [ventasRealizadas, ventasML, ventasGlobales || []]) {
+      for (const v of lista) if (v?.mlIdEnvio) ids.add(v.mlIdEnvio);
+    }
+    return Array.from(ids).sort().join(",");
+  }, [ventasRealizadas, ventasML, ventasGlobales]);
+
+  // Consulta en lote qué envíos tienen foto cargada para habilitar el botón "Ver foto"
+  useEffect(() => {
+    const ids = enviosIdsKey ? enviosIdsKey.split(",") : [];
+    if (ids.length === 0) { setEnviosConFoto(new Set()); return; }
+    let cancelled = false;
+    obtenerEnviosConFoto(ids)
+      .then((res) => { if (!cancelled && res.success) setEnviosConFoto(new Set(res.envioIds)); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [enviosIdsKey]);
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
   const esMercadoLibre = (m: string) => m === "MercadoLibre" || m === "mercadopago (ML)";
@@ -2482,16 +2504,19 @@ export default function VentasMostradorClient({
                                         </div>
                                       </div>
                                     )}
-                                    {v.mlIdEnvio && (
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); handleVerFotosVenta(v); }}
-                                        disabled={loadingFotosVentaId === v.id}
-                                        className="p-2 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all border border-transparent"
-                                        title="Ver foto de preparación / auditoría"
-                                      >
-                                        {loadingFotosVentaId === v.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
-                                      </button>
-                                    )}
+                                    {v.mlIdEnvio && (() => {
+                                      const tieneFoto = enviosConFoto.has(v.mlIdEnvio);
+                                      return (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); if (tieneFoto) handleVerFotosVenta(v); }}
+                                          disabled={!tieneFoto || loadingFotosVentaId === v.id}
+                                          className={`p-2 rounded-xl transition-all border border-transparent ${tieneFoto ? 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50' : 'text-slate-200 cursor-not-allowed'}`}
+                                          title={tieneFoto ? "Ver foto de preparación / auditoría" : "Sin foto de preparación cargada"}
+                                        >
+                                          {loadingFotosVentaId === v.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                                        </button>
+                                      );
+                                    })()}
                                     {v.mlIdVenta && (
                                       <button
                                         onClick={(e) => { e.stopPropagation(); abrirAlertaML(v); }}

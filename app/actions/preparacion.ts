@@ -36,6 +36,29 @@ export async function obtenerFotosEnvio(envioId: string) {
     }
 }
 
+/**
+ * Dado un lote de IDs de envío, devuelve cuáles tienen al menos una foto
+ * de auditoría cargada (existe un registro en ShipmentAudit).
+ * Se usa para habilitar/deshabilitar el botón "Ver foto" en el listado de ventas.
+ */
+export async function obtenerEnviosConFoto(envioIds: string[]) {
+    try {
+        const ids = Array.from(new Set(envioIds.filter(Boolean)));
+        if (ids.length === 0) return { success: true, envioIds: [] as string[] };
+
+        const registros = await prisma.shipmentAudit.findMany({
+            where: { envioId: { in: ids } },
+            select: { envioId: true },
+            distinct: ['envioId'],
+        });
+
+        return { success: true, envioIds: registros.map((r) => r.envioId) };
+    } catch (error: any) {
+        console.error("Error al verificar envíos con foto:", error);
+        return { success: false, envioIds: [] as string[] };
+    }
+}
+
 export async function aprobarPedido(envioId: string) {
     try {
         await prisma.$transaction([

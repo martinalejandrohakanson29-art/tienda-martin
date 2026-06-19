@@ -41,6 +41,33 @@ import RendimientoVentasTab from "./rendimiento-ventas-tab";
 import EnviosAndreaniTab from "./envios-andreani-tab";
 import ConciliacionArcaTab from "./conciliacion-arca-tab";
 
+// Métodos de pago con ícono y color suave para distinguir cada opción de un vistazo.
+// El `value` se mantiene idéntico al guardado en BD; solo cambia la etiqueta visible.
+const METODOS_PAGO = [
+  { value: "Efectivo", label: "💵 Efectivo", color: "#dcfce7" },
+  { value: "Tarjeta de Crédito", label: "💳 Tarjeta de Crédito", color: "#dbeafe" },
+  { value: "Tarjeta de Débito", label: "🏧 Tarjeta de Débito", color: "#cffafe" },
+  { value: "MercadoLibre", label: "🟡 MercadoLibre", color: "#fef9c3" },
+  { value: "MercadoPago", label: "🔵 MercadoPago", color: "#e0e7ff" },
+  { value: "Cruzada", label: "🔁 Cruzada", color: "#f3e8ff" },
+  { value: "A Cuenta Corriente", label: "📒 A Cuenta Corriente", color: "#ffedd5" },
+  { value: "A Confirmar", label: "⏳ A Confirmar", color: "#f1f5f9" },
+];
+
+function OpcionesMetodoPago({ incluirAConfirmar = true }: { incluirAConfirmar?: boolean }) {
+  return (
+    <>
+      {METODOS_PAGO
+        .filter((m) => incluirAConfirmar || m.value !== "A Confirmar")
+        .map((m) => (
+          <option key={m.value} value={m.value} style={{ backgroundColor: m.color }}>
+            {m.label}
+          </option>
+        ))}
+    </>
+  );
+}
+
 type Decimal = {
   toNumber(): number;
   toString(): string;
@@ -179,6 +206,8 @@ export default function VentasMostradorClient({
   const [isPagoMixto, setIsPagoMixto] = useState(false);
   const [montoPago1, setMontoPago1] = useState<number>(0);
   const [metodoPago2, setMetodoPago2] = useState("Tarjeta de Crédito");
+  // Procesador / entidad de la tarjeta de crédito (sub-dato de "Tarjeta de Crédito")
+  const [procesadorTarjeta, setProcesadorTarjeta] = useState("Posnet Intercap");
 
   const [dni, setDni] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -752,6 +781,12 @@ export default function VentasMostradorClient({
   const requiereCuentaCorriente = (isPagoMixto && (metodoPago === "A Cuenta Corriente" || metodoPago2 === "A Cuenta Corriente")) || (!isPagoMixto && metodoPago === "A Cuenta Corriente");
   const esMixtoCruzadaCC = isPagoMixto && requiereCruzada && requiereCuentaCorriente;
 
+  // Tarjeta de crédito (pago único): habilita el sub-desplegable de procesador y,
+  // si el procesador es Go Cuotas o Posnet Mercadopago, ofrece fiscalizar en ARCA.
+  const esTarjetaCreditoUnica = !isPagoMixto && metodoPago === "Tarjeta de Crédito";
+  const requiereFiscalizacionOpcional = esTarjetaCreditoUnica &&
+    (procesadorTarjeta === "Go Cuotas" || procesadorTarjeta === "Posnet Mercadopago");
+
   // --- FUNCIONES PARA IMPRESIÓN ---
   const handleImprimirPresupuesto = () => {
     // Expandir packs en sus componentes antes de imprimir
@@ -998,8 +1033,17 @@ export default function VentasMostradorClient({
     }
   }, [esMixtoCruzadaCC, cliente]);
 
-  const handleFinalizarVenta = async (overrideComoPedido?: boolean | React.MouseEvent) => {
+  const handleFinalizarVenta = async (overrideComoPedido?: boolean | React.MouseEvent, fiscalizar: boolean = false) => {
     const isPedido = typeof overrideComoPedido === 'boolean' ? overrideComoPedido : isGuardarComoPedido;
+
+    // Para "Registrar y fiscalizar" necesitamos un CUIT/DNI (del buscador de Padrón A13)
+    if (fiscalizar) {
+      const docOk = (docNro && docNro !== "0") || cuitBusqueda.length > 6;
+      if (!docOk) {
+        alert("Para 'Registrar y fiscalizar' necesitás cargar el CUIT/DNI en el buscador de Padrón A13.");
+        return;
+      }
+    }
 
     if (requiereTarjeta && (!dni.trim() || !telefono.trim() || !cupon.trim() || !transaccionId.trim())) {
       alert("DNI, Teléfono, N° Cupón y Transacción son OBLIGATORIOS para pagos con Tarjeta."); return;
@@ -1082,6 +1126,9 @@ export default function VentasMostradorClient({
     if (isPagoMixto) {
       const det = `[Mixto -> ${metodoPago}: $${final1.toLocaleString('es-AR')} | ${metodoPago2}: $${final2.toLocaleString('es-AR')}]`;
       infoFinal = info ? `${det} - ${info}` : det;
+    } else if (esTarjetaCreditoUnica) {
+      const det = `[Tarjeta: ${procesadorTarjeta}]`;
+      infoFinal = info ? `${det} - ${info}` : det;
     }
 
     try {
@@ -1133,7 +1180,6 @@ export default function VentasMostradorClient({
         if (isPedido) {
           mostrarMensajeExito("¡Pedido de venta guardado con éxito!");
         } else {
-          mostrarMensajeExito("¡Venta registrada con éxito!");
           setArticulos(prev => prev.map(art => {
             const itemVendido = itemsParaGuardar.find(i => i.productoId === art.id);
             if (itemVendido) {
@@ -1141,6 +1187,18 @@ export default function VentasMostradorClient({
             }
             return art;
           }));
+
+          if (fiscalizar && (resultado as any).id) {
+            const resFiscal = await generarFacturaARCA((resultado as any).id);
+            if (resFiscal.success) {
+              mostrarMensajeExito(`¡Venta registrada y fiscalizada! CAE: ${resFiscal.cae}`);
+            } else {
+              mostrarMensajeExito("¡Venta registrada! (sin fiscalizar)");
+              alert(`La venta se registró pero NO se pudo fiscalizar en ARCA:\n${resFiscal.error || ""}${resFiscal.details ? "\n" + resFiscal.details : ""}\n\nPodés fiscalizarla luego desde el listado de ventas.`);
+            }
+          } else {
+            mostrarMensajeExito("¡Venta registrada con éxito!");
+          }
         }
 
         resetForm();
@@ -1240,7 +1298,7 @@ export default function VentasMostradorClient({
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setParaCuentaCorriente(""); setInteresTarjeta(0);
-    setCuitBusqueda(""); setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito");
+    setCuitBusqueda(""); setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito"); setProcesadorTarjeta("Posnet Intercap");
     setMlIdVenta(""); setMlIdEnvio(""); setMlMla(""); setMlDni("");
     setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(6);
     setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false); setSolicitarFactura(false);
@@ -3092,13 +3150,7 @@ export default function VentasMostradorClient({
                     <div className="space-y-3">
                       <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 1</Label>
                       <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
-                        <option value="Efectivo">Efectivo</option>
-                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                        <option value="MercadoLibre">MercadoLibre</option>
-                        <option value="MercadoPago">MercadoPago</option>
-                        <option value="Cruzada">Cruzada</option>
-                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                        <OpcionesMetodoPago incluirAConfirmar={false} />
                       </select>
                       <div>
                         <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base a pagar 1</Label>
@@ -3114,14 +3166,7 @@ export default function VentasMostradorClient({
                     <div className="space-y-3">
                       <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 2</Label>
                       <select value={metodoPago2} onChange={(e) => setMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
-                        <option value="Efectivo">Efectivo</option>
-                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                        <option value="MercadoLibre">MercadoLibre</option>
-                        <option value="MercadoPago">MercadoPago</option>
-                        <option value="Cruzada">Cruzada</option>
-                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                        <option value="A Confirmar">A Confirmar</option>
+                        <OpcionesMetodoPago />
                       </select>
                       <div>
                         <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
@@ -3145,15 +3190,18 @@ export default function VentasMostradorClient({
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
                     <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
-                      <option value="Efectivo">Efectivo</option>
-                      <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                      <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                      <option value="MercadoLibre">MercadoLibre</option>
-                      <option value="MercadoPago">MercadoPago</option>
-                      <option value="Cruzada">Cruzada</option>
-                      <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                      <option value="A Confirmar">A Confirmar</option>
+                      <OpcionesMetodoPago />
                     </select>
+                    {esTarjetaCreditoUnica && (
+                      <div className="space-y-2 pt-1 animate-in fade-in">
+                        <Label className="text-xs font-bold text-slate-500 uppercase">Procesador / Entidad</Label>
+                        <select value={procesadorTarjeta} onChange={(e) => setProcesadorTarjeta(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
+                          <option value="Posnet Intercap" style={{ backgroundColor: "#dbeafe" }}>🏦 Posnet Intercap</option>
+                          <option value="Go Cuotas" style={{ backgroundColor: "#fef9c3" }}>📅 Go Cuotas</option>
+                          <option value="Posnet Mercadopago" style={{ backgroundColor: "#e0e7ff" }}>🔵 Posnet Mercadopago</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -3498,13 +3546,32 @@ export default function VentasMostradorClient({
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 mb-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase block mb-3 text-center">Acción Final</Label>
                 <div className="flex flex-col gap-5">
-                  <Button
-                    onClick={() => handleFinalizarVenta(false)}
-                    disabled={isSubmitting}
-                    className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
-                  >
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar venta</>}
-                  </Button>
+                  {requiereFiscalizacionOpcional ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Button
+                        onClick={() => handleFinalizarVenta(false, false)}
+                        disabled={isSubmitting}
+                        className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
+                      >
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar sin fiscalizar</>}
+                      </Button>
+                      <Button
+                        onClick={() => handleFinalizarVenta(false, true)}
+                        disabled={isSubmitting}
+                        className="bg-emerald-700 hover:bg-emerald-800 text-white h-12 rounded-xl font-bold w-full"
+                      >
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ShieldCheck className="h-5 w-5 mr-2" /> Registrar y fiscalizar</>}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={() => handleFinalizarVenta(false)}
+                      disabled={isSubmitting}
+                      className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
+                    >
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar venta</>}
+                    </Button>
+                  )}
                   <Button
                     onClick={() => handleFinalizarVenta(true)}
                     disabled={isSubmitting}
@@ -3623,13 +3690,7 @@ export default function VentasMostradorClient({
                       <div className="space-y-3">
                         <Label className="text-xs font-bold text-purple-800 uppercase">Pago 1 (Principal)</Label>
                         <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
-                          <option value="Efectivo">Efectivo</option>
-                          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                          <option value="MercadoLibre">MercadoLibre</option>
-                          <option value="MercadoPago">MercadoPago</option>
-                          <option value="Cruzada">Cruzada</option>
-                          <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                          <OpcionesMetodoPago incluirAConfirmar={false} />
                         </select>
                         <div>
                           <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto 1</Label>
@@ -3645,13 +3706,7 @@ export default function VentasMostradorClient({
                       <div className="space-y-3">
                         <Label className="text-xs font-bold text-purple-800 uppercase">Pago 2 (Restante)</Label>
                         <select value={editMetodoPago2} onChange={(e) => setEditMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
-                          <option value="Efectivo">Efectivo</option>
-                          <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                          <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                          <option value="MercadoLibre">MercadoLibre</option>
-                          <option value="MercadoPago">MercadoPago</option>
-                          <option value="Cruzada">Cruzada</option>
-                          <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                          <OpcionesMetodoPago incluirAConfirmar={false} />
                         </select>
                         <div>
                           <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto 2</Label>
@@ -3675,13 +3730,7 @@ export default function VentasMostradorClient({
                     <div className="space-y-2 w-64">
                       <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago Única</Label>
                       <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none">
-                        <option value="Efectivo">Efectivo</option>
-                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
-                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
-                        <option value="MercadoLibre">MercadoLibre</option>
-                        <option value="MercadoPago">MercadoPago</option>
-                        <option value="Cruzada">Cruzada</option>
-                        <option value="A Cuenta Corriente">A Cuenta Corriente</option>
+                        <OpcionesMetodoPago incluirAConfirmar={false} />
                       </select>
                     </div>
                   )}

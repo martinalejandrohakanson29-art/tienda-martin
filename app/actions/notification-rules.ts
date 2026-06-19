@@ -19,21 +19,24 @@ export async function createNotificationRule(data: {
     name: string
     eventType: string
     sourceUserId?: string
-    targetUserId: string
+    targetUserIds: string[]
 }) {
     await requireSuperAdmin()
 
-    if (!data.name || !data.eventType || !data.targetUserId) {
+    const targetUserIds = Array.from(new Set((data.targetUserIds || []).filter(Boolean)))
+
+    if (!data.name || !data.eventType || targetUserIds.length === 0) {
         return { error: "Completá todos los campos obligatorios" }
     }
 
-    await prisma.notificationRule.create({
-        data: {
+    // Una regla por cada usuario destino (el modelo guarda un destino por fila).
+    await prisma.notificationRule.createMany({
+        data: targetUserIds.map((targetUserId) => ({
             name: data.name,
             eventType: data.eventType,
             sourceUserId: data.sourceUserId || null,
-            targetUserId: data.targetUserId,
-        },
+            targetUserId,
+        })),
     })
 
     revalidatePath("/admin/usuarios")

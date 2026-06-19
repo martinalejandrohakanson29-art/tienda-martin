@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
     Users, Bell, Plus, Pencil, Key, Trash2,
     ShieldAlert, ShieldCheck, User, ArrowLeft,
@@ -100,7 +101,7 @@ export default function UsuariosClient({ initialUsers, initialRules, currentUser
     // Change password form
     const [cp, setCp] = useState({ password: "", confirm: "" })
     // Create rule form
-    const [cr, setCr] = useState({ name: "", eventType: "", sourceUserId: "any", targetUserId: "" })
+    const [cr, setCr] = useState({ name: "", eventType: "", sourceUserId: "any", targetUserIds: [] as string[] })
     // Edit rule form
     const [er, setEr] = useState({ name: "", eventType: "", sourceUserId: "any", targetUserId: "", isActive: true })
 
@@ -175,13 +176,13 @@ export default function UsuariosClient({ initialUsers, initialRules, currentUser
         openDlg("editRule")
     }
     function openDeleteRule(rule: RuleRow) { setSelRule(rule); openDlg("deleteRule") }
-    function openCreateRule() { setCr({ name: "", eventType: "", sourceUserId: "any", targetUserId: "" }); openDlg("createRule") }
+    function openCreateRule() { setCr({ name: "", eventType: "", sourceUserId: "any", targetUserIds: [] }); openDlg("createRule") }
 
     async function handleCreateRule() {
         startTransition(async () => {
-            const r = await createNotificationRule({ name: cr.name, eventType: cr.eventType, sourceUserId: cr.sourceUserId === "any" ? undefined : cr.sourceUserId, targetUserId: cr.targetUserId })
+            const r = await createNotificationRule({ name: cr.name, eventType: cr.eventType, sourceUserId: cr.sourceUserId === "any" ? undefined : cr.sourceUserId, targetUserIds: cr.targetUserIds })
             if ("error" in r) { toast.error(r.error); return }
-            toast.success("Regla creada")
+            toast.success(cr.targetUserIds.length > 1 ? `${cr.targetUserIds.length} reglas creadas` : "Regla creada")
             closeDlg("createRule")
             await refreshRules()
         })
@@ -595,18 +596,41 @@ export default function UsuariosClient({ initialUsers, initialRules, currentUser
                             <p className="text-xs text-gray-500">Quién genera el evento. Dejá en "cualquier usuario" para todos.</p>
                         </div>
                         <div className="space-y-1.5">
-                            <Label>Usuario que recibe la alerta *</Label>
-                            <Select value={cr.targetUserId} onValueChange={v => setCr(p => ({ ...p, targetUserId: v }))}>
-                                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                                <SelectContent>
-                                    {users.filter(u => u.isActive).map(u => <SelectItem key={u.id} value={u.id}>{u.username}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                            {(() => {
+                                const activos = users.filter(u => u.isActive)
+                                const todosSeleccionados = activos.length > 0 && cr.targetUserIds.length === activos.length
+                                const toggleTarget = (id: string) => setCr(p => ({
+                                    ...p,
+                                    targetUserIds: p.targetUserIds.includes(id) ? p.targetUserIds.filter(x => x !== id) : [...p.targetUserIds, id],
+                                }))
+                                const toggleTodos = () => setCr(p => ({ ...p, targetUserIds: todosSeleccionados ? [] : activos.map(u => u.id) }))
+                                return (
+                                    <>
+                                        <div className="flex items-center justify-between">
+                                            <Label>Usuarios que reciben la alerta *</Label>
+                                            <span className="text-xs text-gray-500">{cr.targetUserIds.length} seleccionado(s)</span>
+                                        </div>
+                                        <div className="border rounded-lg divide-y max-h-52 overflow-y-auto">
+                                            <label className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 bg-gray-50/50">
+                                                <Checkbox checked={todosSeleccionados} onCheckedChange={toggleTodos} />
+                                                <span className="text-sm font-medium">Todos los usuarios activos</span>
+                                            </label>
+                                            {activos.map(u => (
+                                                <label key={u.id} className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50">
+                                                    <Checkbox checked={cr.targetUserIds.includes(u.id)} onCheckedChange={() => toggleTarget(u.id)} />
+                                                    <span className="text-sm">{u.username}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        <p className="text-xs text-gray-500">Se crea una regla por cada usuario seleccionado.</p>
+                                    </>
+                                )
+                            })()}
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => closeDlg("createRule")}>Cancelar</Button>
-                        <Button onClick={handleCreateRule} disabled={isPending || !cr.name || !cr.eventType || !cr.targetUserId}>
+                        <Button onClick={handleCreateRule} disabled={isPending || !cr.name || !cr.eventType || cr.targetUserIds.length === 0}>
                             {isPending ? "Creando..." : "Crear regla"}
                         </Button>
                     </DialogFooter>

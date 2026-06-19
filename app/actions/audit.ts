@@ -159,6 +159,16 @@ export async function auditItem(itemId: string, status: string, envioId: string)
             update: { status },
             create: { itemId, envioId, status, auditor: "Admin" }
         });
+
+        // Auditar resuelve la alerta "Envío listo para auditar": la eliminamos en todos
+        // los usuarios. Acotado por eventType para no tocar la alerta de preparación.
+        await prisma.notification.deleteMany({
+            where: {
+                link: `/admin/mercadolibre/preparacion?envio=${envioId}`,
+                eventType: "ENVIO_LISTO_AUDITORIA",
+            },
+        });
+
         return { success: true };
     } catch (error: any) {
         console.error("Error auditItem:", error);

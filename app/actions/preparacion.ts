@@ -72,8 +72,9 @@ export async function aprobarPedido(envioId: string) {
             prisma.etiquetaML.update({ where: { id: envioId }, data: { status: "AUDITADO" } }),
             prisma.shipmentAudit.updateMany({ where: { envioId: envioId }, data: { status: "AUDITADO" } })
         ])
-        // La acción resuelve la alerta: la eliminamos en todos los usuarios que la recibieron.
-        await prisma.notification.deleteMany({ where: { link: linkEnvio(envioId) } })
+        // La acción resuelve la alerta de preparación: la eliminamos en todos los usuarios.
+        // Acotado al eventType para no afectar la alerta de auditoría (se resuelve en /tools/audit).
+        await prisma.notification.deleteMany({ where: { link: linkEnvio(envioId), eventType: "PEDIDO_PREPARADO_FOTO" } })
         revalidatePath('/admin/mercadolibre/preparacion')
         return { success: true }
     } catch (error: any) {
@@ -88,8 +89,9 @@ export async function rechazarPedido(envioId: string) {
             prisma.etiquetaML.update({ where: { id: envioId }, data: { status: "PENDIENTE" } }),
             prisma.shipmentAudit.updateMany({ where: { envioId: envioId }, data: { status: "PENDIENTE" } })
         ])
-        // La acción resuelve la alerta: la eliminamos en todos los usuarios que la recibieron.
-        await prisma.notification.deleteMany({ where: { link: linkEnvio(envioId) } })
+        // La acción resuelve la alerta de preparación: la eliminamos en todos los usuarios.
+        // Acotado al eventType para no afectar la alerta de auditoría (se resuelve en /tools/audit).
+        await prisma.notification.deleteMany({ where: { link: linkEnvio(envioId), eventType: "PEDIDO_PREPARADO_FOTO" } })
         revalidatePath('/admin/mercadolibre/preparacion')
         return { success: true }
     } catch (error: any) {
@@ -182,11 +184,23 @@ export async function subirFotoAuditoria(formData: FormData) {
 
         // 3. Notificación (opción B): se dispara solo cuando el pedido queda completo.
         if (notificarPreparado) {
+            const cuerpoPreparado = `${username ? `${username} cargó` : "Se cargaron"} las fotos del envío ${envioId}${envioInfo.resumen ? ` — ${envioInfo.resumen}` : ""}`;
+
             await triggerNotification({
                 eventType: "PEDIDO_PREPARADO_FOTO",
                 sourceUserId: userId,
                 title: `Pedido preparado${envioInfo.orderId ? ` — Orden ${envioInfo.orderId}` : ""}`,
-                body: `${username ? `${username} cargó` : "Se cargaron"} las fotos del envío ${envioId}${envioInfo.resumen ? ` — ${envioInfo.resumen}` : ""}`,
+                body: cuerpoPreparado,
+                link: linkEnvio(envioId),
+            });
+
+            // Evento aparte para quienes auditan en /admin/tools/audit. Se resuelve al
+            // aprobar/rechazar ahí (ver auditItem), de forma independiente al evento anterior.
+            await triggerNotification({
+                eventType: "ENVIO_LISTO_AUDITORIA",
+                sourceUserId: userId,
+                title: `Envío listo para auditar${envioInfo.orderId ? ` — Orden ${envioInfo.orderId}` : ""}`,
+                body: cuerpoPreparado,
                 link: linkEnvio(envioId),
             });
         }

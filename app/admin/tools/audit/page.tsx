@@ -37,7 +37,19 @@ export default function AuditPage() {
     const [envioId, setEnvioId] = useState("")
     const [processing, setProcessing] = useState<string | null>(null)
 
-    useEffect(() => { loadFolders() }, [])
+    // Si llegamos desde la notificación "Pedido preparado Full" (link con ?envio= e
+    // ?item=), saltamos directo al envío y abrimos el detalle de ese ítem, en lugar de
+    // mostrar la lista general de carpetas. El link lo construye lib/notify.ts.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search)
+        const envio = params.get("envio")
+        const item = params.get("item")
+        if (envio) {
+            selectShipment(envio, item || undefined)
+        } else {
+            loadFolders()
+        }
+    }, [])
 
     const loadFolders = async () => {
         setLoading(true)
@@ -47,13 +59,25 @@ export default function AuditPage() {
         setLoading(false)
     }
 
-    const selectShipment = async (id: string) => {
+    const selectShipment = async (id: string, autoOpenItemId?: string) => {
         setEnvioId(id)
         setView('ITEM_LIST')
         setLoading(true)
         const res = await getAuditPendingItems(id)
         // @ts-ignore - Forzamos el casteo si hay discrepancias menores de tipo
-        if (res.success) setItems(res.data || [])
+        if (res.success) {
+            const data: AuditItem[] = res.data || []
+            setItems(data)
+            // Si venimos con un ítem puntual (notificación), abrimos su detalle directo.
+            if (autoOpenItemId) {
+                const target = data.find(i => i.itemId === autoOpenItemId)
+                if (target) {
+                    setSelectedItem(target)
+                    setActiveEvidenceImage(target.evidenceImages[0] || null)
+                    setView('ITEM_DETAIL')
+                }
+            }
+        }
         setLoading(false)
     }
 

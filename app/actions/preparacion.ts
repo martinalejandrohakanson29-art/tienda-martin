@@ -12,6 +12,10 @@ import { triggerNotification } from "@/lib/notify"
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME
 
+// Link usado en la notificación "Pedido preparado"; sirve para resolver/eliminar
+// las notificaciones de un envío en todos los usuarios cuando se aprueba o rechaza.
+const linkEnvio = (envioId: string) => `/admin/mercadolibre/preparacion?envio=${envioId}`
+
 export async function obtenerFotosEnvio(envioId: string) {
     try {
         const command = new ListObjectsV2Command({
@@ -68,6 +72,8 @@ export async function aprobarPedido(envioId: string) {
             prisma.etiquetaML.update({ where: { id: envioId }, data: { status: "AUDITADO" } }),
             prisma.shipmentAudit.updateMany({ where: { envioId: envioId }, data: { status: "AUDITADO" } })
         ])
+        // La acción resuelve la alerta: la eliminamos en todos los usuarios que la recibieron.
+        await prisma.notification.deleteMany({ where: { link: linkEnvio(envioId) } })
         revalidatePath('/admin/mercadolibre/preparacion')
         return { success: true }
     } catch (error: any) {
@@ -82,6 +88,8 @@ export async function rechazarPedido(envioId: string) {
             prisma.etiquetaML.update({ where: { id: envioId }, data: { status: "PENDIENTE" } }),
             prisma.shipmentAudit.updateMany({ where: { envioId: envioId }, data: { status: "PENDIENTE" } })
         ])
+        // La acción resuelve la alerta: la eliminamos en todos los usuarios que la recibieron.
+        await prisma.notification.deleteMany({ where: { link: linkEnvio(envioId) } })
         revalidatePath('/admin/mercadolibre/preparacion')
         return { success: true }
     } catch (error: any) {
@@ -179,7 +187,7 @@ export async function subirFotoAuditoria(formData: FormData) {
                 sourceUserId: userId,
                 title: `Pedido preparado${envioInfo.orderId ? ` — Orden ${envioInfo.orderId}` : ""}`,
                 body: `${username ? `${username} cargó` : "Se cargaron"} las fotos del envío ${envioId}${envioInfo.resumen ? ` — ${envioInfo.resumen}` : ""}`,
-                link: `/admin/mercadolibre/preparacion?envio=${envioId}`,
+                link: linkEnvio(envioId),
             });
         }
 

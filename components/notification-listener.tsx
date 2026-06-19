@@ -80,7 +80,7 @@ function NotificationCard({ notif, onClose }: { notif: DisplayNotif; onClose: (i
                 {notif.link && (
                     <a
                         href={notif.link}
-                        onClick={handleClose}
+                        onClick={() => onClose(notif.displayId)}
                         className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
                     >
                         Ir a ver
@@ -102,10 +102,26 @@ export function NotificationListener() {
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [notifs, setNotifs] = useState<DisplayNotif[]>([])
     const [mounted, setMounted] = useState(false)
+    const notifsRef = useRef<DisplayNotif[]>([])
+    // Ids ya mostrados en esta sesión, para no repetir el toast en cada poll
+    // (la notificación queda activa en el servidor hasta descartarla o resolverla).
+    const shownIdsRef = useRef<Set<string>>(new Set())
 
     useEffect(() => { setMounted(true) }, [])
+    useEffect(() => { notifsRef.current = notifs }, [notifs])
 
+    // "Aceptar"/"Ir a ver": descarta el toast y marca la notificación como leída
+    // (keepalive para que sobreviva a la navegación de "Ir a ver").
     const dismiss = useCallback((displayId: string) => {
+        const notif = notifsRef.current.find(n => n.displayId === displayId)
+        if (notif) {
+            fetch("/api/notifications/read", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                keepalive: true,
+                body: JSON.stringify({ id: notif.id }),
+            }).catch(() => {})
+        }
         setNotifs(prev => prev.filter(n => n.displayId !== displayId))
     }, [])
 
@@ -115,15 +131,41 @@ export function NotificationListener() {
         async function poll() {
             try {
                 const res = await fetch("/api/notifications/unread", { cache: "no-store" })
-                if (!res.ok) return
-                const notifications: NotifRow[] = await res.json()
-                for (const notif of notifications) {
-                    playNotificationSound()
-                    setNotifs(prev => [
-                        ...prev,
-                        { ...notif, displayId: `${notif.id}-${Date.now()}` },
-                    ])
+                if (res.ok) {
+                    const notifications: NotifRow[] = await res.json()
+                    for (const notif of notifications) {
+                        // Evita repetir el toast si ya se mostró en esta sesión.
+                        if (shownIdsRef.current.has(notif.id)) continue
+                        shownIdsRef.current.add(notif.id)
+                        playNotificationSound()
+                        setNotifs(prev => [
+                            ...prev,
+                            { ...notif, displayId: `${notif.id}-${Date.now()}` },
+                        ])
+                    }
                 }
+            } catch {
+                // error de red, ignorar
+            }
+
+            // Retirar de la pantalla los toasts cuya notificación ya fue resuelta
+            // (aprobada/rechazada) por otro usuario y por lo tanto eliminada en la BD.
+            try {
+                const actuales = notifsRef.current
+                const ids = Array.from(new Set(actuales.map(n => n.id)))
+                if (ids.length === 0) return
+                const res = await fetch("/api/notifications/active", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    cache: "no-store",
+                    body: JSON.stringify({ ids }),
+                })
+                if (!res.ok) return
+                const activos: string[] = await res.json()
+                const checked = new Set(ids)
+                const activeSet = new Set(activos)
+                // Conserva los que no chequeamos (recién agregados) y, de los chequeados, solo los activos.
+                setNotifs(prev => prev.filter(n => !checked.has(n.id) || activeSet.has(n.id)))
             } catch {
                 // error de red, ignorar
             }

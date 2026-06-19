@@ -38,6 +38,7 @@ type NotifRow = {
     eventType: string
     title: string
     body: string | null
+    link: string | null
     createdAt: string
 }
 
@@ -75,7 +76,16 @@ function NotificationCard({ notif, onClose }: { notif: DisplayNotif; onClose: (i
                     )}
                 </div>
             </div>
-            <div className="px-4 pb-3.5 flex justify-end">
+            <div className="px-4 pb-3.5 flex justify-end gap-2">
+                {notif.link && (
+                    <a
+                        href={notif.link}
+                        onClick={handleClose}
+                        className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                    >
+                        Ir a ver
+                    </a>
+                )}
                 <button
                     onClick={handleClose}
                     className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-white transition-colors"

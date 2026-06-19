@@ -87,6 +87,15 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     }, [expandedImage])
 
+    // Deep-link desde la notificación "Ir a ver": abre la pestaña de auditoría filtrada al envío.
+    useEffect(() => {
+        const envio = new URLSearchParams(window.location.search).get("envio")
+        if (envio) {
+            setActiveTab('revision')
+            setSearch(envio)
+        }
+    }, [])
+
     const zoomTo = (e: React.MouseEvent, s: number, o: string) => {
         e.stopPropagation();
         setZoomScale(s);

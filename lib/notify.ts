@@ -5,11 +5,13 @@ export async function triggerNotification({
     sourceUserId,
     title,
     body,
+    link,
 }: {
     eventType: string
     sourceUserId?: string
     title: string
     body?: string
+    link?: string
 }) {
     try {
         const rules = await prisma.notificationRule.findMany({
@@ -31,6 +33,7 @@ export async function triggerNotification({
                 eventType,
                 title,
                 body: body ?? null,
+                link: link ?? null,
             })),
         })
     } catch (error) {

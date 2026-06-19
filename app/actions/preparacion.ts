@@ -179,6 +179,7 @@ export async function subirFotoAuditoria(formData: FormData) {
                 sourceUserId: userId,
                 title: `Pedido preparado${envioInfo.orderId ? ` — Orden ${envioInfo.orderId}` : ""}`,
                 body: `${username ? `${username} cargó` : "Se cargaron"} las fotos del envío ${envioId}${envioInfo.resumen ? ` — ${envioInfo.resumen}` : ""}`,
+                link: `/admin/mercadolibre/preparacion?envio=${envioId}`,
             });
         }
 

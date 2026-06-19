@@ -68,6 +68,63 @@ const renderTextWithQuantity = (text: string) => {
     );
 };
 
+// Visor de imagen con zoom por zonas: al hacer click sobre una región la amplía
+// usando ese punto como centro; estando ampliada, mover el puntero (o arrastrar en
+// móvil) recorre la imagen. Otro click aleja. Click fuera de la imagen cierra.
+function ZoomViewer({ src, onClose }: { src: string; onClose: () => void }) {
+    const SCALE = 2.8
+    const imgRef = useRef<HTMLImageElement>(null)
+    const [zoomed, setZoomed] = useState(false)
+    const [origin, setOrigin] = useState({ x: 50, y: 50 })
+
+    const posFrom = (clientX: number, clientY: number) => {
+        const el = imgRef.current
+        if (!el) return { x: 50, y: 50 }
+        const rect = el.getBoundingClientRect()
+        const x = ((clientX - rect.left) / rect.width) * 100
+        const y = ((clientY - rect.top) / rect.height) * 100
+        return {
+            x: Math.max(0, Math.min(100, x)),
+            y: Math.max(0, Math.min(100, y)),
+        }
+    }
+
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (zoomed) {
+            setZoomed(false)
+        } else {
+            setOrigin(posFrom(e.clientX, e.clientY))
+            setZoomed(true)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden" onClick={onClose}>
+            <button className="absolute top-4 right-4 text-white/70 hover:text-white z-10" onClick={onClose}>
+                <X className="h-8 w-8" />
+            </button>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-xs bg-black/40 px-3 py-1 rounded-full pointer-events-none">
+                {zoomed ? "Movete sobre la imagen para explorar · click para alejar" : "Click sobre una zona para acercar"}
+            </div>
+            <img
+                ref={imgRef}
+                src={src}
+                alt="Zoom"
+                draggable={false}
+                onClick={handleClick}
+                onMouseMove={(e) => { if (zoomed) setOrigin(posFrom(e.clientX, e.clientY)) }}
+                onTouchMove={(e) => { if (zoomed) { const t = e.touches[0]; setOrigin(posFrom(t.clientX, t.clientY)) } }}
+                className={`max-w-full max-h-[90vh] object-contain rounded shadow-2xl select-none transition-transform duration-150 ${zoomed ? "cursor-zoom-out" : "cursor-zoom-in"}`}
+                style={{
+                    transform: zoomed ? `scale(${SCALE})` : "scale(1)",
+                    transformOrigin: `${origin.x}% ${origin.y}%`,
+                }}
+            />
+        </div>
+    )
+}
+
 export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [activeTab, setActiveTab] = useState<'pendientes' | 'revision'>('pendientes')
     const [search, setSearch] = useState("")
@@ -76,16 +133,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [viewingFotos, setViewingFotos] = useState<{id: string, fotos: any[], envioData: any} | null>(null)
     const [activeFoto, setActiveFoto] = useState<string | null>(null)
     const [expandedImage, setExpandedImage] = useState<string | null>(null)
-    const [zoomScale, setZoomScale] = useState(1)
-    const [zoomOrigin, setZoomOrigin] = useState('center')
     const fileInputRef = useRef<HTMLInputElement>(null)
-
-    useEffect(() => {
-        if (!expandedImage) {
-            setZoomScale(1)
-            setZoomOrigin('center')
-        }
-    }, [expandedImage])
 
     // Deep-link desde la notificación "Ir a ver": abre la pestaña de auditoría filtrada al envío.
     useEffect(() => {
@@ -96,12 +144,6 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     }, [])
 
-    const zoomTo = (e: React.MouseEvent, s: number, o: string) => {
-        e.stopPropagation();
-        setZoomScale(s);
-        setZoomOrigin(o);
-    };
-    
     const [selectedItem, setSelectedItem] = useState<{envioId: string, itemId: string, mla: string} | null>(null)
 
     const [showScanner, setShowScanner] = useState(false)
@@ -259,32 +301,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         return (
             <div className="max-w-5xl mx-auto p-4 space-y-6 w-full animate-in fade-in">
                 {expandedImage && (
-                    <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out" onClick={() => setExpandedImage(null)}>
-                        <div className="absolute top-4 left-0 right-0 flex justify-center z-50 pointer-events-none">
-                            <div className="bg-slate-900/80 p-2 rounded-xl flex gap-2 pointer-events-auto border border-white/20 shadow-xl flex-wrap justify-center max-w-[90vw]">
-                                <Button variant="secondary" size="sm" className={zoomScale === 1 ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 1, 'center')}>1x</Button>
-                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'top left' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'top left')}>↖️ 2x</Button>
-                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'top right' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'top right')}>↗️ 2x</Button>
-                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'bottom left' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'bottom left')}>↙️ 2x</Button>
-                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'bottom right' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'bottom right')}>↘️ 2x</Button>
-                                <Button variant="secondary" size="sm" className={zoomScale === 2 && zoomOrigin === 'center' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 2, 'center')}>⊙ 2x</Button>
-                                <Button variant="secondary" size="sm" className={zoomScale === 3 && zoomOrigin === 'center' ? 'bg-blue-600 text-white hover:bg-blue-700' : ''} onClick={(e) => zoomTo(e, 3, 'center')}>🔍 3x</Button>
-                            </div>
-                        </div>
-                        <button className="absolute top-4 right-4 text-white/70 hover:text-white z-50 bg-black/50 rounded-full p-1" onClick={(e) => { e.stopPropagation(); setExpandedImage(null); }}><X className="h-8 w-8" /></button>
-                        
-                        <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                            <div className="relative w-full h-full transition-all duration-300 ease-in-out" style={{ transform: `scale(${zoomScale})`, transformOrigin: zoomOrigin }}>
-                                <Image 
-                                    src={expandedImage} 
-                                    alt="Zoom" 
-                                    fill
-                                    className="object-contain rounded shadow-2xl"
-                                    unoptimized
-                                />
-                            </div>
-                        </div>
-                    </div>
+                    <ZoomViewer src={expandedImage} onClose={() => setExpandedImage(null)} />
                 )}
                 <Button variant="outline" onClick={() => { setViewingFotos(null); setActiveFoto(null); }}><ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista</Button>
                 

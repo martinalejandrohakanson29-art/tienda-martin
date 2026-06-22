@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,7 +64,17 @@ type FinalData = Record<string, unknown> & {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const DEFAULTS = { peso_grs: 500, alto_cm: 10, ancho_cm: 10, valor_declarado: 100000 };
+const DEFAULTS = { peso_grs: 500, alto_cm: 10, ancho_cm: 10, valor_declarado: 50000 };
+
+const ESTADOS_PEDIDO = [
+  { value: "TODOS",              label: "Todos" },
+  { value: "PENDIENTE",          label: "Pendiente" },
+  { value: "LISTO_PARA_PREPARAR", label: "Listo para preparar" },
+  { value: "PREPARADO",          label: "Preparado" },
+  { value: "DESPACHADO",         label: "Despachado" },
+  { value: "ENTREGADO",          label: "Entregado" },
+  { value: "CANCELADO",          label: "Cancelado" },
+];
 
 function applyDefaults(d: FinalData): FinalData {
   const out = { ...d };
@@ -197,6 +207,7 @@ export default function EnviosAndreaniTab() {
   const [pedidos, setPedidos] = useState<PedidoVenta[]>([]);
   const [cargandoPedidos, setCargandoPedidos] = useState(false);
   const [pedidoSelId, setPedidoSelId] = useState("");
+  const [estadoFiltro, setEstadoFiltro] = useState("TODOS");
 
   const [raw, setRaw] = useState("");
   const [finalData, setFinalData] = useState<FinalData>({});
@@ -207,7 +218,7 @@ export default function EnviosAndreaniTab() {
   const [peso, setPeso] = useState<string>("");
   const [alto, setAlto] = useState<string>("");
   const [ancho, setAncho] = useState<string>("");
-  const [valorDeclarado, setValorDeclarado] = useState<string>("");
+  const [valorDeclarado, setValorDeclarado] = useState<string>("50000");
 
   const [status, setStatus] = useState<StatusState>("idle");
   const [statusMsg, setStatusMsg] = useState("—");
@@ -222,15 +233,17 @@ export default function EnviosAndreaniTab() {
 
   // ── Cargar pedidos ──────────────────────────────────────────────────────────
 
-  const cargarPedidos = useCallback(async () => {
+  const cargarPedidos = useCallback(async (estado?: string) => {
     setCargandoPedidos(true);
     setStatus("loading");
     setStatusMsg("Cargando pedidos…");
     try {
-      const data = await obtenerPedidosAndreaniPendientes();
+      const filtro = estado ?? estadoFiltro;
+      const data = await obtenerPedidosAndreaniPendientes(filtro);
       setPedidos(data as PedidoVenta[]);
       setStatus("ok");
-      setStatusMsg(`${data.length} pedidos listos para preparar`);
+      const label = filtro === "TODOS" ? "todos los estados" : filtro;
+      setStatusMsg(`${data.length} pedidos (${label})`);
       setPedidoSelId("");
     } catch (e) {
       setStatus("error");
@@ -238,7 +251,9 @@ export default function EnviosAndreaniTab() {
     } finally {
       setCargandoPedidos(false);
     }
-  }, []);
+  }, [estadoFiltro]);
+
+  useEffect(() => { cargarPedidos(); }, []);
 
   // ── Selección de pedido ─────────────────────────────────────────────────────
 
@@ -249,7 +264,6 @@ export default function EnviosAndreaniTab() {
     if (!p) return;
     const rawText = buildRawFromPedido(p);
     setRaw(rawText);
-    if (p.totalFinal) setValorDeclarado(String(Math.round(p.totalFinal)));
     setStatus("ok");
     setStatusMsg(`Pedido #${p.numeroVenta ?? p.id.slice(0, 8)} cargado`);
   };
@@ -399,39 +413,56 @@ export default function EnviosAndreaniTab() {
             </p>
           </div>
 
-          {/* Botón cargar pedidos */}
-          <div>
+          {/* Filtro por estado + botón actualizar */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1 flex-1 min-w-[160px]">
+              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+                Filtrar por estado
+              </label>
+              <select
+                value={estadoFiltro}
+                onChange={e => {
+                  const val = e.target.value;
+                  setEstadoFiltro(val);
+                  cargarPedidos(val);
+                }}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              >
+                {ESTADOS_PEDIDO.map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
             <Button
-              onClick={cargarPedidos}
+              onClick={() => cargarPedidos()}
               disabled={cargandoPedidos}
-              className="h-9 gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+              variant="outline"
+              className="h-9 gap-2"
             >
               {cargandoPedidos ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Cargar Pedidos
+              Actualizar
             </Button>
           </div>
 
           {/* Dropdown de pedidos */}
-          {pedidos.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
-                Pedido ({pedidos.length} disponibles)
-              </label>
-              <select
-                value={pedidoSelId}
-                onChange={e => handlePedidoChange(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              >
-                <option value="">Elegí un pedido…</option>
-                {pedidos.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.numeroVenta ? `#${p.numeroVenta} - ` : ""}{p.cliente}
-                    {p.estadoPedido ? ` [${p.estadoPedido}]` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">
+              Pedido ({pedidos.length} disponibles)
+            </label>
+            <select
+              value={pedidoSelId}
+              onChange={e => handlePedidoChange(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            >
+              <option value="">Elegí un pedido…</option>
+              {pedidos.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.numeroVenta ? `#${p.numeroVenta} - ` : ""}{p.cliente}
+                  {p.estadoPedido ? ` [${p.estadoPedido}]` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Textarea raw */}
           <div className="flex flex-col gap-1">

@@ -1095,15 +1095,17 @@ export async function eliminarVentaMostrador(ventaId: string, usuario: string) {
   }
 }
 
-export async function obtenerPedidosAndreaniPendientes() {
+export async function obtenerPedidosAndreaniPendientes(estadoFiltro?: string) {
   await requireAdmin();
   try {
+    const estadosDefault = ["LISTO_PARA_PREPARAR", "LISTO P/PREPARAR", "PREPARADO", "PENDIENTE"];
+    const whereEstado = (!estadoFiltro || estadoFiltro === "TODOS")
+      ? { estadoPedido: { in: estadosDefault } }
+      : { estadoPedido: estadoFiltro };
     const ventas = await prisma.venta.findMany({
       where: {
         tipoVenta: "PEDIDO",
-        estadoPedido: {
-          in: ["LISTO_PARA_PREPARAR", "LISTO P/PREPARAR", "PREPARADO"],
-        },
+        ...whereEstado,
         tipoEnvio: {
           in: ["andreani", "ANDREANI"],
         },

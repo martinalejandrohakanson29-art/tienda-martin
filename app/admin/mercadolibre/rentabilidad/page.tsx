@@ -3,14 +3,16 @@ import { ArrowLeft, TrendingUp, TrendingDown, Zap, SlidersHorizontal } from "luc
 import Link from "next/link";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
 import { calcularAjustesRentabilidad } from "@/app/actions/ajuste-precios";
+import { getComposicionAgregados } from "@/app/actions/kits";
 import RefreshButton from "./refresh-button";
 import ClearButton from "./clear-button";
 import RentabilidadClient from "./rentabilidad-client";
 
 export default async function RentabilidadPage() {
-  const [data, { ajustes }] = await Promise.all([
+  const [data, { ajustes }, agregados] = await Promise.all([
     getRentabilidadData(),
     calcularAjustesRentabilidad(),
+    getComposicionAgregados(),
   ]);
 
   const totalItems = data.length;
@@ -73,7 +75,7 @@ export default async function RentabilidadPage() {
       </div>
 
       <div className="flex-1 overflow-hidden px-6 pb-6 min-h-0">
-        <RentabilidadClient data={data} ajustes={ajustes} />
+        <RentabilidadClient data={data} ajustes={ajustes} agregados={agregados} />
       </div>
     </div>
   );

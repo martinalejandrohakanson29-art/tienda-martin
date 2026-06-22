@@ -187,6 +187,85 @@ export async function getComposicionKits() {
 }
 
 /**
+ * Construye la lista de "agregados" (insumos) para el filtro de rentabilidad.
+ * Cada agregado guarda los MLA de las publicaciones que lo contienen, EXPANDIENDO
+ * los kits anidados (tabla articulos_compuestos / BOM): si un insumo es hijo de un
+ * kit, las publicaciones que llevan ese kit también cuentan como que tienen el insumo.
+ * Ej: "CIGUEÑAL DAKAR" aparece suelto en 8 pubs pero también dentro de "KIT DAKAR 200",
+ * por lo que las pubs de ese kit también deben matchear.
+ */
+export async function getComposicionAgregados() {
+  try {
+    const [kits, bom] = await Promise.all([
+      prisma.composicionKits.findMany({
+        select: { mla: true, id_articulo: true, nombre_articulo: true },
+      }),
+      prisma.articulosCompuestos.findMany({
+        select: { sku_padre: true, sku_hijo: true },
+      }),
+    ]);
+
+    // BOM inverso: hijo -> padres directos
+    const parentsOf = new Map<string, Set<string>>();
+    for (const r of bom) {
+      const hijo = (r.sku_hijo || "").trim();
+      const padre = (r.sku_padre || "").trim();
+      if (!hijo || !padre) continue;
+      if (!parentsOf.has(hijo)) parentsOf.set(hijo, new Set());
+      parentsOf.get(hijo)!.add(padre);
+    }
+
+    // ancestros(id): todos los kits que contienen a 'id' directa o transitivamente
+    const ancestorsCache = new Map<string, Set<string>>();
+    const ancestors = (id: string): Set<string> => {
+      const cached = ancestorsCache.get(id);
+      if (cached) return cached;
+      const out = new Set<string>();
+      const stack = Array.from(parentsOf.get(id) || []);
+      while (stack.length) {
+        const p = stack.pop()!;
+        if (out.has(p)) continue;
+        out.add(p);
+        for (const pp of Array.from(parentsOf.get(p) || [])) stack.push(pp);
+      }
+      ancestorsCache.set(id, out);
+      return out;
+    };
+
+    // MLAs directos por id_articulo + nombre de cada insumo
+    const directMlas = new Map<string, Set<string>>();
+    const nombreDe = new Map<string, string>();
+    for (const k of kits) {
+      const id = (k.id_articulo || "").trim();
+      if (!id) continue;
+      if (!directMlas.has(id)) directMlas.set(id, new Set());
+      const mla = (k.mla || "").trim();
+      if (mla) directMlas.get(id)!.add(mla);
+      if (!nombreDe.has(id) && k.nombre_articulo) nombreDe.set(id, k.nombre_articulo.trim());
+    }
+
+    // Para cada insumo, MLAs efectivos = directos + los de los kits que lo contienen
+    const agregados = Array.from(directMlas.keys()).map((id) => {
+      const mlas = new Set(directMlas.get(id));
+      for (const kitId of Array.from(ancestors(id))) {
+        for (const m of Array.from(directMlas.get(kitId) || [])) mlas.add(m);
+      }
+      return {
+        id_articulo: id,
+        nombre_articulo: nombreDe.get(id) || id,
+        mlas: Array.from(mlas),
+      };
+    });
+
+    agregados.sort((a, b) => a.nombre_articulo.localeCompare(b.nombre_articulo, "es"));
+    return agregados;
+  } catch (error) {
+    console.error("Error al obtener agregados de composición:", error);
+    return [];
+  }
+}
+
+/**
  * Agregar o editar un componente en un kit de forma individual.
  */
 export async function upsertKitComponent(data: any) {

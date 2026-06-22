@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Search, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import AgregadoFilter, { type Agregado } from "./agregado-filter";
 
 export interface ProductoRentabilidad {
   item_id: string;
@@ -49,6 +50,7 @@ interface Props {
   headerActions?: React.ReactNode;
   ajustesMap?: Map<string, number>;
   tipoMap?: Map<string, "DESCUENTO" | "SUBA">;
+  agregados?: Agregado[];
 }
 
 export default function RentabilidadTable({
@@ -59,8 +61,21 @@ export default function RentabilidadTable({
   headerActions,
   ajustesMap,
   tipoMap,
+  agregados = [],
 }: Props) {
   const [filter, setFilter] = useState("");
+  const [selectedAgregados, setSelectedAgregados] = useState<string[]>([]);
+
+  // MLAs permitidos según los agregados elegidos (unión). null = sin filtro de agregado.
+  const allowedMlas = useMemo(() => {
+    if (selectedAgregados.length === 0) return null;
+    const sel = new Set(selectedAgregados);
+    const mlas = new Set<string>();
+    for (const a of agregados) {
+      if (sel.has(a.id_articulo)) a.mlas.forEach((m) => mlas.add(m));
+    }
+    return mlas;
+  }, [selectedAgregados, agregados]);
   const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: "asc" | "desc" }>({
     key: "ganancia_neta",
     direction: "desc",
@@ -125,6 +140,7 @@ export default function RentabilidadTable({
   });
 
   const filteredData = simulatedData.filter((item) => {
+    if (allowedMlas && !allowedMlas.has((item.item_id || "").trim())) return false;
     const searchLower = filter.toLowerCase().trim();
     return (
       (item.nombre || "").toLowerCase().includes(searchLower) ||
@@ -185,22 +201,31 @@ export default function RentabilidadTable({
   return (
     <div className="flex flex-col h-full w-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="p-4 border-b border-slate-200 bg-white">
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Buscar por título, MLA o variante..."
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="pl-10 pr-8 bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
-            />
-            {filter && (
-              <button onClick={() => setFilter("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                <X className="h-4 w-4" />
-              </button>
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 items-start w-full sm:w-auto">
+            <div className="relative w-full sm:max-w-md sm:min-w-[280px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Buscar por título, MLA o variante..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="pl-10 pr-8 bg-slate-50 border-slate-200 focus-visible:ring-amber-500"
+              />
+              {filter && (
+                <button onClick={() => setFilter("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {agregados.length > 0 && (
+              <AgregadoFilter
+                agregados={agregados}
+                selected={selectedAgregados}
+                onChange={setSelectedAgregados}
+              />
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 self-end sm:self-auto">
             {headerActions}
             <div className="text-xs text-slate-500 font-medium whitespace-nowrap">
               {filteredData.length} ítems analizados

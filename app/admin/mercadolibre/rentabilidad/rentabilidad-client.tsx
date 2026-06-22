@@ -4,15 +4,18 @@ import { useState, useMemo } from "react";
 import RentabilidadTable, { type ProductoRentabilidad } from "./rentabilidad-table";
 import OptimizarPreciosButton from "./optimizar-button";
 import type { AjustePrecio } from "@/app/actions/ajuste-precios";
+import type { Agregado } from "./agregado-filter";
 import { Button } from "@/components/ui/button";
 import { CheckSquare, Square } from "lucide-react";
 
 export default function RentabilidadClient({
   data,
   ajustes,
+  agregados,
 }: {
   data: ProductoRentabilidad[];
   ajustes: AjustePrecio[];
+  agregados: Agregado[];
 }) {
   const qualifyingIds = useMemo(
     () => new Set(ajustes.map((a) => a.item_id)),
@@ -91,6 +94,7 @@ export default function RentabilidadClient({
       headerActions={headerActions}
       ajustesMap={ajustesMap}
       tipoMap={tipoMap}
+      agregados={agregados}
     />
   );
 }

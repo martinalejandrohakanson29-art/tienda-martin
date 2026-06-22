@@ -152,6 +152,18 @@ export async function getComposicionKits() {
       select: { mla: true, variation_id: true, user_product_id: true, family_id: true, estado: true, es_nuevo: true }
     });
 
+    // 3b. Traemos el costo de cada artículo usado en las recetas (costos_articulos).
+    //     costo_final_ars ya viene "rolleado" (incluye kits anidados), por lo que un
+    //     único cruce por id_articulo basta para calcular el costo de cada composición.
+    const articulosUnicos = Array.from(new Set(kits.map(k => k.id_articulo).filter(Boolean)));
+    const costos = await prisma.costosArticulos.findMany({
+      where: { id_articulo: { in: articulosUnicos } },
+      select: { id_articulo: true, costo_final_ars: true }
+    });
+    const costoMap = new Map(
+      costos.map(c => [c.id_articulo, c.costo_final_ars ? Number(c.costo_final_ars) : 0])
+    );
+
     // 4. Cruzamos los datos: Le pegamos la Familia y el User Product a cada Kit
     const kitsEnriquecidos = kits.map(kit => {
       // Intentamos coincidencia exacta (MLA + Variación)
@@ -162,12 +174,18 @@ export async function getComposicionKits() {
         maestro = maestros.find(m => m.mla === kit.mla);
       }
 
+      // null = el artículo no existe en costos_articulos (no podemos costear el componente)
+      const costoUnitario = costoMap.has(kit.id_articulo) ? costoMap.get(kit.id_articulo)! : null;
+      const subtotal = costoUnitario != null ? costoUnitario * (kit.cantidad || 0) : null;
+
       return {
         ...kit,
         user_product_id: maestro?.user_product_id || null,
         family_id: maestro?.family_id || null,
         estado: maestro?.estado || null,
         es_nuevo: maestro?.es_nuevo ?? false,
+        costo_unitario: costoUnitario,
+        subtotal,
       };
     });
 

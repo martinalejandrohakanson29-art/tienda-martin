@@ -14,6 +14,9 @@ import { deleteManualProduct } from "@/app/actions/ml-maestros";
 import { consultarVariantesMLA, type VarianteML } from "@/app/actions/ml-consulta";
 import { cn } from "@/lib/utils";
 
+const fmtMoneda = (n: number) =>
+  n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+
 export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], articulos: any[], maestros: any[] }) {
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<'active' | 'paused' | 'all' | 'new'>('all');
@@ -105,7 +108,9 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
         estado: item.estado || null,
         es_nuevo: item.es_nuevo ?? false,
         components: [],
-        isDummy: false
+        isDummy: false,
+        costoTotal: 0,
+        costoIncompleto: false, // true si algún componente no tiene costo cargado
       };
       acc.push(group);
     }
@@ -113,6 +118,11 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
       group.isDummy = true;
     } else {
       group.components.push(item);
+      if (item.subtotal != null) {
+        group.costoTotal += item.subtotal;
+      } else {
+        group.costoIncompleto = true;
+      }
     }
     return acc;
   }, []);
@@ -396,6 +406,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
               <TableHead className="font-bold text-slate-600 w-[100px]">Estado</TableHead>
               <TableHead className="font-bold text-slate-600">Componente (Insumo)</TableHead>
               <TableHead className="font-bold text-slate-600 text-center w-[80px]">Cant.</TableHead>
+              <TableHead className="font-bold text-slate-600 text-right w-[150px]">Costo</TableHead>
               <TableHead className="font-bold text-slate-600 text-center w-[140px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -452,6 +463,20 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                         : `${group.components.length} componente${group.components.length !== 1 ? "s" : ""}`}
                     </span>
                   </TableCell>
+                  <TableCell className="text-right py-3">
+                    {group.components.length === 0 ? (
+                      <span className="text-slate-300 text-xs">-</span>
+                    ) : (
+                      <div className="flex flex-col items-end">
+                        <span className="text-sm font-black text-slate-800">{fmtMoneda(group.costoTotal)}</span>
+                        {group.costoIncompleto && (
+                          <span className="text-[9px] text-amber-600 font-bold uppercase" title="Falta el costo de uno o más componentes">
+                            Costo parcial
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className="text-center py-3">
                     <div className="flex justify-center gap-1">
                       <Button
@@ -487,6 +512,20 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                     <TableCell className="text-center font-black text-slate-700 text-sm py-2">
                       {comp.cantidad}
                     </TableCell>
+                    <TableCell className="text-right py-2">
+                      {comp.subtotal != null ? (
+                        <div className="flex flex-col items-end">
+                          <span className="text-sm font-bold text-slate-700">{fmtMoneda(comp.subtotal)}</span>
+                          <span className="text-[10px] text-slate-400">
+                            {fmtMoneda(comp.costo_unitario)} c/u
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-amber-600 font-bold uppercase" title="El artículo no está en costos_articulos">
+                          Sin costo
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-center py-2">
                       <div className="flex justify-center gap-1">
                         <Button
@@ -514,7 +553,7 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                 {group.components.length === 0 && (
                   <TableRow className="bg-white border-slate-100">
                     <TableCell colSpan={5} className="py-2 border-l-2 border-orange-100" />
-                    <TableCell colSpan={3} className="py-2 pl-6 text-orange-500 text-xs italic">
+                    <TableCell colSpan={4} className="py-2 pl-6 text-orange-500 text-xs italic">
                       Sin componentes — usá el botón + para agregar la receta
                     </TableCell>
                   </TableRow>

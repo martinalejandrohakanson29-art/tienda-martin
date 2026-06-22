@@ -264,23 +264,34 @@ export async function ejecutarAjustesRentabilidad(ajustes: AjusteEjecutar[]) {
       .filter((a) => a.tipo === "SUBA")
       .map((a) => ({ item_id: a.item_id, nuevo_precio: a.nuevo_precio }));
 
-    // fire-and-forget: n8n responde inmediatamente y procesa en background
-    if (descuentos.length > 0) {
-      fetch(WEBHOOK_DESCUENTO, {
+    // Esperamos la respuesta del webhook (n8n responde apenas recibe y procesa en
+    // background). Sin await, en runtime serverless el server action puede retornar
+    // antes de que la request se envíe → el webhook nunca se dispara y el front
+    // mostraría un falso "enviado".
+    const postWebhook = (url: string, items: unknown[]) =>
+      fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: descuentos }),
+        body: JSON.stringify({ items }),
         cache: "no-store",
-      }).catch(() => {});
+      });
+
+    const calls: Promise<{ tipo: TipoAjuste; res: Response }>[] = [];
+    if (descuentos.length > 0) {
+      calls.push(postWebhook(WEBHOOK_DESCUENTO, descuentos).then((res) => ({ tipo: "DESCUENTO" as const, res })));
+    }
+    if (subas.length > 0) {
+      calls.push(postWebhook(WEBHOOK_SUBA, subas).then((res) => ({ tipo: "SUBA" as const, res })));
     }
 
-    if (subas.length > 0) {
-      fetch(WEBHOOK_SUBA, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: subas }),
-        cache: "no-store",
-      }).catch(() => {});
+    const resultados = await Promise.all(calls);
+    const fallidos = resultados.filter(({ res }) => !res.ok);
+    if (fallidos.length > 0) {
+      console.error(
+        "Webhook(s) de ajuste devolvieron error:",
+        fallidos.map(({ tipo, res }) => `${tipo}: ${res.status}`).join(", ")
+      );
+      return { success: false, descuentos: descuentos.length, subas: subas.length };
     }
 
     revalidatePath("/admin/mercadolibre/rentabilidad");

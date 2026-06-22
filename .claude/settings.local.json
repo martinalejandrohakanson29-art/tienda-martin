@@ -47,7 +47,16 @@
       "Bash(git push *)",
       "Bash(git fetch *)",
       "Bash(Select-String -Pattern \"movimientos-client\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git checkout *)",
+      "Bash(git ls-remote *)",
+      "Bash(git merge *)",
+      "WebSearch",
+      "WebFetch(domain:developers.mercadolibre.com.ar)",
+      "WebFetch(domain:global-selling.mercadolibre.com)",
+      "Bash(node *)",
+      "Bash(grep -rl \"suba\" n8n-workflows/)",
+      "Bash(grep -ro '\"path\": \"[^\"]*\"' n8n-workflows/)"
     ]
   }
 }

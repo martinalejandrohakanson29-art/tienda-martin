@@ -50,8 +50,14 @@ export default function RentabilidadClient({
     () => new Map()
   );
 
-  const handleSetManual = (ajuste: AjustePrecio) =>
+  const handleSetManual = (ajuste: AjustePrecio) => {
     setManualAjustes((prev) => new Map(prev).set(ajuste.item_id, ajuste));
+    // Al aplicar un ajuste manual, tildar el item automáticamente
+    setSelectedIds((prev) => {
+      if (prev.has(ajuste.item_id)) return prev;
+      return new Set(prev).add(ajuste.item_id);
+    });
+  };
 
   const handleClearManual = (itemId: string) =>
     setManualAjustes((prev) => {
@@ -60,13 +66,16 @@ export default function RentabilidadClient({
       return next;
     });
 
-  // Combinación final a aplicar: manuales (prioridad) + reglas tildadas que no
-  // tengan un ajuste manual sobre el mismo item_id.
+  // Combinación final a aplicar: manuales tildados (prioridad) + reglas tildadas
+  // que no tengan un ajuste manual sobre el mismo item_id.
   const ajustesSeleccionados = useMemo(() => {
+    const manuales = Array.from(manualAjustes.values()).filter(
+      (a) => selectedIds.has(a.item_id)
+    );
     const porRegla = ajustes.filter(
       (a) => selectedIds.has(a.item_id) && !manualAjustes.has(a.item_id)
     );
-    return [...Array.from(manualAjustes.values()), ...porRegla];
+    return [...manuales, ...porRegla];
   }, [ajustes, selectedIds, manualAjustes]);
 
   const allQualifyingSelected = ajustes.every((a) => selectedIds.has(a.item_id));

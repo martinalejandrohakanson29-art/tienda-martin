@@ -79,6 +79,17 @@ export default function RentabilidadTable({
 
   const hasManual = !!onSetManual;
 
+  // Quita el ajuste manual encolado Y limpia el % tipeado en la fila, para que
+  // no quede una previsualización fantasma (ni un DESCUENTO espurio si era SUBA).
+  const quitarManual = (itemId: string) => {
+    setManualPct((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    onClearManual?.(itemId);
+  };
+
   const aplicarManual = (item: ProductoRentabilidad, tipo: TipoAjuste) => {
     const raw = manualPct[item.item_id];
     const pctNum = Number(raw);
@@ -422,7 +433,7 @@ export default function RentabilidadTable({
                                 </span>
                               </span>
                               <button
-                                onClick={() => onClearManual?.(item.item_id)}
+                                onClick={() => quitarManual(item.item_id)}
                                 className="text-slate-400 hover:text-red-500 shrink-0"
                                 title="Quitar ajuste manual"
                               >

@@ -732,6 +732,18 @@ model ItemVisitaDiaria {
   @@map("item_visitas_diarias")
 }
 
+model DescripcionPublicacion {
+  mla                 String   @id
+  titulo              String?
+  descripcion         String   @default("") @db.Text
+  permalink           String?
+  estado              String?  @default("active")
+  fecha_actualizacion DateTime @default(now())
+
+  @@index([estado])
+  @@map("descripcion_publicacion")
+}
+
 model Compra {
   id            String            @id @default(cuid())
   proveedor     String            @default("Proveedor General")

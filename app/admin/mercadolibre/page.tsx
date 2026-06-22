@@ -14,6 +14,7 @@ import {
   Calculator,
   CalendarRange,
   ScanSearch,
+  FileSearch,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -259,6 +260,29 @@ export default function MercadoLibreDashboard() {
             </p>
             <Link href="/admin/mercadolibre/seguimiento-competencia">
               <Button className="w-full bg-sky-600 hover:bg-sky-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 10: DESCRIPCIÓN PUBLICACIONES */}
+        <Card className="border-l-4 border-l-violet-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-violet-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-violet-800 text-xl">
+              <FileSearch className="h-6 w-6" />
+              Descripción Publicaciones
+            </CardTitle>
+            <CardDescription className="text-violet-700/80 font-medium">
+              Buscador de palabras en descripciones
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Sincronizá las descripciones de tus publicaciones activas y encontrá en qué MLA aparece cualquier palabra (ej: &quot;cigüeñal&quot;).
+            </p>
+            <Link href="/admin/mercadolibre/descripciones">
+              <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2 shadow-sm h-12 text-lg">
                 Entrar <ArrowRight size={18} />
               </Button>
             </Link>

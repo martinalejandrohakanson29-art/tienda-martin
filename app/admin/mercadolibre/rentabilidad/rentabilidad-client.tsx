@@ -45,11 +45,29 @@ export default function RentabilidadClient({
     });
   };
 
-  // Solo los ajustes cuyo item_id está seleccionado
-  const ajustesSeleccionados = useMemo(
-    () => ajustes.filter((a) => selectedIds.has(a.item_id)),
-    [ajustes, selectedIds]
+  // Ajustes manuales cargados a mano por el usuario (clave: item_id)
+  const [manualAjustes, setManualAjustes] = useState<Map<string, AjustePrecio>>(
+    () => new Map()
   );
+
+  const handleSetManual = (ajuste: AjustePrecio) =>
+    setManualAjustes((prev) => new Map(prev).set(ajuste.item_id, ajuste));
+
+  const handleClearManual = (itemId: string) =>
+    setManualAjustes((prev) => {
+      const next = new Map(prev);
+      next.delete(itemId);
+      return next;
+    });
+
+  // Combinación final a aplicar: manuales (prioridad) + reglas tildadas que no
+  // tengan un ajuste manual sobre el mismo item_id.
+  const ajustesSeleccionados = useMemo(() => {
+    const porRegla = ajustes.filter(
+      (a) => selectedIds.has(a.item_id) && !manualAjustes.has(a.item_id)
+    );
+    return [...Array.from(manualAjustes.values()), ...porRegla];
+  }, [ajustes, selectedIds, manualAjustes]);
 
   const allQualifyingSelected = ajustes.every((a) => selectedIds.has(a.item_id));
 
@@ -95,6 +113,9 @@ export default function RentabilidadClient({
       ajustesMap={ajustesMap}
       tipoMap={tipoMap}
       agregados={agregados}
+      manualAjustes={manualAjustes}
+      onSetManual={handleSetManual}
+      onClearManual={handleClearManual}
     />
   );
 }

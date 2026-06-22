@@ -27,6 +27,7 @@ export default function OptimizarPreciosButton({
 
   const descuentos = useMemo(() => ajustes.filter((a) => a.tipo === "DESCUENTO"), [ajustes]);
   const subas = useMemo(() => ajustes.filter((a) => a.tipo === "SUBA"), [ajustes]);
+  const manuales = useMemo(() => ajustes.filter((a) => a.es_manual), [ajustes]);
 
   const handleEjecutar = async () => {
     setEjecutando(true);
@@ -92,6 +93,11 @@ export default function OptimizarPreciosButton({
                   {subas.length} suba(s) → cambia el precio de lista real
                 </span>
               )}
+              {manuales.length > 0 && (
+                <span className="flex items-center gap-1 text-blue-600">
+                  {manuales.length} manual(es)
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -126,9 +132,15 @@ export default function OptimizarPreciosButton({
                           </span>
                           <div className="flex items-center gap-1 flex-wrap">
                             <span className="text-[9px] font-mono text-slate-400">{a.item_id}</span>
-                            <Badge variant="outline" className="text-[9px] h-4 px-1 text-slate-500">
-                              {a.regla_nombre}
-                            </Badge>
+                            {a.es_manual ? (
+                              <Badge className="text-[9px] h-4 px-1 bg-blue-100 text-blue-700 hover:bg-blue-100">
+                                Manual
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[9px] h-4 px-1 text-slate-500">
+                                {a.regla_nombre}
+                              </Badge>
+                            )}
                             {a.tiene_campana_ml && (
                               <Badge variant="secondary" className="text-[9px] h-4 px-1 bg-blue-100 text-blue-700">
                                 Campaña ML

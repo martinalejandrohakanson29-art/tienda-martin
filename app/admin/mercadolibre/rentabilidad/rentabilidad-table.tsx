@@ -10,9 +10,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, X, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "./agregado-filter";
+import type { AjustePrecio, TipoAjuste } from "@/app/actions/ajuste-precios";
+
+// Redondea al múltiplo de 50 más cercano (igual que el cálculo por reglas)
+const redondear = (precio: number) => Math.round(precio / 50) * 50;
 
 export interface ProductoRentabilidad {
   item_id: string;
@@ -51,6 +55,9 @@ interface Props {
   ajustesMap?: Map<string, number>;
   tipoMap?: Map<string, "DESCUENTO" | "SUBA">;
   agregados?: Agregado[];
+  manualAjustes?: Map<string, AjustePrecio>;
+  onSetManual?: (ajuste: AjustePrecio) => void;
+  onClearManual?: (itemId: string) => void;
 }
 
 export default function RentabilidadTable({
@@ -62,9 +69,36 @@ export default function RentabilidadTable({
   ajustesMap,
   tipoMap,
   agregados = [],
+  manualAjustes,
+  onSetManual,
+  onClearManual,
 }: Props) {
   const [filter, setFilter] = useState("");
   const [selectedAgregados, setSelectedAgregados] = useState<string[]>([]);
+  const [manualPct, setManualPct] = useState<Record<string, string>>({});
+
+  const hasManual = !!onSetManual;
+
+  const aplicarManual = (item: ProductoRentabilidad, tipo: TipoAjuste) => {
+    const raw = manualPct[item.item_id];
+    const pctNum = Number(raw);
+    if (!raw || isNaN(pctNum) || pctNum <= 0) return;
+    const factor = tipo === "SUBA" ? 1 + pctNum / 100 : 1 - pctNum / 100;
+    onSetManual?.({
+      item_id: item.item_id,
+      nombre: item.nombre,
+      nombre_variante: item.nombre_variante,
+      tipo,
+      regla_nombre: "Manual",
+      ganancia_actual: parseFloat((item.ganancia_porcentaje ?? 0).toFixed(1)),
+      precio_original: Math.round(item.precio_original),
+      precio_actual_nuestro: Math.round(item.precio_final_nuestro),
+      nuevo_precio: redondear(item.precio_original * factor),
+      ajuste_pct: parseFloat(pctNum.toFixed(2)),
+      tiene_campana_ml: (item.desc_pct_ml ?? 0) > 0,
+      es_manual: true,
+    });
+  };
 
   // MLAs permitidos según los agregados elegidos (unión). null = sin filtro de agregado.
   const allowedMlas = useMemo(() => {
@@ -249,6 +283,9 @@ export default function RentabilidadTable({
               <SortableHead label="P. Público" sortKey="precio_final" className="text-slate-500" />
               <SortableHead label="P. Nuestro" sortKey="precio_final_nuestro" className="text-slate-900 bg-slate-100" />
               <TableHead className="text-right text-violet-700 font-bold text-[11px] bg-violet-50 whitespace-nowrap">P. Optimizado</TableHead>
+              {hasManual && (
+                <TableHead className="text-center text-blue-700 font-bold text-[11px] bg-blue-50 whitespace-nowrap min-w-[160px]">Ajuste manual</TableHead>
+              )}
               <SortableHead label="Costo" sortKey="costo_total" className="text-slate-700 bg-slate-100" />
               <SortableHead label="Comisión %" sortKey="comision_pct" className="text-red-500" />
               <SortableHead label="Impuesto" sortKey="impuesto_pct" className="text-orange-600" />
@@ -344,6 +381,64 @@ export default function RentabilidadTable({
                       <span className="text-slate-300">-</span>
                     )}
                   </TableCell>
+                  {hasManual && (
+                    <TableCell className="bg-blue-50/40">
+                      {manualAjustes?.has(item.item_id) ? (
+                        (() => {
+                          const m = manualAjustes.get(item.item_id)!;
+                          const esSuba = m.tipo === "SUBA";
+                          return (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <span className={cn(
+                                "inline-flex flex-col items-end leading-tight font-bold",
+                                esSuba ? "text-emerald-700" : "text-amber-600"
+                              )}>
+                                ${m.nuevo_precio.toLocaleString("es-AR")}
+                                <span className="text-[8px] font-bold uppercase tracking-wide opacity-80">
+                                  {esSuba ? `↑ +${m.ajuste_pct}%` : `↓ -${m.ajuste_pct}%`}
+                                </span>
+                              </span>
+                              <button
+                                onClick={() => onClearManual?.(item.item_id)}
+                                className="text-slate-400 hover:text-red-500 shrink-0"
+                                title="Quitar ajuste manual"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <div className="flex items-center justify-center gap-1">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            placeholder="%"
+                            className="h-6 w-12 text-right text-[11px] px-1 font-bold text-blue-700 border-slate-200 focus-visible:ring-1 focus-visible:ring-blue-500 bg-white"
+                            value={manualPct[item.item_id] ?? ""}
+                            onChange={(e) => setManualPct((prev) => ({ ...prev, [item.item_id]: e.target.value }))}
+                          />
+                          <button
+                            onClick={() => aplicarManual(item, "DESCUENTO")}
+                            className="h-6 w-6 inline-flex items-center justify-center rounded bg-amber-100 text-amber-700 hover:bg-amber-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Aplicar como descuento (promoción)"
+                            disabled={!(Number(manualPct[item.item_id]) > 0)}
+                          >
+                            <TrendingDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => aplicarManual(item, "SUBA")}
+                            className="h-6 w-6 inline-flex items-center justify-center rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                            title="Aplicar como suba (precio de lista)"
+                            disabled={!(Number(manualPct[item.item_id]) > 0)}
+                          >
+                            <TrendingUp className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right font-bold text-slate-600 bg-slate-100">
                     <div className="flex justify-end items-center gap-1">
                       <span className="text-slate-400">$</span>

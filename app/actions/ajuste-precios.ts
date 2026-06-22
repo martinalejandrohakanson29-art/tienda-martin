@@ -64,6 +64,7 @@ export type AjustePrecio = {
   nuevo_precio: number; // DESCUENTO: deal_price; SUBA: nuevo precio de lista
   ajuste_pct: number; // DESCUENTO: % de descuento aplicado; SUBA: % de aumento
   tiene_campana_ml: boolean;
+  es_manual?: boolean; // true cuando el ajuste lo carga el usuario a mano (no por regla)
 };
 
 // Devuelve la primera regla activa cuyas condiciones (AND) matcheen.

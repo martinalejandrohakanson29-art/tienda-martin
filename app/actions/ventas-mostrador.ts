@@ -29,9 +29,10 @@ const VentaItemSchema = z.object({
   productoId: z.string().optional(),
   id: z.string().optional(),
   nombre: z.string(),
-  cantidad: z.number().int().min(1),
+  cantidad: z.number().int().min(0),
   precio_unit: z.number().min(0),
   subtotal: z.number().min(0),
+  esNota: z.boolean().optional(),
 })
 
 const VentaBaseUpdateSchema = z.object({
@@ -681,13 +682,14 @@ export async function crearVentaMostrador(data: {
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
-              subtotal: item.subtotal
+              subtotal: item.subtotal,
+              esNota: item.esNota ?? false,
             }))
           }
         }
       });
 
-      await ajustarStockItemsTx(tx, data.items, "decrement");
+      await ajustarStockItemsTx(tx, data.items.filter(i => !i.esNota), "decrement");
 
       const montoImpactoVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
       if (montoImpactoVal > 0 && data.para) {
@@ -830,13 +832,14 @@ export async function guardarComoPedidoVenta(data: {
               nombre: item.nombre,
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
-              subtotal: item.subtotal
+              subtotal: item.subtotal,
+              esNota: item.esNota ?? false,
             }))
           }
         }
       });
 
-      await ajustarStockItemsTx(tx, data.items, "decrement");
+      await ajustarStockItemsTx(tx, data.items.filter((i: any) => !i.esNota), "decrement");
 
       const montoImpactoVal = getMontoImpactoProveedor(data.metodo_pago, data.info, data.totalFinal);
       if (montoImpactoVal > 0 && data.para) {
@@ -1365,6 +1368,7 @@ export async function actualizarPedidoVenta(ventaId: string, rawData: unknown, u
               cantidad: item.cantidad,
               precio_unit: item.precio_unit,
               subtotal: item.subtotal,
+              esNota: item.esNota ?? false,
             }))
           }
         }
@@ -1375,7 +1379,7 @@ export async function actualizarPedidoVenta(ventaId: string, rawData: unknown, u
         await aplicarImpactoProveedorTx(tx, data.para, montoImpactoNewVal, desc, ventaId);
       }
 
-      await ajustarStockItemsTx(tx, data.items, "decrement");
+      await ajustarStockItemsTx(tx, data.items.filter(i => !i.esNota), "decrement");
 
       await tx.ventaAuditoria.create({
         data: { ventaId, usuario, accion: "EDICION_PEDIDO_VENTA", detalle: detalleCambios }

@@ -613,6 +613,7 @@ model VentaItem {
   cantidad    Int     @default(1)
   precio_unit Decimal @db.Decimal(20, 2)
   subtotal    Decimal @db.Decimal(20, 2)
+  esNota      Boolean @default(false)
   venta       Venta   @relation(fields: [ventaId], references: [id], onDelete: Cascade)
 
   @@map("ventas_mostrador_items")

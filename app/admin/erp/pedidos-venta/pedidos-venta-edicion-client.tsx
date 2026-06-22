@@ -36,6 +36,7 @@ import {
   Upload,
   Download,
   File,
+  FileText,
   FileX,
   ArrowLeft,
   Printer,
@@ -77,6 +78,7 @@ type ItemVenta = {
   cantidad: number;
   precio_unit: number;
   subtotal: number;
+  esNota?: boolean;
 };
 
 type Venta = {
@@ -142,6 +144,8 @@ export default function PedidosVentaEdicionClient() {
   // Estados para búsqueda de artículos
   const [articulos, setArticulos] = useState<any[]>([]);
   const [busquedaArticulo, setBusquedaArticulo] = useState("");
+  const [showNotaInputEdit, setShowNotaInputEdit] = useState(false);
+  const [notaTextoEdit, setNotaTextoEdit] = useState("");
 
   // Estados para búsqueda de proveedores
   const [proveedores, setProveedores] = useState<any[]>([]);
@@ -545,7 +549,7 @@ export default function PedidosVentaEdicionClient() {
 
   // --- Helpers para gestión de items ---
   const recalcularTotales = (items: ItemVenta[], interes: number = 0) => {
-    const subtotal = items.reduce((acc, item) => acc + (Number(item.cantidad) * Number(item.precio_unit)), 0);
+    const subtotal = items.filter(i => !i.esNota).reduce((acc, item) => acc + (Number(item.cantidad) * Number(item.precio_unit)), 0);
     const totalFinal = subtotal + interes;
     return { total: subtotal, totalFinal };
   };
@@ -1481,10 +1485,74 @@ export default function PedidosVentaEdicionClient() {
               {/* Columna Izquierda: Artículos y Búsqueda */}
               <div className="flex-[1.8] flex flex-col p-6 overflow-hidden border-r border-slate-100 bg-white">
                 <div className="mb-4">
-                  <Label className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
-                    <Plus className="h-4 w-4 text-amber-600" />
-                    Añadir Artículos al Pedido
-                  </Label>
+                  <div className="flex items-center justify-between mb-3">
+                    <Label className="text-sm font-bold text-slate-700 flex items-center gap-2">
+                      <Plus className="h-4 w-4 text-amber-600" />
+                      Añadir Artículos al Pedido
+                    </Label>
+                    <button
+                      type="button"
+                      onClick={() => { setShowNotaInputEdit(v => !v); setNotaTextoEdit(""); }}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <FileText className="h-3.5 w-3.5" /> Agregar Nota
+                    </button>
+                  </div>
+                  {showNotaInputEdit && (
+                    <div className="flex gap-2 items-center bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3 shadow-sm">
+                      <FileText className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                      <Input
+                        autoFocus
+                        placeholder="Escribí la nota..."
+                        value={notaTextoEdit}
+                        onChange={(e) => setNotaTextoEdit(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && notaTextoEdit.trim() && editingVenta) {
+                            const newItems = [...editingVenta.items, {
+                              productoId: null,
+                              nombre: notaTextoEdit.trim(),
+                              cantidad: 0,
+                              precio_unit: 0,
+                              subtotal: 0,
+                              esNota: true,
+                            }];
+                            const { total, totalFinal } = recalcularTotales(newItems, editingVenta.interes || 0);
+                            setEditingVenta({ ...editingVenta, items: newItems, total, totalFinal });
+                            setNotaTextoEdit("");
+                            setShowNotaInputEdit(false);
+                          } else if (e.key === "Escape") {
+                            setShowNotaInputEdit(false);
+                            setNotaTextoEdit("");
+                          }
+                        }}
+                        className="flex-1 h-8 text-sm border-amber-200 focus:border-amber-400 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!notaTextoEdit.trim() || !editingVenta) return;
+                          const newItems = [...editingVenta.items, {
+                            productoId: null,
+                            nombre: notaTextoEdit.trim(),
+                            cantidad: 0,
+                            precio_unit: 0,
+                            subtotal: 0,
+                            esNota: true,
+                          }];
+                          const { total, totalFinal } = recalcularTotales(newItems, editingVenta.interes || 0);
+                          setEditingVenta({ ...editingVenta, items: newItems, total, totalFinal });
+                          setNotaTextoEdit("");
+                          setShowNotaInputEdit(false);
+                        }}
+                        className="text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                      >
+                        Añadir
+                      </button>
+                      <button type="button" onClick={() => { setShowNotaInputEdit(false); setNotaTextoEdit(""); }} className="text-slate-400 hover:text-slate-600 p-1">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                   <div className="relative">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
                     <Input
@@ -1564,6 +1632,28 @@ export default function PedidosVentaEdicionClient() {
                           </TableRow>
                         ) : (
                           editingVenta.items.map((item, idx) => (
+                            item.esNota ? (
+                              <TableRow key={idx} className="bg-amber-50/60 hover:bg-amber-50 transition-colors border-l-2 border-l-amber-400 group">
+                                <TableCell colSpan={3} className="py-3 pl-6">
+                                  <div className="flex items-center gap-2 text-amber-800">
+                                    <FileText className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                                    <span className="text-sm font-medium italic">{item.nombre}</span>
+                                    <span className="text-[10px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase">Nota</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-3 text-right pr-4 text-slate-300">—</TableCell>
+                                <TableCell className="py-3 text-center">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => eliminarArticulo(idx)}
+                                    className="h-10 w-10 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                                  >
+                                    <Trash2 className="h-5 w-5" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ) : (
                             <TableRow key={idx} className="hover:bg-slate-50/50 transition-colors group">
                               <TableCell className="py-4 pl-6">
                                 <div className="flex flex-col gap-1">
@@ -1610,6 +1700,7 @@ export default function PedidosVentaEdicionClient() {
                                 </Button>
                               </TableCell>
                             </TableRow>
+                            )
                           ))
                         )}
                       </TableBody>

@@ -106,6 +106,7 @@ interface ItemVenta {
   stock: number;
   ultimaModificacion?: string | null;
   esPack?: boolean;
+  esNota?: boolean;
   packComponentes?: {
     id: string;
     nombre: string;
@@ -192,6 +193,8 @@ export default function VentasMostradorClient({
 
   // --- ESTADOS PARA NUEVA VENTA ---
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showNotaInput, setShowNotaInput] = useState(false);
+  const [notaTexto, setNotaTexto] = useState("");
   const [expandirPacks, setExpandirPacks] = useState(true);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
@@ -760,7 +763,7 @@ export default function VentasMostradorClient({
   };
 
   // --- CALCULOS NUEVA VENTA (LÓGICA MIXTA) ---
-  const totalBase = items.reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
+  const totalBase = items.filter((item: ItemVenta) => !item.esNota).reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
 
   const base1 = isPagoMixto ? montoPago1 : totalBase;
   const base2 = isPagoMixto ? Math.max(0, totalBase - montoPago1) : 0;
@@ -1315,7 +1318,7 @@ export default function VentasMostradorClient({
 
 
   // --- CALCULOS EDICIÓN VENTA (LÓGICA MIXTA) ---
-  const totalBaseEdit = editItems.reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
+  const totalBaseEdit = editItems.filter((item: ItemVenta) => !item.esNota).reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
 
   const editBase1 = isEditPagoMixto ? editMontoPago1 : totalBaseEdit;
   const editBase2 = isEditPagoMixto ? Math.max(0, totalBaseEdit - editMontoPago1) : 0;
@@ -1983,9 +1986,16 @@ export default function VentasMostradorClient({
             <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
 
               <section className="flex-grow flex flex-col min-h-0 gap-4">
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-4 items-center flex-wrap">
                   <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
                     <Plus className="h-4 w-4" /> Añadir Artículo ( + )
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => { setShowNotaInput(v => !v); setNotaTexto(""); }}
+                    className="border-amber-200 text-amber-700 hover:bg-amber-50 gap-2 px-5 rounded-xl w-fit shadow-sm flex-shrink-0"
+                  >
+                    <FileText className="h-4 w-4" /> Agregar Nota
                   </Button>
                   <Button onClick={() => {
                     const nuevoId = "ART-" + Math.random().toString(36).substring(2, 9).toUpperCase();
@@ -1995,6 +2005,59 @@ export default function VentasMostradorClient({
                     <Plus className="h-4 w-4" /> Crear nuevo artículo
                   </Button>
                 </div>
+                {showNotaInput && (
+                  <div className="flex gap-2 items-center bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 shadow-sm">
+                    <FileText className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                    <Input
+                      autoFocus
+                      placeholder="Escribí la nota (ej: agregar calcos al pedido)..."
+                      value={notaTexto}
+                      onChange={(e) => setNotaTexto(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && notaTexto.trim()) {
+                          setItems(prev => [...prev, {
+                            id: crypto.randomUUID(),
+                            nombre: notaTexto.trim(),
+                            cantidad: 0,
+                            precio_unit: 0,
+                            subtotal: 0,
+                            stock: 0,
+                            esNota: true,
+                          }]);
+                          setNotaTexto("");
+                          setShowNotaInput(false);
+                        } else if (e.key === "Escape") {
+                          setShowNotaInput(false);
+                          setNotaTexto("");
+                        }
+                      }}
+                      className="flex-1 h-9 border-amber-200 focus:border-amber-400 bg-white"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (!notaTexto.trim()) return;
+                        setItems(prev => [...prev, {
+                          id: crypto.randomUUID(),
+                          nombre: notaTexto.trim(),
+                          cantidad: 0,
+                          precio_unit: 0,
+                          subtotal: 0,
+                          stock: 0,
+                          esNota: true,
+                        }]);
+                        setNotaTexto("");
+                        setShowNotaInput(false);
+                      }}
+                      className="bg-amber-600 hover:bg-amber-700 text-white px-4 rounded-lg h-9"
+                    >
+                      Añadir
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowNotaInput(false); setNotaTexto(""); }} className="h-9 px-2 text-slate-400">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
 
                 <div className="flex-grow bg-white border border-slate-100 rounded-xl shadow-sm overflow-hidden flex flex-col">
                   <div className="overflow-y-auto flex-grow h-full">
@@ -2013,6 +2076,21 @@ export default function VentasMostradorClient({
                           <TableRow><TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">No hay artículos cargados</TableCell></TableRow>
                         ) : (
                           items.map((item) => (
+                            item.esNota ? (
+                              <TableRow key={item.id} className="bg-amber-50/70 hover:bg-amber-50 transition-colors border-l-2 border-l-amber-400">
+                                <TableCell colSpan={3} className="py-3">
+                                  <div className="flex items-center gap-2 text-amber-800">
+                                    <FileText className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                                    <span className="text-sm font-medium italic">{item.nombre}</span>
+                                    <span className="text-[10px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase">Nota</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right py-3 text-slate-300 text-sm">—</TableCell>
+                                <TableCell className="py-3 text-center">
+                                  <Button variant="ghost" size="icon" onClick={() => setItems(items.filter(i => i.id !== item.id))} className="text-red-400 hover:text-red-600"><Trash2 className="h-4 w-4" /></Button>
+                                </TableCell>
+                              </TableRow>
+                            ) : (
                             <TableRow key={item.id} className="hover:bg-slate-50/50 transition-colors">
                               <TableCell className="font-medium text-slate-700 py-3">
                                 <div className="flex flex-col gap-1">
@@ -2084,6 +2162,7 @@ export default function VentasMostradorClient({
                                 <Button variant="ghost" size="icon" onClick={() => setItems(items.filter(i => i.id !== item.id))} className="text-red-500"><Trash2 className="h-4 w-4" /></Button>
                               </TableCell>
                             </TableRow>
+                            )
                           ))
                         )}
                       </TableBody>

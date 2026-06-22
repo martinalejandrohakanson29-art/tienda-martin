@@ -346,6 +346,136 @@ export async function upsertKitComponent(data: any) {
   }
 }
 
+// NUEVO: Crear/actualizar VARIAS variantes (maestro + receta) en un solo paso.
+// Pensado para el importador multi-variante de la sección Composición.
+// Cada variante crea/actualiza su producto maestro y, si trae componentes, su receta.
+// Tolera variantes sin componentes (queda como "SIN RECETA" para recetar después).
+export async function createVariantsBulk(payload: {
+  variantes: Array<{
+    mla: string;
+    titulo: string;
+    nombre_variante?: string;
+    variation_id?: string;
+    user_product_id?: string;
+    family_id?: string;
+    es_nuevo?: boolean;
+    componentes: Array<{
+      id_articulo: string;
+      cantidad: number;
+      nombre_articulo: string;
+    }>;
+  }>;
+}) {
+  try {
+    if (!payload.variantes || payload.variantes.length === 0) {
+      return { success: false, error: "No hay variantes para guardar." };
+    }
+
+    let creadas = 0;
+    const errores: string[] = [];
+
+    for (const v of payload.variantes) {
+      const cleanMla = String(v.mla ?? "").trim().toUpperCase();
+      const cleanTitle = String(v.titulo ?? "").trim();
+
+      if (!cleanMla || !cleanTitle) {
+        errores.push(`Variante sin MLA o título (${v.nombre_variante || v.variation_id || "?"})`);
+        continue;
+      }
+
+      const cleanVarName = v.nombre_variante != null ? String(v.nombre_variante).trim() || null : null;
+      const cleanVarId = v.variation_id != null ? String(v.variation_id).trim() || null : null;
+      const cleanUP = v.user_product_id != null ? String(v.user_product_id).trim().toUpperCase() || null : null;
+      const cleanFamily = v.family_id != null ? String(v.family_id).trim() || null : null;
+
+      // 1. Producto maestro: check-then-act (igual criterio que createProductWithRecipe)
+      const existingProduct = await prisma.productosMaestros.findFirst({
+        where: { mla: cleanMla, variation_id: cleanVarId }
+      });
+
+      if (existingProduct) {
+        await prisma.productosMaestros.update({
+          where: { id: existingProduct.id },
+          data: {
+            nombre_publicacion: cleanTitle,
+            nombre_variante: cleanVarName,
+            user_product_id: cleanUP,
+            family_id: cleanFamily,
+            estado: "active",
+            ultima_actualizacion: new Date()
+          }
+        });
+      } else {
+        await prisma.productosMaestros.create({
+          data: {
+            mla: cleanMla,
+            nombre_publicacion: cleanTitle,
+            nombre_variante: cleanVarName,
+            variation_id: cleanVarId,
+            user_product_id: cleanUP,
+            family_id: cleanFamily,
+            estado: "active",
+            es_nuevo: v.es_nuevo ?? false,
+            link_publicacion: `https://articulo.mercadolibre.com.ar/${cleanMla}`
+          }
+        });
+      }
+
+      // 2. Receta (si trae componentes)
+      for (const comp of (v.componentes || [])) {
+        const cleanIdArticulo = comp.id_articulo?.trim() || "";
+        if (!cleanIdArticulo) continue;
+
+        const cleanCantidad = Math.round(Number(comp.cantidad)) || 1;
+        const cleanNombreArticulo = comp.nombre_articulo?.trim() || "";
+
+        await prisma.composicionKits.upsert({
+          where: {
+            unique_kit_component: {
+              mla: cleanMla,
+              nombre_variante: cleanVarName || "0",
+              id_articulo: cleanIdArticulo
+            }
+          },
+          create: {
+            mla: cleanMla,
+            variation_id: cleanVarId,
+            nombre_variante: cleanVarName || "0",
+            id_articulo: cleanIdArticulo,
+            cantidad: cleanCantidad,
+            nombre_articulo: cleanNombreArticulo
+          },
+          update: {
+            mla: cleanMla,
+            variation_id: cleanVarId,
+            nombre_variante: cleanVarName || "0",
+            id_articulo: cleanIdArticulo,
+            cantidad: cleanCantidad,
+            nombre_articulo: cleanNombreArticulo
+          }
+        });
+      }
+
+      creadas++;
+    }
+
+    revalidatePath("/admin/mercadolibre/composicion");
+    revalidatePath("/admin/mercadolibre/costos");
+
+    if (creadas === 0) {
+      return { success: false, error: "No se guardó ninguna variante. " + errores.join("; ") };
+    }
+    return { success: true, creadas, errores };
+  } catch (error: any) {
+    console.error("Error al crear variantes en lote:", error);
+    if (error.code === 'P2002') {
+      const target = error.meta?.target;
+      return { success: false, error: `Error de unicidad en la base de datos (Campo: ${target ? (Array.isArray(target) ? target.join(', ') : target) : 'Desconocido'})` };
+    }
+    return { success: false, error: error.message || "Error al guardar las variantes" };
+  }
+}
+
 // NUEVO: Guardar una receta completa (Múltiples Variantes con Múltiples Items)
 export async function saveBulkKitComponents(payload: { mla: string, variantes: any[] }) {
   try {

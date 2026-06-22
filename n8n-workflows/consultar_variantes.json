@@ -1,0 +1,324 @@
+{
+  "name": "consultar_variantes",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "682360b0-a7b3-4212-93fc-73ab7b3a8aa4",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MUsInFnHGy2zWvn0",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/MUsInFnHGy2zWvn0",
+          "cachedResultName": "Read_token"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        208,
+        0
+      ],
+      "id": "db3f01fb-672f-4eca-9b88-b59a5537f5da",
+      "name": "Call 'Read_token'"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "31695a80-1001-4110-a3ed-74290dea5dec",
+              "name": "Acees token",
+              "value": "={{ $json[\"Access Token\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "8f406758-76d3-47ce-82cd-971b66ca73ea",
+              "name": "MLA",
+              "value": "={{ $('Webhook').item.json.query.mla || 'MLA1796441665' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "6edd2dc3-4432-4507-8f04-8ebd7691f093",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/items/{{ $json.MLA }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json[\"Acees token\"] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        640,
+        0
+      ],
+      "id": "25c1e1f5-ddcb-4bf6-a048-880012c8f810",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Capturamos el objeto principal (el primer elemento del array que devuelve n8n)\nconst item = items[0].json;\n\n// 1. Caso: El producto TIENE VARIACIONES\nif (item.variations && item.variations.length > 0) {\n  return item.variations.map(variant => {\n    // Extraemos los nombres de los atributos (ej: \"MEDIDA: LEVA CORTA 69MM\")\n    const nombreAtributos = variant.attribute_combinations\n      ? variant.attribute_combinations.map(a => `${a.name}: ${a.value_name}`).join(\" - \")\n      : \"Sin nombre\";\n\n    return {\n      json: {\n        mla: item.id,\n        variation_id: variant.id.toString(),\n        // Extraemos el UP específico de esta variante\n        user_product_id: variant.user_product_id || null,\n        family_id: item.family_id || null, // ID de la familia (si existe)\n        \n        titulo: item.title,\n        nombre_variante: nombreAtributos,\n        precio: variant.price || item.price,\n        stock: variant.available_quantity,\n        logistic_type: item.shipping?.logistic_type || \"No especificado\",\n        permalink: item.permalink\n      }\n    };\n  });\n}\n\n// 2. Caso: El producto es ÚNICO (sin variaciones)\nreturn [{\n  json: {\n    mla: item.id,\n    variation_id: null,\n    // En productos únicos, el UP suele estar en la raíz\n    user_product_id: item.user_product_id || null,\n    family_id: item.family_id || null,\n    \n    titulo: item.title,\n    nombre_variante: \"Único\",\n    precio: item.price,\n    stock: item.available_quantity,\n    logistic_type: item.shipping?.logistic_type || \"No especificado\",\n    permalink: item.permalink\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        0
+      ],
+      "id": "7e720aff-b0ff-4e3a-a208-086bd81f5b85",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "path": "consulta-variante",
+        "responseMode": "lastNode",
+        "options": {
+          "responseData": "allEntries"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -176
+      ],
+      "id": "425ebd4f-b997-427c-806c-b89d8e7eb331",
+      "name": "Webhook",
+      "webhookId": "b80891c2-2476-4dbb-8ee6-5dc0c732b3ac"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8119bf85-7f18-4ae5-95f8-4fc7746202e4",
+              "name": "mla",
+              "value": "={{ $json.mla }}",
+              "type": "string"
+            },
+            {
+              "id": "bac03137-3fe8-497e-a1ca-54c9424e4c2f",
+              "name": "variation_id",
+              "value": "={{ $json.variation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "9b73a98b-4e22-4daa-a198-dacb9cea4204",
+              "name": "user_product_id",
+              "value": "={{ $json.user_product_id }}",
+              "type": "string"
+            },
+            {
+              "id": "df3a8079-52c8-4520-89d5-f703883af2b8",
+              "name": "family_id",
+              "value": "={{ $json.family_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-0001-4000-9000-000000000001",
+              "name": "nombre_variante",
+              "value": "={{ $json.nombre_variante }}",
+              "type": "string"
+            },
+            {
+              "id": "2c5957e8-e334-432c-8394-c42438543473",
+              "name": "titulo",
+              "value": "={{ $json.titulo }}",
+              "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-0002-4000-9000-000000000002",
+              "name": "precio",
+              "value": "={{ $json.precio }}",
+              "type": "number"
+            },
+            {
+              "id": "a1b2c3d4-0003-4000-9000-000000000003",
+              "name": "stock",
+              "value": "={{ $json.stock }}",
+              "type": "number"
+            },
+            {
+              "id": "a1b2c3d4-0004-4000-9000-000000000004",
+              "name": "logistic_type",
+              "value": "={{ $json.logistic_type }}",
+              "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-0005-4000-9000-000000000005",
+              "name": "permalink",
+              "value": "={{ $json.permalink }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1056,
+        0
+      ],
+      "id": "c6e0d54c-f8dd-470d-8b37-f9220e29202d",
+      "name": "Edit Fields1"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.revolucionmotos.tech",
+            "user-agent": "node",
+            "accept": "*/*",
+            "accept-encoding": "br, gzip, deflate",
+            "accept-language": "*",
+            "cache-control": "no-cache",
+            "pragma": "no-cache",
+            "sec-fetch-mode": "cors",
+            "x-forwarded-for": "10.0.1.1",
+            "x-forwarded-host": "n8n.revolucionmotos.tech",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "50a9d52c5318",
+            "x-real-ip": "10.0.1.1"
+          },
+          "params": {},
+          "query": {
+            "mla": "MLA1882792784"
+          },
+          "body": {},
+          "webhookUrl": "https://n8n.revolucionmotos.tech/webhook/consulta-variante",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Read_token'": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "81b6fbd6-a96c-4d1d-b19d-dc822841657b",
+  "meta": {
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
+  },
+  "id": "Z5zlN2F6ePkh4jve",
+  "tags": []
+}

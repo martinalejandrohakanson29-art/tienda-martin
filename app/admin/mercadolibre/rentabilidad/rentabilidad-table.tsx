@@ -83,6 +83,8 @@ export default function RentabilidadTable({
     const raw = manualPct[item.item_id];
     const pctNum = Number(raw);
     if (!raw || isNaN(pctNum) || pctNum <= 0) return;
+    // Valores reales (sin la previsualización del manual) para "actual" en el dialog
+    const base = data.find((d) => d.item_id === item.item_id) ?? item;
     const factor = tipo === "SUBA" ? 1 + pctNum / 100 : 1 - pctNum / 100;
     onSetManual?.({
       item_id: item.item_id,
@@ -90,12 +92,12 @@ export default function RentabilidadTable({
       nombre_variante: item.nombre_variante,
       tipo,
       regla_nombre: "Manual",
-      ganancia_actual: parseFloat((item.ganancia_porcentaje ?? 0).toFixed(1)),
-      precio_original: Math.round(item.precio_original),
-      precio_actual_nuestro: Math.round(item.precio_final_nuestro),
-      nuevo_precio: redondear(item.precio_original * factor),
+      ganancia_actual: parseFloat((base.ganancia_porcentaje ?? 0).toFixed(1)),
+      precio_original: Math.round(base.precio_original),
+      precio_actual_nuestro: Math.round(base.precio_final_nuestro),
+      nuevo_precio: redondear(base.precio_original * factor),
       ajuste_pct: parseFloat(pctNum.toFixed(2)),
-      tiene_campana_ml: (item.desc_pct_ml ?? 0) > 0,
+      tiene_campana_ml: (base.desc_pct_ml ?? 0) > 0,
       es_manual: true,
     });
   };
@@ -138,7 +140,26 @@ export default function RentabilidadTable({
       : 0;
     const desc_pct_ml = Math.max(0, item.desc_pct_total - desc_pct_nuestro_real);
 
-    const simulatedDescNuestro = override?.desc_pct_nuestro !== undefined
+    // Ajuste manual: ya encolado (manualAjustes) o el que se está tipeando ahora
+    // (manualPct, previsualizado como descuento). El manual tiene prioridad sobre
+    // el override de "Dcto Nuestro" para reflejar el cambio en vivo.
+    const manual = manualAjustes?.get(item.item_id);
+    const typedRaw = manualPct[item.item_id];
+    const typedNum = Number(typedRaw);
+    const typing = manual === undefined && typedRaw !== undefined && typedRaw !== "" && !isNaN(typedNum) && typedNum > 0;
+    const manualTipo: TipoAjuste | null = manual?.tipo ?? (typing ? "DESCUENTO" : null);
+    const manualPctVal = manual?.ajuste_pct ?? (typing ? typedNum : 0);
+
+    // Precio base de la fila: una SUBA escala el precio de lista; un DESCUENTO lo deja igual.
+    const basePrice = manualTipo === "SUBA"
+      ? item.precio_original * (1 + manualPctVal / 100)
+      : item.precio_original;
+
+    const simulatedDescNuestro = manualTipo === "SUBA"
+      ? 0
+      : manualTipo === "DESCUENTO"
+      ? manualPctVal
+      : override?.desc_pct_nuestro !== undefined
       ? (override.desc_pct_nuestro === "" ? 0 : Number(override.desc_pct_nuestro))
       : desc_pct_nuestro_real;
 
@@ -149,8 +170,8 @@ export default function RentabilidadTable({
     const fee_rate = item.precio_final > 0 ? item.cargo_venta_real / item.precio_final : 0;
     const TAX_RATE = 0.02;
 
-    const nuevo_precio_final_nuestro = item.precio_original * (1 - simulatedDescNuestro / 100);
-    const nuevo_precio_final_publico = item.precio_original * (1 - (simulatedDescNuestro + desc_pct_ml) / 100);
+    const nuevo_precio_final_nuestro = basePrice * (1 - simulatedDescNuestro / 100);
+    const nuevo_precio_final_publico = basePrice * (1 - (simulatedDescNuestro + desc_pct_ml) / 100);
     const nuevo_cargo_venta = nuevo_precio_final_publico * fee_rate;
     const nuevo_impuesto = nuevo_precio_final_publico * TAX_RATE;
     const nuevo_neto = nuevo_precio_final_nuestro - nuevo_cargo_venta - item.envio_costo - item.costo_fijo_ml - nuevo_impuesto;
@@ -298,7 +319,9 @@ export default function RentabilidadTable({
           <TableBody>
             {sortedData.map((item, index) => {
               const id = getItemId(item);
-              const isSimulated = overrides[id] !== undefined;
+              const isSimulated = overrides[id] !== undefined
+                || manualAjustes?.has(item.item_id)
+                || Number(manualPct[item.item_id]) > 0;
               const isChecked = selectedIds?.has(item.item_id) ?? false;
               const isQualifying = qualifyingIds?.has(item.item_id) ?? false;
 

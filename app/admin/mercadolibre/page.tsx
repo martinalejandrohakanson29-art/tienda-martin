@@ -15,6 +15,7 @@ import {
   CalendarRange,
   ScanSearch,
   FileSearch,
+  MessageCircleQuestionMark,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -283,6 +284,29 @@ export default function MercadoLibreDashboard() {
             </p>
             <Link href="/admin/mercadolibre/descripciones">
               <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 11: PREGUNTAS ML */}
+        <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-orange-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-orange-800 text-xl">
+              <MessageCircleQuestionMark className="h-6 w-6" />
+              Preguntas ML
+            </CardTitle>
+            <CardDescription className="text-orange-700/80 font-medium">
+              Respuestas automáticas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Activá o programá respuestas automáticas a preguntas de compradores fuera del horario comercial.
+            </p>
+            <Link href="/admin/mercadolibre/preguntas">
+              <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white gap-2 shadow-sm h-12 text-lg">
                 Entrar <ArrowRight size={18} />
               </Button>
             </Link>

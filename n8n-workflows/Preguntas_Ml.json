@@ -1,0 +1,318 @@
+{
+  "name": "Preguntas_Ml",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://api.mercadolibre.com/my/received_questions/search?status=UNANSWERED&sort_fields=date_created&sort_types=DESC&limit=50&api_version=4",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json[\"Access Token\"] }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "d05ef3f1-f4f5-487b-b3cf-ddd665aed7d6",
+      "name": "Check Questions"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "49315fe5-1214-4b17-a813-96cdb6a177b7",
+              "leftValue": "={{ $json.hasActionable === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        0
+      ],
+      "id": "40ffc9d2-edda-485e-9c84-d51cee16283f",
+      "name": "¿Hay preguntas?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Avisar sólo si hay preguntas recientes (N días) y NO borradas del listing.\nconst DIAS_RECIENTES = 2;\n\nconst ahora = new Date();\nconst corte = new Date(ahora.getTime() - DIAS_RECIENTES*24*60*60*1000);\n\nconst qs = ($json.questions || [])\n  .filter(q => q.status === 'UNANSWERED')\n  .filter(q => q.deleted_from_listing !== true)   // clave para matar “fantasmas”\n  .filter(q => new Date(q.date_created) >= corte);\n\nreturn [{\n  json: {\n    hasActionable: qs.length > 0,\n    count: qs.length,\n    sample: qs.slice(0, 3) // opcional, para debug\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        0
+      ],
+      "id": "fee20bd7-1432-46e8-98af-7655ecd677cf",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://discord.com/api/webhooks/1434019926242492610/IM_CasLuI-kImixlUobS3JPjK58U0atODCc4jwsOofxfZK5fDLRZ5J_PL3WjCkd7t1y0?wait=true",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"content\": \"⚠️ Tenés {{$json.count}} pregunta(s) sin responder en MercadoLibre.\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1168,
+        0
+      ],
+      "id": "f7ed8b03-e8b1-476c-92d4-238ffe381ccf",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -96,
+        144
+      ],
+      "id": "e9080be4-514c-4be3-82eb-5697c0ec7674",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "/preguntas-ml",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -304,
+        -192
+      ],
+      "id": "1166429c-5869-4d2e-b057-41de45e8eeab",
+      "name": "Webhook",
+      "webhookId": "7140626c-e02e-4fd1-8957-3cac64256de3"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -16,
+        -256
+      ],
+      "id": "29807127-c5ac-4968-ba3e-8ad9855446f5",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c5aa5408-0583-46e8-a116-ab60cdb3c4cb",
+              "leftValue": "={{ $json.topic === 'questions' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -96,
+        -48
+      ],
+      "id": "6aba0afb-f15a-47b0-971b-1860587236dd",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MUsInFnHGy2zWvn0",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/MUsInFnHGy2zWvn0",
+          "cachedResultName": "Read_token"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        192,
+        0
+      ],
+      "id": "7070e648-3658-4b25-97a2-830798d1615e",
+      "name": "Call 'Read_token'1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Check Questions": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "¿Hay preguntas?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay preguntas?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Read_token'1": {
+      "main": [
+        [
+          {
+            "node": "Check Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "f5cd6b84-d14c-4286-a4ea-0b9bcc3e0ed0",
+  "meta": {
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
+  },
+  "id": "Fi10ecGQm1jZnDHe",
+  "tags": []
+}

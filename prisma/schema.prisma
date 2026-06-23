@@ -1015,6 +1015,19 @@ model VentaMLRegistracion {
   @@map("ventas_ml_registracion")
 }
 
+model MlAutoRespuesta {
+  id                  String   @id @default(cuid())
+  habilitado          Boolean  @default(false)
+  mensaje             String   @default("En este momento no estamos atendiendo. Por favor volvé a preguntarnos en horario comercial y te respondemos lo antes posible. Gracias")
+  usarHorario         Boolean  @default(false)
+  horaInicioComercial String   @default("09:00")
+  horaFinComercial    String   @default("18:00")
+  diasComerciales     String   @default("1,2,3,4,5")
+  updatedAt           DateTime @updatedAt
+
+  @@map("ml_auto_respuesta")
+}
+
 enum Role {
   SUPER_ADMIN
   ADMIN

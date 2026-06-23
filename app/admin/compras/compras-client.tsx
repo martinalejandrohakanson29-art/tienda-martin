@@ -150,6 +150,7 @@ export default function ComprasClient({
   const [telefono, setTelefono] = useState("");
   const [transaccionId, setTransaccionId] = useState("");
   const [impactarCostos, setImpactarCostos] = useState(false);
+  const [iva, setIva] = useState(false);
   const [moneda, setMoneda] = useState<'ARS' | 'USD'>('ARS');
   const [fechaCompra, setFechaCompra] = useState(new Date().toISOString().split('T')[0]);
   const [fechaIngreso, setFechaIngreso] = useState("");
@@ -322,17 +323,18 @@ export default function ComprasClient({
     } else {
       const costoInit = Number(prod.costo) > 0 ? Number(prod.costo) : Number(prod.precio);
       const margenInit = Number(prod.margenGanancia) || 50;
+      const costoEfectivo = iva ? costoInit * 1.21 : costoInit;
       setItems([...items, {
         id: crypto.randomUUID(),
         productoId: prod.id,
         nombre: prod.nombre,
         cantidad: 1,
         costo_unit: costoInit,
-        subtotal: costoInit,
+        subtotal: costoEfectivo,
         stock: prod.stock,
         ultimaModificacion: prod.ultimaModificacion,
         margenGanancia: margenInit,
-        precioPublico: Math.round(costoInit * (1 + margenInit / 100))
+        precioPublico: Math.round(costoEfectivo * (1 + margenInit / 100))
       }]);
     }
     setIsModalOpen(false);
@@ -355,7 +357,7 @@ export default function ComprasClient({
         interes,
         descuento,
         totalFinal: totalFinalCalculado,
-        items,
+        items: items.map(i => ({ ...i, costo_unit: iva ? Math.round(i.costo_unit * 1.21 * 100) / 100 : i.costo_unit })),
         metodo_pago: metodoPago,
         dni,
         telefono,
@@ -404,7 +406,7 @@ export default function ComprasClient({
         interes,
         descuento,
         totalFinal: totalFinalCalculado,
-        items,
+        items: items.map(i => ({ ...i, costo_unit: iva ? Math.round(i.costo_unit * 1.21 * 100) / 100 : i.costo_unit })),
         metodo_pago: metodoPago,
         dni,
         telefono,
@@ -441,6 +443,7 @@ export default function ComprasClient({
     setItems([]); setProveedor(""); setProveedorId(""); setInteres(0); setDescuento(0);
     setMetodoPago("Efectivo"); setComprobante(""); setInfo(""); setDni(""); setTelefono(""); setTransaccionId("");
     setImpactarCostos(false);
+    setIva(false);
     setFechaCompra(new Date().toISOString().split('T')[0]);
     setFechaIngreso("");
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false); setIsConfirmResumenOpen(false);
@@ -595,6 +598,26 @@ export default function ComprasClient({
               <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
                 <Plus className="h-4 w-4" /> Buscar Artículo ( + )
               </Button>
+              <button
+                type="button"
+                onClick={() => {
+                  const newIva = !iva;
+                  setIva(newIva);
+                  setItems(prev => prev.map(i => {
+                    const costoEfectivo = newIva ? i.costo_unit * 1.21 : i.costo_unit;
+                    const costoArs = moneda === 'USD' ? costoEfectivo * dolarCotizacion * factorFob : costoEfectivo;
+                    const newPrecio = Math.round(costoArs * (1 + (i.margenGanancia ?? 50) / 100));
+                    return { ...i, subtotal: i.cantidad * costoEfectivo, precioPublico: newPrecio };
+                  }));
+                }}
+                className={`flex items-center gap-2 px-4 h-9 rounded-xl border font-semibold text-sm transition-all flex-shrink-0 ${iva ? 'bg-emerald-500 text-white border-emerald-600 shadow-md' : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'}`}
+              >
+                <Percent className="h-3.5 w-3.5" />
+                IVA 21%
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${iva ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                  {iva ? 'ON' : 'OFF'}
+                </span>
+              </button>
               <Button onClick={() => {
                 const nuevoId = "ART-" + Math.random().toString(36).substring(2, 9).toUpperCase();
                 setNewArtData({ ...newArtData, id: nuevoId });
@@ -611,7 +634,9 @@ export default function ComprasClient({
                     <TableRow>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Artículo</TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3">Cant.</TableHead>
-                      <TableHead className="text-center text-[10px] font-bold uppercase py-3">Costo Unit.</TableHead>
+                      <TableHead className="text-center text-[10px] font-bold uppercase py-3">
+                        Costo Unit.{iva && <span className="ml-1 text-emerald-600 normal-case">+IVA</span>}
+                      </TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3">Margen %</TableHead>
                       <TableHead className="text-center text-[10px] font-bold uppercase py-3">Precio Público</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase py-3">Subtotal</TableHead>
@@ -634,7 +659,7 @@ export default function ComprasClient({
                             </div>
                           </TableCell>
                           <TableCell className="text-center py-3">
-                            <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.costo_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                            <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * (iva ? i.costo_unit * 1.21 : i.costo_unit) } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                           </TableCell>
                           <TableCell className="text-center py-3">
                             <div className="flex items-center justify-center gap-1">
@@ -642,15 +667,19 @@ export default function ComprasClient({
                               <DecimalInput
                                 value={item.costo_unit}
                                 onChange={(newCost) => {
-                                  const costoArs = moneda === 'USD' ? newCost * dolarCotizacion * factorFob : newCost;
+                                  const costoEfectivo = iva ? newCost * 1.21 : newCost;
+                                  const costoArs = moneda === 'USD' ? costoEfectivo * dolarCotizacion * factorFob : costoEfectivo;
                                   const newPrecio = Math.round(costoArs * (1 + (item.margenGanancia ?? 50) / 100));
-                                  setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
+                                  setItems(items.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * costoEfectivo, precioPublico: newPrecio } : i));
                                 }}
                                 className={`w-28 h-8 ${inputSinFlechas}`}
                               />
                             </div>
+                            {iva && item.costo_unit > 0 && (
+                              <div className="text-[10px] text-emerald-600 text-center mt-0.5 font-medium">= ${(item.costo_unit * 1.21).toLocaleString('es-AR', { maximumFractionDigits: 2 })} c/IVA</div>
+                            )}
                             {moneda === 'USD' && item.costo_unit > 0 && (
-                              <div className="text-[10px] text-blue-500 text-center mt-0.5">= ${Math.round(item.costo_unit * dolarCotizacion * factorFob).toLocaleString('es-AR')}</div>
+                              <div className="text-[10px] text-blue-500 text-center mt-0.5">= ${Math.round((iva ? item.costo_unit * 1.21 : item.costo_unit) * dolarCotizacion * factorFob).toLocaleString('es-AR')}</div>
                             )}
                           </TableCell>
                           <TableCell className="text-center py-3">
@@ -658,7 +687,9 @@ export default function ComprasClient({
                               <DecimalInput
                                 value={item.margenGanancia ?? 50}
                                 onChange={(newMargin) => {
-                                  const newPrecio = Math.round(item.costo_unit * (1 + newMargin / 100));
+                                  const costoEfectivo = iva ? item.costo_unit * 1.21 : item.costo_unit;
+                                  const costoArs = moneda === 'USD' ? costoEfectivo * dolarCotizacion * factorFob : costoEfectivo;
+                                  const newPrecio = Math.round(costoArs * (1 + newMargin / 100));
                                   setItems(items.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin, precioPublico: newPrecio } : i));
                                 }}
                                 className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`}
@@ -672,11 +703,11 @@ export default function ComprasClient({
                               <Input
                                 type="text"
                                 inputMode="decimal"
-                                value={item.precioPublico ?? Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))}
+                                value={item.precioPublico ?? Math.round((iva ? item.costo_unit * 1.21 : item.costo_unit) * (1 + (item.margenGanancia ?? 50) / 100))}
                                 onChange={(e) => {
                                   const val = e.target.value.replace(/\D/g, '');
                                   const newPrice = parseInt(val);
-                                  const cost = item.costo_unit;
+                                  const cost = iva ? item.costo_unit * 1.21 : item.costo_unit;
                                   if (!isNaN(newPrice)) {
                                     const newMargin = cost > 0 ? Math.round(((newPrice - cost) / cost) * 100 * 100) / 100 : 0;
                                     setItems(items.map(i => i.id === item.id ? { ...i, precioPublico: newPrice, margenGanancia: newMargin } : i));

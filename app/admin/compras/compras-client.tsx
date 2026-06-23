@@ -120,6 +120,7 @@ export default function ComprasClient({
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
   const [expandedCompras, setExpandedCompras] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchHistorial, setSearchHistorial] = useState("");
 
   // --- ESTADOS PARA NUEVA COMPRA ---
   const [isPuntoVentaOpen, setIsPuntoVentaOpen] = useState(false);
@@ -265,6 +266,17 @@ export default function ComprasClient({
       });
     }).slice(0, 15);
   }, [searchTerm, articulos]);
+
+  const comprasFiltradas = useMemo(() => {
+    if (!searchHistorial.trim()) return comprasRealizadas;
+    const q = searchHistorial.toLowerCase().trim();
+    return comprasRealizadas.filter(c => {
+      const prov = (c.proveedor || "").toLowerCase();
+      const rs = ((c.proveedorRel as any)?.razonSocial || "").toLowerCase();
+      const nf = ((c.proveedorRel as any)?.nombreFantasia || "").toLowerCase();
+      return prov.includes(q) || rs.includes(q) || nf.includes(q);
+    });
+  }, [searchHistorial, comprasRealizadas]);
 
   const handleCrearNuevoArticulo = async () => {
     if (!newArtData.id || !newArtData.nombre) {
@@ -754,7 +766,7 @@ export default function ComprasClient({
 
         <TabsContent value="listado" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
           <main className="flex-grow flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden h-full">
-            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4 flex-wrap">
               <div className="space-y-1">
                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Desde</Label>
                 <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="h-10 rounded-xl" />
@@ -764,9 +776,34 @@ export default function ComprasClient({
                 <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="h-10 rounded-xl" />
               </div>
               <Button variant="outline" size="icon" onClick={() => cargarCompras(fechaDesde, fechaHasta)} className="mt-5 h-10 w-10"><RefreshCcw className="h-4 w-4" /></Button>
+              <div className="space-y-1 flex-1 min-w-[220px]">
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar Proveedor</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    value={searchHistorial}
+                    onChange={(e) => setSearchHistorial(e.target.value)}
+                    placeholder="Nombre o nombre de fantasía..."
+                    className="h-10 rounded-xl pl-9"
+                  />
+                  {searchHistorial && (
+                    <button
+                      onClick={() => setSearchHistorial("")}
+                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
               <div className="ml-auto text-right">
-                <p className="text-[10px] text-slate-400 font-bold uppercase">Total del Período</p>
-                <p className="text-2xl font-black text-slate-900">$ {comprasRealizadas.reduce((acc, c) => acc + Number(c.totalFinal), 0).toLocaleString('es-AR')}</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase">
+                  {searchHistorial ? "Total filtrado" : "Total del Período"}
+                </p>
+                <p className="text-2xl font-black text-slate-900">$ {comprasFiltradas.reduce((acc, c) => acc + Number(c.totalFinal), 0).toLocaleString('es-AR')}</p>
+                {searchHistorial && (
+                  <p className="text-[10px] text-slate-400">{comprasFiltradas.length} de {comprasRealizadas.length} compras</p>
+                )}
               </div>
             </div>
 
@@ -789,7 +826,11 @@ export default function ComprasClient({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {comprasRealizadas.map((c) => {
+                    {comprasFiltradas.length === 0 ? (
+                      <TableRow><TableCell colSpan={11} className="py-20 text-center text-slate-400 italic">
+                        {searchHistorial ? `Sin resultados para "${searchHistorial}"` : "No hay compras en el período seleccionado"}
+                      </TableCell></TableRow>
+                    ) : comprasFiltradas.map((c) => {
                       const isExpanded = expandedCompras.has(c.id);
                       return (
                         <React.Fragment key={c.id}>

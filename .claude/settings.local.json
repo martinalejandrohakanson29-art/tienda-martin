@@ -56,7 +56,19 @@
       "WebFetch(domain:global-selling.mercadolibre.com)",
       "Bash(node *)",
       "Bash(grep -rl \"suba\" n8n-workflows/)",
-      "Bash(grep -ro '\"path\": \"[^\"]*\"' n8n-workflows/)"
+      "Bash(grep -ro '\"path\": \"[^\"]*\"' n8n-workflows/)",
+      "PowerShell(npx prisma generate 2>&1 | Select-Object -Last 5)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 30)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 20)",
+      "PowerShell(git add *)",
+      "PowerShell($line = Get-Content .env | Select-String -Pattern \"DATABASE_URL\" | Select-Object -First 1; $url = $line.ToString\\(\\); if \\($url -match '@\\([^:/]+\\):?\\(\\\\d+\\)?'\\) { \"Host: $\\($matches[1]\\)\"; \"Port: $\\($matches[2]\\)\" } else { \"No pude parsear el host\" })",
+      "PowerShell(npx prisma db execute --file prisma/sql/create_descripcion_publicacion.sql --schema prisma/schema.prisma 2>&1 | Select-Object -Last 15)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(curl -s --max-time 60 \"https://n8n.revolucionmotos.tech/webhook/consulta-variante?mla=MLA2041789950\")",
+      "Bash(curl -s --max-time 60 \"https://n8n.revolucionmotos.tech/webhook/consulta-variante?mla=MLA1104571149\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(curl -s --max-time 60 \"https://n8n.revolucionmotos.tech/webhook/consulta-variante?mla=MLA2604427190\")",
+      "PowerShell(cd \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\"; $env:PRISMA_MIGRATE_SKIP_GENERATE=\"true\"; npx prisma db push 2>&1)"
     ]
   }
 }

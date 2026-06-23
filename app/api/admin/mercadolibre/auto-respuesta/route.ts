@@ -28,12 +28,15 @@ function computeDebeResponder(config: {
   const mm = String(local.getUTCMinutes()).padStart(2, "0");
   const horaActual = `${hh}:${mm}`;
 
+  // ¿Estamos dentro del horario comercial?
+  // Si fin <= inicio, el rango cruza la medianoche (ej: 08:30 → 01:00).
+  const dentroComercial =
+    config.horaInicioComercial <= config.horaFinComercial
+      ? horaActual >= config.horaInicioComercial && horaActual < config.horaFinComercial
+      : horaActual >= config.horaInicioComercial || horaActual < config.horaFinComercial;
+
   // Si hoy es día hábil Y estamos dentro del horario comercial → NO responder
-  if (
-    diasComerciales.includes(diaSemana) &&
-    horaActual >= config.horaInicioComercial &&
-    horaActual < config.horaFinComercial
-  ) {
+  if (diasComerciales.includes(diaSemana) && dentroComercial) {
     return false;
   }
 

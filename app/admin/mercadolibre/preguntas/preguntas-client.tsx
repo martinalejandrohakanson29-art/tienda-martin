@@ -158,6 +158,13 @@ export function PreguntasClient({ config }: Props) {
 
           {usarHorario && (
             <div className="space-y-4 pl-7 border-l-2 border-slate-100 ml-1.5">
+              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-md p-2.5 leading-relaxed">
+                Definí el horario en el que <strong>atendés vos</strong> (NO se responde
+                automático). Las preguntas que lleguen <strong>fuera</strong> de este rango se
+                responden solas. El rango puede cruzar la medianoche: por ejemplo{" "}
+                <strong>08:30 – 01:00</strong> significa que atendés de 8:30 a 1:00 AM y el bot
+                responde solo de <strong>01:00 a 08:30</strong>.
+              </p>
               <div className="flex items-center gap-4 flex-wrap">
                 <div>
                   <Label className="text-xs text-slate-500 mb-1.5 block">Inicio horario</Label>

@@ -34,6 +34,7 @@ import {
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/app/actions/listas";
 import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
+import { obtenerFotosPedido, obtenerPedidosConFoto } from "@/app/actions/preparacion-pedidos";
 import { consultarPadron } from "@/app/actions/afip";
 import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
 import ResumenVentasTab from "./resumen-ventas-tab";
@@ -307,6 +308,8 @@ export default function VentasMostradorClient({
   const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
   // Set de mlIdEnvio que tienen al menos una foto cargada (habilita el botón "Ver foto")
   const [enviosConFoto, setEnviosConFoto] = useState<Set<string>>(new Set());
+  // Estado de auditoría por ventaId para Pedidos de Venta (FOTO_CARGADA | AUDITADO | RECHAZADO)
+  const [pedidosConFoto, setPedidosConFoto] = useState<Record<string, string>>({});
 
   // --- ESTADOS PARA EDICIÓN Y AUDITORÍA ---
   const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
@@ -573,6 +576,24 @@ export default function VentasMostradorClient({
     }
   };
 
+  // --- VISUALIZAR FOTOS DE PREPARACIÓN DE PEDIDOS DE VENTA (auditoría por ventaId) ---
+  const handleVerFotosPedido = async (venta: any) => {
+    setLoadingFotosVentaId(venta.id);
+    try {
+      const res = await obtenerFotosPedido(venta.id);
+      if (res.success) {
+        setFotosVenta({ venta, fotos: res.fotos });
+      } else {
+        alert("No se pudieron obtener las fotos del servidor de imágenes.");
+      }
+    } catch (e) {
+      console.error("Error al obtener fotos del pedido:", e);
+      alert("Fallo la conexión con el servidor de imágenes.");
+    } finally {
+      setLoadingFotosVentaId(null);
+    }
+  };
+
   const guardarAlertaML = async () => {
     if (!ventaParaAlerta) return;
     setIsGuardandoAlerta(true);
@@ -746,6 +767,26 @@ export default function VentasMostradorClient({
       .catch(() => {});
     return () => { cancelled = true; };
   }, [enviosIdsKey]);
+
+  // Clave estable con todos los ventaId presentes (para detectar fotos de preparación de pedidos)
+  const ventasIdsKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const lista of [ventasRealizadas, ventasML, ventasGlobales || []]) {
+      for (const v of lista) if (v?.id) ids.add(v.id);
+    }
+    return Array.from(ids).sort().join(",");
+  }, [ventasRealizadas, ventasML, ventasGlobales]);
+
+  // Consulta en lote el estado de auditoría de preparación de pedidos por ventaId
+  useEffect(() => {
+    const ids = ventasIdsKey ? ventasIdsKey.split(",") : [];
+    if (ids.length === 0) { setPedidosConFoto({}); return; }
+    let cancelled = false;
+    obtenerPedidosConFoto(ids)
+      .then((res) => { if (!cancelled && res.success) setPedidosConFoto(res.estados); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [ventasIdsKey]);
 
   // --- FUNCION AUXILIAR PARA EVALUAR MÉTODOS DE PAGO ---
   const esMercadoLibre = (m: string) => m === "MercadoLibre" || m === "mercadopago (ML)";
@@ -2654,6 +2695,23 @@ export default function VentasMostradorClient({
                                         </button>
                                       );
                                     })()}
+                                    {/* Foto de preparación de Pedido de Venta (auditoría por ventaId) */}
+                                    {pedidosConFoto[v.id] && (() => {
+                                      const estado = pedidosConFoto[v.id];
+                                      const color = estado === 'AUDITADO' ? 'text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50'
+                                        : estado === 'RECHAZADO' ? 'text-red-500 hover:text-red-600 hover:bg-red-50'
+                                        : 'text-amber-500 hover:text-amber-600 hover:bg-amber-50';
+                                      return (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleVerFotosPedido(v); }}
+                                          disabled={loadingFotosVentaId === v.id}
+                                          className={`p-2 rounded-xl transition-all border border-transparent ${color}`}
+                                          title={`Foto de preparación del pedido — ${estado}`}
+                                        >
+                                          {loadingFotosVentaId === v.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
+                                        </button>
+                                      );
+                                    })()}
                                     {v.mlIdVenta && (
                                       <button
                                         onClick={(e) => { e.stopPropagation(); abrirAlertaML(v); }}
@@ -4275,7 +4333,7 @@ export default function VentasMostradorClient({
                 Fotos de Preparación
               </DialogTitle>
               <DialogDescription className="text-slate-500 text-sm">
-                Venta #{fotosVenta?.venta?.numeroVenta} — Envío: {fotosVenta?.venta?.mlIdEnvio}
+                Venta #{fotosVenta?.venta?.numeroVenta}{fotosVenta?.venta?.mlIdEnvio ? ` — Envío: ${fotosVenta.venta.mlIdEnvio}` : ""}
               </DialogDescription>
             </DialogHeader>
             <div className="py-2">

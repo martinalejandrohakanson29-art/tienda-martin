@@ -5,4 +5,5 @@ export const EVENT_TYPES = [
     { value: "PEDIDO_PREPARADO_FOTO", label: "Pedido preparado (fotos cargadas) en ML" },
     { value: "ENVIO_LISTO_AUDITORIA", label: "Envío listo para auditar (Herramientas)" },
     { value: "PEDIDO_PREPARADO_FULL", label: "Pedido preparado Full (foto cargada)" },
+    { value: "PEDIDO_VENTA_PREPARADO_FOTO", label: "Pedido de venta preparado (foto cargada)" },
 ]

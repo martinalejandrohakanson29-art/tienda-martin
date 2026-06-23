@@ -37,6 +37,8 @@ import {
   Download,
   File,
   Send,
+  Camera,
+  X,
 } from "lucide-react";
 
 import { formatPrice } from "@/lib/utils";
@@ -51,6 +53,7 @@ import {
   obtenerURLDescargaPDF,
   actualizarTipoEnvioPedido,
 } from "@/app/actions/ventas-mostrador";
+import { obtenerPedidosConFoto, obtenerFotosPedido } from "@/app/actions/preparacion-pedidos";
 import PDFPreview from "./pdf-preview";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -112,18 +115,55 @@ export default function PedidosVentaClient() {
   const [selectedVentaIds, setSelectedVentaIds] = useState<Set<string>>(new Set());
   const [pendingN8NSync, setPendingN8NSync] = useState(false);
 
+  // Estado de auditoría de preparación por ventaId (FOTO_CARGADA | AUDITADO | RECHAZADO)
+  const [pedidosConFoto, setPedidosConFoto] = useState<Record<string, string>>({});
+  const [fotosPedido, setFotosPedido] = useState<{ venta: Venta; fotos: any[] } | null>(null);
+  const [loadingFotoId, setLoadingFotoId] = useState<string | null>(null);
+  const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
+
   const cargarPedidos = async () => {
     try {
       setCargando(true);
       setError(null);
       const data = await obtenerPedidosVenta(fechaDesde, fechaHasta);
       setVentas(data);
+      // Consultamos en lote qué pedidos tienen foto de preparación cargada.
+      const ids = data.map((v) => v.id);
+      if (ids.length > 0) {
+        const res = await obtenerPedidosConFoto(ids);
+        if (res.success) setPedidosConFoto(res.estados);
+      } else {
+        setPedidosConFoto({});
+      }
     } catch (err) {
       console.error("Error al cargar pedidos:", err);
       setError("No se pudieron cargar los pedidos de venta");
     } finally {
       setCargando(false);
     }
+  };
+
+  const handleVerFotosPedido = async (venta: Venta) => {
+    setLoadingFotoId(venta.id);
+    try {
+      const res = await obtenerFotosPedido(venta.id);
+      if (res.success) {
+        setFotosPedido({ venta, fotos: res.fotos });
+      } else {
+        alert("No se pudieron obtener las fotos del servidor de imágenes.");
+      }
+    } catch (e) {
+      console.error("Error al obtener fotos del pedido:", e);
+      alert("Fallo la conexión con el servidor de imágenes.");
+    } finally {
+      setLoadingFotoId(null);
+    }
+  };
+
+  const STATUS_FOTO: Record<string, { label: string; cls: string }> = {
+    FOTO_CARGADA: { label: "Foto cargada", cls: "text-amber-500 hover:text-amber-600 hover:bg-amber-50" },
+    AUDITADO: { label: "Aprobado", cls: "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50" },
+    RECHAZADO: { label: "Rechazado", cls: "text-red-500 hover:text-red-600 hover:bg-red-50" },
   };
 
   const handleConfirmarPedido = (venta: Venta) => {
@@ -705,6 +745,18 @@ export default function PedidosVentaClient() {
                                 <Download className="h-4 w-4" />
                               </Button>
                             )}
+                            {pedidosConFoto[venta.id] && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleVerFotosPedido(venta)}
+                                disabled={loadingFotoId === venta.id}
+                                className={`border-transparent ${STATUS_FOTO[pedidosConFoto[venta.id]]?.cls || "text-slate-400 hover:bg-slate-50"}`}
+                                title={`Foto de preparación — ${STATUS_FOTO[pedidosConFoto[venta.id]]?.label || pedidosConFoto[venta.id]}`}
+                              >
+                                {loadingFotoId === venta.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1063,6 +1115,56 @@ export default function PedidosVentaClient() {
         confirmLabel="Sincronizar"
         onConfirm={handleSincronizarN8NConfirm}
       />
+
+      {/* Modal de Fotos de Preparación del Pedido */}
+      <Dialog open={!!fotosPedido} onOpenChange={(open) => { if (!open) { setFotosPedido(null); setFotoExpandida(null); } }}>
+        <DialogContent className="sm:max-w-[700px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900">
+              <Camera className="h-5 w-5" />
+              Fotos de Preparación — Pedido #{fotosPedido?.venta?.numeroVenta}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-2">
+            {fotosPedido && fotosPedido.fotos.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto">
+                {fotosPedido.fotos.map((foto: any, i: number) => (
+                  <div
+                    key={foto.id || i}
+                    className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 cursor-zoom-in"
+                    onClick={() => setFotoExpandida(foto.url)}
+                  >
+                    <img src={foto.url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                      {i + 1}/{fotosPedido.fotos.length}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10 text-slate-400">
+                <Camera className="h-10 w-10 mx-auto mb-3 opacity-20" />
+                <p className="font-medium text-sm">No hay fotos cargadas para este pedido</p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setFotosPedido(null); setFotoExpandida(null); }} className="rounded-xl">
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Visor a pantalla completa */}
+      {fotoExpandida && (
+        <div className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4" onClick={() => setFotoExpandida(null)}>
+          <button className="absolute top-4 right-4 text-white/70 hover:text-white" onClick={(e) => { e.stopPropagation(); setFotoExpandida(null); }}>
+            <X className="h-8 w-8" />
+          </button>
+          <img src={fotoExpandida} alt="Foto ampliada" className="max-w-full max-h-full object-contain rounded shadow-2xl" />
+        </div>
+      )}
     </div>
   );
 }

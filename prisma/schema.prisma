@@ -153,6 +153,23 @@ model ShipmentAudit {
   @@unique([itemId, envioId])
 }
 
+// Auditoría de preparación de Pedidos de Venta (Venta tipoVenta=PEDIDO).
+// A diferencia de ShipmentAudit (que es por ítem de envío ML), acá la evidencia
+// es a nivel del pedido completo: una fila por venta. Las fotos viven en S3 bajo
+// el prefijo auditoria-pedidos/{ventaId}/. status: FOTO_CARGADA | AUDITADO | RECHAZADO.
+model PedidoVentaAudit {
+  id        String   @id @default(cuid())
+  ventaId   String   @unique
+  status    String   @default("FOTO_CARGADA")
+  uploader  String?
+  auditor   String?
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pedido_venta_audit")
+}
+
 model CostosArticulos {
   id                  Int      @id @default(autoincrement())
   id_articulo         String   @unique

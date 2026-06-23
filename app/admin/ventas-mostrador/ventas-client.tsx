@@ -32,7 +32,7 @@ import {
   eliminarVentaMostrador,
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA
 } from "@/app/actions/ventas-mostrador";
-import { obtenerProveedores, crearProveedor, crearArticuloMostrador } from "@/app/actions/listas";
+import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor } from "@/app/actions/listas";
 import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
 import { obtenerFotosPedido, obtenerPedidosConFoto } from "@/app/actions/preparacion-pedidos";
 import { consultarPadron } from "@/app/actions/afip";
@@ -253,6 +253,7 @@ export default function VentasMostradorClient({
   const [sujetosEncontrados, setSujetosEncontrados] = useState<any[]>([]);
   const [isSearchingSujetos, setIsSearchingSujetos] = useState(false);
   const [showSujetoList, setShowSujetoList] = useState(false);
+  const [isSavingObsProveedor, setIsSavingObsProveedor] = useState(false);
 
   const searchSujetoRef = useRef<HTMLDivElement>(null);
 
@@ -982,6 +983,7 @@ export default function VentasMostradorClient({
     setSujetoId(s.id);
     setEmail(s.email || "");
     setTelefono(s.telefono || "");
+    if (s.observaciones) setInfo(s.observaciones);
     setShowSujetoList(false);
   };
 
@@ -3678,7 +3680,31 @@ export default function VentasMostradorClient({
 
 
 
-                <div className="space-y-2"><Label className="text-xs font-bold text-slate-500 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label><Textarea value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Dirección, referencias, método de entrega, observaciones adicionales..." className="min-h-[80px]" /></div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-500 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label>
+                  <Textarea value={info} onChange={(e) => setInfo(e.target.value)} placeholder="Dirección, referencias, método de entrega, observaciones adicionales..." className="min-h-[80px]" />
+                  {sujetoId && (
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-xs text-slate-500">Para: <span className="font-semibold text-slate-700">{cliente}</span></span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={isSavingObsProveedor}
+                        onClick={async () => {
+                          setIsSavingObsProveedor(true);
+                          const res = await actualizarObservacionesProveedor(sujetoId, info.trim());
+                          setIsSavingObsProveedor(false);
+                          if (!res.success) alert("No se pudieron guardar las observaciones.");
+                        }}
+                        className="h-7 text-xs px-3 border-blue-200 text-blue-700 hover:bg-blue-50"
+                      >
+                        {isSavingObsProveedor ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                        Guardar en cliente
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 mb-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase block mb-3 text-center">Acción Final</Label>

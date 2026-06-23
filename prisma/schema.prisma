@@ -957,6 +957,8 @@ model Proveedor {
   localidad      String?
   provincia      String?
 
+  observaciones  String?
+
   compras        Compra[]
   movimientos    MovimientoProveedor[]
   ventasMostrador Venta[]

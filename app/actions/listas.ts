@@ -322,6 +322,23 @@ export async function actualizarProveedor(id: string, data: {
   }
 }
 
+export async function actualizarObservacionesProveedor(id: string, observaciones: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return { success: false, error: "No autorizado" }
+  }
+  try {
+    await prisma.proveedor.update({
+      where: { id },
+      data: { observaciones: observaciones.trim() || null },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al guardar observaciones del proveedor:", error);
+    return { success: false, error: "No se pudieron guardar las observaciones." };
+  }
+}
+
 export async function crearProveedor(data: {
   razonSocial: string;
   cuit?: string | null;

@@ -348,9 +348,29 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         setLoading(null)
     }
 
+    const compressImage = (file: File): Promise<Blob> =>
+        new Promise((resolve, reject) => {
+            const img = new window.Image()
+            img.onload = () => {
+                const MAX = 1400
+                let { width, height } = img
+                if (width > MAX || height > MAX) {
+                    if (width > height) { height = Math.round(height / width * MAX); width = MAX }
+                    else { width = Math.round(width / height * MAX); height = MAX }
+                }
+                const canvas = document.createElement('canvas')
+                canvas.width = width
+                canvas.height = height
+                canvas.getContext('2d')!.drawImage(img, 0, 0, width, height)
+                canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/jpeg', 0.82)
+            }
+            img.onerror = reject
+            img.src = URL.createObjectURL(file)
+        })
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        
+
         if (!file) return;
         if (!selectedItem) {
             toast.error("Error: No se detectó el pedido seleccionado.");
@@ -358,8 +378,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
 
         setLoading(selectedItem.envioId)
+        const blob = await compressImage(file).catch(() => file)
         const formData = new FormData()
-        formData.append('photo', file)
+        formData.append('photo', blob, 'foto.jpg')
         formData.append('envioId', selectedItem.envioId)
         formData.append('itemId', selectedItem.itemId)
         formData.append('mla', selectedItem.mla)

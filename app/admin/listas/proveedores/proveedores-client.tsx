@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, ArrowLeft, Edit, Save, Loader2, Users, Plus, Trash2, Mail, Phone, Fingerprint } from "lucide-react";
+import { Search, ArrowLeft, Edit, Save, Loader2, Users, Plus, Trash2, Mail, Phone, Fingerprint, Star, Clock } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { actualizarProveedor, crearProveedor, eliminarProveedor } from "@/app/actions/listas";
+import { actualizarProveedor, crearProveedor, eliminarProveedor, toggleMayoristaProveedor } from "@/app/actions/listas";
 import { consultarPadron } from "@/app/actions/afip";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -24,6 +24,22 @@ interface Proveedor {
   email?: string | null;
   telefono?: string | null;
   aliasCbu?: string | null;
+  esMayorista: boolean;
+  ultimaCompra: string | null;
+}
+
+function DiasUltimaCompra({ ultimaCompra }: { ultimaCompra: string | null }) {
+  if (!ultimaCompra) {
+    return <span className="text-xs text-slate-400">Sin compras</span>;
+  }
+  const dias = Math.floor((Date.now() - new Date(ultimaCompra).getTime()) / (1000 * 60 * 60 * 24));
+  const vencido = dias > 30;
+  return (
+    <div className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${vencido ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"}`}>
+      <Clock className="h-3 w-3" />
+      {dias === 0 ? "Hoy" : `${dias}d`}
+    </div>
+  );
 }
 
 export default function ProveedoresClient({
@@ -33,6 +49,8 @@ export default function ProveedoresClient({
 }) {
   const [proveedores, setProveedores] = useState<Proveedor[]>(proveedoresIniciales);
   const [searchTerm, setSearchTerm] = useState("");
+  const [soloMayoristas, setSoloMayoristas] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
 
   // Estados para Paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -50,36 +68,53 @@ export default function ProveedoresClient({
   const [proveedorAEliminar, setProveedorAEliminar] = useState<Proveedor | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Filtro de búsqueda
   const proveedoresFiltrados = useMemo(() => {
-    if (!searchTerm.trim()) return proveedores;
+    const quitarAcentos = (texto: string) =>
+      texto.normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-    const quitarAcentos = (texto: string) => {
-      return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    };
+    let lista = proveedores;
+
+    if (soloMayoristas) {
+      lista = lista.filter(p => p.esMayorista);
+    }
+
+    if (!searchTerm.trim()) return lista;
 
     const busquedaLimpia = quitarAcentos(searchTerm.toLowerCase().trim());
     const palabrasBuscadas = busquedaLimpia.split(/\s+/);
 
-    return proveedores.filter(p => {
+    return lista.filter(p => {
       const rsLimpia = quitarAcentos((p.razonSocial || "").toLowerCase());
       const cuitLimpio = quitarAcentos((p.cuit || "").toLowerCase());
       const fantasiaLimpia = quitarAcentos((p.nombreFantasia || "").toLowerCase());
 
-      return palabrasBuscadas.every(palabra => {
-        return rsLimpia.includes(palabra) || cuitLimpio.includes(palabra) || fantasiaLimpia.includes(palabra);
-      });
+      return palabrasBuscadas.every(palabra =>
+        rsLimpia.includes(palabra) || cuitLimpio.includes(palabra) || fantasiaLimpia.includes(palabra)
+      );
     });
-  }, [searchTerm, proveedores]);
+  }, [searchTerm, soloMayoristas, proveedores]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, soloMayoristas]);
 
   // Lógica de Paginación
   const totalPages = Math.ceil(proveedoresFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedProveedores = proveedoresFiltrados.slice(startIndex, startIndex + itemsPerPage);
+
+  const handleToggleMayorista = async (proveedor: Proveedor) => {
+    const nuevoValor = !proveedor.esMayorista;
+    setToggling(proveedor.id);
+    // Optimistic update
+    setProveedores(prev => prev.map(p => p.id === proveedor.id ? { ...p, esMayorista: nuevoValor } : p));
+    const res = await toggleMayoristaProveedor(proveedor.id, nuevoValor);
+    if (!res.success) {
+      // Revert on error
+      setProveedores(prev => prev.map(p => p.id === proveedor.id ? { ...p, esMayorista: proveedor.esMayorista } : p));
+    }
+    setToggling(null);
+  };
 
   // Funciones de Modal
   const abrirModalCrear = () => {
@@ -138,7 +173,7 @@ export default function ProveedoresClient({
       if (isEditing && formData.id) {
         const res = await actualizarProveedor(formData.id, formData as any);
         if (res.success && res.data) {
-          setProveedores(prev => prev.map(p => p.id === formData.id ? (res.data as any) : p));
+          setProveedores(prev => prev.map(p => p.id === formData.id ? { ...(res.data as any), esMayorista: p.esMayorista, ultimaCompra: p.ultimaCompra } : p));
           setIsModalOpen(false);
         } else {
           alert("Error: " + res.error);
@@ -146,7 +181,7 @@ export default function ProveedoresClient({
       } else {
         const res = await crearProveedor(formData as any);
         if (res.success && res.data) {
-          setProveedores(prev => [res.data as any, ...prev]);
+          setProveedores(prev => [{ ...(res.data as any), esMayorista: false, ultimaCompra: null }, ...prev]);
           setIsModalOpen(false);
         } else {
           alert("Error: " + res.error);
@@ -181,6 +216,8 @@ export default function ProveedoresClient({
     }
   };
 
+  const cantidadMayoristas = proveedores.filter(p => p.esMayorista).length;
+
   return (
     <div className="h-full flex flex-col relative">
 
@@ -210,8 +247,8 @@ export default function ProveedoresClient({
       {/* Contenido principal */}
       <main className="flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden">
 
-        {/* Barra de Búsqueda */}
-        <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+        {/* Barra de Búsqueda y Filtros */}
+        <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm gap-3">
           <div className="relative w-full max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <input
@@ -222,8 +259,24 @@ export default function ProveedoresClient({
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-amber-500/20 outline-none transition-all"
             />
           </div>
+
+          <button
+            onClick={() => setSoloMayoristas(prev => !prev)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${
+              soloMayoristas
+                ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                : "bg-slate-50 text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700"
+            }`}
+          >
+            <Star className={`h-4 w-4 ${soloMayoristas ? "fill-white" : ""}`} />
+            Mayoristas
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${soloMayoristas ? "bg-white/20 text-white" : "bg-amber-100 text-amber-700"}`}>
+              {cantidadMayoristas}
+            </span>
+          </button>
+
           <div className="ml-auto px-4 text-right">
-            <p className="text-[10px] text-slate-400 font-bold uppercase">Total Proveedores</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase">Total</p>
             <p className="text-lg font-black text-slate-800">{proveedoresFiltrados.length}</p>
           </div>
         </div>
@@ -238,13 +291,15 @@ export default function ProveedoresClient({
                   <TableHead className="text-[10px] font-bold uppercase py-4">CUIT / DNI</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase py-4">Nombre Fantasía</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase py-4">Contacto</TableHead>
-                  <TableHead className="text-right text-[10px] font-bold uppercase py-4 w-48">Acciones</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold uppercase py-4 w-28">Mayorista</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold uppercase py-4 w-32">Última compra</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold uppercase py-4 w-36">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedProveedores.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">
+                    <TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">
                       No se encontraron proveedores.
                     </TableCell>
                   </TableRow>
@@ -252,7 +307,14 @@ export default function ProveedoresClient({
                   paginatedProveedores.map((p) => (
                     <TableRow key={p.id} className="hover:bg-amber-50/30 transition-colors">
                       <TableCell className="py-3">
-                        <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-800">{p.razonSocial}</p>
+                          {p.esMayorista && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full">
+                              <Star className="h-2.5 w-2.5 fill-amber-500 text-amber-500" /> MAY
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="py-3">
                         <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded text-slate-600 border border-slate-200">
@@ -276,6 +338,25 @@ export default function ProveedoresClient({
                           )}
                           {!p.email && !p.telefono && <span className="text-slate-400 text-xs">-</span>}
                         </div>
+                      </TableCell>
+                      <TableCell className="py-3 text-center">
+                        <button
+                          onClick={() => handleToggleMayorista(p)}
+                          disabled={toggling === p.id}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                            p.esMayorista ? "bg-amber-500" : "bg-slate-200"
+                          }`}
+                          title={p.esMayorista ? "Quitar mayorista" : "Marcar como mayorista"}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                              p.esMayorista ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </TableCell>
+                      <TableCell className="py-3 text-center">
+                        <DiasUltimaCompra ultimaCompra={p.ultimaCompra} />
                       </TableCell>
                       <TableCell className="text-right py-3">
                         <div className="flex items-center justify-end gap-2">

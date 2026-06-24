@@ -230,6 +230,13 @@ export async function obtenerProveedores() {
   try {
     const proveedores = await prisma.proveedor.findMany({
       orderBy: { razonSocial: 'asc' },
+      include: {
+        ventasMostrador: {
+          select: { createdAt: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        }
+      }
     });
 
     return {
@@ -263,12 +270,26 @@ export async function obtenerProveedores() {
           mas60: toNum(p.mas60),
           total: toNum(p.total),
           aliasCbu: p.aliasCbu || "",
+          esMayorista: p.esMayorista,
+          ultimaCompra: p.ventasMostrador[0]?.createdAt?.toISOString() ?? null,
         };
       })
     };
   } catch (error) {
     console.error("Error al obtener proveedores:", error);
     return { success: false, error: "No se pudieron cargar los proveedores." };
+  }
+}
+
+export async function toggleMayoristaProveedor(id: string, esMayorista: boolean) {
+  const session = await getServerSession(authOptions);
+  if (!session) return { success: false, error: "No autorizado" };
+  try {
+    await prisma.proveedor.update({ where: { id }, data: { esMayorista } });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar mayorista:", error);
+    return { success: false, error: "No se pudo actualizar." };
   }
 }
 

@@ -958,6 +958,7 @@ model Proveedor {
   provincia      String?
 
   observaciones  String?
+  esMayorista    Boolean               @default(false)
 
   compras        Compra[]
   movimientos    MovimientoProveedor[]

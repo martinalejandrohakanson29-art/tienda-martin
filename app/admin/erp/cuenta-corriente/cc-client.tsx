@@ -27,6 +27,31 @@ interface Proveedor {
   mas60: number;
   total: number;
   aliasCbu?: string | null;
+  esMayorista: boolean;
+  ultimaCompra: string | null;
+}
+
+function BadgeMayorista({ ultimaCompra }: { ultimaCompra: string | null }) {
+  if (!ultimaCompra) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">
+        <span className="material-symbols-outlined text-[11px]">schedule</span>
+        MAY · Sin compras
+      </span>
+    );
+  }
+  const dias = Math.floor((Date.now() - new Date(ultimaCompra).getTime()) / (1000 * 60 * 60 * 24));
+  const vencido = dias > 30;
+  return (
+    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+      vencido
+        ? "bg-red-50 text-red-600 border-red-200"
+        : "bg-amber-50 text-amber-700 border-amber-200"
+    }`}>
+      <span className="material-symbols-outlined text-[11px]">schedule</span>
+      MAY · {dias === 0 ? "Hoy" : `${dias}d`}
+    </span>
+  );
 }
 
 interface CuentaCorrienteClientProps {
@@ -429,13 +454,16 @@ export default function CuentaCorrienteClient({
                 </div>
 
                 <div className="mt-6 flex items-center justify-between">
-                  <div className="flex flex-col">
+                  <div className="flex flex-col gap-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       Saldo Total
                     </span>
                     <span className={`text-xl font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
                       {formatCurrency(proveedor.total)}
                     </span>
+                    {proveedor.esMayorista && (
+                      <BadgeMayorista ultimaCompra={proveedor.ultimaCompra} />
+                    )}
                   </div>
                   <Link
                     href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
@@ -454,6 +482,7 @@ export default function CuentaCorrienteClient({
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400">Proveedor</th>
+                    <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">Mayorista</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Saldo Total</th>
                     <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-wider text-slate-400 text-right">Acciones</th>
                   </tr>
@@ -472,6 +501,12 @@ export default function CuentaCorrienteClient({
                           )}
                           <span className="text-[10px] text-slate-400 font-mono mt-0.5">{proveedor.cuit || "---"}</span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {proveedor.esMayorista
+                          ? <BadgeMayorista ultimaCompra={proveedor.ultimaCompra} />
+                          : <span className="text-xs text-slate-300">—</span>
+                        }
                       </td>
                       <td className={`px-6 py-4 text-right text-base font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
                         {formatCurrency(proveedor.total)}

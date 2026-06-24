@@ -422,7 +422,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         {activeFoto ? (
                             <>
                                 <div className="aspect-square bg-white border rounded-2xl overflow-hidden cursor-zoom-in relative group" onClick={() => setExpandedImage(activeFoto)}>
-                                    <Image src={activeFoto} fill className="object-contain" alt="Evidencia" unoptimized priority />
+                                    <Image src={activeFoto} fill sizes="(max-width: 768px) 100vw, 512px" className="object-contain" alt="Evidencia" priority />
                                     <div className="absolute top-2 left-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold z-10">
                                         FOTO {viewingFotos.fotos.findIndex((f: any) => f.url === activeFoto) + 1} / {viewingFotos.fotos.length}
                                         <Maximize2 className="h-3 w-3" />
@@ -431,7 +431,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                                     {viewingFotos.fotos.map((foto: any, i: number) => (
                                         <div key={i} className={`relative h-20 w-20 shrink-0 rounded-xl cursor-pointer border-2 transition-all overflow-hidden ${activeFoto === foto.url ? 'border-blue-500 scale-95' : 'border-transparent opacity-60'}`} onClick={() => setActiveFoto(foto.url)}>
-                                            <Image src={foto.url} fill className="object-cover" alt="Thumbnail" unoptimized />
+                                            <Image src={foto.url} fill sizes="80px" className="object-cover" alt="Thumbnail" />
                                         </div>
                                     ))}
                                 </div>

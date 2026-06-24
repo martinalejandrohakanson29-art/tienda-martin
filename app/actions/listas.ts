@@ -235,7 +235,19 @@ export async function obtenerProveedores() {
           select: { createdAt: true },
           orderBy: { createdAt: 'desc' },
           take: 1,
-        }
+        },
+        // Cubre ventas a CC/Cruzada donde no se registró CUIT (sujetoId null)
+        movimientos: {
+          where: {
+            tipo: "HABER",
+            anulado: false,
+            referencia: { not: null },
+            NOT: { referencia: { startsWith: "MANUAL_" } },
+          },
+          select: { fecha: true },
+          orderBy: { fecha: 'desc' },
+          take: 1,
+        },
       }
     });
 
@@ -271,7 +283,14 @@ export async function obtenerProveedores() {
           total: toNum(p.total),
           aliasCbu: p.aliasCbu || "",
           esMayorista: p.esMayorista,
-          ultimaCompra: p.ventasMostrador[0]?.createdAt?.toISOString() ?? null,
+          ultimaCompra: (() => {
+            const fechaVenta = p.ventasMostrador[0]?.createdAt ?? null;
+            const fechaMovimiento = p.movimientos[0]?.fecha ?? null;
+            if (!fechaVenta && !fechaMovimiento) return null;
+            if (!fechaVenta) return fechaMovimiento!.toISOString();
+            if (!fechaMovimiento) return fechaVenta.toISOString();
+            return (fechaVenta > fechaMovimiento ? fechaVenta : fechaMovimiento).toISOString();
+          })(),
         };
       })
     };

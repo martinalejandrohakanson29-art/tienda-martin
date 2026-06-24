@@ -71,7 +71,23 @@ const renderTextWithQuantity = (text: string) => {
 // Visor de imagen con zoom por zonas: al hacer click sobre una región la amplía
 // usando ese punto como centro; estando ampliada, mover el puntero (o arrastrar en
 // móvil) recorre la imagen. Otro click aleja. Click fuera de la imagen cierra.
-function ZoomViewer({ src, onClose }: { src: string; onClose: () => void }) {
+function ZoomViewer({
+    src,
+    onClose,
+    envioId,
+    envioData,
+    loading,
+    onApprove,
+    onReject,
+}: {
+    src: string
+    onClose: () => void
+    envioId?: string
+    envioData?: any
+    loading?: string | null
+    onApprove?: (id: string) => void
+    onReject?: (id: string) => void
+}) {
     const SCALE = 2.8
     const imgRef = useRef<HTMLImageElement>(null)
     const [zoomed, setZoomed] = useState(false)
@@ -99,28 +115,95 @@ function ZoomViewer({ src, onClose }: { src: string; onClose: () => void }) {
         }
     }
 
+    const allNombres: { nombre: string; colorIdx: number }[] = []
+    envioData?.items?.forEach((item: any) => {
+        const rawNames = item.agregadoInfo?.nombres_articulos || item.title
+        rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0)
+            .forEach((nombre: string) => allNombres.push({ nombre, colorIdx: allNombres.length }))
+    })
+
+    const hasPanel = !!(envioId && onApprove && onReject)
+
     return (
-        <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden" onClick={onClose}>
+        <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex flex-col overflow-hidden" onClick={onClose}>
             <button className="absolute top-4 right-4 text-white/70 hover:text-white z-10" onClick={onClose}>
                 <X className="h-8 w-8" />
             </button>
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-xs bg-black/40 px-3 py-1 rounded-full pointer-events-none">
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-xs bg-black/40 px-3 py-1 rounded-full pointer-events-none z-10">
                 {zoomed ? "Movete sobre la imagen para explorar · click para alejar" : "Click sobre una zona para acercar"}
             </div>
-            <img
-                ref={imgRef}
-                src={src}
-                alt="Zoom"
-                draggable={false}
-                onClick={handleClick}
-                onMouseMove={(e) => { if (zoomed) setOrigin(posFrom(e.clientX, e.clientY)) }}
-                onTouchMove={(e) => { if (zoomed) { const t = e.touches[0]; setOrigin(posFrom(t.clientX, t.clientY)) } }}
-                className={`max-w-full max-h-[90vh] object-contain rounded shadow-2xl select-none transition-transform duration-150 ${zoomed ? "cursor-zoom-out" : "cursor-zoom-in"}`}
-                style={{
-                    transform: zoomed ? `scale(${SCALE})` : "scale(1)",
-                    transformOrigin: `${origin.x}% ${origin.y}%`,
-                }}
-            />
+
+            {/* Área de imagen */}
+            <div className="flex-1 flex items-center justify-center p-4 pt-14 overflow-hidden">
+                <img
+                    ref={imgRef}
+                    src={src}
+                    alt="Zoom"
+                    draggable={false}
+                    onClick={handleClick}
+                    onMouseMove={(e) => { if (zoomed) setOrigin(posFrom(e.clientX, e.clientY)) }}
+                    onTouchMove={(e) => { if (zoomed) { const t = e.touches[0]; setOrigin(posFrom(t.clientX, t.clientY)) } }}
+                    className={`max-w-full max-h-full object-contain rounded shadow-2xl select-none transition-transform duration-150 ${zoomed ? "cursor-zoom-out" : "cursor-zoom-in"}`}
+                    style={{
+                        transform: zoomed ? `scale(${SCALE})` : "scale(1)",
+                        transformOrigin: `${origin.x}% ${origin.y}%`,
+                    }}
+                />
+            </div>
+
+            {/* Panel inferior de auditoría */}
+            {hasPanel && (
+                <div
+                    className="shrink-0 bg-black/80 backdrop-blur-md border-t border-white/10 px-3 pt-2.5 pb-3 space-y-2"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Código de envío y orden */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1 bg-slate-700/80 text-slate-200 text-[10px] font-black px-2 py-0.5 rounded-md">
+                            <Barcode className="h-3 w-3" /> ENVÍO: {envioId}
+                        </span>
+                        {envioData?.orderId && (
+                            <span className="bg-orange-900/60 text-orange-300 text-[10px] font-black px-2 py-0.5 rounded-md">
+                                ORDEN: {envioData.orderId}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Agregados */}
+                    {allNombres.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 max-h-[72px] overflow-y-auto">
+                            {allNombres.map(({ nombre, colorIdx }, idx) => (
+                                <div key={idx} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border-b-2 font-black text-[10px] uppercase shadow-sm ${getAgregadoColor(colorIdx)}`}>
+                                    <Layers className="h-3 w-3 shrink-0 opacity-80" />
+                                    <span>{renderTextWithQuantity(nombre)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Botones */}
+                    <div className="grid grid-cols-2 gap-2">
+                        <Button
+                            variant="outline"
+                            className="h-12 border-2 border-red-500 text-red-400 font-bold hover:bg-red-900/30 bg-transparent"
+                            onClick={() => onReject!(envioId!)}
+                            disabled={!!loading}
+                        >
+                            <X className="mr-2 h-5 w-5" /> RECHAZAR
+                        </Button>
+                        <Button
+                            className="h-12 bg-green-600 font-bold shadow-lg hover:bg-green-700"
+                            onClick={() => onApprove!(envioId!)}
+                            disabled={!!loading}
+                        >
+                            {loading === envioId
+                                ? <Loader2 className="animate-spin" />
+                                : <><CheckCircle2 className="mr-2 h-5 w-5" /> APROBAR</>
+                            }
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
@@ -301,7 +384,15 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         return (
             <div className="max-w-5xl mx-auto p-4 space-y-6 w-full animate-in fade-in">
                 {expandedImage && (
-                    <ZoomViewer src={expandedImage} onClose={() => setExpandedImage(null)} />
+                    <ZoomViewer
+                        src={expandedImage}
+                        onClose={() => setExpandedImage(null)}
+                        envioId={viewingFotos.id}
+                        envioData={viewingFotos.envioData}
+                        loading={loading}
+                        onApprove={handleApprove}
+                        onReject={handleReject}
+                    />
                 )}
                 <Button variant="outline" onClick={() => { setViewingFotos(null); setActiveFoto(null); }}><ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista</Button>
                 

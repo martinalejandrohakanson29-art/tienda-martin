@@ -1,0 +1,609 @@
+{
+  "name": "automatizacion cruzadas foto",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ee1ccbee-8cfa-411c-819c-2effbfbfa1df",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -368,
+        -64
+      ],
+      "id": "d146dbab-23ef-484f-b6f7-63a8796a2339",
+      "name": "Webhook",
+      "webhookId": "ee1ccbee-8cfa-411c-819c-2effbfbfa1df"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evolution-api-production-384b9.up.railway.app/chat/getBase64FromMediaMessage/Prueba",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "=96B6691A9428-49B9-9972-5EC00C8364CB"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": {\n    \"key\": {\n      \"id\": \"{{ $json.body.data.key.id }}\",\n      \"remoteJid\": \"{{ $json.body.data.key.remoteJid }}\",\n      \"fromMe\": false\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        256,
+        -80
+      ],
+      "id": "b1a1875d-6a8a-4c1b-93f7-aff890813e44",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "base64",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        464,
+        -80
+      ],
+      "id": "5d631cd1-cb61-41ae-b687-6fb18c2f0cc4",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "Analiza la imagen del comprobante de transferencia, extrae los datos y responde ÚNICAMENTE en formato JSON con: monto, emisor, receptor e info_extra.",
+        "hasOutputParser": true,
+        "options": {
+          "passthroughBinaryImages": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        976,
+        -80
+      ],
+      "id": "d43a0a71-4309-455c-9dfd-7b850edbf101",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "meta-llama/llama-4-maverick-17b-128e-instruct",
+          "mode": "list",
+          "cachedResultName": "meta-llama/llama-4-maverick-17b-128e-instruct"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        976,
+        128
+      ],
+      "id": "67fda9b3-8037-444a-bace-4147711f120e",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "izKqPEK5NVsAu3IE",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.data.messageType }}",
+                    "rightValue": "imageMessage",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "dd6518bb-c893-41c7-af3b-0406a19691fe"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "7a667af5-ecb5-4f02-9770-3ba75911f507",
+                    "leftValue": "={{ $json.body.data.message.conversation }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        32,
+        -64
+      ],
+      "id": "5a3d4928-4f43-48fc-bcad-160a23438845",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1f7bb8dd-b3e2-4f11-a7f4-b101babac70b",
+              "name": "body.data.message.conversation",
+              "value": "={{ $json.body.data.message.conversation }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        656,
+        288
+      ],
+      "id": "15c3c2a8-497a-4070-a2ee-86b2e25e56c3",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"monto\": {\n      \"type\": \"number\",\n      \"description\": \"El monto total de la operación\"\n    },\n    \"emisor\": {\n      \"type\": \"string\",\n      \"description\": \"Nombre de quien envía el dinero\"\n    },\n    \"receptor\": {\n      \"type\": \"string\",\n      \"description\": \"Nombre de quien recibe el dinero\"\n    },\n    \"info_extra\": {\n      \"type\": \"string\",\n      \"description\": \"Cualquier otro dato relevante como fecha o número de comprobante\"\n    }\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1120,
+        128
+      ],
+      "id": "f56230a6-bff6-45e2-afa6-1ec96a79e41d",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1a2292d7-1d76-4151-80d2-db4844fc0bf4",
+              "name": "output.monto",
+              "value": "={{ $json.output.monto }}",
+              "type": "number"
+            },
+            {
+              "id": "1417884a-0de8-491a-810d-a530227d7061",
+              "name": "output.emisor",
+              "value": "={{ $json.output.emisor }}",
+              "type": "string"
+            },
+            {
+              "id": "7db4dd34-95de-49d8-9c42-dda2dc0f83b7",
+              "name": "output.receptor",
+              "value": "={{ $json.output.receptor }}",
+              "type": "string"
+            },
+            {
+              "id": "efe80818-6fb2-43f3-9df1-5e0ef4c6e0f7",
+              "name": "output.info_extra",
+              "value": "={{ $json.output.info_extra }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        -80
+      ],
+      "id": "9732c8f2-0e81-4fab-b774-2d36e771d667",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.revolucionmotos.com.ar/api/webhooks/n8n/cruzadas",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "whatsappId",
+              "value": "={{ $('Webhook').item.json.body.data.key.remoteJid }}"
+            },
+            {
+              "name": "=monto",
+              "value": "={{ $json.output.monto }}"
+            },
+            {
+              "name": "emisor",
+              "value": "={{ $json.output.emisor }}"
+            },
+            {
+              "name": "receptor",
+              "value": "={{ $json.output.receptor }}"
+            },
+            {
+              "name": "info_extra",
+              "value": "={{ $json.output.info_extra }}"
+            },
+            {
+              "name": "imageUrl",
+              "value": "=https://t3.storageapi.dev/customizable-cart-gdywtci/cruzadas/{{ $('Edit Fields2').item.json.nombre_archivo }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1584,
+        -80
+      ],
+      "id": "ce9ad879-ce28-4b42-8b57-182f8eb47a8c",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.revolucionmotos.com.ar/api/webhooks/n8n/cruzadas",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "whatsappId",
+              "value": "={{ $('Webhook').item.json.body.data.key.remoteJid }}"
+            },
+            {
+              "name": "=monto",
+              "value": "={{ $json.output.monto }}"
+            },
+            {
+              "name": "de",
+              "value": "={{ $json.output.emisor }}"
+            },
+            {
+              "name": "para",
+              "value": "={{ $json.output.receptor }}"
+            },
+            {
+              "name": "info_extra",
+              "value": "={{ $json.output.info_extra }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1280,
+        288
+      ],
+      "id": "4138647a-76dc-4d32-b00a-771f78b36b64",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "llama-3.3-70b-versatile",
+          "mode": "list",
+          "cachedResultName": "llama-3.3-70b-versatile"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        896,
+        480
+      ],
+      "id": "7a3f8087-1ac0-4566-b96f-f17685b7a3e2",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "izKqPEK5NVsAu3IE",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"monto\": {\n      \"type\": \"number\",\n      \"description\": \"El monto total de la operación\"\n    },\n    \"emisor\": {\n      \"type\": \"string\",\n      \"description\": \"Nombre de quien envía el dinero\"\n    },\n    \"receptor\": {\n      \"type\": \"string\",\n      \"description\": \"Nombre de quien recibe el dinero\"\n    },\n    \"info_extra\": {\n      \"type\": \"string\",\n      \"description\": \"Cualquier otro dato relevante como fecha o número de comprobante\"\n    }\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1040,
+        480
+      ],
+      "id": "e1fdfc4a-d79d-4536-bf30-6fd5f940af28",
+      "name": "Structured Output Parser1"
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "bucketName": "customizable-cart-gdywtci",
+        "fileName": "=cruzadas/{{ $('Edit Fields2').item.json.nombre_archivo }}",
+        "additionalFields": {
+          "acl": "publicRead"
+        }
+      },
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        896,
+        -272
+      ],
+      "id": "d093f483-73b5-4aef-ba29-6be8bbc6e04a",
+      "name": "Upload a file1",
+      "credentials": {
+        "s3": {
+          "id": "IYqYJkRolqQe61OQ",
+          "name": "S3 account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.data.message.conversation }}",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        896,
+        288
+      ],
+      "id": "dc0bcf65-0db1-4d4b-9414-751e2c33208b",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7daa9a4c-5d2e-434d-a5e8-f6132f375fe7",
+              "name": "nombre_archivo",
+              "value": "={{ $now.format('yyyy-MM-dd-HH-mm-ss') }}.jpg",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -144,
+        -64
+      ],
+      "id": "da6089f5-96a9-4130-88be-05a00d4659b8",
+      "name": "Edit Fields2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Upload a file1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload a file1": {
+      "main": [
+        []
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "5dbdd78a-d378-4267-b7ee-6880676709a8",
+  "meta": {
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
+  },
+  "id": "4WI3z3A6xV0oXFw3",
+  "tags": []
+}

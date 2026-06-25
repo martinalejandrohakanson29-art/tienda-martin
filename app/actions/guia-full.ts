@@ -1,7 +1,6 @@
 "use server"
 
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 
 export async function getRecentShipments() {
   try {
@@ -33,40 +32,33 @@ export async function searchShipmentItems(query: string, shipmentId: string) {
     });
 
     const mlas = Array.from(new Set(items.map(i => i.itemId)));
-    
-    // Obtenemos la receta de la vista de costos
-    let recetas: any[] = [];
-    try {
-      if (mlas.length > 0) {
-        recetas = await prisma.$queryRaw<any[]>`
-          SELECT mla, variation_id, receta_detallada, ids_articulos
-          FROM vista_costos_productos
-          WHERE mla IN (${Prisma.join(mlas)})
-        `;
-      }
-    } catch (e) {
-      console.error("Error al obtener recetas de vista_costos_productos:", e);
-    }
+
+    const todosLosComponentes = mlas.length > 0
+      ? await prisma.composicionKits.findMany({ where: { mla: { in: mlas } } })
+      : [];
 
     return items.map(item => {
-      // Intentamos encontrar la receta por MLA y variación
-      // Convertimos a string para comparar con seguridad
-      const receta = recetas.find(r => 
-        String(r.mla) === String(item.itemId) && 
-        (String(r.variation_id || "") === String(item.variation || "") || !r.variation_id)
+      const variation = item.variation ?? null;
+      const componentes = todosLosComponentes.filter(c =>
+        c.mla === item.itemId &&
+        (c.nombre_variante === '0' || c.variation_id === variation)
       );
 
       return {
         id: item.id,
-        title: item.itemId, 
+        title: item.itemId,
         subtitle: item.sku || "Sin SKU",
         publicationName: item.title,
         variation: item.variation,
         image: item.imageUrl,
         quantity: item.quantity,
-        agregados: item.agregados ? item.agregados.split(',').map(s => s.trim()) : [],
-        receta: receta?.receta_detallada || null,
-        componentes_ids: receta?.ids_articulos || null
+        agregados: item.agregados ? item.agregados.split(',').map((s: string) => s.trim()) : [],
+        receta: componentes.length > 0
+          ? componentes.map(c => `${c.nombre_articulo || c.id_articulo} (x${c.cantidad})`).join(' + ')
+          : null,
+        componentes_ids: componentes.length > 0
+          ? componentes.map(c => c.id_articulo).join(' + ')
+          : null
       };
     });
   } catch (error) {

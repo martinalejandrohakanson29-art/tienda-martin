@@ -164,29 +164,27 @@ export async function getEtiquetasML() {
             orderBy: { createdAt: 'desc' }
         });
 
-        const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
-            const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
-                const viewResult: any[] = await prisma.$queryRaw`
-                    SELECT ids_articulos 
-                    FROM vista_costos_productos 
-                    WHERE mla = ${item.mla} 
-                    AND variation_id IS NOT DISTINCT FROM ${item.variation}
-                    LIMIT 1
-                `;
+        const allMlas = Array.from(new Set(etiquetas.flatMap(e => e.items.map(i => i.mla))));
+        const todosLosComponentes = allMlas.length > 0
+            ? await prisma.composicionKits.findMany({ where: { mla: { in: allMlas } } })
+            : [];
 
-                if (viewResult.length > 0 && viewResult[0].ids_articulos) {
-                    const ids: string[] = viewResult[0].ids_articulos.split(/[+,]/).map((id: string) => id.trim()).filter(Boolean);
-                    const articulos = await prisma.costosArticulos.findMany({
-                        where: { id_articulo: { in: ids } },
-                        select: { id_articulo: true, descripcion: true }
-                    });
-                    const nombres = ids.map((id: string) => articulos.find((a) => a.id_articulo === id)?.descripcion || "Sin descripción");
+        const etiquetasEnriquecidas = etiquetas.map((envio) => {
+            const itemsConAgregados = envio.items.map((item) => {
+                const variation = item.variation ?? null;
+                const componentes = todosLosComponentes.filter(c =>
+                    c.mla === item.mla &&
+                    (c.nombre_variante === '0' || c.variation_id === variation)
+                );
+                if (componentes.length > 0) {
+                    const ids = componentes.map(c => c.id_articulo);
+                    const nombres = componentes.map(c => c.nombre_articulo || 'Sin descripción');
                     return { ...item, agregadoInfo: { ids_articulos: ids.join(', '), nombres_articulos: nombres.join(' | ') } };
                 }
                 return { ...item, agregadoInfo: null };
-            }));
+            });
             return { ...envio, items: itemsConAgregados };
-        }));
+        });
 
         return { success: true, data: etiquetasEnriquecidas };
     } catch (error) {
@@ -238,22 +236,27 @@ export async function getEtiquetasPreparadas(fecha: string) {
             }
         });
 
-        // Lógica de enriquecimiento de items (Agregados)
-        const etiquetasEnriquecidas = await Promise.all(etiquetas.map(async (envio) => {
-            const itemsConAgregados = await Promise.all(envio.items.map(async (item) => {
-                const viewResult: any[] = await prisma.$queryRaw`
-                    SELECT ids_articulos FROM vista_costos_productos WHERE mla = ${item.mla} AND variation_id IS NOT DISTINCT FROM ${item.variation} LIMIT 1
-                `;
-                if (viewResult.length > 0 && viewResult[0].ids_articulos) {
-                    const ids: string[] = viewResult[0].ids_articulos.split(/[+,]/).map((id: string) => id.trim()).filter(Boolean);
-                    const articulos = await prisma.costosArticulos.findMany({ where: { id_articulo: { in: ids } }, select: { id_articulo: true, descripcion: true } });
-                    const nombres = ids.map((id: string) => articulos.find((a) => a.id_articulo === id)?.descripcion || "Sin descripción");
+        const allMlas = Array.from(new Set(etiquetas.flatMap(e => e.items.map(i => i.mla))));
+        const todosLosComponentes = allMlas.length > 0
+            ? await prisma.composicionKits.findMany({ where: { mla: { in: allMlas } } })
+            : [];
+
+        const etiquetasEnriquecidas = etiquetas.map((envio) => {
+            const itemsConAgregados = envio.items.map((item) => {
+                const variation = item.variation ?? null;
+                const componentes = todosLosComponentes.filter(c =>
+                    c.mla === item.mla &&
+                    (c.nombre_variante === '0' || c.variation_id === variation)
+                );
+                if (componentes.length > 0) {
+                    const ids = componentes.map(c => c.id_articulo);
+                    const nombres = componentes.map(c => c.nombre_articulo || 'Sin descripción');
                     return { ...item, agregadoInfo: { ids_articulos: ids.join(', '), nombres_articulos: nombres.join(' | ') } };
                 }
                 return { ...item, agregadoInfo: null };
-            }));
+            });
             return { ...envio, items: itemsConAgregados };
-        }));
+        });
 
         return { success: true, data: etiquetasEnriquecidas };
     } catch (error) {
@@ -300,29 +303,27 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
         });
         const labelsMap = new Map(labels.map(l => [l.id, l]));
 
-        // Enriquecemos con datos de la vista de costos (receta)
-        const ventasEnriquecidas = await Promise.all(ventas.map(async (venta) => {
-            // Buscamos el título y cantidad en la etiqueta
+        const allVentaMlas = Array.from(new Set(ventas.map(v => v.mla.trim())));
+        const todosLosComponentes = allVentaMlas.length > 0
+            ? await prisma.composicionKits.findMany({ where: { mla: { in: allVentaMlas } } })
+            : [];
+
+        const ventasEnriquecidas = ventas.map((venta) => {
             const label = labelsMap.get(venta.shippingId);
             const labelItem = label?.items.find(i => i.mla === venta.mla && (i.variation === venta.variation || (!i.variation && !venta.variation)));
 
-            const viewResult: any[] = await prisma.$queryRaw`
-                SELECT ids_articulos FROM vista_costos_productos WHERE mla = ${venta.mla.trim()} AND variation_id IS NOT DISTINCT FROM ${venta.variation} LIMIT 1
-            `;
+            const variation = venta.variation ?? null;
+            const componentes = todosLosComponentes.filter(c =>
+                c.mla === venta.mla.trim() &&
+                (c.nombre_variante === '0' || c.variation_id === variation)
+            );
 
-            let raw_ids_articulos = viewResult.length > 0 ? viewResult[0].ids_articulos : null;
-            let ids_articulos = null;
-            let receta_detallada = null;
-
-            if (raw_ids_articulos) {
-                const ids = raw_ids_articulos.split(/[+,]/).map((id: string) => id.trim()).filter(Boolean);
-                const articulos = await prisma.costosArticulos.findMany({
-                    where: { id_articulo: { in: ids } },
-                    select: { id_articulo: true, descripcion: true }
-                });
-                ids_articulos = ids.join(', ');
-                receta_detallada = ids.map((id: string) => articulos.find((a) => a.id_articulo === id)?.descripcion || "Sin descripción").join(' | ');
-            }
+            const ids_articulos = componentes.length > 0
+                ? componentes.map(c => c.id_articulo).join(', ')
+                : null;
+            const receta_detallada = componentes.length > 0
+                ? componentes.map(c => c.nombre_articulo || 'Sin descripción').join(' | ')
+                : null;
 
             return {
                 ...venta,
@@ -332,7 +333,7 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
                 titulo: labelItem?.title || `Venta ML`,
                 cantidad: (venta.cantidad && venta.cantidad > 0) ? venta.cantidad : (labelItem?.quantity || 1)
             };
-        }));
+        });
 
         return {
             success: true,

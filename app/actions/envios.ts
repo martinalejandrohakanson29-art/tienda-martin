@@ -265,19 +265,17 @@ export async function getEtiquetasPreparadas(fecha: string) {
 /**
  * Obtiene las ventas pendientes de registración desde la tabla temporal
  */
-export async function getVentasRegistracion(fecha?: string) {
+export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: string) {
     try {
         const where: any = {};
 
-        if (fecha && fecha !== "undefined" && fecha !== "null") {
-            // AJUSTE DE ZONA HORARIA (Argentina UTC-3) para cubrir todo el día de forma segura
-            const startOfDay = new Date(`${fecha}T00:00:00-03:00`);
-            const endOfDay = new Date(`${fecha}T23:59:59.999-03:00`);
+        const validDesde = fechaDesde && fechaDesde !== "undefined" && fechaDesde !== "null";
+        const validHasta = fechaHasta && fechaHasta !== "undefined" && fechaHasta !== "null";
 
-            where.createdAt = {
-                gte: startOfDay,
-                lte: endOfDay
-            };
+        if (validDesde || validHasta) {
+            where.createdAt = {};
+            if (validDesde) where.createdAt.gte = new Date(`${fechaDesde}T00:00:00-03:00`);
+            if (validHasta) where.createdAt.lte = new Date(`${fechaHasta}T23:59:59.999-03:00`);
         }
 
         const ventas = await prisma.ventaMLRegistracion.findMany({

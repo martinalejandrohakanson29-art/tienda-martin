@@ -31,6 +31,11 @@ export function DespachadosClient() {
     const [isProcessing, setIsProcessing] = useState(false)
     const [categoriaFilter, setCategoriaFilter] = useState<string>("TODOS")
     const [selectedRegistracionIds, setSelectedRegistracionIds] = useState<Set<string>>(new Set())
+    const [registradaFilter, setRegistradaFilter] = useState<"TODAS" | "PENDIENTES" | "REGISTRADAS">("TODAS")
+
+    // Filtro por rango de fechas para la pestaña de Registración
+    const [fechaDesde, setFechaDesde] = useState(format(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"))
+    const [fechaHasta, setFechaHasta] = useState(format(new Date(), "yyyy-MM-dd"))
 
     // Estados para el Modal de Confirmación y Facturación
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
@@ -48,17 +53,23 @@ export function DespachadosClient() {
         setLoading(true)
         const res = await getEtiquetasPreparadas(fecha)
         if (res.success) setEnvios(res.data)
-
-        // Cargamos ventas de registracion iniciales
-        const resReg = await getVentasRegistracion(fecha)
-        if (resReg.success) setVentasRegistracion(resReg.data)
-
         setLoading(false)
+    }
+
+    const loadVentasRegistracion = async () => {
+        setLoadingRegistracion(true)
+        const resReg = await getVentasRegistracion(fechaDesde, fechaHasta)
+        if (resReg.success) setVentasRegistracion(resReg.data)
+        setLoadingRegistracion(false)
     }
 
     useEffect(() => {
         loadData()
     }, [fecha])
+
+    useEffect(() => {
+        loadVentasRegistracion()
+    }, [fechaDesde, fechaHasta])
 
     // LOGICA ACTUAL + VISUAL NUEVA: Filtro combinado
     const filtered = envios.filter(e =>
@@ -118,32 +129,29 @@ export function DespachadosClient() {
 
     const getFilteredRegistracion = () => {
         return ventasRegistracion.filter(v => {
-            // Filtro de fecha (doble seguridad)
-            const vDate = v.createdAt ? format(new Date(v.createdAt), "yyyy-MM-dd") : null;
-            const matchesDate = !vDate || vDate === fecha;
-
             const matchesCategory = categoriaFilter === "TODOS" || v.categoria === categoriaFilter;
             const matchesSearch = v.shippingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 v.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 v.mla.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 (v.nombre && v.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
-            return matchesDate && matchesCategory && matchesSearch;
+            const matchesRegistrada =
+                registradaFilter === "TODAS" ||
+                (registradaFilter === "PENDIENTES" && !v.registrada) ||
+                (registradaFilter === "REGISTRADAS" && v.registrada);
+            return matchesCategory && matchesSearch && matchesRegistrada;
         });
     };
 
     const categoriaCounts = useMemo(() => {
         const counts: Record<string, number> = { TODOS: 0, Full: 0, Colecta: 0, Flex: 0 };
         ventasRegistracion.forEach(v => {
-            const vDate = v.createdAt ? format(new Date(v.createdAt), "yyyy-MM-dd") : null;
-            if (!vDate || vDate === fecha) {
-                counts.TODOS++;
-                if (v.categoria && counts[v.categoria] !== undefined) {
-                    counts[v.categoria]++;
-                }
+            counts.TODOS++;
+            if (v.categoria && counts[v.categoria] !== undefined) {
+                counts[v.categoria]++;
             }
         });
         return counts;
-    }, [ventasRegistracion, fecha]);
+    }, [ventasRegistracion]);
 
     const groupedRegistracion = useMemo(() => {
         const filtered = getFilteredRegistracion();
@@ -168,7 +176,7 @@ export function DespachadosClient() {
         });
 
         return result;
-    }, [ventasRegistracion, categoriaFilter, searchTerm, fecha]);
+    }, [ventasRegistracion, categoriaFilter, searchTerm, registradaFilter]);
 
     const handleFetchRegistracion = async () => {
         setLoadingRegistracion(true);
@@ -195,7 +203,7 @@ export function DespachadosClient() {
             });
 
             setTimeout(async () => {
-                const res = await getVentasRegistracion(fecha);
+                const res = await getVentasRegistracion(fechaDesde, fechaHasta);
                 if (res.success) {
                     setVentasRegistracion(res.data);
                     toast.success("Sincronización completada");
@@ -327,7 +335,7 @@ export function DespachadosClient() {
                         );
                     });
                 }
-                const resReg = await getVentasRegistracion(fecha);
+                const resReg = await getVentasRegistracion(fechaDesde, fechaHasta);
                 if (resReg.success) setVentasRegistracion(resReg.data);
                 setSelectedRegistracionIds(new Set());
             } else {
@@ -510,12 +518,21 @@ export function DespachadosClient() {
                 <TabsContent value="registracion" className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                     <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <div className="flex flex-col gap-2">
-                            <Label className="text-xs font-bold uppercase text-slate-500">Filtrar Fecha</Label>
+                            <Label className="text-xs font-bold uppercase text-slate-500">Desde</Label>
                             <Input
                                 type="date"
-                                value={fecha}
-                                onChange={(e) => setFecha(e.target.value)}
-                                className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[180px]"
+                                value={fechaDesde}
+                                onChange={(e) => setFechaDesde(e.target.value)}
+                                className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label className="text-xs font-bold uppercase text-slate-500">Hasta</Label>
+                            <Input
+                                type="date"
+                                value={fechaHasta}
+                                onChange={(e) => setFechaHasta(e.target.value)}
+                                className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
                             />
                         </div>
                         <div className="flex flex-col gap-2">
@@ -536,6 +553,29 @@ export function DespachadosClient() {
                                         >
                                             {categoriaCounts[cat] || 0}
                                         </Badge>
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label className="text-xs font-bold uppercase text-slate-500">Estado</Label>
+                            <div className="flex gap-2">
+                                {([
+                                    { value: "TODAS", label: "Todas" },
+                                    { value: "PENDIENTES", label: "Pendientes" },
+                                    { value: "REGISTRADAS", label: "Registradas" },
+                                ] as const).map(({ value, label }) => (
+                                    <Button
+                                        key={value}
+                                        variant={registradaFilter === value ? "default" : "outline"}
+                                        size="sm"
+                                        onClick={() => setRegistradaFilter(value)}
+                                        className={`rounded-xl text-xs font-bold ${
+                                            registradaFilter === value && value === "PENDIENTES" ? "bg-amber-500 hover:bg-amber-600 border-amber-500" :
+                                            registradaFilter === value && value === "REGISTRADAS" ? "bg-emerald-600 hover:bg-emerald-700 border-emerald-600" : ""
+                                        }`}
+                                    >
+                                        {label}
                                     </Button>
                                 ))}
                             </div>

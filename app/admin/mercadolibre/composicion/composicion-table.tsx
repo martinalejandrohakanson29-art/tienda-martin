@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Search, Plus, Trash2, Pencil, Check, CopyPlus, PackagePlus, Loader2, PackageOpen, Layers, X } from "lucide-react";
 import { upsertKitComponent, deleteKitComponent, createProductWithRecipe, createVariantsBulk } from "@/app/actions/kits";
@@ -181,6 +182,24 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
       a.descripcion?.toLowerCase().includes(searchArticuloKitModal.toLowerCase())
     ).slice(0, 5)
     : [];
+
+  // Variantes REALES de ML para un MLA (desde productos_maestros). Se usa para que el
+  // ID Variante se elija de la lista y quede el variation_id numérico correcto, en vez
+  // de tipearse a mano. Ver [[project-agregados-variantes]].
+  const variantesDeMaestro = (mla: string | undefined | null) => {
+    const m = (mla || "").trim().toUpperCase();
+    if (!m) return [] as { variation_id: string; nombre_variante: string }[];
+    const vistos = new Set<string>();
+    const out: { variation_id: string; nombre_variante: string }[] = [];
+    for (const x of (maestros || [])) {
+      if ((x.mla || "").trim().toUpperCase() !== m) continue;
+      const vid = x.variation_id ? String(x.variation_id).trim() : "";
+      if (!vid || vistos.has(vid)) continue;
+      vistos.add(vid);
+      out.push({ variation_id: vid, nombre_variante: (x.nombre_variante || "").trim() });
+    }
+    return out;
+  };
 
   // --- HANDLERS DEL MODAL DE RECETAS (KIT) ---
   const handleOpenModal = (item: any = null) => {
@@ -746,37 +765,91 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
             </DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSaveKit} className="space-y-6 pt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="font-bold text-slate-700">MLA Destino</Label>
-                <Input
-                  value={editingItem?.mla || ""}
-                  onChange={e => setEditingItem({ ...editingItem, mla: e.target.value })}
-                  className="bg-slate-50 font-mono uppercase"
-                  placeholder="MLA..."
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="font-bold text-slate-700">ID Variante</Label>
-                <Input
-                  value={editingItem?.variation_id || ""}
-                  onChange={e => setEditingItem({ ...editingItem, variation_id: e.target.value })}
-                  className="bg-slate-50 font-mono text-xs"
-                  placeholder="Opcional"
-                />
-              </div>
-            </div>
-
             <div className="space-y-2">
-              <Label className="font-bold text-slate-700">Nombre Variante</Label>
+              <Label className="font-bold text-slate-700">MLA Destino</Label>
               <Input
-                value={editingItem?.nombre_variante || ""}
-                onChange={e => setEditingItem({ ...editingItem, nombre_variante: e.target.value })}
-                className="bg-slate-50"
-                placeholder="Ej: Rojo / 28mm"
+                value={editingItem?.mla || ""}
+                onChange={e => setEditingItem({ ...editingItem, mla: e.target.value })}
+                className="bg-slate-50 font-mono uppercase"
+                placeholder="MLA..."
+                required
               />
             </div>
+
+            {(() => {
+              const variantesMLA = variantesDeMaestro(editingItem?.mla);
+              const SIN_VARIANTE = "__sin_variante__";
+              if (variantesMLA.length > 0) {
+                // La publicación tiene variantes reales en ML: se eligen de la lista y el
+                // variation_id numérico se completa automáticamente (no se tipea a mano).
+                const valorActual = (editingItem?.variation_id || "").trim() || SIN_VARIANTE;
+                const esConocida = valorActual === SIN_VARIANTE || variantesMLA.some(v => v.variation_id === valorActual);
+                return (
+                  <div className="space-y-2">
+                    <Label className="font-bold text-slate-700">Variante de la publicación</Label>
+                    <Select
+                      value={esConocida ? valorActual : ""}
+                      onValueChange={(val) => {
+                        if (val === SIN_VARIANTE) {
+                          setEditingItem({ ...editingItem, variation_id: "", nombre_variante: "" });
+                        } else {
+                          const v = variantesMLA.find(x => x.variation_id === val);
+                          setEditingItem({ ...editingItem, variation_id: val, nombre_variante: v?.nombre_variante || "" });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-slate-50">
+                        <SelectValue placeholder="Elegí la variante..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SIN_VARIANTE}>Sin variante (Único)</SelectItem>
+                        {variantesMLA.map(v => (
+                          <SelectItem key={v.variation_id} value={v.variation_id}>
+                            {v.nombre_variante || v.variation_id}
+                            <span className="ml-2 text-[10px] text-slate-400 font-mono">{v.variation_id}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!esConocida && (editingItem?.variation_id || editingItem?.nombre_variante) && (
+                      <p className="text-[10px] text-amber-600">
+                        Variante actual sin ID de ML (“{editingItem?.nombre_variante || editingItem?.variation_id}”). Elegí la correcta de la lista para corregirla.
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-400">El ID de variante se completa automáticamente desde MercadoLibre.</p>
+                  </div>
+                );
+              }
+              // Fallback: el MLA no tiene variantes sincronizadas en productos_maestros.
+              // Mantenemos los campos manuales para no bloquear la carga.
+              return (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="font-bold text-slate-700">ID Variante</Label>
+                      <Input
+                        value={editingItem?.variation_id || ""}
+                        onChange={e => setEditingItem({ ...editingItem, variation_id: e.target.value })}
+                        className="bg-slate-50 font-mono text-xs"
+                        placeholder="Opcional"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="font-bold text-slate-700">Nombre Variante</Label>
+                      <Input
+                        value={editingItem?.nombre_variante || ""}
+                        onChange={e => setEditingItem({ ...editingItem, nombre_variante: e.target.value })}
+                        className="bg-slate-50"
+                        placeholder="Ej: Rojo / 28mm"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400">
+                    Este MLA no tiene variantes sincronizadas desde MercadoLibre. Si la publicación tiene variantes, sincronizala primero para poder elegir el ID correcto.
+                  </p>
+                </div>
+              );
+            })()}
 
             <div className="space-y-2 relative">
               <Label className="font-bold text-blue-700">Seleccionar Artículo de Costos</Label>

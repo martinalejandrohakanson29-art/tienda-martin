@@ -4,6 +4,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { crearVentaMostrador } from "./ventas-mostrador"
+import { crearResolverAgregados } from "@/lib/agregados"
 
 /**
  * Genera un PDF con los datos de un pedido de venta
@@ -162,18 +163,11 @@ export async function getEtiquetasML() {
             orderBy: { createdAt: 'desc' }
         });
 
-        const allMlas = Array.from(new Set(etiquetas.flatMap(e => e.items.map(i => i.mla))));
-        const todosLosComponentes = allMlas.length > 0
-            ? await prisma.composicionKits.findMany({ where: { mla: { in: allMlas } } })
-            : [];
+        const resolverAgregados = await crearResolverAgregados(etiquetas.flatMap(e => e.items.map(i => i.mla)));
 
         const etiquetasEnriquecidas = etiquetas.map((envio) => {
             const itemsConAgregados = envio.items.map((item) => {
-                const variation = item.variation ?? null;
-                const componentes = todosLosComponentes.filter(c =>
-                    c.mla === item.mla &&
-                    (c.nombre_variante === '0' || c.variation_id === variation)
-                );
+                const componentes = resolverAgregados(item.mla, item.variation);
                 if (componentes.length > 0) {
                     const ids = componentes.map(c => c.id_articulo);
                     const nombres = componentes.map(c => c.nombre_articulo || 'Sin descripción');
@@ -234,18 +228,11 @@ export async function getEtiquetasPreparadas(fecha: string) {
             }
         });
 
-        const allMlas = Array.from(new Set(etiquetas.flatMap(e => e.items.map(i => i.mla))));
-        const todosLosComponentes = allMlas.length > 0
-            ? await prisma.composicionKits.findMany({ where: { mla: { in: allMlas } } })
-            : [];
+        const resolverAgregados = await crearResolverAgregados(etiquetas.flatMap(e => e.items.map(i => i.mla)));
 
         const etiquetasEnriquecidas = etiquetas.map((envio) => {
             const itemsConAgregados = envio.items.map((item) => {
-                const variation = item.variation ?? null;
-                const componentes = todosLosComponentes.filter(c =>
-                    c.mla === item.mla &&
-                    (c.nombre_variante === '0' || c.variation_id === variation)
-                );
+                const componentes = resolverAgregados(item.mla, item.variation);
                 if (componentes.length > 0) {
                     const ids = componentes.map(c => c.id_articulo);
                     const nombres = componentes.map(c => c.nombre_articulo || 'Sin descripción');
@@ -301,20 +288,13 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
         });
         const labelsMap = new Map(labels.map(l => [l.id, l]));
 
-        const allVentaMlas = Array.from(new Set(ventas.map(v => v.mla.trim())));
-        const todosLosComponentes = allVentaMlas.length > 0
-            ? await prisma.composicionKits.findMany({ where: { mla: { in: allVentaMlas } } })
-            : [];
+        const resolverAgregados = await crearResolverAgregados(ventas.map(v => v.mla));
 
         const ventasEnriquecidas = ventas.map((venta) => {
             const label = labelsMap.get(venta.shippingId);
             const labelItem = label?.items.find(i => i.mla === venta.mla && (i.variation === venta.variation || (!i.variation && !venta.variation)));
 
-            const variation = venta.variation ?? null;
-            const componentes = todosLosComponentes.filter(c =>
-                c.mla === venta.mla.trim() &&
-                (c.nombre_variante === '0' || c.variation_id === variation)
-            );
+            const componentes = resolverAgregados(venta.mla, venta.variation);
 
             const ids_articulos = componentes.length > 0
                 ? componentes.map(c => c.id_articulo).join(', ')

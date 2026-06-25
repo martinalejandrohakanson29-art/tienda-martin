@@ -6,6 +6,7 @@ import { s3Client } from "@/lib/s3"
 import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { linkAuditFull } from "@/lib/notify"
+import { crearResolverAgregados } from "@/lib/agregados"
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
@@ -100,45 +101,30 @@ export async function getAuditPendingItems(envioId: string) {
         const mlasEnvio = Array.from(new Set(
             (dbShipment?.items || []).map(i => (i.itemId || "").trim().toUpperCase()).filter(Boolean)
         ));
+
+        // Resolver compartido: misma lógica de match que registración / preparación / guía,
+        // para que auditoría muestre EXACTAMENTE los mismos agregados (composición = fuente de verdad).
+        const resolverAgregados = await crearResolverAgregados(mlasEnvio);
+
+        // Receta COMPLETA por MLA: fallback "mostrar todo" cuando no se puede resolver la variante
+        // (ej: publicación sin datos en productos_maestros). Mejor sobre-informar que ocultar.
         const kits = mlasEnvio.length > 0
             ? await prisma.composicionKits.findMany({
                 where: { mla: { in: mlasEnvio } },
-                select: { mla: true, nombre_variante: true, nombre_articulo: true, cantidad: true }
+                select: { mla: true, nombre_articulo: true, cantidad: true }
             })
             : [];
-
-        // mla -> componentes de su receta
-        const recetaPorMla = new Map<string, { nombre_variante: string; nombre_articulo: string; cantidad: number }[]>();
+        const recetaPorMla = new Map<string, { nombre_articulo: string | null; cantidad: number }[]>();
         for (const k of kits) {
             const mla = (k.mla || "").trim().toUpperCase();
             if (!mla) continue;
             const arr = recetaPorMla.get(mla) || [];
-            arr.push({
-                nombre_variante: (k.nombre_variante || "").trim(),
-                nombre_articulo: (k.nombre_articulo || "").trim(),
-                cantidad: k.cantidad || 1
-            });
+            arr.push({ nombre_articulo: k.nombre_articulo, cantidad: k.cantidad || 1 });
             recetaPorMla.set(mla, arr);
         }
 
-        const norm = (s: string | null | undefined) => (s || "").trim().toLowerCase();
-
-        const agregadosDeItem = (item: { itemId: string; variation: string | null }): string[] => {
-            const mla = (item.itemId || "").trim().toUpperCase();
-            let comps = recetaPorMla.get(mla) || [];
-            if (comps.length === 0) return [];
-
-            // Si la publicación tiene varias variantes con recetas distintas, nos quedamos con la
-            // que coincide con la variante del ítem. Si no hay coincidencia, mostramos todas (mejor
-            // pasarse de informativo que ocultar agregados reales).
-            const variantes = new Set(comps.map(c => norm(c.nombre_variante)));
-            if (variantes.size > 1) {
-                const target = norm(item.variation);
-                const filtradas = comps.filter(c => norm(c.nombre_variante) === target);
-                if (target && filtradas.length > 0) comps = filtradas;
-            }
-
-            // Formateamos "NOMBRE (xN)" cuando la cantidad es mayor a 1 y deduplicamos.
+        // Formatea "NOMBRE (xN)" cuando la cantidad es mayor a 1 y deduplica.
+        const formatearAgregados = (comps: { nombre_articulo: string | null; cantidad: number }[]): string[] => {
             const vistos = new Set<string>();
             const out: string[] = [];
             for (const c of comps) {
@@ -150,6 +136,14 @@ export async function getAuditPendingItems(envioId: string) {
                 out.push(label);
             }
             return out;
+        };
+
+        const agregadosDeItem = (item: { itemId: string; variation: string | null }): string[] => {
+            const resueltos = resolverAgregados(item.itemId, item.variation);
+            if (resueltos.length > 0) return formatearAgregados(resueltos);
+            // No se pudo resolver la variante: mostramos toda la receta del MLA.
+            const mla = (item.itemId || "").trim().toUpperCase();
+            return formatearAgregados(recetaPorMla.get(mla) || []);
         };
 
         // 2. Listar archivos en S3

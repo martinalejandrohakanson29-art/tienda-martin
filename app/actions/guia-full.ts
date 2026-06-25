@@ -1,6 +1,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma";
+import { crearResolverAgregados } from "@/lib/agregados";
 
 export async function getRecentShipments() {
   try {
@@ -31,18 +32,10 @@ export async function searchShipmentItems(query: string, shipmentId: string) {
       take: 50
     });
 
-    const mlas = Array.from(new Set(items.map(i => i.itemId)));
-
-    const todosLosComponentes = mlas.length > 0
-      ? await prisma.composicionKits.findMany({ where: { mla: { in: mlas } } })
-      : [];
+    const resolverAgregados = await crearResolverAgregados(items.map(i => i.itemId));
 
     return items.map(item => {
-      const variation = item.variation ?? null;
-      const componentes = todosLosComponentes.filter(c =>
-        c.mla === item.itemId &&
-        (c.nombre_variante === '0' || c.variation_id === variation)
-      );
+      const componentes = resolverAgregados(item.itemId, item.variation);
 
       return {
         id: item.id,

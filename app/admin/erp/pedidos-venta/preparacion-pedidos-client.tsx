@@ -57,6 +57,66 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
   RECHAZADO: { label: "RECHAZADO", cls: "bg-red-100 text-red-700" },
 };
 
+// Visor de imagen con zoom por zonas: al hacer click sobre una región la amplía
+// usando ese punto como centro; estando ampliada, mover el puntero (o arrastrar en
+// móvil) recorre la imagen. Otro click aleja. Click fuera de la imagen cierra.
+function ZoomViewer({ src, onClose }: { src: string; onClose: () => void }) {
+  const SCALE = 2.8;
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [zoomed, setZoomed] = useState(false);
+  const [origin, setOrigin] = useState({ x: 50, y: 50 });
+
+  const posFrom = (clientX: number, clientY: number) => {
+    const el = imgRef.current;
+    if (!el) return { x: 50, y: 50 };
+    const rect = el.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * 100;
+    const y = ((clientY - rect.top) / rect.height) * 100;
+    return {
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y)),
+    };
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (zoomed) {
+      setZoomed(false);
+    } else {
+      setOrigin(posFrom(e.clientX, e.clientY));
+      setZoomed(true);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden"
+      onClick={onClose}
+    >
+      <button className="absolute top-4 right-4 text-white/70 hover:text-white z-10" onClick={onClose}>
+        <X className="h-8 w-8" />
+      </button>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-xs bg-black/40 px-3 py-1 rounded-full pointer-events-none">
+        {zoomed ? "Movete sobre la imagen para explorar · click para alejar" : "Click sobre una zona para acercar"}
+      </div>
+      <img
+        ref={imgRef}
+        src={src}
+        alt="Zoom"
+        draggable={false}
+        onClick={handleClick}
+        onMouseMove={(e) => { if (zoomed) setOrigin(posFrom(e.clientX, e.clientY)); }}
+        onTouchMove={(e) => { if (zoomed) { const t = e.touches[0]; setOrigin(posFrom(t.clientX, t.clientY)); } }}
+        className={`max-w-full max-h-[90vh] object-contain rounded shadow-2xl select-none transition-transform duration-150 ${zoomed ? "cursor-zoom-out" : "cursor-zoom-in"}`}
+        style={{
+          transform: zoomed ? `scale(${SCALE})` : "scale(1)",
+          transformOrigin: `${origin.x}% ${origin.y}%`,
+        }}
+      />
+    </div>
+  );
+}
+
 export default function PreparacionPedidosClient({ mode }: { mode: "preparacion" | "auditoria" }) {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -232,17 +292,7 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
     const p = viewing.pedido;
     return (
       <div className="max-w-5xl mx-auto p-4 space-y-6 w-full animate-in fade-in">
-        {expanded && (
-          <div
-            className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4"
-            onClick={() => setExpanded(null)}
-          >
-            <button className="absolute top-4 right-4 text-white/70 hover:text-white">
-              <X className="h-8 w-8" />
-            </button>
-            <img src={expanded} alt="Zoom" className="max-w-full max-h-[90vh] object-contain rounded shadow-2xl" />
-          </div>
-        )}
+        {expanded && <ZoomViewer src={expanded} onClose={() => setExpanded(null)} />}
 
         <Button variant="outline" onClick={() => { setViewing(null); setActiveFoto(null); }}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista

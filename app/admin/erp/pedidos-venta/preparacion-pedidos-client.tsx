@@ -22,6 +22,7 @@ import {
   ShoppingBag,
   AlertTriangle,
   ClipboardCheck,
+  Trash2,
 } from "lucide-react";
 import {
   obtenerPedidosParaPreparar,
@@ -29,6 +30,7 @@ import {
   obtenerFotosPedido,
   aprobarFotoPedido,
   rechazarFotoPedido,
+  eliminarFotoPedido,
 } from "@/app/actions/preparacion-pedidos";
 import { formatPrice } from "@/lib/utils";
 import { toast } from "sonner";
@@ -74,6 +76,7 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
   const [activeFoto, setActiveFoto] = useState<string | null>(null);
   const [fetchingFotos, setFetchingFotos] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [deletingFotoKey, setDeletingFotoKey] = useState<string | null>(null);
 
   const cargar = async () => {
     setCargando(true);
@@ -196,6 +199,34 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
     setLoadingId(null);
   };
 
+  const handleDeleteFoto = async (foto: { id: string; url: string }) => {
+    if (!viewing) return;
+    if (!window.confirm("¿Eliminar esta foto? La acción no se puede deshacer.")) return;
+    setDeletingFotoKey(foto.id);
+    try {
+      const res = await eliminarFotoPedido(viewing.pedido.id, foto.id);
+      if (res.success) {
+        const nuevasFotos = viewing.fotos.filter((f) => f.id !== foto.id);
+        if (nuevasFotos.length === 0) {
+          setViewing(null);
+          setActiveFoto(null);
+          toast.success("Foto eliminada. El pedido vuelve a estado sin foto.");
+          await cargar();
+        } else {
+          setViewing({ ...viewing, fotos: nuevasFotos });
+          setActiveFoto(activeFoto === foto.url ? nuevasFotos[0].url : activeFoto);
+          toast.success("Foto eliminada.");
+        }
+      } else {
+        toast.error("Error al eliminar la foto.");
+      }
+    } catch {
+      toast.error("Fallo la conexión.");
+    } finally {
+      setDeletingFotoKey(null);
+    }
+  };
+
   // ─── Visor de fotos + panel de detalle / auditoría ───────────────────────────
   if (viewing) {
     const p = viewing.pedido;
@@ -234,10 +265,26 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
                   {viewing.fotos.map((foto, i) => (
                     <div
                       key={i}
-                      className={`relative h-20 w-20 shrink-0 rounded-xl cursor-pointer border-2 overflow-hidden ${activeFoto === foto.url ? "border-blue-500 scale-95" : "border-transparent opacity-60"}`}
-                      onClick={() => setActiveFoto(foto.url)}
+                      className={`relative h-20 w-20 shrink-0 rounded-xl border-2 overflow-hidden ${activeFoto === foto.url ? "border-blue-500 scale-95" : "border-transparent opacity-60"}`}
                     >
-                      <img src={foto.url} className="w-full h-full object-cover" alt="Thumbnail" />
+                      <img
+                        src={foto.url}
+                        className="w-full h-full object-cover cursor-pointer"
+                        alt="Thumbnail"
+                        onClick={() => setActiveFoto(foto.url)}
+                      />
+                      {mode === "preparacion" && (
+                        <button
+                          className="absolute top-1 right-1 bg-red-600/90 hover:bg-red-700 text-white rounded-full p-0.5 disabled:opacity-50"
+                          onClick={(e) => { e.stopPropagation(); handleDeleteFoto(foto); }}
+                          disabled={deletingFotoKey === foto.id}
+                          title="Eliminar foto"
+                        >
+                          {deletingFotoKey === foto.id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <Trash2 className="h-3 w-3" />}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

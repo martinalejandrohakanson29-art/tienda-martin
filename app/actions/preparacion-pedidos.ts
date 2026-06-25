@@ -8,7 +8,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { s3Client } from "@/lib/s3"
-import { PutObjectCommand, ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
+import { PutObjectCommand, ListObjectsV2Command, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
@@ -214,6 +214,29 @@ export async function aprobarFotoPedido(ventaId: string) {
         return { success: true }
     } catch (error: any) {
         console.error("Error al aprobar pedido:", error)
+        return { success: false, error: error.message }
+    }
+}
+
+export async function eliminarFotoPedido(ventaId: string, fotoKey: string) {
+    try {
+        await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: fotoKey }))
+
+        // Si ya no quedan fotos, borramos el registro de auditoría y las notificaciones.
+        const { Contents } = await s3Client.send(new ListObjectsV2Command({
+            Bucket: BUCKET_NAME,
+            Prefix: `auditoria-pedidos/${ventaId}/`,
+        }))
+
+        if (!Contents || Contents.length === 0) {
+            await prisma.pedidoVentaAudit.deleteMany({ where: { ventaId } })
+            await prisma.notification.deleteMany({ where: { link: linkPedido(ventaId), eventType: EVENT_TYPE } })
+        }
+
+        revalidatePath('/admin/erp/pedidos-venta')
+        return { success: true }
+    } catch (error: any) {
+        console.error("Error al eliminar foto del pedido:", error)
         return { success: false, error: error.message }
     }
 }

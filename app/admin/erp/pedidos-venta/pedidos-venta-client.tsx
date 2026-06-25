@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   Table,
   TableBody,
@@ -56,6 +56,60 @@ import {
 import { obtenerPedidosConFoto, obtenerFotosPedido } from "@/app/actions/preparacion-pedidos";
 import PDFPreview from "./pdf-preview";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+
+function ZoomViewer({ src, onClose }: { src: string; onClose: () => void }) {
+  const SCALE = 2.8
+  const imgRef = useRef<HTMLImageElement>(null)
+  const [zoomed, setZoomed] = useState(false)
+  const [origin, setOrigin] = useState({ x: 50, y: 50 })
+
+  const posFrom = (clientX: number, clientY: number) => {
+    const el = imgRef.current
+    if (!el) return { x: 50, y: 50 }
+    const rect = el.getBoundingClientRect()
+    const x = ((clientX - rect.left) / rect.width) * 100
+    const y = ((clientY - rect.top) / rect.height) * 100
+    return {
+      x: Math.max(0, Math.min(100, x)),
+      y: Math.max(0, Math.min(100, y)),
+    }
+  }
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (zoomed) {
+      setZoomed(false)
+    } else {
+      setOrigin(posFrom(e.clientX, e.clientY))
+      setZoomed(true)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden" onClick={onClose}>
+      <button className="absolute top-4 right-4 text-white/70 hover:text-white z-10" onClick={onClose}>
+        <X className="h-8 w-8" />
+      </button>
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/60 text-xs bg-black/40 px-3 py-1 rounded-full pointer-events-none">
+        {zoomed ? "Movete sobre la imagen para explorar · click para alejar" : "Click sobre una zona para acercar"}
+      </div>
+      <img
+        ref={imgRef}
+        src={src}
+        alt="Zoom"
+        draggable={false}
+        onClick={handleClick}
+        onMouseMove={(e) => { if (zoomed) setOrigin(posFrom(e.clientX, e.clientY)) }}
+        onTouchMove={(e) => { if (zoomed) { const t = e.touches[0]; setOrigin(posFrom(t.clientX, t.clientY)) } }}
+        className={`max-w-full max-h-[90vh] object-contain rounded shadow-2xl select-none transition-transform duration-150 ${zoomed ? "cursor-zoom-out" : "cursor-zoom-in"}`}
+        style={{
+          transform: zoomed ? `scale(${SCALE})` : "scale(1)",
+          transformOrigin: `${origin.x}% ${origin.y}%`,
+        }}
+      />
+    </div>
+  )
+}
 
 type ItemVenta = {
   productoId?: string | null;
@@ -1156,14 +1210,9 @@ export default function PedidosVentaClient() {
         </DialogContent>
       </Dialog>
 
-      {/* Visor a pantalla completa */}
+      {/* Visor a pantalla completa con zoom */}
       {fotoExpandida && (
-        <div className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4" onClick={() => setFotoExpandida(null)}>
-          <button className="absolute top-4 right-4 text-white/70 hover:text-white" onClick={(e) => { e.stopPropagation(); setFotoExpandida(null); }}>
-            <X className="h-8 w-8" />
-          </button>
-          <img src={fotoExpandida} alt="Foto ampliada" className="max-w-full max-h-full object-contain rounded shadow-2xl" />
-        </div>
+        <ZoomViewer src={fotoExpandida} onClose={() => setFotoExpandida(null)} />
       )}
     </div>
   );

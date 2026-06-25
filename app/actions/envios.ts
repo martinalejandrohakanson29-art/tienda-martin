@@ -149,8 +149,6 @@ export async function marcarComoDespachado(id: string) {
  */
 export async function getEtiquetasML() {
     try {
-        revalidatePath('/admin/mercadolibre/envios');
-
         const etiquetas = await prisma.etiquetaML.findMany({
             where: {
                 status: {

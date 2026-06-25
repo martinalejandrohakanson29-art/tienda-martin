@@ -31,6 +31,13 @@ const nextConfig = {
         serverActions: {
             bodySizeLimit: '10mb',
         },
+        // Desactiva la reutilización de la caché de cliente (Router Cache) para
+        // páginas dinámicas: cada navegación vuelve a pedir datos frescos al
+        // servidor (saldos, stock, etc. siempre actualizados al moverse entre
+        // secciones). 'static' se deja en su valor por defecto.
+        staleTimes: {
+            dynamic: 0,
+        },
     },
 };
 

@@ -217,24 +217,24 @@ export async function subirFotoAuditoria(formData: FormData) {
 }
 
 export async function crearComentarioML(data: {
-    orderId?: string
-    packId?: string
+    codigo: string
     texto: string
 }) {
     const session = await getServerSession(authOptions).catch(() => null)
     const username = (session?.user?.name as string) || "Desconocido"
 
     try {
-        if (!data.orderId?.trim() && !data.packId?.trim()) {
-            return { success: false, error: "Ingresá al menos un ID de orden o pack" }
+        if (!data.codigo?.trim()) {
+            return { success: false, error: "Ingresá el código de la venta" }
         }
         if (!data.texto?.trim()) {
             return { success: false, error: "El comentario no puede estar vacío" }
         }
+        const codigo = data.codigo.trim()
         const comentario = await prisma.comentarioML.create({
             data: {
-                orderId: data.orderId?.trim() || null,
-                packId: data.packId?.trim() || null,
+                orderId: codigo,
+                packId: codigo,
                 texto: data.texto.trim(),
                 creadoPor: username,
             }

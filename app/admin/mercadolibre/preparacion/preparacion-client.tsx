@@ -239,7 +239,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     const [comentarios, setComentarios] = useState<any[]>([])
     const [showModalComentario, setShowModalComentario] = useState(false)
-    const [nuevoComentario, setNuevoComentario] = useState({ orderId: '', packId: '', texto: '' })
+    const [nuevoComentario, setNuevoComentario] = useState({ codigo: '', texto: '' })
     const [guardandoComentario, setGuardandoComentario] = useState(false)
 
     useEffect(() => {
@@ -308,8 +308,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         )
 
     const handleCrearComentario = async () => {
-        if (!nuevoComentario.orderId?.trim() && !nuevoComentario.packId?.trim()) {
-            toast.error("Ingresá al menos un ID de orden o pack")
+        if (!nuevoComentario.codigo.trim()) {
+            toast.error("Ingresá el código de la venta")
             return
         }
         if (!nuevoComentario.texto.trim()) {
@@ -321,7 +321,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         if (res.success) {
             toast.success("Nota guardada")
             setShowModalComentario(false)
-            setNuevoComentario({ orderId: '', packId: '', texto: '' })
+            setNuevoComentario({ codigo: '', texto: '' })
             const fresh = await getComentariosML()
             if (fresh.success) setComentarios(fresh.comentarios)
         } else {
@@ -800,26 +800,15 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         </DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 pt-1">
-                        <p className="text-xs text-slate-500">Ingresá el ID de orden o pack de MercadoLibre. Con uno solo alcanza.</p>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-500 uppercase">ID Orden</label>
-                                <Input
-                                    placeholder="Ej: 2000012345678"
-                                    value={nuevoComentario.orderId}
-                                    onChange={(e) => setNuevoComentario(prev => ({ ...prev, orderId: e.target.value }))}
-                                    className="h-10"
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-500 uppercase">ID Pack</label>
-                                <Input
-                                    placeholder="Ej: 2000011111"
-                                    value={nuevoComentario.packId}
-                                    onChange={(e) => setNuevoComentario(prev => ({ ...prev, packId: e.target.value }))}
-                                    className="h-10"
-                                />
-                            </div>
+                        <p className="text-xs text-slate-500">Pegá el código numérico de la venta tal como aparece en MercadoLibre (puede ser orden o pack).</p>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Código de venta</label>
+                            <Input
+                                placeholder="Ej: 2000012345678"
+                                value={nuevoComentario.codigo}
+                                onChange={(e) => setNuevoComentario(prev => ({ ...prev, codigo: e.target.value }))}
+                                className="h-10"
+                            />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-slate-500 uppercase">Nota para el operario</label>

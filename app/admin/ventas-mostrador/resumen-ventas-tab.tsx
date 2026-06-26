@@ -290,6 +290,13 @@ export default function ResumenVentasTab() {
     return m;
   }, [dataB]);
 
+  // Índice de puntos de venta del período B por nombre, para la comparación de distribución
+  const puntoVentaB = useMemo(() => {
+    const m = new Map<string, { cantidad: number; monto: number }>();
+    dataB?.porPuntoVenta.forEach(x => m.set(x.nombre, x));
+    return m;
+  }, [dataB]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -504,7 +511,7 @@ export default function ResumenVentasTab() {
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
 
             {/* Pie: Punto de venta */}
-            <ChartCard title="Distribución por punto de venta" subtitle={dataB ? "Porcentaje del monto neto · período A" : "Porcentaje del monto neto total por canal"}>
+            <ChartCard title="Distribución por punto de venta" subtitle={dataB ? "% del monto neto del período A · Δ del monto vs período B" : "Porcentaje del monto neto total por canal"}>
               {data.porPuntoVenta.length === 0 ? (
                 <div className="flex items-center justify-center h-48 text-slate-400 text-sm">Sin datos de puntos de venta</div>
               ) : (
@@ -532,13 +539,15 @@ export default function ResumenVentasTab() {
                       const color = pv.color !== "#000000" ? pv.color : PALETTE[i % PALETTE.length];
                       const total = data.porPuntoVenta.reduce((s, x) => s + x.monto, 0);
                       const pct = total > 0 ? (pv.monto / total * 100).toFixed(1) : "0";
+                      const b = puntoVentaB.get(pv.nombre);
                       return (
                         <div key={pv.nombre} className="flex items-center gap-2 cursor-default"
                           onMouseEnter={() => setActiveMetodoIndex(i)} onMouseLeave={() => setActiveMetodoIndex(undefined)}>
                           <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
                           <span className="text-xs text-slate-600 flex-1 truncate font-medium">{pv.nombre}</span>
                           <span className="text-[10px] text-slate-400 font-mono">{pv.cantidad}v</span>
-                          <span className="text-xs font-bold text-slate-700">{pct}%</span>
+                          <span className="text-xs font-bold text-slate-700 w-11 text-right">{pct}%</span>
+                          {dataB && <Delta current={pv.monto} prev={b?.monto ?? 0} className="text-[11px] w-14 justify-end" />}
                         </div>
                       );
                     })}

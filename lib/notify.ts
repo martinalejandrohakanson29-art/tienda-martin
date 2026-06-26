@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { sendPushNotification } from "./firebase-admin"
 
 // Link de la notificación "Pedido preparado Full". Lleva envío + ítem para poder
 // resolver (borrar) la alerta exacta en todos los usuarios cuando ese ítem se audita
@@ -43,6 +44,16 @@ export async function triggerNotification({
                 link: link ?? null,
             })),
         })
+
+        const targetUserIds = [...new Set(rules.map(r => r.targetUserId))]
+        const users = await prisma.user.findMany({
+            where: { id: { in: targetUserIds }, pushToken: { not: null } },
+            select: { pushToken: true },
+        })
+        const tokens = users.map(u => u.pushToken!).filter(Boolean)
+        if (tokens.length > 0) {
+            await sendPushNotification({ tokens, title, body, link })
+        }
     } catch (error) {
         console.error("[triggerNotification] Error:", error)
     }

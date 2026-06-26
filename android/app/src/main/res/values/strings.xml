@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Revolución Motos</string>
+    <string name="title_activity_main">Revolución Motos</string>
+    <string name="package_name">ar.com.revolucionmotos.app</string>
+    <string name="custom_url_scheme">ar.com.revolucionmotos.app</string>
+</resources>

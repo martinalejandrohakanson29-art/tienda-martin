@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "425503149391",
+    "project_id": "revolucion-motos",
+    "storage_bucket": "revolucion-motos.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:425503149391:android:91be0378dd2d7d8f7d893a",
+        "android_client_info": {
+          "package_name": "ar.com.revolucionmotos.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbLCNcMAJRwNhdeUMdkpZL7U3ZEJL39hY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

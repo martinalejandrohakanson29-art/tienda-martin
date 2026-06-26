@@ -15,6 +15,7 @@ model User {
   name               String?
   role               Role               @default(USER)
   isActive           Boolean            @default(true)
+  pushToken          String?
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
   todos              Todo[]

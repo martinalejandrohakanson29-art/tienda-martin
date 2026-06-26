@@ -33,9 +33,10 @@ export function DespachadosClient() {
     const [selectedRegistracionIds, setSelectedRegistracionIds] = useState<Set<string>>(new Set())
     const [registradaFilter, setRegistradaFilter] = useState<"TODAS" | "PENDIENTES" | "REGISTRADAS">("TODAS")
 
-    // Filtro por rango de fechas para la pestaña de Registración
-    const [fechaDesde, setFechaDesde] = useState(format(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd"))
-    const [fechaHasta, setFechaHasta] = useState(format(new Date(), "yyyy-MM-dd"))
+    // Fecha para pedirle a n8n qué ventas traer
+    const [fechaVenta, setFechaVenta] = useState(format(new Date(), "yyyy-MM-dd"))
+    const [usarRango, setUsarRango] = useState(false)
+    const [fechaVentaHasta, setFechaVentaHasta] = useState(format(new Date(), "yyyy-MM-dd"))
 
     // Estados para el Modal de Confirmación y Facturación
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
@@ -58,7 +59,7 @@ export function DespachadosClient() {
 
     const loadVentasRegistracion = async () => {
         setLoadingRegistracion(true)
-        const resReg = await getVentasRegistracion(fechaDesde, fechaHasta)
+        const resReg = await getVentasRegistracion()
         if (resReg.success) setVentasRegistracion(resReg.data)
         setLoadingRegistracion(false)
     }
@@ -69,7 +70,7 @@ export function DespachadosClient() {
 
     useEffect(() => {
         loadVentasRegistracion()
-    }, [fechaDesde, fechaHasta])
+    }, [])
 
     // LOGICA ACTUAL + VISUAL NUEVA: Filtro combinado
     const filtered = envios.filter(e =>
@@ -198,12 +199,13 @@ export function DespachadosClient() {
                 body: JSON.stringify({
                     action: "trigger_all_categories",
                     preparados: pedidosPreparados,
-                    fecha: fecha
+                    fecha: fechaVenta,
+                    ...(usarRango && { fechaHasta: fechaVentaHasta })
                 })
             });
 
             setTimeout(async () => {
-                const res = await getVentasRegistracion(fechaDesde, fechaHasta);
+                const res = await getVentasRegistracion();
                 if (res.success) {
                     setVentasRegistracion(res.data);
                     toast.success("Sincronización completada");
@@ -335,7 +337,7 @@ export function DespachadosClient() {
                         );
                     });
                 }
-                const resReg = await getVentasRegistracion(fechaDesde, fechaHasta);
+                const resReg = await getVentasRegistracion();
                 if (resReg.success) setVentasRegistracion(resReg.data);
                 setSelectedRegistracionIds(new Set());
             } else {
@@ -518,23 +520,37 @@ export function DespachadosClient() {
                 <TabsContent value="registracion" className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                     <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                         <div className="flex flex-col gap-2">
-                            <Label className="text-xs font-bold uppercase text-slate-500">Desde</Label>
-                            <Input
-                                type="date"
-                                value={fechaDesde}
-                                onChange={(e) => setFechaDesde(e.target.value)}
-                                className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
-                            />
+                            <Label className="text-xs font-bold uppercase text-slate-500">Fecha</Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    type="date"
+                                    value={fechaVenta}
+                                    onChange={(e) => setFechaVenta(e.target.value)}
+                                    className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
+                                />
+                                <Button
+                                    variant={usarRango ? "default" : "outline"}
+                                    size="sm"
+                                    onClick={() => setUsarRango(!usarRango)}
+                                    className="rounded-xl text-xs font-bold h-10 px-3 gap-1.5"
+                                    title="Habilitar rango de fechas para búsqueda histórica"
+                                >
+                                    <Filter className="h-3.5 w-3.5" />
+                                    Rango
+                                </Button>
+                            </div>
                         </div>
-                        <div className="flex flex-col gap-2">
-                            <Label className="text-xs font-bold uppercase text-slate-500">Hasta</Label>
-                            <Input
-                                type="date"
-                                value={fechaHasta}
-                                onChange={(e) => setFechaHasta(e.target.value)}
-                                className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
-                            />
-                        </div>
+                        {usarRango && (
+                            <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                                <Label className="text-xs font-bold uppercase text-slate-500">Hasta</Label>
+                                <Input
+                                    type="date"
+                                    value={fechaVentaHasta}
+                                    onChange={(e) => setFechaVentaHasta(e.target.value)}
+                                    className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
+                                />
+                            </div>
+                        )}
                         <div className="flex flex-col gap-2">
                             <Label className="text-xs font-bold uppercase text-slate-500">Categoría</Label>
                             <div className="flex gap-2">

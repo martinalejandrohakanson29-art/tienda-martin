@@ -1035,6 +1035,19 @@ model VentaMLRegistracion {
   @@map("ventas_ml_registracion")
 }
 
+model ComentarioML {
+  id        String   @id @default(cuid())
+  orderId   String?
+  packId    String?
+  texto     String
+  creadoPor String
+  leido     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("comentarios_ml")
+}
+
 model MlAutoRespuesta {
   id                  String   @id @default(cuid())
   habilitado          Boolean  @default(false)

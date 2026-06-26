@@ -5,12 +5,12 @@ import { useState, useRef, useEffect } from "react"
 import Image from "next/image"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { 
-    Search, 
-    Camera, 
-    CheckCircle2, 
-    Package, 
-    Eye, 
+import {
+    Search,
+    Camera,
+    CheckCircle2,
+    Package,
+    Eye,
     Loader2,
     X,
     Layers,
@@ -18,13 +18,18 @@ import {
     AlertTriangle,
     Hash,
     Maximize2,
-    ArrowLeft
+    ArrowLeft,
+    StickyNote,
+    MessageSquare
 } from "lucide-react"
-import { 
-    subirFotoAuditoria, 
-    aprobarPedido, 
-    rechazarPedido, 
-    obtenerFotosEnvio 
+import {
+    subirFotoAuditoria,
+    aprobarPedido,
+    rechazarPedido,
+    obtenerFotosEnvio,
+    crearComentarioML,
+    getComentariosML,
+    marcarComentarioMLLeido
 } from "@/app/actions/preparacion"
 import { toast } from "sonner"
 import {
@@ -232,6 +237,11 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
     const [showScanner, setShowScanner] = useState(false)
     const scannerRef = useRef<Html5Qrcode | null>(null)
 
+    const [comentarios, setComentarios] = useState<any[]>([])
+    const [showModalComentario, setShowModalComentario] = useState(false)
+    const [nuevoComentario, setNuevoComentario] = useState({ orderId: '', packId: '', texto: '' })
+    const [guardandoComentario, setGuardandoComentario] = useState(false)
+
     useEffect(() => {
         if (showScanner) {
             const startScanner = async () => {
@@ -270,6 +280,16 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         return () => { stopScanner(); };
     }, [showScanner]);
 
+    useEffect(() => {
+        const fetchComentarios = async () => {
+            const res = await getComentariosML()
+            if (res.success) setComentarios(res.comentarios)
+        }
+        fetchComentarios()
+        const interval = setInterval(fetchComentarios, 12000)
+        return () => clearInterval(interval)
+    }, [])
+
     const stopScanner = async () => {
         if (scannerRef.current && scannerRef.current.isScanning) {
             try {
@@ -280,6 +300,40 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             }
         }
     };
+
+    const getComentariosForEnvio = (envio: any) =>
+        comentarios.filter(c =>
+            (c.orderId && envio.orderId && c.orderId === envio.orderId) ||
+            (c.packId && envio.packId && c.packId === envio.packId)
+        )
+
+    const handleCrearComentario = async () => {
+        if (!nuevoComentario.orderId?.trim() && !nuevoComentario.packId?.trim()) {
+            toast.error("Ingresá al menos un ID de orden o pack")
+            return
+        }
+        if (!nuevoComentario.texto.trim()) {
+            toast.error("El comentario no puede estar vacío")
+            return
+        }
+        setGuardandoComentario(true)
+        const res = await crearComentarioML(nuevoComentario)
+        if (res.success) {
+            toast.success("Nota guardada")
+            setShowModalComentario(false)
+            setNuevoComentario({ orderId: '', packId: '', texto: '' })
+            const fresh = await getComentariosML()
+            if (fresh.success) setComentarios(fresh.comentarios)
+        } else {
+            toast.error(res.error || "Error al guardar la nota")
+        }
+        setGuardandoComentario(false)
+    }
+
+    const handleMarcarLeido = async (comentarioId: string) => {
+        await marcarComentarioMLLeido(comentarioId)
+        setComentarios(prev => prev.map(c => c.id === comentarioId ? { ...c, leido: true } : c))
+    }
 
     const filtered = initialEnvios.filter(e => {
         const shipId = e.id?.toString() || "";
@@ -299,7 +353,16 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     })
 
-    const auditoriaCount = initialEnvios.filter(e => Boolean(e.drivePhotoUrl) && e.status !== "AUDITADO").length;
+    const auditoriaCount = initialEnvios.filter(e => Boolean(e.drivePhotoUrl) && e.status !== "AUDITADO").length
+
+    const unreadComentariosCount = initialEnvios.reduce((acc, envio) =>
+        acc + comentarios.filter(c =>
+            !c.leido && (
+                (c.orderId && envio.orderId && c.orderId === envio.orderId) ||
+                (c.packId && envio.packId && c.packId === envio.packId)
+            )
+        ).length
+    , 0)
 
     const handleTriggerCamera = (envioId: string, itemId: string, mla: string) => {
         setSelectedItem({ envioId, itemId, mla })
@@ -537,12 +600,24 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         </button>
                     )}
                 </div>
-                <Button 
+                <Button
                     variant="outline"
                     className="h-12 w-12 rounded-xl border-slate-200 bg-white shadow-sm flex items-center justify-center p-0 shrink-0 hover:bg-slate-50"
                     onClick={() => setShowScanner(true)}
                 >
                     <Barcode className="h-6 w-6 text-slate-600" />
+                </Button>
+                <Button
+                    variant="outline"
+                    className={`h-12 w-12 rounded-xl shadow-sm flex items-center justify-center p-0 shrink-0 relative ${unreadComentariosCount > 0 ? 'border-amber-400 bg-amber-50 hover:bg-amber-100' : 'border-amber-200 bg-amber-50 hover:bg-amber-100'}`}
+                    onClick={() => setShowModalComentario(true)}
+                >
+                    <StickyNote className="h-6 w-6 text-amber-600" />
+                    {unreadComentariosCount > 0 && (
+                        <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[9px] font-black min-w-[16px] h-4 flex items-center justify-center rounded-full px-1">
+                            {unreadComentariosCount}
+                        </span>
+                    )}
                 </Button>
             </div>
 
@@ -604,7 +679,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 {envio.items.map((item: any) => {
                                     const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
                                     const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
-                                    
+
                                     return (
                                         <div key={item.id} className="flex items-center justify-between gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100 overflow-hidden">
                                             <div className="flex-1 flex flex-col gap-1.5 overflow-hidden">
@@ -616,8 +691,8 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                                     </div>
                                                 ))}
                                             </div>
-                                            
-                                            <Button 
+
+                                            <Button
                                                 size="icon"
                                                 variant="outline"
                                                 className="rounded-full h-12 w-12 border-2 shrink-0 transition-all bg-white text-blue-600 border-blue-100 shadow-sm active:scale-90"
@@ -630,6 +705,34 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                     )
                                 })}
                             </div>
+
+                            {(() => {
+                                const notas = getComentariosForEnvio(envio)
+                                if (notas.length === 0) return null
+                                return (
+                                    <div className="mt-3 space-y-2">
+                                        {notas.map((nota: any) => (
+                                            <div key={nota.id} className={`p-3 rounded-xl border flex items-start gap-2 transition-all ${nota.leido ? 'bg-slate-50 border-slate-200 opacity-60' : 'bg-amber-50 border-amber-200'}`}>
+                                                <MessageSquare className={`h-4 w-4 mt-0.5 shrink-0 ${nota.leido ? 'text-slate-400' : 'text-amber-600'}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-[10px] font-bold uppercase tracking-wide mb-0.5 ${nota.leido ? 'text-slate-400' : 'text-amber-700'}`}>
+                                                        Nota · {nota.creadoPor}
+                                                    </p>
+                                                    <p className={`text-sm ${nota.leido ? 'text-slate-500' : 'text-amber-900'}`}>{nota.texto}</p>
+                                                </div>
+                                                {!nota.leido && (
+                                                    <button
+                                                        onClick={() => handleMarcarLeido(nota.id)}
+                                                        className="text-[10px] font-bold text-amber-500 hover:text-amber-700 whitespace-nowrap shrink-0 mt-0.5"
+                                                    >
+                                                        Leído ✓
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )
+                            })()}
                         </div>
                     )
                 })}
@@ -655,6 +758,57 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500"></div>
                             <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500"></div>
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de nota de pedido */}
+            <Dialog open={showModalComentario} onOpenChange={setShowModalComentario}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <StickyNote className="h-5 w-5 text-amber-500" />
+                            Agregar nota de pedido
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-1">
+                        <p className="text-xs text-slate-500">Ingresá el ID de orden o pack de MercadoLibre. Con uno solo alcanza.</p>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-500 uppercase">ID Orden</label>
+                                <Input
+                                    placeholder="Ej: 2000012345678"
+                                    value={nuevoComentario.orderId}
+                                    onChange={(e) => setNuevoComentario(prev => ({ ...prev, orderId: e.target.value }))}
+                                    className="h-10"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-bold text-slate-500 uppercase">ID Pack</label>
+                                <Input
+                                    placeholder="Ej: 2000011111"
+                                    value={nuevoComentario.packId}
+                                    onChange={(e) => setNuevoComentario(prev => ({ ...prev, packId: e.target.value }))}
+                                    className="h-10"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Nota para el operario</label>
+                            <textarea
+                                className="w-full min-h-[100px] p-3 text-sm border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-amber-300 bg-slate-50"
+                                placeholder="Ej: Mandame la leva con 7.8 de alzada..."
+                                value={nuevoComentario.texto}
+                                onChange={(e) => setNuevoComentario(prev => ({ ...prev, texto: e.target.value }))}
+                            />
+                        </div>
+                        <Button
+                            className="w-full h-11 bg-amber-500 hover:bg-amber-600 font-bold text-white"
+                            onClick={handleCrearComentario}
+                            disabled={guardandoComentario}
+                        >
+                            {guardandoComentario ? <Loader2 className="animate-spin h-4 w-4" /> : 'Guardar nota'}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

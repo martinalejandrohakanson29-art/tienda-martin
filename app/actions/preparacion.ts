@@ -209,9 +209,58 @@ export async function subirFotoAuditoria(formData: FormData) {
 
     } catch (error: any) {
         console.error("[AUDITORIA ERROR SERVIDOR]", error);
-        return { 
-            success: false, 
-            error: error.message || "Error al procesar la subida" 
+        return {
+            success: false,
+            error: error.message || "Error al procesar la subida"
         };
+    }
+}
+
+export async function crearComentarioML(data: {
+    orderId?: string
+    packId?: string
+    texto: string
+}) {
+    const session = await getServerSession(authOptions).catch(() => null)
+    const username = (session?.user?.name as string) || "Desconocido"
+
+    try {
+        if (!data.orderId?.trim() && !data.packId?.trim()) {
+            return { success: false, error: "Ingresá al menos un ID de orden o pack" }
+        }
+        if (!data.texto?.trim()) {
+            return { success: false, error: "El comentario no puede estar vacío" }
+        }
+        const comentario = await prisma.comentarioML.create({
+            data: {
+                orderId: data.orderId?.trim() || null,
+                packId: data.packId?.trim() || null,
+                texto: data.texto.trim(),
+                creadoPor: username,
+            }
+        })
+        return { success: true, comentario }
+    } catch (error: any) {
+        return { success: false, error: error.message }
+    }
+}
+
+export async function getComentariosML() {
+    try {
+        const comentarios = await prisma.comentarioML.findMany({
+            orderBy: { createdAt: "desc" }
+        })
+        return { success: true, comentarios }
+    } catch (error: any) {
+        return { success: false, comentarios: [] as any[] }
+    }
+}
+
+export async function marcarComentarioMLLeido(id: string) {
+    try {
+        await prisma.comentarioML.update({ where: { id }, data: { leido: true } })
+        return { success: true }
+    } catch (error: any) {
+        return { success: false, error: error.message }
     }
 }

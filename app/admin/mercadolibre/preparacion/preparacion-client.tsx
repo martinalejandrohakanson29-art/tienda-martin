@@ -535,7 +535,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                 {envio.items.map((item: any, idx: number) => {
                                     const rawNames = item.agregadoInfo?.nombres_articulos || item.title;
                                     const nombres = rawNames.split(/[,\+\|\n]/).map((n: string) => n.trim()).filter((n: string) => n.length > 0);
-                                    
+
                                     return (
                                         <div key={idx} className="bg-slate-50 p-4 rounded-xl border border-slate-100">
                                             <div className="flex flex-col gap-2">
@@ -554,6 +554,34 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                                     )
                                 })}
                             </div>
+
+                            {(() => {
+                                const notas = getComentariosForEnvio(envio)
+                                if (notas.length === 0) return null
+                                return (
+                                    <div className="space-y-2">
+                                        {notas.map((nota: any) => (
+                                            <div key={nota.id} className={`p-3 rounded-xl border flex items-start gap-2 transition-all ${nota.leido ? 'bg-slate-50 border-slate-200 opacity-60' : 'bg-amber-50 border-amber-200'}`}>
+                                                <MessageSquare className={`h-4 w-4 mt-0.5 shrink-0 ${nota.leido ? 'text-slate-400' : 'text-amber-600'}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-[10px] font-bold uppercase tracking-wide mb-0.5 ${nota.leido ? 'text-slate-400' : 'text-amber-700'}`}>
+                                                        Nota · {nota.creadoPor}
+                                                    </p>
+                                                    <p className={`text-sm ${nota.leido ? 'text-slate-500' : 'text-amber-900'}`}>{nota.texto}</p>
+                                                </div>
+                                                {!nota.leido && (
+                                                    <button
+                                                        onClick={() => handleMarcarLeido(nota.id)}
+                                                        className="text-[10px] font-bold text-amber-500 hover:text-amber-700 whitespace-nowrap shrink-0 mt-0.5"
+                                                    >
+                                                        Leído ✓
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )
+                            })()}
                         </div>
                     </div>
                 </div>

@@ -69,3 +69,7 @@ Registracion/*.key
 Registracion/*.crt
 Registracion/*.csr
 Registracion/ticket_cache.json
+
+# --- Firebase Admin (secretos, NO commitear) ---
+android/*firebase-adminsdk*.json
+firebase-base64.txt

@@ -1,16 +1,17 @@
-import admin from "firebase-admin"
+import { initializeApp, getApps, getApp, cert, type App } from "firebase-admin/app"
+import { getMessaging } from "firebase-admin/messaging"
 
-function getApp() {
-  if (admin.apps.length > 0) return admin.apps[0]!
-
+function getFirebaseApp(): App | null {
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON
   if (!serviceAccountJson) return null
+
+  if (getApps().length > 0) return getApp()
 
   try {
     const decoded = Buffer.from(serviceAccountJson, "base64").toString("utf-8")
     const serviceAccount = JSON.parse(decoded)
-    return admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+    return initializeApp({
+      credential: cert(serviceAccount),
     })
   } catch {
     console.error("[firebase-admin] Error al inicializar Firebase Admin SDK")
@@ -31,10 +32,10 @@ export async function sendPushNotification({
 }) {
   if (tokens.length === 0) return
 
-  const app = getApp()
+  const app = getFirebaseApp()
   if (!app) return
 
-  const messaging = admin.messaging(app)
+  const messaging = getMessaging(app)
 
   const messages = tokens.map(token => ({
     token,

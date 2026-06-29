@@ -42,15 +42,20 @@ export function ErpDashboard() {
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Pedidos Compra</h3>
               </Link>
 
-              {/* Fila 2: centrada entre Compras (col 2) y Pedidos Venta (col 3) */}
-              <div className="lg:col-start-2 lg:col-span-2 flex justify-center">
-                <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-orange-300/40 w-full lg:max-w-[calc(50%-8px)]" href="/admin/erp/lista-pedidos">
-                  <div className="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center mb-4 group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
-                    <span className="material-symbols-outlined text-3xl text-orange-500 dark:text-orange-400 group-hover:text-white">format_list_bulleted</span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Artículos Faltantes</h3>
-                </Link>
-              </div>
+              {/* Fila 2: Artículos Faltantes y Métricas centrados en cols 2-3 */}
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-orange-300/40 lg:col-start-2" href="/admin/erp/lista-pedidos">
+                <div className="w-14 h-14 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center mb-4 group-hover:bg-orange-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-orange-500 dark:text-orange-400 group-hover:text-white">format_list_bulleted</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Artículos Faltantes</h3>
+              </Link>
+
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-violet-300/40" href="/admin/metricas">
+                <div className="w-14 h-14 rounded-2xl bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center mb-4 group-hover:bg-violet-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-violet-600 dark:text-violet-400 group-hover:text-white">bar_chart</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Métricas</h3>
+              </Link>
 
             </div>
           </div>

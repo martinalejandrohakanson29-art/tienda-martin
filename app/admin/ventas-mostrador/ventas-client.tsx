@@ -6,7 +6,7 @@ import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft, X, BarChart2, TrendingUp, Package, BellRing, Bell, ArrowRightLeft,
+  ChevronDown, ArrowLeft, X, Package, BellRing, Bell, ArrowRightLeft,
   Maximize2, Camera, ImageOff
 } from "lucide-react";
 import jsPDF from "jspdf";
@@ -37,10 +37,7 @@ import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparaci
 import { obtenerFotosPedido, obtenerPedidosConFoto } from "@/app/actions/preparacion-pedidos";
 import { consultarPadron } from "@/app/actions/afip";
 import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
-import ResumenVentasTab from "./resumen-ventas-tab";
-import RendimientoVentasTab from "./rendimiento-ventas-tab";
 import EnviosAndreaniTab from "./envios-andreani-tab";
-import ConciliacionArcaTab from "./conciliacion-arca-tab";
 
 // Métodos de pago con ícono y color suave para distinguir cada opción de un vistazo.
 // El `value` se mantiene idéntico al guardado en BD; solo cambia la etiqueta visible.
@@ -2009,16 +2006,7 @@ export default function VentasMostradorClient({
               <TabsTrigger value="andreani" className="gap-2 px-6 bg-rose-50 text-rose-700 hover:bg-rose-100 data-[state=active]:bg-rose-100 data-[state=active]:text-rose-900 border border-transparent data-[state=active]:border-rose-200">
                 <Package className="h-4 w-4" /> Envíos Andreani
               </TabsTrigger>
-              <TabsTrigger value="resumen" className="gap-2 px-6 ml-auto bg-blue-50 text-blue-700 hover:bg-blue-100 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 border border-transparent data-[state=active]:border-blue-200">
-                <BarChart2 className="h-4 w-4" /> Resumen de Ventas
-              </TabsTrigger>
-              <TabsTrigger value="rendimiento" className="gap-2 px-6 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-900 border border-transparent data-[state=active]:border-emerald-200">
-                <TrendingUp className="h-4 w-4" /> Rendimiento de Ventas
-              </TabsTrigger>
-              <TabsTrigger value="conciliacion" className="gap-2 px-6 bg-violet-50 text-violet-700 hover:bg-violet-100 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-900 border border-transparent data-[state=active]:border-violet-200">
-                <ArrowRightLeft className="h-4 w-4" /> Conciliación ARCA
-              </TabsTrigger>
-              <TabsTrigger value="gestion" className="gap-2 px-6 bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
+              <TabsTrigger value="gestion" className="gap-2 px-6 ml-auto bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
                 <Edit className="h-4 w-4" /> Gestión y Edición
               </TabsTrigger>
             </TabsList>
@@ -3085,25 +3073,9 @@ export default function VentasMostradorClient({
               </div>
             </main>
           </TabsContent>
-          {/* --- PESTAÑA: RESUMEN DE VENTAS --- */}
-          <TabsContent value="resumen" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
-            <ResumenVentasTab />
-          </TabsContent>
           {/* --- PESTAÑA: ENVÍOS ANDREANI --- */}
           <TabsContent value="andreani" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
             <EnviosAndreaniTab />
-          </TabsContent>
-          {/* --- PESTAÑA: CONCILIACIÓN ARCA --- */}
-          <TabsContent value="conciliacion" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
-            <ConciliacionArcaTab />
-          </TabsContent>
-          {/* --- PESTAÑA: RENDIMIENTO DE VENTAS --- */}
-          <TabsContent value="rendimiento" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
-            <RendimientoVentasTab
-              puntosVenta={puntosVenta}
-              fechaDesdeInicial={fechaDesde}
-              fechaHastaInicial={fechaHasta}
-            />
           </TabsContent>
         </Tabs>
 

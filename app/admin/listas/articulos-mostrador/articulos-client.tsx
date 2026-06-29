@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus } from "lucide-react";
 import Link from "next/link";
 import { actualizarArticuloDesdeLista, crearArticuloMostrador } from "@/app/actions/listas";
@@ -40,6 +40,12 @@ export default function ArticulosClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editData, setEditData] = useState<Articulo | null>(null);
   
+  // Estados para edición inline del Costo en la tabla
+  const [editandoCostoId, setEditandoCostoId] = useState<string | null>(null);
+  const [costoTemp, setCostoTemp] = useState<string>("");
+  const [guardandoCostoId, setGuardandoCostoId] = useState<string | null>(null);
+  const cancelarSaveRef = useRef(false);
+
   // Estados para el Modal de Creación
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newData, setNewData] = useState<Articulo>({
@@ -130,6 +136,47 @@ export default function ArticulosClient({
     setIsSubmitting(false);
   };
 
+  // --- Edición inline del Costo desde la tabla ---
+  const iniciarEdicionCosto = (art: Articulo) => {
+    setEditandoCostoId(art.id);
+    setCostoTemp(art.costo && art.costo > 0 ? String(art.costo) : "");
+  };
+
+  const cancelarEdicionCosto = () => {
+    setEditandoCostoId(null);
+    setCostoTemp("");
+  };
+
+  const guardarCosto = async (art: Articulo) => {
+    const nuevoCosto = Number(costoTemp);
+    // Sin cambios o valor inválido: cancelar sin tocar el servidor
+    if (costoTemp.trim() === "" || isNaN(nuevoCosto) || nuevoCosto < 0 || nuevoCosto === (art.costo ?? 0)) {
+      cancelarEdicionCosto();
+      return;
+    }
+    setEditandoCostoId(null);
+    setGuardandoCostoId(art.id);
+
+    // Reutilizamos la acción existente; el precio de venta NO se recalcula al editar el costo inline.
+    const res = await actualizarArticuloDesdeLista(
+      art.id, art.nombre, art.precio, art.stock, nuevoCosto, art.margenGanancia
+    );
+
+    if (res.success) {
+      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, costo: nuevoCosto } : a));
+    } else {
+      alert("Error: " + res.error);
+    }
+    setGuardandoCostoId(null);
+    setCostoTemp("");
+  };
+
+  // Marcación real sobre el costo: (precio - costo) / costo * 100
+  const calcularMarcacion = (costo?: number, precio?: number): number | null => {
+    if (!costo || costo <= 0 || precio == null) return null;
+    return ((precio - costo) / costo) * 100;
+  };
+
   const calcularPrecio = (costo: number, margen: number) => {
     return Number((costo * (1 + margen / 100)).toFixed(2));
   };
@@ -213,7 +260,9 @@ export default function ArticulosClient({
                 <TableRow>
                   <TableHead className="text-[10px] font-bold uppercase py-4">ID Artículo</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase py-4">Nombre / Descripción</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold uppercase py-4">Costo ($)</TableHead>
                   <TableHead className="text-right text-[10px] font-bold uppercase py-4">Precio Base ($)</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold uppercase py-4">Marcación</TableHead>
                   <TableHead className="text-center text-[10px] font-bold uppercase py-4">Stock Físico</TableHead>
                   <TableHead className="text-right text-[10px] font-bold uppercase py-4 w-24">Acciones</TableHead>
                 </TableRow>
@@ -221,7 +270,7 @@ export default function ArticulosClient({
               <TableBody>
                 {paginatedArticulos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">
+                    <TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">
                       No se encontraron artículos con esa búsqueda.
                     </TableCell>
                   </TableRow>
@@ -230,8 +279,63 @@ export default function ArticulosClient({
                     <TableRow key={art.id} className="hover:bg-indigo-50/30 transition-colors">
                       <TableCell className="text-xs font-mono text-slate-400 py-3">{art.id}</TableCell>
                       <TableCell className="font-bold text-slate-800 py-3">{art.nombre}</TableCell>
+                      <TableCell className="text-right py-3">
+                        {editandoCostoId === art.id ? (
+                          <Input
+                            autoFocus
+                            type="number"
+                            value={costoTemp}
+                            onChange={(e) => setCostoTemp(e.target.value)}
+                            onBlur={() => {
+                              if (cancelarSaveRef.current) {
+                                cancelarSaveRef.current = false;
+                                cancelarEdicionCosto();
+                              } else {
+                                guardarCosto(art);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.currentTarget.blur();
+                              } else if (e.key === "Escape") {
+                                cancelarSaveRef.current = true;
+                                e.currentTarget.blur();
+                              }
+                            }}
+                            className="h-8 w-28 ml-auto text-right font-bold bg-white border-indigo-300 focus-visible:ring-indigo-500"
+                          />
+                        ) : guardandoCostoId === art.id ? (
+                          <div className="flex justify-end">
+                            <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicionCosto(art)}
+                            title="Clic para editar el costo"
+                            className="ml-auto block text-right rounded-lg px-2 py-1 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200 transition-all"
+                          >
+                            {art.costo && art.costo > 0 ? (
+                              <span className="font-bold text-slate-700">$ {art.costo.toLocaleString('es-AR')}</span>
+                            ) : (
+                              <span className="text-red-500 font-black" title="Sin costo cargado">✗</span>
+                            )}
+                          </button>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-black text-slate-900 py-3">
                         $ {art.precio.toLocaleString('es-AR')}
+                      </TableCell>
+                      <TableCell className="text-center py-3">
+                        {(() => {
+                          const marc = calcularMarcacion(art.costo, art.precio);
+                          if (marc === null) return <span className="text-slate-300">—</span>;
+                          return (
+                            <span className={`text-xs font-black px-2.5 py-1 rounded-lg border ${marc < 0 ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                              {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
+                            </span>
+                          );
+                        })()}
                       </TableCell>
                       <TableCell className="text-center py-3">
                         <span className={`text-xs font-black px-3 py-1 rounded-lg border ${art.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : art.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>

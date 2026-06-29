@@ -299,6 +299,197 @@ export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: str
 
 export const obtenerVentasPorFecha = (fecha: string) => obtenerVentasPorRango(fecha);
 
+export async function obtenerRendimientoPorPuntoVenta(
+  fechaDesde: string,
+  fechaHasta: string,
+  puntoVentaIds?: string[]
+) {
+  await requireAdmin();
+  try {
+    const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const fin = new Date(`${fechaHasta}T23:59:59.999-03:00`);
+
+    const where: any = {
+      tipoVenta: { not: "PEDIDO" },
+      estadoPedido: { not: "CANCELADO" },
+      createdAt: { gte: inicio, lte: fin },
+    };
+
+    if (puntoVentaIds && puntoVentaIds.length > 0) {
+      where.puntoVentaId = { in: puntoVentaIds };
+    }
+
+    const [ventas, packsDef] = await Promise.all([
+      prisma.venta.findMany({
+        where,
+        include: { items: true },
+      }),
+      prisma.articuloMostrador.findMany({
+        where: { esPack: true },
+        include: { packItems: true },
+      }),
+    ]);
+
+    // Composición de cada pack (componenteId -> cantidad). Al vender un pack en "modo
+    // expandido" (default del POS) la venta guarda los componentes individuales y se pierde
+    // la referencia al pack; lo reconstruimos detectando qué componentes de cada venta
+    // forman packs completos. Ordenamos por cantidad total de componentes (desc) para que
+    // los packs más grandes se reconstruyan primero y no sean canibalizados por packs más
+    // chicos que comparten componentes.
+    const packs = packsDef
+      .filter(p => p.packItems.length > 0)
+      .map(p => ({
+        nombre: p.nombre,
+        componentes: p.packItems.map(pi => ({ componenteId: pi.componenteId, cantidad: pi.cantidad })),
+        totalComponentes: p.packItems.reduce((s, pi) => s + pi.cantidad, 0),
+      }))
+      .sort((a, b) => b.totalComponentes - a.totalComponentes);
+
+    const byArticulo: Record<string, { nombre: string; cantidad: number; monto: number; productoId?: string }> = {};
+    const byPack: Record<string, { nombre: string; cantidad: number; monto: number }> = {};
+
+    const acumular = (
+      target: Record<string, { nombre: string; cantidad: number; monto: number; productoId?: string }>,
+      nombre: string,
+      cantidad: number,
+      monto: number,
+      productoId?: string,
+    ) => {
+      if (!target[nombre]) target[nombre] = { nombre, cantidad: 0, monto: 0 };
+      target[nombre].cantidad += cantidad;
+      target[nombre].monto += monto;
+      if (productoId && !target[nombre].productoId) target[nombre].productoId = productoId;
+    };
+
+    for (const venta of ventas) {
+      // Componentes disponibles de esta venta para reconstruir packs vendidos "expandidos"
+      const disp: Record<string, { qty: number; monto: number; nombre: string }> = {};
+
+      for (const item of venta.items) {
+        if (item.esNota) continue;
+        // Pack vendido en "modo pack": el item ya es el pack (ID "PACK-{timestamp}")
+        if (item.productoId?.startsWith("PACK-")) {
+          acumular(byPack, item.nombre, item.cantidad, Number(item.subtotal));
+          continue;
+        }
+        const pid = item.productoId;
+        if (!pid) {
+          // Sin productoId no se puede asociar a la composición de un pack
+          acumular(byArticulo, item.nombre, item.cantidad, Number(item.subtotal));
+          continue;
+        }
+        if (!disp[pid]) disp[pid] = { qty: 0, monto: 0, nombre: item.nombre };
+        disp[pid].qty += item.cantidad;
+        disp[pid].monto += Number(item.subtotal);
+      }
+
+      // Reconstruir packs completos a partir de los componentes disponibles
+      for (const pack of packs) {
+        let copias = Infinity;
+        for (const comp of pack.componentes) {
+          const d = disp[comp.componenteId];
+          const posibles = d ? Math.floor(d.qty / comp.cantidad) : 0;
+          if (posibles < copias) copias = posibles;
+          if (copias === 0) break;
+        }
+        if (!isFinite(copias) || copias <= 0) continue;
+
+        // Consumir los componentes y acumular el monto realmente cobrado en esas líneas
+        let montoPack = 0;
+        for (const comp of pack.componentes) {
+          const d = disp[comp.componenteId];
+          const consumir = comp.cantidad * copias;
+          const precioUnit = d.qty > 0 ? d.monto / d.qty : 0;
+          const montoConsumido = precioUnit * consumir;
+          d.qty -= consumir;
+          d.monto -= montoConsumido;
+          montoPack += montoConsumido;
+        }
+        acumular(byPack, pack.nombre, copias, montoPack);
+      }
+
+      // Lo que sobró de componentes se cuenta como artículos individuales
+      for (const [pid, d] of Object.entries(disp)) {
+        if (d.qty > 0) acumular(byArticulo, d.nombre, d.qty, d.monto, pid);
+      }
+    }
+
+    // ─── Costos unitarios ───────────────────────────────────────────────────
+    // Fuentes: CostosArticulos (SKU ML) y ArticuloMostrador.costo (POS). Para los packs
+    // el costo unitario es la suma de los costos de sus componentes; si a algún componente
+    // le falta el costo, el pack queda sin costo (X roja en la UI).
+    const idsArticulos = Object.values(byArticulo).map(a => a.productoId).filter(Boolean) as string[];
+    const idsComponentes = packsDef.flatMap(p => p.packItems.map(pi => pi.componenteId));
+    const todosIds = Array.from(new Set([...idsArticulos, ...idsComponentes]));
+
+    const [costosArt, costosPos] = await Promise.all([
+      todosIds.length > 0
+        ? prisma.costosArticulos.findMany({
+            where: { id_articulo: { in: todosIds } },
+            select: { id_articulo: true, costo_final_ars: true },
+          })
+        : [],
+      todosIds.length > 0
+        ? prisma.articuloMostrador.findMany({
+            where: { id: { in: todosIds } },
+            select: { id: true, costo: true },
+          })
+        : [],
+    ]);
+
+    const costoArtMap = new Map(
+      costosArt.filter(c => c.costo_final_ars !== null).map(c => [c.id_articulo, Number(c.costo_final_ars)])
+    );
+    const costoPosMap = new Map(
+      costosPos.filter(c => c.costo !== null).map(c => [c.id, Number(c.costo)])
+    );
+    // Un costo de 0 (default de la columna) se considera "sin cargar" → null
+    const costoUnit = (id: string): number | null => {
+      const c = costoArtMap.get(id) ?? costoPosMap.get(id);
+      return c && c > 0 ? c : null;
+    };
+
+    const costoPackPorNombre = new Map<string, number | null>();
+    for (const p of packsDef) {
+      if (p.packItems.length === 0) continue;
+      let total = 0;
+      let completo = true;
+      for (const pi of p.packItems) {
+        const cu = costoUnit(pi.componenteId);
+        if (cu === null) { completo = false; break; }
+        total += cu * pi.cantidad;
+      }
+      costoPackPorNombre.set(p.nombre, completo ? total : null);
+    }
+
+    return {
+      success: true,
+      data: {
+        articulos: Object.values(byArticulo)
+          .map(a => ({
+            nombre: a.nombre,
+            cantidad: a.cantidad,
+            monto: a.monto,
+            costo: a.productoId ? costoUnit(a.productoId) : null,
+          }))
+          .sort((a, b) => b.cantidad - a.cantidad),
+        packs: Object.values(byPack)
+          .map(p => ({
+            nombre: p.nombre,
+            cantidad: p.cantidad,
+            monto: p.monto,
+            costo: costoPackPorNombre.get(p.nombre) ?? null,
+          }))
+          .sort((a, b) => b.cantidad - a.cantidad),
+        totalVentas: ventas.length,
+      },
+    };
+  } catch (error) {
+    console.error("Error al obtener rendimiento por punto de venta:", error);
+    return { success: false, error: "Error al obtener los datos" };
+  }
+}
+
 export async function exportarVentasListadoParaExcel(
   fechaDesde: string,
   fechaHasta: string,

@@ -49,11 +49,14 @@ import {
   CreditCard,
   Percent,
   Save,
+  FileDown,
+  Check,
 } from "lucide-react";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
 
 import { formatPrice } from "@/lib/utils";
+import * as XLSX from "xlsx";
 import {
   obtenerPedidosVenta,
   confirmarPedidoVenta,
@@ -67,8 +70,10 @@ import {
   eliminarPDFPedido,
   actualizarTipoEnvioPedido,
   obtenerTodosLosArticulos,
+  exportarPedidosVentaParaExcel,
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
+import { obtenerPuntosVenta } from "@/app/actions/puntos-venta";
 import { consultarPadron } from "@/app/actions/afip";
 import PDFPreview from "./pdf-preview";
 
@@ -140,6 +145,16 @@ export default function PedidosVentaEdicionClient() {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [ventaParaFactura, setVentaParaFactura] = useState<Venta | null>(null);
   const facturaRef = React.useRef<HTMLDivElement>(null);
+
+  // Estados para exportación Excel
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportDesde, setExportDesde] = useState(
+    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split("T")[0]
+  );
+  const [exportHasta, setExportHasta] = useState(new Date().toISOString().split("T")[0]);
+  const [exportPuntosVenta, setExportPuntosVenta] = useState<{ id: string; nombre: string; color?: string | null }[]>([]);
+  const [exportPuntosSeleccionados, setExportPuntosSeleccionados] = useState<string[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Estados para búsqueda de artículos
   const [articulos, setArticulos] = useState<any[]>([]);
@@ -901,6 +916,68 @@ export default function PedidosVentaEdicionClient() {
     cargarPedidos();
   }, [fechaDesde, fechaHasta]);
 
+  const abrirModalExport = async () => {
+    setIsExportModalOpen(true);
+    if (exportPuntosVenta.length === 0) {
+      const res = await obtenerPuntosVenta();
+      if (res.success && res.data) setExportPuntosVenta(res.data as any[]);
+    }
+  };
+
+  const togglePuntoExport = (id: string) => {
+    setExportPuntosSeleccionados(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleExportarExcel = async () => {
+    setIsExporting(true);
+    try {
+      const datos = await exportarPedidosVentaParaExcel(
+        exportDesde,
+        exportHasta,
+        exportPuntosSeleccionados.length > 0 ? exportPuntosSeleccionados : undefined
+      );
+
+      const filas: any[] = [];
+      for (const venta of datos) {
+        const fecha = new Date(venta.createdAt).toLocaleDateString("es-AR", {
+          day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires",
+        });
+        const articulosStr = venta.items
+          .map(i => `${i.nombre} x${i.cantidad}`)
+          .join(" | ");
+
+        filas.push({
+          "ID Venta": venta.id,
+          "N° Venta": venta.numeroVenta ?? "",
+          "Fecha": fecha,
+          "Cliente": venta.cliente,
+          "Artículos": articulosStr,
+          "Método de Pago": venta.metodo_pago,
+          "Total Final": venta.totalFinal,
+          "Punto de Venta": venta.puntoVenta ?? "",
+        });
+      }
+
+      const ws = XLSX.utils.json_to_sheet(filas);
+      ws["!cols"] = [
+        { wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 28 },
+        { wch: 60 }, { wch: 22 }, { wch: 14 }, { wch: 20 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Pedidos de Venta");
+
+      const nombreArchivo = `pedidos-venta_${exportDesde}_${exportHasta}.xlsx`;
+      XLSX.writeFile(wb, nombreArchivo);
+      setIsExportModalOpen(false);
+    } catch (err) {
+      console.error("Error al exportar:", err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
@@ -984,6 +1061,14 @@ export default function PedidosVentaEdicionClient() {
                     Filtrar
                   </>
                 )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={abrirModalExport}
+                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300"
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Exportar Excel
               </Button>
               {selectedVentaIds.size > 0 && (
                 <Button
@@ -2218,6 +2303,103 @@ export default function PedidosVentaEdicionClient() {
         variant="danger"
         onConfirm={handleEliminarPDFConfirm}
       />
+
+      {/* Modal Exportar Excel */}
+      <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-700">
+              <FileDown className="h-5 w-5" />
+              Exportar Pedidos a Excel
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 text-sm">
+              Seleccioná el rango de fechas y el punto de venta para generar el archivo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-5 py-2">
+            {/* Rango de fechas */}
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Desde</Label>
+                <Input
+                  type="date"
+                  value={exportDesde}
+                  onChange={e => setExportDesde(e.target.value)}
+                  className="border-slate-200 rounded-xl h-10"
+                />
+              </div>
+              <div className="flex-1">
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Hasta</Label>
+                <Input
+                  type="date"
+                  value={exportHasta}
+                  onChange={e => setExportHasta(e.target.value)}
+                  className="border-slate-200 rounded-xl h-10"
+                />
+              </div>
+            </div>
+
+            {/* Punto de venta */}
+            <div>
+              <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">
+                Punto de Venta <span className="text-slate-400 font-normal normal-case">(todos si no seleccionás)</span>
+              </Label>
+              <div className="flex flex-col gap-1 max-h-48 overflow-y-auto border border-slate-100 rounded-xl p-2">
+                {exportPuntosVenta.length === 0 ? (
+                  <p className="text-xs text-slate-400 p-2">Cargando puntos de venta…</p>
+                ) : (
+                  exportPuntosVenta.map(pv => {
+                    const sel = exportPuntosSeleccionados.includes(pv.id);
+                    return (
+                      <button
+                        key={pv.id}
+                        type="button"
+                        onClick={() => togglePuntoExport(pv.id)}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors text-sm ${sel ? "bg-emerald-50 text-emerald-800" : "hover:bg-slate-50 text-slate-700"}`}
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${sel ? "bg-emerald-600 border-emerald-600" : "border-slate-300"}`}>
+                          {sel && <Check className="h-3 w-3 text-white" />}
+                        </div>
+                        {pv.color && pv.color !== "#000000" && (
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: pv.color }} />
+                        )}
+                        <span className="font-medium">{pv.nombre}</span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+              {exportPuntosSeleccionados.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setExportPuntosSeleccionados([])}
+                  className="mt-1.5 text-xs text-slate-400 hover:text-slate-600 underline"
+                >
+                  Limpiar selección
+                </button>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" onClick={() => setIsExportModalOpen(false)} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleExportarExcel}
+              disabled={isExporting}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-2"
+            >
+              {isExporting ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Generando…</>
+              ) : (
+                <><FileDown className="h-4 w-4" /> Descargar Excel</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

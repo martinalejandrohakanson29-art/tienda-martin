@@ -1195,6 +1195,55 @@ export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string
   }
 }
 
+export async function exportarPedidosVentaParaExcel(
+  fechaDesde: string,
+  fechaHasta: string,
+  puntoVentaIds?: string[]
+) {
+  await requireAdmin();
+  try {
+    const inicioRango = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const finRango = new Date(`${fechaHasta}T23:59:59.999-03:00`);
+
+    const where: any = {
+      tipoVenta: "PEDIDO",
+      createdAt: { gte: inicioRango, lte: finRango },
+    };
+
+    if (puntoVentaIds && puntoVentaIds.length > 0) {
+      where.puntoVentaId = { in: puntoVentaIds };
+    }
+
+    const ventas = await prisma.venta.findMany({
+      where,
+      include: {
+        items: true,
+        puntoVenta: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return ventas.map(v => ({
+      id: v.id,
+      numeroVenta: v.numeroVenta,
+      createdAt: v.createdAt.toISOString(),
+      cliente: v.cliente,
+      metodo_pago: v.metodo_pago,
+      totalFinal: Number(v.totalFinal),
+      puntoVenta: v.puntoVenta?.nombre ?? null,
+      items: v.items.map(i => ({
+        nombre: i.nombre,
+        cantidad: i.cantidad,
+        precio_unit: Number(i.precio_unit),
+        subtotal: Number(i.subtotal),
+      })),
+    }));
+  } catch (error) {
+    console.error("Error al exportar pedidos:", error);
+    return [];
+  }
+}
+
 // Función para obtener un pedido por ID para editar
 export async function obtenerPedidoPorId(ventaId: string) {
   await requireAdmin();

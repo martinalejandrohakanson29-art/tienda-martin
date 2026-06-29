@@ -35,6 +35,10 @@ function ZoomViewer({ src, onClose }: { src: string; onClose: () => void }) {
     const [zoomed, setZoomed] = useState(false)
     const [origin, setOrigin] = useState({ x: 50, y: 50 })
 
+    const displaySrc = src.startsWith("/_next/image")
+        ? src
+        : `/_next/image?url=${encodeURIComponent(src)}&w=2048&q=90`
+
     const posFrom = (clientX: number, clientY: number) => {
         const el = imgRef.current
         if (!el) return { x: 50, y: 50 }
@@ -67,7 +71,7 @@ function ZoomViewer({ src, onClose }: { src: string; onClose: () => void }) {
             </div>
             <img
                 ref={imgRef}
-                src={src}
+                src={displaySrc}
                 alt="Zoom"
                 draggable={false}
                 onClick={handleClick}

@@ -7,8 +7,9 @@ import {
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
   ChevronDown, ArrowLeft, X, Package, BellRing, Bell, ArrowRightLeft,
-  Maximize2, Camera, ImageOff
+  Maximize2, Camera, ImageOff, FileDown, Check
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { toPng } from "html-to-image";
 import { Button } from "@/components/ui/button";
@@ -30,7 +31,8 @@ import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, obtenerVentasMLPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
-  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA
+  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA,
+  exportarVentasListadoParaExcel,
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor } from "@/app/actions/listas";
 import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
@@ -377,6 +379,13 @@ export default function VentasMostradorClient({
   const [mlCargadas, setMlCargadas] = useState(false);
   const [isLoadingML, setIsLoadingML] = useState(false);
 
+  // --- ESTADOS PARA EXPORTAR EXCEL ---
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportDesde, setExportDesde] = useState(fechaDesde);
+  const [exportHasta, setExportHasta] = useState(fechaHasta);
+  const [exportPuntosSeleccionados, setExportPuntosSeleccionados] = useState<string[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
+
   // --- ESTADO PARA ELIMINAR VENTA ---
   const [ventaAEliminar, setVentaAEliminar] = useState<any>(null);
 
@@ -540,6 +549,64 @@ export default function VentasMostradorClient({
     setVentasML([]);
     setMlCargadas(false);
     await Promise.all([cargarVentas(fechaDesde, fechaHasta), cargarVentasML()]);
+  };
+
+  const abrirModalExport = () => {
+    setExportDesde(fechaDesde);
+    setExportHasta(fechaHasta);
+    setExportPuntosSeleccionados([]);
+    setIsExportModalOpen(true);
+  };
+
+  const togglePuntoExport = (id: string) => {
+    setExportPuntosSeleccionados(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleExportarExcel = async () => {
+    setIsExporting(true);
+    try {
+      const datos = await exportarVentasListadoParaExcel(
+        exportDesde,
+        exportHasta,
+        exportPuntosSeleccionados.length > 0 ? exportPuntosSeleccionados : undefined
+      );
+
+      const filas: any[] = [];
+      for (const venta of datos) {
+        const fecha = new Date(venta.createdAt).toLocaleDateString("es-AR", {
+          day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires",
+        });
+        venta.items.forEach((item, idx) => {
+          filas.push({
+            "N° Venta": venta.numeroVenta ?? "",
+            "Fecha": fecha,
+            "Cliente": venta.cliente,
+            "Artículo": item.nombre,
+            "Cantidad": item.cantidad,
+            "Precio Unit.": item.precio_unit,
+            "Método de Pago": idx === 0 ? venta.metodo_pago : "",
+            "Total Venta": idx === 0 ? venta.totalFinal : "",
+            "Punto de Venta": idx === 0 ? (venta.puntoVenta ?? "") : "",
+          });
+        });
+      }
+
+      const ws = XLSX.utils.json_to_sheet(filas);
+      ws["!cols"] = [
+        { wch: 10 }, { wch: 14 }, { wch: 28 }, { wch: 45 },
+        { wch: 10 }, { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 20 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Listado de Ventas");
+      XLSX.writeFile(wb, `ventas_${exportDesde}_${exportHasta}.xlsx`);
+      setIsExportModalOpen(false);
+    } catch (err) {
+      console.error("Error al exportar:", err);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const abrirAlertaML = (venta: any) => {
@@ -2393,6 +2460,14 @@ export default function VentasMostradorClient({
                       ) : (
                         <><Search className="h-3.5 w-3.5" />Cargar</>
                       )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={abrirModalExport}
+                      className="h-10 px-4 rounded-xl border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 text-xs font-bold flex items-center gap-2 shadow-sm"
+                    >
+                      <FileDown className="h-3.5 w-3.5" />
+                      Exportar Excel
                     </Button>
                   </div>
 
@@ -4808,6 +4883,73 @@ export default function VentasMostradorClient({
               >
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
                 Crear e Incluir
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal Exportar Excel */}
+        <Dialog open={isExportModalOpen} onOpenChange={setIsExportModalOpen}>
+          <DialogContent className="max-w-md rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-emerald-700">
+                <FileDown className="h-5 w-5" />
+                Exportar Ventas a Excel
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 text-sm">
+                Seleccioná el rango de fechas y el punto de venta para generar el archivo.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex flex-col gap-5 py-2">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Desde</Label>
+                  <Input type="date" value={exportDesde} onChange={e => setExportDesde(e.target.value)} className="border-slate-200 rounded-xl h-10" />
+                </div>
+                <div className="flex-1">
+                  <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5 block">Hasta</Label>
+                  <Input type="date" value={exportHasta} onChange={e => setExportHasta(e.target.value)} className="border-slate-200 rounded-xl h-10" />
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 block">
+                  Punto de Venta <span className="text-slate-400 font-normal normal-case">(todos si no seleccionás)</span>
+                </Label>
+                <div className="flex flex-col gap-1 max-h-48 overflow-y-auto border border-slate-100 rounded-xl p-2">
+                  {puntosVenta?.map((pv: any) => {
+                    const sel = exportPuntosSeleccionados.includes(pv.id);
+                    return (
+                      <button
+                        key={pv.id}
+                        type="button"
+                        onClick={() => togglePuntoExport(pv.id)}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors text-sm ${sel ? "bg-emerald-50 text-emerald-800" : "hover:bg-slate-50 text-slate-700"}`}
+                      >
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${sel ? "bg-emerald-600 border-emerald-600" : "border-slate-300"}`}>
+                          {sel && <Check className="h-3 w-3 text-white" />}
+                        </div>
+                        {pv.color && pv.color !== "#000000" && (
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: pv.color }} />
+                        )}
+                        <span className="font-medium">{pv.nombre}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {exportPuntosSeleccionados.length > 0 && (
+                  <button type="button" onClick={() => setExportPuntosSeleccionados([])} className="mt-1.5 text-xs text-slate-400 hover:text-slate-600 underline">
+                    Limpiar selección
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 mt-2">
+              <Button variant="outline" onClick={() => setIsExportModalOpen(false)} className="rounded-xl">Cancelar</Button>
+              <Button onClick={handleExportarExcel} disabled={isExporting} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-2">
+                {isExporting ? <><Loader2 className="h-4 w-4 animate-spin" /> Generando…</> : <><FileDown className="h-4 w-4" /> Descargar Excel</>}
               </Button>
             </DialogFooter>
           </DialogContent>

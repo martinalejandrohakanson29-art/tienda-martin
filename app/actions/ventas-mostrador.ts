@@ -299,6 +299,52 @@ export async function obtenerVentasPorRango(fechaDesde: string, fechaHasta?: str
 
 export const obtenerVentasPorFecha = (fecha: string) => obtenerVentasPorRango(fecha);
 
+export async function exportarVentasListadoParaExcel(
+  fechaDesde: string,
+  fechaHasta: string,
+  puntoVentaIds?: string[]
+) {
+  await requireAdmin();
+  try {
+    const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
+    const fin = new Date(`${fechaHasta}T23:59:59.999-03:00`);
+
+    const where: any = {
+      tipoVenta: { not: "PEDIDO" },
+      createdAt: { gte: inicio, lte: fin },
+    };
+
+    if (puntoVentaIds && puntoVentaIds.length > 0) {
+      where.puntoVentaId = { in: puntoVentaIds };
+    }
+
+    const ventas = await prisma.venta.findMany({
+      where,
+      include: { items: true, puntoVenta: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    return ventas.map(v => ({
+      id: v.id,
+      numeroVenta: v.numeroVenta,
+      createdAt: v.createdAt.toISOString(),
+      cliente: v.cliente,
+      metodo_pago: v.metodo_pago,
+      totalFinal: Number(v.totalFinal),
+      puntoVenta: v.puntoVenta?.nombre ?? null,
+      items: v.items.map(i => ({
+        nombre: i.nombre,
+        cantidad: i.cantidad,
+        precio_unit: Number(i.precio_unit),
+        subtotal: Number(i.subtotal),
+      })),
+    }));
+  } catch (error) {
+    console.error("Error al exportar ventas:", error);
+    return [];
+  }
+}
+
 export async function obtenerVentasMLPorRango(fechaDesde: string, fechaHasta?: string) {
   await requireAdmin();
   try {

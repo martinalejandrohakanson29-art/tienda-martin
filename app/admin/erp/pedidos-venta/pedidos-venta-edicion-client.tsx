@@ -944,26 +944,25 @@ export default function PedidosVentaEdicionClient() {
         const fecha = new Date(venta.createdAt).toLocaleDateString("es-AR", {
           day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires",
         });
-        const articulosStr = venta.items
-          .map(i => `${i.nombre} x${i.cantidad}`)
-          .join(" | ");
-
-        filas.push({
-          "ID Venta": venta.id,
-          "N° Venta": venta.numeroVenta ?? "",
-          "Fecha": fecha,
-          "Cliente": venta.cliente,
-          "Artículos": articulosStr,
-          "Método de Pago": venta.metodo_pago,
-          "Total Final": venta.totalFinal,
-          "Punto de Venta": venta.puntoVenta ?? "",
+        venta.items.forEach((item, idx) => {
+          filas.push({
+            "N° Venta": venta.numeroVenta ?? "",
+            "Fecha": fecha,
+            "Cliente": venta.cliente,
+            "Artículo": item.nombre,
+            "Cantidad": item.cantidad,
+            "Precio Unit.": item.precio_unit,
+            "Método de Pago": idx === 0 ? venta.metodo_pago : "",
+            "Total Venta": idx === 0 ? venta.totalFinal : "",
+            "Punto de Venta": idx === 0 ? (venta.puntoVenta ?? "") : "",
+          });
         });
       }
 
       const ws = XLSX.utils.json_to_sheet(filas);
       ws["!cols"] = [
-        { wch: 28 }, { wch: 10 }, { wch: 14 }, { wch: 28 },
-        { wch: 60 }, { wch: 22 }, { wch: 14 }, { wch: 20 },
+        { wch: 10 }, { wch: 14 }, { wch: 28 }, { wch: 45 },
+        { wch: 10 }, { wch: 14 }, { wch: 22 }, { wch: 14 }, { wch: 20 },
       ];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Pedidos de Venta");

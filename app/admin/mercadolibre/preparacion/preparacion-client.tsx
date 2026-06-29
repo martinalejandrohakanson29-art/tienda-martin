@@ -98,6 +98,14 @@ function ZoomViewer({
     const [zoomed, setZoomed] = useState(false)
     const [origin, setOrigin] = useState({ x: 50, y: 50 })
 
+    // Cargamos la imagen a través del optimizador de Next (/_next/image) en lugar
+    // de apuntar directo a la URL firmada de S3. En el WebView de Android la carga
+    // directa al S3 autoalojado (dominio sslip.io) falla, pero servida same-origin
+    // desde revolucionmotos.com.ar funciona igual que el resto de las fotos.
+    const displaySrc = src.startsWith("/_next/image")
+        ? src
+        : `/_next/image?url=${encodeURIComponent(src)}&w=2048&q=90`
+
     const posFrom = (clientX: number, clientY: number) => {
         const el = imgRef.current
         if (!el) return { x: 50, y: 50 }
@@ -142,7 +150,7 @@ function ZoomViewer({
             <div className="flex-1 flex items-center justify-center p-4 pt-14 overflow-hidden">
                 <img
                     ref={imgRef}
-                    src={src}
+                    src={displaySrc}
                     alt="Zoom"
                     draggable={false}
                     onClick={handleClick}

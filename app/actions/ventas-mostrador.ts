@@ -1747,7 +1747,8 @@ export async function eliminarPedidoVenta(ventaId: string) {
 }
 
 export async function subirPDFPedido(ventaId: string, formData: FormData) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const currentUserId = (session.user as any).id as string | undefined
   const file = formData.get('file') as File;
   if (!file) return { success: false, error: "No se proporcionó ningún archivo" };
 
@@ -1794,10 +1795,18 @@ export async function subirPDFPedido(ventaId: string, formData: FormData) {
     const cleanBaseUrl = baseUrl?.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     const pdfUrl = `${cleanBaseUrl}/${bucketName}/${key}`;
 
-    await prisma.venta.update({
+    const venta = await prisma.venta.update({
       where: { id: ventaId },
-      data: { pdfUrl }
+      data: { pdfUrl },
+      select: { numeroVenta: true },
     });
+
+    triggerNotification({
+      eventType: "PEDIDO_VENTA_PDF_SUBIDO",
+      sourceUserId: currentUserId,
+      title: `PDF subido en pedido #${venta.numeroVenta}`,
+      body: `Se cargó el comprobante PDF del pedido.`,
+    })
 
     return { success: true, url: pdfUrl };
   } catch (error) {
@@ -1831,7 +1840,8 @@ export async function obtenerURLDescargaPDF(ventaId: string, fileName?: string) 
 }
 
 export async function subirPDFLote(ventaIds: string[], formData: FormData) {
-  await requireAdmin();
+  const session = await requireAdmin();
+  const currentUserId = (session.user as any).id as string | undefined
   if (!ventaIds || ventaIds.length === 0) {
     return { success: false, error: "No se seleccionaron pedidos" };
   }
@@ -1866,6 +1876,13 @@ export async function subirPDFLote(ventaIds: string[], formData: FormData) {
       where: { id: { in: ventaIds } },
       data: { pdfUrl }
     });
+
+    triggerNotification({
+      eventType: "PEDIDO_VENTA_PDF_SUBIDO",
+      sourceUserId: currentUserId,
+      title: `PDF subido en ${ventaIds.length} pedido(s)`,
+      body: `Se cargó el comprobante PDF por lote.`,
+    })
 
     return { success: true, url: pdfUrl };
   } catch (error) {

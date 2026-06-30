@@ -6,4 +6,5 @@ export const EVENT_TYPES = [
     { value: "ENVIO_LISTO_AUDITORIA", label: "Envío listo para auditar (Herramientas)" },
     { value: "PEDIDO_PREPARADO_FULL", label: "Pedido preparado Full (foto cargada)" },
     { value: "PEDIDO_VENTA_PREPARADO_FOTO", label: "Pedido de venta preparado (foto cargada)" },
+    { value: "PEDIDO_VENTA_PDF_SUBIDO", label: "PDF subido en Pedidos de Venta" },
 ]

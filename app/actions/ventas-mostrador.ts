@@ -208,6 +208,7 @@ export async function obtenerTodosLosArticulos() {
   await requireAdmin();
   try {
     const articulos = await prisma.articuloMostrador.findMany({
+      where: { oculto: false },
       orderBy: { nombre: 'asc' },
       include: {
         auditorias: {

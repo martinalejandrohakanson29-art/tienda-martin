@@ -659,6 +659,7 @@ model ArticuloMostrador {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
   esPack       Boolean?            @default(false)
+  oculto       Boolean             @default(false)
   auditorias   ArticuloAuditoria[]
   componenteOf PackMostradorItem[] @relation("PackComponente")
   packItems    PackMostradorItem[] @relation("PackPadre")

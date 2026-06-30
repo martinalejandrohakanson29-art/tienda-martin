@@ -28,6 +28,7 @@ export async function obtenerArticulosParaListas() {
         costo: Number(art.costo || 0),
         margenGanancia: Number(art.margenGanancia || 0),
         esPack: art.esPack || false,
+        oculto: art.oculto,
         packItems: art.packItems?.map(packItem => ({
           ...packItem,
           componente: {
@@ -84,6 +85,18 @@ export async function crearArticuloMostrador(data: { id: string, nombre: string,
   } catch (error) {
     console.error("Error al crear artículo:", error);
     return { success: false, error: "No se pudo crear el artículo. Es posible que el ID ya exista." };
+  }
+}
+
+export async function toggleOcultarArticulo(id: string, oculto: boolean) {
+  const session = await getServerSession(authOptions);
+  if (!session) return { success: false, error: "No autorizado" };
+  try {
+    await prisma.articuloMostrador.update({ where: { id }, data: { oculto } });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al cambiar visibilidad del artículo:", error);
+    return { success: false, error: "No se pudo actualizar el artículo." };
   }
 }
 

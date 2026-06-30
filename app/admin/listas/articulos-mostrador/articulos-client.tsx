@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus } from "lucide-react";
+import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye } from "lucide-react";
 import Link from "next/link";
-import { actualizarArticuloDesdeLista, crearArticuloMostrador } from "@/app/actions/listas";
+import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo } from "@/app/actions/listas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,6 +21,7 @@ interface Articulo {
   stock: number;
   costo?: number;
   margenGanancia?: number;
+  oculto?: boolean;
 }
 
 export default function ArticulosClient({ 
@@ -46,6 +47,10 @@ export default function ArticulosClient({
   const [guardandoCostoId, setGuardandoCostoId] = useState<string | null>(null);
   const cancelarSaveRef = useRef(false);
 
+  // Estado para ocultar/mostrar artículos
+  const [togglingOcultoId, setTogglingOcultoId] = useState<string | null>(null);
+  const [soloOcultos, setSoloOcultos] = useState(false);
+
   // Estados para el Modal de Creación
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newData, setNewData] = useState<Articulo>({
@@ -59,28 +64,26 @@ export default function ArticulosClient({
 
   // --- NUEVO BUSCADOR INTELIGENTE Y FLEXIBLE ---
   const articulosFiltrados = useMemo(() => {
-    if (!searchTerm.trim()) return articulos;
-    
-    const quitarAcentos = (texto: string) => {
-      return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    };
-    
+    const quitarAcentos = (texto: string) =>
+      texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    let lista = soloOcultos ? articulos.filter(art => art.oculto) : articulos;
+
+    if (!searchTerm.trim()) return lista;
+
     const busquedaLimpia = quitarAcentos(searchTerm.toLowerCase().trim());
     const palabrasBuscadas = busquedaLimpia.split(/\s+/);
-    
-    return articulos.filter(art => {
+
+    return lista.filter(art => {
       const nombreLimpio = quitarAcentos(art.nombre.toLowerCase());
       const idLimpio = quitarAcentos(art.id.toLowerCase());
-      
-      return palabrasBuscadas.every(palabra => {
-        return nombreLimpio.includes(palabra) || idLimpio.includes(palabra);
-      });
+      return palabrasBuscadas.every(p => nombreLimpio.includes(p) || idLimpio.includes(p));
     });
-  }, [searchTerm, articulos]);
+  }, [searchTerm, articulos, soloOcultos]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, soloOcultos]);
 
   // Lógica de Paginación
   const totalPages = Math.ceil(articulosFiltrados.length / itemsPerPage);
@@ -171,6 +174,18 @@ export default function ArticulosClient({
     setCostoTemp("");
   };
 
+  const handleToggleOcultar = async (art: Articulo) => {
+    setTogglingOcultoId(art.id);
+    const nuevoEstado = !art.oculto;
+    const res = await toggleOcultarArticulo(art.id, nuevoEstado);
+    if (res.success) {
+      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, oculto: nuevoEstado } : a));
+    } else {
+      alert("Error: " + res.error);
+    }
+    setTogglingOcultoId(null);
+  };
+
   // Marcación real sobre el costo: (precio - costo) / costo * 100
   const calcularMarcacion = (costo?: number, precio?: number): number | null => {
     if (!costo || costo <= 0 || precio == null) return null;
@@ -235,18 +250,25 @@ export default function ArticulosClient({
       <main className="flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden">
         
         {/* Barra de Búsqueda */}
-        <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex items-center bg-white p-2 rounded-2xl border border-slate-200 shadow-sm gap-3">
           <div className="relative w-full max-w-xl">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Ej: kit 170, etc..." 
+            <input
+              type="text"
+              placeholder="Ej: kit 170, etc..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
             />
           </div>
-          <div className="ml-auto px-4 text-right">
+          <button
+            onClick={() => setSoloOcultos(prev => !prev)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all flex-shrink-0 ${soloOcultos ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}
+          >
+            <EyeOff className="h-3.5 w-3.5" />
+            Solo ocultos
+          </button>
+          <div className="ml-auto px-4 text-right flex-shrink-0">
             <p className="text-[10px] text-slate-400 font-bold uppercase">Total Registros</p>
             <p className="text-lg font-black text-slate-800">{articulosFiltrados.length}</p>
           </div>
@@ -276,9 +298,18 @@ export default function ArticulosClient({
                   </TableRow>
                 ) : (
                   paginatedArticulos.map((art) => (
-                    <TableRow key={art.id} className="hover:bg-indigo-50/30 transition-colors">
-                      <TableCell className="text-xs font-mono text-slate-400 py-3">{art.id}</TableCell>
-                      <TableCell className="font-bold text-slate-800 py-3">{art.nombre}</TableCell>
+                    <TableRow key={art.id} className={`hover:bg-indigo-50/30 transition-colors ${art.oculto ? 'bg-slate-50/60' : ''}`}>
+                      <TableCell className={`text-xs font-mono py-3 ${art.oculto ? 'text-slate-300' : 'text-slate-400'}`}>{art.id}</TableCell>
+                      <TableCell className={`font-bold py-3 ${art.oculto ? 'text-slate-400' : 'text-slate-800'}`}>
+                        <div className="flex items-center gap-2">
+                          {art.nombre}
+                          {art.oculto && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 border border-slate-300">
+                              <EyeOff className="h-2.5 w-2.5" /> Oculto
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right py-3">
                         {editandoCostoId === art.id ? (
                           <Input
@@ -343,14 +374,31 @@ export default function ArticulosClient({
                         </span>
                       </TableCell>
                       <TableCell className="text-right py-3">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          onClick={() => abrirModalEdicion(art)}
-                          className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-lg h-8 px-2"
-                        >
-                          <Edit className="h-4 w-4 mr-1.5" /> Editar
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => abrirModalEdicion(art)}
+                            className="text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-lg h-8 px-2"
+                          >
+                            <Edit className="h-4 w-4 mr-1.5" /> Editar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleOcultar(art)}
+                            disabled={togglingOcultoId === art.id}
+                            title={art.oculto ? "Mostrar en ventas" : "Ocultar de ventas"}
+                            className={`rounded-lg h-8 px-2 ${art.oculto ? 'text-orange-500 hover:text-orange-700 hover:bg-orange-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
+                          >
+                            {togglingOcultoId === art.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : art.oculto
+                                ? <><Eye className="h-4 w-4 mr-1" />Mostrar</>
+                                : <><EyeOff className="h-4 w-4 mr-1" />Ocultar</>
+                            }
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

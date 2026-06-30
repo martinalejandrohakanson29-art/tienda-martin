@@ -15,7 +15,7 @@ const COLORES: Record<string, string> = {
   MercadoLibre: "#FACC15", // amarillo ML
   Mostrador: "#3B82F6",    // azul
   Instagram: "#E1306C",    // rosa instagram
-  Mayorista: "#8B5CF6",    // violeta
+  Mayorista: "#22C55E",    // verde
   Resto: "#64748B",        // gris azulado (agrupación ML vs Resto)
 };
 const colorDe = (key: string) => COLORES[key] ?? "#94A3B8";

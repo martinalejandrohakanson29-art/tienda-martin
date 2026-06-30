@@ -3,14 +3,10 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getReglasAjuste, type ReglaAjuste } from "./reglas-ajuste";
+import { redondear } from "@/lib/precios";
 
 const WEBHOOK_DESCUENTO = "https://n8n.revolucionmotos.tech/webhook/ajuste-precios";
 const WEBHOOK_SUBA = "https://n8n.revolucionmotos.tech/webhook/suba-precios";
-
-// Redondea al múltiplo de 50 más cercano (precios más limpios en ML)
-export function redondear(precio: number): number {
-  return Math.round(precio / 50) * 50;
-}
 
 // Fórmula inversa: calcula el descuento propio (seller_pct) que lleva la ganancia al target%.
 // Derivación:

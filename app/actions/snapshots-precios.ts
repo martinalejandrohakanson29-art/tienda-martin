@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { redondear } from "./ajuste-precios";
+import { redondear } from "@/lib/precios";
 
 export type SnapshotPrecios = {
   id: string;

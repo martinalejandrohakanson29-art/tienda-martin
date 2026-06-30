@@ -42,9 +42,18 @@ export async function obtenerComparativaMensual() {
         createdAt: true,
         total: true,
         totalFinal: true,
+        mlIdVenta: true,
         puntoVenta: { select: { nombre: true } },
       },
     })
+
+    // Para ventas ML: total = neto (comisiones ya descontadas), totalFinal = bruto.
+    // Igual que en obtenerResumenVentas, usamos el neto para ML.
+    const esML = (v: { mlIdVenta: string | null; puntoVenta?: { nombre: string } | null }) =>
+      !!v.mlIdVenta || !!(v.puntoVenta?.nombre?.toLowerCase().includes("mercadolibre"))
+
+    const netoVenta = (v: { total: any; totalFinal: any; mlIdVenta: string | null; puntoVenta?: { nombre: string } | null }) =>
+      esML(v) ? Number(v.total) || 0 : Number(v.totalFinal) || Number(v.total) || 0
 
     // clave "anio-mes" -> canales
     const mapaNuevo = new Map<string, Record<Canal, number>>()
@@ -54,11 +63,16 @@ export async function obtenerComparativaMensual() {
       const anio = d.getFullYear()
       const mes = d.getMonth() + 1
       const clave = `${anio}-${mes}`
-      const canal = canalDesdePuntoVenta(v.puntoVenta?.nombre)
+      // Detectar canal: primero por mlIdVenta, luego por nombre del punto de venta
+      let canal: Canal | null = null
+      if (esML(v)) {
+        canal = "MercadoLibre"
+      } else {
+        canal = canalDesdePuntoVenta(v.puntoVenta?.nombre)
+      }
       if (canal === null) continue // punto de venta fuera del panel
       if (!mapaNuevo.has(clave)) mapaNuevo.set(clave, nuevoAcumulador())
-      const monto = Number(v.totalFinal) || Number(v.total) || 0
-      mapaNuevo.get(clave)![canal] += monto
+      mapaNuevo.get(clave)![canal] += netoVenta(v)
     }
 
     // ── 2. Corte de empalme ────────────────────────────────────────────────────

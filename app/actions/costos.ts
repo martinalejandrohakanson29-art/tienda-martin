@@ -84,8 +84,10 @@ export async function recalculateAllArticulos() {
     }
     revalidatePath("/admin/mercadolibre/articulos");
     revalidatePath("/admin/mercadolibre/costos");
+    revalidatePath("/admin/mercadolibre/composicion");
     return { success: true };
   } catch (error) {
+    console.error("Error en recalculateAllArticulos:", error);
     return { success: false, error: "No se pudo actualizar el catálogo." };
   }
 }

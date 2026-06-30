@@ -41,8 +41,12 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
       factorFob: tempFob,
       recargoFinanciacion: tempFinanc
     });
-    await recalculateAllArticulos();
-    alert("Configuración guardada y precios de Kits actualizados.");
+    const res = await recalculateAllArticulos();
+    if (res?.success) {
+      alert("Configuración guardada y precios de Kits actualizados.");
+    } else {
+      alert("Configuración guardada, pero falló el recálculo de precios: " + (res?.error || "error desconocido") + ". Los costos pueden haber quedado desactualizados.");
+    }
   };
 
   const handleOpenKitModal = async (articulo: any) => {

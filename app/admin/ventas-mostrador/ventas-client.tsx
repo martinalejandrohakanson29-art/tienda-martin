@@ -4419,7 +4419,7 @@ export default function VentasMostradorClient({
                       onClick={() => setFotoExpandida(foto.url)}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={foto.url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                      <img src={`/_next/image?url=${encodeURIComponent(foto.url)}&w=400&q=85`} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
                       <div className="absolute top-1.5 left-1.5 bg-black/50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
                         {i + 1}/{fotosVenta.fotos.length}
                         <Maximize2 className="h-3 w-3" />
@@ -4454,7 +4454,7 @@ export default function VentasMostradorClient({
               <X className="h-8 w-8" />
             </button>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={fotoExpandida} alt="Foto ampliada" className="max-w-full max-h-full object-contain rounded shadow-2xl" />
+            <img src={`/_next/image?url=${encodeURIComponent(fotoExpandida)}&w=2048&q=90`} alt="Foto ampliada" className="max-w-full max-h-full object-contain rounded shadow-2xl" />
           </div>
         )}
 

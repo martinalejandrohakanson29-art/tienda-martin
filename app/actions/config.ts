@@ -48,23 +48,6 @@ export async function updateConfig(raw: unknown) {
         config = await prisma.config.create({ data: data as any })
     }
 
-    if (data.dolarCotizacion !== undefined || data.factorFob !== undefined || data.recargoFinanciacion !== undefined) {
-        const dolar  = Number(data.dolarCotizacion  ?? existingConfig?.dolarCotizacion  ?? 1);
-        const fob    = Number(data.factorFob         ?? existingConfig?.factorFob         ?? 1);
-        const financ = Number(data.recargoFinanciacion ?? existingConfig?.recargoFinanciacion ?? 0);
-
-        await prisma.$executeRaw`
-            UPDATE costos_articulos
-            SET costo_final_ars = CASE
-                WHEN es_dolar = true THEN
-                    (costo_usd * ${dolar} * ${fob}) * (1 + (${financ} / 100.0))
-                ELSE
-                    costo_usd
-            END,
-            fecha_actualizacion = NOW()
-        `;
-    }
-
     revalidateTag("config")
     revalidatePath("/admin/mercadolibre/articulos")
     revalidatePath("/admin/mercadolibre/costos")

@@ -1,12 +1,13 @@
 "use client";
 
 import React from "react";
-import { BarChart2, TrendingUp, ArrowRightLeft, Store } from "lucide-react";
+import { BarChart2, TrendingUp, ArrowRightLeft, Store, CalendarRange } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ResumenVentasTab from "@/app/admin/ventas-mostrador/resumen-ventas-tab";
 import RendimientoVentasTab from "@/app/admin/ventas-mostrador/rendimiento-ventas-tab";
 import ConciliacionArcaTab from "@/app/admin/ventas-mostrador/conciliacion-arca-tab";
 import RendimientoPuntosVentaTab from "./rendimiento-puntos-venta-tab";
+import ComparativaMensualTab from "./comparativa-mensual-tab";
 
 interface PuntoVenta {
   id: string;
@@ -35,6 +36,9 @@ export default function MetricasClient({ puntosVenta }: Props) {
             <TabsTrigger value="puntos-venta" className="gap-2 px-6 bg-blue-50 text-blue-700 hover:bg-blue-100 data-[state=active]:bg-blue-100 data-[state=active]:text-blue-900 border border-transparent data-[state=active]:border-blue-200">
               <Store className="h-4 w-4" /> Detalles por Artículos
             </TabsTrigger>
+            <TabsTrigger value="comparativa" className="gap-2 px-6 bg-amber-50 text-amber-700 hover:bg-amber-100 data-[state=active]:bg-amber-100 data-[state=active]:text-amber-900 border border-transparent data-[state=active]:border-amber-200">
+              <CalendarRange className="h-4 w-4" /> Comparativa Mensual
+            </TabsTrigger>
             <TabsTrigger value="conciliacion" className="gap-2 px-6 bg-violet-50 text-violet-700 hover:bg-violet-100 data-[state=active]:bg-violet-100 data-[state=active]:text-violet-900 border border-transparent data-[state=active]:border-violet-200">
               <ArrowRightLeft className="h-4 w-4" /> Conciliación ARCA
             </TabsTrigger>
@@ -53,6 +57,9 @@ export default function MetricasClient({ puntosVenta }: Props) {
         </TabsContent>
         <TabsContent value="puntos-venta" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
           <RendimientoPuntosVentaTab puntosVenta={puntosVenta} />
+        </TabsContent>
+        <TabsContent value="comparativa" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
+          <ComparativaMensualTab />
         </TabsContent>
         <TabsContent value="conciliacion" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
           <ConciliacionArcaTab />

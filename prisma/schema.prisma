@@ -524,6 +524,35 @@ model RentabilidadCalculada {
   @@map("rentabilidad_calculada")
 }
 
+// "Foto" con nombre del % de descuento vigente por publicación en un momento dado.
+// Permite reaplicar esos mismos % cuando la promoción vence en ML, sin depender
+// de lo que sugieran las reglas automáticas en ese momento.
+model SnapshotPrecios {
+  id        String   @id @default(cuid())
+  nombre    String
+  createdAt DateTime @default(now())
+
+  items SnapshotPrecioItem[]
+
+  @@map("snapshots_precios")
+}
+
+model SnapshotPrecioItem {
+  id             String   @id @default(cuid())
+  snapshotId     String
+  mla            String
+  nombre         String
+  nombreVariante String?
+  ajustePct      Decimal  @db.Decimal(10, 2) // seller_percentage capturado al sacar la foto
+  precioOriginal Decimal  @db.Decimal(20, 2) // original_price al momento de la foto (informativo)
+  nuevoPrecio    Decimal  @db.Decimal(20, 2) // precio_final al momento de la foto (informativo)
+
+  snapshot SnapshotPrecios @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@map("snapshot_precio_items")
+}
+
 model Venta {
   id            String           @id @default(cuid())
   cliente       String           @default("Consumidor Final")

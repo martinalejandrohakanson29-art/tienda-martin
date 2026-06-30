@@ -8,7 +8,7 @@ const WEBHOOK_DESCUENTO = "https://n8n.revolucionmotos.tech/webhook/ajuste-preci
 const WEBHOOK_SUBA = "https://n8n.revolucionmotos.tech/webhook/suba-precios";
 
 // Redondea al múltiplo de 50 más cercano (precios más limpios en ML)
-function redondear(precio: number): number {
+export function redondear(precio: number): number {
   return Math.round(precio / 50) * 50;
 }
 

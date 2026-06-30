@@ -4,15 +4,18 @@ import Link from "next/link";
 import { getRentabilidadData } from "@/app/actions/rentabilidad";
 import { calcularAjustesRentabilidad } from "@/app/actions/ajuste-precios";
 import { getComposicionAgregados } from "@/app/actions/kits";
+import { getSnapshotsPrecios } from "@/app/actions/snapshots-precios";
 import RefreshButton from "./refresh-button";
 import ClearButton from "./clear-button";
 import RentabilidadClient from "./rentabilidad-client";
+import SnapshotsClient from "./snapshots/snapshots-client";
 
 export default async function RentabilidadPage() {
-  const [data, { ajustes }, agregados] = await Promise.all([
+  const [data, { ajustes }, agregados, snapshots] = await Promise.all([
     getRentabilidadData(),
     calcularAjustesRentabilidad(),
     getComposicionAgregados(),
+    getSnapshotsPrecios(),
   ]);
 
   const totalItems = data.length;
@@ -43,6 +46,7 @@ export default async function RentabilidadPage() {
                 Reglas de ajuste
               </Button>
             </Link>
+            <SnapshotsClient snapshots={snapshots} />
             <ClearButton />
             <RefreshButton />
           </div>

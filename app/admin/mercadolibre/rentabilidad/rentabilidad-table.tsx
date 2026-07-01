@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, TrendingDown, TrendingUp } from "lucide-react";
+import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, TrendingDown, TrendingUp, BadgePercent } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "./agregado-filter";
 import type { AjustePrecio, TipoAjuste } from "@/app/actions/ajuste-precios";
@@ -76,6 +76,7 @@ export default function RentabilidadTable({
   const [filter, setFilter] = useState("");
   const [selectedAgregados, setSelectedAgregados] = useState<string[]>([]);
   const [manualPct, setManualPct] = useState<Record<string, string>>({});
+  const [soloSinDescuento, setSoloSinDescuento] = useState(false);
 
   const hasManual = !!onSetManual;
 
@@ -207,6 +208,7 @@ export default function RentabilidadTable({
 
   const filteredData = simulatedData.filter((item) => {
     if (allowedMlas && !allowedMlas.has((item.item_id || "").trim())) return false;
+    if (soloSinDescuento && item.desc_pct_total > 0) return false;
     const searchLower = filter.toLowerCase().trim();
     return (
       (item.nombre || "").toLowerCase().includes(searchLower) ||
@@ -290,6 +292,20 @@ export default function RentabilidadTable({
                 onChange={setSelectedAgregados}
               />
             )}
+            <button
+              type="button"
+              onClick={() => setSoloSinDescuento((v) => !v)}
+              className={cn(
+                "flex items-center gap-2 h-9 px-3 rounded-md border text-sm font-medium transition-colors whitespace-nowrap",
+                soloSinDescuento
+                  ? "border-slate-400 bg-slate-100 text-slate-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              )}
+              title="Mostrar solo publicaciones sin ningún descuento (ML ni nuestro)"
+            >
+              <BadgePercent className="h-4 w-4" />
+              Sin descuento
+            </button>
           </div>
           <div className="flex items-center gap-3 self-end sm:self-auto">
             {headerActions}

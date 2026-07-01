@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import RentabilidadTable, { type ProductoRentabilidad } from "./rentabilidad-table";
 import OptimizarPreciosButton from "./optimizar-button";
+import DescuentoManualMasivoButton from "./manual-masivo-button";
 import type { AjustePrecio } from "@/app/actions/ajuste-precios";
 import type { Agregado } from "./agregado-filter";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,21 @@ export default function RentabilidadClient({
       return next;
     });
 
+  // Aplica el mismo % manual a un conjunto de ítems tildados de una sola vez
+  // (modal de descuento manual masivo).
+  const handleSetManualBulk = (nuevos: AjustePrecio[]) => {
+    setManualAjustes((prev) => {
+      const next = new Map(prev);
+      nuevos.forEach((a) => next.set(a.item_id, a));
+      return next;
+    });
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      nuevos.forEach((a) => next.add(a.item_id));
+      return next;
+    });
+  };
+
   // Combinación final a aplicar: manuales tildados (prioridad) + reglas tildadas
   // que no tengan un ajuste manual sobre el mismo item_id.
   const ajustesSeleccionados = useMemo(() => {
@@ -108,6 +124,11 @@ export default function RentabilidadClient({
           )}
         </Button>
       )}
+      <DescuentoManualMasivoButton
+        data={data}
+        selectedIds={selectedIds}
+        onAplicar={handleSetManualBulk}
+      />
       <OptimizarPreciosButton ajustes={ajustesSeleccionados} />
     </>
   );

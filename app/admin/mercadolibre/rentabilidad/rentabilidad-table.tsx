@@ -14,9 +14,7 @@ import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, TrendingDown, TrendingUp, B
 import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "./agregado-filter";
 import type { AjustePrecio, TipoAjuste } from "@/app/actions/ajuste-precios";
-
-// Redondea al múltiplo de 50 más cercano (igual que el cálculo por reglas)
-const redondear = (precio: number) => Math.round(precio / 50) * 50;
+import { crearAjusteManual } from "./manual-ajuste";
 
 export interface ProductoRentabilidad {
   item_id: string;
@@ -97,21 +95,7 @@ export default function RentabilidadTable({
     if (!raw || isNaN(pctNum) || pctNum <= 0) return;
     // Valores reales (sin la previsualización del manual) para "actual" en el dialog
     const base = data.find((d) => d.item_id === item.item_id) ?? item;
-    const factor = tipo === "SUBA" ? 1 + pctNum / 100 : 1 - pctNum / 100;
-    onSetManual?.({
-      item_id: item.item_id,
-      nombre: item.nombre,
-      nombre_variante: item.nombre_variante,
-      tipo,
-      regla_nombre: "Manual",
-      ganancia_actual: parseFloat((base.ganancia_porcentaje ?? 0).toFixed(1)),
-      precio_original: Math.round(base.precio_original),
-      precio_actual_nuestro: Math.round(base.precio_final_nuestro),
-      nuevo_precio: redondear(base.precio_original * factor),
-      ajuste_pct: parseFloat(pctNum.toFixed(2)),
-      tiene_campana_ml: (base.desc_pct_ml ?? 0) > 0,
-      es_manual: true,
-    });
+    onSetManual?.(crearAjusteManual(base, pctNum, tipo));
   };
 
   // MLAs permitidos según los agregados elegidos (unión). null = sin filtro de agregado.

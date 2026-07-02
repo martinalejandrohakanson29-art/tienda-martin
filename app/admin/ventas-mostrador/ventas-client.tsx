@@ -1395,10 +1395,32 @@ export default function VentasMostradorClient({
           const nombreCliente = (venta.cliente && venta.cliente.trim()) || "Consumidor Final";
           const nombreArchivo = `Resumen ${numeroVenta} - ${nombreCliente}.pdf`.replace(/[\\/:*?"<>|]/g, "");
 
-          const blob = pdf.output("blob");
-          const file = new File([blob], nombreArchivo, { type: "application/pdf" });
-          const url = URL.createObjectURL(file);
-          window.open(url, "_blank");
+          // Se postea el PDF a una ruta del servidor para que la respuesta lleve
+          // el header Content-Disposition: solo así el visor nativo del navegador
+          // usa el nombre correcto al descargar (un blob: URL no puede llevarlo).
+          const dataUri = pdf.output("datauristring");
+          const base64 = dataUri.split("base64,")[1];
+
+          const form = document.createElement("form");
+          form.method = "POST";
+          form.action = "/api/ventas-mostrador/resumen-pdf";
+          form.target = "_blank";
+
+          const inputPdf = document.createElement("input");
+          inputPdf.type = "hidden";
+          inputPdf.name = "pdf";
+          inputPdf.value = base64;
+          form.appendChild(inputPdf);
+
+          const inputFilename = document.createElement("input");
+          inputFilename.type = "hidden";
+          inputFilename.name = "filename";
+          inputFilename.value = nombreArchivo;
+          form.appendChild(inputFilename);
+
+          document.body.appendChild(form);
+          form.submit();
+          document.body.removeChild(form);
         } catch (error) {
           console.error("Error al generar PDF:", error);
           alert("No se pudo generar el resumen en PDF.");

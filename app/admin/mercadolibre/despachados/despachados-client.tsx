@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useRef, useMemo, Fragment } from "react"
 // LOGICA ACTUAL: Usamos Preparadas, no Despachadas
-import { getEtiquetasPreparadas, getVentasRegistracion, limpiarVentasRegistracion, registrarVentasML } from "@/app/actions/envios"
+import { getEtiquetasPreparadas, getVentasRegistracion, limpiarRegistrosViejos, registrarVentasML } from "@/app/actions/envios"
 import { consultarPadron } from "@/app/actions/afip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
-import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock, Copy, Image as ImageIcon, Filter, CheckSquare, Square, Download, RefreshCcw, Trash2 } from "lucide-react"
+import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock, Copy, Image as ImageIcon, CheckSquare, Square, Download, RefreshCcw, AlertTriangle } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DateRangeCalendar } from "@/app/admin/ventas-mostrador/date-range-calendar"
 
 export function DespachadosClient() {
     const [fecha, setFecha] = useState(format(new Date(), "yyyy-MM-dd"))
@@ -33,10 +34,12 @@ export function DespachadosClient() {
     const [selectedRegistracionIds, setSelectedRegistracionIds] = useState<Set<string>>(new Set())
     const [registradaFilter, setRegistradaFilter] = useState<"TODAS" | "PENDIENTES" | "REGISTRADAS">("TODAS")
 
-    // Fecha para pedirle a n8n qué ventas traer
+    // Fecha para pedirle a n8n qué ventas traer (un solo día, es lo que soporta el workflow)
     const [fechaVenta, setFechaVenta] = useState(format(new Date(), "yyyy-MM-dd"))
-    const [usarRango, setUsarRango] = useState(false)
-    const [fechaVentaHasta, setFechaVentaHasta] = useState(format(new Date(), "yyyy-MM-dd"))
+
+    // Rango para FILTRAR lo que ya está guardado en la base (independiente de la sincronización con n8n)
+    const [fechaRangoDesde, setFechaRangoDesde] = useState("")
+    const [fechaRangoHasta, setFechaRangoHasta] = useState("")
 
     // Estados para el Modal de Confirmación y Facturación
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
@@ -59,7 +62,7 @@ export function DespachadosClient() {
 
     const loadVentasRegistracion = async () => {
         setLoadingRegistracion(true)
-        const resReg = await getVentasRegistracion()
+        const resReg = await getVentasRegistracion(fechaRangoDesde || undefined, fechaRangoHasta || undefined)
         if (resReg.success) setVentasRegistracion(resReg.data)
         setLoadingRegistracion(false)
     }
@@ -70,7 +73,7 @@ export function DespachadosClient() {
 
     useEffect(() => {
         loadVentasRegistracion()
-    }, [])
+    }, [fechaRangoDesde, fechaRangoHasta])
 
     // LOGICA ACTUAL + VISUAL NUEVA: Filtro combinado
     const filtered = envios.filter(e =>
@@ -182,6 +185,10 @@ export function DespachadosClient() {
     const handleFetchRegistracion = async () => {
         setLoadingRegistracion(true);
         try {
+            // Limpieza automática: se saca de en medio lo ya REGISTRADO y viejo antes de traer más datos.
+            // Nunca toca PENDIENTE/ERROR (son ventas sin facturar todavía).
+            await limpiarRegistrosViejos();
+
             toast.info("Sincronizando con n8n (Full, Flex y Colecta)...");
 
             // Recolectamos los datos de la pestaña de Preparados
@@ -199,13 +206,12 @@ export function DespachadosClient() {
                 body: JSON.stringify({
                     action: "trigger_all_categories",
                     preparados: pedidosPreparados,
-                    fecha: fechaVenta,
-                    ...(usarRango && { fechaHasta: fechaVentaHasta })
+                    fecha: fechaVenta
                 })
             });
 
             setTimeout(async () => {
-                const res = await getVentasRegistracion();
+                const res = await getVentasRegistracion(fechaRangoDesde || undefined, fechaRangoHasta || undefined);
                 if (res.success) {
                     setVentasRegistracion(res.data);
                     toast.success("Sincronización completada");
@@ -337,7 +343,7 @@ export function DespachadosClient() {
                         );
                     });
                 }
-                const resReg = await getVentasRegistracion();
+                const resReg = await getVentasRegistracion(fechaRangoDesde || undefined, fechaRangoHasta || undefined);
                 if (resReg.success) setVentasRegistracion(resReg.data);
                 setSelectedRegistracionIds(new Set());
             } else {
@@ -348,26 +354,6 @@ export function DespachadosClient() {
             toast.error("Error al procesar el registro");
         } finally {
             setIsProcessing(false);
-        }
-    };
-
-    const handleLimpiarBaseDatos = async () => {
-        if (!confirm("¿Estás seguro de que deseas limpiar TODA la lista de registración?")) return;
-
-        setLoadingRegistracion(true);
-        try {
-            const res = await limpiarVentasRegistracion();
-            if (res.success) {
-                setVentasRegistracion([]);
-                setSelectedRegistracionIds(new Set());
-                toast.success("Base de datos de registración limpiada");
-            } else {
-                toast.error("Error al limpiar la base de datos");
-            }
-        } catch (error) {
-            toast.error("Error en la operación");
-        } finally {
-            setLoadingRegistracion(false);
         }
     };
 
@@ -518,39 +504,26 @@ export function DespachadosClient() {
                 </TabsContent>
 
                 <TabsContent value="registracion" className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                    <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex flex-col md:flex-row gap-4 items-end bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex-wrap">
                         <div className="flex flex-col gap-2">
-                            <Label className="text-xs font-bold uppercase text-slate-500">Fecha</Label>
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    type="date"
-                                    value={fechaVenta}
-                                    onChange={(e) => setFechaVenta(e.target.value)}
-                                    className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
-                                />
-                                <Button
-                                    variant={usarRango ? "default" : "outline"}
-                                    size="sm"
-                                    onClick={() => setUsarRango(!usarRango)}
-                                    className="rounded-xl text-xs font-bold h-10 px-3 gap-1.5"
-                                    title="Habilitar rango de fechas para búsqueda histórica"
-                                >
-                                    <Filter className="h-3.5 w-3.5" />
-                                    Rango
-                                </Button>
-                            </div>
+                            <Label className="text-xs font-bold uppercase text-slate-500">Fecha a sincronizar (ML)</Label>
+                            <Input
+                                type="date"
+                                value={fechaVenta}
+                                onChange={(e) => setFechaVenta(e.target.value)}
+                                className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
+                            />
                         </div>
-                        {usarRango && (
-                            <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                                <Label className="text-xs font-bold uppercase text-slate-500">Hasta</Label>
-                                <Input
-                                    type="date"
-                                    value={fechaVentaHasta}
-                                    onChange={(e) => setFechaVentaHasta(e.target.value)}
-                                    className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
-                                />
-                            </div>
-                        )}
+                        <div className="flex flex-col gap-2">
+                            <Label className="text-xs font-bold uppercase text-slate-500">Ver rango guardado</Label>
+                            <DateRangeCalendar
+                                fechaDesde={fechaRangoDesde}
+                                fechaHasta={fechaRangoHasta}
+                                setFechaDesde={setFechaRangoDesde}
+                                setFechaHasta={setFechaRangoHasta}
+                                onApply={() => {}}
+                            />
+                        </div>
                         <div className="flex flex-col gap-2">
                             <Label className="text-xs font-bold uppercase text-slate-500">Categoría</Label>
                             <div className="flex gap-2">
@@ -604,9 +577,6 @@ export function DespachadosClient() {
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <Button variant="outline" onClick={handleLimpiarBaseDatos} disabled={loadingRegistracion} className="rounded-xl border-red-200 text-red-600 hover:bg-red-50 gap-2">
-                                <Trash2 className="h-4 w-4" /> Limpiar Lista
-                            </Button>
                             <Button onClick={handleFetchRegistracion} disabled={loadingRegistracion} className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white gap-2">
                                 {loadingRegistracion ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />} Obtener Ventas
                             </Button>
@@ -652,6 +622,7 @@ export function DespachadosClient() {
                                         const allRegistrada = group.ventas.every(v => v.registrada);
                                         const someRegistrada = group.ventas.some(v => v.registrada);
                                         const allSelected = allOrderIds.every(id => selectedRegistracionIds.has(id));
+                                        const erroresEnGrupo = group.ventas.filter(v => v.estado === "ERROR");
 
                                         const totalBruto = group.ventas.reduce((acc, v) => acc + Number(v.bruto || 0), 0);
                                         const totalNeto = group.ventas.reduce((acc, v) => acc + Number(v.neto || 0), 0);
@@ -779,6 +750,15 @@ export function DespachadosClient() {
                                                                 {allSelected ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5" />}
                                                             </Button>
                                                             {someRegistrada && !allRegistrada && <span className="text-[8px] text-amber-600 font-black">PARCIAL</span>}
+                                                            {erroresEnGrupo.length > 0 && (
+                                                                <div
+                                                                    className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-full px-2 py-0.5 cursor-help"
+                                                                    title={erroresEnGrupo.map(v => v.ultimoError || "Error desconocido").join(" | ")}
+                                                                >
+                                                                    <AlertTriangle className="h-3 w-3 text-red-500" />
+                                                                    <span className="text-[8px] text-red-600 font-black">ERROR</span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </TableCell>

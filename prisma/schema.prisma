@@ -593,7 +593,7 @@ model Venta {
   condicionIva    Int?           // 1, 5, 6
   
   // Datos MercadoPago (ML)
-  mlIdVenta       String?
+  mlIdVenta       String?          @unique
   mlIdEnvio       String?
   mlPackId        String?
   mlMla           String?
@@ -1050,19 +1050,24 @@ model GastoNegocio {
 }
 
 model VentaMLRegistracion {
-  orderId    String   @id
-  shippingId String
-  packId     String?
-  mla        String
-  categoria  String
-  nombre     String?
-  neto       Decimal? @db.Decimal(20, 2)
-  bruto      Decimal? @db.Decimal(20, 2)
-  cantidad   Int?
-  variation  String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  orderId     String   @id
+  shippingId  String
+  packId      String?
+  mla         String
+  categoria   String
+  nombre      String?
+  neto        Decimal? @db.Decimal(20, 2)
+  bruto       Decimal? @db.Decimal(20, 2)
+  cantidad    Int?
+  variation   String?
+  estado      String   @default("PENDIENTE") // PENDIENTE | PROCESANDO | REGISTRADO | ERROR
+  ventaId     String?
+  ultimoError String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
+  @@index([estado])
+  @@index([createdAt])
   @@map("ventas_ml_registracion")
 }
 

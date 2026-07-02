@@ -255,30 +255,32 @@ export async function getEtiquetasPreparadas(fecha: string) {
  */
 export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: string) {
     try {
-        const where: any = {};
-
         const validDesde = fechaDesde && fechaDesde !== "undefined" && fechaDesde !== "null";
         const validHasta = fechaHasta && fechaHasta !== "undefined" && fechaHasta !== "null";
+        const hasDateFilter = validDesde || validHasta;
 
-        if (validDesde || validHasta) {
-            where.createdAt = {};
-            if (validDesde) where.createdAt.gte = new Date(`${fechaDesde}T00:00:00-03:00`);
-            if (validHasta) where.createdAt.lte = new Date(`${fechaHasta}T23:59:59.999-03:00`);
-        }
+        const dateClause: any = {};
+        if (validDesde) dateClause.gte = new Date(`${fechaDesde}T00:00:00-03:00`);
+        if (validHasta) dateClause.lte = new Date(`${fechaHasta}T23:59:59.999-03:00`);
 
-        const ventas = await prisma.ventaMLRegistracion.findMany({
-            where,
+        // Las pendientes/con error/en proceso se muestran SIEMPRE completas, sin importar el rango de
+        // fechas elegido ni ningún límite: son plata sin facturar y no se pueden perder de vista.
+        const pendientes = await prisma.ventaMLRegistracion.findMany({
+            where: { estado: { in: ["PENDIENTE", "ERROR", "PROCESANDO"] } },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // Las ya registradas sí respetan el rango de fechas elegido (o los últimos 500 si no se eligió rango).
+        const registradas = await prisma.ventaMLRegistracion.findMany({
+            where: {
+                estado: "REGISTRADO",
+                ...(hasDateFilter ? { createdAt: dateClause } : {})
+            },
             orderBy: { createdAt: 'desc' },
-            take: 500 // Ampliamos el límite por las dudas
+            take: 500
         });
 
-        // Buscamos cuáles de estas ya están registradas en la tabla Venta
-        const orderIds = ventas.map(v => v.orderId);
-        const ventasRegistradas = await prisma.venta.findMany({
-            where: { mlIdVenta: { in: orderIds } },
-            select: { mlIdVenta: true }
-        });
-        const setRegistradas = new Set(ventasRegistradas.map(v => v.mlIdVenta));
+        const ventas = [...pendientes, ...registradas];
 
         // Buscamos etiquetas relacionadas para obtener títulos y cantidades
         const shippingIds = ventas.map(v => v.shippingId).filter(Boolean);
@@ -305,7 +307,7 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
 
             return {
                 ...venta,
-                registrada: setRegistradas.has(venta.orderId),
+                registrada: venta.estado === "REGISTRADO",
                 ids_articulos,
                 receta_detallada,
                 titulo: labelItem?.title || `Venta ML`,
@@ -326,19 +328,25 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
 /**
  * Limpia la tabla de registración (opcional, para después de procesar)
  */
-export async function limpiarVentasRegistracion(ids?: string[]) {
+/**
+ * Limpieza automática de la tabla de registración: borra solo ventas ya REGISTRADAS
+ * (el dato importante -bruto/neto/factura- ya quedó guardado en la venta real) y con más
+ * de 60 días de antigüedad. Las PENDIENTES/ERROR/PROCESANDO nunca se borran acá: representan
+ * plata sin facturar y no se pueden perder de vista solo por ser viejas.
+ * Se llama automáticamente al sincronizar (ver handleFetchRegistracion en el cliente).
+ */
+export async function limpiarRegistrosViejos(diasRetencion: number = 60) {
     try {
-        if (ids && ids.length > 0) {
-            await prisma.ventaMLRegistracion.deleteMany({
-                where: { orderId: { in: ids } }
-            });
-        } else {
-            await prisma.ventaMLRegistracion.deleteMany({});
-        }
-        return { success: true };
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - diasRetencion);
+
+        const res = await prisma.ventaMLRegistracion.deleteMany({
+            where: { estado: "REGISTRADO", createdAt: { lt: cutoff } }
+        });
+        return { success: true, borrados: res.count };
     } catch (error) {
-        console.error("Error al limpiar ventas registracion:", error);
-        return { success: false };
+        console.error("Error al limpiar registros viejos:", error);
+        return { success: false, borrados: 0 };
     }
 }
 
@@ -385,6 +393,17 @@ export async function registrarVentasML(
 
         for (const v of ventasAProcesar) {
             try {
+                // Reserva atómica del orderId: evita que dos clicks/pestañas facturen la misma venta dos veces.
+                // El UPDATE es una única sentencia SQL, así que es atómico ante llamadas concurrentes.
+                const claim = await prisma.ventaMLRegistracion.updateMany({
+                    where: { orderId: v.orderId, estado: { in: ["PENDIENTE", "ERROR"] } },
+                    data: { estado: "PROCESANDO" }
+                });
+                if (claim.count === 0) {
+                    erroresDetalle.push({ orderId: v.orderId, shippingId: v.shippingId, motivo: "Ya estaba siendo procesada o ya fue registrada" });
+                    continue;
+                }
+
                 // Preparar items
                 const idsArticulos = v.ids_articulos?.split(/[+,]/).map((id: string) => id.trim()).filter(Boolean) || [];
                 const recetaDetallada = v.receta_detallada?.split('|').map((s: string) => s.trim()) || [];
@@ -437,7 +456,9 @@ export async function registrarVentasML(
                     });
                 } else {
                     console.error(`[REGISTRACION] La venta ${v.shippingId} no tiene receta vinculada (MLA: ${v.mla})`);
-                    erroresDetalle.push({ orderId: v.orderId, shippingId: v.shippingId, motivo: `Sin receta vinculada (MLA: ${v.mla})` });
+                    const motivo = `Sin receta vinculada (MLA: ${v.mla})`;
+                    erroresDetalle.push({ orderId: v.orderId, shippingId: v.shippingId, motivo });
+                    await prisma.ventaMLRegistracion.update({ where: { orderId: v.orderId }, data: { estado: "ERROR", ultimoError: motivo } }).catch(() => {});
                     continue;
                 }
 
@@ -505,16 +526,28 @@ export async function registrarVentasML(
 
                 if (res.success) {
                     procesados++;
+                    await prisma.ventaMLRegistracion.update({
+                        where: { orderId: v.orderId },
+                        data: { estado: "REGISTRADO", ventaId: res.id, ultimoError: null }
+                    });
                     if (solicitarFactura && ventasAProcesar.length > 5) {
                         await new Promise(resolve => setTimeout(resolve, 1500));
                     }
                 } else {
                     console.error(`Error procesando venta ${v.shippingId}:`, res.error);
                     erroresDetalle.push({ orderId: v.orderId, shippingId: v.shippingId, motivo: res.error || "Error desconocido" });
+                    await prisma.ventaMLRegistracion.update({
+                        where: { orderId: v.orderId },
+                        data: { estado: "ERROR", ultimoError: res.error || "Error desconocido" }
+                    }).catch(() => {});
                 }
             } catch (err: any) {
                 console.error(`Error fatal procesando venta ${v.shippingId}:`, err);
                 erroresDetalle.push({ orderId: v.orderId, shippingId: v.shippingId, motivo: err?.message || "Error fatal" });
+                await prisma.ventaMLRegistracion.update({
+                    where: { orderId: v.orderId },
+                    data: { estado: "ERROR", ultimoError: err?.message || "Error fatal" }
+                }).catch(() => {});
             }
         }
 

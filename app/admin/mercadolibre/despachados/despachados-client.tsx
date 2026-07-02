@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Search, CalendarIcon, Loader2, CheckCircle2, Package, Clock, Copy, Image as ImageIcon, CheckSquare, Square, Download, RefreshCcw, AlertTriangle } from "lucide-react"
-import { format } from "date-fns"
+import { format, subDays } from "date-fns"
 import { es } from "date-fns/locale"
 import { toast } from "sonner"
 import { toBlob } from "html-to-image"
@@ -34,12 +34,19 @@ export function DespachadosClient() {
     const [selectedRegistracionIds, setSelectedRegistracionIds] = useState<Set<string>>(new Set())
     const [registradaFilter, setRegistradaFilter] = useState<"TODAS" | "PENDIENTES" | "REGISTRADAS">("TODAS")
 
-    // Fecha para pedirle a n8n qué ventas traer (un solo día, es lo que soporta el workflow)
+    // Fecha para pedirle a n8n qué ventas traer, y también la que se usa para FILTRAR la vista
+    // cuando no se activó el rango histórico (ver usarRangoHistorico más abajo).
     const [fechaVenta, setFechaVenta] = useState(format(new Date(), "yyyy-MM-dd"))
 
-    // Rango para FILTRAR lo que ya está guardado en la base (independiente de la sincronización con n8n)
+    // Si está activo, la vista se filtra por fechaRangoDesde/fechaRangoHasta en vez de por fechaVenta.
+    const [usarRangoHistorico, setUsarRangoHistorico] = useState(false)
     const [fechaRangoDesde, setFechaRangoDesde] = useState("")
     const [fechaRangoHasta, setFechaRangoHasta] = useState("")
+
+    // Rango efectivo que se usa para consultar/filtrar la tabla: un solo día (fechaVenta) por defecto,
+    // o el rango elegido si se activó "Ver histórico".
+    const fechaFiltroDesde = usarRangoHistorico ? (fechaRangoDesde || undefined) : fechaVenta
+    const fechaFiltroHasta = usarRangoHistorico ? (fechaRangoHasta || undefined) : fechaVenta
 
     // Estados para el Modal de Confirmación y Facturación
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
@@ -62,7 +69,7 @@ export function DespachadosClient() {
 
     const loadVentasRegistracion = async () => {
         setLoadingRegistracion(true)
-        const resReg = await getVentasRegistracion(fechaRangoDesde || undefined, fechaRangoHasta || undefined)
+        const resReg = await getVentasRegistracion(fechaFiltroDesde, fechaFiltroHasta)
         if (resReg.success) setVentasRegistracion(resReg.data)
         setLoadingRegistracion(false)
     }
@@ -73,7 +80,7 @@ export function DespachadosClient() {
 
     useEffect(() => {
         loadVentasRegistracion()
-    }, [fechaRangoDesde, fechaRangoHasta])
+    }, [fechaFiltroDesde, fechaFiltroHasta])
 
     // LOGICA ACTUAL + VISUAL NUEVA: Filtro combinado
     const filtered = envios.filter(e =>
@@ -211,7 +218,7 @@ export function DespachadosClient() {
             });
 
             setTimeout(async () => {
-                const res = await getVentasRegistracion(fechaRangoDesde || undefined, fechaRangoHasta || undefined);
+                const res = await getVentasRegistracion(fechaFiltroDesde, fechaFiltroHasta);
                 if (res.success) {
                     setVentasRegistracion(res.data);
                     toast.success("Sincronización completada");
@@ -343,7 +350,7 @@ export function DespachadosClient() {
                         );
                     });
                 }
-                const resReg = await getVentasRegistracion(fechaRangoDesde || undefined, fechaRangoHasta || undefined);
+                const resReg = await getVentasRegistracion(fechaFiltroDesde, fechaFiltroHasta);
                 if (resReg.success) setVentasRegistracion(resReg.data);
                 setSelectedRegistracionIds(new Set());
             } else {
@@ -511,18 +518,40 @@ export function DespachadosClient() {
                                 type="date"
                                 value={fechaVenta}
                                 onChange={(e) => setFechaVenta(e.target.value)}
-                                className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px]"
+                                disabled={usarRangoHistorico}
+                                className="border rounded-xl px-4 py-2 text-sm font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all w-[160px] disabled:opacity-40"
                             />
+                            <p className="text-[10px] text-slate-400 font-medium">Sincroniza y filtra ese único día.</p>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label className="text-xs font-bold uppercase text-slate-500">Ver rango guardado</Label>
-                            <DateRangeCalendar
-                                fechaDesde={fechaRangoDesde}
-                                fechaHasta={fechaRangoHasta}
-                                setFechaDesde={setFechaRangoDesde}
-                                setFechaHasta={setFechaRangoHasta}
-                                onApply={() => {}}
-                            />
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="usar-rango-historico"
+                                    checked={usarRangoHistorico}
+                                    onCheckedChange={(checked) => {
+                                        const activar = checked === true;
+                                        setUsarRangoHistorico(activar);
+                                        if (activar && !fechaRangoDesde && !fechaRangoHasta) {
+                                            const hoy = format(new Date(), "yyyy-MM-dd");
+                                            const hace30 = format(subDays(new Date(), 30), "yyyy-MM-dd");
+                                            setFechaRangoDesde(hace30);
+                                            setFechaRangoHasta(hoy);
+                                        }
+                                    }}
+                                />
+                                <Label htmlFor="usar-rango-historico" className="text-xs font-bold uppercase text-slate-500 cursor-pointer">Ver histórico (rango)</Label>
+                            </div>
+                            {usarRangoHistorico ? (
+                                <DateRangeCalendar
+                                    fechaDesde={fechaRangoDesde}
+                                    fechaHasta={fechaRangoHasta}
+                                    setFechaDesde={setFechaRangoDesde}
+                                    setFechaHasta={setFechaRangoHasta}
+                                    onApply={() => {}}
+                                />
+                            ) : (
+                                <p className="text-[10px] text-slate-400 font-medium max-w-[180px]">Activá esto para filtrar por un rango en vez del día de arriba.</p>
+                            )}
                         </div>
                         <div className="flex flex-col gap-2">
                             <Label className="text-xs font-bold uppercase text-slate-500">Categoría</Label>

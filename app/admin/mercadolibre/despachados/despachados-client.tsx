@@ -624,6 +624,7 @@ export function DespachadosClient() {
                                         const someRegistrada = group.ventas.some(v => v.registrada);
                                         const allSelected = allOrderIds.every(id => selectedRegistracionIds.has(id));
                                         const erroresEnGrupo = group.ventas.filter(v => v.estado === "ERROR");
+                                        const algunaCancelada = group.ventas.some(v => v.estadoPedidoVenta === "CANCELADO");
 
                                         const totalBruto = group.ventas.reduce((acc, v) => acc + Number(v.bruto || 0), 0);
                                         const totalNeto = group.ventas.reduce((acc, v) => acc + Number(v.neto || 0), 0);
@@ -736,8 +737,14 @@ export function DespachadosClient() {
                                                 <TableCell className="text-center align-top">
                                                     {allRegistrada ? (
                                                         <div className="flex flex-col items-center gap-1">
-                                                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-black text-[10px]">REGISTRADO</Badge>
-                                                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                                            {algunaCancelada ? (
+                                                                <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 font-black text-[10px]" title="Se emitió Nota de Crédito para esta venta">CANCELADA (NC)</Badge>
+                                                            ) : (
+                                                                <>
+                                                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-black text-[10px]">REGISTRADO</Badge>
+                                                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                                                </>
+                                                            )}
                                                         </div>
                                                     ) : (
                                                         <div className="flex flex-col items-center gap-1">

@@ -270,14 +270,16 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
             orderBy: { createdAt: 'desc' }
         });
 
-        // Las ya registradas en la cola de staging sí respetan el rango elegido (o los últimos 500 sin rango).
+        // Las ya registradas en la cola de staging sí respetan el rango elegido. Sin rango, se limita a
+        // las últimas 500 (vista rápida); CON rango no se limita nada, porque el pedido explícito de
+        // "ver este rango" tiene que traer el 100% de lo que hay ahí, no una muestra.
         const registradas = await prisma.ventaMLRegistracion.findMany({
             where: {
                 estado: "REGISTRADO",
                 ...(hasDateFilter ? { createdAt: dateClause } : {})
             },
             orderBy: { createdAt: 'desc' },
-            take: 500
+            ...(hasDateFilter ? {} : { take: 500 })
         });
 
         const ventas: any[] = [...pendientes, ...registradas];
@@ -311,11 +313,29 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
                     variation: null,
                     estado: "REGISTRADO",
                     ventaId: v.id,
+                    estadoPedidoVenta: v.estadoPedido,
                     ultimoError: null,
                     createdAt: v.createdAt,
                     updatedAt: v.updatedAt,
                     _itemsReales: v.items, // ya son los artículos reales de la venta, no hace falta resolver agregados
                 });
+            }
+        }
+
+        // Traemos el estadoPedido real (PENDIENTE/DESPACHADO/CANCELADO) de la venta vinculada para las
+        // filas que vienen de la cola de staging (las que arriba vinieron directo de "Venta" ya lo traen).
+        // Así una venta cancelada con Nota de Crédito no queda mostrada como si fuera una más registrada.
+        const ventaIdsStaging = ventas.filter(v => v.ventaId && v.estadoPedidoVenta === undefined).map(v => v.ventaId as string);
+        if (ventaIdsStaging.length > 0) {
+            const ventasVinculadas = await prisma.venta.findMany({
+                where: { id: { in: ventaIdsStaging } },
+                select: { id: true, estadoPedido: true }
+            });
+            const estadoPedidoMap = new Map(ventasVinculadas.map(v => [v.id, v.estadoPedido]));
+            for (const v of ventas) {
+                if (v.ventaId && v.estadoPedidoVenta === undefined) {
+                    v.estadoPedidoVenta = estadoPedidoMap.get(v.ventaId) ?? null;
+                }
             }
         }
 

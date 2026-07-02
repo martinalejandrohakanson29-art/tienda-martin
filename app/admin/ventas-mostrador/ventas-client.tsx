@@ -1391,8 +1391,13 @@ export default function VentasMostradorClient({
 
           pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
 
+          const numeroVenta = venta.numeroVenta || venta.id?.slice(0, 8) || "Venta";
+          const nombreCliente = (venta.cliente && venta.cliente.trim()) || "Consumidor Final";
+          const nombreArchivo = `Resumen ${numeroVenta} - ${nombreCliente}.pdf`.replace(/[\\/:*?"<>|]/g, "");
+
           const blob = pdf.output("blob");
-          const url = URL.createObjectURL(blob);
+          const file = new File([blob], nombreArchivo, { type: "application/pdf" });
+          const url = URL.createObjectURL(file);
           window.open(url, "_blank");
         } catch (error) {
           console.error("Error al generar PDF:", error);

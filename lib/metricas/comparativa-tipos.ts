@@ -12,6 +12,14 @@ export const CANALES = [
 
 export type Canal = (typeof CANALES)[number]
 
+/** Un mes de la serie oficial de IPC (INDEC vía datos.gob.ar) */
+export interface PuntoIPC {
+  /** "2024-03" — misma clave ordenable que MesComparativa */
+  clave: string
+  /** índice IPC Nacional nivel general, base dic-2016 = 100 */
+  indice: number
+}
+
 export interface MesComparativa {
   anio: number
   mes: number // 1-12

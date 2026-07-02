@@ -95,9 +95,25 @@ export async function POST(req: Request) {
 
         await Promise.all(operations);
 
-        return NextResponse.json({ 
-            success: true, 
-            message: `${ventasData.length} ventas procesadas y guardadas correctamente` 
+        // Autocorrección: puede pasar que n8n reencuentre un pedido que YA tiene una venta real
+        // (registrada por este mismo flujo antes de que existiera este control, o cargada directo
+        // en Ventas de Mostrador). Sin este paso esa fila queda en PENDIENTE para siempre aunque la
+        // venta ya esté facturada. No tocamos las que están PROCESANDO (registración en curso).
+        const orderIds = ventasData.map((venta: any) => String(venta.orderId || venta.ventaId));
+        const ventasReales = await prisma.venta.findMany({
+            where: { mlIdVenta: { in: orderIds } },
+            select: { id: true, mlIdVenta: true }
+        });
+        await Promise.all(ventasReales.map((vr) =>
+            prisma.ventaMLRegistracion.updateMany({
+                where: { orderId: vr.mlIdVenta as string, estado: { not: "PROCESANDO" } },
+                data: { estado: "REGISTRADO", ventaId: vr.id, ultimoError: null }
+            })
+        ));
+
+        return NextResponse.json({
+            success: true,
+            message: `${ventasData.length} ventas procesadas y guardadas correctamente`
         });
 
     } catch (error: any) {

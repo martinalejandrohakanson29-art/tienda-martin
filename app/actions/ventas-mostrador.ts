@@ -1715,6 +1715,49 @@ export async function confirmarPedidoVenta(ventaId: string) {
   }
 }
 
+// Revierte una venta ya registrada ("CONFIRMADA") de vuelta al estado de "pedido de venta"
+// (tipoVenta: "PEDIDO"). Es la operación inversa a confirmarPedidoVenta: no toca stock ni
+// movimientos de proveedor, porque un pedido de venta ya reserva stock e impacta cuenta
+// corriente igual que una venta confirmada (ver guardarComoPedidoVenta/crearVentaMostrador).
+export async function revertirVentaAPedido(ventaId: string, usuario: string) {
+  await requireAdmin();
+  try {
+    const venta = await prisma.venta.findUnique({ where: { id: ventaId } });
+    if (!venta) return { success: false, error: "Venta no encontrada" };
+    if (venta.tipoVenta === "PEDIDO") {
+      return { success: false, error: "Esta venta ya es un pedido de venta" };
+    }
+    if (venta.cae) {
+      return { success: false, error: "No se puede volver a pedido una venta con factura ARCA emitida. Anulala con Nota de Crédito primero." };
+    }
+    if (venta.estadoPedido === "CANCELADO") {
+      return { success: false, error: "La venta está anulada" };
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.venta.update({
+        where: { id: ventaId },
+        data: { tipoVenta: "PEDIDO" }
+      });
+      await tx.ventaAuditoria.create({
+        data: {
+          ventaId,
+          usuario,
+          accion: "REVERTIDA_A_PEDIDO",
+          detalle: `Venta #${venta.numeroVenta} (${venta.cliente}) revertida de "venta registrada" a "pedido de venta"`,
+        }
+      });
+    });
+
+    revalidatePath("/admin/ventas-mostrador");
+    revalidatePath("/admin/erp/pedidos-venta");
+    return { success: true };
+  } catch (error) {
+    console.error("Error al revertir venta a pedido:", error);
+    return { success: false, error: "No se pudo revertir la venta a pedido" };
+  }
+}
+
 export async function eliminarPedidoVenta(ventaId: string) {
   await requireAdmin();
   try {

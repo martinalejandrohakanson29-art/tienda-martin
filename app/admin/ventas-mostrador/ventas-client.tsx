@@ -7,7 +7,7 @@ import {
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
   ChevronDown, ArrowLeft, X, Package, BellRing, Bell, ArrowRightLeft,
-  Maximize2, Camera, ImageOff, FileDown, Check
+  Maximize2, Camera, ImageOff, FileDown, Check, RotateCcw
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -32,7 +32,7 @@ import {
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA,
-  exportarVentasListadoParaExcel,
+  exportarVentasListadoParaExcel, revertirVentaAPedido,
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor } from "@/app/actions/listas";
 import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
@@ -1818,6 +1818,27 @@ export default function VentasMostradorClient({
       console.error(e);
     } finally {
       setIsFacturando(false);
+    }
+  };
+
+  const handleVolverAPedido = async () => {
+    if (!editVentaId) return;
+    if (!confirm("¿Volver esta venta al estado de \"pedido de venta\"? Dejará de contar como venta registrada en reportes y rendimiento, pero el stock descontado y los movimientos de cuenta corriente NO se modifican (un pedido también los reserva).")) return;
+    setIsSubmitting(true);
+    try {
+      const res = await revertirVentaAPedido(editVentaId, vendedorNombre);
+      if (res.success) {
+        mostrarMensajeExito("La venta volvió al estado de pedido de venta.");
+        setIsEditMainModalOpen(false);
+        cargarVentas(fechaDesde, fechaHasta);
+      } else {
+        alert("No se pudo revertir la venta: " + res.error);
+      }
+    } catch (e) {
+      alert("Ocurrió un error al intentar revertir la venta.");
+      console.error(e);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -4304,6 +4325,15 @@ export default function VentasMostradorClient({
             </div>
 
             <DialogFooter className="p-6 bg-white border-t border-slate-100 gap-3">
+              <Button
+                variant="outline"
+                onClick={handleVolverAPedido}
+                disabled={isSubmitting || !!ventaOriginalParaComparar?.cae}
+                title={ventaOriginalParaComparar?.cae ? "Tiene factura ARCA emitida: anulala con Nota de Crédito antes de volver a pedido." : "Vuelve la venta a estado \"pedido de venta\""}
+                className="border-orange-200 text-orange-700 hover:bg-orange-50 disabled:opacity-50 disabled:grayscale mr-auto"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" /> Volver a Pedido de Venta
+              </Button>
               <Button variant="ghost" onClick={() => setIsEditMainModalOpen(false)}>Cancelar Cambios</Button>
               <Button onClick={handleGuardarEdicion} disabled={isSubmitting} className="bg-amber-600 hover:bg-amber-700 text-white px-8 rounded-xl font-bold flex gap-2">
                 {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-4 w-4" /> Guardar Modificación</>}

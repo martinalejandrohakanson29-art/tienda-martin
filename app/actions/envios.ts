@@ -270,7 +270,7 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
             orderBy: { createdAt: 'desc' }
         });
 
-        // Las ya registradas sí respetan el rango de fechas elegido (o los últimos 500 si no se eligió rango).
+        // Las ya registradas en la cola de staging sí respetan el rango elegido (o los últimos 500 sin rango).
         const registradas = await prisma.ventaMLRegistracion.findMany({
             where: {
                 estado: "REGISTRADO",
@@ -280,7 +280,44 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
             take: 500
         });
 
-        const ventas = [...pendientes, ...registradas];
+        const ventas: any[] = [...pendientes, ...registradas];
+
+        // Cuando se elige un rango, "ver rango" tiene que mostrar el HISTORIAL COMPLETO de ventas de
+        // ML en ese período, no solo lo que quedó en la cola de registración (que muchas veces está
+        // vacía porque la venta se cargó directo en Ventas de Mostrador, sin pasar por n8n). Para eso
+        // sumamos las ventas reales (tabla Venta) que ya tienen mlIdVenta y caen en el rango, evitando
+        // duplicar las que ya vinieron de la cola de arriba.
+        if (hasDateFilter) {
+            const orderIdsYaListados = new Set(ventas.map(v => v.orderId));
+            const ventasMLHistoricas = await prisma.venta.findMany({
+                where: { mlIdVenta: { not: null }, createdAt: dateClause },
+                include: { items: true },
+                orderBy: { createdAt: 'desc' }
+            });
+
+            for (const v of ventasMLHistoricas) {
+                if (!v.mlIdVenta || orderIdsYaListados.has(v.mlIdVenta)) continue;
+                orderIdsYaListados.add(v.mlIdVenta);
+                ventas.push({
+                    orderId: v.mlIdVenta,
+                    shippingId: v.mlIdEnvio || v.transaccionId || v.mlIdVenta,
+                    packId: v.mlPackId || null,
+                    mla: v.mlMla || '',
+                    categoria: "Desconocido", // no pasó por la cola de registración, no sabemos Full/Flex/Colecta
+                    nombre: v.cliente,
+                    neto: v.total,
+                    bruto: v.totalFinal,
+                    cantidad: v.items.reduce((acc, it) => acc + it.cantidad, 0) || 1,
+                    variation: null,
+                    estado: "REGISTRADO",
+                    ventaId: v.id,
+                    ultimoError: null,
+                    createdAt: v.createdAt,
+                    updatedAt: v.updatedAt,
+                    _itemsReales: v.items, // ya son los artículos reales de la venta, no hace falta resolver agregados
+                });
+            }
+        }
 
         // Buscamos etiquetas relacionadas para obtener títulos y cantidades
         const shippingIds = ventas.map(v => v.shippingId).filter(Boolean);
@@ -290,9 +327,23 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
         });
         const labelsMap = new Map(labels.map(l => [l.id, l]));
 
-        const resolverAgregados = await crearResolverAgregados(ventas.map(v => v.mla));
+        const resolverAgregados = await crearResolverAgregados(ventas.filter(v => !v._itemsReales).map(v => v.mla));
 
         const ventasEnriquecidas = ventas.map((venta) => {
+            // Si viene de una venta ya registrada (tabla Venta), usamos sus artículos reales.
+            if (venta._itemsReales) {
+                const { _itemsReales, ...resto } = venta;
+                const items = _itemsReales as { productoId: string | null; nombre: string; cantidad: number }[];
+                return {
+                    ...resto,
+                    registrada: true,
+                    ids_articulos: items.map((i) => i.productoId).filter(Boolean).join(', ') || null,
+                    receta_detallada: items.map((i) => i.nombre).join(' | ') || null,
+                    titulo: items[0]?.nombre || `Venta ML`,
+                    cantidad: resto.cantidad
+                };
+            }
+
             const label = labelsMap.get(venta.shippingId);
             const labelItem = label?.items.find(i => i.mla === venta.mla && (i.variation === venta.variation || (!i.variation && !venta.variation)));
 
@@ -473,7 +524,7 @@ export async function registrarVentasML(
 
                 if (!nombreCliente) {
                     // Si no hay razón social manual ni es CF forzado, evaluamos el nombre que viene de la registración
-                    const nombreRegistracion = v.nombre?.trim() || "";
+                    const nombreRegistracion: string = String(v.nombre ?? "").trim();
                     const tituloProducto = (v as any).titulo?.trim() || "";
                     
                     // Lista de palabras que sugieren que el nombre es en realidad un producto

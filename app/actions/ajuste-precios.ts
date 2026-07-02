@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getReglasAjuste, type ReglaAjuste } from "./reglas-ajuste";
-import { redondear } from "@/lib/precios";
+import { redondear, redondearDescuento, pctDescuento } from "@/lib/precios";
 
 const WEBHOOK_DESCUENTO = "https://n8n.revolucionmotos.tech/webhook/ajuste-precios";
 const WEBHOOK_SUBA = "https://n8n.revolucionmotos.tech/webhook/suba-precios";
@@ -39,9 +39,11 @@ function calcularNuevoPrecio(params: {
   // ML exige descuento entre 5% y 80%
   if (x < 0.05 || x >= 0.8) return null;
 
-  const nuevoPrecio = redondear(precioOriginal * (1 - x));
+  // Redondeo "seguro": si el redondeo a $50 deja el descuento en <=5%, sigue
+  // bajando el precio hasta quedar por encima del mínimo real de ML.
+  const nuevoPrecio = redondearDescuento(precioOriginal, precioOriginal * (1 - x));
   // Recalcular seller_pct real después del redondeo
-  const sellerPct = parseFloat(((1 - nuevoPrecio / precioOriginal) * 100).toFixed(2));
+  const sellerPct = parseFloat(pctDescuento(precioOriginal, nuevoPrecio).toFixed(2));
 
   return { sellerPct, nuevoPrecio };
 }

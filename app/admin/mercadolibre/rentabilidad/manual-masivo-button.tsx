@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { TrendingDown, TrendingUp, PencilLine } from "lucide-react";
+import { toast } from "sonner";
 import type { AjustePrecio } from "@/app/actions/ajuste-precios";
 import type { ProductoRentabilidad } from "./rentabilidad-table";
 import { crearAjusteManual } from "./manual-ajuste";
@@ -35,9 +36,13 @@ export default function DescuentoManualMasivoButton({
 
   const aplicar = (tipo: "DESCUENTO" | "SUBA") => {
     if (!pctValido) return;
-    onAplicar(seleccionados.map((item) => crearAjusteManual(item, pctNum, tipo)));
-    setOpen(false);
-    setPct("");
+    try {
+      onAplicar(seleccionados.map((item) => crearAjusteManual(item, pctNum, tipo)));
+      setOpen(false);
+      setPct("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo aplicar el ajuste.");
+    }
   };
 
   if (cantidad === 0) return null;

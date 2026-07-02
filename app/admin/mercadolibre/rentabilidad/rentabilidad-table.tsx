@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, TrendingDown, TrendingUp, BadgePercent } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "./agregado-filter";
 import type { AjustePrecio, TipoAjuste } from "@/app/actions/ajuste-precios";
@@ -95,7 +96,11 @@ export default function RentabilidadTable({
     if (!raw || isNaN(pctNum) || pctNum <= 0) return;
     // Valores reales (sin la previsualización del manual) para "actual" en el dialog
     const base = data.find((d) => d.item_id === item.item_id) ?? item;
-    onSetManual?.(crearAjusteManual(base, pctNum, tipo));
+    try {
+      onSetManual?.(crearAjusteManual(base, pctNum, tipo));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo aplicar el ajuste.");
+    }
   };
 
   // MLAs permitidos según los agregados elegidos (unión). null = sin filtro de agregado.

@@ -599,6 +599,7 @@ export function DespachadosClient() {
                                         />
                                     </TableHead>
                                     <TableHead className="font-bold text-[11px] uppercase text-slate-500">Venta / ID</TableHead>
+                                    <TableHead className="font-bold text-[11px] uppercase text-slate-500">Fecha</TableHead>
                                     <TableHead className="font-bold text-[11px] uppercase text-slate-500">Productos</TableHead>
                                     <TableHead className="font-bold text-[11px] uppercase text-slate-500">Id agregados</TableHead>
                                     <TableHead className="font-bold text-[11px] uppercase text-slate-500">Agregados</TableHead>
@@ -612,9 +613,9 @@ export function DespachadosClient() {
                             </TableHeader>
                             <TableBody>
                                 {loadingRegistracion ? (
-                                    <TableRow><TableCell colSpan={12} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={13} className="text-center py-20 text-slate-300 font-medium"><Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />Sincronizando datos...</TableCell></TableRow>
                                 ) : groupedRegistracion.length === 0 ? (
-                                    <TableRow><TableCell colSpan={12} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={13} className="text-center py-20 text-slate-400 italic">No se encontraron ventas para registrar.</TableCell></TableRow>
                                 ) : (
                                     groupedRegistracion.map((group) => {
                                         const isPack = group.ventas[0].packId && group.ventas.length > 1;
@@ -661,6 +662,10 @@ export function DespachadosClient() {
                                                         ))}
                                                     </div>
                                                     {group.ventas[0].packId && <div onClick={() => handleCopyText(group.ventas[0].packId)} className="font-mono text-[10px] text-amber-600 font-bold cursor-pointer hover:text-blue-600 mt-1">Pack: {group.ventas[0].packId}</div>}
+                                                </TableCell>
+                                                <TableCell className="align-top whitespace-nowrap">
+                                                    <div className="text-xs font-bold text-slate-700">{format(new Date(group.ventas[0].createdAt), "dd/MM/yy")}</div>
+                                                    <div className="text-[10px] text-slate-400">{format(new Date(group.ventas[0].createdAt), "HH:mm")} hs</div>
                                                 </TableCell>
                                                 <TableCell className="align-top">
                                                     <div className="flex flex-col gap-2">

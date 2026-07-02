@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
-import { toPng } from "html-to-image";
+import { toJpeg } from "html-to-image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1344,8 +1344,10 @@ export default function VentasMostradorClient({
     setTimeout(async () => {
       if (facturaRef.current) {
         try {
-          const dataUrl = await toPng(facturaRef.current, {
-            quality: 1,
+          // JPEG en vez de PNG: jsPDF incrusta el JPEG directo sin decodificarlo,
+          // evitando el bloqueo del navegador que causa addImage con PNG grandes.
+          const dataUrl = await toJpeg(facturaRef.current, {
+            quality: 0.92,
             pixelRatio: 2,
             backgroundColor: "#ffffff",
             skipFonts: true,
@@ -1356,7 +1358,7 @@ export default function VentasMostradorClient({
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-          pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
+          pdf.addImage(dataUrl, "JPEG", 0, 0, pdfWidth, pdfHeight);
           const pdfUrl = pdf.output("bloburl");
           window.open(pdfUrl, "_blank");
         } catch (err: any) {
@@ -1377,8 +1379,10 @@ export default function VentasMostradorClient({
     setTimeout(async () => {
       if (pedidoRef.current) {
         try {
-          const dataUrl = await toPng(pedidoRef.current, {
-            quality: 1,
+          // JPEG en vez de PNG: jsPDF incrusta el JPEG directo sin decodificarlo,
+          // evitando el bloqueo del navegador que causa addImage con PNG grandes.
+          const dataUrl = await toJpeg(pedidoRef.current, {
+            quality: 0.92,
             pixelRatio: 2,
             backgroundColor: "#ffffff",
             skipFonts: true,
@@ -1389,38 +1393,30 @@ export default function VentasMostradorClient({
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
-          pdf.addImage(dataUrl, "PNG", 0, 0, pdfWidth, pdfHeight);
+          pdf.addImage(dataUrl, "JPEG", 0, 0, pdfWidth, pdfHeight);
 
           const numeroVenta = venta.numeroVenta || venta.id?.slice(0, 8) || "Venta";
-          const nombreCliente = (venta.cliente && venta.cliente.trim()) || "Consumidor Final";
-          const nombreArchivo = `Resumen ${numeroVenta} - ${nombreCliente}.pdf`.replace(/[\\/:*?"<>|]/g, "");
+          const nombreArchivo = `Pedido ${numeroVenta}.pdf`.replace(/[\\/:*?"<>|]/g, "");
 
-          // Se postea el PDF a una ruta del servidor para que la respuesta lleve
-          // el header Content-Disposition: solo así el visor nativo del navegador
-          // usa el nombre correcto al descargar (un blob: URL no puede llevarlo).
-          const dataUri = pdf.output("datauristring");
-          const base64 = dataUri.split("base64,")[1];
+          // El PDF se sube al servidor y se abre con una URL GET que termina en
+          // el nombre de archivo: el visor de Chrome no conserva el
+          // Content-Disposition de una navegación POST y al descargar proponía
+          // un nombre genérico.
+          const blob = pdf.output("blob");
+          const formData = new FormData();
+          formData.append("pdf", blob, nombreArchivo);
 
-          const form = document.createElement("form");
-          form.method = "POST";
-          form.action = "/api/ventas-mostrador/resumen-pdf";
-          form.target = "_blank";
+          const res = await fetch("/api/ventas-mostrador/resumen-pdf", {
+            method: "POST",
+            body: formData,
+          });
+          if (!res.ok) throw new Error(`Error al preparar el PDF (${res.status})`);
+          const { id } = await res.json();
 
-          const inputPdf = document.createElement("input");
-          inputPdf.type = "hidden";
-          inputPdf.name = "pdf";
-          inputPdf.value = base64;
-          form.appendChild(inputPdf);
-
-          const inputFilename = document.createElement("input");
-          inputFilename.type = "hidden";
-          inputFilename.name = "filename";
-          inputFilename.value = nombreArchivo;
-          form.appendChild(inputFilename);
-
-          document.body.appendChild(form);
-          form.submit();
-          document.body.removeChild(form);
+          window.open(
+            `/api/ventas-mostrador/resumen-pdf/${id}/${encodeURIComponent(nombreArchivo)}`,
+            "_blank"
+          );
         } catch (error) {
           console.error("Error al generar PDF:", error);
           alert("No se pudo generar el resumen en PDF.");

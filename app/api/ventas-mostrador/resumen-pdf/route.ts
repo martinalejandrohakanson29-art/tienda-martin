@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/authOptions";
+import { guardarPdf } from "@/lib/resumen-pdf-store";
 
+// Recibe el PDF generado en el cliente y lo guarda unos minutos en memoria.
+// Devuelve un id para abrirlo con GET /api/ventas-mostrador/resumen-pdf/{id}/{nombre}:
+// el visor de Chrome no conserva el Content-Disposition en navegaciones POST,
+// por eso el PDF se sirve siempre desde una URL GET con el nombre incluido.
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -9,21 +14,14 @@ export async function POST(request: NextRequest) {
   }
 
   const formData = await request.formData();
-  const base64 = formData.get("pdf");
-  const filenameRaw = formData.get("filename");
+  const pdf = formData.get("pdf");
 
-  if (typeof base64 !== "string" || !base64) {
+  if (!(pdf instanceof Blob) || pdf.size === 0) {
     return new NextResponse("Falta el PDF", { status: 400 });
   }
 
-  const filename = (typeof filenameRaw === "string" && filenameRaw.trim()) || "resumen.pdf";
-  const buffer = Buffer.from(base64, "base64");
+  const buffer = Buffer.from(await pdf.arrayBuffer());
+  const id = guardarPdf(buffer);
 
-  return new NextResponse(buffer, {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
-  });
+  return NextResponse.json({ id });
 }

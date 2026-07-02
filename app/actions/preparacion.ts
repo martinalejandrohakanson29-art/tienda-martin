@@ -66,17 +66,45 @@ export async function obtenerEnviosConFoto(envioIds: string[]) {
     }
 }
 
+// Mensaje de conflicto cuando otro auditor ya resolvió el envío mientras esta
+// pantalla estaba abierta (evita que dos personas aprueben/rechacen lo mismo).
+const mensajeYaAuditadoEnvio = (status: string, auditor: string | null) =>
+    `El envío ya no está pendiente de auditoría (estado: ${status}${auditor ? `, por ${auditor}` : ""}).`
+
 export async function aprobarPedido(envioId: string) {
     try {
-        await prisma.$transaction([
-            prisma.etiquetaML.update({ where: { id: envioId }, data: { status: "AUDITADO" } }),
-            prisma.shipmentAudit.updateMany({ where: { envioId: envioId }, data: { status: "AUDITADO" } })
-        ])
+        const session = await getServerSession(authOptions).catch(() => null)
+        const auditor = session?.user?.name as string | undefined
+
+        // updateMany + where status="PREPARADO" actúa como lock optimista: si otro
+        // auditor ya cambió el estado, count queda en 0 y no pisamos su resultado.
+        const count = await prisma.$transaction(async (tx) => {
+            const res = await tx.etiquetaML.updateMany({
+                where: { id: envioId, status: "PREPARADO" },
+                data: { status: "AUDITADO", auditor },
+            })
+            if (res.count > 0) {
+                await tx.shipmentAudit.updateMany({ where: { envioId }, data: { status: "AUDITADO", auditor } })
+            }
+            return res.count
+        })
+
+        if (count === 0) {
+            const actual = await prisma.etiquetaML.findUnique({ where: { id: envioId }, select: { status: true, auditor: true } })
+            return {
+                success: false,
+                conflict: true,
+                status: actual?.status ?? null,
+                auditor: actual?.auditor ?? null,
+                error: actual ? mensajeYaAuditadoEnvio(actual.status, actual.auditor) : "El envío ya no existe.",
+            }
+        }
+
         // La acción resuelve la alerta de preparación: la eliminamos en todos los usuarios.
         // Acotado al eventType para no afectar la alerta de auditoría (se resuelve en /tools/audit).
         await prisma.notification.deleteMany({ where: { link: linkEnvio(envioId), eventType: "PEDIDO_PREPARADO_FOTO" } })
         revalidatePath('/admin/mercadolibre/preparacion')
-        return { success: true }
+        return { success: true, auditor }
     } catch (error: any) {
         console.error("Error al aprobar:", error)
         return { success: false, error: error.message }
@@ -85,15 +113,36 @@ export async function aprobarPedido(envioId: string) {
 
 export async function rechazarPedido(envioId: string) {
     try {
-        await prisma.$transaction([
-            prisma.etiquetaML.update({ where: { id: envioId }, data: { status: "PENDIENTE" } }),
-            prisma.shipmentAudit.updateMany({ where: { envioId: envioId }, data: { status: "PENDIENTE" } })
-        ])
+        const session = await getServerSession(authOptions).catch(() => null)
+        const auditor = session?.user?.name as string | undefined
+
+        const count = await prisma.$transaction(async (tx) => {
+            const res = await tx.etiquetaML.updateMany({
+                where: { id: envioId, status: "PREPARADO" },
+                data: { status: "PENDIENTE", auditor },
+            })
+            if (res.count > 0) {
+                await tx.shipmentAudit.updateMany({ where: { envioId }, data: { status: "PENDIENTE", auditor } })
+            }
+            return res.count
+        })
+
+        if (count === 0) {
+            const actual = await prisma.etiquetaML.findUnique({ where: { id: envioId }, select: { status: true, auditor: true } })
+            return {
+                success: false,
+                conflict: true,
+                status: actual?.status ?? null,
+                auditor: actual?.auditor ?? null,
+                error: actual ? mensajeYaAuditadoEnvio(actual.status, actual.auditor) : "El envío ya no existe.",
+            }
+        }
+
         // La acción resuelve la alerta de preparación: la eliminamos en todos los usuarios.
         // Acotado al eventType para no afectar la alerta de auditoría (se resuelve en /tools/audit).
         await prisma.notification.deleteMany({ where: { link: linkEnvio(envioId), eventType: "PEDIDO_PREPARADO_FOTO" } })
         revalidatePath('/admin/mercadolibre/preparacion')
-        return { success: true }
+        return { success: true, auditor }
     } catch (error: any) {
         console.error("Error al rechazar:", error)
         return { success: false, error: error.message }

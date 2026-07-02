@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { s3Client } from "@/lib/s3"
 import { ListObjectsV2Command, GetObjectCommand } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/authOptions"
 import { linkAuditFull } from "@/lib/notify"
 import { crearResolverAgregados } from "@/lib/agregados"
 
@@ -85,13 +87,13 @@ export async function getAuditPendingItems(envioId: string) {
             }),
             prisma.shipmentAudit.findMany({
                 where: { envioId: envioId },
-                select: { itemId: true, status: true }
+                select: { itemId: true, status: true, auditor: true }
             })
         ]);
 
         // Mapeamos estados por el ID único del item (itemId en ShipmentAudit ahora guardará el id de ShipmentItem)
         const statusMap = new Map();
-        auditedItems.forEach(ai => statusMap.set(ai.itemId, ai.status));
+        auditedItems.forEach(ai => statusMap.set(ai.itemId, ai));
 
         // 1b. AGREGADOS desde composicion_kits (fuente de verdad: /admin/mercadolibre/composicion).
         // Antes se mostraba el snapshot de texto guardado en ShipmentItem.agregados, que quedaba
@@ -180,7 +182,8 @@ export async function getAuditPendingItems(envioId: string) {
         // Esto asegura que aparezcan todos los items aunque no tengan foto
         const allItems = (dbShipment?.items || []).map(item => {
             const evidence = itemsGrouped.get(item.id) || [];
-            
+            const audit = statusMap.get(item.id);
+
             return {
                 itemId: item.id, // ID único (cuid) para auditoría
                 mla: item.itemId, // El código MLA original
@@ -191,7 +194,8 @@ export async function getAuditPendingItems(envioId: string) {
                 referenceImageUrl: item.imageUrl || null,
                 evidenceImageUrl: evidence[0] || null,
                 evidenceImages: evidence,
-                status: (statusMap.get(item.id) || 'PENDIENTE'),
+                status: audit?.status || 'PENDIENTE',
+                auditor: audit?.auditor || null,
                 envioId: envioId
             };
         });
@@ -208,12 +212,35 @@ export async function getAuditPendingItems(envioId: string) {
  */
 export async function auditItem(itemId: string, status: string, envioId: string) {
     try {
-        // 'itemId' aquí debe ser el cuid del ShipmentItem
-        await prisma.shipmentAudit.upsert({
-            where: { itemId_envioId: { itemId, envioId } },
-            update: { status },
-            create: { itemId, envioId, status, auditor: "Admin" }
+        const session = await getServerSession(authOptions).catch(() => null)
+        const auditor = (session?.user?.name as string) || "Admin"
+
+        // 'itemId' aquí debe ser el cuid del ShipmentItem.
+        // updateMany + where status="PENDIENTE" actúa como lock optimista: si otro
+        // auditor ya votó, count queda en 0 y no pisamos su resultado. Si todavía no
+        // existe fila para este ítem, cae al create de abajo (protegido por la
+        // constraint única itemId_envioId contra una creación simultánea).
+        const { count } = await prisma.shipmentAudit.updateMany({
+            where: { itemId, envioId, status: "PENDIENTE" },
+            data: { status, auditor },
         });
+
+        if (count === 0) {
+            try {
+                await prisma.shipmentAudit.create({ data: { itemId, envioId, status, auditor } });
+            } catch {
+                const actual = await prisma.shipmentAudit.findUnique({ where: { itemId_envioId: { itemId, envioId } } });
+                return {
+                    success: false,
+                    conflict: true,
+                    status: actual?.status ?? null,
+                    auditor: actual?.auditor ?? null,
+                    error: actual
+                        ? `Ya fue ${actual.status === "APROBADO" ? "aprobado" : "rechazado"} por ${actual.auditor || "otro usuario"}.`
+                        : "No se pudo registrar la auditoría.",
+                };
+            }
+        }
 
         // Auditar resuelve la alerta "Envío listo para auditar": la eliminamos en todos
         // los usuarios. Acotado por eventType para no tocar la alerta de preparación.
@@ -234,7 +261,7 @@ export async function auditItem(itemId: string, status: string, envioId: string)
             },
         });
 
-        return { success: true };
+        return { success: true, auditor };
     } catch (error: any) {
         console.error("Error auditItem:", error);
         return { success: false, error: error.message };

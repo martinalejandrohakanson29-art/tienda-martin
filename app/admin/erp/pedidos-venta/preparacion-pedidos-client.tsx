@@ -235,6 +235,17 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
     }
   };
 
+  // Tras un conflicto (otro usuario ya auditó este pedido) refrescamos la lista y
+  // actualizamos el panel de detalle abierto para que muestre el estado real en vez
+  // de dejar los botones de Aprobar/Rechazar habilitados sobre datos viejos.
+  const sincronizarTrasConflicto = async (ventaId: string) => {
+    const data = await obtenerPedidosParaPreparar(fechaDesde, fechaHasta);
+    const frescos = data as Pedido[];
+    setPedidos(frescos);
+    const actualizado = frescos.find((x) => x.id === ventaId);
+    if (actualizado) setViewing((prev) => (prev ? { ...prev, pedido: actualizado } : prev));
+  };
+
   const handleApprove = async (ventaId: string) => {
     setLoadingId(ventaId);
     const res = await aprobarFotoPedido(ventaId);
@@ -242,8 +253,11 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
       toast.success("Pedido aprobado y auditado");
       setViewing(null);
       await cargar();
+    } else if ((res as any).conflict) {
+      toast.error(res.error);
+      await sincronizarTrasConflicto(ventaId);
     } else {
-      toast.error("Error al aprobar");
+      toast.error(res.error || "Error al aprobar");
     }
     setLoadingId(null);
   };
@@ -257,8 +271,11 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
       toast.warning("Pedido rechazado.");
       setViewing(null);
       await cargar();
+    } else if ((res as any).conflict) {
+      toast.error(res.error);
+      await sincronizarTrasConflicto(ventaId);
     } else {
-      toast.error("Error al rechazar");
+      toast.error(res.error || "Error al rechazar");
     }
     setLoadingId(null);
   };
@@ -351,23 +368,30 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
             )}
 
             {mode === "auditoria" && (
-              <div className="grid grid-cols-2 gap-4">
-                <Button
-                  variant="outline"
-                  className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50"
-                  onClick={() => handleReject(p.id)}
-                  disabled={!!loadingId}
-                >
-                  <X className="mr-2 h-6 w-6" /> RECHAZAR
-                </Button>
-                <Button
-                  className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700"
-                  onClick={() => handleApprove(p.id)}
-                  disabled={!!loadingId}
-                >
-                  {loadingId === p.id ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} APROBAR
-                </Button>
-              </div>
+              p.auditStatus === "FOTO_CARGADA" ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <Button
+                    variant="outline"
+                    className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50"
+                    onClick={() => handleReject(p.id)}
+                    disabled={!!loadingId}
+                  >
+                    <X className="mr-2 h-6 w-6" /> RECHAZAR
+                  </Button>
+                  <Button
+                    className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700"
+                    onClick={() => handleApprove(p.id)}
+                    disabled={!!loadingId}
+                  >
+                    {loadingId === p.id ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} APROBAR
+                  </Button>
+                </div>
+              ) : (
+                <div className={`h-16 rounded-xl flex items-center justify-center gap-2 font-bold text-sm ${p.auditStatus === "AUDITADO" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
+                  {p.auditStatus === "AUDITADO" ? <CheckCircle2 className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                  {p.auditStatus === "AUDITADO" ? "Aprobado" : "Rechazado"} por {p.auditAuditor || "otro usuario"}
+                </div>
+              )
             )}
           </div>
 

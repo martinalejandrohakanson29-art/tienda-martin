@@ -198,20 +198,38 @@ export async function subirFotoPedido(formData: FormData) {
     }
 }
 
+// Mensaje de conflicto cuando otro auditor ya resolvió el pedido mientras esta
+// pantalla estaba abierta (evita que dos personas aprueben/rechacen lo mismo).
+const mensajeYaAuditado = (status: string, auditor: string | null) =>
+    `Ya fue ${status === "AUDITADO" ? "aprobado" : "rechazado"} por ${auditor || "otro usuario"}.`
+
 export async function aprobarFotoPedido(ventaId: string) {
     try {
         const session = await getServerSession(authOptions).catch(() => null)
         const auditor = session?.user?.name as string | undefined
 
-        await prisma.pedidoVentaAudit.update({
-            where: { ventaId },
+        // updateMany + where status="FOTO_CARGADA" actúa como lock optimista: si otro
+        // auditor ya cambió el estado, count queda en 0 y no pisamos su resultado.
+        const { count } = await prisma.pedidoVentaAudit.updateMany({
+            where: { ventaId, status: "FOTO_CARGADA" },
             data: { status: "AUDITADO", auditor },
         })
+
+        if (count === 0) {
+            const actual = await prisma.pedidoVentaAudit.findUnique({ where: { ventaId } })
+            return {
+                success: false,
+                conflict: true,
+                status: actual?.status ?? null,
+                auditor: actual?.auditor ?? null,
+                error: actual ? mensajeYaAuditado(actual.status, actual.auditor) : "El pedido ya no está disponible para auditar.",
+            }
+        }
 
         // La acción resuelve la alerta: la eliminamos en todos los usuarios.
         await prisma.notification.deleteMany({ where: { link: linkPedido(ventaId), eventType: EVENT_TYPE } })
         revalidatePath('/admin/erp/pedidos-venta')
-        return { success: true }
+        return { success: true, auditor }
     } catch (error: any) {
         console.error("Error al aprobar pedido:", error)
         return { success: false, error: error.message }
@@ -246,15 +264,26 @@ export async function rechazarFotoPedido(ventaId: string, motivo?: string) {
         const session = await getServerSession(authOptions).catch(() => null)
         const auditor = session?.user?.name as string | undefined
 
-        await prisma.pedidoVentaAudit.update({
-            where: { ventaId },
+        const { count } = await prisma.pedidoVentaAudit.updateMany({
+            where: { ventaId, status: "FOTO_CARGADA" },
             data: { status: "RECHAZADO", auditor, reason: motivo || null },
         })
+
+        if (count === 0) {
+            const actual = await prisma.pedidoVentaAudit.findUnique({ where: { ventaId } })
+            return {
+                success: false,
+                conflict: true,
+                status: actual?.status ?? null,
+                auditor: actual?.auditor ?? null,
+                error: actual ? mensajeYaAuditado(actual.status, actual.auditor) : "El pedido ya no está disponible para auditar.",
+            }
+        }
 
         // La acción resuelve la alerta: la eliminamos en todos los usuarios.
         await prisma.notification.deleteMany({ where: { link: linkPedido(ventaId), eventType: EVENT_TYPE } })
         revalidatePath('/admin/erp/pedidos-venta')
-        return { success: true }
+        return { success: true, auditor }
     } catch (error: any) {
         console.error("Error al rechazar pedido:", error)
         return { success: false, error: error.message }

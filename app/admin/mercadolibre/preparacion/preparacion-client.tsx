@@ -195,26 +195,33 @@ function ZoomViewer({
                     )}
 
                     {/* Botones */}
-                    <div className="grid grid-cols-2 gap-2">
-                        <Button
-                            variant="outline"
-                            className="h-12 border-2 border-red-500 text-red-400 font-bold hover:bg-red-900/30 bg-transparent"
-                            onClick={() => onReject!(envioId!)}
-                            disabled={!!loading}
-                        >
-                            <X className="mr-2 h-5 w-5" /> RECHAZAR
-                        </Button>
-                        <Button
-                            className="h-12 bg-green-600 font-bold shadow-lg hover:bg-green-700"
-                            onClick={() => onApprove!(envioId!)}
-                            disabled={!!loading}
-                        >
-                            {loading === envioId
-                                ? <Loader2 className="animate-spin" />
-                                : <><CheckCircle2 className="mr-2 h-5 w-5" /> APROBAR</>
-                            }
-                        </Button>
-                    </div>
+                    {envioData?.status === 'PREPARADO' ? (
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button
+                                variant="outline"
+                                className="h-12 border-2 border-red-500 text-red-400 font-bold hover:bg-red-900/30 bg-transparent"
+                                onClick={() => onReject!(envioId!)}
+                                disabled={!!loading}
+                            >
+                                <X className="mr-2 h-5 w-5" /> RECHAZAR
+                            </Button>
+                            <Button
+                                className="h-12 bg-green-600 font-bold shadow-lg hover:bg-green-700"
+                                onClick={() => onApprove!(envioId!)}
+                                disabled={!!loading}
+                            >
+                                {loading === envioId
+                                    ? <Loader2 className="animate-spin" />
+                                    : <><CheckCircle2 className="mr-2 h-5 w-5" /> APROBAR</>
+                                }
+                            </Button>
+                        </div>
+                    ) : (
+                        <div className={`h-12 rounded-xl flex items-center justify-center gap-2 font-bold text-sm ${envioData?.status === 'AUDITADO' ? 'bg-emerald-900/40 text-emerald-300 border border-emerald-700' : 'bg-red-900/40 text-red-300 border border-red-700'}`}>
+                            {envioData?.status === 'AUDITADO' ? <CheckCircle2 className="h-4 w-4" /> : <X className="h-4 w-4" />}
+                            {envioData?.status === 'AUDITADO' ? 'Aprobado' : 'Rechazado'} por {envioData?.auditor || 'otro usuario'}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -222,6 +229,10 @@ function ZoomViewer({
 }
 
 export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
+    // Estado local (en vez de usar initialEnvios directo) para poder reflejar al toque
+    // el resultado de aprobar/rechazar, incluido el caso de conflicto donde otro
+    // usuario ya auditó el envío mientras esta pantalla estaba abierta.
+    const [envios, setEnvios] = useState(initialEnvios)
     const [activeTab, setActiveTab] = useState<'pendientes' | 'revision'>('pendientes')
     const [search, setSearch] = useState("")
     const [loading, setLoading] = useState<string | null>(null)
@@ -343,7 +354,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         setComentarios(prev => prev.map(c => c.id === comentarioId ? { ...c, leido: true } : c))
     }
 
-    const filtered = initialEnvios.filter(e => {
+    const filtered = envios.filter(e => {
         const shipId = e.id?.toString() || "";
         const orderId = e.orderId?.toString() || "";
         
@@ -361,9 +372,9 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     })
 
-    const auditoriaCount = initialEnvios.filter(e => Boolean(e.drivePhotoUrl) && e.status !== "AUDITADO").length
+    const auditoriaCount = envios.filter(e => Boolean(e.drivePhotoUrl) && e.status !== "AUDITADO").length
 
-    const unreadComentariosCount = initialEnvios.reduce((acc, envio) =>
+    const unreadComentariosCount = envios.reduce((acc, envio) =>
         acc + comentarios.filter(c =>
             !c.leido && (
                 (c.orderId && envio.orderId && c.orderId === envio.orderId) ||
@@ -394,14 +405,27 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         }
     }
 
+    // Aplica el resultado (propio o de conflicto) tanto a la lista como al panel de
+    // detalle abierto, para que el envío quede consistente sin recargar la página.
+    const aplicarResultadoAuditoria = (envioId: string, status: string, auditor: string | null) => {
+        setEnvios(prev => prev.map(e => e.id === envioId ? { ...e, status, auditor } : e))
+        setViewingFotos(prev => (prev && prev.id === envioId)
+            ? { ...prev, envioData: { ...prev.envioData, status, auditor } }
+            : prev)
+    }
+
     const handleApprove = async (envioId: string) => {
         setLoading(envioId)
         const res = await aprobarPedido(envioId)
         if (res.success) {
             toast.success("Pedido aprobado y auditado")
+            aplicarResultadoAuditoria(envioId, "AUDITADO", res.auditor ?? null)
             setViewingFotos(null)
+        } else if ((res as any).conflict) {
+            toast.error(res.error)
+            aplicarResultadoAuditoria(envioId, (res as any).status, (res as any).auditor ?? null)
         } else {
-            toast.error("Error al aprobar")
+            toast.error(res.error || "Error al aprobar")
         }
         setLoading(null)
     }
@@ -412,9 +436,13 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
         const res = await rechazarPedido(envioId)
         if (res.success) {
             toast.warning("Pedido rechazado.")
+            aplicarResultadoAuditoria(envioId, "PENDIENTE", res.auditor ?? null)
             setViewingFotos(null)
+        } else if ((res as any).conflict) {
+            toast.error(res.error)
+            aplicarResultadoAuditoria(envioId, (res as any).status, (res as any).auditor ?? null)
         } else {
-            toast.error("Error al rechazar")
+            toast.error(res.error || "Error al rechazar")
         }
         setLoading(null)
     }
@@ -514,10 +542,17 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                             </div>
                         )}
                         
-                        <div className="grid grid-cols-2 gap-4">
-                            <Button variant="outline" className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50" onClick={() => handleReject(viewingFotos.id)} disabled={!!loading}><X className="mr-2 h-6 w-6" /> RECHAZAR</Button>
-                            <Button className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700" onClick={() => handleApprove(viewingFotos.id)} disabled={!!loading}>{loading === viewingFotos.id ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} APROBAR</Button>
-                        </div>
+                        {envio.status === 'PREPARADO' ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <Button variant="outline" className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50" onClick={() => handleReject(viewingFotos.id)} disabled={!!loading}><X className="mr-2 h-6 w-6" /> RECHAZAR</Button>
+                                <Button className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700" onClick={() => handleApprove(viewingFotos.id)} disabled={!!loading}>{loading === viewingFotos.id ? <Loader2 className="animate-spin" /> : <CheckCircle2 className="mr-2 h-6 w-6" />} APROBAR</Button>
+                            </div>
+                        ) : (
+                            <div className={`h-16 rounded-xl flex items-center justify-center gap-2 font-bold text-sm ${envio.status === 'AUDITADO' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                {envio.status === 'AUDITADO' ? <CheckCircle2 className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                                {envio.status === 'AUDITADO' ? 'Aprobado' : 'Rechazado (vuelve a preparación)'} por {envio.auditor || 'otro usuario'}
+                            </div>
+                        )}
                     </div>
                     
                     <div className="space-y-6">

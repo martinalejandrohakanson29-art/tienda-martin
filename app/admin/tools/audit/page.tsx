@@ -10,6 +10,7 @@ import {
     ArrowLeft, Maximize2, BellRing, CheckCircle2, AlertCircle 
 } from "lucide-react"
 import { getAuditPendingItems, auditItem, getShipmentFolders } from "@/app/actions/audit"
+import { toast } from "sonner"
 
 // 1. CORRECCIÓN: Actualizamos el tipo para que coincida con lo que devuelve el servidor
 type AuditItem = {
@@ -21,8 +22,9 @@ type AuditItem = {
     agregados: string[]
     referenceImageUrl: string | null
     evidenceImageUrl: string | null // Cambiado: ahora puede ser null si no hay foto
-    evidenceImages: string[] 
+    evidenceImages: string[]
     status: 'PENDIENTE' | 'APROBADO' | 'RECHAZADO' | string
+    auditor: string | null
     envioId: string
 }
 
@@ -147,9 +149,20 @@ export default function AuditPage() {
         setProcessing(selectedItem.itemId)
         const res = await auditItem(selectedItem.itemId, status, selectedItem.envioId)
         if (res.success) {
-            setItems(prev => prev.map(i => i.itemId === selectedItem.itemId ? { ...i, status } : i))
+            const auditor = res.auditor ?? null
+            setItems(prev => prev.map(i => i.itemId === selectedItem.itemId ? { ...i, status, auditor } : i))
             setView('ITEM_LIST')
             setSelectedItem(null)
+        } else if ((res as any).conflict) {
+            // Otro auditor ya votó este ítem mientras esta pantalla estaba abierta:
+            // reflejamos su resultado en vez de dejar los botones habilitados.
+            toast.error(res.error)
+            const conflictStatus = (res as any).status
+            const conflictAuditor = (res as any).auditor ?? null
+            setItems(prev => prev.map(i => i.itemId === selectedItem.itemId ? { ...i, status: conflictStatus, auditor: conflictAuditor } : i))
+            setSelectedItem(prev => prev ? { ...prev, status: conflictStatus, auditor: conflictAuditor } : prev)
+        } else {
+            toast.error(res.error || "Error al registrar la auditoría")
         }
         setProcessing(null)
     }
@@ -283,10 +296,17 @@ export default function AuditPage() {
                             </div>
                         )}
                         
-                        <div className="grid grid-cols-2 gap-4">
-                            <Button variant="outline" className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50" onClick={() => handleVote('RECHAZADO')} disabled={!!processing}><X className="mr-2 h-6 w-6" /> RECHAZAR</Button>
-                            <Button className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700" onClick={() => handleVote('APROBADO')} disabled={!!processing}>{processing ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-6 w-6" />} APROBAR</Button>
-                        </div>
+                        {selectedItem.status === 'PENDIENTE' ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <Button variant="outline" className="h-16 border-red-500 text-red-600 font-bold hover:bg-red-50" onClick={() => handleVote('RECHAZADO')} disabled={!!processing}><X className="mr-2 h-6 w-6" /> RECHAZAR</Button>
+                                <Button className="h-16 bg-green-600 font-bold shadow-lg hover:bg-green-700" onClick={() => handleVote('APROBADO')} disabled={!!processing}>{processing ? <Loader2 className="animate-spin" /> : <Check className="mr-2 h-6 w-6" />} APROBAR</Button>
+                            </div>
+                        ) : (
+                            <div className={`h-16 rounded-xl flex items-center justify-center gap-2 font-bold text-sm ${selectedItem.status === 'APROBADO' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                                {selectedItem.status === 'APROBADO' ? <Check className="h-5 w-5" /> : <X className="h-5 w-5" />}
+                                {selectedItem.status === 'APROBADO' ? 'Aprobado' : 'Rechazado'} por {selectedItem.auditor || 'otro usuario'}
+                            </div>
+                        )}
                     </div>
                     <div className="space-y-6">
                         <Card className="rounded-2xl shadow-sm">

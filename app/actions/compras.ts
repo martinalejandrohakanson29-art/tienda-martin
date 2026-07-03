@@ -729,25 +729,28 @@ export async function eliminarPedidoCompra(compraId: string) {
         }
       }
 
-      for (const item of compra.items) {
-        if (item.productoId) {
-          const articuloBase = await tx.articuloMostrador.findUnique({
-            where: { id: item.productoId },
-            include: { packItems: true }
-          });
-          if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-            for (const packItem of articuloBase.packItems) {
+      // Solo revertir stock si el pedido llegó a confirmarse (los PEDIDO nunca sumaron stock)
+      if (compra.tipoCompra !== "PEDIDO") {
+        for (const item of compra.items) {
+          if (item.productoId) {
+            const articuloBase = await tx.articuloMostrador.findUnique({
+              where: { id: item.productoId },
+              include: { packItems: true }
+            });
+            if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+              for (const packItem of articuloBase.packItems) {
+                await tx.articuloMostrador.update({
+                  where: { id: packItem.componenteId },
+                  data: { stock: { decrement: packItem.cantidad * item.cantidad } }
+                });
+              }
+              await syncPackStock(tx, item.productoId, articuloBase.packItems);
+            } else {
               await tx.articuloMostrador.update({
-                where: { id: packItem.componenteId },
-                data: { stock: { decrement: packItem.cantidad * item.cantidad } }
+                where: { id: item.productoId },
+                data: { stock: { decrement: item.cantidad } }
               });
             }
-            await syncPackStock(tx, item.productoId, articuloBase.packItems);
-          } else {
-            await tx.articuloMostrador.update({
-              where: { id: item.productoId },
-              data: { stock: { decrement: item.cantidad } }
-            });
           }
         }
       }

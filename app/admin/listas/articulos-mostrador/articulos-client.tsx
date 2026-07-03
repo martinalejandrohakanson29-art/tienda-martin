@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye } from "lucide-react";
+import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User } from "lucide-react";
 import Link from "next/link";
-import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo } from "@/app/actions/listas";
+import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo } from "@/app/actions/listas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,6 +50,11 @@ export default function ArticulosClient({
   // Estado para ocultar/mostrar artículos
   const [togglingOcultoId, setTogglingOcultoId] = useState<string | null>(null);
   const [soloOcultos, setSoloOcultos] = useState(false);
+
+  // Estados para el Modal de Historial
+  const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
+  const [historialActual, setHistorialActual] = useState<{ id: string; usuario: string; accion: string; detalle: string | null; createdAt: Date }[]>([]);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
 
   // Estados para el Modal de Creación
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -172,6 +177,14 @@ export default function ArticulosClient({
     }
     setGuardandoCostoId(null);
     setCostoTemp("");
+  };
+
+  const abrirHistorial = async (art: Articulo) => {
+    setIsHistorialModalOpen(true);
+    setCargandoHistorial(true);
+    const res = await obtenerHistorialArticulo(art.id);
+    setHistorialActual(res.success ? (res.data ?? []) : []);
+    setCargandoHistorial(false);
   };
 
   const handleToggleOcultar = async (art: Articulo) => {
@@ -398,6 +411,15 @@ export default function ArticulosClient({
                                 : <><EyeOff className="h-4 w-4 mr-1" />Ocultar</>
                             }
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => abrirHistorial(art)}
+                            title="Ver historial de cambios"
+                            className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg h-8 px-2"
+                          >
+                            <History className="h-4 w-4" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -622,6 +644,41 @@ export default function ArticulosClient({
               Crear Artículo
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* MODAL DE HISTORIAL */}
+      <Dialog open={isHistorialModalOpen} onOpenChange={setIsHistorialModalOpen}>
+        <DialogContent className="sm:max-w-[600px] rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900">
+              <History className="h-5 w-5 text-slate-500" /> Historial de Cambios
+            </DialogTitle>
+            <DialogDescription>Aquí verás todas las modificaciones realizadas sobre este artículo.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4 max-h-[500px] overflow-y-auto">
+            {cargandoHistorial ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              </div>
+            ) : historialActual.length === 0 ? (
+              <div className="text-center text-slate-400 italic py-10">No hay modificaciones registradas para este artículo.</div>
+            ) : (
+              historialActual.map((auditoria) => (
+                <div key={auditoria.id} className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex gap-4 items-start">
+                  <div className="bg-white p-2 border border-slate-200 rounded-lg"><User className="h-4 w-4 text-slate-400" /></div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{auditoria.usuario}</p>
+                    <p className="text-xs text-slate-500 mb-2">{new Date(auditoria.createdAt).toLocaleString('es-AR')}</p>
+                    <div className="text-xs text-slate-700 bg-white p-2 rounded border border-slate-100">
+                      <span className="font-bold text-amber-600 block mb-1">{auditoria.accion}</span>
+                      {auditoria.detalle}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter><Button onClick={() => setIsHistorialModalOpen(false)}>Cerrar</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

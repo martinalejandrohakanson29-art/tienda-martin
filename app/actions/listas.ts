@@ -49,14 +49,50 @@ export async function obtenerArticulosParaListas() {
 // Función para editar un artículo desde la tabla de listas
 export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number) {
   try {
-    await prisma.articuloMostrador.update({
-      where: { id },
-      data: {
-        nombre,
-        precio,
-        stock,
-        costo,
-        margenGanancia
+    const session = await getServerSession(authOptions);
+    const usuario = (session?.user as any)?.name || "Desconocido";
+
+    await prisma.$transaction(async (tx) => {
+      const anterior = await tx.articuloMostrador.findUnique({ where: { id } });
+      if (!anterior) throw new Error("Artículo no encontrado");
+
+      await tx.articuloMostrador.update({
+        where: { id },
+        data: {
+          nombre,
+          precio,
+          stock,
+          costo,
+          margenGanancia
+        }
+      });
+
+      const cambios: string[] = [];
+      if (anterior.nombre !== nombre) {
+        cambios.push(`Nombre: "${anterior.nombre}" → "${nombre}"`);
+      }
+      if (Number(anterior.precio) !== precio) {
+        cambios.push(`Precio: $${Number(anterior.precio).toLocaleString('es-AR')} → $${precio.toLocaleString('es-AR')}`);
+      }
+      if (anterior.stock !== stock) {
+        cambios.push(`Stock: ${anterior.stock} → ${stock}`);
+      }
+      if (costo !== undefined && Number(anterior.costo || 0) !== costo) {
+        cambios.push(`Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${costo.toLocaleString('es-AR')}`);
+      }
+      if (margenGanancia !== undefined && Number(anterior.margenGanancia || 0) !== margenGanancia) {
+        cambios.push(`Margen: ${Number(anterior.margenGanancia || 0)}% → ${margenGanancia}%`);
+      }
+
+      if (cambios.length > 0) {
+        await tx.articuloAuditoria.create({
+          data: {
+            articuloId: id,
+            usuario,
+            accion: "EDICION_ARTICULO",
+            detalle: cambios.join("; ")
+          }
+        });
       }
     });
 
@@ -64,6 +100,20 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
   } catch (error) {
     console.error("Error al actualizar artículo:", error);
     return { success: false, error: "Ocurrió un error al guardar los cambios." };
+  }
+}
+
+// Historial de cambios de un artículo (para la sección de listas)
+export async function obtenerHistorialArticulo(articuloId: string) {
+  try {
+    const historial = await prisma.articuloAuditoria.findMany({
+      where: { articuloId },
+      orderBy: { createdAt: 'desc' }
+    });
+    return { success: true, data: historial };
+  } catch (error) {
+    console.error("Error al obtener historial del artículo:", error);
+    return { success: false, error: "No se pudo obtener el historial." };
   }
 }
 

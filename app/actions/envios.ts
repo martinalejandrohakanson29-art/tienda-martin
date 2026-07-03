@@ -281,10 +281,14 @@ export async function getVentasRegistracion(fechaDesde?: string, fechaHasta?: st
         if (validDesde) dateClause.gte = new Date(`${fechaDesde}T00:00:00-03:00`);
         if (validHasta) dateClause.lte = new Date(`${fechaHasta}T23:59:59.999-03:00`);
 
-        // Las pendientes/con error/en proceso se muestran SIEMPRE completas, sin importar el rango de
-        // fechas elegido ni ningún límite: son plata sin facturar y no se pueden perder de vista.
+        // Las pendientes/con error/en proceso respetan el día o rango elegido igual que las demás:
+        // lo viejo sin facturar se revisa ampliando "Ver histórico (rango)". Sin filtro de fecha
+        // (uso interno, p. ej. registrarVentasML) se devuelven todas, sin límite.
         const pendientes = await prisma.ventaMLRegistracion.findMany({
-            where: { estado: { in: ["PENDIENTE", "ERROR", "PROCESANDO"] } },
+            where: {
+                estado: { in: ["PENDIENTE", "ERROR", "PROCESANDO"] },
+                ...(hasDateFilter ? { createdAt: dateClause } : {})
+            },
             orderBy: { createdAt: 'desc' }
         });
 

@@ -57,9 +57,13 @@ export async function POST(req: Request) {
                 where: { id: shippingId },
                 select: { logisticType: true }
             });
-            const categoria = (etiqueta?.logisticType && CATEGORIA_POR_LOGISTIC_TYPE[etiqueta.logisticType])
-                || venta.categoria
-                || "Desconocido";
+            const desdeEtiqueta = (etiqueta?.logisticType && CATEGORIA_POR_LOGISTIC_TYPE[etiqueta.logisticType]) || null;
+
+            // "Full" solo lo emite la rama de búsqueda por fecha del workflow, así que es confiable.
+            // "Colecta" en cambio viene fijo en la rama "preparados" para cualquier logística: sin una
+            // etiqueta que lo confirme no puede pisar la categoría que ya tenga la venta guardada
+            // (p. ej. una Full reenviada por esa rama para completar su cantidad).
+            const categoriaConfiable = desdeEtiqueta || (venta.categoria === "Full" ? "Full" : null);
 
             return prisma.ventaMLRegistracion.upsert({
                 where: { orderId },
@@ -67,11 +71,12 @@ export async function POST(req: Request) {
                     shippingId,
                     packId: packId,
                     mla: String(venta.mla),
-                    categoria,
+                    ...(categoriaConfiable ? { categoria: categoriaConfiable } : {}),
                     nombre: venta.nombre || null,
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,
-                    cantidad: cantidad,
+                    // La rama Full del workflow no manda cantidad: nunca pisamos una ya conocida con null
+                    ...(cantidad != null ? { cantidad } : {}),
                     variation: venta.variation || null,
                     createdAt: createdAt
                     // Nota: no tocamos "estado"/"ventaId" acá a propósito, para no pisar
@@ -82,7 +87,7 @@ export async function POST(req: Request) {
                     shippingId,
                     packId: packId,
                     mla: String(venta.mla),
-                    categoria,
+                    categoria: categoriaConfiable || venta.categoria || "Desconocido",
                     nombre: venta.nombre || null,
                     neto: venta.neto ? Number(venta.neto) : null,
                     bruto: venta.bruto ? Number(venta.bruto) : null,

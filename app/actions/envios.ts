@@ -6,6 +6,24 @@ import { revalidatePath } from "next/cache"
 import { crearVentaMostrador } from "./ventas-mostrador"
 import { crearResolverAgregados } from "@/lib/agregados"
 
+// El webhook de n8n guarda en VentaMLRegistracion.createdAt solo el DÍA de la venta en ML
+// (como mediodía UTC, ya que n8n nunca manda hora real). Al registrar la venta en el ERP
+// mantenemos ese día -para no correr los reportes diarios- pero reemplazamos la hora por el
+// momento real del click de "Registrar Selección", en vez de arrastrar el mediodía UTC
+// (que en horario AR siempre cae 09:00).
+function combinarDiaVentaMLConHoraReal(diaVentaML: Date): Date {
+    const ahoraAR = new Date(Date.now() - 3 * 60 * 60 * 1000); // hora de pared AR, expresada en getters UTC
+    return new Date(Date.UTC(
+        diaVentaML.getUTCFullYear(),
+        diaVentaML.getUTCMonth(),
+        diaVentaML.getUTCDate(),
+        ahoraAR.getUTCHours() + 3, // volvemos a instante UTC real
+        ahoraAR.getUTCMinutes(),
+        ahoraAR.getUTCSeconds(),
+        ahoraAR.getUTCMilliseconds()
+    ));
+}
+
 /**
  * Genera un PDF con los datos de un pedido de venta
  * Esta función se usa para generar el PDF de pedidos en /admin/erp/pedidos-venta
@@ -591,8 +609,9 @@ export async function registrarVentasML(
                     docNro: (docNro === "0" || !docNro) ? "" : docNro,
                     condicionIva: condicionIva,
                     mlDni: (docNro === "0" || !docNro) ? "" : docNro,
-                    // Fecha original de la venta en ML para que quede registrada en el día correcto
-                    fechaOriginal: v.createdAt ? new Date(v.createdAt) : undefined,
+                    // Día real de la venta en ML (para que quede registrada en el día correcto en los
+                    // reportes) combinado con la hora real en que el operador está registrando ahora.
+                    fechaOriginal: v.createdAt ? combinarDiaVentaMLConHoraReal(new Date(v.createdAt)) : undefined,
                 });
 
                 if (res.success) {

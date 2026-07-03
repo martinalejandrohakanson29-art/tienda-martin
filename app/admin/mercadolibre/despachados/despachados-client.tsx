@@ -694,8 +694,8 @@ export function DespachadosClient() {
                                                     {group.ventas[0].packId && <div onClick={() => handleCopyText(group.ventas[0].packId)} className="font-mono text-[10px] text-amber-600 font-bold cursor-pointer hover:text-blue-600 mt-1">Pack: {group.ventas[0].packId}</div>}
                                                 </TableCell>
                                                 <TableCell className="align-top whitespace-nowrap">
+                                                    {/* Solo día: n8n no manda hora real de la venta ML, así que no mostramos una hora falsa */}
                                                     <div className="text-xs font-bold text-slate-700">{format(new Date(group.ventas[0].createdAt), "dd/MM/yy")}</div>
-                                                    <div className="text-[10px] text-slate-400">{format(new Date(group.ventas[0].createdAt), "HH:mm")} hs</div>
                                                 </TableCell>
                                                 <TableCell className="align-top">
                                                     <div className="flex flex-col gap-2">

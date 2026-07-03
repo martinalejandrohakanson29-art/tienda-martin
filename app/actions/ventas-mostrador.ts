@@ -912,7 +912,8 @@ export async function crearVentaMostrador(data: {
           mlPackId: data.mlPackId,
           mlMla: data.mlMla,
           mlDni: data.mlDni,
-          // Si viene fecha original (ej. de ML), la usamos para que la venta quede en el día correcto
+          // Si viene fecha original (ej. de ML), la usamos: trae el día real de la venta combinado
+          // con la hora real de registración (ver combinarDiaVentaMLConHoraReal en actions/envios.ts)
           ...(data.fechaOriginal ? { createdAt: data.fechaOriginal } : {}),
           items: {
             create: data.items.map(item => ({

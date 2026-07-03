@@ -488,6 +488,11 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             const res = await subirFotoAuditoria(formData)
             if (res.success) {
                 toast.success("Foto guardada con éxito.")
+                if (res.completed) {
+                    setEnvios(prev => prev.map(e => e.id === selectedItem.envioId
+                        ? { ...e, drivePhotoUrl: res.path, status: "PREPARADO" }
+                        : e))
+                }
             } else {
                 toast.error(`Fallo al subir: ${res.error || 'Error desconocido'}`);
             }

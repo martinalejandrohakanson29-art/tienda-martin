@@ -186,6 +186,7 @@ export async function subirFotoAuditoria(formData: FormData) {
         // 2. Lógica de Base de Datos con Transacción
         // Capturamos si el pedido recién ahora alcanza el estado PREPARADO (para notificar una sola vez).
         let notificarPreparado = false;
+        let completed = false;
         let envioInfo: { orderId: string | null; resumen: string | null } = { orderId: null, resumen: null };
 
         await prisma.$transaction(async (tx) => {
@@ -207,6 +208,7 @@ export async function subirFotoAuditoria(formData: FormData) {
 
             // C. Si todos los productos tienen su foto, marcar el pedido global como PREPARADO
             if (fotosCargadas >= totalItems) {
+                completed = true;
                 // Leemos el estado previo para detectar la transición real (evita notificar
                 // de nuevo al re-subir una foto de un pedido ya PREPARADO o AUDITADO).
                 const etiquetaPrevia = await tx.etiquetaML.findUnique({
@@ -254,7 +256,7 @@ export async function subirFotoAuditoria(formData: FormData) {
             });
         }
 
-        return { success: true, path: fileName }
+        return { success: true, path: fileName, completed }
 
     } catch (error: any) {
         console.error("[AUDITORIA ERROR SERVIDOR]", error);

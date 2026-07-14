@@ -52,10 +52,13 @@ export async function POST(req: Request) {
                 });
 
                 // LÓGICA DE PROTECCIÓN DE ESTADO:
-                // Si el pedido ya fue AUDITADO manualmente por vos, mantenemos ese estado.
+                // Si el pedido ya fue AUDITADO, o está PREPARADO esperando auditoría manual,
+                // mantenemos ese estado: el estado crudo de n8n/Mercado Libre (ready_to_ship,
+                // shipped, etc.) no debe pisar el flujo interno de auditoría de fotos, o un
+                // resync de n8n deja el pedido pareciendo "rechazado" sin que nadie lo rechace.
                 // Caso contrario, usamos el estado que viene de n8n/Mercado Libre.
-                const nuevoEstado = registroExistente?.status === "AUDITADO"
-                    ? "AUDITADO"
+                const nuevoEstado = (registroExistente?.status === "AUDITADO" || registroExistente?.status === "PREPARADO")
+                    ? registroExistente.status
                     : (data.status || "PENDIENTE");
 
                 // LÓGICA DE FECHA (FECHA PREPARADO):

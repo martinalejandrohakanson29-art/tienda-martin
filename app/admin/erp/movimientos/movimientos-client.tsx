@@ -738,7 +738,10 @@ export default function MovimientosClient({
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {controlMovimientos.length > 0 ? (
                     controlMovimientos.map((m) => (
-                      <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                      <tr key={m.id} className={`transition-colors ${m.pendiente
+                        ? "bg-amber-50 dark:bg-amber-950/20 hover:bg-amber-100 dark:hover:bg-amber-950/30"
+                        : "hover:bg-slate-50 dark:hover:bg-slate-800/30"
+                        }`}>
                         <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
                           {format(new Date(m.fechaRegistro), "dd/MM/yy HH:mm", { locale: es })}
                         </td>
@@ -754,7 +757,14 @@ export default function MovimientosClient({
                           <span className="text-sm font-bold text-slate-900 dark:text-white">{m.entidad}</span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-sm text-slate-600 dark:text-slate-400">{m.descripcion}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-slate-600 dark:text-slate-400">{m.descripcion}</span>
+                            {m.pendiente && (
+                              <span className="shrink-0 text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                                Pedido pendiente
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className={`px-6 py-4 whitespace-nowrap text-sm font-black text-right ${m.tipo === "PAGO" ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"
                           }`}>

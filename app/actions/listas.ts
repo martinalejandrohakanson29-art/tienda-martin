@@ -604,15 +604,16 @@ export async function obtenerPagosControl(metodoPago: string, fechaDesde: string
     
     const ventas = await prisma.venta.findMany({
       where: { id: { in: referenciaIds } },
-      select: { id: true, metodo_pago: true }
+      select: { id: true, metodo_pago: true, tipoVenta: true }
     });
-    
+
     const compras = await prisma.compra.findMany({
       where: { id: { in: referenciaIds } },
       select: { id: true, metodo_pago: true }
     });
-    
+
     const ventasMap = new Map(ventas.map(v => [v.id, v.metodo_pago]));
+    const ventasTipoMap = new Map(ventas.map(v => [v.id, v.tipoVenta]));
     const comprasMap = new Map(compras.map(c => [c.id, c.metodo_pago]));
 
     for (const m of movimientos) {
@@ -649,7 +650,8 @@ export async function obtenerPagosControl(metodoPago: string, fechaDesde: string
           monto: Math.abs(Number(m.monto)),
           tipo: m.tipo === "HABER" ? "PAGO" : "COBRO",
           origen: isManual ? "MANUAL" : (ventasMap.has(ref) ? "VENTA" : (comprasMap.has(ref) ? "COMPRA" : "SISTEMA")),
-          metodoPago: mMethod
+          metodoPago: mMethod,
+          pendiente: ventasTipoMap.get(ref) === "PEDIDO"
         });
       }
     }

@@ -117,6 +117,25 @@ type Venta = {
   tipoEnvio?: string;
 };
 
+// El campo "para" puede guardar el nombre del proveedor tal cual, o un JSON
+// con el reparto entre varios proveedores (ej: pagos "Cruzada" repartidos).
+// Esta función devuelve siempre un texto legible para mostrar en pantalla.
+function paraDisplayText(para: string | null | undefined): string {
+  if (!para) return "";
+  const trimmed = para.trim();
+  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const items = Array.isArray(parsed) ? parsed : [parsed];
+      const nombres = items.map((item: any) => item.razonSocial || item.nombre || item.id).filter(Boolean);
+      if (nombres.length > 0) return nombres.join(", ");
+    } catch {
+      // No era JSON válido, se muestra tal cual más abajo.
+    }
+  }
+  return para;
+}
+
 export default function PedidosVentaEdicionClient() {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -258,11 +277,16 @@ export default function PedidosVentaEdicionClient() {
       setPadronResultado(null);
       return;
     }
+    let match: any = null;
     if (editingVenta.dni && proveedores.length > 0) {
       const cleanDni = editingVenta.dni.replace(/\D/g, '');
-      const match = proveedores.find(p => p.cuit && p.cuit.replace(/\D/g, '') === cleanDni);
-      if (match) setClienteSeleccionado(match);
+      match = proveedores.find(p => p.cuit && p.cuit.replace(/\D/g, '') === cleanDni) || null;
     }
+    setClienteSeleccionado(match);
+    // Si el pedido ya tiene un nombre de cliente cargado pero no matchea con ningún
+    // cliente/proveedor registrado (caso más común: nombre libre sin CUIT), precargamos
+    // ese nombre en el buscador en vez de mostrarlo vacío como "sin datos".
+    setBusquedaCliente(!match && editingVenta.cliente && editingVenta.cliente !== "Consumidor Final" ? editingVenta.cliente : "");
   }, [editingVenta?.id]);
 
   // Filtrar proveedores para el buscador de cliente
@@ -1545,7 +1569,7 @@ export default function PedidosVentaEdicionClient() {
                   <div className="text-right">
                     <span className="text-[10px] font-bold text-amber-600 uppercase block">ID Pedido</span>
                     <span className="text-sm font-mono font-bold text-amber-900 bg-white px-2 py-0.5 rounded border border-amber-200">
-                      {editingVenta.id.slice(0, 8)}
+                      {editingVenta.numeroVenta ? `#${editingVenta.numeroVenta}` : editingVenta.id.slice(0, 8)}
                     </span>
                   </div>
                   <div className="text-right">
@@ -2014,7 +2038,7 @@ export default function PedidosVentaEdicionClient() {
                           <div className="flex gap-2">
                             <div className="relative flex-1">
                               <Input
-                                value={busquedaProveedor || editingVenta.para || ""}
+                                value={busquedaProveedor || paraDisplayText(editingVenta.para)}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   setBusquedaProveedor(val);

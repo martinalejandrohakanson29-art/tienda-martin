@@ -80,14 +80,33 @@ export type ActualizarPedidoData = z.infer<typeof VentaBaseUpdateSchema>
 // ─── Helpers internos ────────────────────────────────────────────────────────
 
 function parsearImpactos(para: string, montoTotal: number): ImpactoItem[] {
+  let impactos: ImpactoItem[];
   try {
     const trimmed = para.trim();
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
       const parsed = JSON.parse(trimmed);
-      return Array.isArray(parsed) ? parsed : [parsed];
+      impactos = Array.isArray(parsed) ? parsed : [parsed];
+    } else {
+      return [{ razonSocial: para, monto: montoTotal }];
     }
-  } catch { }
-  return [{ razonSocial: para, monto: montoTotal }];
+  } catch {
+    return [{ razonSocial: para, monto: montoTotal }];
+  }
+
+  // El monto guardado en cada item puede haber quedado desactualizado si el
+  // total del pedido se editó después de fijar el reparto entre proveedores.
+  // Reescalamos proporcionalmente para que la suma siempre coincida con el
+  // total vigente (con un solo proveedor esto equivale a usar montoTotal directo).
+  const sumaOriginal = impactos.reduce((acc, imp) => acc + (Number(imp.monto) || 0), 0);
+  if (sumaOriginal > 0 && Math.abs(sumaOriginal - montoTotal) > 0.01) {
+    const factor = montoTotal / sumaOriginal;
+    impactos = impactos.map((imp) => ({
+      ...imp,
+      monto: Math.round((Number(imp.monto) || 0) * factor * 100) / 100,
+    }));
+  }
+
+  return impactos;
 }
 
 async function resolverProveedor(tx: TxClient, imp: ImpactoItem) {

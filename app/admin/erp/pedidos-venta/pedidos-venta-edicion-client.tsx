@@ -86,7 +86,7 @@ type ItemVenta = {
   esNota?: boolean;
 };
 
-type Venta = {
+export type Venta = {
   id: string;
   cliente: string;
   vendedor: string;
@@ -114,7 +114,12 @@ type Venta = {
   mlIdEnvio?: string | null;
   mlMla?: string | null;
   mlDni?: string | null;
+  mlPackId?: string | null;
   tipoEnvio?: string;
+  docTipo?: number | null;
+  docNro?: string | null;
+  condicionIva?: number | null;
+  tipoComprobante?: number | null;
 };
 
 // El campo "para" puede guardar el nombre del proveedor tal cual, o un JSON
@@ -136,7 +141,11 @@ function paraDisplayText(para: string | null | undefined): string {
   return para;
 }
 
-export default function PedidosVentaEdicionClient() {
+export default function PedidosVentaEdicionClient({
+  onEditarPedido,
+}: {
+  onEditarPedido?: (venta: Venta) => void;
+} = {}) {
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -570,12 +579,20 @@ export default function PedidosVentaEdicionClient() {
   };
 
   const handleEditarPedido = async (venta: Venta) => {
-    setVentaParaEditar(venta);
-    setIsEditDialogOpen(true);
+    if (!onEditarPedido) {
+      setVentaParaEditar(venta);
+      setIsEditDialogOpen(true);
+    }
     setIsProcessing(true);
     try {
       const ventaData = await obtenerPedidoPorId(venta.id);
-      if (ventaData) {
+      if (!ventaData) {
+        alert("Error al cargar los datos del pedido");
+        return;
+      }
+      if (onEditarPedido) {
+        onEditarPedido(ventaData);
+      } else {
         setEditingVenta(ventaData);
       }
     } catch (err) {

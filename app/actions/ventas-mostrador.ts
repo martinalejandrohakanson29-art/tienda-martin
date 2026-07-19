@@ -58,6 +58,10 @@ const VentaBaseUpdateSchema = z.object({
   mlPackId: z.string().nullish(),
   mlMla: z.string().nullish(),
   mlDni: z.string().nullish(),
+  tipoComprobante: z.number().optional(),
+  docTipo: z.number().optional(),
+  docNro: z.string().optional(),
+  condicionIva: z.number().optional(),
 })
 
 const ActualizarVentaSchema = VentaBaseUpdateSchema.extend({
@@ -65,10 +69,6 @@ const ActualizarVentaSchema = VentaBaseUpdateSchema.extend({
   vencimientoCae: z.coerce.date().optional(),
   facturaNumero: z.number().optional(),
   facturaPuntoVenta: z.number().optional(),
-  tipoComprobante: z.number().optional(),
-  docTipo: z.number().optional(),
-  docNro: z.string().optional(),
-  condicionIva: z.number().optional(),
   importeIva: z.number().optional(),
   alicuotaIva: z.number().optional(),
 })
@@ -1668,6 +1668,10 @@ export async function actualizarPedidoVenta(ventaId: string, rawData: unknown, u
           mlPackId: data.mlPackId,
           mlMla: data.mlMla,
           mlDni: data.mlDni,
+          ...(data.tipoComprobante !== undefined && { tipoComprobante: data.tipoComprobante }),
+          ...(data.docTipo !== undefined && { docTipo: data.docTipo }),
+          ...(data.docNro !== undefined && { docNro: data.docNro }),
+          ...(data.condicionIva !== undefined && { condicionIva: data.condicionIva }),
           items: {
             create: data.items.map((item) => ({
               productoId: item.productoId || item.id,

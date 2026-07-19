@@ -32,13 +32,13 @@ import {
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA,
-  exportarVentasListadoParaExcel, revertirVentaAPedido,
+  exportarVentasListadoParaExcel, revertirVentaAPedido, actualizarPedidoVenta,
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor } from "@/app/actions/listas";
 import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
 import { obtenerFotosPedido, obtenerPedidosConFoto } from "@/app/actions/preparacion-pedidos";
 import { consultarPadron } from "@/app/actions/afip";
-import PedidosVentaEdicionClient from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
+import PedidosVentaEdicionClient, { type Venta as PedidoVentaData } from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
 import EnviosAndreaniTab from "./envios-andreani-tab";
 
 // Métodos de pago con ícono y color suave para distinguir cada opción de un vistazo.
@@ -199,6 +199,15 @@ export default function VentasMostradorClient({
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
   const [isGuardarComoPedido, setIsGuardarComoPedido] = useState(false);
+
+  // --- ESTADOS PARA EDITAR UN PEDIDO DE VENTA DESDE "REGISTRAR VENTA" ---
+  const [activeTab, setActiveTab] = useState("registrar");
+  const [pedidoEnEdicionId, setPedidoEnEdicionId] = useState<string | null>(null);
+  const [numeroPedidoEnEdicion, setNumeroPedidoEnEdicion] = useState<number | null>(null);
+  // Campos que el formulario de alta no expone como control editable, pero que
+  // hay que reenviar tal cual para no perderlos al guardar la edición del pedido.
+  const [pedidoEdicionExtra, setPedidoEdicionExtra] = useState<{ tipoEnvio?: string | null; mlPackId?: string | null } | null>(null);
+  const [pedidosRefreshKey, setPedidosRefreshKey] = useState(0);
   const [items, setItems] = useState<ItemVenta[]>([]);
   const [cliente, setCliente] = useState("Consumidor Final");
   const [cuitBusqueda, setCuitBusqueda] = useState("");
@@ -1144,7 +1153,8 @@ export default function VentasMostradorClient({
   }, [esMixtoCruzadaCC, cliente]);
 
   const handleFinalizarVenta = async (overrideComoPedido?: boolean | React.MouseEvent, fiscalizar: boolean = false) => {
-    const isPedido = typeof overrideComoPedido === 'boolean' ? overrideComoPedido : isGuardarComoPedido;
+    const isEditMode = !!pedidoEnEdicionId;
+    const isPedido = isEditMode ? true : (typeof overrideComoPedido === 'boolean' ? overrideComoPedido : isGuardarComoPedido);
 
     // Para "Registrar y fiscalizar" necesitamos un CUIT/DNI (del buscador de Padrón A13)
     if (fiscalizar) {
@@ -1264,30 +1274,37 @@ export default function VentasMostradorClient({
         ]);
       }
 
-      const resultado = isPedido
-        ? await guardarComoPedidoVenta({
-          cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
-          interes: interesTarjeta,
-          totalFinal: totalFinalCalculado,
-          items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraFinal,
-          email, eventoOffline, puntoVentaId,
-          docTipo, docNro: docNroFinal, condicionIva, tipoComprobante: tipoFacturaSugerida,
-          mlIdVenta, mlIdEnvio, mlMla, mlDni
-        })
-        : await crearVentaMostrador({
-          cliente: clienteFinal, vendedor: vendedorNombre, total: totalBase,
-          interes: interesTarjeta,
-          totalFinal: totalFinalCalculado,
-          items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraFinal,
-          email, eventoOffline, puntoVentaId,
-          solicitarFactura: solicitarFactura,
-          // ARCA fields para guardar el snapshot
-          docTipo, docNro: docNroFinal, condicionIva, tipoComprobante: tipoFacturaSugerida,
-          mlIdVenta, mlIdEnvio, mlMla, mlDni
-        });
+      const payloadComun = {
+        cliente: clienteFinal, total: totalBase,
+        interes: interesTarjeta,
+        totalFinal: totalFinalCalculado,
+        items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraFinal,
+        email, eventoOffline, puntoVentaId,
+        docTipo, docNro: docNroFinal, condicionIva, tipoComprobante: tipoFacturaSugerida,
+        mlIdVenta, mlIdEnvio, mlMla, mlDni
+      };
+
+      const resultado = isEditMode
+        ? await actualizarPedidoVenta(
+          pedidoEnEdicionId!,
+          {
+            ...payloadComun,
+            tipoEnvio: pedidoEdicionExtra?.tipoEnvio ?? undefined,
+            mlPackId: pedidoEdicionExtra?.mlPackId ?? undefined,
+          },
+          vendedorNombre,
+          "Pedido editado desde Registrar Venta"
+        )
+        : isPedido
+          ? await guardarComoPedidoVenta({ ...payloadComun, vendedor: vendedorNombre })
+          : await crearVentaMostrador({ ...payloadComun, vendedor: vendedorNombre, solicitarFactura: solicitarFactura });
 
       if (resultado.success) {
-        if (isPedido) {
+        if (isEditMode) {
+          mostrarMensajeExito("¡Pedido actualizado con éxito!");
+          setPedidosRefreshKey(k => k + 1);
+          setActiveTab("pedidos");
+        } else if (isPedido) {
           mostrarMensajeExito("¡Pedido de venta guardado con éxito!");
         } else {
           setArticulos(prev => prev.map(art => {
@@ -1312,7 +1329,7 @@ export default function VentasMostradorClient({
         }
 
         resetForm();
-        cargarVentas(fechaDesde, fechaHasta);
+        if (!isEditMode) cargarVentas(fechaDesde, fechaHasta);
       } else { alert("Error al guardar: " + resultado.error); }
     } catch (error) { alert("Ocurrió un error inesperado."); } finally { setIsSubmitting(false); }
   };
@@ -1437,6 +1454,7 @@ export default function VentasMostradorClient({
     setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false); setSolicitarFactura(false);
     setProveedoresCruzada([]); setIsGuardarComoPedido(false);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
+    setPedidoEnEdicionId(null); setNumeroPedidoEnEdicion(null); setPedidoEdicionExtra(null);
     // Restaurar "Mostrador" como punto de venta por defecto
     if (puntosVenta && puntosVenta.length > 0) {
       const mostrador = puntosVenta.find((p: any) => p.nombre === "Mostrador");
@@ -1602,6 +1620,160 @@ export default function VentasMostradorClient({
       };
     }));
     setIsEditMainModalOpen(true);
+  };
+
+  // Carga un pedido de venta existente en el estado de "Registrar Venta" (alta),
+  // para editarlo con el mismo formulario en lugar del modal de PedidosVentaEdicionClient.
+  const cargarPedidoParaEdicion = async (venta: PedidoVentaData) => {
+    if (!pedidoEnEdicionId && items.length > 0) {
+      if (!confirm("Hay una venta en curso sin guardar en 'Registrar Venta'. ¿Descartarla para editar este pedido?")) {
+        return;
+      }
+    }
+
+    const syncResult = await sincronizarArticulosMostrador();
+    if (syncResult.success && syncResult.data) {
+      setArticulos(syncResult.data);
+    }
+
+    // Los Dialog de "Detalles del Cobro" y "Descartar" viven fuera del árbol de
+    // Tabs (portales), así que cambiar de pestaña no los cierra por sí solo.
+    setIsFinalizarModalOpen(false);
+    setIsConfirmDiscardOpen(false);
+
+    setCliente(venta.cliente || "");
+    setMetodoPago(venta.metodo_pago === "Mixto" ? "Efectivo" : (venta.metodo_pago === "mercadopago (ML)" ? "MercadoLibre" : (venta.metodo_pago || "Efectivo")));
+    setIsPagoMixto(venta.metodo_pago === "Mixto");
+
+    if (venta.metodo_pago === "Mixto") {
+      const infoRaw = venta.info || "";
+      try {
+        if (infoRaw.trim().startsWith('{')) {
+          const infoObj = JSON.parse(infoRaw);
+          setMetodoPago(infoObj.metodo1 || "Efectivo");
+          setMontoPago1(Number(infoObj.monto1) || (Number(venta.total) / 2));
+          setMetodoPago2(infoObj.metodo2 || "Tarjeta de Crédito");
+        } else {
+          const extractMonto = (label: string) => {
+            const regex = new RegExp(`${label}:\\s*\\$?([0-9.,]+)`, "i");
+            const match = infoRaw.match(regex);
+            if (match && match[1]) {
+              let valStr = match[1];
+              if (valStr.includes(',') && valStr.includes('.')) {
+                valStr = valStr.replace(/\./g, '').replace(',', '.');
+              } else if (valStr.includes('.')) {
+                const parts = valStr.split('.');
+                if (parts[parts.length - 1].length === 3) valStr = valStr.replace(/\./g, '');
+              } else if (valStr.includes(',')) {
+                valStr = valStr.replace(',', '.');
+              }
+              return parseFloat(valStr) || 0;
+            }
+            return 0;
+          };
+
+          const metodosPosibles = ["Efectivo", "Tarjeta de Crédito", "Tarjeta de Débito", "MercadoLibre", "MercadoPago", "Cruzada", "A Cuenta Corriente", "A Confirmar"];
+          let m1 = "Efectivo";
+          let m2 = "Tarjeta de Crédito";
+
+          const foundMethods: string[] = [];
+          for (const m of metodosPosibles) {
+            if (infoRaw.includes(`${m}:`)) {
+              foundMethods.push(m);
+            }
+          }
+
+          if (foundMethods.length >= 1) m1 = foundMethods[0];
+          if (foundMethods.length >= 2) m2 = foundMethods[1];
+
+          const v1 = extractMonto(m1);
+          setMetodoPago(m1);
+          setMontoPago1(v1 || (Number(venta.total) / 2));
+          setMetodoPago2(m2);
+        }
+      } catch (e) {
+        console.error("Error al parsear info mixta al editar pedido:", e);
+        setMetodoPago("Efectivo");
+        setMontoPago1(Number(venta.total) / 2);
+        setMetodoPago2("Tarjeta de Crédito");
+      }
+    } else {
+      setMontoPago1(Number(venta.total) / 2);
+      setMetodoPago2("Tarjeta de Crédito");
+    }
+
+    setInteresTarjeta(Number(venta.interes) || 0);
+    setDni(venta.dni || "");
+    setTelefono(venta.telefono || "");
+    setCupon(venta.cupon || "");
+    setTransaccionId(venta.transaccionId || "");
+    setDeCruzada(venta.de || "");
+
+    const paraVal = venta.para || "";
+    setProveedoresCruzada([]);
+    setParaCruzada("");
+    setParaCuentaCorriente("");
+    try {
+      const paraParsed = paraVal.trim().startsWith('[') ? JSON.parse(paraVal) : null;
+      if (Array.isArray(paraParsed) && paraParsed.length === 2) {
+        // Caso "esMixtoCruzadaCC": Cruzada + A Cuenta Corriente combinados en un pago Mixto.
+        setParaCruzada(paraParsed[0]?.razonSocial || "");
+        setParaCuentaCorriente(paraParsed[1]?.razonSocial || "");
+      } else if (venta.metodo_pago === "Cruzada" && Array.isArray(paraParsed)) {
+        // Caso Cruzada simple con uno o varios proveedores.
+        setProveedoresCruzada(paraParsed.map((p: any) => ({
+          id: p.id || "", razonSocial: p.razonSocial || "", monto: Number(p.monto) || 0
+        })));
+      } else if (venta.metodo_pago === "Cruzada") {
+        // Dato legado guardado como string plano (un solo proveedor).
+        setProveedoresCruzada([{ id: "", razonSocial: paraVal, monto: Number(venta.totalFinal) || 0 }]);
+      } else {
+        setParaCruzada(paraVal);
+      }
+    } catch {
+      if (venta.metodo_pago === "Cruzada") {
+        setProveedoresCruzada([{ id: "", razonSocial: paraVal, monto: Number(venta.totalFinal) || 0 }]);
+      } else {
+        setParaCruzada(paraVal);
+      }
+    }
+
+    setEmail(venta.email || "");
+    setEventoOffline(venta.eventoOffline || false);
+    setPuntoVentaId(venta.puntoVentaId || "");
+    setMlIdVenta(venta.mlIdVenta || "");
+    setMlIdEnvio(venta.mlIdEnvio || "");
+    setMlMla(venta.mlMla || "");
+    setMlDni(venta.mlDni || "");
+
+    const cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
+    setInfo(venta.metodo_pago === "Mixto" ? cleanInfo : (venta.info || ""));
+
+    setDocTipo(venta.docTipo || 99);
+    setDocNro(venta.docNro || "");
+    setCondicionIva(venta.condicionIva || 5);
+    setCuitBusqueda(venta.docNro || venta.dni || "");
+    setTipoFacturaSugerida(venta.tipoComprobante || 6);
+    setSolicitarFactura(false);
+    setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false);
+
+    setItems(venta.items.map((i) => {
+      const articuloBase = articulos.find((a) => a.id === i.productoId);
+      return {
+        id: (i as any).id || crypto.randomUUID(),
+        productoId: i.productoId || undefined,
+        nombre: i.nombre, cantidad: i.cantidad,
+        precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal),
+        stock: articuloBase ? articuloBase.stock : 0,
+        ultimaModificacion: articuloBase?.ultimaModificacion || null,
+        esNota: (i as any).esNota || false,
+      };
+    }));
+
+    setPedidoEdicionExtra({ tipoEnvio: venta.tipoEnvio, mlPackId: (venta as any).mlPackId });
+    setPedidoEnEdicionId(venta.id);
+    setNumeroPedidoEnEdicion(venta.numeroVenta ?? null);
+    setActiveTab("registrar");
   };
 
   const agregarProductoEdicion = (prod: Articulo) => {
@@ -2106,7 +2278,7 @@ export default function VentasMostradorClient({
           </div>
         </header>
 
-        <Tabs defaultValue="registrar" className="flex-grow flex flex-col overflow-hidden h-full w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-grow flex flex-col overflow-hidden h-full w-full">
           <div className="bg-white border-b border-slate-100 px-8 py-1">
             <TabsList className="bg-slate-100/50 p-1 w-full flex justify-start relative">
               <TabsTrigger value="registrar" className="gap-2 px-6"><ShoppingCart className="h-4 w-4" /> Registrar Venta</TabsTrigger>
@@ -2128,6 +2300,22 @@ export default function VentasMostradorClient({
             <main className="flex-grow flex flex-col p-4 md:p-6 lg:p-8 max-w-[1800px] mx-auto w-full gap-4 overflow-hidden h-full">
 
               <section className="flex-grow flex flex-col min-h-0 gap-4">
+                {pedidoEnEdicionId && (
+                  <div className="flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 flex-shrink-0">
+                    <span className="text-sm font-bold text-indigo-800 flex items-center gap-2">
+                      <Edit className="h-4 w-4" /> Editando Pedido de Venta #{numeroPedidoEnEdicion}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { resetForm(); setActiveTab("pedidos"); }}
+                      className="text-indigo-700 hover:bg-indigo-100"
+                    >
+                      Cancelar edición
+                    </Button>
+                  </div>
+                )}
                 <div className="flex gap-4 items-center flex-wrap">
                   <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
                     <Plus className="h-4 w-4" /> Añadir Artículo ( + )
@@ -2344,7 +2532,7 @@ export default function VentasMostradorClient({
                       <Printer className="h-4 w-4 mr-2" /> Presupuesto
                     </Button>
                     <Button onClick={() => setIsFinalizarModalOpen(true)} disabled={items.length === 0 || isSubmitting} className="h-12 px-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md shadow-blue-600/20 transition-all hover:shadow-lg hover:-translate-y-0.5">
-                      Finalizar Venta
+                      {pedidoEnEdicionId ? "Guardar Cambios del Pedido" : "Finalizar Venta"}
                     </Button>
                   </div>
                 </div>
@@ -2914,7 +3102,7 @@ export default function VentasMostradorClient({
           {/* --- PESTAÑA: PEDIDOS DE VENTAS --- */}
           <TabsContent value="pedidos" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full bg-white">
             <div className="flex-grow overflow-auto">
-              <PedidosVentaEdicionClient />
+              <PedidosVentaEdicionClient key={pedidosRefreshKey} onEditarPedido={cargarPedidoParaEdicion} />
             </div>
           </TabsContent>
 
@@ -3800,39 +3988,51 @@ export default function VentasMostradorClient({
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 mb-2">
                 <Label className="text-xs font-bold text-slate-600 uppercase block mb-3 text-center">Acción Final</Label>
                 <div className="flex flex-col gap-5">
-                  {requiereFiscalizacionOpcional ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <Button
-                        onClick={() => handleFinalizarVenta(false, false)}
-                        disabled={isSubmitting}
-                        className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
-                      >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar sin fiscalizar</>}
-                      </Button>
-                      <Button
-                        onClick={() => handleFinalizarVenta(false, true)}
-                        disabled={isSubmitting}
-                        className="bg-emerald-700 hover:bg-emerald-800 text-white h-12 rounded-xl font-bold w-full"
-                      >
-                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ShieldCheck className="h-5 w-5 mr-2" /> Registrar y fiscalizar</>}
-                      </Button>
-                    </div>
-                  ) : (
+                  {pedidoEnEdicionId ? (
                     <Button
-                      onClick={() => handleFinalizarVenta(false)}
+                      onClick={() => handleFinalizarVenta()}
                       disabled={isSubmitting}
-                      className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-xl font-bold w-full"
                     >
-                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar venta</>}
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-5 w-5 mr-2" /> Guardar Cambios</>}
                     </Button>
+                  ) : (
+                    <>
+                      {requiereFiscalizacionOpcional ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <Button
+                            onClick={() => handleFinalizarVenta(false, false)}
+                            disabled={isSubmitting}
+                            className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
+                          >
+                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar sin fiscalizar</>}
+                          </Button>
+                          <Button
+                            onClick={() => handleFinalizarVenta(false, true)}
+                            disabled={isSubmitting}
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white h-12 rounded-xl font-bold w-full"
+                          >
+                            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ShieldCheck className="h-5 w-5 mr-2" /> Registrar y fiscalizar</>}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          onClick={() => handleFinalizarVenta(false)}
+                          disabled={isSubmitting}
+                          className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
+                        >
+                          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar venta</>}
+                        </Button>
+                      )}
+                      <Button
+                        onClick={() => handleFinalizarVenta(true)}
+                        disabled={isSubmitting}
+                        className="bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700 text-white h-10 rounded-xl font-bold w-full text-sm shadow-md"
+                      >
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de venta</>}
+                      </Button>
+                    </>
                   )}
-                  <Button
-                    onClick={() => handleFinalizarVenta(true)}
-                    disabled={isSubmitting}
-                    className="bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700 text-white h-10 rounded-xl font-bold w-full text-sm shadow-md"
-                  >
-                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de venta</>}
-                  </Button>
                 </div>
               </div>
               <DialogFooter className="mt-2">
@@ -3844,8 +4044,8 @@ export default function VentasMostradorClient({
 
         <Dialog open={isConfirmDiscardOpen} onOpenChange={setIsConfirmDiscardOpen}>
           <DialogContent className="sm:max-w-[400px] rounded-3xl p-6">
-            <DialogHeader><div className="mx-auto bg-red-100 text-red-600 p-3 rounded-full w-fit mb-4"><AlertTriangle className="h-6 w-6" /></div><DialogTitle className="text-center text-xl font-bold">¿Descartar Venta?</DialogTitle></DialogHeader>
-            <DialogFooter className="flex-col sm:flex-row gap-3 mt-4"><Button variant="outline" onClick={() => setIsConfirmDiscardOpen(false)} className="w-full">Mantener</Button><Button onClick={resetForm} className="w-full bg-red-600 text-white">Sí, Descartar</Button></DialogFooter>
+            <DialogHeader><div className="mx-auto bg-red-100 text-red-600 p-3 rounded-full w-fit mb-4"><AlertTriangle className="h-6 w-6" /></div><DialogTitle className="text-center text-xl font-bold">{pedidoEnEdicionId ? "¿Descartar cambios del pedido?" : "¿Descartar Venta?"}</DialogTitle></DialogHeader>
+            <DialogFooter className="flex-col sm:flex-row gap-3 mt-4"><Button variant="outline" onClick={() => setIsConfirmDiscardOpen(false)} className="w-full">Mantener</Button><Button onClick={() => { const volverAPedidos = !!pedidoEnEdicionId; resetForm(); if (volverAPedidos) setActiveTab("pedidos"); }} className="w-full bg-red-600 text-white">Sí, Descartar</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 

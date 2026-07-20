@@ -20,12 +20,12 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  crearCompra, obtenerComprasPorRango, actualizarCompra, eliminarCompra, obtenerHistorialCompra, guardarComoPedidoCompra
+  crearCompra, obtenerComprasPorRango, actualizarCompra, eliminarCompra, obtenerHistorialCompra, guardarComoPedidoCompra, actualizarPedidoCompra
 } from "@/app/actions/compras";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 import { actualizarPrecioArticuloDB, sincronizarArticulosMostrador } from "@/app/actions/ventas-mostrador";
 import { crearArticuloMostrador } from "@/app/actions/listas";
-import { PedidosCompraClient } from "@/app/admin/erp/pedidos-compra/pedidos-compra-client";
+import { PedidosCompraClient, type Compra as PedidoCompraData } from "@/app/admin/erp/pedidos-compra/pedidos-compra-client";
 
 function DecimalInput({ value, onChange, className, ...props }: {
   value: number
@@ -125,6 +125,12 @@ export default function ComprasClient({
   // --- ESTADOS PARA NUEVA COMPRA ---
   const [isPuntoVentaOpen, setIsPuntoVentaOpen] = useState(false);
   const [isPuntoVentaOpenGestion, setIsPuntoVentaOpenGestion] = useState(false);
+
+  // --- ESTADOS PARA EDITAR UN PEDIDO DE COMPRA DESDE "NUEVA COMPRA" ---
+  const [activeTab, setActiveTab] = useState("registrar");
+  const [pedidoEnEdicionId, setPedidoEnEdicionId] = useState<string | null>(null);
+  const [numeroPedidoEnEdicion, setNumeroPedidoEnEdicion] = useState<number | null>(null);
+  const [pedidosCompraRefreshKey, setPedidosCompraRefreshKey] = useState(0);
 
   // Helper para color del margen
   const getMarginColor = (m: number) => {
@@ -459,6 +465,112 @@ export default function ComprasClient({
     setFechaCompra(new Date().toISOString().split('T')[0]);
     setFechaIngreso("");
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false); setIsConfirmResumenOpen(false);
+    setPedidoEnEdicionId(null); setNumeroPedidoEnEdicion(null);
+  };
+
+  // Carga un pedido de compra existente en el estado de "Nueva Compra" para
+  // editarlo con el mismo formulario, en lugar del modal de PedidosCompraClient.
+  const cargarPedidoParaEdicionCompra = async (compra: PedidoCompraData) => {
+    if (!pedidoEnEdicionId && items.length > 0) {
+      if (!confirm("Hay una compra en curso sin guardar en 'Nueva Compra'. ¿Descartarla para editar este pedido?")) {
+        return;
+      }
+    }
+
+    const sync = await sincronizarArticulosMostrador();
+    const articulosActualizados = sync.success && sync.data ? sync.data : articulos;
+    if (sync.success && sync.data) setArticulos(sync.data);
+
+    setIsFinalizarModalOpen(false);
+    setIsConfirmResumenOpen(false);
+    setIsConfirmDiscardOpen(false);
+
+    setProveedor(compra.proveedor || "");
+    setProveedorId(compra.proveedorId || "");
+    setMetodoPago(compra.metodo_pago || "Efectivo");
+    setComprobante((compra as any).comprobante || "");
+    setInfo(compra.info || "");
+    setDni(compra.dni || "");
+    setTelefono(compra.telefono || "");
+    setTransaccionId((compra as any).transaccionId || "");
+    setInteres(Number(compra.interes) || 0);
+    setDescuento(Number(compra.descuento) || 0);
+    setImpactarCostos(false);
+    setIva(false);
+    setMoneda((compra.moneda as 'ARS' | 'USD') || 'ARS');
+    setFechaCompra(compra.fechaCarga ? new Date(compra.fechaCarga).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+    setFechaIngreso(compra.fechaIngreso ? new Date(compra.fechaIngreso).toISOString().split('T')[0] : "");
+
+    setItems(compra.items.map((i: any) => {
+      const c = Number(i.costo_unit);
+      const m = i.margenGanancia || 50;
+      const articuloBase = (articulosActualizados as any[]).find((a: any) => a.id === i.productoId);
+      return {
+        id: i.id || crypto.randomUUID(),
+        productoId: i.productoId || undefined,
+        nombre: i.nombre,
+        cantidad: i.cantidad,
+        costo_unit: c,
+        subtotal: Number(i.subtotal),
+        stock: articuloBase ? articuloBase.stock : 0,
+        ultimaModificacion: articuloBase?.ultimaModificacion || null,
+        margenGanancia: m,
+        precioPublico: Math.round(c * (1 + m / 100))
+      };
+    }));
+
+    setPedidoEnEdicionId(compra.id);
+    setNumeroPedidoEnEdicion((compra as any).numeroCompra ?? null);
+    setActiveTab("registrar");
+  };
+
+  const handleGuardarCambiosPedidoCompra = async () => {
+    if (!pedidoEnEdicionId) return;
+    if (metodoPago === "A Cuenta Corriente" && !proveedorId) {
+      alert("Debe seleccionar un proveedor de la lista para compras a Cuenta Corriente.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const res = await actualizarPedidoCompra(
+        pedidoEnEdicionId,
+        {
+          proveedor,
+          proveedorId,
+          moneda,
+          total: totalBase,
+          interes,
+          descuento,
+          totalFinal: totalFinalCalculado,
+          items: items.map(i => ({ ...i, costo_unit: iva ? Math.round(i.costo_unit * 1.21 * 100) / 100 : i.costo_unit })),
+          metodo_pago: metodoPago,
+          dni,
+          telefono,
+          info,
+          comprobante,
+          transaccionId,
+          impactarCostos,
+          fechaCompra,
+          fechaIngreso
+        },
+        compradorNombre,
+        "Pedido de compra editado desde Nueva Compra"
+      );
+
+      if (res.success) {
+        mostrarMensajeExito("¡Pedido de compra actualizado con éxito!");
+        resetForm();
+        setPedidosCompraRefreshKey(k => k + 1);
+        setActiveTab("pedidos");
+      } else {
+        alert("Error: " + res.error);
+      }
+    } catch (e) {
+      alert("Ocurrió un error inesperado.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // --- FUNCIONES EDICIÓN ---
@@ -590,7 +702,7 @@ export default function ComprasClient({
         </div>
       </header>
 
-      <Tabs defaultValue="registrar" className="flex-grow flex flex-col overflow-hidden h-full w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-grow flex flex-col overflow-hidden h-full w-full">
         <div className="bg-white border-b border-slate-100 px-8 py-1">
           <TabsList className="bg-slate-100/50 p-1 w-full flex justify-start">
             <TabsTrigger value="registrar" className="gap-2 px-6"><Plus className="h-4 w-4" /> Nueva Compra</TabsTrigger>
@@ -606,6 +718,22 @@ export default function ComprasClient({
 
         <TabsContent value="registrar" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
           <main className="flex-grow flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden h-full">
+            {pedidoEnEdicionId && (
+              <div className="flex items-center justify-between gap-3 bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2.5 flex-shrink-0">
+                <span className="text-sm font-bold text-indigo-800 flex items-center gap-2">
+                  <Edit className="h-4 w-4" /> Editando Pedido de Compra #{numeroPedidoEnEdicion}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { resetForm(); setActiveTab("pedidos"); }}
+                  className="text-indigo-700 hover:bg-indigo-100"
+                >
+                  Cancelar edición
+                </Button>
+              </div>
+            )}
             <div className="flex gap-4 items-center">
               <Button onClick={() => setIsModalOpen(true)} className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl w-fit shadow-md flex-shrink-0">
                 <Plus className="h-4 w-4" /> Buscar Artículo ( + )
@@ -757,7 +885,7 @@ export default function ComprasClient({
               <div className="flex items-center gap-4">
                 <Button variant="outline" onClick={() => setIsConfirmDiscardOpen(true)} className="text-red-500 border-red-200 hover:bg-red-50 h-12 rounded-xl">Descartar</Button>
                 <Button onClick={() => setIsFinalizarModalOpen(true)} disabled={items.length === 0 || isSubmitting} className="h-12 px-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md">
-                  Finalizar Compra
+                  {pedidoEnEdicionId ? "Guardar Cambios del Pedido" : "Finalizar Compra"}
                 </Button>
               </div>
             </div>
@@ -966,7 +1094,7 @@ export default function ComprasClient({
 
         <TabsContent value="pedidos" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full bg-white">
           <div className="flex-grow overflow-auto">
-            <PedidosCompraClient initialData={[]} dolarCotizacion={dolarCotizacion} factorFob={factorFob} />
+            <PedidosCompraClient key={pedidosCompraRefreshKey} initialData={[]} dolarCotizacion={dolarCotizacion} factorFob={factorFob} onEditarPedido={cargarPedidoParaEdicionCompra} />
           </div>
         </TabsContent>
 
@@ -1196,7 +1324,7 @@ export default function ComprasClient({
       <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
         <DialogContent className="sm:max-w-[550px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
           <div className="max-h-[95vh] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200">
-            <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-emerald-600" /> Detalles de la Compra</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-emerald-600" /> {pedidoEnEdicionId ? `Guardar Cambios del Pedido #${numeroPedidoEnEdicion}` : "Detalles de la Compra"}</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2 relative">
                 <Label className="text-xs font-bold text-slate-500 uppercase">Proveedor</Label>
@@ -1339,26 +1467,38 @@ export default function ComprasClient({
                 <span className="text-2xl font-black text-slate-900">$ {totalFinalCalculado.toLocaleString('es-AR')}</span>
               </div>
               <div className="space-y-3 pt-3 border-t border-slate-200/60">
-                <Button
-                  onClick={() => {
-                    if (metodoPago === "A Cuenta Corriente" && !proveedorId) {
-                      alert("Debe seleccionar un proveedor de la lista para compras a Cuenta Corriente.");
-                      return;
-                    }
-                    setIsConfirmResumenOpen(true);
-                  }}
-                  disabled={items.length === 0 || isSubmitting}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-emerald-600/10"
-                >
-                  <CheckCircle className="h-5 w-5 mr-2" /> Confirmar Compra
-                </Button>
-                <Button
-                  onClick={handleGuardarPedidoCompra}
-                  disabled={items.length === 0 || isSubmitting}
-                  className="bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white h-10 rounded-xl font-bold w-full text-xs shadow-md"
-                >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de compra</>}
-                </Button>
+                {pedidoEnEdicionId ? (
+                  <Button
+                    onClick={handleGuardarCambiosPedidoCompra}
+                    disabled={items.length === 0 || isSubmitting}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-indigo-600/10"
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-5 w-5 mr-2" /> Guardar Cambios</>}
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      onClick={() => {
+                        if (metodoPago === "A Cuenta Corriente" && !proveedorId) {
+                          alert("Debe seleccionar un proveedor de la lista para compras a Cuenta Corriente.");
+                          return;
+                        }
+                        setIsConfirmResumenOpen(true);
+                      }}
+                      disabled={items.length === 0 || isSubmitting}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-emerald-600/10"
+                    >
+                      <CheckCircle className="h-5 w-5 mr-2" /> Confirmar Compra
+                    </Button>
+                    <Button
+                      onClick={handleGuardarPedidoCompra}
+                      disabled={items.length === 0 || isSubmitting}
+                      className="bg-gradient-to-r from-amber-500 to-emerald-600 hover:from-amber-600 hover:to-emerald-700 text-white h-10 rounded-xl font-bold w-full text-xs shadow-md"
+                    >
+                      {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de compra</>}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
 

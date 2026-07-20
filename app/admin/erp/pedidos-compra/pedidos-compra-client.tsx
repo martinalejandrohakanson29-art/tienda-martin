@@ -61,7 +61,7 @@ type ItemCompra = {
   margenGanancia?: number;
 };
 
-type Compra = {
+export type Compra = {
   id: string;
   proveedor: string;
   comprador: string;
@@ -89,9 +89,10 @@ interface PedidosCompraClientProps {
   initialData: any[];
   dolarCotizacion?: number;
   factorFob?: number;
+  onEditarPedido?: (compra: Compra) => void;
 }
 
-export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFob = 1 }: PedidosCompraClientProps) {
+export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFob = 1, onEditarPedido }: PedidosCompraClientProps) {
   const [compras, setCompras] = useState<Compra[]>(initialData as Compra[]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -176,13 +177,17 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
     try {
       const data = await obtenerPedidoCompraPorId(compra.id);
       if (data) {
-        const mappedItems = data.items.map((i: any) => ({
-          ...i,
-          margenGanancia: i.margenGanancia || 50
-        }));
-        setEditingCompra({ ...data, items: mappedItems } as Compra);
-        setImpactarCostos(false);
-        setIsEditDialogOpen(true);
+        if (onEditarPedido) {
+          onEditarPedido(data as unknown as Compra);
+        } else {
+          const mappedItems = data.items.map((i: any) => ({
+            ...i,
+            margenGanancia: i.margenGanancia || 50
+          }));
+          setEditingCompra({ ...data, items: mappedItems } as Compra);
+          setImpactarCostos(false);
+          setIsEditDialogOpen(true);
+        }
       }
     } catch (err) {
       console.error("Error al cargar pedido para editar:", err);

@@ -64,7 +64,7 @@ type FinalData = Record<string, unknown> & {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const DEFAULTS = { peso_grs: 1000, alto_cm: 10, ancho_cm: 10, valor_declarado: 50000 };
+const DEFAULTS = { peso_grs: 1000, alto_cm: 19, ancho_cm: 16, valor_declarado: 50000 };
 
 const ESTADOS_PEDIDO = [
   { value: "TODOS",              label: "Todos" },

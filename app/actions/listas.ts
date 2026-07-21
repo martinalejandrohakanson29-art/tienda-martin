@@ -10,6 +10,7 @@ export async function obtenerArticulosParaListas() {
     const articulos = await prisma.articuloMostrador.findMany({
       orderBy: { nombre: 'asc' },
       include: {
+        proveedor: { select: { id: true, razonSocial: true, nombreFantasia: true } },
         packItems: {
           include: {
             componente: true
@@ -29,6 +30,9 @@ export async function obtenerArticulosParaListas() {
         margenGanancia: Number(art.margenGanancia || 0),
         esPack: art.esPack || false,
         oculto: art.oculto,
+        codigoProveedor: art.codigoProveedor,
+        proveedorId: art.proveedorId,
+        proveedorNombre: art.proveedor ? (art.proveedor.nombreFantasia || art.proveedor.razonSocial) : null,
         packItems: art.packItems?.map(packItem => ({
           ...packItem,
           componente: {
@@ -47,13 +51,13 @@ export async function obtenerArticulosParaListas() {
 }
 
 // Función para editar un artículo desde la tabla de listas
-export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number) {
+export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number, codigoProveedor?: string, proveedorId?: string | null) {
   try {
     const session = await getServerSession(authOptions);
     const usuario = (session?.user as any)?.name || "Desconocido";
 
     await prisma.$transaction(async (tx) => {
-      const anterior = await tx.articuloMostrador.findUnique({ where: { id } });
+      const anterior = await tx.articuloMostrador.findUnique({ where: { id }, include: { proveedor: true } });
       if (!anterior) throw new Error("Artículo no encontrado");
 
       await tx.articuloMostrador.update({
@@ -63,7 +67,9 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
           precio,
           stock,
           costo,
-          margenGanancia
+          margenGanancia,
+          codigoProveedor: codigoProveedor?.trim() || null,
+          proveedorId: proveedorId || null
         }
       });
 
@@ -82,6 +88,13 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
       }
       if (margenGanancia !== undefined && Number(anterior.margenGanancia || 0) !== margenGanancia) {
         cambios.push(`Margen: ${Number(anterior.margenGanancia || 0)}% → ${margenGanancia}%`);
+      }
+      if ((anterior.codigoProveedor || "") !== (codigoProveedor?.trim() || "")) {
+        cambios.push(`Código proveedor: "${anterior.codigoProveedor || ""}" → "${codigoProveedor?.trim() || ""}"`);
+      }
+      if ((anterior.proveedorId || "") !== (proveedorId || "")) {
+        const nuevoProveedor = proveedorId ? await tx.proveedor.findUnique({ where: { id: proveedorId } }) : null;
+        cambios.push(`Proveedor: "${anterior.proveedor?.razonSocial || "(sin proveedor)"}" → "${nuevoProveedor?.razonSocial || "(sin proveedor)"}"`);
       }
 
       if (cambios.length > 0) {
@@ -117,7 +130,7 @@ export async function obtenerHistorialArticulo(articuloId: string) {
   }
 }
 
-export async function crearArticuloMostrador(data: { id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number }) {
+export async function crearArticuloMostrador(data: { id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number, codigoProveedor?: string | null, proveedorId?: string | null }) {
   try {
     const articulo = await prisma.articuloMostrador.create({
       data: {
@@ -127,6 +140,8 @@ export async function crearArticuloMostrador(data: { id: string, nombre: string,
         stock: data.stock,
         costo: data.costo || 0,
         margenGanancia: data.margenGanancia || 0,
+        codigoProveedor: data.codigoProveedor?.trim() || null,
+        proveedorId: data.proveedorId || null,
         esPack: false
       }
     });
@@ -135,6 +150,23 @@ export async function crearArticuloMostrador(data: { id: string, nombre: string,
   } catch (error) {
     console.error("Error al crear artículo:", error);
     return { success: false, error: "No se pudo crear el artículo. Es posible que el ID ya exista." };
+  }
+}
+
+// Lista de proveedores para el selector en Artículos Mostrador
+export async function obtenerProveedoresParaListas() {
+  try {
+    const proveedores = await prisma.proveedor.findMany({
+      select: { id: true, razonSocial: true, nombreFantasia: true },
+      orderBy: { razonSocial: 'asc' }
+    });
+    return {
+      success: true,
+      data: proveedores.map(p => ({ id: p.id, nombre: p.nombreFantasia || p.razonSocial }))
+    };
+  } catch (error) {
+    console.error("Error al obtener proveedores:", error);
+    return { success: false, error: "No se pudieron cargar los proveedores." };
   }
 }
 

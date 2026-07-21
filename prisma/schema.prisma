@@ -689,12 +689,16 @@ model ArticuloMostrador {
   updatedAt    DateTime            @updatedAt
   esPack       Boolean?            @default(false)
   oculto       Boolean             @default(false)
+  codigoProveedor String?
+  proveedorId  String?
+  proveedor    Proveedor?          @relation(fields: [proveedorId], references: [id], onDelete: SetNull)
   auditorias   ArticuloAuditoria[]
   componenteOf PackMostradorItem[] @relation("PackComponente")
   packItems    PackMostradorItem[] @relation("PackPadre")
   faltantes    ArticuloFaltante[]
 
   @@index([nombre])
+  @@index([proveedorId])
   @@map("articulos_mostrador")
 }
 
@@ -996,6 +1000,7 @@ model Proveedor {
   movimientos    MovimientoProveedor[]
   ventasMostrador Venta[]
   faltantes      ArticuloFaltante[]
+  articulosMostrador ArticuloMostrador[]
   aliasCbu       String?
 
   @@map("proveedores")

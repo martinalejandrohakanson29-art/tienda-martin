@@ -13,6 +13,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
 
 interface Articulo {
   id: string;
@@ -22,12 +25,22 @@ interface Articulo {
   costo?: number;
   margenGanancia?: number;
   oculto?: boolean;
+  codigoProveedor?: string | null;
+  proveedorId?: string | null;
+  proveedorNombre?: string | null;
 }
 
-export default function ArticulosClient({ 
-  articulosIniciales 
-}: { 
-  articulosIniciales: Articulo[] 
+interface ProveedorOpcion {
+  id: string;
+  nombre: string;
+}
+
+export default function ArticulosClient({
+  articulosIniciales,
+  proveedores
+}: {
+  articulosIniciales: Articulo[];
+  proveedores: ProveedorOpcion[];
 }) {
   const [articulos, setArticulos] = useState<Articulo[]>(articulosIniciales);
   const [searchTerm, setSearchTerm] = useState("");
@@ -64,7 +77,9 @@ export default function ArticulosClient({
     precio: 0,
     stock: 0,
     costo: 0,
-    margenGanancia: 0
+    margenGanancia: 0,
+    codigoProveedor: "",
+    proveedorId: null
   });
 
   // --- NUEVO BUSCADOR INTELIGENTE Y FLEXIBLE ---
@@ -82,7 +97,9 @@ export default function ArticulosClient({
     return lista.filter(art => {
       const nombreLimpio = quitarAcentos(art.nombre.toLowerCase());
       const idLimpio = quitarAcentos(art.id.toLowerCase());
-      return palabrasBuscadas.every(p => nombreLimpio.includes(p) || idLimpio.includes(p));
+      const codigoProveedorLimpio = quitarAcentos((art.codigoProveedor || "").toLowerCase());
+      const proveedorLimpio = quitarAcentos((art.proveedorNombre || "").toLowerCase());
+      return palabrasBuscadas.every(p => nombreLimpio.includes(p) || idLimpio.includes(p) || codigoProveedorLimpio.includes(p) || proveedorLimpio.includes(p));
     });
   }, [searchTerm, articulos, soloOcultos]);
 
@@ -111,11 +128,14 @@ export default function ArticulosClient({
       editData.precio,
       editData.stock,
       editData.costo,
-      editData.margenGanancia
+      editData.margenGanancia,
+      editData.codigoProveedor || undefined,
+      editData.proveedorId || null
     );
-    
+
     if (res.success) {
-      setArticulos(prev => prev.map(a => a.id === editData.id ? editData : a));
+      const proveedorNombre = proveedores.find(p => p.id === editData.proveedorId)?.nombre || null;
+      setArticulos(prev => prev.map(a => a.id === editData.id ? { ...editData, proveedorNombre } : a));
       setIsEditModalOpen(false);
     } else {
       alert("Error: " + res.error);
@@ -132,11 +152,12 @@ export default function ArticulosClient({
     setIsSubmitting(true);
 
     const res = await crearArticuloMostrador(newData);
-    
+
     if (res.success) {
-      setArticulos(prev => [...prev, newData]);
+      const proveedorNombre = proveedores.find(p => p.id === newData.proveedorId)?.nombre || null;
+      setArticulos(prev => [...prev, { ...newData, proveedorNombre }]);
       setIsCreateModalOpen(false);
-      setNewData({ id: "", nombre: "", precio: 0, stock: 0, costo: 0, margenGanancia: 0 });
+      setNewData({ id: "", nombre: "", precio: 0, stock: 0, costo: 0, margenGanancia: 0, codigoProveedor: "", proveedorId: null });
     } else {
       alert("Error: " + res.error);
     }
@@ -167,7 +188,7 @@ export default function ArticulosClient({
 
     // Reutilizamos la acción existente; el precio de venta NO se recalcula al editar el costo inline.
     const res = await actualizarArticuloDesdeLista(
-      art.id, art.nombre, art.precio, art.stock, nuevoCosto, art.margenGanancia
+      art.id, art.nombre, art.precio, art.stock, nuevoCosto, art.margenGanancia, art.codigoProveedor || undefined, art.proveedorId || null
     );
 
     if (res.success) {
@@ -295,6 +316,7 @@ export default function ArticulosClient({
                 <TableRow>
                   <TableHead className="text-[10px] font-bold uppercase py-4">ID Artículo</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase py-4">Nombre / Descripción</TableHead>
+                  <TableHead className="text-[10px] font-bold uppercase py-4">Proveedor</TableHead>
                   <TableHead className="text-right text-[10px] font-bold uppercase py-4">Costo ($)</TableHead>
                   <TableHead className="text-right text-[10px] font-bold uppercase py-4">Precio Base ($)</TableHead>
                   <TableHead className="text-center text-[10px] font-bold uppercase py-4">Marcación</TableHead>
@@ -305,7 +327,7 @@ export default function ArticulosClient({
               <TableBody>
                 {paginatedArticulos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">
+                    <TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">
                       No se encontraron artículos con esa búsqueda.
                     </TableCell>
                   </TableRow>
@@ -322,6 +344,16 @@ export default function ArticulosClient({
                             </span>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell className="py-3">
+                        {art.proveedorNombre ? (
+                          <span className={`text-xs font-bold ${art.oculto ? 'text-slate-400' : 'text-slate-700'}`}>{art.proveedorNombre}</span>
+                        ) : (
+                          <span className="text-slate-300 text-xs">—</span>
+                        )}
+                        {art.codigoProveedor && (
+                          <span className="block text-[10px] font-mono text-slate-400">{art.codigoProveedor}</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right py-3">
                         {editandoCostoId === art.id ? (
@@ -488,13 +520,42 @@ export default function ArticulosClient({
                   className="font-medium bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
                 />
               </div>
-              
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 uppercase">Proveedor</Label>
+                  <Select
+                    value={editData.proveedorId || "none"}
+                    onValueChange={(v) => setEditData({...editData, proveedorId: v === "none" ? null : v})}
+                  >
+                    <SelectTrigger className="bg-slate-50 border-slate-200 focus:ring-indigo-500">
+                      <SelectValue placeholder="Sin proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin proveedor</SelectItem>
+                      {proveedores.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 uppercase">Código Proveedor</Label>
+                  <Input
+                    value={editData.codigoProveedor || ""}
+                    onChange={(e) => setEditData({...editData, codigoProveedor: e.target.value})}
+                    placeholder="ID del artículo en el proveedor"
+                    className="font-mono bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-600 uppercase">Costo ($)</Label>
-                  <Input 
-                    type="number" 
-                    value={editData.costo} 
+                  <Input
+                    type="number"
+                    value={editData.costo}
                     onChange={(e) => handleCostoChange(Number(e.target.value), true)} 
                     className="font-bold bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
                   />
@@ -590,11 +651,40 @@ export default function ArticulosClient({
               <Label className="text-xs font-bold text-slate-600 uppercase">Nombre / Descripción</Label>
               <Input 
                 value={newData.nombre} 
-                onChange={(e) => setNewData({...newData, nombre: e.target.value})} 
+                onChange={(e) => setNewData({...newData, nombre: e.target.value})}
                 className="font-medium bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
               />
             </div>
-            
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">Proveedor</Label>
+                <Select
+                  value={newData.proveedorId || "none"}
+                  onValueChange={(v) => setNewData({...newData, proveedorId: v === "none" ? null : v})}
+                >
+                  <SelectTrigger className="bg-slate-50 border-slate-200 focus:ring-indigo-500">
+                    <SelectValue placeholder="Sin proveedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin proveedor</SelectItem>
+                    {proveedores.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">Código Proveedor</Label>
+                <Input
+                  value={newData.codigoProveedor || ""}
+                  onChange={(e) => setNewData({...newData, codigoProveedor: e.target.value})}
+                  placeholder="ID del artículo en el proveedor"
+                  className="font-mono bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-600 uppercase">Costo ($)</Label>

@@ -1,4 +1,4 @@
-import { obtenerArticulosParaListas } from "@/app/actions/listas"
+import { obtenerArticulosParaListas, obtenerProveedoresParaListas } from "@/app/actions/listas"
 import ArticulosClient from "./articulos-client"
 
 export const metadata = {
@@ -8,13 +8,17 @@ export const metadata = {
 
 export default async function ArticulosMostradorPage() {
   // Traemos los datos directamente desde el servidor antes de renderizar
-  const response = await obtenerArticulosParaListas();
+  const [response, proveedoresResponse] = await Promise.all([
+    obtenerArticulosParaListas(),
+    obtenerProveedoresParaListas()
+  ]);
   const articulos = response.success && response.data ? response.data : [];
+  const proveedores = proveedoresResponse.success && proveedoresResponse.data ? proveedoresResponse.data : [];
 
   return (
     // Contenedor principal a pantalla completa
     <div className="h-screen w-full overflow-hidden bg-slate-50/30">
-      <ArticulosClient articulosIniciales={articulos} />
+      <ArticulosClient articulosIniciales={articulos} proveedores={proveedores} />
     </div>
   )
 }

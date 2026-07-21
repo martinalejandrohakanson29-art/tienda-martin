@@ -64,7 +64,7 @@ type FinalData = Record<string, unknown> & {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const DEFAULTS = { peso_grs: 500, alto_cm: 10, ancho_cm: 10, valor_declarado: 50000 };
+const DEFAULTS = { peso_grs: 1000, alto_cm: 10, ancho_cm: 10, valor_declarado: 50000 };
 
 const ESTADOS_PEDIDO = [
   { value: "TODOS",              label: "Todos" },
@@ -215,7 +215,7 @@ export default function EnviosAndreaniTab() {
   const [plc, setPlc] = useState("");
   const [sugs, setSugs] = useState("");
 
-  const [peso, setPeso] = useState<string>("");
+  const [peso, setPeso] = useState<string>("1000");
   const [alto, setAlto] = useState<string>("");
   const [ancho, setAncho] = useState<string>("");
   const [valorDeclarado, setValorDeclarado] = useState<string>("50000");
@@ -270,17 +270,19 @@ export default function EnviosAndreaniTab() {
 
   // ── Sync controles → finalData ──────────────────────────────────────────────
 
-  const syncControls = useCallback((base: FinalData) => {
+  type ControlOverrides = { peso?: string; alto?: string; ancho?: string; valorDeclarado?: string };
+
+  const syncControls = useCallback((base: FinalData, overrides?: ControlOverrides) => {
     const updated = { ...base };
-    const p = Number(peso); if (Number.isFinite(p) && p > 0) updated.peso_grs = p;
-    const a = Number(alto); if (Number.isFinite(a) && a > 0) updated.alto_cm = a;
-    const an = Number(ancho); if (Number.isFinite(an) && an > 0) updated.ancho_cm = an;
-    const vd = Number(valorDeclarado); if (Number.isFinite(vd) && vd > 0) updated.valor_declarado = vd;
+    const p = Number(overrides?.peso ?? peso); if (Number.isFinite(p) && p > 0) updated.peso_grs = p;
+    const a = Number(overrides?.alto ?? alto); if (Number.isFinite(a) && a > 0) updated.alto_cm = a;
+    const an = Number(overrides?.ancho ?? ancho); if (Number.isFinite(an) && an > 0) updated.ancho_cm = an;
+    const vd = Number(overrides?.valorDeclarado ?? valorDeclarado); if (Number.isFinite(vd) && vd > 0) updated.valor_declarado = vd;
     return updated;
   }, [peso, alto, ancho, valorDeclarado]);
 
-  const applyAndRender = useCallback((d: FinalData) => {
-    const merged = syncControls(applyDefaults(d));
+  const applyAndRender = useCallback((d: FinalData, overrides?: ControlOverrides) => {
+    const merged = syncControls(applyDefaults(d), overrides);
     setFinalData(merged);
     setPrettyOut(buildPretty(merged));
     const miss = getMissing(merged);
@@ -385,9 +387,9 @@ export default function EnviosAndreaniTab() {
 
   // ── Re-render pretty cuando cambian los controles ───────────────────────────
 
-  const onControlChange = () => {
+  const onControlChange = (overrides: ControlOverrides) => {
     if (Object.keys(finalData).length === 0) return;
-    applyAndRender(finalData);
+    applyAndRender(finalData, overrides);
   };
 
   // ── UI ──────────────────────────────────────────────────────────────────────
@@ -538,18 +540,18 @@ export default function EnviosAndreaniTab() {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: "Peso (grs)", val: peso, set: setPeso },
-                { label: "Alto (cm)", val: alto, set: setAlto },
-                { label: "Ancho (cm)", val: ancho, set: setAncho },
-                { label: "Valor declarado ($)", val: valorDeclarado, set: setValorDeclarado },
-              ].map(({ label, val, set }) => (
+                { label: "Peso (grs)", key: "peso" as const, val: peso, set: setPeso },
+                { label: "Alto (cm)", key: "alto" as const, val: alto, set: setAlto },
+                { label: "Ancho (cm)", key: "ancho" as const, val: ancho, set: setAncho },
+                { label: "Valor declarado ($)", key: "valorDeclarado" as const, val: valorDeclarado, set: setValorDeclarado },
+              ].map(({ label, key, val, set }) => (
                 <div key={label} className="flex flex-col gap-1">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide">{label}</label>
                   <Input
                     type="number"
                     value={val}
                     min={1}
-                    onChange={e => { set(e.target.value); onControlChange(); }}
+                    onChange={e => { const v = e.target.value; set(v); onControlChange({ [key]: v }); }}
                     className="h-9 text-sm"
                   />
                 </div>

@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User } from "lucide-react";
+import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User, ListChecks, Truck, Check, X } from "lucide-react";
 import Link from "next/link";
-import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo } from "@/app/actions/listas";
+import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo, aplicarProveedorMasivo } from "@/app/actions/listas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
@@ -73,6 +74,13 @@ export default function ArticulosClient({
   const [togglingOcultoId, setTogglingOcultoId] = useState<string | null>(null);
   const [soloOcultos, setSoloOcultos] = useState(false);
 
+  // Estados para selección múltiple y acciones masivas (funciona sobre TODO el filtro, no solo la página visible)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<string>("aplicar_proveedor");
+  const [bulkProveedorId, setBulkProveedorId] = useState<string>("none");
+  const [aplicandoBulk, setAplicandoBulk] = useState(false);
+  const headerCheckboxRef = useRef<HTMLInputElement>(null);
+
   // Estados para el Modal de Historial
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
   const [historialActual, setHistorialActual] = useState<{ id: string; usuario: string; accion: string; detalle: string | null; createdAt: Date }[]>([]);
@@ -120,6 +128,64 @@ export default function ArticulosClient({
   const totalPages = Math.ceil(articulosFiltrados.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedArticulos = articulosFiltrados.slice(startIndex, startIndex + itemsPerPage);
+
+  // --- Selección múltiple: siempre relativa a TODO lo que devuelve el filtro actual, sin importar la página ---
+  const idsFiltrados = useMemo(() => articulosFiltrados.map(a => a.id), [articulosFiltrados]);
+  const seleccionadosEnFiltro = useMemo(
+    () => idsFiltrados.filter(id => selectedIds.has(id)).length,
+    [idsFiltrados, selectedIds]
+  );
+  const todosFiltradosSeleccionados = idsFiltrados.length > 0 && seleccionadosEnFiltro === idsFiltrados.length;
+  const algunosFiltradosSeleccionados = seleccionadosEnFiltro > 0 && !todosFiltradosSeleccionados;
+
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = algunosFiltradosSeleccionados;
+    }
+  }, [algunosFiltradosSeleccionados]);
+
+  const toggleSeleccionarTodosFiltrados = () => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (todosFiltradosSeleccionados) {
+        idsFiltrados.forEach(id => next.delete(id));
+      } else {
+        idsFiltrados.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSeleccionarUno = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const limpiarSeleccion = () => setSelectedIds(new Set());
+
+  const handleAplicarProveedorMasivo = async () => {
+    if (selectedIds.size === 0) return;
+    setAplicandoBulk(true);
+
+    const ids = Array.from(selectedIds);
+    const proveedorId = bulkProveedorId === "none" ? null : bulkProveedorId;
+    const res = await aplicarProveedorMasivo(ids, proveedorId);
+
+    if (res.success) {
+      const idsSet = new Set(ids);
+      const proveedorNombre = res.proveedorNombre ?? null;
+      setArticulos(prev => prev.map(a => idsSet.has(a.id) ? { ...a, proveedorId, proveedorNombre } : a));
+      setSelectedIds(new Set());
+      setBulkProveedorId("none");
+    } else {
+      alert("Error: " + res.error);
+    }
+
+    setAplicandoBulk(false);
+  };
 
   // Funciones de Edición
   const abrirModalEdicion = (articulo: Articulo) => {
@@ -369,12 +435,86 @@ export default function ArticulosClient({
           </div>
         </div>
 
+        {/* Barra de Acciones Masivas: aparece al tildar el check de selección */}
+        {selectedIds.size > 0 && (
+          <div className="flex items-center gap-3 bg-indigo-600 text-white pl-4 pr-2 py-2.5 rounded-2xl shadow-lg shadow-indigo-200/60 flex-shrink-0 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="bg-white/15 p-2 rounded-xl flex-shrink-0">
+              <ListChecks className="h-4 w-4" />
+            </div>
+            <div className="flex-shrink-0">
+              <p className="text-sm font-black leading-tight">
+                {selectedIds.size} artículo{selectedIds.size !== 1 ? "s" : ""} seleccionado{selectedIds.size !== 1 ? "s" : ""}
+              </p>
+              <button
+                onClick={limpiarSeleccion}
+                className="text-[11px] text-indigo-100 hover:text-white underline underline-offset-2 transition-colors"
+              >
+                Limpiar selección
+              </button>
+            </div>
+
+            <div className="h-8 w-px bg-white/20 mx-1 flex-shrink-0" />
+
+            <select
+              value={bulkAction}
+              onChange={(e) => setBulkAction(e.target.value)}
+              className="h-9 text-xs font-bold bg-white/10 text-white border border-white/25 rounded-xl px-2.5 outline-none cursor-pointer hover:bg-white/15 transition-colors flex-shrink-0"
+            >
+              <option value="aplicar_proveedor" className="text-slate-800">Aplicar proveedor</option>
+            </select>
+
+            {bulkAction === "aplicar_proveedor" && (
+              <div className="flex items-center gap-2 bg-white/10 rounded-xl p-1.5 pl-3 flex-shrink-0">
+                <Truck className="h-3.5 w-3.5 text-indigo-100 flex-shrink-0" />
+                <select
+                  value={bulkProveedorId}
+                  onChange={(e) => setBulkProveedorId(e.target.value)}
+                  disabled={aplicandoBulk}
+                  className="h-8 text-xs font-bold bg-white text-slate-700 rounded-lg px-2 outline-none min-w-[170px] cursor-pointer"
+                >
+                  <option value="none">Sin proveedor</option>
+                  {proveedores.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+                <Button
+                  onClick={handleAplicarProveedorMasivo}
+                  disabled={aplicandoBulk}
+                  size="sm"
+                  className="bg-white text-indigo-700 hover:bg-indigo-50 rounded-lg font-bold h-8 px-4 shadow-none"
+                >
+                  {aplicandoBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
+                  Aplicar
+                </Button>
+              </div>
+            )}
+
+            <button
+              onClick={limpiarSeleccion}
+              title="Cancelar selección"
+              className="ml-auto p-1.5 hover:bg-white/15 rounded-lg transition-colors flex-shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
         {/* Tabla de Datos */}
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
           <div className="overflow-y-auto">
             <Table>
               <TableHeader className="sticky top-0 bg-slate-50/95 backdrop-blur-sm z-10 shadow-sm">
                 <TableRow>
+                  <TableHead className="py-4 w-10 pl-4">
+                    <Checkbox
+                      ref={headerCheckboxRef}
+                      checked={todosFiltradosSeleccionados}
+                      onCheckedChange={toggleSeleccionarTodosFiltrados}
+                      disabled={idsFiltrados.length === 0}
+                      title="Seleccionar todos los artículos filtrados (todas las páginas)"
+                      className="h-4 w-4"
+                    />
+                  </TableHead>
                   <TableHead className="text-[10px] font-bold uppercase py-4">ID Artículo</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase py-4">Nombre / Descripción</TableHead>
                   <TableHead className="text-[10px] font-bold uppercase py-4">Proveedor</TableHead>
@@ -388,13 +528,20 @@ export default function ArticulosClient({
               <TableBody>
                 {paginatedArticulos.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-20 text-center text-slate-400 italic">
+                    <TableCell colSpan={9} className="py-20 text-center text-slate-400 italic">
                       No se encontraron artículos con esa búsqueda.
                     </TableCell>
                   </TableRow>
                 ) : (
                   paginatedArticulos.map((art) => (
-                    <TableRow key={art.id} className={`hover:bg-indigo-50/30 transition-colors ${art.oculto ? 'bg-slate-50/60' : ''}`}>
+                    <TableRow key={art.id} className={`hover:bg-indigo-50/30 transition-colors ${selectedIds.has(art.id) ? 'bg-indigo-50/50' : ''} ${art.oculto ? 'bg-slate-50/60' : ''}`}>
+                      <TableCell className="py-3 pl-4">
+                        <Checkbox
+                          checked={selectedIds.has(art.id)}
+                          onCheckedChange={() => toggleSeleccionarUno(art.id)}
+                          className="h-4 w-4"
+                        />
+                      </TableCell>
                       <TableCell className={`text-xs font-mono py-3 ${art.oculto ? 'text-slate-300' : 'text-slate-400'}`}>{art.id}</TableCell>
                       <TableCell className={`font-bold py-3 ${art.oculto ? 'text-slate-400' : 'text-slate-800'}`}>
                         <div className="flex items-center gap-2">

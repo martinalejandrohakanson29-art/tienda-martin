@@ -116,6 +116,53 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
   }
 }
 
+// Aplica un proveedor a un conjunto de artículos en una sola operación (selección masiva desde la tabla)
+export async function aplicarProveedorMasivo(ids: string[], proveedorId: string | null) {
+  try {
+    if (!ids || ids.length === 0) {
+      return { success: false, error: "No se seleccionaron artículos." };
+    }
+
+    const session = await getServerSession(authOptions);
+    const usuario = (session?.user as any)?.name || "Desconocido";
+
+    const nuevoProveedor = proveedorId
+      ? await prisma.proveedor.findUnique({ where: { id: proveedorId } })
+      : null;
+
+    await prisma.$transaction(async (tx) => {
+      const anteriores = await tx.articuloMostrador.findMany({
+        where: { id: { in: ids } },
+        include: { proveedor: true }
+      });
+
+      await tx.articuloMostrador.updateMany({
+        where: { id: { in: ids } },
+        data: { proveedorId: proveedorId || null }
+      });
+
+      const auditorias = anteriores
+        .filter(a => (a.proveedorId || "") !== (proveedorId || ""))
+        .map(a => ({
+          articuloId: a.id,
+          usuario,
+          accion: "EDICION_MASIVA_PROVEEDOR",
+          detalle: `Proveedor: "${a.proveedor?.razonSocial || "(sin proveedor)"}" → "${nuevoProveedor?.razonSocial || "(sin proveedor)"}" (aplicación masiva a ${ids.length} artículos)`
+        }));
+
+      if (auditorias.length > 0) {
+        await tx.articuloAuditoria.createMany({ data: auditorias });
+      }
+    });
+
+    const proveedorNombre = nuevoProveedor ? (nuevoProveedor.nombreFantasia || nuevoProveedor.razonSocial) : null;
+    return { success: true, proveedorId: proveedorId || null, proveedorNombre };
+  } catch (error) {
+    console.error("Error al aplicar proveedor masivo:", error);
+    return { success: false, error: "Ocurrió un error al aplicar el proveedor a los artículos seleccionados." };
+  }
+}
+
 // Historial de cambios de un artículo (para la sección de listas)
 export async function obtenerHistorialArticulo(articuloId: string) {
   try {

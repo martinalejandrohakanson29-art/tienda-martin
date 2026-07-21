@@ -29,6 +29,29 @@ const AFIP_CONFIG = {
     tipoComprobante: parseInt(process.env.AFIP_TIPO_CBTE || "6")
 };
 
+// ARCA (ex-AFIP) devuelve intermitentemente SoapFaultError con statusCode 503
+// cuando su propio servicio WSFE está saturado/inestable. No es un error de
+// nuestro lado: reintentamos con backoff antes de dar la venta por fallida.
+function esErrorServicioNoDisponible(error: any): boolean {
+    return error?.extra?.fault?.statusCode === 503;
+}
+
+async function conReintentos<T>(fn: () => Promise<T>, intentos = 3, delayBaseMs = 2000): Promise<T> {
+    let ultimoError: any;
+    for (let intento = 1; intento <= intentos; intento++) {
+        try {
+            return await fn();
+        } catch (error: any) {
+            ultimoError = error;
+            if (!esErrorServicioNoDisponible(error) || intento === intentos) throw error;
+            const espera = delayBaseMs * intento;
+            console.warn(`⏳ [AFIP] ARCA devolvió 503 (Servicio no disponible). Reintentando en ${espera}ms (intento ${intento}/${intentos})...`);
+            await new Promise(resolve => setTimeout(resolve, espera));
+        }
+    }
+    throw ultimoError;
+}
+
 async function obtenerTicketAcceso(servicio: string = 'wsfe') {
     const loginTicket = LoginTicket.getInstance();
 
@@ -271,75 +294,82 @@ export async function facturarVenta(data: {
         console.log("📡 [AFIP] Conectando a WSFE en:", AFIP_CONFIG.urlWsfe);
         const wsfe = new Wsfev1(AFIP_CONFIG.urlWsfe);
 
-        console.log("🔢 [AFIP] Solicitando último comprobante autorizado...");
-        const ultimoRes = await wsfe.FECompUltimoAutorizado({
-            Auth: auth, PtoVta: AFIP_CONFIG.puntoDeVenta, CbteTipo: cbteTipo
-        });
-
-        if (!ultimoRes?.FECompUltimoAutorizadoResult) {
-            console.error("❌ [AFIP] Respuesta inválida de FECompUltimoAutorizado:", ultimoRes);
-            throw new Error("Error al obtener último comprobante");
-        }
-
-        const lastCbte = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro);
-        console.log(`🔢 [AFIP] Último comprobante para PtoVta ${AFIP_CONFIG.puntoDeVenta} Tipo ${cbteTipo}: ${lastCbte}`);
-
-        const nextNumber = lastCbte + 1;
-        const fecha = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(/-/g, '');
-
         const total = parseFloat(monto.toFixed(2));
         const esResponsableInscripto = [1, 6].includes(cbteTipo);
 
-        let neto = total;
-        let importeIva = 0;
-        let ivaArray = null;
+        // Todo el ciclo (consultar último comprobante + enviar CAE) se reintenta como
+        // unidad ante un 503 de ARCA, para que cada intento re-consulte el último
+        // número autorizado y así nunca reenviar un CbteDesde ya usado.
+        const { resARCA, nextNumber } = await conReintentos(async () => {
+            console.log("🔢 [AFIP] Solicitando último comprobante autorizado...");
+            const ultimoRes = await wsfe.FECompUltimoAutorizado({
+                Auth: auth, PtoVta: AFIP_CONFIG.puntoDeVenta, CbteTipo: cbteTipo
+            });
 
-        // Si el emisor es RI, el IVA es obligatorio incluso en Factura B (aunque el cliente no lo vea discriminado)
-        if (esResponsableInscripto) {
-            neto = parseFloat((total / 1.21).toFixed(2));
-            importeIva = parseFloat((total - neto).toFixed(2));
-            ivaArray = {
-                AlicIva: [
-                    {
-                        Id: 5, // 21%
-                        BaseImp: neto,
-                        Importe: importeIva
-                    }
-                ]
-            };
-        }
-
-        console.log(`🧾 [AFIP] Preparando factura nro ${nextNumber} para DNI/CUIT ${docNro}`, { total, neto, importeIva });
-
-        const facturaData = {
-            FeCAEReq: {
-                FeCabReq: { CantReg: 1, PtoVta: AFIP_CONFIG.puntoDeVenta, CbteTipo: cbteTipo },
-                FeDetReq: {
-                    FECAEDetRequest: [{
-                        Concepto: concepto,
-                        DocTipo: docTipo,
-                        DocNro: docNro,
-                        CbteDesde: nextNumber,
-                        CbteHasta: nextNumber,
-                        CbteFch: fecha,
-                        ImpTotal: total,
-                        ImpTotConc: 0,
-                        ImpNeto: neto,
-                        ImpOpEx: 0,
-                        ImpTrib: 0,
-                        ImpIVA: importeIva,
-                        MonId: 'PES',
-                        MonCotiz: 1,
-                        CondicionIVAReceptorId: ivaReceptor,
-                        ...(ivaArray ? { Iva: ivaArray } : {})
-                    }]
-                }
+            if (!ultimoRes?.FECompUltimoAutorizadoResult) {
+                console.error("❌ [AFIP] Respuesta inválida de FECompUltimoAutorizado:", ultimoRes);
+                throw new Error("Error al obtener último comprobante");
             }
-        };
 
-        console.log("📤 [AFIP] Enviando solicitud de CAE...");
-        const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...facturaData } as any);
-        console.log("📥 [AFIP] Respuesta de FECAESolicitar recibida.");
+            const lastCbte = Number(ultimoRes.FECompUltimoAutorizadoResult.CbteNro);
+            console.log(`🔢 [AFIP] Último comprobante para PtoVta ${AFIP_CONFIG.puntoDeVenta} Tipo ${cbteTipo}: ${lastCbte}`);
+
+            const nextNumber = lastCbte + 1;
+            const fecha = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }).replace(/-/g, '');
+
+            let neto = total;
+            let importeIva = 0;
+            let ivaArray = null;
+
+            // Si el emisor es RI, el IVA es obligatorio incluso en Factura B (aunque el cliente no lo vea discriminado)
+            if (esResponsableInscripto) {
+                neto = parseFloat((total / 1.21).toFixed(2));
+                importeIva = parseFloat((total - neto).toFixed(2));
+                ivaArray = {
+                    AlicIva: [
+                        {
+                            Id: 5, // 21%
+                            BaseImp: neto,
+                            Importe: importeIva
+                        }
+                    ]
+                };
+            }
+
+            console.log(`🧾 [AFIP] Preparando factura nro ${nextNumber} para DNI/CUIT ${docNro}`, { total, neto, importeIva });
+
+            const facturaData = {
+                FeCAEReq: {
+                    FeCabReq: { CantReg: 1, PtoVta: AFIP_CONFIG.puntoDeVenta, CbteTipo: cbteTipo },
+                    FeDetReq: {
+                        FECAEDetRequest: [{
+                            Concepto: concepto,
+                            DocTipo: docTipo,
+                            DocNro: docNro,
+                            CbteDesde: nextNumber,
+                            CbteHasta: nextNumber,
+                            CbteFch: fecha,
+                            ImpTotal: total,
+                            ImpTotConc: 0,
+                            ImpNeto: neto,
+                            ImpOpEx: 0,
+                            ImpTrib: 0,
+                            ImpIVA: importeIva,
+                            MonId: 'PES',
+                            MonCotiz: 1,
+                            CondicionIVAReceptorId: ivaReceptor,
+                            ...(ivaArray ? { Iva: ivaArray } : {})
+                        }]
+                    }
+                }
+            };
+
+            console.log("📤 [AFIP] Enviando solicitud de CAE...");
+            const resARCA = await wsfe.FECAESolicitar({ Auth: auth, ...facturaData } as any);
+            console.log("📥 [AFIP] Respuesta de FECAESolicitar recibida.");
+
+            return { resARCA, nextNumber };
+        });
 
         const result = resARCA.FECAESolicitarResult as any;
         if (!result) {

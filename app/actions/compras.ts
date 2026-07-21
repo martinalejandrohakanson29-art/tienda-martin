@@ -444,9 +444,14 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
                 monto: montoDecimal.negated(),
                 descripcion: `Compra a CC #${compra.numeroCompra} - Confirmación Pedido`,
                 referencia: compra.id,
-                saldo: nuevoSaldo
+                saldo: nuevoSaldo,
+                fecha: compra.fechaIngreso ?? undefined
               }
             });
+
+            // El movimiento puede insertarse en medio de la línea de tiempo si la
+            // fecha de ingreso es anterior a otros movimientos ya cargados.
+            await recalcularSaldosProveedorConBase(tx, proveedor.id);
           }
         }
       }
@@ -683,9 +688,12 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
               monto: montoDecimal.negated(),
               descripcion: `EDICIÓN: Compra a CC #${updatedCompra.numeroCompra}`,
               referencia: compraId,
-              saldo: nuevoSaldo
+              saldo: nuevoSaldo,
+              fecha: updatedCompra.fechaIngreso ?? undefined
             }
           });
+
+          await recalcularSaldosProveedorConBase(tx, proveedor.id);
         }
       }
 
@@ -909,9 +917,13 @@ export async function crearCompra(data: {
               descripcion: `Compra a CC #${compra.numeroCompra}`,
               referencia: compra.id,
               saldo: nuevoSaldo,
-              fecha: toArgDate(data.fechaCompra) ?? undefined
+              fecha: toArgDate(data.fechaIngreso) ?? undefined
             }
           });
+
+          // El movimiento puede insertarse en medio de la línea de tiempo si la
+          // fecha de ingreso es anterior a otros movimientos ya cargados.
+          await recalcularSaldosProveedorConBase(tx, proveedor.id);
         }
       }
 
@@ -1075,9 +1087,11 @@ export async function actualizarCompra(compraId: string, data: {
               descripcion: `EDICIÓN: Compra a CC #${oldCompra?.numeroCompra}`,
               referencia: compraId,
               saldo: nuevoSaldo,
-              fecha: toArgDate(data.fechaCompra) ?? undefined
+              fecha: toArgDate(data.fechaIngreso) ?? undefined
             }
           });
+
+          await recalcularSaldosProveedorConBase(tx, proveedor.id);
         }
       }
 

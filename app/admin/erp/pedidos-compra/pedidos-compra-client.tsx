@@ -96,10 +96,6 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
   const [compras, setCompras] = useState<Compra[]>(initialData as Compra[]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fechaDesde, setFechaDesde] = useState(
-    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split("T")[0]
-  );
-  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split("T")[0]);
   const [compraSeleccionada, setCompraSeleccionada] = useState<Compra | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isEliminarDialogOpen, setIsEliminarDialogOpen] = useState(false);
@@ -129,7 +125,7 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
     try {
       setCargando(true);
       setError(null);
-      const res = await obtenerPedidosCompra(fechaDesde, fechaHasta);
+      const res = await obtenerPedidosCompra();
       if (res.success && res.data) {
         setCompras(res.data as any);
       } else if (res.error) {
@@ -410,11 +406,8 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
   }, []);
 
   useEffect(() => {
-    // Initial load if dates are set
-    if (fechaDesde && fechaHasta) {
-      cargarPedidos();
-    }
-  }, [fechaDesde, fechaHasta]);
+    cargarPedidos();
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -433,28 +426,6 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
         {/* Filters */}
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm mb-6">
           <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <Label className="text-sm font-medium mb-2 block">
-                Fecha Desde
-              </Label>
-              <Input
-                type="date"
-                value={fechaDesde}
-                onChange={(e) => setFechaDesde(e.target.value)}
-                className="border-slate-300"
-              />
-            </div>
-            <div className="flex-1">
-              <Label className="text-sm font-medium mb-2 block">
-                Fecha Hasta
-              </Label>
-              <Input
-                type="date"
-                value={fechaHasta}
-                onChange={(e) => setFechaHasta(e.target.value)}
-                className="border-slate-300"
-              />
-            </div>
             <div className="flex items-end gap-2">
               <Button
                 onClick={cargarPedidos}
@@ -469,7 +440,7 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
                 ) : (
                   <>
                     <RefreshCcw className="h-4 w-4 mr-2" />
-                    Filtrar
+                    Actualizar
                   </>
                 )}
               </Button>

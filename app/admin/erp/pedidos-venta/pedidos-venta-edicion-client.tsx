@@ -149,10 +149,6 @@ export default function PedidosVentaEdicionClient({
   const [ventas, setVentas] = useState<Venta[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fechaDesde, setFechaDesde] = useState(
-    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split("T")[0]
-  );
-  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split("T")[0]);
   const [ventaSeleccionada, setVentaSeleccionada] = useState<Venta | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isEliminarDialogOpen, setIsEliminarDialogOpen] = useState(false);
@@ -523,7 +519,7 @@ export default function PedidosVentaEdicionClient({
     try {
       setCargando(true);
       setError(null);
-      const data = await obtenerPedidosVenta(fechaDesde, fechaHasta, filtroEstado ? filtroEstado.toUpperCase() : undefined);
+      const data = await obtenerPedidosVenta(undefined, undefined, filtroEstado ? filtroEstado.toUpperCase() : undefined);
       setVentas(data);
     } catch (err) {
       console.error("Error al cargar pedidos:", err);
@@ -955,7 +951,7 @@ export default function PedidosVentaEdicionClient({
 
   useEffect(() => {
     cargarPedidos();
-  }, [fechaDesde, fechaHasta]);
+  }, []);
 
   const abrirModalExport = async () => {
     setIsExportModalOpen(true);
@@ -1047,28 +1043,6 @@ export default function PedidosVentaEdicionClient({
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <Label className="text-sm font-medium mb-2 block">
-                Fecha Desde
-              </Label>
-              <Input
-                type="date"
-                value={fechaDesde}
-                onChange={(e) => setFechaDesde(e.target.value)}
-                className="border-slate-300"
-              />
-            </div>
-            <div className="flex-1">
-              <Label className="text-sm font-medium mb-2 block">
-                Fecha Hasta
-              </Label>
-              <Input
-                type="date"
-                value={fechaHasta}
-                onChange={(e) => setFechaHasta(e.target.value)}
-                className="border-slate-300"
-              />
-            </div>
-            <div className="flex-1">
-              <Label className="text-sm font-medium mb-2 block">
                 Filtrar por Estado
               </Label>
               <select
@@ -1098,7 +1072,7 @@ export default function PedidosVentaEdicionClient({
                 ) : (
                   <>
                     <RefreshCcw className="h-4 w-4 mr-2" />
-                    Filtrar
+                    Actualizar
                   </>
                 )}
               </Button>

@@ -1394,19 +1394,19 @@ export async function obtenerPedidosAndreaniPendientes(estadoFiltro?: string) {
 }
 
 // Funciones para pedidos de venta
-export async function obtenerPedidosVenta(fechaDesde: string, fechaHasta: string, estadoPedido?: string) {
+export async function obtenerPedidosVenta(fechaDesde?: string, fechaHasta?: string, estadoPedido?: string) {
   await requireAdmin();
   try {
-    const inicioRango = new Date(`${fechaDesde}T00:00:00-03:00`);
-    const finRango = new Date(`${fechaHasta}T23:59:59.999-03:00`);
-
     const where: any = {
       tipoVenta: "PEDIDO",
-      createdAt: {
-        gte: inicioRango,
-        lte: finRango,
-      },
     };
+
+    if (fechaDesde && fechaHasta) {
+      where.createdAt = {
+        gte: new Date(`${fechaDesde}T00:00:00-03:00`),
+        lte: new Date(`${fechaHasta}T23:59:59.999-03:00`),
+      };
+    }
 
     // Agregar filtro por estado si se proporciona
     if (estadoPedido) {

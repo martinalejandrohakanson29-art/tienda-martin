@@ -6,7 +6,7 @@ import {
   Plus, Search, User, Trash2, ShoppingBag, Loader2, CreditCard, Phone, FileText,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
-  ChevronDown, ArrowLeft
+  ChevronDown, ArrowLeft, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -114,8 +114,6 @@ export default function ComprasClient({
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [comprasRealizadas, setComprasRealizadas] = useState<any[]>([]);
-  const [fechaDesde, setFechaDesde] = useState(new Date().toISOString().split('T')[0]);
-  const [fechaHasta, setFechaHasta] = useState(new Date().toISOString().split('T')[0]);
   const [isLoadingCompras, setIsLoadingCompras] = useState(false);
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
   const [expandedCompras, setExpandedCompras] = useState<Set<string>>(new Set());
@@ -126,10 +124,12 @@ export default function ComprasClient({
   const [isPuntoVentaOpen, setIsPuntoVentaOpen] = useState(false);
   const [isPuntoVentaOpenGestion, setIsPuntoVentaOpenGestion] = useState(false);
 
-  // --- ESTADOS PARA EDITAR UN PEDIDO DE COMPRA DESDE "NUEVA COMPRA" ---
+  // --- ESTADOS PARA EDITAR UN PEDIDO O UNA COMPRA DESDE "NUEVA COMPRA" ---
   const [activeTab, setActiveTab] = useState("registrar");
   const [pedidoEnEdicionId, setPedidoEnEdicionId] = useState<string | null>(null);
   const [numeroPedidoEnEdicion, setNumeroPedidoEnEdicion] = useState<number | null>(null);
+  const [compraEnEdicionId, setCompraEnEdicionId] = useState<string | null>(null);
+  const [numeroCompraEnEdicion, setNumeroCompraEnEdicion] = useState<number | null>(null);
   const [pedidosCompraRefreshKey, setPedidosCompraRefreshKey] = useState(0);
 
   // Helper para color del margen
@@ -163,34 +163,15 @@ export default function ComprasClient({
   const [fechaIngreso, setFechaIngreso] = useState("");
 
   // --- ESTADOS PARA EDICIÓN ---
-  const [isEditMainModalOpen, setIsEditMainModalOpen] = useState(false);
   const [isSearchEditModalOpen, setIsSearchEditModalOpen] = useState(false);
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
   const [isEliminarModalOpen, setIsEliminarModalOpen] = useState(false);
   const [historialActual, setHistorialActual] = useState<any[]>([]);
-  const [editCompraId, setEditCompraId] = useState("");
-  const [editItems, setEditItems] = useState<ItemCompra[]>([]);
-  const [editProveedor, setEditProveedor] = useState("");
-  const [editProveedorId, setEditProveedorId] = useState("");
-  const [editInteres, setEditInteres] = useState<number>(0);
-  const [editDescuento, setEditDescuento] = useState<number>(0);
-  const [editMetodoPago, setEditMetodoPago] = useState("Efectivo");
-  const [editComprobante, setEditComprobante] = useState("");
-  const [editInfo, setEditInfo] = useState("");
-  const [editDni, setEditDni] = useState("");
-  const [editTelefono, setEditTelefono] = useState("");
-  const [editTransaccionId, setEditTransaccionId] = useState("");
-  const [editImpactarCostos, setEditImpactarCostos] = useState(false);
-  const [editMoneda, setEditMoneda] = useState<'ARS' | 'USD'>('ARS');
-  const [editFechaCompra, setEditFechaCompra] = useState("");
-  const [editFechaIngreso, setEditFechaIngreso] = useState("");
-  const [compraOriginalParaComparar, setCompraOriginalParaComparar] = useState<any>(null);
   const [compraAEliminar, setCompraAEliminar] = useState<any>(null);
 
   // --- ESTADOS PARA PROVEEDORES ---
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [showProvList, setShowProvList] = useState(false);
-  const [showProvListEdit, setShowProvListEdit] = useState(false);
 
   // --- ESTADOS PARA CREACIÓN DE ARTÍCULO ---
   const [isCreateArticuloModalOpen, setIsCreateArticuloModalOpen] = useState(false);
@@ -209,8 +190,8 @@ export default function ComprasClient({
   }, [articulosIniciales]);
 
   useEffect(() => {
-    cargarCompras(fechaDesde, fechaHasta);
-  }, [fechaDesde, fechaHasta]);
+    cargarCompras();
+  }, []);
 
   useEffect(() => {
     const fetchProveedores = async () => {
@@ -242,9 +223,9 @@ export default function ComprasClient({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const cargarCompras = async (d: string, h: string) => {
+  const cargarCompras = async () => {
     setIsLoadingCompras(true);
-    const res = await obtenerComprasPorRango(d, h);
+    const res = await obtenerComprasPorRango();
     if (res.success) setComprasRealizadas(res.data || []);
     setIsLoadingCompras(false);
   };
@@ -391,7 +372,7 @@ export default function ComprasClient({
       if (res.success) {
         mostrarMensajeExito("¡Pedido de compra guardado!");
         resetForm();
-        cargarCompras(fechaDesde, fechaHasta);
+        cargarCompras();
         // Actualizar stock local (el pedido también suma stock en este sistema según compras.ts)
         setArticulos(prev => prev.map(art => {
           const itemComprado = items.find(i => i.productoId === art.id);
@@ -440,7 +421,7 @@ export default function ComprasClient({
       if (res.success) {
         mostrarMensajeExito("¡Compra registrada con éxito!");
         resetForm();
-        cargarCompras(fechaDesde, fechaHasta);
+        cargarCompras();
         // Actualizar stock local
         setArticulos(prev => prev.map(art => {
           const itemComprado = items.find(i => i.productoId === art.id);
@@ -466,12 +447,13 @@ export default function ComprasClient({
     setFechaIngreso("");
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false); setIsConfirmResumenOpen(false);
     setPedidoEnEdicionId(null); setNumeroPedidoEnEdicion(null);
+    setCompraEnEdicionId(null); setNumeroCompraEnEdicion(null);
   };
 
   // Carga un pedido de compra existente en el estado de "Nueva Compra" para
   // editarlo con el mismo formulario, en lugar del modal de PedidosCompraClient.
   const cargarPedidoParaEdicionCompra = async (compra: PedidoCompraData) => {
-    if (!pedidoEnEdicionId && items.length > 0) {
+    if (!pedidoEnEdicionId && !compraEnEdicionId && items.length > 0) {
       if (!confirm("Hay una compra en curso sin guardar en 'Nueva Compra'. ¿Descartarla para editar este pedido?")) {
         return;
       }
@@ -574,79 +556,101 @@ export default function ComprasClient({
   };
 
   // --- FUNCIONES EDICIÓN ---
-  const abrirModalEdicion = async (compra: any) => {
+  // Carga una compra ya confirmada (Historial de Compras / Gestión) en el estado de
+  // "Nueva Compra" para editarla con el mismo formulario, igual que con los pedidos.
+  const cargarCompraParaEdicion = async (compra: any) => {
+    if (!pedidoEnEdicionId && !compraEnEdicionId && items.length > 0) {
+      if (!confirm("Hay una compra en curso sin guardar en 'Nueva Compra'. ¿Descartarla para editar esta compra?")) {
+        return;
+      }
+    }
+
     const sync = await sincronizarArticulosMostrador();
+    const articulosActualizados = sync.success && sync.data ? sync.data : articulos;
     if (sync.success && sync.data) setArticulos(sync.data);
 
-    setCompraOriginalParaComparar(compra);
-    setEditCompraId(compra.id);
-    setEditProveedor(compra.proveedor || "");
-    setEditProveedorId(compra.proveedorId || "");
-    setEditInteres(Number(compra.interes) || 0);
-    setEditDescuento(Number(compra.descuento) || 0);
-    setEditMetodoPago(compra.metodo_pago || "Efectivo");
-    setEditComprobante(compra.comprobante || "");
-    setEditInfo(compra.info || "");
-    setEditDni(compra.dni || "");
-    setEditTelefono(compra.telefono || "");
-    setEditTransaccionId(compra.transaccionId || "");
-    setEditImpactarCostos(false);
-    setEditMoneda((compra.moneda as 'ARS' | 'USD') || 'ARS');
-    setEditFechaCompra(new Date(compra.fechaCarga || compra.createdAt).toISOString().split('T')[0]);
-    setEditFechaIngreso(compra.fechaIngreso ? new Date(compra.fechaIngreso).toISOString().split('T')[0] : "");
-    setEditItems(compra.items.map((i: any) => {
+    setIsFinalizarModalOpen(false);
+    setIsConfirmResumenOpen(false);
+    setIsConfirmDiscardOpen(false);
+
+    setProveedor(compra.proveedor || "");
+    setProveedorId(compra.proveedorId || "");
+    setMetodoPago(compra.metodo_pago || "Efectivo");
+    setComprobante(compra.comprobante || "");
+    setInfo(compra.info || "");
+    setDni(compra.dni || "");
+    setTelefono(compra.telefono || "");
+    setTransaccionId(compra.transaccionId || "");
+    setInteres(Number(compra.interes) || 0);
+    setDescuento(Number(compra.descuento) || 0);
+    setImpactarCostos(false);
+    setIva(false);
+    setMoneda((compra.moneda as 'ARS' | 'USD') || 'ARS');
+    setFechaCompra(new Date(compra.fechaCarga || compra.createdAt).toISOString().split('T')[0]);
+    setFechaIngreso(compra.fechaIngreso ? new Date(compra.fechaIngreso).toISOString().split('T')[0] : "");
+
+    setItems(compra.items.map((i: any) => {
       const c = Number(i.costo_unit);
       const m = i.margenGanancia || 50;
+      const articuloBase = (articulosActualizados as any[]).find((a: any) => a.id === i.productoId);
       return {
         id: i.id || crypto.randomUUID(),
-        productoId: i.productoId,
+        productoId: i.productoId || undefined,
         nombre: i.nombre,
         cantidad: i.cantidad,
         costo_unit: c,
         subtotal: Number(i.subtotal),
-        stock: articulos.find(a => a.id === i.productoId)?.stock || 0,
+        stock: articuloBase ? articuloBase.stock : 0,
+        ultimaModificacion: articuloBase?.ultimaModificacion || null,
         margenGanancia: m,
         precioPublico: Math.round(c * (1 + m / 100))
       };
     }));
-    setIsEditMainModalOpen(true);
+
+    setCompraEnEdicionId(compra.id);
+    setNumeroCompraEnEdicion(compra.numeroCompra ?? null);
+    setActiveTab("registrar");
   };
 
-  const handleGuardarEdicion = async () => {
-    const totalBaseEdit = editItems.reduce((acc, item) => acc + item.subtotal, 0);
-    const totalFinalEdit = totalBaseEdit + editInteres - editDescuento;
+  const handleGuardarCambiosCompra = async () => {
+    if (!compraEnEdicionId) return;
+    if (metodoPago === "A Cuenta Corriente" && !proveedorId) {
+      alert("Debe seleccionar un proveedor de la lista para compras a Cuenta Corriente.");
+      return;
+    }
 
     try {
       setIsSubmitting(true);
-      const res = await actualizarCompra(editCompraId, {
-        proveedor: editProveedor,
-        proveedorId: editProveedorId,
-        total: totalBaseEdit,
-        interes: editInteres,
-        descuento: editDescuento,
-        totalFinal: totalFinalEdit,
-        metodo_pago: editMetodoPago,
-        dni: editDni,
-        telefono: editTelefono,
-        info: editInfo,
-        comprobante: editComprobante,
-        transaccionId: editTransaccionId,
-        items: editItems,
-        impactarCostos: editImpactarCostos,
-        moneda: editMoneda,
-        fechaCompra: editFechaCompra,
-        fechaIngreso: editFechaIngreso
-      }, compradorNombre, "Edición manual de compra");
+      const res = await actualizarCompra(compraEnEdicionId, {
+        proveedor,
+        proveedorId,
+        moneda,
+        total: totalBase,
+        interes,
+        descuento,
+        totalFinal: totalFinalCalculado,
+        items: items.map(i => ({ ...i, costo_unit: iva ? Math.round(i.costo_unit * 1.21 * 100) / 100 : i.costo_unit })),
+        metodo_pago: metodoPago,
+        dni,
+        telefono,
+        info,
+        comprobante,
+        transaccionId,
+        impactarCostos,
+        fechaCompra,
+        fechaIngreso
+      }, compradorNombre, "Compra editada desde Nueva Compra");
 
       if (res.success) {
         mostrarMensajeExito("¡Compra modificada con éxito!");
-        setIsEditMainModalOpen(false);
-        cargarCompras(fechaDesde, fechaHasta);
+        resetForm();
+        cargarCompras();
+        setActiveTab("listado");
       } else {
         alert("Error: " + res.error);
       }
     } catch (e) {
-      alert("Error inesperado.");
+      alert("Ocurrió un error inesperado.");
     } finally {
       setIsSubmitting(false);
     }
@@ -658,7 +662,7 @@ export default function ComprasClient({
     if (res.success) {
       mostrarMensajeExito("Compra eliminada");
       setIsEliminarModalOpen(false);
-      cargarCompras(fechaDesde, fechaHasta);
+      cargarCompras();
     } else {
       alert("Error: " + res.error);
     }
@@ -729,6 +733,22 @@ export default function ComprasClient({
                   size="sm"
                   onClick={() => { resetForm(); setActiveTab("pedidos"); }}
                   className="text-indigo-700 hover:bg-indigo-100"
+                >
+                  Cancelar edición
+                </Button>
+              </div>
+            )}
+            {compraEnEdicionId && (
+              <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex-shrink-0">
+                <span className="text-sm font-bold text-amber-800 flex items-center gap-2">
+                  <Edit className="h-4 w-4" /> Editando Compra #{numeroCompraEnEdicion}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { resetForm(); setActiveTab("listado"); }}
+                  className="text-amber-700 hover:bg-amber-100"
                 >
                   Cancelar edición
                 </Button>
@@ -885,7 +905,7 @@ export default function ComprasClient({
               <div className="flex items-center gap-4">
                 <Button variant="outline" onClick={() => setIsConfirmDiscardOpen(true)} className="text-red-500 border-red-200 hover:bg-red-50 h-12 rounded-xl">Descartar</Button>
                 <Button onClick={() => setIsFinalizarModalOpen(true)} disabled={items.length === 0 || isSubmitting} className="h-12 px-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md">
-                  {pedidoEnEdicionId ? "Guardar Cambios del Pedido" : "Finalizar Compra"}
+                  {pedidoEnEdicionId ? "Guardar Cambios del Pedido" : compraEnEdicionId ? "Guardar Cambios de la Compra" : "Finalizar Compra"}
                 </Button>
               </div>
             </div>
@@ -895,38 +915,30 @@ export default function ComprasClient({
         <TabsContent value="listado" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full">
           <main className="flex-grow flex flex-col p-6 max-w-[1600px] mx-auto w-full gap-4 overflow-hidden h-full">
             <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4 flex-wrap">
-              <div className="space-y-1">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Desde</Label>
-                <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="h-10 rounded-xl" />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fecha Hasta</Label>
-                <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="h-10 rounded-xl" />
-              </div>
-              <Button variant="outline" size="icon" onClick={() => cargarCompras(fechaDesde, fechaHasta)} className="mt-5 h-10 w-10"><RefreshCcw className="h-4 w-4" /></Button>
-              <div className="space-y-1 flex-1 min-w-[220px]">
+              <Button variant="outline" size="icon" onClick={() => cargarCompras()} className="h-10 w-10"><RefreshCcw className="h-4 w-4" /></Button>
+              <div className="space-y-1 w-full max-w-xs">
                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar Proveedor</Label>
                 <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
                     value={searchHistorial}
                     onChange={(e) => setSearchHistorial(e.target.value)}
                     placeholder="Nombre o nombre de fantasía..."
-                    className="h-10 rounded-xl pl-9"
+                    className="h-10 rounded-xl pl-9 pr-9"
                   />
                   {searchHistorial && (
                     <button
                       onClick={() => setSearchHistorial("")}
-                      className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
                     >
-                      ×
+                      <X className="h-4 w-4" />
                     </button>
                   )}
                 </div>
               </div>
               <div className="ml-auto text-right">
                 <p className="text-[10px] text-slate-400 font-bold uppercase">
-                  {searchHistorial ? "Total filtrado" : "Total del Período"}
+                  {searchHistorial ? "Total filtrado" : "Total General"}
                 </p>
                 <p className="text-2xl font-black text-slate-900">$ {comprasFiltradas.reduce((acc, c) => acc + Number(c.totalFinal), 0).toLocaleString('es-AR')}</p>
                 {searchHistorial && (
@@ -1032,7 +1044,7 @@ export default function ComprasClient({
                             </TableCell>
                             <TableCell className="text-center py-4">
                               <div className="flex items-center justify-center gap-1">
-                                <Button size="sm" variant="ghost" onClick={() => abrirModalEdicion(c)} className="h-8 w-8 p-0 hover:text-amber-600"><Edit className="h-4 w-4" /></Button>
+                                <Button size="sm" variant="ghost" onClick={() => cargarCompraParaEdicion(c)} className="h-8 w-8 p-0 hover:text-amber-600"><Edit className="h-4 w-4" /></Button>
                                 <Button size="sm" variant="ghost" onClick={() => abrirModalHistorial(c.id)} className="h-8 w-8 p-0 hover:text-blue-600"><History className="h-4 w-4" /></Button>
                                 <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500 hover:text-red-700" onClick={() => { setCompraAEliminar(c); setIsEliminarModalOpen(true); }}><Trash2 className="h-4 w-4" /></Button>
                               </div>
@@ -1104,15 +1116,7 @@ export default function ComprasClient({
             <div className="flex flex-col gap-4 bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-sm flex-shrink-0">
               <div className="flex flex-wrap items-center justify-between gap-6">
                 <div className="flex flex-wrap items-end gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Fecha Desde</Label>
-                    <Input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="h-10 bg-white border-amber-200" />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-bold text-amber-700 uppercase tracking-wider">Fecha Hasta</Label>
-                    <Input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="h-10 bg-white border-amber-200" />
-                  </div>
-                  <Button variant="outline" size="icon" onClick={() => cargarCompras(fechaDesde, fechaHasta)} className="h-10 w-10 border-amber-200 text-amber-600 hover:bg-white"><RefreshCcw className="h-4 w-4" /></Button>
+                  <Button variant="outline" size="icon" onClick={() => cargarCompras()} className="h-10 w-10 border-amber-200 text-amber-600 hover:bg-white"><RefreshCcw className="h-4 w-4" /></Button>
                 </div>
                 <div className="text-right ml-auto">
                   <p className="text-xs text-amber-700 font-bold flex items-center gap-2 justify-end"><AlertTriangle className="h-4 w-4" /> Área de Modificaciones</p>
@@ -1222,7 +1226,7 @@ export default function ComprasClient({
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => abrirModalEdicion(v)}
+                                    onClick={() => cargarCompraParaEdicion(v)}
                                     className="h-8 gap-2 border-amber-200 text-amber-700 hover:bg-amber-50 rounded-lg"
                                   >
                                     <Edit className="h-3.5 w-3.5" /> Editar
@@ -1324,7 +1328,7 @@ export default function ComprasClient({
       <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
         <DialogContent className="sm:max-w-[550px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
           <div className="max-h-[95vh] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200">
-            <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-emerald-600" /> {pedidoEnEdicionId ? `Guardar Cambios del Pedido #${numeroPedidoEnEdicion}` : "Detalles de la Compra"}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-emerald-600" /> {pedidoEnEdicionId ? `Guardar Cambios del Pedido #${numeroPedidoEnEdicion}` : compraEnEdicionId ? `Guardar Cambios de la Compra #${numeroCompraEnEdicion}` : "Detalles de la Compra"}</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2 relative">
                 <Label className="text-xs font-bold text-slate-500 uppercase">Proveedor</Label>
@@ -1472,6 +1476,14 @@ export default function ComprasClient({
                     onClick={handleGuardarCambiosPedidoCompra}
                     disabled={items.length === 0 || isSubmitting}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-indigo-600/10"
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-5 w-5 mr-2" /> Guardar Cambios</>}
+                  </Button>
+                ) : compraEnEdicionId ? (
+                  <Button
+                    onClick={handleGuardarCambiosCompra}
+                    disabled={items.length === 0 || isSubmitting}
+                    className="bg-amber-500 hover:bg-amber-600 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-amber-500/10"
                   >
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-5 w-5 mr-2" /> Guardar Cambios</>}
                   </Button>
@@ -1643,229 +1655,6 @@ export default function ComprasClient({
             <Button variant="ghost" onClick={() => setIsEliminarModalOpen(false)}>Cancelar</Button>
             <Button variant="destructive" onClick={handleEliminarCompra}>Eliminar Definitivamente</Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Edición (Simplificado para el ejemplo) */}
-      <Dialog open={isEditMainModalOpen} onOpenChange={setIsEditMainModalOpen}>
-        <DialogContent className="sm:max-w-[90vw] h-[90vh] flex flex-col rounded-3xl p-0 overflow-hidden">
-          <div className="p-6 border-b flex justify-between items-center">
-            <h2 className="text-xl font-bold flex items-center gap-2"><Edit className="h-5 w-5 text-amber-500" /> Editando Compra #{compraOriginalParaComparar?.numeroCompra}</h2>
-            <Button variant="ghost" size="icon" onClick={() => setIsEditMainModalOpen(false)}><Plus className="h-5 w-5 rotate-45" /></Button>
-          </div>
-          <div className="flex-grow overflow-hidden flex flex-col p-6 gap-6">
-            <div className="grid grid-cols-5 gap-6">
-              <div className="space-y-2 relative">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</Label>
-                <Input value={editProveedor} onChange={(e) => { setEditProveedor(e.target.value); setShowProvListEdit(true); }} className="h-12 bg-slate-50" />
-                {showProvListEdit && (
-                  <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto mt-1 animate-in fade-in zoom-in-95 duration-200">
-                    <div className="p-2 border-b bg-slate-50 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2">Resultados de búsqueda</span>
-                      <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setShowProvListEdit(false)}>Cerrar</Button>
-                    </div>
-                    {proveedores.filter(p =>
-                      p.razonSocial.toLowerCase().includes(editProveedor.toLowerCase()) ||
-                      (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(editProveedor.toLowerCase())) ||
-                      p.cuit?.includes(editProveedor)
-                    ).length > 0 ? (
-                      proveedores.filter(p =>
-                        p.razonSocial.toLowerCase().includes(editProveedor.toLowerCase()) ||
-                        (p.nombreFantasia && p.nombreFantasia.toLowerCase().includes(editProveedor.toLowerCase())) ||
-                        p.cuit?.includes(editProveedor)
-                      ).map(p => (
-                        <div
-                          key={p.id}
-                          className="p-3 hover:bg-amber-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors group"
-                          onClick={() => {
-                            setEditProveedor(p.razonSocial);
-                            setEditProveedorId(p.id);
-                            setShowProvListEdit(false);
-                          }}
-                        >
-                          <div className="flex justify-between items-center">
-                            <div className="flex flex-col">
-                              <span className="text-sm font-bold text-slate-900 group-hover:text-amber-700">{p.razonSocial}</span>
-                              <span className="text-[10px] text-slate-500 font-mono">{p.cuit || "SIN CUIT"}</span>
-                            </div>
-                            <div className="text-right">
-                              <span className={`text-xs font-black ${p.total > 0 ? 'text-red-600' : 'text-green-600'}`}>$ {Number(p.total).toLocaleString('es-AR')}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="p-4 text-center text-xs text-slate-400 italic">No se encontraron resultados</div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Método Pago</Label>
-                <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-4">
-                  <option value="Efectivo">Efectivo</option>
-                  <option value="Transferencia">Transferencia</option>
-                  <option value="A Cuenta Corriente">A Cuenta Corriente</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Mercado Pago">Mercado Pago</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Comprobante N°</Label>
-                <Input value={editComprobante} onChange={(e) => setEditComprobante(e.target.value)} className="h-12 bg-slate-50" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recargo ($)</Label>
-                <DecimalInput value={editInteres} onChange={setEditInteres} className="h-12 bg-slate-50" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Descuento ($)</Label>
-                <DecimalInput value={editDescuento} onChange={setEditDescuento} className="h-12 bg-slate-50" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Carga</Label>
-                <Input type="date" value={editFechaCompra} onChange={(e) => setEditFechaCompra(e.target.value)} className="h-12 bg-slate-50" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha Ingreso</Label>
-                <Input type="date" value={editFechaIngreso} onChange={(e) => setEditFechaIngreso(e.target.value)} className="h-12 bg-slate-50" />
-              </div>
-            </div>
-
-            <div className="flex-grow border rounded-2xl overflow-hidden flex flex-col bg-white">
-              <div className="overflow-y-auto flex-grow h-full">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-slate-50 z-10">
-                    <TableRow>
-                      <TableHead>Artículo</TableHead>
-                      <TableHead className="text-center">Cant.</TableHead>
-                      <TableHead className="text-center">Costo Unit.</TableHead>
-                      <TableHead className="text-center">Margen %</TableHead>
-                      <TableHead className="text-center">Precio Público</TableHead>
-                      <TableHead className="text-right">Subtotal</TableHead>
-                      <TableHead className="w-16"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {editItems.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-bold">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-base font-bold">{item.nombre}</span>
-                              <span className="text-[10px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">STOCK: {item.stock}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-mono uppercase">{item.productoId}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center"><Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.costo_unit } : i))} className="w-16 mx-auto h-8 text-center" /></TableCell>
-                        <TableCell className="text-center">
-                          <DecimalInput
-                            value={item.costo_unit}
-                            onChange={(newCost) => {
-                              const costoArs = editMoneda === 'USD' ? newCost * dolarCotizacion * factorFob : newCost;
-                              const newPrecio = Math.round(costoArs * (1 + (item.margenGanancia ?? 50) / 100));
-                              setEditItems(editItems.map(i => i.id === item.id ? { ...i, costo_unit: newCost, subtotal: i.cantidad * newCost, precioPublico: newPrecio } : i));
-                            }}
-                            className="w-28 mx-auto h-8 text-center"
-                          />
-                          {editMoneda === 'USD' && item.costo_unit > 0 && (
-                            <div className="text-[10px] text-blue-500 text-center mt-0.5">= ${Math.round(item.costo_unit * dolarCotizacion * factorFob).toLocaleString('es-AR')}</div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <DecimalInput
-                              value={item.margenGanancia ?? 50}
-                              onChange={(newMargin) => {
-                                const newPrecio = Math.round(item.costo_unit * (1 + newMargin / 100));
-                                setEditItems(editItems.map(i => i.id === item.id ? { ...i, margenGanancia: newMargin, precioPublico: newPrecio } : i));
-                              }}
-                              className={`w-16 h-8 ${inputSinFlechas} ${getMarginColor(item.margenGanancia ?? 50)}`}
-                            />
-                            <span className="text-slate-400 text-xs">%</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-emerald-600 text-xs">$</span>
-                            <Input
-                              type="text"
-                              inputMode="decimal"
-                              value={item.precioPublico ?? Math.round(item.costo_unit * (1 + (item.margenGanancia ?? 50) / 100))}
-                              onChange={(e) => {
-                                const val = e.target.value.replace(/\D/g, '');
-                                const newPrice = parseInt(val);
-                                const cost = item.costo_unit;
-                                if (!isNaN(newPrice)) {
-                                  const newMargin = cost > 0 ? Math.round(((newPrice - cost) / cost) * 100 * 100) / 100 : 0;
-                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, precioPublico: newPrice, margenGanancia: newMargin } : i));
-                                } else if (val === "") {
-                                  setEditItems(editItems.map(i => i.id === item.id ? { ...i, precioPublico: 0, margenGanancia: 0 } : i));
-                                }
-                              }}
-                              className={`w-28 h-8 ${inputSinFlechas} text-emerald-600 font-bold`}
-                            />
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-bold">$ {item.subtotal.toLocaleString('es-AR')}</TableCell>
-                        <TableCell><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter(i => i.id !== item.id))} className="text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center bg-slate-50 p-6 rounded-2xl border border-slate-200">
-              <div className="flex gap-10">
-                <div className="space-y-1">
-                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Base</Label>
-                  <p className="text-xl font-bold text-slate-900">$ {editItems.reduce((acc, i) => acc + i.subtotal, 0).toLocaleString('es-AR')}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Final</Label>
-                  <p className="text-3xl font-black text-amber-600">$ {(editItems.reduce((acc, i) => acc + i.subtotal, 0) + editInteres - editDescuento).toLocaleString('es-AR')}</p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="editImpactarCostos"
-                      checked={editImpactarCostos}
-                      onChange={(e) => setEditImpactarCostos(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-                    />
-                    <Label htmlFor="editImpactarCostos" className="text-sm font-medium text-slate-700 cursor-pointer">Impactar compra en costos</Label>
-                  </div>
-                  <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
-                    <button
-                      type="button"
-                      onClick={() => setEditMoneda('ARS')}
-                      className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${editMoneda === 'ARS' ? 'bg-white shadow text-slate-800' : 'text-slate-400 hover:text-slate-600'}`}
-                    >$ ARS</button>
-                    <button
-                      type="button"
-                      onClick={() => setEditMoneda('USD')}
-                      className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${editMoneda === 'USD' ? 'bg-white shadow text-blue-700' : 'text-slate-400 hover:text-slate-600'}`}
-                    >U$S USD</button>
-                  </div>
-                  {editMoneda === 'USD' && (
-                    <p className="text-[11px] text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-1.5">
-                      Cotización: <span className="font-bold">${dolarCotizacion.toLocaleString('es-AR')}</span>
-                      {editImpactarCostos && " · guardará en ARS"}
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-3">
-                  <Button variant="ghost" onClick={() => setIsEditMainModalOpen(false)} className="h-12 px-6 rounded-xl">Cancelar</Button>
-                  <Button onClick={handleGuardarEdicion} disabled={isSubmitting} className="h-12 px-10 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold shadow-md shadow-amber-500/20">Guardar Cambios</Button>
-                </div>
-              </div>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 

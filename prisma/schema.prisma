@@ -817,6 +817,7 @@ model Compra {
   tipoCompra    String?           @default("CONFIRMADA")
   fechaIngreso  DateTime?
   fechaCarga    DateTime          @default(now())
+  moneda        String?           @default("ARS")
   auditorias    CompraAuditoria[]
   proveedorRel  Proveedor?        @relation(fields: [proveedorId], references: [id])
   items         CompraItem[]

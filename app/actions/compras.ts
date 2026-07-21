@@ -82,20 +82,22 @@ export async function obtenerTodosLosArticulos() {
   }
 }
 
-export async function obtenerComprasPorRango(fechaDesde: string, fechaHasta: string) {
+export async function obtenerComprasPorRango(fechaDesde?: string, fechaHasta?: string) {
   await requireAdmin();
   try {
-    const inicioRango = new Date(`${fechaDesde}T00:00:00-03:00`);
-    const finRango = new Date(`${fechaHasta}T23:59:59.999-03:00`);
+    const where: any = {
+      tipoCompra: { not: "PEDIDO" },
+    };
+
+    if (fechaDesde && fechaHasta) {
+      where.fechaCarga = {
+        gte: new Date(`${fechaDesde}T00:00:00-03:00`),
+        lte: new Date(`${fechaHasta}T23:59:59.999-03:00`),
+      };
+    }
 
     const compras = await prisma.compra.findMany({
-      where: {
-        tipoCompra: { not: "PEDIDO" },
-        fechaCarga: {
-          gte: inicioRango,
-          lte: finRango,
-        },
-      },
+      where,
       include: {
         items: true,
         proveedorRel: true,
@@ -265,6 +267,7 @@ export async function guardarComoPedidoCompra(data: {
           proveedorId: data.proveedorId || null,
           fechaCarga: toArgDate(data.fechaCompra) ?? undefined,
           fechaIngreso: toArgDate(data.fechaIngreso),
+          moneda,
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -588,6 +591,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
           proveedorId: data.proveedorId || null,
           fechaCarga: toArgDate(data.fechaCompra) ?? undefined,
           fechaIngreso: toArgDate(data.fechaIngreso),
+          moneda,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id,
@@ -811,6 +815,7 @@ export async function crearCompra(data: {
           proveedorId: data.proveedorId || null,
           fechaCarga: toArgDate(data.fechaCompra) ?? undefined,
           fechaIngreso: toArgDate(data.fechaIngreso),
+          moneda,
           items: {
             create: data.items.map(item => ({
               productoId: item.productoId || item.id,
@@ -1028,6 +1033,7 @@ export async function actualizarCompra(compraId: string, data: {
           proveedorId: data.proveedorId || null,
           fechaCarga: toArgDate(data.fechaCompra) ?? undefined,
           fechaIngreso: toArgDate(data.fechaIngreso),
+          moneda,
           items: {
             create: data.items.map((item: any) => ({
               productoId: item.productoId || item.id,

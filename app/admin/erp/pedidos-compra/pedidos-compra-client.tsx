@@ -113,6 +113,17 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
   const [impactarCostos, setImpactarCostos] = useState(false);
   const [confirmImpactarCostos, setConfirmImpactarCostos] = useState(false);
 
+  const totalesPorMoneda = useMemo(() => {
+    return compras.reduce(
+      (acc, c) => {
+        const moneda = c.moneda === "USD" ? "USD" : "ARS";
+        acc[moneda] += Number(c.totalFinal) || 0;
+        return acc;
+      },
+      { ARS: 0, USD: 0 }
+    );
+  }, [compras]);
+
   const getMarginColor = (m: number) => {
     if (m > 60) return "text-fuchsia-600 font-bold";
     if (m > 50) return "text-orange-600 font-bold";
@@ -421,6 +432,18 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
           <p className="text-slate-600 mt-2">
             Gestión de pedidos de compra a proveedores pendientes de recibir
           </p>
+        </div>
+
+        {/* Resumen de totales */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-500">Total Final en Pesos ({compras.filter(c => c.moneda !== "USD").length} pedidos)</span>
+            <span className="text-xl font-bold text-slate-900">{formatPrice(totalesPorMoneda.ARS)}</span>
+          </div>
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-500">Total Final en Dólares ({compras.filter(c => c.moneda === "USD").length} pedidos)</span>
+            <span className="text-xl font-bold text-slate-900">US$ {totalesPorMoneda.USD.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+          </div>
         </div>
 
         {/* Filters */}

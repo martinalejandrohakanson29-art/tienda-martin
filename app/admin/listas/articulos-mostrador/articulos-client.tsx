@@ -60,6 +60,15 @@ export default function ArticulosClient({
   const [guardandoCostoId, setGuardandoCostoId] = useState<string | null>(null);
   const cancelarSaveRef = useRef(false);
 
+  // Estados para edición inline de Proveedor (Select, guarda al elegir) en la tabla
+  const [guardandoProveedorSelId, setGuardandoProveedorSelId] = useState<string | null>(null);
+
+  // Estados para edición inline del Código Proveedor (guarda al salir del campo) en la tabla
+  const [editandoCodigoProveedorId, setEditandoCodigoProveedorId] = useState<string | null>(null);
+  const [codigoProveedorTemp, setCodigoProveedorTemp] = useState<string>("");
+  const [guardandoCodigoProveedorId, setGuardandoCodigoProveedorId] = useState<string | null>(null);
+  const cancelarSaveCodigoProveedorRef = useRef(false);
+
   // Estado para ocultar/mostrar artículos
   const [togglingOcultoId, setTogglingOcultoId] = useState<string | null>(null);
   const [soloOcultos, setSoloOcultos] = useState(false);
@@ -198,6 +207,58 @@ export default function ArticulosClient({
     }
     setGuardandoCostoId(null);
     setCostoTemp("");
+  };
+
+  // --- Edición inline del Proveedor desde la tabla: guarda apenas se elige una opción ---
+  const guardarProveedorInline = async (art: Articulo, nuevoProveedorId: string | null) => {
+    if (nuevoProveedorId === (art.proveedorId || null)) return;
+    setGuardandoProveedorSelId(art.id);
+
+    const res = await actualizarArticuloDesdeLista(
+      art.id, art.nombre, art.precio, art.stock, art.costo, art.margenGanancia, art.codigoProveedor || undefined, nuevoProveedorId
+    );
+
+    if (res.success) {
+      const proveedorNombre = proveedores.find(p => p.id === nuevoProveedorId)?.nombre || null;
+      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, proveedorId: nuevoProveedorId, proveedorNombre } : a));
+    } else {
+      alert("Error: " + res.error);
+    }
+    setGuardandoProveedorSelId(null);
+  };
+
+  // --- Edición inline del Código Proveedor desde la tabla: guarda al salir del campo ---
+  const iniciarEdicionCodigoProveedor = (art: Articulo) => {
+    setEditandoCodigoProveedorId(art.id);
+    setCodigoProveedorTemp(art.codigoProveedor || "");
+  };
+
+  const cancelarEdicionCodigoProveedor = () => {
+    setEditandoCodigoProveedorId(null);
+    setCodigoProveedorTemp("");
+  };
+
+  const guardarCodigoProveedor = async (art: Articulo) => {
+    const nuevoCodigoProveedor = codigoProveedorTemp.trim();
+    // Sin cambios: cancelar sin tocar el servidor
+    if (nuevoCodigoProveedor === (art.codigoProveedor || "")) {
+      cancelarEdicionCodigoProveedor();
+      return;
+    }
+    setEditandoCodigoProveedorId(null);
+    setGuardandoCodigoProveedorId(art.id);
+
+    const res = await actualizarArticuloDesdeLista(
+      art.id, art.nombre, art.precio, art.stock, art.costo, art.margenGanancia, nuevoCodigoProveedor || undefined, art.proveedorId || null
+    );
+
+    if (res.success) {
+      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, codigoProveedor: nuevoCodigoProveedor } : a));
+    } else {
+      alert("Error: " + res.error);
+    }
+    setGuardandoCodigoProveedorId(null);
+    setCodigoProveedorTemp("");
   };
 
   const abrirHistorial = async (art: Articulo) => {
@@ -346,14 +407,72 @@ export default function ArticulosClient({
                         </div>
                       </TableCell>
                       <TableCell className="py-3">
-                        {art.proveedorNombre ? (
-                          <span className={`text-xs font-bold ${art.oculto ? 'text-slate-400' : 'text-slate-700'}`}>{art.proveedorNombre}</span>
-                        ) : (
-                          <span className="text-slate-300 text-xs">—</span>
-                        )}
-                        {art.codigoProveedor && (
-                          <span className="block text-[10px] font-mono text-slate-400">{art.codigoProveedor}</span>
-                        )}
+                        <div className="flex flex-col gap-0.5 min-w-[150px]">
+                          {/* Proveedor: guarda apenas se elige una opción del combo.
+                              Select nativo (no Radix): con ~300 proveedores, montar un
+                              SelectItem de Radix por opción en cada fila de la tabla
+                              tranca el hilo principal unos cientos de ms por apertura. */}
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={art.proveedorId || "none"}
+                              onChange={(e) => guardarProveedorInline(art, e.target.value === "none" ? null : e.target.value)}
+                              disabled={guardandoProveedorSelId === art.id}
+                              className={`h-7 text-xs font-bold border-none bg-transparent shadow-none px-1.5 -ml-1.5 rounded-lg hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none max-w-[160px] ${art.oculto ? 'text-slate-400' : 'text-slate-700'} ${!art.proveedorId ? 'text-slate-300 font-normal' : ''}`}
+                            >
+                              <option value="none">Sin proveedor</option>
+                              {proveedores.map(p => (
+                                <option key={p.id} value={p.id}>{p.nombre}</option>
+                              ))}
+                            </select>
+                            {guardandoProveedorSelId === art.id && (
+                              <Loader2 className="h-3 w-3 animate-spin text-indigo-500 flex-shrink-0" />
+                            )}
+                          </div>
+
+                          {/* Código Proveedor: guarda al salir del campo (blur) o Enter */}
+                          {editandoCodigoProveedorId === art.id ? (
+                            <Input
+                              autoFocus
+                              value={codigoProveedorTemp}
+                              onChange={(e) => setCodigoProveedorTemp(e.target.value)}
+                              placeholder="Código proveedor"
+                              onBlur={() => {
+                                if (cancelarSaveCodigoProveedorRef.current) {
+                                  cancelarSaveCodigoProveedorRef.current = false;
+                                  cancelarEdicionCodigoProveedor();
+                                } else {
+                                  guardarCodigoProveedor(art);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.currentTarget.blur();
+                                } else if (e.key === "Escape") {
+                                  cancelarSaveCodigoProveedorRef.current = true;
+                                  e.currentTarget.blur();
+                                }
+                              }}
+                              className="h-7 text-[11px] font-mono bg-white border-indigo-300 focus-visible:ring-indigo-500"
+                            />
+                          ) : guardandoCodigoProveedorId === art.id ? (
+                            <div className="flex justify-start px-1.5">
+                              <Loader2 className="h-3 w-3 animate-spin text-indigo-500" />
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => iniciarEdicionCodigoProveedor(art)}
+                              title="Clic para editar el código proveedor"
+                              className="text-left rounded-lg px-1.5 py-0.5 -mx-1.5 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200 transition-all"
+                            >
+                              {art.codigoProveedor ? (
+                                <span className="text-[10px] font-mono text-slate-400">{art.codigoProveedor}</span>
+                              ) : (
+                                <span className="text-[10px] font-mono text-slate-200 italic">Sin código</span>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right py-3">
                         {editandoCostoId === art.id ? (

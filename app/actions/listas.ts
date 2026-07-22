@@ -122,7 +122,7 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
         });
       }
 
-      if (costo !== undefined) {
+      if (costo !== undefined && Number(anterior.costo || 0) !== costo) {
         await syncCostoArticuloML(tx, id, nombre, costo);
       }
     });

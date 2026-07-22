@@ -882,6 +882,40 @@ export default function PedidosVentaEdicionClient({
     }
   };
 
+  const handleUploadPDFRow = async (ventaId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      alert("Solo se permiten archivos PDF");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const result = await subirPDFPedido(ventaId, formData);
+
+      if (result.success) {
+        if (editingVenta?.id === ventaId) {
+          setEditingVenta({ ...editingVenta, pdfUrl: result.url });
+        }
+        alert("PDF subido correctamente");
+        cargarPedidos();
+      } else {
+        alert(result.error || "Error al subir el PDF");
+      }
+    } catch (err) {
+      console.error("Error al subir PDF:", err);
+      alert("Error al procesar la subida del archivo");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleEliminarPDF = (ventaId: string) => {
     setPendingEliminarPDF(ventaId);
   };
@@ -895,6 +929,7 @@ export default function PedidosVentaEdicionClient({
       const result = await eliminarPDFPedido(ventaId);
       if (result.success) {
         alert("PDF eliminado correctamente");
+        setEditingVenta(prev => prev && prev.id === ventaId ? { ...prev, pdfUrl: null } : prev);
         cargarPedidos();
       } else {
         alert(result.error || "Error al eliminar el PDF");
@@ -1016,7 +1051,7 @@ export default function PedidosVentaEdicionClient({
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-[1800px] mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-2">
@@ -1131,7 +1166,7 @@ export default function PedidosVentaEdicionClient({
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
           {cargando ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
@@ -1291,6 +1326,54 @@ export default function PedidosVentaEdicionClient({
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
+
+                            <div className="w-px h-6 bg-slate-200 mx-1" />
+
+                            {venta.pdfUrl ? (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDownloadPDF(venta.id)}
+                                  className="border-slate-400 text-slate-600 hover:bg-slate-50"
+                                  title="Ver Comprobante PDF Adjunto"
+                                >
+                                  <File className="h-4 w-4" />
+                                </Button>
+                                <Label
+                                  htmlFor={`pdf-upload-row-${venta.id}`}
+                                  className={`inline-flex items-center justify-center h-8 px-3 rounded-lg border border-slate-400 text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                  title="Reemplazar Comprobante PDF"
+                                >
+                                  <RefreshCcw className="h-4 w-4" />
+                                </Label>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEliminarPDF(venta.id)}
+                                  className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                                  title="Eliminar Comprobante PDF"
+                                >
+                                  <FileX className="h-4 w-4" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Label
+                                htmlFor={`pdf-upload-row-${venta.id}`}
+                                className={`inline-flex items-center justify-center h-8 px-3 rounded-lg border border-slate-400 text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                title="Subir Comprobante PDF"
+                              >
+                                <Upload className="h-4 w-4" />
+                              </Label>
+                            )}
+                            <input
+                              id={`pdf-upload-row-${venta.id}`}
+                              type="file"
+                              accept="application/pdf"
+                              className="hidden"
+                              disabled={isUploading}
+                              onChange={(e) => handleUploadPDFRow(venta.id, e)}
+                            />
                           </div>
                         </TableCell>
                       </TableRow>
@@ -2127,7 +2210,7 @@ export default function PedidosVentaEdicionClient({
                           variant="ghost"
                           size="icon"
                           className="h-9 w-9 text-slate-400 hover:text-white hover:bg-slate-700"
-                          onClick={() => window.open(editingVenta.pdfUrl!, '_blank')}
+                          onClick={() => handleDownloadPDF(editingVenta.id)}
                         >
                           <Eye className="h-5 w-5" />
                         </Button>
@@ -2137,6 +2220,14 @@ export default function PedidosVentaEdicionClient({
                         >
                           <RefreshCcw className="h-5 w-5" />
                         </Label>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-9 w-9 text-red-500 hover:text-red-400 hover:bg-slate-700"
+                          onClick={() => handleEliminarPDF(editingVenta.id)}
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </Button>
                       </div>
                     </div>
                   ) : (

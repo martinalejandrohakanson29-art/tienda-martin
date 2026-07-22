@@ -62,6 +62,14 @@ export async function recalculateProductCost(sku: string) {
     }
   });
 
+  // Propaga el costo recalculado hacia Articulos Mostrador cuando el mismo
+  // código de artículo existe ahí (catálogos vinculados por id). No falla si
+  // no hay match: updateMany simplemente actualiza 0 filas.
+  await prisma.articuloMostrador.updateMany({
+    where: { id: sku },
+    data: { costo: nuevoCostoFinalArs }
+  });
+
   const relacionesComoHijo = await prisma.articulosCompuestos.findMany({
     where: { sku_hijo: sku }
   });

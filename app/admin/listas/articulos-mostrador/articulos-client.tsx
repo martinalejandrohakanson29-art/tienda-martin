@@ -71,6 +71,12 @@ export default function ArticulosClient({
   const [guardandoCodigoProveedorId, setGuardandoCodigoProveedorId] = useState<string | null>(null);
   const cancelarSaveCodigoProveedorRef = useRef(false);
 
+  // Estados para edición inline de la Marcación (%) (guarda al salir del campo, recalcula el precio) en la tabla
+  const [editandoMarcacionId, setEditandoMarcacionId] = useState<string | null>(null);
+  const [marcacionTemp, setMarcacionTemp] = useState<string>("");
+  const [guardandoMarcacionId, setGuardandoMarcacionId] = useState<string | null>(null);
+  const cancelarSaveMarcacionRef = useRef(false);
+
   // Estado para ocultar/mostrar artículos
   const [togglingOcultoId, setTogglingOcultoId] = useState<string | null>(null);
   const [soloOcultos, setSoloOcultos] = useState(false);
@@ -444,6 +450,45 @@ export default function ArticulosClient({
     return Number((costo * (1 + margen / 100)).toFixed(2));
   };
 
+  // --- Edición inline de la Marcación (%) desde la tabla: guarda al salir del campo,
+  //     recalcula el Precio Base manteniendo el Costo (mismo cálculo que el modal de edición) ---
+  const iniciarEdicionMarcacion = (art: Articulo) => {
+    if (!art.costo || art.costo <= 0) return;
+    const marc = calcularMarcacion(art.costo, art.precio);
+    setEditandoMarcacionId(art.id);
+    setMarcacionTemp(marc !== null ? String(Number(marc.toFixed(1))) : "");
+  };
+
+  const cancelarEdicionMarcacion = () => {
+    setEditandoMarcacionId(null);
+    setMarcacionTemp("");
+  };
+
+  const guardarMarcacion = async (art: Articulo) => {
+    const nuevoMargen = Number(marcacionTemp);
+    const margenActual = calcularMarcacion(art.costo, art.precio);
+    // Sin cambios o valor inválido: cancelar sin tocar el servidor
+    if (marcacionTemp.trim() === "" || isNaN(nuevoMargen) || (margenActual !== null && nuevoMargen === Number(margenActual.toFixed(1)))) {
+      cancelarEdicionMarcacion();
+      return;
+    }
+    setEditandoMarcacionId(null);
+    setGuardandoMarcacionId(art.id);
+
+    const nuevoPrecio = calcularPrecio(art.costo || 0, nuevoMargen);
+    const res = await actualizarArticuloDesdeLista(
+      art.id, art.nombre, nuevoPrecio, art.stock, art.costo, nuevoMargen, art.codigoProveedor || undefined, art.proveedorId || null
+    );
+
+    if (res.success) {
+      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, precio: nuevoPrecio, margenGanancia: nuevoMargen } : a));
+    } else {
+      alert("Error: " + res.error);
+    }
+    setGuardandoMarcacionId(null);
+    setMarcacionTemp("");
+  };
+
   const handleCostoChange = (val: number, isEdit: boolean) => {
     if (isEdit && editData) {
       const nuevoPrecio = calcularPrecio(val, editData.margenGanancia || 0);
@@ -766,15 +811,49 @@ export default function ArticulosClient({
                         $ {art.precio.toLocaleString('es-AR')}
                       </TableCell>
                       <TableCell className="text-center py-3">
-                        {(() => {
-                          const marc = calcularMarcacion(art.costo, art.precio);
-                          if (marc === null) return <span className="text-slate-300">—</span>;
-                          return (
-                            <span className={`text-xs font-black px-2.5 py-1 rounded-lg border ${marc < 0 ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
-                              {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
-                            </span>
-                          );
-                        })()}
+                        {editandoMarcacionId === art.id ? (
+                          <Input
+                            autoFocus
+                            type="number"
+                            value={marcacionTemp}
+                            onChange={(e) => setMarcacionTemp(e.target.value)}
+                            onBlur={() => {
+                              if (cancelarSaveMarcacionRef.current) {
+                                cancelarSaveMarcacionRef.current = false;
+                                cancelarEdicionMarcacion();
+                              } else {
+                                guardarMarcacion(art);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.currentTarget.blur();
+                              } else if (e.key === "Escape") {
+                                cancelarSaveMarcacionRef.current = true;
+                                e.currentTarget.blur();
+                              }
+                            }}
+                            className="h-8 w-20 mx-auto text-center font-bold bg-white border-indigo-300 focus-visible:ring-indigo-500"
+                          />
+                        ) : guardandoMarcacionId === art.id ? (
+                          <div className="flex justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
+                          </div>
+                        ) : (() => {
+                            const marc = calcularMarcacion(art.costo, art.precio);
+                            const tieneCosto = !!art.costo && art.costo > 0;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => iniciarEdicionMarcacion(art)}
+                                disabled={!tieneCosto}
+                                title={tieneCosto ? "Clic para editar la marcación (%)" : "Cargá el costo para poder editar la marcación"}
+                                className={`text-xs font-black px-2.5 py-1 rounded-lg border transition-all ${marc === null ? 'text-slate-300 border-transparent cursor-not-allowed' : marc < 0 ? 'bg-red-50 text-red-600 border-red-200 hover:ring-1 hover:ring-indigo-300' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200'}`}
+                              >
+                                {marc === null ? '—' : `${marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`}
+                              </button>
+                            );
+                          })()}
                       </TableCell>
                       <TableCell className="text-center py-3">
                         <span className={`text-xs font-black px-3 py-1 rounded-lg border ${art.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : art.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>

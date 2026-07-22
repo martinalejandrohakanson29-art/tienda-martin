@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
+import * as XLSX from "xlsx"
 
 // Función para obtener todos los artículos para la vista de listas
 export async function obtenerArticulosParaListas() {
@@ -160,6 +161,183 @@ export async function aplicarProveedorMasivo(ids: string[], proveedorId: string 
   } catch (error) {
     console.error("Error al aplicar proveedor masivo:", error);
     return { success: false, error: "Ocurrió un error al aplicar el proveedor a los artículos seleccionados." };
+  }
+}
+
+// --- ACTUALIZACIÓN MASIVA DE COSTOS DESDE EXCEL DE PROVEEDOR ---
+
+export type PreviewItemExcel = {
+  id: string;
+  nombre: string;
+  codigoProveedor: string;
+  costoActual: number;
+  costoNuevo: number;
+};
+
+export type PreviewExcelResultado = {
+  totalFilasExcel: number;
+  articulosProveedor: number;
+  coincidencias: number;
+  suben: number;
+  bajan: number;
+  iguales: number;
+  sinMatchEnExcel: number;
+  items: PreviewItemExcel[];
+};
+
+// Lee la planilla del proveedor, detecta las columnas de código y precio, y cruza
+// contra los artículos que tienen ese proveedor + código de proveedor cargado.
+export async function previsualizarExcelProveedor(formData: FormData, proveedorId: string) {
+  try {
+    const file = formData.get("file") as File | null;
+    if (!file) return { success: false, error: "No se recibió ningún archivo." };
+    if (!proveedorId) return { success: false, error: "Seleccioná primero el proveedor." };
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["xlsx", "xls", "csv"].includes(ext ?? ""))
+      return { success: false, error: "El archivo debe ser .xlsx, .xls o .csv" };
+
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: "buffer" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: "" });
+
+    // Detectamos la fila de encabezado buscando una columna que contenga "código"
+    let headerRowIdx = -1;
+    let colCodigo = -1;
+    let colPrecio = -1;
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      const row = rows[i] || [];
+      const idxCodigo = row.findIndex((c: any) => typeof c === "string" && /c[oó]digo/i.test(c));
+      if (idxCodigo >= 0) {
+        headerRowIdx = i;
+        colCodigo = idxCodigo;
+        colPrecio = row.findIndex((c: any) => typeof c === "string" && /distribuidor|precio|costo|lista/i.test(c));
+        break;
+      }
+    }
+
+    if (headerRowIdx === -1 || colCodigo === -1) {
+      return { success: false, error: "No se encontró una columna de 'Código' en el archivo." };
+    }
+
+    // Si no hay una columna de precio identificable por nombre, tomamos la última
+    // columna numérica de la primera fila de datos como precio.
+    if (colPrecio === -1) {
+      const dataRow = rows[headerRowIdx + 1] || [];
+      for (let c = dataRow.length - 1; c >= 0; c--) {
+        if (typeof dataRow[c] === "number") { colPrecio = c; break; }
+      }
+    }
+
+    if (colPrecio === -1) {
+      return { success: false, error: "No se encontró una columna de precio en el archivo." };
+    }
+
+    const filasDatos = rows
+      .slice(headerRowIdx + 1)
+      .filter(r => r && r[colCodigo] !== undefined && String(r[colCodigo]).trim() !== "");
+
+    const excelMap = new Map<string, number>();
+    for (const r of filasDatos) {
+      const codigo = String(r[colCodigo]).trim().toUpperCase();
+      const precio = Number(r[colPrecio]);
+      if (codigo && !isNaN(precio) && precio > 0) {
+        excelMap.set(codigo, precio);
+      }
+    }
+
+    if (excelMap.size === 0) {
+      return { success: false, error: "No se encontraron filas válidas con código y precio en el archivo." };
+    }
+
+    const articulos = await prisma.articuloMostrador.findMany({
+      where: { proveedorId, codigoProveedor: { not: null } },
+      select: { id: true, nombre: true, codigoProveedor: true, costo: true }
+    });
+
+    const items: PreviewItemExcel[] = [];
+    let suben = 0, bajan = 0, iguales = 0;
+
+    for (const art of articulos) {
+      const codigo = (art.codigoProveedor || "").trim().toUpperCase();
+      if (!codigo || !excelMap.has(codigo)) continue;
+      const costoNuevo = excelMap.get(codigo)!;
+      const costoActual = Number(art.costo || 0);
+      if (costoNuevo > costoActual) suben++;
+      else if (costoNuevo < costoActual) bajan++;
+      else iguales++;
+      items.push({ id: art.id, nombre: art.nombre, codigoProveedor: art.codigoProveedor || "", costoActual, costoNuevo });
+    }
+
+    const data: PreviewExcelResultado = {
+      totalFilasExcel: filasDatos.length,
+      articulosProveedor: articulos.length,
+      coincidencias: items.length,
+      suben,
+      bajan,
+      iguales,
+      sinMatchEnExcel: articulos.length - items.length,
+      items
+    };
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error al previsualizar excel de proveedor:", error);
+    return { success: false, error: "No se pudo procesar el archivo." };
+  }
+}
+
+// Aplica los nuevos costos (según lo previsualizado) y recalcula el precio con el % de marcación indicado
+export async function aplicarActualizacionMasivaExcel(updates: { id: string; costoNuevo: number }[], porcentajeMarcacion: number) {
+  try {
+    if (!updates || updates.length === 0) {
+      return { success: false, error: "No hay artículos para actualizar." };
+    }
+    if (isNaN(porcentajeMarcacion) || porcentajeMarcacion < 0) {
+      return { success: false, error: "El % de marcación no es válido." };
+    }
+
+    const session = await getServerSession(authOptions);
+    const usuario = (session?.user as any)?.name || "Desconocido";
+
+    const calcularPrecio = (costo: number, margen: number) => Number((costo * (1 + margen / 100)).toFixed(2));
+
+    await prisma.$transaction(async (tx) => {
+      const ids = updates.map(u => u.id);
+      const anteriores = await tx.articuloMostrador.findMany({ where: { id: { in: ids } } });
+      const anterioresMap = new Map(anteriores.map(a => [a.id, a]));
+
+      const auditorias: { articuloId: string; usuario: string; accion: string; detalle: string }[] = [];
+
+      for (const u of updates) {
+        const anterior = anterioresMap.get(u.id);
+        if (!anterior) continue;
+
+        const precioNuevo = calcularPrecio(u.costoNuevo, porcentajeMarcacion);
+
+        await tx.articuloMostrador.update({
+          where: { id: u.id },
+          data: { costo: u.costoNuevo, margenGanancia: porcentajeMarcacion, precio: precioNuevo }
+        });
+
+        auditorias.push({
+          articuloId: u.id,
+          usuario,
+          accion: "ACTUALIZACION_EXCEL_PROVEEDOR",
+          detalle: `Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${u.costoNuevo.toLocaleString('es-AR')}; Marcación ${porcentajeMarcacion}%; Precio: $${Number(anterior.precio).toLocaleString('es-AR')} → $${precioNuevo.toLocaleString('es-AR')} (importación desde Excel)`
+        });
+      }
+
+      if (auditorias.length > 0) {
+        await tx.articuloAuditoria.createMany({ data: auditorias });
+      }
+    }, { timeout: 30000 });
+
+    return { success: true, actualizados: updates.length };
+  } catch (error) {
+    console.error("Error al aplicar actualización masiva desde Excel:", error);
+    return { success: false, error: "Ocurrió un error al aplicar la actualización masiva." };
   }
 }
 

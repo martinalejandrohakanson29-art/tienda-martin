@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User, ListChecks, Truck, Check, X } from "lucide-react";
+import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User, ListChecks, Truck, Check, X, FileSpreadsheet, Upload, TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
 import Link from "next/link";
-import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo, aplicarProveedorMasivo } from "@/app/actions/listas";
+import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo, aplicarProveedorMasivo, previsualizarExcelProveedor, aplicarActualizacionMasivaExcel } from "@/app/actions/listas";
+import type { PreviewExcelResultado } from "@/app/actions/listas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -80,6 +81,19 @@ export default function ArticulosClient({
   const [bulkProveedorId, setBulkProveedorId] = useState<string>("none");
   const [aplicandoBulk, setAplicandoBulk] = useState(false);
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
+
+  // Estados para el Modal de Actualización de Precios desde Excel
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [excelStep, setExcelStep] = useState<"upload" | "preview">("upload");
+  const [excelProveedorId, setExcelProveedorId] = useState<string>("");
+  const [excelArchivoNombre, setExcelArchivoNombre] = useState<string | null>(null);
+  const [excelDragging, setExcelDragging] = useState(false);
+  const [cargandoExcel, setCargandoExcel] = useState(false);
+  const [excelError, setExcelError] = useState<string | null>(null);
+  const [excelPreview, setExcelPreview] = useState<PreviewExcelResultado | null>(null);
+  const [excelPorcentaje, setExcelPorcentaje] = useState<string>("");
+  const [aplicandoExcel, setAplicandoExcel] = useState(false);
+  const excelFileRef = useRef<HTMLInputElement>(null);
 
   // Estados para el Modal de Historial
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
@@ -185,6 +199,79 @@ export default function ArticulosClient({
     }
 
     setAplicandoBulk(false);
+  };
+
+  // --- Actualización de precios desde Excel de proveedor ---
+  const abrirModalExcel = () => {
+    setExcelStep("upload");
+    setExcelProveedorId("");
+    setExcelArchivoNombre(null);
+    setExcelPreview(null);
+    setExcelError(null);
+    setExcelPorcentaje("");
+    setExcelDragging(false);
+    setIsExcelModalOpen(true);
+  };
+
+  const procesarArchivoExcel = async (file: File) => {
+    if (!excelProveedorId) {
+      setExcelError("Elegí primero el proveedor de la lista de precios.");
+      return;
+    }
+    setCargandoExcel(true);
+    setExcelError(null);
+    setExcelArchivoNombre(file.name);
+
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await previsualizarExcelProveedor(fd, excelProveedorId);
+
+    if (res.success && res.data) {
+      setExcelPreview(res.data);
+      setExcelStep("preview");
+    } else {
+      setExcelError(res.error || "No se pudo procesar el archivo.");
+    }
+    setCargandoExcel(false);
+  };
+
+  const onExcelFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) procesarArchivoExcel(f);
+    e.target.value = "";
+  };
+
+  const onExcelDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setExcelDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) procesarArchivoExcel(f);
+  };
+
+  const handleAplicarExcel = async () => {
+    if (!excelPreview || excelPreview.items.length === 0) return;
+    const pct = Number(excelPorcentaje);
+    if (excelPorcentaje.trim() === "" || isNaN(pct) || pct < 0) {
+      alert("Ingresá un % de marcación válido.");
+      return;
+    }
+    setAplicandoExcel(true);
+
+    const updates = excelPreview.items.map(it => ({ id: it.id, costoNuevo: it.costoNuevo }));
+    const res = await aplicarActualizacionMasivaExcel(updates, pct);
+
+    if (res.success) {
+      const updatesMap = new Map(excelPreview.items.map(it => [it.id, it.costoNuevo]));
+      setArticulos(prev => prev.map(a => {
+        const costoNuevo = updatesMap.get(a.id);
+        if (costoNuevo === undefined) return a;
+        return { ...a, costo: costoNuevo, margenGanancia: pct, precio: calcularPrecio(costoNuevo, pct) };
+      }));
+      setIsExcelModalOpen(false);
+    } else {
+      alert("Error: " + res.error);
+    }
+    setAplicandoExcel(false);
   };
 
   // Funciones de Edición
@@ -394,17 +481,27 @@ export default function ArticulosClient({
             <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider">Gestión de productos de venta</p>
           </div>
         </div>
-        <Button 
-          onClick={() => {
-            const nuevoId = "ART-" + Math.random().toString(36).substring(2, 9).toUpperCase();
-            setNewData({ ...newData, id: nuevoId });
-            setIsCreateModalOpen(true);
-          }}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md gap-2"
-        >
-          <Plus className="h-5 w-5" />
-          Crear nuevo artículo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={abrirModalExcel}
+            variant="outline"
+            className="rounded-xl font-bold gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+          >
+            <FileSpreadsheet className="h-5 w-5" />
+            Aumentar precios desde Excel
+          </Button>
+          <Button
+            onClick={() => {
+              const nuevoId = "ART-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+              setNewData({ ...newData, id: nuevoId });
+              setIsCreateModalOpen(true);
+            }}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-md gap-2"
+          >
+            <Plus className="h-5 w-5" />
+            Crear nuevo artículo
+          </Button>
+        </div>
       </header>
 
       {/* Contenido principal */}
@@ -999,6 +1096,173 @@ export default function ArticulosClient({
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
               Crear Artículo
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* MODAL DE ACTUALIZACIÓN DE PRECIOS DESDE EXCEL */}
+      <Dialog open={isExcelModalOpen} onOpenChange={setIsExcelModalOpen}>
+        <DialogContent className="sm:max-w-[640px] rounded-3xl p-6 border-2 border-emerald-100 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-emerald-900">
+              <FileSpreadsheet className="h-5 w-5 text-emerald-600" /> Aumentar precios desde Excel
+            </DialogTitle>
+            <DialogDescription className="text-slate-500">
+              Subí la lista de precios del proveedor para actualizar el costo por código de proveedor.
+            </DialogDescription>
+          </DialogHeader>
+
+          {excelStep === "upload" ? (
+            <div className="py-4 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 uppercase">Proveedor</Label>
+                {/* Select nativo (no Radix): con ~300 proveedores, permite escribir para saltar
+                    directo a la opción (ej. tipear "paolucci"), algo que un Select de Radix no ofrece. */}
+                <select
+                  value={excelProveedorId}
+                  onChange={(e) => { setExcelProveedorId(e.target.value); setExcelError(null); }}
+                  className="w-full h-10 text-sm font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300"
+                >
+                  <option value="">Elegí el proveedor de la planilla</option>
+                  {proveedores.map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  El cruce se hace por el "Código Proveedor" cargado en cada artículo de este proveedor.
+                </p>
+              </div>
+
+              <div
+                className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center gap-3 transition-all
+                  ${!excelProveedorId ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-50" :
+                    excelDragging ? "border-emerald-400 bg-emerald-50 cursor-pointer" : "border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-emerald-50/50 cursor-pointer"}`}
+                onClick={() => excelProveedorId && excelFileRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); if (excelProveedorId) setExcelDragging(true); }}
+                onDragLeave={() => setExcelDragging(false)}
+                onDrop={(e) => { if (excelProveedorId) onExcelDrop(e); else e.preventDefault(); }}
+              >
+                {cargandoExcel ? (
+                  <>
+                    <Loader2 className="h-8 w-8 text-emerald-500 animate-spin" />
+                    <p className="text-sm font-medium text-slate-600">Procesando <span className="text-emerald-700">{excelArchivoNombre}</span>…</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-3 bg-emerald-100 rounded-xl">
+                      <Upload className="h-6 w-6 text-emerald-600" />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-700 text-center">
+                      {excelDragging ? "Soltá el archivo aquí" : "Arrastrá el XLSX o hacé clic para seleccionar"}
+                    </p>
+                    <p className="text-[11px] text-slate-400">.xlsx / .xls / .csv</p>
+                  </>
+                )}
+              </div>
+              <input ref={excelFileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={onExcelFileChange} />
+
+              {excelError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-sm text-rose-700">
+                  {excelError}
+                </div>
+              )}
+            </div>
+          ) : excelPreview && (
+            <div className="py-4 space-y-4">
+              <div className="grid grid-cols-4 gap-2">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">Coinciden</p>
+                  <p className="text-xl font-black text-slate-700">{excelPreview.coincidencias}</p>
+                </div>
+                <div className="bg-red-50 border border-red-100 rounded-xl p-3 text-center">
+                  <p className="text-[10px] font-bold text-red-400 uppercase flex items-center justify-center gap-1"><TrendingUp className="h-3 w-3" /> Suben</p>
+                  <p className="text-xl font-black text-red-600">{excelPreview.suben}</p>
+                </div>
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
+                  <p className="text-[10px] font-bold text-emerald-500 uppercase flex items-center justify-center gap-1"><TrendingDown className="h-3 w-3" /> Bajan</p>
+                  <p className="text-xl font-black text-emerald-600">{excelPreview.bajan}</p>
+                </div>
+                <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase flex items-center justify-center gap-1"><Minus className="h-3 w-3" /> Igual</p>
+                  <p className="text-xl font-black text-slate-500">{excelPreview.iguales}</p>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-400 flex flex-wrap gap-x-4 gap-y-1">
+                <span>Archivo: <span className="text-slate-600 font-medium">{excelArchivoNombre}</span></span>
+                <span>Filas en Excel: <span className="text-slate-600 font-medium">{excelPreview.totalFilasExcel}</span></span>
+                <span>Artículos del proveedor con código: <span className="text-slate-600 font-medium">{excelPreview.articulosProveedor}</span></span>
+                {excelPreview.sinMatchEnExcel > 0 && (
+                  <span className="text-amber-600">{excelPreview.sinMatchEnExcel} artículo{excelPreview.sinMatchEnExcel !== 1 ? "s" : ""} sin coincidencia en el Excel</span>
+                )}
+              </div>
+
+              {excelPreview.items.length > 0 && (
+                <div className="border border-slate-100 rounded-xl max-h-[220px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-bold text-slate-500 uppercase text-[10px]">Artículo</th>
+                        <th className="text-right px-3 py-2 font-bold text-slate-500 uppercase text-[10px]">Costo Actual</th>
+                        <th className="text-right px-3 py-2 font-bold text-slate-500 uppercase text-[10px]">Costo Nuevo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {excelPreview.items.map(it => (
+                        <tr key={it.id} className="border-b border-slate-50">
+                          <td className="px-3 py-1.5 text-slate-700 truncate max-w-[220px]" title={it.nombre}>{it.nombre}</td>
+                          <td className="px-3 py-1.5 text-right font-mono text-slate-500">$ {it.costoActual.toLocaleString('es-AR')}</td>
+                          <td className={`px-3 py-1.5 text-right font-mono font-bold ${it.costoNuevo > it.costoActual ? 'text-red-600' : it.costoNuevo < it.costoActual ? 'text-emerald-600' : 'text-slate-500'}`}>
+                            $ {it.costoNuevo.toLocaleString('es-AR')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                <Label className="text-xs font-bold text-emerald-700 uppercase mb-2 block">% de marcación a aplicar</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="number"
+                    value={excelPorcentaje}
+                    onChange={(e) => setExcelPorcentaje(e.target.value)}
+                    placeholder="Ej: 35"
+                    className="font-black text-lg bg-white border-emerald-200 text-emerald-700 focus-visible:ring-emerald-500"
+                  />
+                  <span className="text-2xl font-black text-emerald-700">%</span>
+                </div>
+                <p className="text-[10px] text-emerald-500 mt-2 font-medium italic">
+                  Se aplica sobre el costo nuevo a los {excelPreview.coincidencias} artículos coincidentes.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-3 mt-4">
+            {excelStep === "preview" && (
+              <Button
+                variant="ghost"
+                onClick={() => { setExcelStep("upload"); setExcelPreview(null); setExcelError(null); }}
+                className="text-slate-500 hover:text-slate-700 mr-auto"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" /> Cargar otro archivo
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setIsExcelModalOpen(false)} className="text-slate-500 hover:text-slate-700">
+              Cancelar
+            </Button>
+            {excelStep === "preview" && (
+              <Button
+                onClick={handleAplicarExcel}
+                disabled={aplicandoExcel || excelPreview?.items.length === 0}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold px-8 shadow-md"
+              >
+                {aplicandoExcel ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                Aplicar cambios
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

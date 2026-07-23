@@ -366,11 +366,14 @@ export default function RentabilidadTable({
                   )}
                   <TableCell>
                     <div className="flex flex-col leading-tight">
-                      <span className="font-semibold text-slate-800 truncate max-w-[280px]">{item.nombre}</span>
+                      <span className="font-semibold text-slate-800 truncate max-w-[280px]" title={item.nombre}>{item.nombre}</span>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-[9px] font-mono text-slate-400">{item.item_id}</span>
                         {item.nombre_variante && (
-                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 rounded font-bold uppercase">
+                          <span
+                            className="text-[10px] bg-slate-100 text-slate-600 px-1.5 rounded font-bold uppercase truncate max-w-[120px]"
+                            title={item.nombre_variante}
+                          >
                             {item.nombre_variante}
                           </span>
                         )}

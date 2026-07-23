@@ -764,6 +764,20 @@ export default function VentasMostradorClient({
     return Number((costo * (1 + margen / 100)).toFixed(2));
   };
 
+  // Marcación real sobre el costo: (precio - costo) / costo * 100
+  const calcularMarcacion = (costo?: number, precio?: number): number | null => {
+    if (!costo || costo <= 0 || precio == null) return null;
+    return ((precio - costo) / costo) * 100;
+  };
+
+  // Clasificación de color de la marcación: >=60% magenta, 50-60% verde, 40-50% naranja, <40% rojo
+  const claseColorMarcacion = (marc: number): string => {
+    if (marc >= 60) return 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200';
+    if (marc >= 50) return 'bg-green-50 text-green-600 border-green-200';
+    if (marc >= 40) return 'bg-orange-50 text-orange-600 border-orange-200';
+    return 'bg-red-50 text-red-600 border-red-200';
+  };
+
   const handleCostoArtChange = (val: number) => {
     const nuevoPrecio = calcularPrecioArt(val, newArtData.margenGanancia || 0);
     setNewArtData({ ...newArtData, costo: val, precio: nuevoPrecio });
@@ -3388,7 +3402,7 @@ export default function VentasMostradorClient({
 
         {/* --- MODALES COMUNES --- */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
+          <DialogContent className="sm:max-w-[1000px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
             <div className="p-6 bg-white border-b relative">
               <div className="flex items-center justify-between mb-3">
                 <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2"><Search className="h-4 w-4 text-blue-600" /> Buscador Instantáneo</DialogTitle>
@@ -3405,23 +3419,50 @@ export default function VentasMostradorClient({
             </div>
             <div className="h-[500px] overflow-y-auto p-4 bg-white">
               {searchResults.map((prod) => (
-                <button key={prod.id} onClick={() => agregarProductoAVenta(prod)} className="w-full flex items-center justify-between p-3.5 hover:bg-blue-50/50 rounded-xl group transition-all mb-2 border border-transparent hover:border-blue-100">
-                  <div className="flex items-center gap-4">
-                    <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600" />
-                    <div className="text-left flex flex-col gap-1.5">
-                      <div className="flex items-center gap-3">
-                        <p className="font-bold text-slate-900 leading-tight">
+                <button key={prod.id} onClick={() => agregarProductoAVenta(prod)} className="w-full flex items-center justify-between gap-4 p-3.5 hover:bg-blue-50/50 rounded-xl group transition-all mb-2 border border-transparent hover:border-blue-100">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600 shrink-0" />
+                    <div className="text-left flex flex-col gap-1.5 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <p className="font-bold text-slate-900 leading-tight break-words">
                           {prod.esPack && <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-200 mr-2 uppercase">Pack</span>}
                           {prod.nombre}
                         </p>
-                        <span className={`text-sm font-black px-2 py-0.5 rounded-md border ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                        <span className={`text-sm font-black px-2 py-0.5 rounded-md border shrink-0 ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                           Stock: {prod.stock}
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id}</p>
                     </div>
                   </div>
-                  <p className="font-medium text-slate-900">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                  <div className="flex items-center gap-4 shrink-0">
+                    {(!!prod.costo || !!prod.ultimaModificacion) && (
+                      <div className="flex flex-col items-end gap-0.5">
+                        {!!prod.costo && (
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            Costo: <span className="text-slate-600">$ {Number(prod.costo).toLocaleString('es-AR')}</span>
+                          </span>
+                        )}
+                        {!!prod.ultimaModificacion && (
+                          <span className="text-[9px] text-slate-400 font-mono uppercase" title="Última actualización de precio en DB">
+                            Mod: {new Date(prod.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-lg font-bold text-slate-900">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                      {(() => {
+                        const marc = calcularMarcacion(prod.costo, prod.precio);
+                        if (marc === null) return null;
+                        return (
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${claseColorMarcacion(marc)}`} title="Marcación sobre el costo">
+                            {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
@@ -4543,27 +4584,54 @@ export default function VentasMostradorClient({
         </Dialog>
 
         <Dialog open={isSearchEditModalOpen} onOpenChange={setIsSearchEditModalOpen}>
-          <DialogContent className="sm:max-w-[800px] p-0 overflow-hidden rounded-3xl border-2 border-amber-400 shadow-2xl">
+          <DialogContent className="sm:max-w-[1000px] p-0 overflow-hidden rounded-3xl border-2 border-amber-400 shadow-2xl">
             <div className="p-6 bg-amber-50 border-b border-amber-200">
               <DialogTitle className="text-lg font-bold text-amber-900 mb-3 flex items-center gap-2"><Search className="h-4 w-4" /> Buscar Artículo (Modo Edición)</DialogTitle>
               <div className="relative"><Search className="absolute left-4 top-3 h-5 w-5 text-amber-500" /><input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre..." className="flex h-12 w-full rounded-xl border border-amber-200 bg-white px-12 py-6 text-base outline-none focus:border-amber-500" /></div>
             </div>
             <div className="h-[400px] overflow-y-auto p-4 bg-white">
               {searchResults.map((prod) => (
-                <button key={prod.id} onClick={() => agregarProductoEdicion(prod)} className="w-full flex items-center justify-between p-3.5 hover:bg-amber-50 rounded-xl group border border-transparent hover:border-amber-200 mb-2">
-                  <div className="flex items-center gap-4">
-                    <Plus className="h-4 w-4 text-slate-400 group-hover:text-amber-600" />
-                    <div className="text-left flex flex-col gap-1.5">
-                      <div className="flex items-center gap-3">
-                        <p className="font-bold text-slate-900 leading-tight">{prod.nombre}</p>
-                        <span className={`text-sm font-black px-2 py-0.5 rounded-md border ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
+                <button key={prod.id} onClick={() => agregarProductoEdicion(prod)} className="w-full flex items-center justify-between gap-4 p-3.5 hover:bg-amber-50 rounded-xl group border border-transparent hover:border-amber-200 mb-2">
+                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                    <Plus className="h-4 w-4 text-slate-400 group-hover:text-amber-600 shrink-0" />
+                    <div className="text-left flex flex-col gap-1.5 min-w-0">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <p className="font-bold text-slate-900 leading-tight break-words">{prod.nombre}</p>
+                        <span className={`text-sm font-black px-2 py-0.5 rounded-md border shrink-0 ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                           Stock: {prod.stock}
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 font-mono uppercase">ID: {prod.id}</p>
                     </div>
                   </div>
-                  <p className="font-medium text-slate-900">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                  <div className="flex items-center gap-4 shrink-0">
+                    {(!!prod.costo || !!prod.ultimaModificacion) && (
+                      <div className="flex flex-col items-end gap-0.5">
+                        {!!prod.costo && (
+                          <span className="text-[10px] text-slate-400 font-semibold">
+                            Costo: <span className="text-slate-600">$ {Number(prod.costo).toLocaleString('es-AR')}</span>
+                          </span>
+                        )}
+                        {!!prod.ultimaModificacion && (
+                          <span className="text-[9px] text-slate-400 font-mono uppercase" title="Última actualización de precio en DB">
+                            Mod: {new Date(prod.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-lg font-bold text-slate-900">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
+                      {(() => {
+                        const marc = calcularMarcacion(prod.costo, prod.precio);
+                        if (marc === null) return null;
+                        return (
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${claseColorMarcacion(marc)}`} title="Marcación sobre el costo">
+                            {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
+                          </span>
+                        );
+                      })()}
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>

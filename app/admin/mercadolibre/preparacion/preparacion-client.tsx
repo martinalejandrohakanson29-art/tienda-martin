@@ -135,6 +135,8 @@ function ZoomViewer({
             .forEach((nombre: string) => allNombres.push({ nombre, colorIdx: allNombres.length }))
     })
 
+    const cantidadTotal = envioData?.items?.reduce((acc: number, item: any) => acc + (item.quantity || 1), 0) || 0
+
     const hasPanel = !!(envioId && onApprove && onReject)
 
     return (
@@ -172,12 +174,17 @@ function ZoomViewer({
                 >
                     {/* Código de envío y orden */}
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 bg-slate-700/80 text-slate-200 text-[10px] font-black px-2 py-0.5 rounded-md">
-                            <Barcode className="h-3 w-3" /> ENVÍO: {envioId}
+                        <span className="inline-flex items-center gap-1.5 bg-slate-700/80 text-slate-100 text-sm font-semibold tracking-wide px-2.5 py-1 rounded-md">
+                            <Barcode className="h-3.5 w-3.5" /> ENVÍO: <span className="font-bold tabular-nums">{envioId}</span>
                         </span>
                         {envioData?.orderId && (
-                            <span className="bg-orange-900/60 text-orange-300 text-[10px] font-black px-2 py-0.5 rounded-md">
-                                ORDEN: {envioData.orderId}
+                            <span className="bg-orange-900/60 text-orange-200 text-sm font-semibold tracking-wide px-2.5 py-1 rounded-md">
+                                ORDEN: <span className="font-bold tabular-nums">{envioData.orderId}</span>
+                            </span>
+                        )}
+                        {cantidadTotal > 0 && (
+                            <span className="bg-blue-900/60 text-blue-200 text-sm font-semibold tracking-wide px-2.5 py-1 rounded-md">
+                                CANT: <span className="font-bold tabular-nums">{cantidadTotal}</span>
                             </span>
                         )}
                     </div>
@@ -390,6 +397,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
 
     const handleOpenViewer = async (envio: any) => {
         setIsFetchingFotos(true)
+        setExpandedImage(null)
         try {
             const res = await obtenerFotosEnvio(envio.id)
             if (res.success) {
@@ -421,6 +429,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             toast.success("Pedido aprobado y auditado")
             aplicarResultadoAuditoria(envioId, "AUDITADO", res.auditor ?? null)
             setViewingFotos(null)
+            setExpandedImage(null)
         } else if ((res as any).conflict) {
             toast.error(res.error)
             aplicarResultadoAuditoria(envioId, (res as any).status, (res as any).auditor ?? null)
@@ -438,6 +447,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
             toast.warning("Pedido rechazado.")
             aplicarResultadoAuditoria(envioId, "PENDIENTE", res.auditor ?? null)
             setViewingFotos(null)
+            setExpandedImage(null)
         } else if ((res as any).conflict) {
             toast.error(res.error)
             aplicarResultadoAuditoria(envioId, (res as any).status, (res as any).auditor ?? null)
@@ -519,7 +529,7 @@ export function PreparacionClient({ initialEnvios }: { initialEnvios: any[] }) {
                         onReject={handleReject}
                     />
                 )}
-                <Button variant="outline" onClick={() => { setViewingFotos(null); setActiveFoto(null); }}><ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista</Button>
+                <Button variant="outline" onClick={() => { setViewingFotos(null); setActiveFoto(null); setExpandedImage(null); }}><ArrowLeft className="mr-2 h-4 w-4" /> Volver a la lista</Button>
                 
                 <div className="grid md:grid-cols-2 gap-8">
                     <div className="space-y-4">

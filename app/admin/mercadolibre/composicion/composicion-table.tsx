@@ -871,10 +871,16 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                         setEditingItem({ ...editingItem, id_articulo: art.id_articulo, nombre_articulo: art.descripcion });
                         setSearchArticuloKitModal("");
                       }}
-                      className="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between"
+                      className="p-3 hover:bg-blue-50 cursor-pointer border-b flex justify-between items-center gap-2"
                     >
                       <span className="text-xs font-bold text-blue-600">{art.id_articulo}</span>
-                      <span className="text-[10px] text-slate-600">{art.descripcion}</span>
+                      <span className="text-[10px] text-slate-600 flex-1 text-right">{art.descripcion}</span>
+                      <span className={cn(
+                        "text-[9px] font-bold uppercase px-1 rounded shrink-0",
+                        art.fuente === "mostrador" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+                      )}>
+                        {art.fuente === "mostrador" ? "Mostrador" : "Catálogo"}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1097,10 +1103,16 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                       <div
                         key={art.id_articulo}
                         onClick={() => handleSelectArticulo(art)}
-                        className="p-3 hover:bg-green-50 cursor-pointer border-b flex justify-between"
+                        className="p-3 hover:bg-green-50 cursor-pointer border-b flex justify-between items-center gap-2"
                       >
                         <span className="text-xs font-bold text-green-600">{art.id_articulo}</span>
-                        <span className="text-[10px] text-slate-600">{art.descripcion}</span>
+                        <span className="text-[10px] text-slate-600 flex-1 text-right">{art.descripcion}</span>
+                        <span className={cn(
+                          "text-[9px] font-bold uppercase px-1 rounded shrink-0",
+                          art.fuente === "mostrador" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+                        )}>
+                          {art.fuente === "mostrador" ? "Mostrador" : "Catálogo"}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -1339,10 +1351,16 @@ export function ComposicionTable({ kits, articulos, maestros }: { kits: any[], a
                                 <div
                                   key={art.id_articulo}
                                   onClick={() => addComponentToVariant(sv.key, art)}
-                                  className="p-2.5 hover:bg-green-50 cursor-pointer border-b flex justify-between gap-2"
+                                  className="p-2.5 hover:bg-green-50 cursor-pointer border-b flex justify-between items-center gap-2"
                                 >
                                   <span className="text-xs font-bold text-green-600 shrink-0">{art.id_articulo}</span>
-                                  <span className="text-[10px] text-slate-600 truncate">{art.descripcion}</span>
+                                  <span className="text-[10px] text-slate-600 truncate flex-1">{art.descripcion}</span>
+                                  <span className={cn(
+                                    "text-[9px] font-bold uppercase px-1 rounded shrink-0",
+                                    art.fuente === "mostrador" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-500"
+                                  )}>
+                                    {art.fuente === "mostrador" ? "Most." : "Cat."}
+                                  </span>
                                 </div>
                               ))}
                             </div>

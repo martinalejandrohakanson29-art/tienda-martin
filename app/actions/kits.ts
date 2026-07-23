@@ -152,17 +152,27 @@ export async function getComposicionKits() {
       select: { mla: true, variation_id: true, user_product_id: true, family_id: true, estado: true, es_nuevo: true }
     });
 
-    // 3b. Traemos el costo de cada artículo usado en las recetas (costos_articulos).
-    //     costo_final_ars ya viene "rolleado" (incluye kits anidados), por lo que un
-    //     único cruce por id_articulo basta para calcular el costo de cada composición.
+    // 3b. Traemos el costo de cada artículo usado en las recetas. Puede venir de
+    //     costos_articulos (costo_final_ars ya viene "rolleado", incluye kits
+    //     anidados) o, si el componente se agregó desde Artículos Mostrador, de
+    //     ArticuloMostrador.costo (solo para los ids que no aparezcan en costos_articulos).
     const articulosUnicos = Array.from(new Set(kits.map(k => k.id_articulo).filter(Boolean)));
-    const costos = await prisma.costosArticulos.findMany({
-      where: { id_articulo: { in: articulosUnicos } },
-      select: { id_articulo: true, costo_final_ars: true }
-    });
+    const [costos, mostrador] = await Promise.all([
+      prisma.costosArticulos.findMany({
+        where: { id_articulo: { in: articulosUnicos } },
+        select: { id_articulo: true, costo_final_ars: true }
+      }),
+      prisma.articuloMostrador.findMany({
+        where: { id: { in: articulosUnicos } },
+        select: { id: true, costo: true }
+      }),
+    ]);
     const costoMap = new Map(
       costos.map(c => [c.id_articulo, c.costo_final_ars ? Number(c.costo_final_ars) : 0])
     );
+    for (const m of mostrador) {
+      if (!costoMap.has(m.id)) costoMap.set(m.id, m.costo ? Number(m.costo) : 0);
+    }
 
     // 4. Cruzamos los datos: Le pegamos la Familia y el User Product a cada Kit
     const kitsEnriquecidos = kits.map(kit => {

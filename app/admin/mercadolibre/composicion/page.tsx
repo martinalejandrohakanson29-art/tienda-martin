@@ -2,7 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { getComposicionKits } from "@/app/actions/kits";
-import { getArticulos } from "@/app/actions/costos";
+import { getArticulosParaComposicion } from "@/app/actions/costos";
 import { getProductosMaestros } from "@/app/actions/ml-maestros";
 import { ComposicionTable } from "./composicion-table";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ export default async function ComposicionPage() {
   // Traemos los datos de los kits, la lista de artículos y TODOS los maestros para poder autocompletar variantes
   const [kits, articulos, maestros] = await Promise.all([
     getComposicionKits(),
-    getArticulos(),
+    getArticulosParaComposicion(),
     getProductosMaestros()
   ]);
 

@@ -157,6 +157,43 @@ export async function getArticulosParaPrecio() {
   }
 }
 
+// Artículos unificados de CostosArticulos + ArticuloMostrador para el picker de
+// Composición (recetas). Excluye packs y ocultos de Mostrador, y evita duplicar
+// ids que ya existen en costos_articulos_old (ya sincronizados vía costo).
+export async function getArticulosParaComposicion() {
+  try {
+    const [costos, mostrador, kits] = await Promise.all([
+      prisma.costosArticulos.findMany({ orderBy: { descripcion: 'asc' } }),
+      prisma.articuloMostrador.findMany({ orderBy: { nombre: 'asc' } }),
+      prisma.articulosCompuestos.findMany({ select: { sku_padre: true }, distinct: ['sku_padre'] }),
+    ]);
+
+    const kitSkus = new Set(kits.map((k) => k.sku_padre));
+
+    const deCatalogo = costos.map((art) => ({
+      id_articulo: art.id_articulo,
+      descripcion: art.descripcion,
+      isKit: kitSkus.has(art.id_articulo),
+      fuente: "catalogo" as const,
+    }));
+
+    const idsCatalogo = new Set(deCatalogo.map((a) => a.id_articulo));
+
+    const deMostrador = mostrador
+      .filter((art) => !art.esPack && !art.oculto && !idsCatalogo.has(art.id))
+      .map((art) => ({
+        id_articulo: art.id,
+        descripcion: art.nombre,
+        isKit: false,
+        fuente: "mostrador" as const,
+      }));
+
+    return [...deCatalogo, ...deMostrador];
+  } catch {
+    return [];
+  }
+}
+
 export async function getCostosKits() {
   noStore(); 
   

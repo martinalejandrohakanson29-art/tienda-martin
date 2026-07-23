@@ -62,6 +62,12 @@ export default function ArticulosClient({
   const [guardandoCostoId, setGuardandoCostoId] = useState<string | null>(null);
   const cancelarSaveRef = useRef(false);
 
+  // Estados para edición inline del Nombre/Descripción (guarda al salir del campo) en la tabla
+  const [editandoNombreId, setEditandoNombreId] = useState<string | null>(null);
+  const [nombreTemp, setNombreTemp] = useState<string>("");
+  const [guardandoNombreId, setGuardandoNombreId] = useState<string | null>(null);
+  const cancelarSaveNombreRef = useRef(false);
+
   // Estados para edición inline de Proveedor (Select, guarda al elegir) en la tabla
   const [guardandoProveedorSelId, setGuardandoProveedorSelId] = useState<string | null>(null);
 
@@ -506,6 +512,40 @@ export default function ArticulosClient({
     setCodigoProveedorTemp("");
   };
 
+  // --- Edición inline del Nombre/Descripción desde la tabla: guarda al salir del campo ---
+  const iniciarEdicionNombre = (art: Articulo) => {
+    setEditandoNombreId(art.id);
+    setNombreTemp(art.nombre);
+  };
+
+  const cancelarEdicionNombre = () => {
+    setEditandoNombreId(null);
+    setNombreTemp("");
+  };
+
+  const guardarNombre = async (art: Articulo) => {
+    const nuevoNombre = nombreTemp.trim();
+    // Sin cambios o vacío: cancelar sin tocar el servidor
+    if (!nuevoNombre || nuevoNombre === art.nombre) {
+      cancelarEdicionNombre();
+      return;
+    }
+    setEditandoNombreId(null);
+    setGuardandoNombreId(art.id);
+
+    const res = await actualizarArticuloDesdeLista(
+      art.id, nuevoNombre, art.precio, art.stock, art.costo, art.margenGanancia, art.codigoProveedor || undefined, art.proveedorId || null
+    );
+
+    if (res.success) {
+      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, nombre: nuevoNombre } : a));
+    } else {
+      alert("Error: " + res.error);
+    }
+    setGuardandoNombreId(null);
+    setNombreTemp("");
+  };
+
   const abrirHistorial = async (art: Articulo) => {
     setIsHistorialModalOpen(true);
     setCargandoHistorial(true);
@@ -867,14 +907,49 @@ export default function ArticulosClient({
                       </TableCell>
                       <TableCell className={`text-xs font-mono py-3 ${art.oculto ? 'text-slate-300' : 'text-slate-400'}`}>{art.id}</TableCell>
                       <TableCell className={`font-bold py-3 ${art.oculto ? 'text-slate-400' : 'text-slate-800'}`}>
-                        <div className="flex items-center gap-2">
-                          {art.nombre}
-                          {art.oculto && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 border border-slate-300">
-                              <EyeOff className="h-2.5 w-2.5" /> Oculto
-                            </span>
-                          )}
-                        </div>
+                        {editandoNombreId === art.id ? (
+                          <Input
+                            autoFocus
+                            value={nombreTemp}
+                            onChange={(e) => setNombreTemp(e.target.value)}
+                            placeholder="Nombre / Descripción"
+                            onBlur={() => {
+                              if (cancelarSaveNombreRef.current) {
+                                cancelarSaveNombreRef.current = false;
+                                cancelarEdicionNombre();
+                              } else {
+                                guardarNombre(art);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.currentTarget.blur();
+                              } else if (e.key === "Escape") {
+                                cancelarSaveNombreRef.current = true;
+                                e.currentTarget.blur();
+                              }
+                            }}
+                            className="h-7 text-sm font-bold bg-white border-indigo-300 focus-visible:ring-indigo-500 min-w-[220px]"
+                          />
+                        ) : guardandoNombreId === art.id ? (
+                          <div className="flex items-center gap-2 px-1.5 py-0.5">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => iniciarEdicionNombre(art)}
+                            title="Clic para editar el nombre"
+                            className="flex items-center gap-2 text-left rounded-lg px-1.5 py-0.5 -mx-1.5 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200 transition-all"
+                          >
+                            {art.nombre}
+                            {art.oculto && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 border border-slate-300">
+                                <EyeOff className="h-2.5 w-2.5" /> Oculto
+                              </span>
+                            )}
+                          </button>
+                        )}
                       </TableCell>
                       <TableCell className="py-3">
                         <div className="flex flex-col gap-0.5 min-w-[150px]">

@@ -95,6 +95,9 @@ export default function ArticulosClient({
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [excelStep, setExcelStep] = useState<"upload" | "preview">("upload");
   const [excelProveedorId, setExcelProveedorId] = useState<string>("");
+  const [excelProveedorBusqueda, setExcelProveedorBusqueda] = useState<string>("");
+  const [excelProveedorListaAbierta, setExcelProveedorListaAbierta] = useState(false);
+  const excelProveedorRef = useRef<HTMLDivElement>(null);
   const [excelArchivoNombre, setExcelArchivoNombre] = useState<string | null>(null);
   const [excelDragging, setExcelDragging] = useState(false);
   const [cargandoExcel, setCargandoExcel] = useState(false);
@@ -187,6 +190,26 @@ export default function ArticulosClient({
     return proveedores.filter(p => quitarAcentos(p.nombre.toLowerCase()).includes(busqueda));
   }, [proveedores, bulkProveedorBusqueda]);
 
+  // Cierra el buscador de proveedor del modal de Excel al hacer clic afuera
+  useEffect(() => {
+    if (!excelProveedorListaAbierta) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (excelProveedorRef.current && !excelProveedorRef.current.contains(e.target as Node)) {
+        setExcelProveedorListaAbierta(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [excelProveedorListaAbierta]);
+
+  const proveedoresFiltradosExcel = useMemo(() => {
+    const quitarAcentos = (texto: string) =>
+      texto.normalize("NFD").replace(new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g"), "");
+    const busqueda = quitarAcentos(excelProveedorBusqueda.toLowerCase().trim());
+    if (!busqueda) return proveedores;
+    return proveedores.filter(p => quitarAcentos(p.nombre.toLowerCase()).includes(busqueda));
+  }, [proveedores, excelProveedorBusqueda]);
+
   const toggleSeleccionarTodosFiltrados = () => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -240,6 +263,8 @@ export default function ArticulosClient({
   const abrirModalExcel = () => {
     setExcelStep("upload");
     setExcelProveedorId("");
+    setExcelProveedorBusqueda("");
+    setExcelProveedorListaAbierta(false);
     setExcelArchivoNombre(null);
     setExcelPreview(null);
     setExcelError(null);
@@ -1256,20 +1281,43 @@ export default function ArticulosClient({
 
           {excelStep === "upload" ? (
             <div className="py-4 space-y-4">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative" ref={excelProveedorRef}>
                 <Label className="text-xs font-bold text-slate-600 uppercase">Proveedor</Label>
-                {/* Select nativo (no Radix): con ~300 proveedores, permite escribir para saltar
-                    directo a la opción (ej. tipear "paolucci"), algo que un Select de Radix no ofrece. */}
-                <select
-                  value={excelProveedorId}
-                  onChange={(e) => { setExcelProveedorId(e.target.value); setExcelError(null); }}
+                <input
+                  type="text"
+                  value={excelProveedorBusqueda}
+                  onChange={(e) => {
+                    setExcelProveedorBusqueda(e.target.value);
+                    setExcelProveedorId("");
+                    setExcelProveedorListaAbierta(true);
+                    setExcelError(null);
+                  }}
+                  onFocus={() => setExcelProveedorListaAbierta(true)}
+                  placeholder="Elegí el proveedor de la planilla"
                   className="w-full h-10 text-sm font-medium bg-slate-50 border border-slate-200 rounded-xl px-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-300"
-                >
-                  <option value="">Elegí el proveedor de la planilla</option>
-                  {proveedores.map(p => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </select>
+                />
+                {excelProveedorListaAbierta && (
+                  <div className="absolute z-50 top-full left-0 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                    {proveedoresFiltradosExcel.length > 0 ? (
+                      proveedoresFiltradosExcel.map(p => (
+                        <div
+                          key={p.id}
+                          className="px-3 py-2 text-sm font-medium text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer border-b border-slate-50 last:border-0"
+                          onClick={() => {
+                            setExcelProveedorId(p.id);
+                            setExcelProveedorBusqueda(p.nombre);
+                            setExcelProveedorListaAbierta(false);
+                            setExcelError(null);
+                          }}
+                        >
+                          {p.nombre}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-3 py-3 text-xs text-slate-400 text-center">Sin coincidencias</div>
+                    )}
+                  </div>
+                )}
                 <p className="text-[11px] text-slate-400">
                   El cruce se hace por el "Código Proveedor" cargado en cada artículo de este proveedor.
                 </p>

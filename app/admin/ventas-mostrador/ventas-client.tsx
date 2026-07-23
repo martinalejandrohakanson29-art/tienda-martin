@@ -196,6 +196,12 @@ export default function VentasMostradorClient({
   const [showNotaInput, setShowNotaInput] = useState(false);
   const [notaTexto, setNotaTexto] = useState("");
   const [expandirPacks, setExpandirPacks] = useState(true);
+
+  // Marcación editable "al vuelo" en los buscadores de artículos: solo afecta el precio con el
+  // que se agrega ese artículo a esta venta puntual, nunca se guarda en la base de datos.
+  const [marcacionBusquedaEditId, setMarcacionBusquedaEditId] = useState<string | null>(null);
+  const [marcacionBusquedaTemp, setMarcacionBusquedaTemp] = useState<string>("");
+  const [preciosBusquedaOverride, setPreciosBusquedaOverride] = useState<Record<string, number>>({});
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
   const [isGuardarComoPedido, setIsGuardarComoPedido] = useState(false);
@@ -778,6 +784,49 @@ export default function VentasMostradorClient({
     return 'bg-red-50 text-red-600 border-red-200';
   };
 
+  // Precio con el que se agregará el artículo desde el buscador: usa la marcación editada
+  // "al vuelo" si existe, sin tocar el precio guardado en la base de datos.
+  const obtenerPrecioBusqueda = (prod: Articulo): number => {
+    const override = preciosBusquedaOverride[prod.id];
+    return override !== undefined ? override : Number(prod.precio);
+  };
+
+  // Igual que obtenerPrecioBusqueda, pero si el artículo es el que se está editando en ese
+  // momento, recalcula en vivo con lo tipeado (sin esperar a confirmar el campo).
+  const obtenerPrecioBusquedaEnVivo = (prod: Articulo): number => {
+    if (marcacionBusquedaEditId === prod.id && prod.costo && prod.costo > 0) {
+      const tempMarc = Number(marcacionBusquedaTemp);
+      if (marcacionBusquedaTemp.trim() !== "" && !isNaN(tempMarc)) {
+        return calcularPrecioArt(prod.costo, tempMarc);
+      }
+    }
+    return obtenerPrecioBusqueda(prod);
+  };
+
+  const iniciarEdicionMarcacionBusqueda = (e: React.MouseEvent, prod: Articulo) => {
+    e.stopPropagation();
+    if (!prod.costo || prod.costo <= 0) return;
+    const marcActual = calcularMarcacion(prod.costo, obtenerPrecioBusqueda(prod));
+    setMarcacionBusquedaEditId(prod.id);
+    setMarcacionBusquedaTemp(marcActual !== null ? String(Number(marcActual.toFixed(1))) : "");
+  };
+
+  const cancelarEdicionMarcacionBusqueda = () => {
+    setMarcacionBusquedaEditId(null);
+    setMarcacionBusquedaTemp("");
+  };
+
+  const guardarMarcacionBusqueda = (prod: Articulo) => {
+    const nuevoMargen = Number(marcacionBusquedaTemp);
+    if (marcacionBusquedaTemp.trim() === "" || isNaN(nuevoMargen) || !prod.costo || prod.costo <= 0) {
+      cancelarEdicionMarcacionBusqueda();
+      return;
+    }
+    const nuevoPrecio = calcularPrecioArt(prod.costo, nuevoMargen);
+    setPreciosBusquedaOverride(prev => ({ ...prev, [prod.id]: nuevoPrecio }));
+    cancelarEdicionMarcacionBusqueda();
+  };
+
   const handleCostoArtChange = (val: number) => {
     const nuevoPrecio = calcularPrecioArt(val, newArtData.margenGanancia || 0);
     setNewArtData({ ...newArtData, costo: val, precio: nuevoPrecio });
@@ -947,6 +996,7 @@ export default function VentasMostradorClient({
 
   // --- FUNCIONES NUEVA VENTA ---
   const agregarProductoAVenta = (prod: Articulo) => {
+    const precioFinal = obtenerPrecioBusqueda(prod);
     if (prod.esPack && prod.packItems && prod.packItems.length > 0) {
       if (expandirPacks) {
         // Modo expandido: agregar cada componente como línea separada
@@ -976,8 +1026,8 @@ export default function VentasMostradorClient({
             productoId: prod.id,
             nombre: prod.nombre,
             cantidad: 1,
-            precio_unit: Number(prod.precio),
-            subtotal: Number(prod.precio),
+            precio_unit: precioFinal,
+            subtotal: precioFinal,
             stock: prod.stock,
             esPack: true,
             ultimaModificacion: prod.ultimaModificacion
@@ -997,8 +1047,8 @@ export default function VentasMostradorClient({
           productoId: prod.id,
           nombre: prod.nombre,
           cantidad: 1,
-          precio_unit: Number(prod.precio),
-          subtotal: Number(prod.precio),
+          precio_unit: precioFinal,
+          subtotal: precioFinal,
           stock: prod.stock,
           ultimaModificacion: prod.ultimaModificacion
         }]);
@@ -1006,6 +1056,8 @@ export default function VentasMostradorClient({
     }
     setIsModalOpen(false);
     setSearchTerm("");
+    setPreciosBusquedaOverride({});
+    cancelarEdicionMarcacionBusqueda();
   };
 
   // --- FUNCIONES NUEVA VENTA ---
@@ -1791,6 +1843,7 @@ export default function VentasMostradorClient({
   };
 
   const agregarProductoEdicion = (prod: Articulo) => {
+    const precioFinal = obtenerPrecioBusqueda(prod);
     const existe = editItems.find(item => item.productoId === prod.id);
     if (existe) {
       setEditItems(editItems.map(item =>
@@ -1802,14 +1855,16 @@ export default function VentasMostradorClient({
         productoId: prod.id,
         nombre: prod.nombre,
         cantidad: 1,
-        precio_unit: Number(prod.precio),
-        subtotal: Number(prod.precio),
+        precio_unit: precioFinal,
+        subtotal: precioFinal,
         stock: prod.stock,
         ultimaModificacion: prod.ultimaModificacion
       }]);
     }
     setIsSearchEditModalOpen(false);
     setSearchTerm("");
+    setPreciosBusquedaOverride({});
+    cancelarEdicionMarcacionBusqueda();
   };
 
   const handleGuardarEdicion = async () => {
@@ -3401,7 +3456,7 @@ export default function VentasMostradorClient({
         </Tabs>
 
         {/* --- MODALES COMUNES --- */}
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <Dialog open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if (!open) { setPreciosBusquedaOverride({}); cancelarEdicionMarcacionBusqueda(); } }}>
           <DialogContent className="sm:max-w-[1000px] p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
             <div className="p-6 bg-white border-b relative">
               <div className="flex items-center justify-between mb-3">
@@ -3418,8 +3473,12 @@ export default function VentasMostradorClient({
               <div className="relative"><Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" /><input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre o ID..." className="flex h-12 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-12 py-6 text-base outline-none focus:border-blue-500 transition-all" /></div>
             </div>
             <div className="h-[500px] overflow-y-auto p-4 bg-white">
-              {searchResults.map((prod) => (
-                <button key={prod.id} onClick={() => agregarProductoAVenta(prod)} className="w-full flex items-center justify-between gap-4 p-3.5 hover:bg-blue-50/50 rounded-xl group transition-all mb-2 border border-transparent hover:border-blue-100">
+              {searchResults.map((prod) => {
+                const precioMostrado = obtenerPrecioBusquedaEnVivo(prod);
+                const marc = calcularMarcacion(prod.costo, precioMostrado);
+                const editandoMarc = marcacionBusquedaEditId === prod.id;
+                return (
+                <div key={prod.id} role="button" tabIndex={0} onClick={() => agregarProductoAVenta(prod)} onKeyDown={(e) => { if (e.key === 'Enter') agregarProductoAVenta(prod); }} className="w-full flex items-center justify-between gap-4 p-3.5 hover:bg-blue-50/50 rounded-xl group transition-all mb-2 border border-transparent hover:border-blue-100 cursor-pointer">
                   <div className="flex items-center gap-4 min-w-0 flex-1">
                     <Plus className="h-4 w-4 text-slate-400 group-hover:text-blue-600 shrink-0" />
                     <div className="text-left flex flex-col gap-1.5 min-w-0">
@@ -3451,20 +3510,36 @@ export default function VentasMostradorClient({
                       </div>
                     )}
                     <div className="flex items-center gap-1.5">
-                      <p className="text-lg font-bold text-slate-900">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
-                      {(() => {
-                        const marc = calcularMarcacion(prod.costo, prod.precio);
-                        if (marc === null) return null;
-                        return (
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${claseColorMarcacion(marc)}`} title="Marcación sobre el costo">
-                            {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
-                          </span>
-                        );
-                      })()}
+                      <p className="text-lg font-bold text-slate-900">$ {Number(precioMostrado).toLocaleString('es-AR')}</p>
+                      {editandoMarc ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          value={marcacionBusquedaTemp}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setMarcacionBusquedaTemp(e.target.value)}
+                          onBlur={() => guardarMarcacionBusqueda(prod)}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter') guardarMarcacionBusqueda(prod);
+                            if (e.key === 'Escape') cancelarEdicionMarcacionBusqueda();
+                          }}
+                          className={`w-24 h-9 text-[10px] font-black text-center rounded-lg border outline-none ${inputSinFlechas}`}
+                        />
+                      ) : marc !== null ? (
+                        <span
+                          onClick={(e) => iniciarEdicionMarcacionBusqueda(e, prod)}
+                          title="Clic para editar la marcación solo para esta venta (no modifica la base de datos)"
+                          className={`text-[9px] font-black px-3.5 py-2 rounded-lg border cursor-pointer hover:ring-1 hover:ring-blue-300 ${claseColorMarcacion(marc)}`}
+                        >
+                          {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
+                        </span>
+                      ) : null}
                     </div>
                   </div>
-                </button>
-              ))}
+                </div>
+                );
+              })}
             </div>
           </DialogContent>
         </Dialog>
@@ -4583,15 +4658,19 @@ export default function VentasMostradorClient({
           </DialogContent>
         </Dialog>
 
-        <Dialog open={isSearchEditModalOpen} onOpenChange={setIsSearchEditModalOpen}>
+        <Dialog open={isSearchEditModalOpen} onOpenChange={(open) => { setIsSearchEditModalOpen(open); if (!open) { setPreciosBusquedaOverride({}); cancelarEdicionMarcacionBusqueda(); } }}>
           <DialogContent className="sm:max-w-[1000px] p-0 overflow-hidden rounded-3xl border-2 border-amber-400 shadow-2xl">
             <div className="p-6 bg-amber-50 border-b border-amber-200">
               <DialogTitle className="text-lg font-bold text-amber-900 mb-3 flex items-center gap-2"><Search className="h-4 w-4" /> Buscar Artículo (Modo Edición)</DialogTitle>
               <div className="relative"><Search className="absolute left-4 top-3 h-5 w-5 text-amber-500" /><input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre..." className="flex h-12 w-full rounded-xl border border-amber-200 bg-white px-12 py-6 text-base outline-none focus:border-amber-500" /></div>
             </div>
             <div className="h-[400px] overflow-y-auto p-4 bg-white">
-              {searchResults.map((prod) => (
-                <button key={prod.id} onClick={() => agregarProductoEdicion(prod)} className="w-full flex items-center justify-between gap-4 p-3.5 hover:bg-amber-50 rounded-xl group border border-transparent hover:border-amber-200 mb-2">
+              {searchResults.map((prod) => {
+                const precioMostrado = obtenerPrecioBusquedaEnVivo(prod);
+                const marc = calcularMarcacion(prod.costo, precioMostrado);
+                const editandoMarc = marcacionBusquedaEditId === prod.id;
+                return (
+                <div key={prod.id} role="button" tabIndex={0} onClick={() => agregarProductoEdicion(prod)} onKeyDown={(e) => { if (e.key === 'Enter') agregarProductoEdicion(prod); }} className="w-full flex items-center justify-between gap-4 p-3.5 hover:bg-amber-50 rounded-xl group border border-transparent hover:border-amber-200 mb-2 cursor-pointer">
                   <div className="flex items-center gap-4 min-w-0 flex-1">
                     <Plus className="h-4 w-4 text-slate-400 group-hover:text-amber-600 shrink-0" />
                     <div className="text-left flex flex-col gap-1.5 min-w-0">
@@ -4620,20 +4699,36 @@ export default function VentasMostradorClient({
                       </div>
                     )}
                     <div className="flex items-center gap-1.5">
-                      <p className="text-lg font-bold text-slate-900">$ {Number(prod.precio).toLocaleString('es-AR')}</p>
-                      {(() => {
-                        const marc = calcularMarcacion(prod.costo, prod.precio);
-                        if (marc === null) return null;
-                        return (
-                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${claseColorMarcacion(marc)}`} title="Marcación sobre el costo">
-                            {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
-                          </span>
-                        );
-                      })()}
+                      <p className="text-lg font-bold text-slate-900">$ {Number(precioMostrado).toLocaleString('es-AR')}</p>
+                      {editandoMarc ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          value={marcacionBusquedaTemp}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setMarcacionBusquedaTemp(e.target.value)}
+                          onBlur={() => guardarMarcacionBusqueda(prod)}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter') guardarMarcacionBusqueda(prod);
+                            if (e.key === 'Escape') cancelarEdicionMarcacionBusqueda();
+                          }}
+                          className={`w-24 h-9 text-[10px] font-black text-center rounded-lg border outline-none ${inputSinFlechas}`}
+                        />
+                      ) : marc !== null ? (
+                        <span
+                          onClick={(e) => iniciarEdicionMarcacionBusqueda(e, prod)}
+                          title="Clic para editar la marcación solo para esta venta (no modifica la base de datos)"
+                          className={`text-[9px] font-black px-3.5 py-2 rounded-lg border cursor-pointer hover:ring-1 hover:ring-amber-300 ${claseColorMarcacion(marc)}`}
+                        >
+                          {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
+                        </span>
+                      ) : null}
                     </div>
                   </div>
-                </button>
-              ))}
+                </div>
+                );
+              })}
             </div>
           </DialogContent>
         </Dialog>

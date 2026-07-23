@@ -81,6 +81,12 @@ export default function ArticulosClient({
   const [togglingOcultoId, setTogglingOcultoId] = useState<string | null>(null);
   const [soloOcultos, setSoloOcultos] = useState(false);
 
+  // Estado para el filtro de listado por Proveedor ("" = todos, "__sin__" = sin proveedor asignado)
+  const [filtroProveedorId, setFiltroProveedorId] = useState<string>("");
+  const [filtroProveedorBusqueda, setFiltroProveedorBusqueda] = useState<string>("");
+  const [filtroProveedorListaAbierta, setFiltroProveedorListaAbierta] = useState(false);
+  const filtroProveedorRef = useRef<HTMLDivElement>(null);
+
   // Estados para selección múltiple y acciones masivas (funciona sobre TODO el filtro, no solo la página visible)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<string>("aplicar_proveedor");
@@ -132,6 +138,12 @@ export default function ArticulosClient({
 
     let lista = soloOcultos ? articulos.filter(art => art.oculto) : articulos;
 
+    if (filtroProveedorId === "__sin__") {
+      lista = lista.filter(art => !art.proveedorId);
+    } else if (filtroProveedorId) {
+      lista = lista.filter(art => art.proveedorId === filtroProveedorId);
+    }
+
     if (!searchTerm.trim()) return lista;
 
     const busquedaLimpia = quitarAcentos(searchTerm.toLowerCase().trim());
@@ -144,11 +156,11 @@ export default function ArticulosClient({
       const proveedorLimpio = quitarAcentos((art.proveedorNombre || "").toLowerCase());
       return palabrasBuscadas.every(p => nombreLimpio.includes(p) || idLimpio.includes(p) || codigoProveedorLimpio.includes(p) || proveedorLimpio.includes(p));
     });
-  }, [searchTerm, articulos, soloOcultos]);
+  }, [searchTerm, articulos, soloOcultos, filtroProveedorId]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, soloOcultos]);
+  }, [searchTerm, soloOcultos, filtroProveedorId]);
 
   // Lógica de Paginación
   const totalPages = Math.ceil(articulosFiltrados.length / itemsPerPage);
@@ -209,6 +221,26 @@ export default function ArticulosClient({
     if (!busqueda) return proveedores;
     return proveedores.filter(p => quitarAcentos(p.nombre.toLowerCase()).includes(busqueda));
   }, [proveedores, excelProveedorBusqueda]);
+
+  // Cierra el buscador del filtro de listado por proveedor al hacer clic afuera
+  useEffect(() => {
+    if (!filtroProveedorListaAbierta) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filtroProveedorRef.current && !filtroProveedorRef.current.contains(e.target as Node)) {
+        setFiltroProveedorListaAbierta(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [filtroProveedorListaAbierta]);
+
+  const proveedoresFiltradosFiltro = useMemo(() => {
+    const quitarAcentos = (texto: string) =>
+      texto.normalize("NFD").replace(new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g"), "");
+    const busqueda = quitarAcentos(filtroProveedorBusqueda.toLowerCase().trim());
+    if (!busqueda) return proveedores;
+    return proveedores.filter(p => quitarAcentos(p.nombre.toLowerCase()).includes(busqueda));
+  }, [proveedores, filtroProveedorBusqueda]);
 
   const toggleSeleccionarTodosFiltrados = () => {
     setSelectedIds(prev => {
@@ -625,6 +657,66 @@ export default function ArticulosClient({
             <EyeOff className="h-3.5 w-3.5" />
             Solo ocultos
           </button>
+
+          <div className="relative flex-shrink-0" ref={filtroProveedorRef}>
+            <Truck className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              value={filtroProveedorBusqueda}
+              onChange={(e) => {
+                setFiltroProveedorBusqueda(e.target.value);
+                setFiltroProveedorId("");
+                setFiltroProveedorListaAbierta(true);
+              }}
+              onFocus={() => setFiltroProveedorListaAbierta(true)}
+              placeholder="Filtrar por proveedor"
+              className={`h-[38px] pl-8 pr-7 py-2 text-xs font-bold rounded-xl border outline-none transition-all w-[190px] ${filtroProveedorId ? 'bg-slate-700 text-white border-slate-700 placeholder:text-slate-300' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300 focus:ring-2 focus:ring-indigo-500/20'}`}
+            />
+            {filtroProveedorId && (
+              <button
+                onClick={() => {
+                  setFiltroProveedorId("");
+                  setFiltroProveedorBusqueda("");
+                }}
+                title="Quitar filtro de proveedor"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {filtroProveedorListaAbierta && (
+              <div className="absolute z-50 top-full left-0 mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                <div
+                  className="px-3 py-2 text-xs font-bold text-slate-400 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer border-b border-slate-100"
+                  onClick={() => {
+                    setFiltroProveedorId("__sin__");
+                    setFiltroProveedorBusqueda("Sin proveedor");
+                    setFiltroProveedorListaAbierta(false);
+                  }}
+                >
+                  Sin proveedor
+                </div>
+                {proveedoresFiltradosFiltro.length > 0 ? (
+                  proveedoresFiltradosFiltro.map(p => (
+                    <div
+                      key={p.id}
+                      className="px-3 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer border-b border-slate-50 last:border-0"
+                      onClick={() => {
+                        setFiltroProveedorId(p.id);
+                        setFiltroProveedorBusqueda(p.nombre);
+                        setFiltroProveedorListaAbierta(false);
+                      }}
+                    >
+                      {p.nombre}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-3 text-xs text-slate-400 text-center">Sin coincidencias</div>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="ml-auto px-4 text-right flex-shrink-0">
             <p className="text-[10px] text-slate-400 font-bold uppercase">Total Registros</p>
             <p className="text-lg font-black text-slate-800">{articulosFiltrados.length}</p>

@@ -401,13 +401,15 @@ export async function crearArticuloMostrador(data: { id: string, nombre: string,
 export async function obtenerProveedoresParaListas() {
   try {
     const proveedores = await prisma.proveedor.findMany({
-      select: { id: true, razonSocial: true, nombreFantasia: true },
-      orderBy: { razonSocial: 'asc' }
+      select: { id: true, razonSocial: true, nombreFantasia: true }
     });
-    return {
-      success: true,
-      data: proveedores.map(p => ({ id: p.id, nombre: p.nombreFantasia || p.razonSocial }))
-    };
+    // Ordenamos en JS (localeCompare, sin distinguir mayúsculas/acentos): el orderBy de la DB
+    // es sensible a mayúsculas y agrupa "GARCIA..." (todo mayúsculas) lejos de "Garcia..." (mixto),
+    // haciendo que proveedores existentes "no aparezcan" donde el usuario los espera alfabéticamente.
+    const data = proveedores
+      .map(p => ({ id: p.id, nombre: p.nombreFantasia || p.razonSocial }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+    return { success: true, data };
   } catch (error) {
     console.error("Error al obtener proveedores:", error);
     return { success: false, error: "No se pudieron cargar los proveedores." };
@@ -568,7 +570,6 @@ export async function actualizarPack(id: string, nombre: string, precio: number,
 export async function obtenerProveedores() {
   try {
     const proveedores = await prisma.proveedor.findMany({
-      orderBy: { razonSocial: 'asc' },
       include: {
         ventasMostrador: {
           select: { createdAt: true },
@@ -592,7 +593,12 @@ export async function obtenerProveedores() {
 
     return {
       success: true,
-      data: proveedores.map(p => {
+      // Ordenamos en JS (localeCompare, sin distinguir mayúsculas/acentos): ver comentario
+      // en obtenerProveedoresParaListas sobre por qué no usamos orderBy de la DB.
+      data: proveedores
+        .slice()
+        .sort((a, b) => (a.razonSocial || "").localeCompare(b.razonSocial || "", 'es', { sensitivity: 'base' }))
+        .map(p => {
         const toNum = (val: any) => {
           if (val === null || val === undefined) return 0;
           if (typeof val === 'number') return val;

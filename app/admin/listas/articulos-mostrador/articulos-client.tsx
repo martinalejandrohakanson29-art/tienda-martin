@@ -85,8 +85,11 @@ export default function ArticulosClient({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<string>("aplicar_proveedor");
   const [bulkProveedorId, setBulkProveedorId] = useState<string>("none");
+  const [bulkProveedorBusqueda, setBulkProveedorBusqueda] = useState<string>("");
+  const [bulkProveedorListaAbierta, setBulkProveedorListaAbierta] = useState(false);
   const [aplicandoBulk, setAplicandoBulk] = useState(false);
   const headerCheckboxRef = useRef<HTMLInputElement>(null);
+  const bulkProveedorRef = useRef<HTMLDivElement>(null);
 
   // Estados para el Modal de Actualización de Precios desde Excel
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
@@ -164,6 +167,26 @@ export default function ArticulosClient({
     }
   }, [algunosFiltradosSeleccionados]);
 
+  // Cierra el buscador de proveedor de la acción masiva al hacer clic afuera
+  useEffect(() => {
+    if (!bulkProveedorListaAbierta) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bulkProveedorRef.current && !bulkProveedorRef.current.contains(e.target as Node)) {
+        setBulkProveedorListaAbierta(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [bulkProveedorListaAbierta]);
+
+  const proveedoresFiltradosBulk = useMemo(() => {
+    const quitarAcentos = (texto: string) =>
+      texto.normalize("NFD").replace(new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g"), "");
+    const busqueda = quitarAcentos(bulkProveedorBusqueda.toLowerCase().trim());
+    if (!busqueda) return proveedores;
+    return proveedores.filter(p => quitarAcentos(p.nombre.toLowerCase()).includes(busqueda));
+  }, [proveedores, bulkProveedorBusqueda]);
+
   const toggleSeleccionarTodosFiltrados = () => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -184,7 +207,12 @@ export default function ArticulosClient({
     });
   };
 
-  const limpiarSeleccion = () => setSelectedIds(new Set());
+  const limpiarSeleccion = () => {
+    setSelectedIds(new Set());
+    setBulkProveedorId("none");
+    setBulkProveedorBusqueda("");
+    setBulkProveedorListaAbierta(false);
+  };
 
   const handleAplicarProveedorMasivo = async () => {
     if (selectedIds.size === 0) return;
@@ -200,6 +228,7 @@ export default function ArticulosClient({
       setArticulos(prev => prev.map(a => idsSet.has(a.id) ? { ...a, proveedorId, proveedorNombre } : a));
       setSelectedIds(new Set());
       setBulkProveedorId("none");
+      setBulkProveedorBusqueda("");
     } else {
       alert("Error: " + res.error);
     }
@@ -608,17 +637,52 @@ export default function ArticulosClient({
             {bulkAction === "aplicar_proveedor" && (
               <div className="flex items-center gap-2 bg-white/10 rounded-xl p-1.5 pl-3 flex-shrink-0">
                 <Truck className="h-3.5 w-3.5 text-indigo-100 flex-shrink-0" />
-                <select
-                  value={bulkProveedorId}
-                  onChange={(e) => setBulkProveedorId(e.target.value)}
-                  disabled={aplicandoBulk}
-                  className="h-8 text-xs font-bold bg-white text-slate-700 rounded-lg px-2 outline-none min-w-[170px] cursor-pointer"
-                >
-                  <option value="none">Sin proveedor</option>
-                  {proveedores.map(p => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
-                  ))}
-                </select>
+                <div className="relative flex-shrink-0" ref={bulkProveedorRef}>
+                  <input
+                    type="text"
+                    value={bulkProveedorBusqueda}
+                    onChange={(e) => {
+                      setBulkProveedorBusqueda(e.target.value);
+                      setBulkProveedorId("none");
+                      setBulkProveedorListaAbierta(true);
+                    }}
+                    onFocus={() => setBulkProveedorListaAbierta(true)}
+                    disabled={aplicandoBulk}
+                    placeholder="Sin proveedor"
+                    className="h-8 text-xs font-bold bg-white text-slate-700 rounded-lg px-2 outline-none w-[170px]"
+                  />
+                  {bulkProveedorListaAbierta && (
+                    <div className="absolute z-50 top-full left-0 mt-1 w-64 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                      <div
+                        className="px-3 py-2 text-xs font-bold text-slate-400 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer border-b border-slate-100"
+                        onClick={() => {
+                          setBulkProveedorId("none");
+                          setBulkProveedorBusqueda("");
+                          setBulkProveedorListaAbierta(false);
+                        }}
+                      >
+                        Sin proveedor
+                      </div>
+                      {proveedoresFiltradosBulk.length > 0 ? (
+                        proveedoresFiltradosBulk.map(p => (
+                          <div
+                            key={p.id}
+                            className="px-3 py-2 text-xs font-bold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer border-b border-slate-50 last:border-0"
+                            onClick={() => {
+                              setBulkProveedorId(p.id);
+                              setBulkProveedorBusqueda(p.nombre);
+                              setBulkProveedorListaAbierta(false);
+                            }}
+                          >
+                            {p.nombre}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-3 py-3 text-xs text-slate-400 text-center">Sin coincidencias</div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <Button
                   onClick={handleAplicarProveedorMasivo}
                   disabled={aplicandoBulk}

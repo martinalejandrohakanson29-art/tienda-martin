@@ -191,10 +191,10 @@ function ZoomViewer({
 
                     {/* Agregados */}
                     {allNombres.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 max-h-[72px] overflow-y-auto">
+                        <div className="flex flex-wrap gap-1.5 max-h-[88px] overflow-y-auto">
                             {allNombres.map(({ nombre, colorIdx }, idx) => (
-                                <div key={idx} className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border-b-2 font-black text-[10px] uppercase shadow-sm ${getAgregadoColor(colorIdx)}`}>
-                                    <Layers className="h-3 w-3 shrink-0 opacity-80" />
+                                <div key={idx} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border-b-2 font-semibold text-sm uppercase tracking-wide shadow-sm ${getAgregadoColor(colorIdx)}`}>
+                                    <Layers className="h-3.5 w-3.5 shrink-0 opacity-80" />
                                     <span>{renderTextWithQuantity(nombre)}</span>
                                 </div>
                             ))}

@@ -23,6 +23,7 @@ type ItemVenta = {
   cantidad: number;
   precio_unit: number;
   subtotal: number;
+  esNota?: boolean;
 };
 
 type Pedido = {
@@ -138,6 +139,17 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
                   <div className="space-y-2">
                     {pedido.items?.length > 0 ? (
                       pedido.items.map((item, idx) => (
+                        item.esNota ? (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-2 text-sm border-b border-slate-100 last:border-0 pb-2 last:pb-0 print:border-slate-200 text-amber-800 print:text-black"
+                          >
+                            <span className="italic">* {item.nombre}</span>
+                            <span className="text-[9px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase print:border-slate-400 print:text-black print:bg-transparent">
+                              Nota
+                            </span>
+                          </div>
+                        ) : (
                         <div
                           key={idx}
                           className="flex justify-between items-center text-sm border-b border-slate-100 last:border-0 pb-2 last:pb-0 print:border-slate-200"
@@ -159,6 +171,7 @@ export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
                             </span>
                           </div>
                         </div>
+                        )
                       ))
                     ) : (
                       <p className="text-xs text-slate-400 italic print:text-black">

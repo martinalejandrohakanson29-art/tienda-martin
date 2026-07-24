@@ -77,6 +77,7 @@ export default async function PedidoPDFPage({ params }: PageProps) {
           cantidad: item.cantidad,
           precio_unit: Number(item.precio_unit),
           subtotal: Number(item.subtotal),
+          esNota: item.esNota,
         })),
       }}
     />

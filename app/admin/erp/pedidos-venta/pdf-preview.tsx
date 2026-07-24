@@ -11,6 +11,7 @@ interface ArticulosVenta {
     precio_unit: number;
     subtotal: number;
     productoId?: string | null;
+    esNota?: boolean;
   }[];
   info?: string | null;
 }
@@ -104,6 +105,16 @@ export default function PDFPreview({ venta }: PDFPreviewProps) {
               <tbody>
                 {venta.items.length > 0 ? (
                   venta.items.map((item, idx) => (
+                    item.esNota ? (
+                      <tr key={idx} className="hover:bg-amber-50/50 bg-amber-50/30">
+                        <td className="p-3 border-b border-slate-100" colSpan={4}>
+                          <p className="text-amber-800 italic font-medium">
+                            {item.nombre}
+                            <span className="ml-2 text-[10px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase not-italic">Nota</span>
+                          </p>
+                        </td>
+                      </tr>
+                    ) : (
                     <tr key={idx} className="hover:bg-slate-50">
                       <td className="p-3 border-b border-slate-100">
                         <p className="text-slate-900 font-medium">
@@ -127,6 +138,7 @@ export default function PDFPreview({ venta }: PDFPreviewProps) {
                         ${item.subtotal.toLocaleString("es-AR")}
                       </td>
                     </tr>
+                    )
                   ))
                 ) : (
                   <tr>

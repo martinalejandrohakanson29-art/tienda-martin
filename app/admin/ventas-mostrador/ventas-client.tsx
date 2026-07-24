@@ -1745,7 +1745,7 @@ export default function VentasMostradorClient({
     setEditTipoFacturaSugerida(venta.tipoComprobante || 6);
 
     // Ahora inicializamos editItems con los precios CORRECTOS desde la base de datos
-    setEditItems(venta.items.map((i: { id?: string; productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => {
+    setEditItems(venta.items.map((i: { id?: string; productoId: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number; esNota?: boolean }) => {
       const articuloBase = articulos.find(a => a.id === i.productoId);
       return {
         id: i.id || crypto.randomUUID(),
@@ -1754,7 +1754,8 @@ export default function VentasMostradorClient({
         precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal),
         stock: articuloBase ? articuloBase.stock : 0,
         ultimaModificacion: articuloBase?.ultimaModificacion || null,
-        costo: articuloBase?.costo
+        costo: articuloBase?.costo,
+        esNota: (i as any).esNota || false,
       };
     }));
     setIsEditMainModalOpen(true);
@@ -3195,7 +3196,14 @@ export default function VentasMostradorClient({
                                   <TableCell colSpan={7} className="py-0">
                                     <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
                                       {v.items?.length > 0 ? (
-                                        v.items.map((item: { id: string; productoId?: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number }) => (
+                                        v.items.map((item: { id: string; productoId?: string; nombre: string; cantidad: number; precio_unit: number; subtotal: number; esNota?: boolean }) => (
+                                          item.esNota ? (
+                                            <div key={item.id} className="flex items-center gap-2 bg-amber-50/70 p-2 rounded-lg border border-amber-200">
+                                              <FileText className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                                              <span className="text-sm text-amber-800 italic">{item.nombre}</span>
+                                              <span className="text-[9px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase ml-auto">Nota</span>
+                                            </div>
+                                          ) : (
                                           <div key={item.id} className="flex justify-between items-center bg-white p-2 rounded-lg border border-slate-200 hover:border-blue-300 transition-colors">
                                             <div className="flex flex-col gap-0.5">
                                               <span
@@ -3218,6 +3226,7 @@ export default function VentasMostradorClient({
                                               <span className="text-slate-700 font-bold whitespace-nowrap">$ {Number(item.subtotal || 0).toLocaleString('es-AR')}</span>
                                             </div>
                                           </div>
+                                          )
                                         ))
                                       ) : (
                                         <div className="text-xs text-slate-400 italic">No hay artículos</div>
@@ -4648,6 +4657,19 @@ export default function VentasMostradorClient({
                     </TableHeader>
                     <TableBody>
                       {editItems.map((item) => (
+                        item.esNota ? (
+                          <TableRow key={item.id} className="bg-amber-50/70 hover:bg-amber-50 transition-colors border-l-2 border-l-amber-400">
+                            <TableCell colSpan={5} className="py-3">
+                              <div className="flex items-center gap-2 text-amber-800">
+                                <FileText className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                                <span className="text-sm font-medium italic">{item.nombre}</span>
+                                <span className="text-[10px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase">Nota</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right py-3 text-slate-300 text-sm">—</TableCell>
+                            <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((i: ItemVenta) => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
+                          </TableRow>
+                        ) : (
                         <TableRow key={item.id}>
                           <TableCell className="font-medium text-slate-700 py-3">
                             <div className="flex flex-col gap-1">
@@ -4740,6 +4762,7 @@ export default function VentasMostradorClient({
                           </TableCell>
                           <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((i: ItemVenta) => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
                         </TableRow>
+                        )
                       ))}
                     </TableBody>
                   </Table>
@@ -5536,11 +5559,19 @@ function TicketImpresion({
         </thead>
         <tbody>
           {items.map((item: ItemVenta, idx: number) => (
-            <tr key={idx} className="align-top">
-              <td className="pt-0.5">{item.cantidad}</td>
-              <td className="pt-0.5 pr-1 break-words whitespace-normal">{item.nombre}</td>
-              <td className="pt-0.5 text-right">{formatPrecio(item.subtotal)}</td>
-            </tr>
+            item.esNota ? (
+              <tr key={idx} className="align-top">
+                <td className="pt-0.5" colSpan={3}>
+                  <span className="italic">* {item.nombre}</span>
+                </td>
+              </tr>
+            ) : (
+              <tr key={idx} className="align-top">
+                <td className="pt-0.5">{item.cantidad}</td>
+                <td className="pt-0.5 pr-1 break-words whitespace-normal">{item.nombre}</td>
+                <td className="pt-0.5 text-right">{formatPrecio(item.subtotal)}</td>
+              </tr>
+            )
           ))}
         </tbody>
       </table>
@@ -5630,7 +5661,8 @@ function FacturaA4({ venta, config }: { venta: any, config?: any }) {
   const codCbte = (venta.tipoComprobante || 6).toString().padStart(2, '0');
   const tituloComprobante = isNC ? "Nota de Crédito" : "Factura";
 
-  const items = venta.items || [];
+  // Las notas internas no son artículos facturados: no corresponden en un comprobante fiscal
+  const items = (venta.items || []).filter((i: any) => !i.esNota);
   const total = Number(venta.totalFinal || venta.total);
   const neto = isTypeC ? total : parseFloat((total / 1.21).toFixed(2));
   const iva = isTypeC ? 0 : parseFloat((total - neto).toFixed(2));
@@ -5887,12 +5919,18 @@ function PedidoVentaA4({ venta }: { venta: any }) {
           </thead>
           <tbody>
             {items.map((item: any, i: number) => (
-              <tr key={i}>
-                <td className="border-black p-2 text-center">{item.cantidad} Un</td>
-                <td className="border-black p-2">{item.nombre}</td>
-                <td className="border-black p-2 text-right">{(Number(item.precio_unit)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
-                <td className="border-black p-2 text-right">{(Number(item.subtotal)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
-              </tr>
+              item.esNota ? (
+                <tr key={i}>
+                  <td className="border-black p-2 italic text-gray-600" colSpan={4}>* {item.nombre}</td>
+                </tr>
+              ) : (
+                <tr key={i}>
+                  <td className="border-black p-2 text-center">{item.cantidad} Un</td>
+                  <td className="border-black p-2">{item.nombre}</td>
+                  <td className="border-black p-2 text-right">{(Number(item.precio_unit)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                  <td className="border-black p-2 text-right">{(Number(item.subtotal)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              )
             ))}
           </tbody>
         </table>

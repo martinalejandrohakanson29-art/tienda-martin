@@ -121,6 +121,7 @@ type ItemVenta = {
   cantidad: number;
   precio_unit: number;
   subtotal: number;
+  esNota?: boolean;
 };
 
 type Venta = {
@@ -830,6 +831,13 @@ export default function PedidosVentaClient() {
                             <div className="space-y-2">
                               {venta.items?.length > 0 ? (
                                 venta.items.map((item, idx) => (
+                                  item.esNota ? (
+                                    <div key={idx} className="flex items-center gap-2 text-sm border-b border-slate-100 last:border-0 pb-2 last:pb-0 text-amber-800">
+                                      <FileText className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+                                      <span className="italic">{item.nombre}</span>
+                                      <span className="text-[10px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase ml-auto">Nota</span>
+                                    </div>
+                                  ) : (
                                   <div key={idx} className="flex justify-between items-center text-sm border-b border-slate-100 last:border-0 pb-2 last:pb-0">
                                     <div>
                                       <span className="font-semibold text-slate-700 uppercase">{item.nombre}</span>
@@ -840,6 +848,7 @@ export default function PedidosVentaClient() {
                                       <span className="font-bold text-slate-700">{formatPrice(item.subtotal)}</span>
                                     </div>
                                   </div>
+                                  )
                                 ))
                               ) : (
                                 <p className="text-xs text-slate-400 italic">Sin artículos</p>

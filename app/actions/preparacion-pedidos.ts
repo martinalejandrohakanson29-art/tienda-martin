@@ -119,6 +119,7 @@ export async function obtenerPedidosParaPreparar(fechaDesde: string, fechaHasta:
                     productoId: i.productoId || null,
                     nombre: i.nombre,
                     cantidad: i.cantidad,
+                    esNota: i.esNota,
                 })),
                 auditStatus: audit?.status || null,
                 auditUploader: audit?.uploader || null,

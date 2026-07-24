@@ -45,7 +45,7 @@ type Pedido = {
   estadoPedido: string | null;
   tipoEnvio: string | null;
   info: string | null;
-  items: { id: string; productoId: string | null; nombre: string; cantidad: number }[];
+  items: { id: string; productoId: string | null; nombre: string; cantidad: number; esNota?: boolean }[];
   auditStatus: string | null;
   auditUploader: string | null;
   auditAuditor: string | null;
@@ -419,10 +419,17 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
               <div className="space-y-3">
                 <h3 className="text-sm font-bold text-slate-500 uppercase">Artículos del pedido:</h3>
                 {p.items.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
-                    <span className="font-semibold text-slate-800 uppercase text-sm">{item.nombre}</span>
-                    <span className="bg-slate-200 px-2 py-0.5 rounded text-[10px] font-bold text-slate-600">x{item.cantidad}</span>
-                  </div>
+                  item.esNota ? (
+                    <div key={item.id} className="flex items-center gap-2 bg-amber-50 p-3 rounded-xl border border-amber-200">
+                      <span className="italic text-amber-800 text-sm">{item.nombre}</span>
+                      <span className="text-[10px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase ml-auto">Nota</span>
+                    </div>
+                  ) : (
+                    <div key={item.id} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="font-semibold text-slate-800 uppercase text-sm">{item.nombre}</span>
+                      <span className="bg-slate-200 px-2 py-0.5 rounded text-[10px] font-bold text-slate-600">x{item.cantidad}</span>
+                    </div>
+                  )
                 ))}
               </div>
 
@@ -517,10 +524,17 @@ export default function PreparacionPedidosClient({ mode }: { mode: "preparacion"
                 <div className="space-y-1.5 mb-4 pt-2 border-t border-slate-100">
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Artículos:</p>
                   {p.items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-slate-700 uppercase">{item.nombre}</span>
-                      <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold text-slate-600">x{item.cantidad}</span>
-                    </div>
+                    item.esNota ? (
+                      <div key={item.id} className="flex items-center gap-2 text-sm text-amber-800">
+                        <span className="italic">{item.nombre}</span>
+                        <span className="text-[9px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase ml-auto">Nota</span>
+                      </div>
+                    ) : (
+                      <div key={item.id} className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-slate-700 uppercase">{item.nombre}</span>
+                        <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px] font-bold text-slate-600">x{item.cantidad}</span>
+                      </div>
+                    )
                   ))}
                 </div>
 

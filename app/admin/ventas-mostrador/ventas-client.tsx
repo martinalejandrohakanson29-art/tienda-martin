@@ -2483,10 +2483,10 @@ export default function VentasMostradorClient({
                       <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                         <TableRow>
                           <TableHead className="text-[10px] font-bold uppercase py-3">Artículo</TableHead>
-                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pr-6">Cant.</TableHead>
-                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-6 pr-0">Costo</TableHead>
+                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-1 pr-0">Costo</TableHead>
                           <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-0 pr-6">Modificado</TableHead>
-                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-6">Precio Unit.</TableHead>
+                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 border-l border-slate-200 pl-6">Cant.</TableHead>
+                          <TableHead className="text-center text-[10px] font-bold uppercase py-3">Precio Unit.</TableHead>
                           <TableHead className="text-right text-[10px] font-bold uppercase py-3">Subtotal</TableHead>
                           <TableHead className="w-16"></TableHead>
                         </TableRow>
@@ -2538,10 +2538,7 @@ export default function VentasMostradorClient({
                                   </span>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-center py-3 pr-6">
-                                <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
-                              </TableCell>
-                              <TableCell className="text-center py-3 pl-6 pr-0">
+                              <TableCell className="text-center py-3 pl-1 pr-0">
                                 {item.costo && item.costo > 0 ? (
                                   <span className="text-sm text-black font-semibold" title="Costo del artículo">
                                     $ {Number(item.costo).toLocaleString('es-AR')}
@@ -2557,7 +2554,10 @@ export default function VentasMostradorClient({
                                   </span>
                                 )}
                               </TableCell>
-                              <TableCell className="text-center py-3 pl-6">
+                              <TableCell className="text-center py-3 border-l border-slate-200 pl-6">
+                                <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                              </TableCell>
+                              <TableCell className="text-center py-3">
                                 <div className="flex items-center justify-center gap-1">
                                   <span className="text-slate-400 text-xs ml-1">$</span>
                                   <Input type="text" inputMode="numeric" value={formatearPrecioMiles(obtenerPrecioItemEnVivo(item))} onChange={(e) => { const val = parsearPrecioMiles(e.target.value); setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, precio_unit: val, subtotal: i.cantidad * val } : i)); }} className={`w-20 h-8 ${inputSinFlechas} font-bold text-slate-700`} />
@@ -4604,10 +4604,10 @@ export default function VentasMostradorClient({
                     <TableHeader className="bg-slate-100">
                       <TableRow>
                         <TableHead>Artículo</TableHead>
-                        <TableHead className="text-center pr-6">Cant.</TableHead>
-                        <TableHead className="text-center pl-6 pr-0">Costo</TableHead>
+                        <TableHead className="text-center pl-1 pr-0">Costo</TableHead>
                         <TableHead className="text-center pl-0 pr-6">Modificado</TableHead>
-                        <TableHead className="text-center pl-6">Precio Unit.</TableHead>
+                        <TableHead className="text-center border-l border-slate-200 pl-6">Cant.</TableHead>
+                        <TableHead className="text-center">Precio Unit.</TableHead>
                         <TableHead className="text-right">Subtotal</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
@@ -4638,10 +4638,7 @@ export default function VentasMostradorClient({
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center pr-6">
-                            <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
-                          </TableCell>
-                          <TableCell className="text-center pl-6 pr-0">
+                          <TableCell className="text-center pl-1 pr-0">
                             {item.costo && item.costo > 0 ? (
                               <span className="text-sm text-black font-semibold" title="Costo del artículo">
                                 $ {Number(item.costo).toLocaleString('es-AR')}
@@ -4657,7 +4654,10 @@ export default function VentasMostradorClient({
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-center pl-6">
+                          <TableCell className="text-center border-l border-slate-200 pl-6">
+                            <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
+                          </TableCell>
+                          <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-slate-400 text-xs ml-1">$</span>
                               <Input type="text" inputMode="numeric" value={formatearPrecioMiles(obtenerPrecioItemEnVivo(item))} onChange={(e) => { const val = parsearPrecioMiles(e.target.value); setEditItems(editItems.map(i => i.id === item.id ? { ...i, precio_unit: val, subtotal: i.cantidad * val } : i)); }} className={`w-20 h-8 ${inputSinFlechas} font-bold text-slate-700`} />

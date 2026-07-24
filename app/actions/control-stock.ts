@@ -115,6 +115,31 @@ export async function registrarConteoStock(params: {
   }
 }
 
+export async function finalizarConteoEmpleado(sesionId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) return { success: false, error: "No autorizado" }
+
+  try {
+    const sesion = await prisma.controlStockSesion.findUnique({
+      where: { id: sesionId },
+      select: { estado: true },
+    })
+    if (!sesion) return { success: false, error: "Conteo no encontrado." }
+    if (sesion.estado !== "EN_PROGRESO") {
+      return { success: false, error: "Este conteo ya no está en progreso." }
+    }
+
+    await prisma.controlStockSesion.update({
+      where: { id: sesionId },
+      data: { estado: "COMPLETADO" },
+    })
+    return { success: true }
+  } catch (error) {
+    console.error("Error al finalizar el conteo:", error)
+    return { success: false, error: "No se pudo finalizar el conteo." }
+  }
+}
+
 export async function obtenerSesionesConteo() {
   try {
     const sesiones = await prisma.controlStockSesion.findMany({

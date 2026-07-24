@@ -17,6 +17,7 @@ import {
   ClipboardList,
   PlusCircle,
   RefreshCcw,
+  CheckCheck,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ import {
   actualizarEntradaConteo,
   eliminarEntradaConteo,
   obtenerSesionesConteo,
+  finalizarConteoEmpleado,
 } from "@/app/actions/control-stock"
 
 interface ProveedorLite {
@@ -118,6 +120,8 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
   const [guardandoEdicion, setGuardandoEdicion] = useState(false)
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
+  const [finalizando, setFinalizando] = useState(false)
+
   useEffect(() => {
     if (!mensaje) return
     const t = setTimeout(() => setMensaje(null), 2200)
@@ -197,6 +201,22 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
     setArticulos([])
     setEntradasPorArticulo({})
     cargarSesionesActivas()
+  }
+
+  async function finalizarConteo() {
+    if (!sesionId || !proveedor) return
+    if (!confirm(`¿Dar por finalizado el conteo de ${proveedor.nombre}? Va a dejar de aparecer como conteo activo para sumarse.`)) {
+      return
+    }
+    setFinalizando(true)
+    const res = await finalizarConteoEmpleado(sesionId)
+    setFinalizando(false)
+    if (!res.success) {
+      alert(res.error || "No se pudo finalizar el conteo.")
+      return
+    }
+    setMensaje("Conteo finalizado")
+    volverAInicio()
   }
 
   function volverAArticulos() {
@@ -387,12 +407,26 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
       {paso === "articulo" && proveedor && (
         <div className="flex flex-col flex-1">
           <div className="sticky top-14 z-10 bg-[#f6f7f8]/95 dark:bg-[#101922]/95 backdrop-blur-md px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-800">
-            <button
-              onClick={volverAInicio}
-              className="flex items-center gap-1 text-sm text-slate-500 hover:text-[#2b8cee] mb-2"
-            >
-              <ChevronLeft className="h-4 w-4" /> Cambiar proveedor
-            </button>
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={volverAInicio}
+                className="flex items-center gap-1 text-sm text-slate-500 hover:text-[#2b8cee]"
+              >
+                <ChevronLeft className="h-4 w-4" /> Cambiar proveedor
+              </button>
+              <button
+                onClick={finalizarConteo}
+                disabled={finalizando}
+                className="flex items-center gap-1 text-sm font-semibold text-emerald-600 hover:text-emerald-700 disabled:opacity-60"
+              >
+                {finalizando ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCheck className="h-4 w-4" />
+                )}
+                Finalizar conteo
+              </button>
+            </div>
             <h1 className="text-lg font-bold text-slate-900 dark:text-white mb-3">{proveedor.nombre}</h1>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />

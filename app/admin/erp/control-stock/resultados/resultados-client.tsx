@@ -80,9 +80,15 @@ function fmtFecha(fecha: Date | string) {
   })
 }
 
+function estadoBadge(estado: string): { label: string; variant: "default" | "secondary" | "outline" } {
+  if (estado === "FINALIZADA") return { label: "Aplicado", variant: "secondary" }
+  if (estado === "COMPLETADO") return { label: "Completado", variant: "outline" }
+  return { label: "En progreso", variant: "default" }
+}
+
 export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIniciales: SesionLite[] }) {
   const [sesiones, setSesiones] = useState<SesionLite[]>(sesionesIniciales)
-  const [filtro, setFiltro] = useState<"EN_PROGRESO" | "FINALIZADA" | "TODAS">("EN_PROGRESO")
+  const [filtro, setFiltro] = useState<"PENDIENTES" | "FINALIZADA" | "TODAS">("PENDIENTES")
   const [cargandoLista, setCargandoLista] = useState(false)
 
   const [sesionActual, setSesionActual] = useState<SesionDetalle | null>(null)
@@ -102,7 +108,11 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
   const [sesionAEliminar, setSesionAEliminar] = useState<{ id: string; proveedorNombre: string } | null>(null)
   const [eliminandoSesion, setEliminandoSesion] = useState(false)
 
-  const sesionesFiltradas = sesiones.filter((s) => (filtro === "TODAS" ? true : s.estado === filtro))
+  const sesionesFiltradas = sesiones.filter((s) => {
+    if (filtro === "TODAS") return true
+    if (filtro === "PENDIENTES") return s.estado !== "FINALIZADA"
+    return s.estado === filtro
+  })
 
   async function refrescarLista() {
     setCargandoLista(true)
@@ -241,7 +251,7 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
             </div>
 
             <div className="flex gap-2">
-              {(["EN_PROGRESO", "FINALIZADA", "TODAS"] as const).map((f) => (
+              {(["PENDIENTES", "FINALIZADA", "TODAS"] as const).map((f) => (
                 <button
                   key={f}
                   onClick={() => setFiltro(f)}
@@ -251,7 +261,7 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
                       : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800"
                   }`}
                 >
-                  {f === "EN_PROGRESO" ? "En progreso" : f === "FINALIZADA" ? "Aplicados" : "Todos"}
+                  {f === "PENDIENTES" ? "Pendientes" : f === "FINALIZADA" ? "Aplicados" : "Todos"}
                 </button>
               ))}
             </div>
@@ -280,9 +290,7 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
                     <TableRow key={s.id}>
                       <TableCell className="font-medium">{s.proveedorNombre}</TableCell>
                       <TableCell>
-                        <Badge variant={s.estado === "FINALIZADA" ? "secondary" : "default"}>
-                          {s.estado === "FINALIZADA" ? "Aplicado" : "En progreso"}
-                        </Badge>
+                        <Badge variant={estadoBadge(s.estado).variant}>{estadoBadge(s.estado).label}</Badge>
                       </TableCell>
                       <TableCell>{s.totalArticulos} ({s.totalEntradas} registros)</TableCell>
                       <TableCell>{s.iniciadoPor}</TableCell>
@@ -326,8 +334,8 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{sesionActual.proveedorNombre}</h1>
-                  <Badge variant={esFinalizada ? "secondary" : "default"}>
-                    {esFinalizada ? "Aplicado al stock" : "En progreso"}
+                  <Badge variant={estadoBadge(sesionActual.estado).variant}>
+                    {esFinalizada ? "Aplicado al stock" : estadoBadge(sesionActual.estado).label}
                   </Badge>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">

@@ -769,9 +769,16 @@ export default function VentasMostradorClient({
     setIsSubmitting(false);
   };
 
+  // Precio final siempre redondeado hacia arriba, sin decimales (nunca centavos sueltos).
   const calcularPrecioArt = (costo: number, margen: number) => {
-    return Number((costo * (1 + margen / 100)).toFixed(2));
+    return Math.ceil(costo * (1 + margen / 100));
   };
+
+  // Formatea un precio con punto de miles y sin decimales (redondeando siempre hacia arriba).
+  const formatearPrecioMiles = (n: number): string => Math.ceil(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+
+  // Convierte lo tipeado en el input de precio (con puntos de miles) de vuelta a un número entero.
+  const parsearPrecioMiles = (s: string): number => Number(s.replace(/\D/g, '')) || 0;
 
   // Marcación real sobre el costo: (precio - costo) / costo * 100
   const calcularMarcacion = (costo?: number, precio?: number): number | null => {
@@ -2553,7 +2560,7 @@ export default function VentasMostradorClient({
                               <TableCell className="text-center py-3 pl-6">
                                 <div className="flex items-center justify-center gap-1">
                                   <span className="text-slate-400 text-xs ml-1">$</span>
-                                  <Input type="number" value={obtenerPrecioItemEnVivo(item)} onChange={(e) => setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                                  <Input type="text" inputMode="numeric" value={formatearPrecioMiles(obtenerPrecioItemEnVivo(item))} onChange={(e) => { const val = parsearPrecioMiles(e.target.value); setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, precio_unit: val, subtotal: i.cantidad * val } : i)); }} className={`w-20 h-8 ${inputSinFlechas} font-bold text-slate-700`} />
                                   {marcacionItemEditId === item.id ? (
                                     <input
                                       type="number"
@@ -2593,7 +2600,7 @@ export default function VentasMostradorClient({
                                 </div>
                               </TableCell>
                               <TableCell className="text-right py-3 font-bold text-slate-700">
-                                $ {Number(item.subtotal).toLocaleString('es-AR')}
+                                $ {Math.ceil(Number(item.subtotal)).toLocaleString('es-AR')}
                               </TableCell>
                               <TableCell className="py-3 text-center">
                                 <Button variant="ghost" size="icon" onClick={() => setItems(items.filter(i => i.id !== item.id))} className="text-red-500"><Trash2 className="h-4 w-4" /></Button>
@@ -4653,7 +4660,7 @@ export default function VentasMostradorClient({
                           <TableCell className="text-center pl-6">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-slate-400 text-xs ml-1">$</span>
-                              <Input type="number" value={obtenerPrecioItemEnVivo(item)} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                              <Input type="text" inputMode="numeric" value={formatearPrecioMiles(obtenerPrecioItemEnVivo(item))} onChange={(e) => { const val = parsearPrecioMiles(e.target.value); setEditItems(editItems.map(i => i.id === item.id ? { ...i, precio_unit: val, subtotal: i.cantidad * val } : i)); }} className={`w-20 h-8 ${inputSinFlechas} font-bold text-slate-700`} />
                               {marcacionItemEditId === item.id ? (
                                 <input
                                   type="number"
@@ -4693,7 +4700,7 @@ export default function VentasMostradorClient({
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-bold text-slate-700">
-                            $ {Number(item.subtotal).toLocaleString('es-AR')}
+                            $ {Math.ceil(Number(item.subtotal)).toLocaleString('es-AR')}
                           </TableCell>
                           <TableCell className="text-center"><Button variant="ghost" size="icon" onClick={() => setEditItems(editItems.filter((i: ItemVenta) => i.id !== item.id))} className="text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></Button></TableCell>
                         </TableRow>

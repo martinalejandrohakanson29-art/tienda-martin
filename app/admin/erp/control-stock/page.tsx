@@ -3,7 +3,7 @@ import { obtenerProveedoresParaListas } from "@/app/actions/listas"
 import { ControlStockClient } from "./control-stock-client"
 
 export const metadata: Metadata = {
-  title: "Control de Stock | ERP",
+  title: "Conteo de Stock | ERP",
   description: "Conteo físico de stock en depósito",
 }
 

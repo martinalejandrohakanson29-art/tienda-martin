@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   Plus, Search, User, Trash2, ShoppingCart, Loader2, CreditCard, Phone, FileText, ShieldCheck,
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
-  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Database, Printer, CheckCircle,
+  RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Printer, CheckCircle,
   ChevronDown, ArrowLeft, X, Package, BellRing, Bell, ArrowRightLeft,
   Maximize2, Camera, ImageOff, FileDown, Check, RotateCcw
 } from "lucide-react";
@@ -107,6 +107,7 @@ interface ItemVenta {
   ultimaModificacion?: string | null;
   esPack?: boolean;
   esNota?: boolean;
+  costo?: number;
   packComponentes?: {
     id: string;
     nombre: string;
@@ -202,6 +203,11 @@ export default function VentasMostradorClient({
   const [marcacionBusquedaEditId, setMarcacionBusquedaEditId] = useState<string | null>(null);
   const [marcacionBusquedaTemp, setMarcacionBusquedaTemp] = useState<string>("");
   const [preciosBusquedaOverride, setPreciosBusquedaOverride] = useState<Record<string, number>>({});
+
+  // Marcación editable "al vuelo" en el listado de artículos ya agregados a la venta: igual que
+  // en el buscador, solo afecta el precio de esta venta puntual y nunca se guarda en la base de datos.
+  const [marcacionItemEditId, setMarcacionItemEditId] = useState<string | null>(null);
+  const [marcacionItemTemp, setMarcacionItemTemp] = useState<string>("");
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
   const [isGuardarComoPedido, setIsGuardarComoPedido] = useState(false);
@@ -413,9 +419,6 @@ export default function VentasMostradorClient({
   const [isGuardandoAlerta, setIsGuardandoAlerta] = useState(false);
 
   // --- ESTADOS PARA EDICIÓN DE PRECIO EN BASE DE DATOS ---
-  const [isPriceDbModalOpen, setIsPriceDbModalOpen] = useState(false);
-  const [priceDbItem, setPriceDbItem] = useState<Articulo | null>(null);
-  const [newDbPrice, setNewDbPrice] = useState<number>(0);
   const [isUpdatingDbPrice, setIsUpdatingDbPrice] = useState(false);
 
   // --- NUEVOS ESTADOS PARA ACTUALIZACIÓN RÁPIDA DE PRECIO ---
@@ -449,18 +452,18 @@ export default function VentasMostradorClient({
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen && !isFastUpdateDbModalOpen) {
+      if (e.key === "+" && !isModalOpen && !isEditMainModalOpen && !isSearchEditModalOpen && !isFastUpdateDbModalOpen) {
         e.preventDefault();
         setIsModalOpen(true);
       }
-      if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen && !isPriceDbModalOpen && !isFastUpdateDbModalOpen) {
+      if (e.key === "+" && isEditMainModalOpen && !isSearchEditModalOpen && !isFastUpdateDbModalOpen) {
         e.preventDefault();
         setIsSearchEditModalOpen(true);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isModalOpen, isEditMainModalOpen, isSearchEditModalOpen, isPriceDbModalOpen, isFastUpdateDbModalOpen]);
+  }, [isModalOpen, isEditMainModalOpen, isSearchEditModalOpen, isFastUpdateDbModalOpen]);
 
   useEffect(() => {
     if (showSuccess) {
@@ -827,6 +830,43 @@ export default function VentasMostradorClient({
     cancelarEdicionMarcacionBusqueda();
   };
 
+  const iniciarEdicionMarcacionItem = (item: ItemVenta) => {
+    if (!item.costo || item.costo <= 0) return;
+    const marcActual = calcularMarcacion(item.costo, item.precio_unit);
+    setMarcacionItemEditId(item.id);
+    setMarcacionItemTemp(marcActual !== null ? String(Number(marcActual.toFixed(1))) : "");
+  };
+
+  const cancelarEdicionMarcacionItem = () => {
+    setMarcacionItemEditId(null);
+    setMarcacionItemTemp("");
+  };
+
+  // Mientras se edita la marcación de un ítem, el precio unitario mostrado se recalcula en vivo
+  // con lo tipeado (sin esperar a confirmar el campo); el resto del tiempo muestra el precio real.
+  const obtenerPrecioItemEnVivo = (item: ItemVenta): number => {
+    if (marcacionItemEditId === item.id && item.costo && item.costo > 0) {
+      const tempMarc = Number(marcacionItemTemp);
+      if (marcacionItemTemp.trim() !== "" && !isNaN(tempMarc)) {
+        return calcularPrecioArt(item.costo, tempMarc);
+      }
+    }
+    return item.precio_unit;
+  };
+
+  // Recalcula precio_unit y subtotal de ese ítem puntual en base a la marcación tipeada; se usa
+  // tanto en el listado de "Registrar Venta" (setItems) como en el de edición (setEditItems).
+  const guardarMarcacionItem = (item: ItemVenta, setList: React.Dispatch<React.SetStateAction<ItemVenta[]>>) => {
+    const nuevoMargen = Number(marcacionItemTemp);
+    if (marcacionItemTemp.trim() === "" || isNaN(nuevoMargen) || !item.costo || item.costo <= 0) {
+      cancelarEdicionMarcacionItem();
+      return;
+    }
+    const nuevoPrecio = calcularPrecioArt(item.costo, nuevoMargen);
+    setList(prev => prev.map(i => i.id === item.id ? { ...i, precio_unit: nuevoPrecio, subtotal: i.cantidad * nuevoPrecio } : i));
+    cancelarEdicionMarcacionItem();
+  };
+
   const handleCostoArtChange = (val: number) => {
     const nuevoPrecio = calcularPrecioArt(val, newArtData.margenGanancia || 0);
     setNewArtData({ ...newArtData, costo: val, precio: nuevoPrecio });
@@ -1030,7 +1070,8 @@ export default function VentasMostradorClient({
             subtotal: precioFinal,
             stock: prod.stock,
             esPack: true,
-            ultimaModificacion: prod.ultimaModificacion
+            ultimaModificacion: prod.ultimaModificacion,
+            costo: prod.costo
           }]);
         }
       }
@@ -1050,7 +1091,8 @@ export default function VentasMostradorClient({
           precio_unit: precioFinal,
           subtotal: precioFinal,
           stock: prod.stock,
-          ultimaModificacion: prod.ultimaModificacion
+          ultimaModificacion: prod.ultimaModificacion,
+          costo: prod.costo
         }]);
       }
     }
@@ -1682,7 +1724,8 @@ export default function VentasMostradorClient({
         nombre: i.nombre, cantidad: i.cantidad,
         precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal),
         stock: articuloBase ? articuloBase.stock : 0,
-        ultimaModificacion: articuloBase?.ultimaModificacion || null
+        ultimaModificacion: articuloBase?.ultimaModificacion || null,
+        costo: articuloBase?.costo
       };
     }));
     setIsEditMainModalOpen(true);
@@ -1832,6 +1875,7 @@ export default function VentasMostradorClient({
         precio_unit: Number(i.precio_unit), subtotal: Number(i.subtotal),
         stock: articuloBase ? articuloBase.stock : 0,
         ultimaModificacion: articuloBase?.ultimaModificacion || null,
+        costo: articuloBase?.costo,
         esNota: (i as any).esNota || false,
       };
     }));
@@ -1858,7 +1902,8 @@ export default function VentasMostradorClient({
         precio_unit: precioFinal,
         subtotal: precioFinal,
         stock: prod.stock,
-        ultimaModificacion: prod.ultimaModificacion
+        ultimaModificacion: prod.ultimaModificacion,
+        costo: prod.costo
       }]);
     }
     setIsSearchEditModalOpen(false);
@@ -2157,40 +2202,7 @@ export default function VentasMostradorClient({
     }
   };
 
-  // --- FUNCIONES: MODIFICAR PRECIO EN BASE DE DATOS (MODAL CLÁSICO) ---
-
-  const abrirModalPrecioDB = (idArticulo: string, precioInputActual: number) => {
-    const articulo = articulos.find(a => a.id === idArticulo);
-    if (articulo) {
-      setPriceDbItem(articulo);
-      setNewDbPrice(precioInputActual);
-      setIsPriceDbModalOpen(true);
-    }
-  };
-
-  const handleUpdateDbPrice = async () => {
-    if (!priceDbItem) return;
-    setIsUpdatingDbPrice(true);
-
-    const res = await actualizarPrecioArticuloDB(priceDbItem.id, newDbPrice, vendedorNombre);
-
-    if (res.success) {
-      const nowStr = new Date().toISOString();
-
-      setArticulos(prev => prev.map(a => a.id === priceDbItem.id ? { ...a, precio: newDbPrice, ultimaModificacion: nowStr } : a));
-      setItems(prev => prev.map(i => i.productoId === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
-      setEditItems(prev => prev.map(i => i.productoId === priceDbItem.id ? { ...i, precio_unit: newDbPrice, subtotal: i.cantidad * newDbPrice, ultimaModificacion: nowStr } : i));
-
-      mostrarMensajeExito("¡Precio base guardado en la Base de Datos!");
-      setIsPriceDbModalOpen(false);
-    } else {
-      alert("No se pudo guardar el precio: " + res.error);
-    }
-
-    setIsUpdatingDbPrice(false);
-  };
-
-  // --- FUNCIONES: ACTUALIZACIÓN RÁPIDA DE PRECIO (BOTÓN DERECHO) ---
+  // --- FUNCIONES: ACTUALIZACIÓN RÁPIDA DE PRECIO ---
   const abrirModalFastUpdate = (idArticulo: string, precioInputActual: number) => {
     const articulo = articulos.find(a => a.id === idArticulo);
     if (articulo) {
@@ -2464,20 +2476,22 @@ export default function VentasMostradorClient({
                       <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                         <TableRow>
                           <TableHead className="text-[10px] font-bold uppercase py-3">Artículo</TableHead>
-                          <TableHead className="text-center text-[10px] font-bold uppercase py-3">Cant.</TableHead>
-                          <TableHead className="text-center text-[10px] font-bold uppercase py-3">Precio Unit.</TableHead>
+                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pr-6">Cant.</TableHead>
+                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-6 pr-0">Costo</TableHead>
+                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-0 pr-6">Modificado</TableHead>
+                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-6">Precio Unit.</TableHead>
                           <TableHead className="text-right text-[10px] font-bold uppercase py-3">Subtotal</TableHead>
                           <TableHead className="w-16"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {items.length === 0 ? (
-                          <TableRow><TableCell colSpan={5} className="py-20 text-center text-slate-400 italic">No hay artículos cargados</TableCell></TableRow>
+                          <TableRow><TableCell colSpan={7} className="py-20 text-center text-slate-400 italic">No hay artículos cargados</TableCell></TableRow>
                         ) : (
                           items.map((item) => (
                             item.esNota ? (
                               <TableRow key={item.id} className="bg-amber-50/70 hover:bg-amber-50 transition-colors border-l-2 border-l-amber-400">
-                                <TableCell colSpan={3} className="py-3">
+                                <TableCell colSpan={5} className="py-3">
                                   <div className="flex items-center gap-2 text-amber-800">
                                     <FileText className="h-4 w-4 text-amber-500 flex-shrink-0" />
                                     <span className="text-sm font-medium italic">{item.nombre}</span>
@@ -2509,30 +2523,63 @@ export default function VentasMostradorClient({
                                     </span>
                                   </div>
                                   <span
-                                    onClick={() => copiarAlPortapapeles(item.id)}
+                                    onClick={() => copiarAlPortapapeles(item.productoId ?? item.id)}
                                     className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-blue-600 transition-colors w-fit block"
                                     title="Copiar ID"
                                   >
-                                    {item.id}
+                                    {item.productoId ?? item.id}
                                   </span>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-center py-3">
+                              <TableCell className="text-center py-3 pr-6">
                                 <Input type="number" value={item.cantidad} onChange={(e) => setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                               </TableCell>
-                              <TableCell className="text-center py-3">
+                              <TableCell className="text-center py-3 pl-6 pr-0">
+                                {item.costo && item.costo > 0 ? (
+                                  <span className="text-sm text-black font-semibold" title="Costo del artículo">
+                                    $ {Number(item.costo).toLocaleString('es-AR')}
+                                  </span>
+                                ) : (
+                                  <span className="text-red-600 font-black text-sm" title="Sin costo cargado">✕</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center py-3 pl-0 pr-6">
+                                {item.ultimaModificacion && (
+                                  <span className="text-[10px] text-black font-semibold bg-slate-100 px-1.5 py-0.5 rounded" title="Última actualización de precio en DB">
+                                    {new Date(item.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-center py-3 pl-6">
                                 <div className="flex items-center justify-center gap-1">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7 text-green-600 hover:bg-green-50 rounded-lg"
-                                    title="Editar precio base en el sistema"
-                                    onClick={() => abrirModalPrecioDB(item.productoId ?? item.id, item.precio_unit)}
-                                  >
-                                    <Database className="h-4 w-4" />
-                                  </Button>
                                   <span className="text-slate-400 text-xs ml-1">$</span>
-                                  <Input type="number" value={item.precio_unit} onChange={(e) => setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                                  <Input type="number" value={obtenerPrecioItemEnVivo(item)} onChange={(e) => setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                                  {marcacionItemEditId === item.id ? (
+                                    <input
+                                      type="number"
+                                      autoFocus
+                                      value={marcacionItemTemp}
+                                      onChange={(e) => setMarcacionItemTemp(e.target.value)}
+                                      onBlur={() => guardarMarcacionItem(item, setItems)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') guardarMarcacionItem(item, setItems);
+                                        if (e.key === 'Escape') cancelarEdicionMarcacionItem();
+                                      }}
+                                      className={`w-[4.5rem] h-8 text-[13px] font-black text-center rounded-lg border outline-none ${inputSinFlechas}`}
+                                    />
+                                  ) : (() => {
+                                    const marc = calcularMarcacion(item.costo, item.precio_unit);
+                                    if (marc === null) return null;
+                                    return (
+                                      <span
+                                        onClick={() => iniciarEdicionMarcacionItem(item)}
+                                        title="Clic para editar la marcación solo para esta venta (no modifica la base de datos)"
+                                        className={`text-[13px] font-black px-2 py-1.5 rounded-lg border cursor-pointer hover:ring-1 hover:ring-green-300 ${claseColorMarcacion(marc)}`}
+                                      >
+                                        {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
+                                      </span>
+                                    );
+                                  })()}
 
                                   <Button
                                     variant="ghost"
@@ -2543,15 +2590,6 @@ export default function VentasMostradorClient({
                                   >
                                     <Save className="h-4 w-4" />
                                   </Button>
-
-                                  {item.ultimaModificacion && (
-                                    <div className="flex flex-col items-center ml-2 border-l border-slate-200 pl-2">
-                                      <span className="text-[8px] text-slate-400 font-bold uppercase mb-0.5">Modificado</span>
-                                      <span className="text-[10px] text-slate-600 font-mono bg-slate-100 px-1 rounded" title="Última actualización de precio en DB">
-                                        {new Date(item.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                      </span>
-                                    </div>
-                                  )}
                                 </div>
                               </TableCell>
                               <TableCell className="text-right py-3 font-bold text-slate-700">
@@ -4559,8 +4597,10 @@ export default function VentasMostradorClient({
                     <TableHeader className="bg-slate-100">
                       <TableRow>
                         <TableHead>Artículo</TableHead>
-                        <TableHead className="text-center">Cant.</TableHead>
-                        <TableHead className="text-center">Precio Unit.</TableHead>
+                        <TableHead className="text-center pr-6">Cant.</TableHead>
+                        <TableHead className="text-center pl-6 pr-0">Costo</TableHead>
+                        <TableHead className="text-center pl-0 pr-6">Modificado</TableHead>
+                        <TableHead className="text-center pl-6">Precio Unit.</TableHead>
                         <TableHead className="text-right">Subtotal</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
@@ -4583,30 +4623,63 @@ export default function VentasMostradorClient({
                                 </span>
                               </div>
                               <span
-                                onClick={() => copiarAlPortapapeles(item.id)}
+                                onClick={() => copiarAlPortapapeles(item.productoId ?? item.id)}
                                 className="text-[9px] text-slate-400 font-mono uppercase cursor-pointer hover:text-amber-600 transition-colors w-fit block"
                                 title="Copiar ID"
                               >
-                                {item.id}
+                                {item.productoId ?? item.id}
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center pr-6">
                             <Input type="number" value={item.cantidad} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, cantidad: Number(e.target.value), subtotal: Number(e.target.value) * i.precio_unit } : i))} className={`w-16 mx-auto h-8 ${inputSinFlechas}`} />
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center pl-6 pr-0">
+                            {item.costo && item.costo > 0 ? (
+                              <span className="text-sm text-black font-semibold" title="Costo del artículo">
+                                $ {Number(item.costo).toLocaleString('es-AR')}
+                              </span>
+                            ) : (
+                              <span className="text-red-600 font-black text-sm" title="Sin costo cargado">✕</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center pl-0 pr-6">
+                            {item.ultimaModificacion && (
+                              <span className="text-[10px] text-black font-semibold bg-slate-100 px-1.5 py-0.5 rounded" title="Última actualización de precio en DB">
+                                {new Date(item.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center pl-6">
                             <div className="flex items-center justify-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
-                                title="Editar precio base en el sistema"
-                                onClick={() => abrirModalPrecioDB(item.productoId ?? item.id, item.precio_unit)}
-                              >
-                                <Database className="h-4 w-4" />
-                              </Button>
                               <span className="text-slate-400 text-xs ml-1">$</span>
-                              <Input type="number" value={item.precio_unit} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                              <Input type="number" value={obtenerPrecioItemEnVivo(item)} onChange={(e) => setEditItems(editItems.map(i => i.id === item.id ? { ...i, precio_unit: Number(e.target.value), subtotal: i.cantidad * Number(e.target.value) } : i))} className={`w-28 h-8 ${inputSinFlechas}`} />
+                              {marcacionItemEditId === item.id ? (
+                                <input
+                                  type="number"
+                                  autoFocus
+                                  value={marcacionItemTemp}
+                                  onChange={(e) => setMarcacionItemTemp(e.target.value)}
+                                  onBlur={() => guardarMarcacionItem(item, setEditItems)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') guardarMarcacionItem(item, setEditItems);
+                                    if (e.key === 'Escape') cancelarEdicionMarcacionItem();
+                                  }}
+                                  className={`w-[4.5rem] h-8 text-[13px] font-black text-center rounded-lg border outline-none ${inputSinFlechas}`}
+                                />
+                              ) : (() => {
+                                const marc = calcularMarcacion(item.costo, item.precio_unit);
+                                if (marc === null) return null;
+                                return (
+                                  <span
+                                    onClick={() => iniciarEdicionMarcacionItem(item)}
+                                    title="Clic para editar la marcación solo para esta venta (no modifica la base de datos)"
+                                    className={`text-[13px] font-black px-2 py-1.5 rounded-lg border cursor-pointer hover:ring-1 hover:ring-amber-300 ${claseColorMarcacion(marc)}`}
+                                  >
+                                    {marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%
+                                  </span>
+                                );
+                              })()}
 
                               <Button
                                 variant="ghost"
@@ -4617,15 +4690,6 @@ export default function VentasMostradorClient({
                               >
                                 <Save className="h-4 w-4" />
                               </Button>
-
-                              {item.ultimaModificacion && (
-                                <div className="flex flex-col items-center ml-2 border-l border-slate-200 pl-2">
-                                  <span className="text-[8px] text-slate-400 font-bold uppercase mb-0.5">Modificado</span>
-                                  <span className="text-[10px] text-slate-600 font-mono bg-slate-100 px-1 rounded" title="Última actualización de precio en DB">
-                                    {new Date(item.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                  </span>
-                                </div>
-                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-bold text-slate-700">
@@ -5082,48 +5146,7 @@ export default function VentasMostradorClient({
           </DialogContent>
         </Dialog>
 
-        {/* --- MODAL CLÁSICO: EDICIÓN DE PRECIO BASE EN DB --- */}
-        <Dialog open={isPriceDbModalOpen} onOpenChange={setIsPriceDbModalOpen}>
-          <DialogContent className="sm:max-w-[400px] rounded-3xl p-6 border-2 border-indigo-400 shadow-2xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-indigo-900">
-                <Database className="h-5 w-5 text-indigo-600" /> Modificar Precio Base
-              </DialogTitle>
-              <DialogDescription className="text-slate-600">
-                Modificar precios de la <b>Base de Datos</b>. este cambio quedara registrado.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="py-4 space-y-5">
-              <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 flex flex-col">
-                <p className="text-[10px] text-indigo-700 font-bold uppercase tracking-wider mb-1">Artículo Seleccionado</p>
-                <p className="text-sm font-bold text-slate-900">{priceDbItem?.nombre}</p>
-                <p className="text-[10px] text-slate-500 font-mono mt-1">ID: {priceDbItem?.id}</p>
-                <p className="text-sm font-bold text-slate-900 mt-2">Precio Viejo: ${Number(priceDbItem?.precio).toLocaleString('es-AR')}</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 uppercase">Nuevo Precio Base ($)</Label>
-                <Input
-                  type="number"
-                  autoFocus
-                  value={newDbPrice}
-                  onChange={(e) => setNewDbPrice(Number(e.target.value))}
-                  className="font-black text-xl h-12 border-indigo-200 focus-visible:ring-indigo-500"
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="gap-3 mt-2">
-              <Button variant="ghost" onClick={() => setIsPriceDbModalOpen(false)} className="text-slate-500">Cancelar</Button>
-              <Button onClick={handleUpdateDbPrice} disabled={isUpdatingDbPrice} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold px-6 shadow-md">
-                {isUpdatingDbPrice ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar en Sistema"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* --- NUEVO MODAL: ACTUALIZACIÓN RÁPIDA DE PRECIO DESDE EL INPUT --- */}
+        {/* --- MODAL: ACTUALIZACIÓN RÁPIDA DE PRECIO DESDE EL INPUT --- */}
         <Dialog open={isFastUpdateDbModalOpen} onOpenChange={setIsFastUpdateDbModalOpen}>
           <DialogContent className="sm:max-w-[420px] rounded-3xl p-6 border-2 border-green-400 shadow-2xl">
             <DialogHeader>

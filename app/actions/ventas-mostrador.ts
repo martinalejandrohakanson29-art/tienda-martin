@@ -230,9 +230,12 @@ export async function obtenerTodosLosArticulos() {
       where: { oculto: false },
       orderBy: { nombre: 'asc' },
       include: {
+        // Cualquier tipo de modificación cuenta como "última modificación" (edición individual,
+        // Excel masivo por proveedor, edición masiva, impacto de costos desde compras, etc.),
+        // no solo el ajuste rápido de precio hecho desde ventas-mostrador.
         auditorias: {
-          where: { accion: "MODIFICACION_PRECIO_BASE" },
-          orderBy: { createdAt: 'desc' }
+          orderBy: { createdAt: 'desc' },
+          take: 1
         },
         packItems: {
           include: {

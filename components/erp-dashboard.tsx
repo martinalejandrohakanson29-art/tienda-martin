@@ -110,6 +110,13 @@ export function ErpDashboard() {
                 </div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">Consultar Listas</h3>
               </Link>
+
+              <Link className="group bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:border-[#2b8cee]/30" href="/admin/erp/control-stock">
+                <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center mb-4 group-hover:bg-teal-500 group-hover:text-white transition-all duration-300">
+                  <span className="material-symbols-outlined text-3xl text-teal-600 dark:text-teal-400 group-hover:text-white">inventory</span>
+                </div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">Control de Stock</h3>
+              </Link>
             </div>
           </div>
 

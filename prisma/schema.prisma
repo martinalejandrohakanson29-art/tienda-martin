@@ -696,6 +696,7 @@ model ArticuloMostrador {
   componenteOf PackMostradorItem[] @relation("PackComponente")
   packItems    PackMostradorItem[] @relation("PackPadre")
   faltantes    ArticuloFaltante[]
+  controlStockEntradas ControlStockEntrada[]
 
   @@index([nombre])
   @@index([proveedorId])
@@ -741,6 +742,38 @@ model ArticuloFaltante {
   createdAt        DateTime          @default(now())
 
   @@map("articulos_faltantes")
+}
+
+model ControlStockSesion {
+  id           String                @id @default(cuid())
+  proveedorId  String
+  proveedor    Proveedor             @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+  estado       String                @default("EN_PROGRESO")
+  iniciadoPor  String
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  finalizadoAt DateTime?
+  entradas     ControlStockEntrada[]
+
+  @@index([proveedorId])
+  @@map("control_stock_sesiones")
+}
+
+model ControlStockEntrada {
+  id         String             @id @default(cuid())
+  sesionId   String
+  sesion     ControlStockSesion @relation(fields: [sesionId], references: [id], onDelete: Cascade)
+  articuloId String
+  articulo   ArticuloMostrador  @relation(fields: [articuloId], references: [id], onDelete: Cascade)
+  cantidad   Int
+  comentario String?
+  esConteoFinal Boolean         @default(false)
+  contadoPor String
+  createdAt  DateTime           @default(now())
+
+  @@index([sesionId])
+  @@index([articuloId])
+  @@map("control_stock_entradas")
 }
 
 model TransferenciaCruzada {
@@ -1002,6 +1035,7 @@ model Proveedor {
   faltantes      ArticuloFaltante[]
   articulosMostrador ArticuloMostrador[]
   aliasCbu       String?
+  controlStockSesiones ControlStockSesion[]
 
   @@map("proveedores")
 }

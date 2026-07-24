@@ -14,6 +14,9 @@ import {
   Pencil,
   Trash2,
   X,
+  ClipboardList,
+  PlusCircle,
+  RefreshCcw,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -24,6 +27,7 @@ import {
   obtenerEntradasSesion,
   actualizarEntradaConteo,
   eliminarEntradaConteo,
+  obtenerSesionesConteo,
 } from "@/app/actions/control-stock"
 
 interface ProveedorLite {
@@ -43,6 +47,16 @@ interface EntradaLite {
   cantidad: number
   comentario: string | null
   createdAt: string | Date
+}
+
+interface SesionActivaLite {
+  id: string
+  proveedorId: string
+  proveedorNombre: string
+  iniciadoPor: string
+  createdAt: string | Date
+  totalArticulos: number
+  totalEntradas: number
 }
 
 const quitarAcentos = (texto: string) => {
@@ -65,10 +79,22 @@ function agruparPorArticulo(entradas: EntradaLite[]) {
   return mapa
 }
 
-type Paso = "proveedor" | "articulo" | "conteo"
+function fmtFecha(fecha: string | Date) {
+  return new Date(fecha).toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+type Paso = "inicio" | "proveedor" | "articulo" | "conteo"
 
 export function ControlStockClient({ proveedoresIniciales }: { proveedoresIniciales: ProveedorLite[] }) {
-  const [paso, setPaso] = useState<Paso>("proveedor")
+  const [paso, setPaso] = useState<Paso>("inicio")
+
+  const [sesionesActivas, setSesionesActivas] = useState<SesionActivaLite[]>([])
+  const [cargandoInicio, setCargandoInicio] = useState(true)
 
   const [busquedaProveedor, setBusquedaProveedor] = useState("")
   const [proveedor, setProveedor] = useState<ProveedorLite | null>(null)
@@ -97,6 +123,19 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
     const t = setTimeout(() => setMensaje(null), 2200)
     return () => clearTimeout(t)
   }, [mensaje])
+
+  useEffect(() => {
+    cargarSesionesActivas()
+  }, [])
+
+  async function cargarSesionesActivas() {
+    setCargandoInicio(true)
+    const res = await obtenerSesionesConteo()
+    if (res.success) {
+      setSesionesActivas((res.data as any[]).filter((s) => s.estado === "EN_PROGRESO") as SesionActivaLite[])
+    }
+    setCargandoInicio(false)
+  }
 
   const proveedoresFiltrados = useMemo(
     () => proveedoresIniciales.filter((p) => coincide(p.nombre, busquedaProveedor)),
@@ -138,6 +177,11 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
     setPaso("articulo")
   }
 
+  function irANuevoConteo() {
+    setBusquedaProveedor("")
+    setPaso("proveedor")
+  }
+
   function seleccionarArticulo(a: ArticuloLite) {
     setArticulo(a)
     setCantidad(0)
@@ -146,12 +190,13 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
     setPaso("conteo")
   }
 
-  function volverAProveedores() {
-    setPaso("proveedor")
+  function volverAInicio() {
+    setPaso("inicio")
     setProveedor(null)
     setSesionId(null)
     setArticulos([])
     setEntradasPorArticulo({})
+    cargarSesionesActivas()
   }
 
   function volverAArticulos() {
@@ -231,10 +276,78 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
         </div>
       )}
 
+      {paso === "inicio" && (
+        <div className="flex flex-col flex-1">
+          <div className="sticky top-14 z-10 bg-[#f6f7f8]/95 dark:bg-[#101922]/95 backdrop-blur-md px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div>
+              <h1 className="text-lg font-bold text-slate-900 dark:text-white">Conteo de Stock</h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Conteos activos</p>
+            </div>
+            <button
+              onClick={cargarSesionesActivas}
+              className="h-9 w-9 flex items-center justify-center rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+              aria-label="Actualizar"
+            >
+              {cargandoInicio ? (
+                <Loader2 className="h-4 w-4 text-slate-400 animate-spin" />
+              ) : (
+                <RefreshCcw className="h-4 w-4 text-slate-400" />
+              )}
+            </button>
+          </div>
+
+          <div className="flex-1 px-4 py-3 space-y-2">
+            {cargandoInicio && sesionesActivas.length === 0 && (
+              <p className="text-center text-sm text-slate-400 py-8">Buscando conteos activos...</p>
+            )}
+
+            {!cargandoInicio && sesionesActivas.length === 0 && (
+              <p className="text-center text-sm text-slate-400 py-8">No hay conteos activos por el momento.</p>
+            )}
+
+            {sesionesActivas.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => seleccionarProveedor({ id: s.proveedorId, nombre: s.proveedorNombre })}
+                disabled={cargandoProveedor !== null}
+                className="w-full flex items-center gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-4 text-left active:scale-[0.98] transition-transform disabled:opacity-60"
+              >
+                <ClipboardList className="h-5 w-5 text-[#2b8cee] shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">{s.proveedorNombre}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Iniciado por {s.iniciadoPor} · {fmtFecha(s.createdAt)} · {s.totalArticulos} artículo(s)
+                  </p>
+                </div>
+                {cargandoProveedor === s.proveedorId ? (
+                  <Loader2 className="h-5 w-5 text-slate-400 animate-spin shrink-0" />
+                ) : (
+                  <ChevronLeft className="h-5 w-5 text-slate-300 rotate-180 shrink-0" />
+                )}
+              </button>
+            ))}
+
+            <button
+              onClick={irANuevoConteo}
+              className="w-full flex items-center justify-center gap-2 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl px-4 py-4 text-[#2b8cee] font-semibold active:scale-[0.98] transition-transform mt-2"
+            >
+              <PlusCircle className="h-5 w-5" />
+              Iniciar nuevo conteo
+            </button>
+          </div>
+        </div>
+      )}
+
       {paso === "proveedor" && (
         <div className="flex flex-col flex-1">
           <div className="sticky top-14 z-10 bg-[#f6f7f8]/95 dark:bg-[#101922]/95 backdrop-blur-md px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-800">
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Conteo de Stock</h1>
+            <button
+              onClick={() => setPaso("inicio")}
+              className="flex items-center gap-1 text-sm text-slate-500 hover:text-[#2b8cee] mb-2"
+            >
+              <ChevronLeft className="h-4 w-4" /> Volver
+            </button>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Nuevo conteo</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">Elegí el proveedor a controlar</p>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -275,7 +388,7 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
         <div className="flex flex-col flex-1">
           <div className="sticky top-14 z-10 bg-[#f6f7f8]/95 dark:bg-[#101922]/95 backdrop-blur-md px-4 pt-4 pb-3 border-b border-slate-200 dark:border-slate-800">
             <button
-              onClick={volverAProveedores}
+              onClick={volverAInicio}
               className="flex items-center gap-1 text-sm text-slate-500 hover:text-[#2b8cee] mb-2"
             >
               <ChevronLeft className="h-4 w-4" /> Cambiar proveedor

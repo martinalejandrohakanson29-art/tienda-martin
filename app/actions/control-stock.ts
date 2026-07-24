@@ -127,6 +127,7 @@ export async function obtenerSesionesConteo() {
 
     const data = sesiones.map((s) => ({
       id: s.id,
+      proveedorId: s.proveedorId,
       proveedorNombre: s.proveedor.nombreFantasia || s.proveedor.razonSocial,
       estado: s.estado,
       iniciadoPor: s.iniciadoPor,
@@ -229,6 +230,28 @@ export async function eliminarEntradaConteo(entradaId: string) {
 
   try {
     await prisma.controlStockEntrada.delete({ where: { id: entradaId } })
+    return { success: true }
+  } catch (error) {
+    console.error("Error al eliminar el conteo:", error)
+    return { success: false, error: "No se pudo eliminar el conteo." }
+  }
+}
+
+export async function eliminarSesionConteo(sesionId: string) {
+  const session = await getServerSession(authOptions)
+  if (!session) return { success: false, error: "No autorizado" }
+
+  try {
+    const sesion = await prisma.controlStockSesion.findUnique({
+      where: { id: sesionId },
+      select: { estado: true },
+    })
+    if (!sesion) return { success: false, error: "Conteo no encontrado." }
+    if (sesion.estado === "FINALIZADA") {
+      return { success: false, error: "No se puede eliminar un conteo ya aplicado al stock." }
+    }
+
+    await prisma.controlStockSesion.delete({ where: { id: sesionId } })
     return { success: true }
   } catch (error) {
     console.error("Error al eliminar el conteo:", error)

@@ -33,6 +33,7 @@ import {
   actualizarEntradaConteo,
   eliminarEntradaConteo,
   aplicarConteoStock,
+  eliminarSesionConteo,
 } from "@/app/actions/control-stock"
 
 interface SesionLite {
@@ -97,6 +98,9 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
   const [confirmAplicarOpen, setConfirmAplicarOpen] = useState(false)
   const [aplicando, setAplicando] = useState(false)
   const [mensaje, setMensaje] = useState<string | null>(null)
+
+  const [sesionAEliminar, setSesionAEliminar] = useState<{ id: string; proveedorNombre: string } | null>(null)
+  const [eliminandoSesion, setEliminandoSesion] = useState(false)
 
   const sesionesFiltradas = sesiones.filter((s) => (filtro === "TODAS" ? true : s.estado === filtro))
 
@@ -181,6 +185,21 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
     setMensaje(`Stock actualizado en ${res.data?.articulosActualizados ?? 0} artículo(s).`)
     abrirDetalle(sesionActual.id)
     setTimeout(() => setMensaje(null), 3000)
+  }
+
+  async function confirmarEliminarSesion() {
+    if (!sesionAEliminar) return
+    setEliminandoSesion(true)
+    const res = await eliminarSesionConteo(sesionAEliminar.id)
+    setEliminandoSesion(false)
+    if (!res.success) {
+      alert(res.error || "No se pudo eliminar el conteo.")
+      return
+    }
+    const eraElAbierto = sesionActual?.id === sesionAEliminar.id
+    setSesionAEliminar(null)
+    if (eraElAbierto) setSesionActual(null)
+    refrescarLista()
   }
 
   const esFinalizada = sesionActual?.estado === "FINALIZADA"
@@ -269,9 +288,22 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
                       <TableCell>{s.iniciadoPor}</TableCell>
                       <TableCell>{fmtFecha(s.finalizadoAt || s.createdAt)}</TableCell>
                       <TableCell className="text-right">
-                        <Button size="sm" onClick={() => abrirDetalle(s.id)} disabled={cargandoDetalle === s.id}>
-                          {cargandoDetalle === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ver"}
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button size="sm" onClick={() => abrirDetalle(s.id)} disabled={cargandoDetalle === s.id}>
+                            {cargandoDetalle === s.id ? <Loader2 className="h-4 w-4 animate-spin" /> : "Ver"}
+                          </Button>
+                          {s.estado !== "FINALIZADA" && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-9 w-9"
+                              onClick={() => setSesionAEliminar({ id: s.id, proveedorNombre: s.proveedorNombre })}
+                              title="Eliminar conteo"
+                            >
+                              <Trash2 className="h-4 w-4 text-rose-500" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -313,14 +345,26 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
                 </p>
               </div>
 
-              {!esFinalizada && sesionActual.articulos.length > 0 && (
-                <Button
-                  onClick={() => setConfirmAplicarOpen(true)}
-                  className="h-10 rounded-lg font-semibold bg-emerald-600 hover:bg-emerald-700 gap-2"
-                >
-                  <PackageCheck className="h-4 w-4" />
-                  Aplicar conteo al stock real
-                </Button>
+              {!esFinalizada && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSesionAEliminar({ id: sesionActual.id, proveedorNombre: sesionActual.proveedorNombre })}
+                    className="h-10 rounded-lg font-semibold text-rose-600 hover:text-rose-700 gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Eliminar conteo
+                  </Button>
+                  {sesionActual.articulos.length > 0 && (
+                    <Button
+                      onClick={() => setConfirmAplicarOpen(true)}
+                      className="h-10 rounded-lg font-semibold bg-emerald-600 hover:bg-emerald-700 gap-2"
+                    >
+                      <PackageCheck className="h-4 w-4" />
+                      Aplicar conteo al stock real
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
 
@@ -479,6 +523,17 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
           confirmLabel="Aplicar"
           onConfirm={confirmarAplicar}
           isLoading={aplicando}
+        />
+
+        <ConfirmDialog
+          open={sesionAEliminar !== null}
+          onOpenChange={(open) => { if (!open) setSesionAEliminar(null) }}
+          title="Eliminar conteo"
+          description={`Se va a eliminar por completo el conteo de "${sesionAEliminar?.proveedorNombre ?? ""}" junto con todos sus registros cargados. Esta acción no se puede deshacer.`}
+          confirmLabel="Eliminar"
+          variant="danger"
+          onConfirm={confirmarEliminarSesion}
+          isLoading={eliminandoSesion}
         />
       </div>
     </div>

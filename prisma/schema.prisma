@@ -32,10 +32,12 @@ model Notification {
   body      String?
   link      String?
   read      Boolean  @default(false)
+  groupId   String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+  @@index([groupId])
   @@map("notifications")
 }
 

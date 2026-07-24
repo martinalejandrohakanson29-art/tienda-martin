@@ -23,11 +23,24 @@ export async function POST(req: Request) {
 
     if (!id) return NextResponse.json({ ok: false }, { status: 400 })
 
-    // updateMany acotado por userId: nadie puede marcar notificaciones de otro.
-    await prisma.notification.updateMany({
-        where: { id, userId },
-        data: { read: true },
-    })
+    // Se verifica que la notificación sea del usuario actual (autorización) antes
+    // de resolverla. Si pertenece a un grupo (misma notificación repartida entre
+    // varios usuarios target), se resuelve para todo el grupo: alcanza con que uno
+    // solo la vea/acepte para que desaparezca para el resto.
+    const notif = await prisma.notification.findFirst({ where: { id, userId } })
+    if (!notif) return NextResponse.json({ ok: false }, { status: 404 })
+
+    if (notif.groupId) {
+        await prisma.notification.updateMany({
+            where: { groupId: notif.groupId },
+            data: { read: true },
+        })
+    } else {
+        await prisma.notification.updateMany({
+            where: { id, userId },
+            data: { read: true },
+        })
+    }
 
     return NextResponse.json({ ok: true })
 }

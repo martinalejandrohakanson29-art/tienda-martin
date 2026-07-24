@@ -97,11 +97,51 @@ function NotificationCard({ notif, onClose }: { notif: DisplayNotif; onClose: (i
     )
 }
 
+function NotificationSummaryCard({ count, onExpand }: { count: number; onExpand: () => void }) {
+    const [visible, setVisible] = useState(false)
+
+    useEffect(() => {
+        requestAnimationFrame(() => setVisible(true))
+    }, [])
+
+    return (
+        <div
+            style={{
+                transform: visible ? "translateX(0)" : "translateX(110%)",
+                opacity: visible ? 1 : 0,
+                transition: "transform 0.3s ease, opacity 0.3s ease",
+            }}
+            className="w-80 bg-white rounded-xl shadow-2xl border border-gray-100 overflow-hidden"
+        >
+            <div className="flex items-start gap-3 px-4 py-3.5">
+                <div className="shrink-0 mt-0.5 w-8 h-8 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center">
+                    <Bell className="w-4 h-4 text-amber-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm leading-snug">Hay acciones pendientes</p>
+                    <p className="text-xs text-gray-500 mt-0.5 leading-snug">{count} notificaciones sin revisar</p>
+                </div>
+            </div>
+            <div className="px-4 pb-3.5 flex justify-end">
+                <button
+                    onClick={onExpand}
+                    className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-500 text-white transition-colors"
+                >
+                    Ver
+                </button>
+            </div>
+        </div>
+    )
+}
+
+const SUMMARY_THRESHOLD = 2
+
 export function NotificationListener() {
     const { data: session } = useSession()
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
     const [notifs, setNotifs] = useState<DisplayNotif[]>([])
     const [mounted, setMounted] = useState(false)
+    const [expanded, setExpanded] = useState(false)
     const notifsRef = useRef<DisplayNotif[]>([])
     // Ids ya mostrados en esta sesión, para no repetir el toast en cada poll
     // (la notificación queda activa en el servidor hasta descartarla o resolverla).
@@ -109,6 +149,11 @@ export function NotificationListener() {
 
     useEffect(() => { setMounted(true) }, [])
     useEffect(() => { notifsRef.current = notifs }, [notifs])
+
+    // Al vaciarse la cola, resetea el colapso: la próxima tanda vuelve a arrancar resumida.
+    useEffect(() => {
+        if (notifs.length === 0) setExpanded(false)
+    }, [notifs.length])
 
     // "Aceptar"/"Ir a ver": descarta el toast y marca la notificación como leída
     // (keepalive para que sobreviva a la navegación de "Ir a ver").
@@ -177,13 +222,21 @@ export function NotificationListener() {
 
     if (!mounted || notifs.length === 0) return null
 
+    const showSummary = notifs.length > SUMMARY_THRESHOLD && !expanded
+
     return createPortal(
         <div className="fixed bottom-5 right-5 z-[9999] flex flex-col-reverse gap-2.5 pointer-events-none">
-            {notifs.map(n => (
-                <div key={n.displayId} className="pointer-events-auto">
-                    <NotificationCard notif={n} onClose={dismiss} />
+            {showSummary ? (
+                <div className="pointer-events-auto">
+                    <NotificationSummaryCard count={notifs.length} onExpand={() => setExpanded(true)} />
                 </div>
-            ))}
+            ) : (
+                notifs.map(n => (
+                    <div key={n.displayId} className="pointer-events-auto">
+                        <NotificationCard notif={n} onClose={dismiss} />
+                    </div>
+                ))
+            )}
         </div>,
         document.body
     )

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto"
 import { prisma } from "./prisma"
 import { sendPushNotification } from "./firebase-admin"
 
@@ -35,6 +36,9 @@ export async function triggerNotification({
 
         if (rules.length === 0) return
 
+        // Todas las filas creadas acá comparten groupId: permite que al resolver
+        // ("Ir a ver"/"Aceptar") una, se resuelva para todos los usuarios target.
+        const groupId = randomUUID()
         await prisma.notification.createMany({
             data: rules.map(rule => ({
                 userId: rule.targetUserId,
@@ -42,6 +46,7 @@ export async function triggerNotification({
                 title,
                 body: body ?? null,
                 link: link ?? null,
+                groupId,
             })),
         })
 

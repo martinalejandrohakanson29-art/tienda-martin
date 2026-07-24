@@ -2671,10 +2671,6 @@ export default function VentasMostradorClient({
                         <Percent className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                       </div>
                     </div>
-                    <div className={`text-right ${interesTarjeta === 0 ? 'hidden select-none' : ''}`}>
-                      <span className="text-[10px] font-bold text-black uppercase tracking-wider block mb-0.5">Total con Interés</span>
-                      <span className="text-3xl font-black text-red-600 tracking-tighter">$ {(totalConDescuento * (1 + interesTarjeta / 100)).toLocaleString('es-AR')}</span>
-                    </div>
                   </div>
 
                   <div className="flex items-center gap-4 flex-shrink-0">
@@ -2712,11 +2708,17 @@ export default function VentasMostradorClient({
                           <span className="absolute left-3 top-2 text-sm font-bold text-slate-400">$</span>
                         )}
                       </div>
+                      {montoDescuento > 0 && (
+                        <span className="text-[10px] font-bold text-emerald-600 block">-$ {montoDescuento.toLocaleString('es-AR')}</span>
+                      )}
                     </div>
-                    <div className={`text-right ${montoDescuento === 0 ? 'hidden select-none' : ''}`}>
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-0.5">Total c/ Descuento</span>
-                      <span className="text-3xl font-black text-emerald-600 tracking-tighter">$ {totalConDescuento.toLocaleString('es-AR')}</span>
-                    </div>
+                  </div>
+
+                  <div className="text-right flex-shrink-0">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">Total a Cobrar</span>
+                    <span className={`text-3xl font-black tracking-tighter ${montoDescuento > 0 || interesTarjeta > 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                      $ {(totalConDescuento * (1 + interesTarjeta / 100)).toLocaleString('es-AR')}
+                    </span>
                   </div>
 
                   <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 justify-center h-full">

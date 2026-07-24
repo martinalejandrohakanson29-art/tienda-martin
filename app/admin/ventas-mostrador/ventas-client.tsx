@@ -226,6 +226,8 @@ export default function VentasMostradorClient({
   const [cuitBusqueda, setCuitBusqueda] = useState("");
   const [isSearchingPadron, setIsSearchingPadron] = useState(false);
   const [interesTarjeta, setInteresTarjeta] = useState<number>(0);
+  const [descuentoTipo, setDescuentoTipo] = useState<"porcentaje" | "monto">("porcentaje");
+  const [descuentoValor, setDescuentoValor] = useState<number>(0);
 
   const [metodoPago, setMetodoPago] = useState("Efectivo");
   const [isPagoMixto, setIsPagoMixto] = useState(false);
@@ -1012,8 +1014,13 @@ export default function VentasMostradorClient({
   // --- CALCULOS NUEVA VENTA (LÓGICA MIXTA) ---
   const totalBase = items.filter((item: ItemVenta) => !item.esNota).reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
 
-  const base1 = isPagoMixto ? montoPago1 : totalBase;
-  const base2 = isPagoMixto ? Math.max(0, totalBase - montoPago1) : 0;
+  const montoDescuento = descuentoValor > 0
+    ? Math.min(descuentoTipo === "porcentaje" ? totalBase * (descuentoValor / 100) : descuentoValor, totalBase)
+    : 0;
+  const totalConDescuento = totalBase - montoDescuento;
+
+  const base1 = isPagoMixto ? montoPago1 : totalConDescuento;
+  const base2 = isPagoMixto ? Math.max(0, totalConDescuento - montoPago1) : 0;
 
   const isCredito1 = metodoPago === "Tarjeta de Crédito";
   const isCredito2 = isPagoMixto && metodoPago2 === "Tarjeta de Crédito";
@@ -1388,6 +1395,13 @@ export default function VentasMostradorClient({
       infoFinal = info ? `${det} - ${info}` : det;
     }
 
+    if (montoDescuento > 0) {
+      const detDescuento = descuentoTipo === "porcentaje"
+        ? `[Descuento: ${descuentoValor}% (-$${montoDescuento.toLocaleString('es-AR')})]`
+        : `[Descuento: -$${montoDescuento.toLocaleString('es-AR')}]`;
+      infoFinal = `${detDescuento} ${infoFinal}`;
+    }
+
     try {
       setIsSubmitting(true);
 
@@ -1412,7 +1426,7 @@ export default function VentasMostradorClient({
       }
 
       const payloadComun = {
-        cliente: clienteFinal, total: totalBase,
+        cliente: clienteFinal, total: totalConDescuento,
         interes: interesTarjeta,
         totalFinal: totalFinalCalculado,
         items: itemsParaGuardar, metodo_pago: metodoPagoFinal, dni: dniFinal, telefono, info: infoFinal, cupon, transaccionId, de: deCruzada, para: paraFinal,
@@ -1585,6 +1599,7 @@ export default function VentasMostradorClient({
   const resetForm = () => {
     setItems([]); setCliente("Consumidor Final"); setMetodoPago("Efectivo"); setDni(""); setTelefono("");
     setInfo(""); setCupon(""); setTransaccionId(""); setDeCruzada(""); setParaCruzada(""); setParaCuentaCorriente(""); setInteresTarjeta(0);
+    setDescuentoTipo("porcentaje"); setDescuentoValor(0);
     setCuitBusqueda(""); setEmail(""); setEventoOffline(false); setIsPagoMixto(false); setMontoPago1(0); setMetodoPago2("Tarjeta de Crédito"); setProcesadorTarjeta("Posnet Intercap");
     setMlIdVenta(""); setMlIdEnvio(""); setMlMla(""); setMlDni("");
     setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(6);
@@ -2642,8 +2657,7 @@ export default function VentasMostradorClient({
             </main>
 
             <footer className="bg-white border-t border-slate-200 p-4 md:p-5 flex-shrink-0 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.05)] z-20 relative">
-              <div className="max-w-[1800px] mx-auto flex justify-center">
-                <div className="flex flex-col lg:flex-row items-center lg:items-end gap-10">
+              <div className="max-w-[1800px] mx-auto flex flex-col lg:flex-row items-center lg:items-end justify-between gap-10">
 
                   <div className="flex items-center gap-6 flex-shrink-0">
                     <div className="text-right">
@@ -2659,11 +2673,53 @@ export default function VentasMostradorClient({
                     </div>
                     <div className={`text-right ${interesTarjeta === 0 ? 'hidden select-none' : ''}`}>
                       <span className="text-[10px] font-bold text-black uppercase tracking-wider block mb-0.5">Total con Interés</span>
-                      <span className="text-3xl font-black text-red-600 tracking-tighter">$ {(totalBase * (1 + interesTarjeta / 100)).toLocaleString('es-AR')}</span>
+                      <span className="text-3xl font-black text-red-600 tracking-tighter">$ {(totalConDescuento * (1 + interesTarjeta / 100)).toLocaleString('es-AR')}</span>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 justify-center border-l border-slate-200 pl-10 h-full">
+                  <div className="flex items-center gap-4 flex-shrink-0">
+                    <div className="space-y-1.5 w-36">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-bold text-slate-700">Descuento</Label>
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setDescuentoTipo("porcentaje")}
+                            className={`px-2 py-0.5 text-[10px] font-black transition-colors ${descuentoTipo === "porcentaje" ? "bg-emerald-600 text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
+                          >
+                            %
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDescuentoTipo("monto")}
+                            className={`px-2 py-0.5 text-[10px] font-black transition-colors border-l border-slate-200 ${descuentoTipo === "monto" ? "bg-emerald-600 text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
+                          >
+                            $
+                          </button>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          value={descuentoValor || ""}
+                          onChange={(e) => setDescuentoValor(Math.max(0, Number(e.target.value)))}
+                          placeholder="0"
+                          className="pl-8 h-10 bg-slate-50/50 border-slate-200 font-bold text-emerald-600 focus:bg-white transition-colors"
+                        />
+                        {descuentoTipo === "porcentaje" ? (
+                          <Percent className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                        ) : (
+                          <span className="absolute left-3 top-2 text-sm font-bold text-slate-400">$</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className={`text-right ${montoDescuento === 0 ? 'hidden select-none' : ''}`}>
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider block mb-0.5">Total c/ Descuento</span>
+                      <span className="text-3xl font-black text-emerald-600 tracking-tighter">$ {totalConDescuento.toLocaleString('es-AR')}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 justify-center h-full">
                     <Button variant="ghost" onClick={() => setIsConfirmDiscardOpen(true)} className="text-red-500 hover:bg-red-50 h-12 px-4 rounded-xl hidden sm:flex">
                       <Trash2 className="h-4 w-4 mr-2" /> Descartar
                     </Button>
@@ -2674,7 +2730,6 @@ export default function VentasMostradorClient({
                       {pedidoEnEdicionId ? "Guardar Cambios del Pedido" : "Finalizar Venta"}
                     </Button>
                   </div>
-                </div>
               </div>
             </footer>
           </TabsContent>
@@ -3758,7 +3813,7 @@ export default function VentasMostradorClient({
                     checked={isPagoMixto}
                     onChange={(e) => {
                       setIsPagoMixto(e.target.checked);
-                      if (e.target.checked && montoPago1 === 0) setMontoPago1(totalBase / 2);
+                      if (e.target.checked && montoPago1 === 0) setMontoPago1(totalConDescuento / 2);
                     }}
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                   />

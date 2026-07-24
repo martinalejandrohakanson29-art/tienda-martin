@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Search, ChevronLeft, Loader2, Minus, Plus, Package, CheckCircle2 } from "lucide-react"
+import { Search, ChevronLeft, Loader2, Minus, Plus, Package, CheckCircle2, Check, ArrowRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import {
@@ -107,7 +107,7 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
     setArticulo(null)
   }
 
-  async function guardarConteo(esConteoFinal: boolean) {
+  async function guardarConteo(avanzarAOtroArticulo: boolean) {
     if (!sesionId || !articulo) return
     setGuardando(true)
     const res = await registrarConteoStock({
@@ -115,7 +115,6 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
       articuloId: articulo.id,
       cantidad,
       comentario,
-      esConteoFinal,
     })
     setGuardando(false)
 
@@ -124,11 +123,11 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
       return
     }
 
-    if (esConteoFinal) {
+    if (avanzarAOtroArticulo) {
       setMensaje(`Contado: ${articulo.nombre} — ${cantidad} u.`)
       volverAArticulos()
     } else {
-      setMensaje(`Guardado parcial: ${cantidad} u.${comentario ? ` (${comentario})` : ""}`)
+      setMensaje(`Guardado: ${cantidad} u.${comentario ? ` (${comentario})` : ""}`)
       setCantidad(0)
       setComentario("")
     }
@@ -246,7 +245,7 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
             <p className="text-sm text-slate-400">Stock en sistema: {articulo.stock}</p>
           </div>
 
-          <div className="flex items-center justify-center gap-4 mb-4">
+          <div className="flex items-center justify-center gap-3 mb-2">
             <button
               onClick={() => setCantidad((c) => Math.max(0, c - 1))}
               className="h-16 w-16 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center active:scale-95 transition-transform"
@@ -259,7 +258,7 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
               inputMode="numeric"
               value={cantidad}
               onChange={(e) => setCantidad(Math.max(0, Number(e.target.value.replace(/[^0-9]/g, "")) || 0))}
-              className="h-16 w-28 text-center text-3xl font-bold rounded-2xl bg-white dark:bg-slate-900"
+              className="h-16 w-24 text-center text-3xl font-bold rounded-2xl bg-white dark:bg-slate-900"
             />
 
             <button
@@ -268,7 +267,23 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
             >
               <Plus className="h-7 w-7 text-white" />
             </button>
+
+            <button
+              onClick={() => guardarConteo(false)}
+              disabled={guardando}
+              aria-label="Guardar y cargar otra ubicación"
+              className="h-16 w-16 rounded-2xl bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-md shadow-emerald-500/30 active:scale-95 transition-transform disabled:opacity-60"
+            >
+              {guardando ? (
+                <Loader2 className="h-7 w-7 text-white animate-spin" />
+              ) : (
+                <Check className="h-8 w-8 text-white" strokeWidth={3} />
+              )}
+            </button>
           </div>
+          <p className="text-xs text-slate-400 text-center mb-6">
+            El ✓ guarda esta cantidad y queda el mismo artículo para cargar otra ubicación
+          </p>
 
           <div className="mb-6">
             <label className="text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5 block">
@@ -285,34 +300,20 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
           <div className="mt-auto">
             <div className="flex flex-col gap-2 pb-4">
               <Button
-                onClick={() => guardarConteo(false)}
-                disabled={guardando}
-                variant="outline"
-                className="h-12 rounded-xl text-base font-semibold border-slate-300 dark:border-slate-700"
-              >
-                {guardando ? <Loader2 className="h-5 w-5 animate-spin" /> : "Ingreso parcial"}
-              </Button>
-              <p className="text-xs text-slate-400 text-center px-2">
-                Guarda esta cantidad y queda el mismo artículo para cargar otra ubicación
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 py-3">
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-              <span className="text-[11px] uppercase tracking-wide text-slate-400 font-bold">o bien</span>
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-            </div>
-
-            <div className="flex flex-col gap-2 pb-4">
-              <Button
                 onClick={() => guardarConteo(true)}
                 disabled={guardando}
-                className="h-14 rounded-xl text-base font-semibold bg-[#2b8cee] hover:bg-[#2b8cee]/90"
+                className="h-14 rounded-xl text-base font-semibold bg-[#2b8cee] hover:bg-[#2b8cee]/90 gap-2"
               >
-                {guardando ? <Loader2 className="h-5 w-5 animate-spin" /> : "Finalizar conteo de este artículo"}
+                {guardando ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <>
+                    Continuar con otro artículo <ArrowRight className="h-5 w-5" />
+                  </>
+                )}
               </Button>
               <p className="text-xs text-slate-400 text-center px-2">
-                Guarda y pasa a buscar el próximo artículo a contar
+                Guarda esta cantidad y vuelve al buscador de artículos
               </p>
             </div>
           </div>

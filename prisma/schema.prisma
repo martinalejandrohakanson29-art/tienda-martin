@@ -767,7 +767,6 @@ model ControlStockEntrada {
   articulo   ArticuloMostrador  @relation(fields: [articuloId], references: [id], onDelete: Cascade)
   cantidad   Int
   comentario String?
-  esConteoFinal Boolean         @default(false)
   contadoPor String
   createdAt  DateTime           @default(now())
 

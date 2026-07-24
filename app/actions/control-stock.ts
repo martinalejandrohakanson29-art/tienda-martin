@@ -67,12 +67,11 @@ export async function registrarConteoStock(params: {
   articuloId: string
   cantidad: number
   comentario?: string
-  esConteoFinal: boolean
 }) {
   const session = await getServerSession(authOptions)
   if (!session) return { success: false, error: "No autorizado" }
 
-  const { sesionId, articuloId, cantidad, comentario, esConteoFinal } = params
+  const { sesionId, articuloId, cantidad, comentario } = params
 
   if (!Number.isFinite(cantidad) || cantidad < 0) {
     return { success: false, error: "La cantidad contada no es válida." }
@@ -85,7 +84,6 @@ export async function registrarConteoStock(params: {
         articuloId,
         cantidad,
         comentario: comentario?.trim() || null,
-        esConteoFinal,
         contadoPor: (session.user as any)?.name || "desconocido",
       },
     })

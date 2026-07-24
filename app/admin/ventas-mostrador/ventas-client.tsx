@@ -7,7 +7,7 @@ import {
   Calendar as CalendarIcon, ClipboardList, CheckCircle2, AlertTriangle, Clock,
   RefreshCcw, Copy, Square, CheckSquare, Percent, Edit, History, Save, Printer, CheckCircle,
   ChevronDown, ArrowLeft, X, Package, BellRing, Bell, ArrowRightLeft,
-  Maximize2, Camera, ImageOff, FileDown, Check, RotateCcw
+  Maximize2, Camera, ImageOff, FileDown, Check, RotateCcw, EyeOff
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -34,7 +34,7 @@ import {
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA,
   exportarVentasListadoParaExcel, revertirVentaAPedido, actualizarPedidoVenta,
 } from "@/app/actions/ventas-mostrador";
-import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor } from "@/app/actions/listas";
+import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor, toggleOcultarArticulo } from "@/app/actions/listas";
 import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
 import { obtenerFotosPedido, obtenerPedidosConFoto } from "@/app/actions/preparacion-pedidos";
 import { consultarPadron } from "@/app/actions/afip";
@@ -208,6 +208,7 @@ export default function VentasMostradorClient({
   // en el buscador, solo afecta el precio de esta venta puntual y nunca se guarda en la base de datos.
   const [marcacionItemEditId, setMarcacionItemEditId] = useState<string | null>(null);
   const [marcacionItemTemp, setMarcacionItemTemp] = useState<string>("");
+  const [ocultandoArticuloId, setOcultandoArticuloId] = useState<string | null>(null);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
   const [isGuardarComoPedido, setIsGuardarComoPedido] = useState(false);
@@ -780,6 +781,13 @@ export default function VentasMostradorClient({
   // Convierte lo tipeado en el input de precio (con puntos de miles) de vuelta a un número entero.
   const parsearPrecioMiles = (s: string): number => Number(s.replace(/\D/g, '')) || 0;
 
+  // Una fecha de última actualización de precio se considera vieja a partir de los 2 meses.
+  const esActualizacionVieja = (fecha: string): boolean => {
+    const limite = new Date();
+    limite.setMonth(limite.getMonth() - 2);
+    return new Date(fecha) < limite;
+  };
+
   // Marcación real sobre el costo: (precio - costo) / costo * 100
   const calcularMarcacion = (costo?: number, precio?: number): number | null => {
     if (!costo || costo <= 0 || precio == null) return null;
@@ -835,6 +843,20 @@ export default function VentasMostradorClient({
     const nuevoPrecio = calcularPrecioArt(prod.costo, nuevoMargen);
     setPreciosBusquedaOverride(prev => ({ ...prev, [prod.id]: nuevoPrecio }));
     cancelarEdicionMarcacionBusqueda();
+  };
+
+  // Oculta el artículo (mismo efecto que en /admin/listas/articulos-mostrador): al ocultarlo,
+  // ya no debe aparecer en las búsquedas de venta mostrador, así que lo sacamos del estado local.
+  const handleOcultarArticulo = async (e: React.MouseEvent, prod: Articulo) => {
+    e.stopPropagation();
+    setOcultandoArticuloId(prod.id);
+    const res = await toggleOcultarArticulo(prod.id, true);
+    if (res.success) {
+      setArticulos(prev => prev.filter(a => a.id !== prod.id));
+    } else {
+      alert("No se pudo ocultar el artículo: " + res.error);
+    }
+    setOcultandoArticuloId(null);
   };
 
   const iniciarEdicionMarcacionItem = (item: ItemVenta) => {
@@ -2484,7 +2506,7 @@ export default function VentasMostradorClient({
                         <TableRow>
                           <TableHead className="text-[10px] font-bold uppercase py-3">Artículo</TableHead>
                           <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-1 pr-0">Costo</TableHead>
-                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-0 pr-6">Modificado</TableHead>
+                          <TableHead className="text-center text-[10px] font-bold uppercase py-3 pl-0 pr-6">Actualizado</TableHead>
                           <TableHead className="text-center text-[10px] font-bold uppercase py-3 border-l border-slate-200 pl-6">Cant.</TableHead>
                           <TableHead className="text-center text-[10px] font-bold uppercase py-3">Precio Unit.</TableHead>
                           <TableHead className="text-right text-[10px] font-bold uppercase py-3">Subtotal</TableHead>
@@ -2548,10 +2570,12 @@ export default function VentasMostradorClient({
                                 )}
                               </TableCell>
                               <TableCell className="text-center py-3 pl-0 pr-6">
-                                {item.ultimaModificacion && (
-                                  <span className="text-[10px] text-black font-semibold bg-slate-100 px-1.5 py-0.5 rounded" title="Última actualización de precio en DB">
+                                {item.ultimaModificacion ? (
+                                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${esActualizacionVieja(item.ultimaModificacion) ? 'text-red-600 bg-red-50' : 'text-black bg-slate-100'}`} title="Última actualización de precio en DB">
                                     {new Date(item.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                   </span>
+                                ) : (
+                                  <span className="text-red-600 font-black text-sm" title="Sin fecha de actualización">✕</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-center py-3 border-l border-slate-200 pl-6">
@@ -3581,6 +3605,16 @@ export default function VentasMostradorClient({
                         </span>
                       ) : null}
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={ocultandoArticuloId === prod.id}
+                      onClick={(e) => handleOcultarArticulo(e, prod)}
+                      title="Ocultar de ventas"
+                      className="h-8 w-8 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-lg shrink-0"
+                    >
+                      {ocultandoArticuloId === prod.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
+                    </Button>
                   </div>
                 </div>
                 );
@@ -4605,7 +4639,7 @@ export default function VentasMostradorClient({
                       <TableRow>
                         <TableHead>Artículo</TableHead>
                         <TableHead className="text-center pl-1 pr-0">Costo</TableHead>
-                        <TableHead className="text-center pl-0 pr-6">Modificado</TableHead>
+                        <TableHead className="text-center pl-0 pr-6">Actualizado</TableHead>
                         <TableHead className="text-center border-l border-slate-200 pl-6">Cant.</TableHead>
                         <TableHead className="text-center">Precio Unit.</TableHead>
                         <TableHead className="text-right">Subtotal</TableHead>
@@ -4648,10 +4682,12 @@ export default function VentasMostradorClient({
                             )}
                           </TableCell>
                           <TableCell className="text-center pl-0 pr-6">
-                            {item.ultimaModificacion && (
-                              <span className="text-[10px] text-black font-semibold bg-slate-100 px-1.5 py-0.5 rounded" title="Última actualización de precio en DB">
+                            {item.ultimaModificacion ? (
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${esActualizacionVieja(item.ultimaModificacion) ? 'text-red-600 bg-red-50' : 'text-black bg-slate-100'}`} title="Última actualización de precio en DB">
                                 {new Date(item.ultimaModificacion).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                               </span>
+                            ) : (
+                              <span className="text-red-600 font-black text-sm" title="Sin fecha de actualización">✕</span>
                             )}
                           </TableCell>
                           <TableCell className="text-center border-l border-slate-200 pl-6">
@@ -4796,6 +4832,16 @@ export default function VentasMostradorClient({
                         </span>
                       ) : null}
                     </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      disabled={ocultandoArticuloId === prod.id}
+                      onClick={(e) => handleOcultarArticulo(e, prod)}
+                      title="Ocultar de ventas"
+                      className="h-8 w-8 text-slate-300 hover:text-orange-500 hover:bg-orange-50 rounded-lg shrink-0"
+                    >
+                      {ocultandoArticuloId === prod.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <EyeOff className="h-4 w-4" />}
+                    </Button>
                   </div>
                 </div>
                 );

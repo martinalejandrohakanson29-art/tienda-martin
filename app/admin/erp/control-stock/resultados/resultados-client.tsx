@@ -20,6 +20,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
   TableBody,
@@ -70,6 +71,7 @@ interface SesionDetalle {
   finalizadoAt: Date | null
   proveedorNombre: string
   articulos: ArticuloDetalle[]
+  articulosNoContadosConStock: number
 }
 
 function fmtFecha(fecha: Date | string) {
@@ -112,6 +114,7 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
   const [confirmAplicarOpen, setConfirmAplicarOpen] = useState(false)
+  const [llevarACeroNoContados, setLlevarACeroNoContados] = useState(false)
   const [aplicando, setAplicando] = useState(false)
   const [mensaje, setMensaje] = useState<string | null>(null)
 
@@ -149,6 +152,7 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
     setBusquedaArticulo("")
     setDiffFiltro("TODAS")
     setSort({ key: "nombre", dir: "asc" })
+    setLlevarACeroNoContados(false)
     refrescarLista()
   }
 
@@ -207,16 +211,23 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
   async function confirmarAplicar() {
     if (!sesionActual) return
     setAplicando(true)
-    const res = await aplicarConteoStock(sesionActual.id)
+    const res = await aplicarConteoStock(sesionActual.id, { llevarACeroNoContados })
     setAplicando(false)
     setConfirmAplicarOpen(false)
     if (!res.success) {
       alert(res.error || "No se pudo aplicar el control de stock.")
       return
     }
-    setMensaje(`Stock actualizado en ${res.data?.articulosActualizados ?? 0} artículo(s).`)
+    const actualizados = res.data?.articulosActualizados ?? 0
+    const aCero = res.data?.articulosLlevadosACero ?? 0
+    setMensaje(
+      aCero > 0
+        ? `Stock actualizado en ${actualizados} artículo(s) y ${aCero} artículo(s) no contado(s) llevado(s) a 0.`
+        : `Stock actualizado en ${actualizados} artículo(s).`
+    )
+    setLlevarACeroNoContados(false)
     abrirDetalle(sesionActual.id)
-    setTimeout(() => setMensaje(null), 3000)
+    setTimeout(() => setMensaje(null), 4000)
   }
 
   async function confirmarEliminarSesion() {
@@ -641,13 +652,29 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
 
         <ConfirmDialog
           open={confirmAplicarOpen}
-          onOpenChange={setConfirmAplicarOpen}
+          onOpenChange={(open) => { setConfirmAplicarOpen(open); if (!open) setLlevarACeroNoContados(false) }}
           title="Aplicar conteo al stock real"
           description={`Se actualizará el stock de ${sesionActual?.articulos.length ?? 0} artículo(s) según lo contado y quedará registrado en la auditoría de cada artículo. Esta acción no se puede deshacer.`}
           confirmLabel="Aplicar"
           onConfirm={confirmarAplicar}
           isLoading={aplicando}
-        />
+        >
+          {sesionActual && sesionActual.articulosNoContadosConStock > 0 && (
+            <label className="flex items-start gap-3 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-3 py-3 cursor-pointer">
+              <Checkbox
+                checked={llevarACeroNoContados}
+                onCheckedChange={setLlevarACeroNoContados}
+                className="mt-0.5"
+              />
+              <span className="text-sm text-amber-800 dark:text-amber-300">
+                <span className="font-semibold">
+                  Llevar a 0 el stock de {sesionActual.articulosNoContadosConStock} artículo(s) de este proveedor
+                </span>{" "}
+                que quedaron con stock en el sistema pero no se incluyeron en este conteo (probablemente no existan físicamente).
+              </span>
+            </label>
+          )}
+        </ConfirmDialog>
 
         <ConfirmDialog
           open={sesionAEliminar !== null}

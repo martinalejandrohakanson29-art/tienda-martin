@@ -217,6 +217,15 @@ export async function obtenerDetalleSesionConteo(sesionId: string) {
       })
     }
 
+    const articulosNoContadosConStock = await prisma.articuloMostrador.count({
+      where: {
+        proveedorId: sesion.proveedorId,
+        oculto: false,
+        stock: { gt: 0 },
+        id: { notIn: Array.from(articulosMap.keys()) },
+      },
+    })
+
     return {
       success: true,
       data: {
@@ -227,6 +236,7 @@ export async function obtenerDetalleSesionConteo(sesionId: string) {
         finalizadoAt: sesion.finalizadoAt,
         proveedorNombre: sesion.proveedor.nombreFantasia || sesion.proveedor.razonSocial,
         articulos: Array.from(articulosMap.values()),
+        articulosNoContadosConStock,
       },
     }
   } catch (error) {
@@ -295,7 +305,7 @@ export async function eliminarSesionConteo(sesionId: string) {
   }
 }
 
-export async function aplicarConteoStock(sesionId: string) {
+export async function aplicarConteoStock(sesionId: string, opciones?: { llevarACeroNoContados?: boolean }) {
   const session = await getServerSession(authOptions)
   if (!session) return { success: false, error: "No autorizado" }
   const usuario = (session.user as any)?.name || "desconocido"
@@ -325,6 +335,8 @@ export async function aplicarConteoStock(sesionId: string) {
       return { success: false, error: "El conteo no tiene artículos cargados." }
     }
 
+    let articulosLlevadosACero = 0
+
     await prisma.$transaction(async (tx) => {
       for (const [articuloId, cantidadContada] of totales) {
         const articulo = articulosPorId.get(articuloId)!
@@ -344,13 +356,42 @@ export async function aplicarConteoStock(sesionId: string) {
         }
       }
 
+      if (opciones?.llevarACeroNoContados) {
+        const noContados = await tx.articuloMostrador.findMany({
+          where: {
+            proveedorId: sesion.proveedorId,
+            oculto: false,
+            stock: { gt: 0 },
+            id: { notIn: Array.from(totales.keys()) },
+          },
+          select: { id: true, nombre: true, stock: true },
+        })
+
+        for (const articulo of noContados) {
+          await tx.articuloMostrador.update({
+            where: { id: articulo.id },
+            data: { stock: 0 },
+          })
+          await tx.articuloAuditoria.create({
+            data: {
+              articuloId: articulo.id,
+              usuario,
+              accion: "AJUSTE_STOCK_CONTEO",
+              detalle: `Control de stock aplicado: artículo no contado físicamente, stock llevado de ${articulo.stock} a 0.`,
+            },
+          })
+        }
+
+        articulosLlevadosACero = noContados.length
+      }
+
       await tx.controlStockSesion.update({
         where: { id: sesionId },
         data: { estado: "FINALIZADA", finalizadoAt: new Date() },
       })
     })
 
-    return { success: true, data: { articulosActualizados: totales.size } }
+    return { success: true, data: { articulosActualizados: totales.size, articulosLlevadosACero } }
   } catch (error) {
     console.error("Error al aplicar el control de stock:", error)
     return { success: false, error: "No se pudo aplicar el control de stock." }

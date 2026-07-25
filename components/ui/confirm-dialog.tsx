@@ -1,5 +1,6 @@
 "use client"
 
+import type { ReactNode } from "react"
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ interface ConfirmDialogProps {
   variant?: "danger" | "default"
   onConfirm: () => void
   isLoading?: boolean
+  children?: ReactNode
 }
 
 export function ConfirmDialog({
@@ -32,6 +34,7 @@ export function ConfirmDialog({
   variant = "default",
   onConfirm,
   isLoading = false,
+  children,
 }: ConfirmDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -40,6 +43,7 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter className="gap-2 sm:gap-0">
           <Button
             variant="outline"

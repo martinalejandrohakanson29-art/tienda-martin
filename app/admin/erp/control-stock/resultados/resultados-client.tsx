@@ -6,6 +6,8 @@ import {
   ChevronLeft,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   Loader2,
   Pencil,
   Trash2,
@@ -86,6 +88,10 @@ function estadoBadge(estado: string): { label: string; variant: "default" | "sec
   return { label: "En progreso", variant: "default" }
 }
 
+type DiffFiltro = "TODAS" | "FAVOR" | "CONTRA"
+type SortKey = "nombre" | "stock" | "total" | "diferencia"
+type SortDir = "asc" | "desc"
+
 export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIniciales: SesionLite[] }) {
   const [sesiones, setSesiones] = useState<SesionLite[]>(sesionesIniciales)
   const [filtro, setFiltro] = useState<"PENDIENTES" | "FINALIZADA" | "TODAS">("PENDIENTES")
@@ -94,6 +100,10 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
   const [sesionActual, setSesionActual] = useState<SesionDetalle | null>(null)
   const [cargandoDetalle, setCargandoDetalle] = useState<string | null>(null)
   const [expandidos, setExpandidos] = useState<Set<string>>(new Set())
+
+  const [busquedaArticulo, setBusquedaArticulo] = useState("")
+  const [diffFiltro, setDiffFiltro] = useState<DiffFiltro>("TODAS")
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: "nombre", dir: "asc" })
 
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [editCantidad, setEditCantidad] = useState(0)
@@ -136,7 +146,19 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
     setSesionActual(null)
     setEditandoId(null)
     setExpandidos(new Set())
+    setBusquedaArticulo("")
+    setDiffFiltro("TODAS")
+    setSort({ key: "nombre", dir: "asc" })
     refrescarLista()
+  }
+
+  function ordenarPor(key: SortKey) {
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }))
+  }
+
+  function iconoOrden(key: SortKey) {
+    if (sort.key !== key) return <ChevronsUpDown className="h-3 w-3 text-slate-300" />
+    return sort.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
   }
 
   function toggleExpandido(articuloId: string) {
@@ -213,11 +235,51 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
   }
 
   const esFinalizada = sesionActual?.estado === "FINALIZADA"
-  const articulosConDiferencia = sesionActual
-    ? sesionActual.articulos.filter(
-        ({ articulo, entradas }) => entradas.reduce((acc, e) => acc + e.cantidad, 0) !== articulo.stock
-      ).length
-    : 0
+
+  const articulosConDatos = sesionActual
+    ? sesionActual.articulos.map(({ articulo, entradas }) => {
+        const total = entradas.reduce((acc, e) => acc + e.cantidad, 0)
+        const diferencia = total - articulo.stock
+        return { articulo, entradas, total, diferencia }
+      })
+    : []
+
+  const articulosConDiferencia = articulosConDatos.filter((a) => a.diferencia !== 0).length
+
+  const diffStats = articulosConDatos.reduce(
+    (acc, { diferencia }) => {
+      if (diferencia > 0) {
+        acc.favorCount++
+        acc.favorTotal += diferencia
+      } else if (diferencia < 0) {
+        acc.contraCount++
+        acc.contraTotal += diferencia
+      }
+      return acc
+    },
+    { favorCount: 0, favorTotal: 0, contraCount: 0, contraTotal: 0 }
+  )
+
+  const articulosFiltrados = articulosConDatos.filter(({ articulo, diferencia }) => {
+    if (diffFiltro === "FAVOR" && diferencia <= 0) return false
+    if (diffFiltro === "CONTRA" && diferencia >= 0) return false
+    const q = busquedaArticulo.trim().toLowerCase()
+    if (q) {
+      const matchNombre = articulo.nombre.toLowerCase().includes(q)
+      const matchCodigo = (articulo.codigoProveedor || "").toLowerCase().includes(q)
+      if (!matchNombre && !matchCodigo) return false
+    }
+    return true
+  })
+
+  const articulosOrdenados = [...articulosFiltrados].sort((a, b) => {
+    let cmp = 0
+    if (sort.key === "nombre") cmp = a.articulo.nombre.localeCompare(b.articulo.nombre)
+    else if (sort.key === "stock") cmp = a.articulo.stock - b.articulo.stock
+    else if (sort.key === "total") cmp = a.total - b.total
+    else cmp = a.diferencia - b.diferencia
+    return sort.dir === "asc" ? cmp : -cmp
+  })
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#101922]">
@@ -381,20 +443,73 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
             )}
 
             {sesionActual.articulos.length > 0 && (
+              <>
+                <div className="flex flex-wrap gap-3">
+                  <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-lg px-3 py-2">
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">A favor</span>
+                    <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">
+                      {diffStats.favorCount} art. (+{diffStats.favorTotal} u.)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-lg px-3 py-2">
+                    <span className="text-xs font-semibold text-rose-700 dark:text-rose-400">En contra</span>
+                    <span className="text-sm font-bold text-rose-700 dark:text-rose-400">
+                      {diffStats.contraCount} art. ({diffStats.contraTotal} u.)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Input
+                    placeholder="Buscar artículo o código..."
+                    value={busquedaArticulo}
+                    onChange={(e) => setBusquedaArticulo(e.target.value)}
+                    className="max-w-xs h-9"
+                  />
+                  <div className="flex gap-2">
+                    {(["TODAS", "FAVOR", "CONTRA"] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => setDiffFiltro(f)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                          diffFiltro === f
+                            ? "bg-[#2b8cee] text-white border-[#2b8cee]"
+                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800"
+                        }`}
+                      >
+                        {f === "TODAS" ? "Todas" : f === "FAVOR" ? "A favor" : "En contra"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Artículo</TableHead>
-                      <TableHead className="w-[12%]">Stock sistema</TableHead>
-                      <TableHead className="w-[12%] text-right">Total contado</TableHead>
-                      <TableHead className="w-[12%] text-right">Diferencia</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => ordenarPor("nombre")}>
+                        <span className="inline-flex items-center gap-1">Artículo {iconoOrden("nombre")}</span>
+                      </TableHead>
+                      <TableHead className="w-[12%] cursor-pointer select-none" onClick={() => ordenarPor("stock")}>
+                        <span className="inline-flex items-center gap-1">Stock sistema {iconoOrden("stock")}</span>
+                      </TableHead>
+                      <TableHead className="w-[12%] text-right cursor-pointer select-none" onClick={() => ordenarPor("total")}>
+                        <span className="inline-flex items-center justify-end gap-1">Total contado {iconoOrden("total")}</span>
+                      </TableHead>
+                      <TableHead className="w-[12%] text-right cursor-pointer select-none" onClick={() => ordenarPor("diferencia")}>
+                        <span className="inline-flex items-center justify-end gap-1">Diferencia {iconoOrden("diferencia")}</span>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sesionActual.articulos.map(({ articulo, entradas }) => {
-                      const total = entradas.reduce((acc, e) => acc + e.cantidad, 0)
-                      const diferencia = total - articulo.stock
+                    {articulosOrdenados.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center text-slate-400 py-8">
+                          No se encontraron artículos con esos filtros.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {articulosOrdenados.map(({ articulo, entradas, total, diferencia }) => {
                       const expandido = expandidos.has(articulo.id)
                       return (
                         <Fragment key={articulo.id}>
@@ -519,6 +634,7 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
                   </TableBody>
                 </Table>
               </div>
+              </>
             )}
           </div>
         )}

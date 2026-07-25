@@ -16,7 +16,7 @@ export async function iniciarSesionControlStock(proveedorId: string) {
     if (!proveedor) return { success: false, error: "Proveedor no encontrado" }
 
     let sesion = await prisma.controlStockSesion.findFirst({
-      where: { proveedorId, estado: "EN_PROGRESO" },
+      where: { proveedorId, estado: { in: ["EN_PROGRESO", "COMPLETADO"] } },
       orderBy: { createdAt: "desc" },
       include: {
         entradas: {
@@ -34,6 +34,17 @@ export async function iniciarSesionControlStock(proveedorId: string) {
         },
       })
       sesion = { ...nueva, entradas: [] }
+    } else if (sesion.estado === "COMPLETADO") {
+      sesion = await prisma.controlStockSesion.update({
+        where: { id: sesion.id },
+        data: { estado: "EN_PROGRESO" },
+        include: {
+          entradas: {
+            orderBy: { createdAt: "asc" },
+            select: { id: true, articuloId: true, cantidad: true, comentario: true, createdAt: true },
+          },
+        },
+      })
     }
 
     return {

@@ -55,6 +55,7 @@ interface SesionActivaLite {
   id: string
   proveedorId: string
   proveedorNombre: string
+  estado: string
   iniciadoPor: string
   createdAt: string | Date
   totalArticulos: number
@@ -136,7 +137,7 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
     setCargandoInicio(true)
     const res = await obtenerSesionesConteo()
     if (res.success) {
-      setSesionesActivas((res.data as any[]).filter((s) => s.estado === "EN_PROGRESO") as SesionActivaLite[])
+      setSesionesActivas((res.data as any[]).filter((s) => s.estado !== "FINALIZADA") as SesionActivaLite[])
     }
     setCargandoInicio(false)
   }
@@ -205,7 +206,7 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
 
   async function finalizarConteo() {
     if (!sesionId || !proveedor) return
-    if (!confirm(`¿Dar por finalizado el conteo de ${proveedor.nombre}? Va a dejar de aparecer como conteo activo para sumarse.`)) {
+    if (!confirm(`¿Dar por finalizado el conteo de ${proveedor.nombre}? Va a quedar marcado como finalizado a la espera de que se aplique al stock, pero vas a poder reabrirlo si hace falta corregir algo.`)) {
       return
     }
     setFinalizando(true)
@@ -334,7 +335,14 @@ export function ControlStockClient({ proveedoresIniciales }: { proveedoresInicia
               >
                 <ClipboardList className="h-5 w-5 text-[#2b8cee] shrink-0" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">{s.proveedorNombre}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">{s.proveedorNombre}</p>
+                    {s.estado === "COMPLETADO" && (
+                      <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-400 rounded-full px-2 py-0.5">
+                        Finalizado
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Iniciado por {s.iniciadoPor} · {fmtFecha(s.createdAt)} · {s.totalArticulos} artículo(s)
                   </p>

@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth-guard"
 import { recalcularSaldosProveedorConBase, revertirMovimientoEnLedger } from "@/lib/proveedor-ledger"
 import { triggerNotification } from "@/lib/notify"
 import { revalidatePath } from "next/cache";
+import { ajustarStockPorVentaOCompraTx } from "@/lib/packs-stock"
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
@@ -24,18 +25,6 @@ async function upsertCostosML(tx: TxClient, prodId: string, item: any, costoEnAr
     update: { costo_usd: item.costo_unit, es_dolar: true, costo_final_ars: costoEnArs * fob, fecha_actualizacion: new Date() },
     create: { id_articulo: prodId, descripcion: item.nombre, costo_usd: item.costo_unit, es_dolar: true, costo_final_ars: costoEnArs * fob }
   })
-}
-
-async function syncPackStock(tx: TxClient, packId: string, packItems: { componenteId: string; cantidad: number }[]) {
-  const componentes = await tx.articuloMostrador.findMany({
-    where: { id: { in: packItems.map(p => p.componenteId) } },
-    select: { id: true, stock: true },
-  });
-  const stockMap = new Map(componentes.map(c => [c.id, c.stock]));
-  const stockPack = Math.min(
-    ...packItems.map(p => Math.floor((stockMap.get(p.componenteId) ?? 0) / p.cantidad))
-  );
-  await tx.articuloMostrador.update({ where: { id: packId }, data: { stock: stockPack } });
 }
 
 export async function obtenerTodosLosArticulos() {
@@ -357,26 +346,7 @@ export async function confirmarPedidoCompra(compraId: string, data?: { impactarC
       for (const item of pedidoActual.items) {
         const prodId = item.productoId;
         if (!prodId) continue;
-
-        const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: prodId },
-          include: { packItems: true }
-        });
-
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.update({
-              where: { id: packItem.componenteId },
-              data: { stock: { increment: packItem.cantidad * item.cantidad } }
-            });
-          }
-          await syncPackStock(tx, prodId, articuloBase.packItems);
-        } else {
-          await tx.articuloMostrador.update({
-            where: { id: prodId },
-            data: { stock: { increment: item.cantidad } }
-          });
-        }
+        await ajustarStockPorVentaOCompraTx(tx, [{ articuloId: prodId, cantidad: item.cantidad, nombreHint: item.nombre }], "increment");
       }
 
       if (data && data.items && data.impactarCostos) {
@@ -555,24 +525,7 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
       if (oldCompra?.tipoCompra === "CONFIRMADA") {
         for (const oldItem of oldItems) {
           if (oldItem.productoId) {
-            const articuloBase = await tx.articuloMostrador.findUnique({
-              where: { id: oldItem.productoId },
-              include: { packItems: true }
-            });
-            if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-              for (const packItem of articuloBase.packItems) {
-                await tx.articuloMostrador.update({
-                  where: { id: packItem.componenteId },
-                  data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
-                });
-              }
-              await syncPackStock(tx, oldItem.productoId, articuloBase.packItems);
-            } else {
-              await tx.articuloMostrador.update({
-                where: { id: oldItem.productoId },
-                data: { stock: { decrement: oldItem.cantidad } }
-              });
-            }
+            await ajustarStockPorVentaOCompraTx(tx, [{ articuloId: oldItem.productoId, cantidad: oldItem.cantidad, nombreHint: oldItem.nombre }], "decrement");
           }
         }
       }
@@ -617,20 +570,13 @@ export async function actualizarPedidoCompra(compraId: string, data: any, usuari
         const prodId = newItem.productoId || newItem.id;
         if (!prodId) continue;
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: prodId },
-          include: { packItems: true }
+          where: { id: prodId }
         });
 
         // Solo aplicar stock si el pedido ya estaba confirmado (la mercadería ya había llegado)
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+        if (articuloBase?.esPack) {
           if (oldCompra?.tipoCompra === "CONFIRMADA") {
-            for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.update({
-                where: { id: packItem.componenteId },
-                data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
-              });
-            }
-            await syncPackStock(tx, prodId, articuloBase.packItems);
+            await ajustarStockPorVentaOCompraTx(tx, [{ articuloId: prodId, cantidad: newItem.cantidad, nombreHint: newItem.nombre }], "increment");
           }
         } else {
           const updateData: any = {};
@@ -748,24 +694,7 @@ export async function eliminarPedidoCompra(compraId: string) {
       if (compra.tipoCompra !== "PEDIDO") {
         for (const item of compra.items) {
           if (item.productoId) {
-            const articuloBase = await tx.articuloMostrador.findUnique({
-              where: { id: item.productoId },
-              include: { packItems: true }
-            });
-            if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-              for (const packItem of articuloBase.packItems) {
-                await tx.articuloMostrador.update({
-                  where: { id: packItem.componenteId },
-                  data: { stock: { decrement: packItem.cantidad * item.cantidad } }
-                });
-              }
-              await syncPackStock(tx, item.productoId, articuloBase.packItems);
-            } else {
-              await tx.articuloMostrador.update({
-                where: { id: item.productoId },
-                data: { stock: { decrement: item.cantidad } }
-              });
-            }
+            await ajustarStockPorVentaOCompraTx(tx, [{ articuloId: item.productoId, cantidad: item.cantidad, nombreHint: item.nombre }], "decrement");
           }
         }
       }
@@ -845,18 +774,11 @@ export async function crearCompra(data: {
         if (!prodId) continue;
 
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: prodId },
-          include: { packItems: true }
+          where: { id: prodId }
         });
 
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-          for (const packItem of articuloBase.packItems) {
-            await tx.articuloMostrador.update({
-              where: { id: packItem.componenteId },
-              data: { stock: { increment: packItem.cantidad * item.cantidad } }
-            });
-          }
-          await syncPackStock(tx, prodId, articuloBase.packItems);
+        if (articuloBase?.esPack) {
+          await ajustarStockPorVentaOCompraTx(tx, [{ articuloId: prodId, cantidad: item.cantidad, nombreHint: item.nombre }], "increment");
         } else {
           const updateData: any = { stock: { increment: item.cantidad } };
           const margen = item.margenGanancia ?? 50;
@@ -1004,24 +926,7 @@ export async function actualizarCompra(compraId: string, data: {
       if (oldCompra?.tipoCompra !== "PEDIDO") {
         for (const oldItem of oldItems) {
           if (oldItem.productoId) {
-            const articuloBase = await tx.articuloMostrador.findUnique({
-              where: { id: oldItem.productoId },
-              include: { packItems: true }
-            });
-            if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-              for (const packItem of articuloBase.packItems) {
-                await tx.articuloMostrador.update({
-                  where: { id: packItem.componenteId },
-                  data: { stock: { decrement: packItem.cantidad * oldItem.cantidad } }
-                });
-              }
-              await syncPackStock(tx, oldItem.productoId, articuloBase.packItems);
-            } else {
-              await tx.articuloMostrador.update({
-                where: { id: oldItem.productoId },
-                data: { stock: { decrement: oldItem.cantidad } }
-              });
-            }
+            await ajustarStockPorVentaOCompraTx(tx, [{ articuloId: oldItem.productoId, cantidad: oldItem.cantidad, nombreHint: oldItem.nombre }], "decrement");
           }
         }
       }
@@ -1102,19 +1007,12 @@ export async function actualizarCompra(compraId: string, data: {
         const prodId = newItem.productoId || newItem.id;
         if (!prodId) continue;
         const articuloBase = await tx.articuloMostrador.findUnique({
-          where: { id: prodId },
-          include: { packItems: true }
+          where: { id: prodId }
         });
         // Solo incrementar stock si era una compra confirmada
-        if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
+        if (articuloBase?.esPack) {
           if (oldCompra?.tipoCompra !== "PEDIDO") {
-            for (const packItem of articuloBase.packItems) {
-              await tx.articuloMostrador.update({
-                where: { id: packItem.componenteId },
-                data: { stock: { increment: packItem.cantidad * newItem.cantidad } }
-              });
-            }
-            await syncPackStock(tx, prodId, articuloBase.packItems);
+            await ajustarStockPorVentaOCompraTx(tx, [{ articuloId: prodId, cantidad: newItem.cantidad, nombreHint: newItem.nombre }], "increment");
           }
         } else {
           const updateData: any = {};
@@ -1184,24 +1082,7 @@ export async function eliminarCompra(compraId: string, usuario: string) {
       if (compra.tipoCompra !== "PEDIDO") {
         for (const item of compra.items) {
           if (item.productoId) {
-            const articuloBase = await tx.articuloMostrador.findUnique({
-              where: { id: item.productoId },
-              include: { packItems: true }
-            });
-            if (articuloBase?.esPack && articuloBase.packItems.length > 0) {
-              for (const packItem of articuloBase.packItems) {
-                await tx.articuloMostrador.update({
-                  where: { id: packItem.componenteId },
-                  data: { stock: { decrement: packItem.cantidad * item.cantidad } }
-                });
-              }
-              await syncPackStock(tx, item.productoId, articuloBase.packItems);
-            } else {
-              await tx.articuloMostrador.update({
-                where: { id: item.productoId },
-                data: { stock: { decrement: item.cantidad } }
-              });
-            }
+            await ajustarStockPorVentaOCompraTx(tx, [{ articuloId: item.productoId, cantidad: item.cantidad, nombreHint: item.nombre }], "decrement");
           }
         }
       }

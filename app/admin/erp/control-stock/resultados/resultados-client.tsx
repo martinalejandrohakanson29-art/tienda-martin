@@ -220,10 +220,14 @@ export function ControlStockResultadosClient({ sesionesIniciales }: { sesionesIn
     }
     const actualizados = res.data?.articulosActualizados ?? 0
     const aCero = res.data?.articulosLlevadosACero ?? 0
+    const packsOmitidos = res.data?.articulosPackOmitidos ?? 0
     setMensaje(
-      aCero > 0
-        ? `Stock actualizado en ${actualizados} artículo(s) y ${aCero} artículo(s) no contado(s) llevado(s) a 0.`
-        : `Stock actualizado en ${actualizados} artículo(s).`
+      [
+        aCero > 0
+          ? `Stock actualizado en ${actualizados} artículo(s) y ${aCero} artículo(s) no contado(s) llevado(s) a 0.`
+          : `Stock actualizado en ${actualizados} artículo(s).`,
+        packsOmitidos > 0 ? `${packsOmitidos} pack(s) omitido(s): su stock se calcula solo a partir de sus componentes.` : null,
+      ].filter(Boolean).join(" ")
     )
     setLlevarACeroNoContados(false)
     abrirDetalle(sesionActual.id)

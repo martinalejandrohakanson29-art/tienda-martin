@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
+import { propagarHaciaArribaTx } from "@/lib/packs-stock"
 
 export async function iniciarSesionControlStock(proveedorId: string) {
   const session = await getServerSession(authOptions)
@@ -65,7 +66,7 @@ export async function iniciarSesionControlStock(proveedorId: string) {
 export async function obtenerArticulosPorProveedor(proveedorId: string) {
   try {
     const articulos = await prisma.articuloMostrador.findMany({
-      where: { proveedorId, oculto: false },
+      where: { proveedorId, oculto: false, esPack: false },
       orderBy: { nombre: "asc" },
       select: {
         id: true,
@@ -315,7 +316,7 @@ export async function aplicarConteoStock(sesionId: string, opciones?: { llevarAC
       where: { id: sesionId },
       include: {
         entradas: {
-          include: { articulo: { select: { id: true, nombre: true, stock: true } } },
+          include: { articulo: { select: { id: true, nombre: true, stock: true, esPack: true } } },
         },
       },
     })
@@ -325,7 +326,7 @@ export async function aplicarConteoStock(sesionId: string, opciones?: { llevarAC
     }
 
     const totales = new Map<string, number>()
-    const articulosPorId = new Map<string, { id: string; nombre: string; stock: number }>()
+    const articulosPorId = new Map<string, { id: string; nombre: string; stock: number; esPack: boolean | null }>()
     for (const e of sesion.entradas) {
       totales.set(e.articuloId, (totales.get(e.articuloId) || 0) + e.cantidad)
       articulosPorId.set(e.articuloId, e.articulo)
@@ -336,10 +337,18 @@ export async function aplicarConteoStock(sesionId: string, opciones?: { llevarAC
     }
 
     let articulosLlevadosACero = 0
+    let articulosPackOmitidos = 0
+    const articulosHojaTocados: string[] = []
 
     await prisma.$transaction(async (tx) => {
       for (const [articuloId, cantidadContada] of totales) {
         const articulo = articulosPorId.get(articuloId)!
+        // Un pack no se cuenta a mano: su stock es un valor derivado de sus
+        // propios componentes, no un contador físico.
+        if (articulo.esPack) {
+          articulosPackOmitidos++
+          continue
+        }
         if (articulo.stock !== cantidadContada) {
           await tx.articuloMostrador.update({
             where: { id: articuloId },
@@ -353,6 +362,7 @@ export async function aplicarConteoStock(sesionId: string, opciones?: { llevarAC
               detalle: `Control de stock aplicado: de ${articulo.stock} a ${cantidadContada} unidades.`,
             },
           })
+          articulosHojaTocados.push(articuloId)
         }
       }
 
@@ -361,6 +371,7 @@ export async function aplicarConteoStock(sesionId: string, opciones?: { llevarAC
           where: {
             proveedorId: sesion.proveedorId,
             oculto: false,
+            esPack: false,
             stock: { gt: 0 },
             id: { notIn: Array.from(totales.keys()) },
           },
@@ -380,9 +391,14 @@ export async function aplicarConteoStock(sesionId: string, opciones?: { llevarAC
               detalle: `Control de stock aplicado: artículo no contado físicamente, stock llevado de ${articulo.stock} a 0.`,
             },
           })
+          articulosHojaTocados.push(articulo.id)
         }
 
         articulosLlevadosACero = noContados.length
+      }
+
+      if (articulosHojaTocados.length > 0) {
+        await propagarHaciaArribaTx(tx, articulosHojaTocados)
       }
 
       await tx.controlStockSesion.update({
@@ -391,7 +407,7 @@ export async function aplicarConteoStock(sesionId: string, opciones?: { llevarAC
       })
     })
 
-    return { success: true, data: { articulosActualizados: totales.size, articulosLlevadosACero } }
+    return { success: true, data: { articulosActualizados: totales.size - articulosPackOmitidos, articulosLlevadosACero, articulosPackOmitidos } }
   } catch (error) {
     console.error("Error al aplicar el control de stock:", error)
     return { success: false, error: "No se pudo aplicar el control de stock." }

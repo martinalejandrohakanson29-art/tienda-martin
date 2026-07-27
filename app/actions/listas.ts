@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import * as XLSX from "xlsx"
+import { validarComponentesSinCicloTx, recalcularStockYCostoPackTx, propagarHaciaArribaTx } from "@/lib/packs-stock"
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
 
@@ -483,6 +484,7 @@ export async function crearPackMostrador(data: { id: string, nombre: string, pre
       });
 
       if (data.componentes && data.componentes.length > 0) {
+        await validarComponentesSinCicloTx(tx, pack.id, data.componentes.map(c => c.id));
         await tx.packMostradorItem.createMany({
           data: data.componentes.map(c => ({
             packId: pack.id,
@@ -490,13 +492,14 @@ export async function crearPackMostrador(data: { id: string, nombre: string, pre
             cantidad: c.cantidad
           }))
         });
+        await recalcularStockYCostoPackTx(tx, pack.id);
       }
       return pack;
     });
     return { success: true, data: result };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error al crear pack:", error);
-    return { success: false, error: "No se pudo crear el pack" };
+    return { success: false, error: error.message || "No se pudo crear el pack" };
   }
 }
 
@@ -523,6 +526,10 @@ export async function eliminarPack(id: string) {
 export async function actualizarPack(id: string, nombre: string, precio: number, componentes: { id: string, nombre: string, cantidad: number }[]) {
   try {
     const result = await prisma.$transaction(async (tx) => {
+      if (componentes && componentes.length > 0) {
+        await validarComponentesSinCicloTx(tx, id, componentes.map(c => c.id));
+      }
+
       // Actualizar el pack
       await tx.articuloMostrador.update({
         where: { id },
@@ -548,6 +555,10 @@ export async function actualizarPack(id: string, nombre: string, precio: number,
         });
       }
 
+      await recalcularStockYCostoPackTx(tx, id);
+      // Por si este pack es a su vez componente de otro pack (nesting).
+      await propagarHaciaArribaTx(tx, [id]);
+
       return await tx.articuloMostrador.findUnique({
         where: { id },
         include: {
@@ -560,9 +571,62 @@ export async function actualizarPack(id: string, nombre: string, precio: number,
       });
     });
     return { success: true, data: result };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error al actualizar pack:", error);
-    return { success: false, error: "No se pudo actualizar el pack" };
+    return { success: false, error: error.message || "No se pudo actualizar el pack" };
+  }
+}
+
+export async function convertirArticuloEnPack(
+  id: string,
+  nombre: string,
+  precio: number,
+  componentes: { id: string, nombre: string, cantidad: number }[],
+) {
+  try {
+    if (!componentes || componentes.length === 0) {
+      return { success: false, error: "Debés indicar al menos un componente." };
+    }
+    const result = await prisma.$transaction(async (tx) => {
+      const articulo = await tx.articuloMostrador.findUnique({ where: { id } });
+      if (!articulo) throw new Error("Artículo no encontrado.");
+      if (articulo.esPack) throw new Error("El artículo ya es un pack.");
+
+      await validarComponentesSinCicloTx(tx, id, componentes.map(c => c.id));
+
+      await tx.articuloMostrador.update({
+        where: { id },
+        data: { nombre, precio, esPack: true }
+      });
+      await tx.packMostradorItem.createMany({
+        data: componentes.map(c => ({
+          packId: id,
+          componenteId: c.id,
+          cantidad: c.cantidad
+        }))
+      });
+
+      await recalcularStockYCostoPackTx(tx, id);
+      // Clave para no romper "hacia arriba": los packs que ya tenían a este
+      // artículo como componente dejan de asumir que es un artículo simple y
+      // recalculan su stock/costo a partir de los componentes nuevos.
+      await propagarHaciaArribaTx(tx, [id]);
+
+      return await tx.articuloMostrador.findUnique({
+        where: { id },
+        include: {
+          packItems: {
+            include: {
+              componente: true
+            }
+          }
+        }
+      });
+    });
+    return { success: true, data: result };
+  } catch (error: any) {
+    console.error("Error al convertir artículo en pack:", error);
+    return { success: false, error: error.message || "No se pudo convertir el artículo en pack." };
   }
 }
 // --- FUNCIONES PARA GESTIÓN DE PROVEEDORES ---

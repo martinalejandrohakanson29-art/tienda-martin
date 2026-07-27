@@ -16,6 +16,7 @@ import { z } from "zod"
 import { requireAdmin } from "@/lib/auth-guard"
 import { revertirMovimientoEnLedger } from "@/lib/proveedor-ledger"
 import { triggerNotification } from "@/lib/notify"
+import { ajustarStockPorVentaOCompraTx } from "@/lib/packs-stock"
 
 // ─── Tipos compartidos ────────────────────────────────────────────────────────
 
@@ -177,50 +178,13 @@ async function ajustarStockItemsTx(
   items: StockItem[],
   modo: "decrement" | "increment",
 ) {
+  const itemsValidos: { articuloId: string; cantidad: number; nombreHint?: string }[] = [];
   for (const item of items) {
     const articuloId = item.productoId || item.id;
     if (!articuloId) continue;
-    const articuloBase = await tx.articuloMostrador.findUnique({
-      where: { id: articuloId },
-      include: { packItems: true },
-    });
-    if (!articuloBase) {
-      const nombre = item.nombre ? `"${item.nombre}"` : `ID "${articuloId}"`;
-      throw new Error(`Artículo ${nombre} no encontrado en el sistema. Revisá el mapeo de artículos en la receta.`);
-    }
-    if (articuloBase.esPack && articuloBase.packItems.length > 0) {
-      for (const packItem of articuloBase.packItems) {
-        const componente = await tx.articuloMostrador.findUnique({
-          where: { id: packItem.componenteId },
-          select: { id: true, nombre: true },
-        });
-        if (!componente) {
-          throw new Error(`Componente del pack "${articuloBase.nombre}" no encontrado: ID "${packItem.componenteId}". Revisá la composición del pack.`);
-        }
-        await tx.articuloMostrador.update({
-          where: { id: packItem.componenteId },
-          data: { stock: { [modo]: packItem.cantidad * item.cantidad } },
-        });
-      }
-      const componentesActualizados = await tx.articuloMostrador.findMany({
-        where: { id: { in: articuloBase.packItems.map(p => p.componenteId) } },
-        select: { id: true, stock: true },
-      });
-      const stockMap = new Map(componentesActualizados.map(c => [c.id, c.stock]));
-      const stockPack = Math.min(
-        ...articuloBase.packItems.map(p => Math.floor((stockMap.get(p.componenteId) ?? 0) / p.cantidad))
-      );
-      await tx.articuloMostrador.update({
-        where: { id: articuloId },
-        data: { stock: stockPack },
-      });
-    } else {
-      await tx.articuloMostrador.update({
-        where: { id: articuloId },
-        data: { stock: { [modo]: item.cantidad } },
-      });
-    }
+    itemsValidos.push({ articuloId, cantidad: item.cantidad, nombreHint: item.nombre });
   }
+  await ajustarStockPorVentaOCompraTx(tx, itemsValidos, modo);
 }
 
 export async function obtenerTodosLosArticulos(soloOcultos: boolean = false) {

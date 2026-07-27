@@ -216,6 +216,13 @@ export default function VentasMostradorClient({
   // en el buscador, solo afecta el precio de esta venta puntual y nunca se guarda en la base de datos.
   const [marcacionItemEditId, setMarcacionItemEditId] = useState<string | null>(null);
   const [marcacionItemTemp, setMarcacionItemTemp] = useState<string>("");
+
+  // Edición "en crudo" del precio unitario en el listado de artículos ya agregados: mientras se
+  // tipea se guarda el texto tal cual (sin redondear a $50 en cada tecla), porque redondear en
+  // cada onChange pisaba lo que el usuario estaba escribiendo y parecía que no dejaba editar.
+  // El redondeo se aplica recién al confirmar (blur / Enter).
+  const [precioItemEditId, setPrecioItemEditId] = useState<string | null>(null);
+  const [precioItemTemp, setPrecioItemTemp] = useState<string>("");
   const [ocultandoArticuloId, setOcultandoArticuloId] = useState<string | null>(null);
   const [isFinalizarModalOpen, setIsFinalizarModalOpen] = useState(false);
   const [isConfirmDiscardOpen, setIsConfirmDiscardOpen] = useState(false);
@@ -801,9 +808,6 @@ export default function VentasMostradorClient({
   // Formatea un precio con punto de miles y sin decimales (redondeando al múltiplo de 50 más cercano).
   const formatearPrecioMiles = (n: number): string => redondearA50(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });
 
-  // Convierte lo tipeado en el input de precio (con puntos de miles) de vuelta a un número entero.
-  const parsearPrecioMiles = (s: string): number => Number(s.replace(/\D/g, '')) || 0;
-
   // Una fecha de última actualización de precio se considera vieja a partir de los 2 meses.
   const esActualizacionVieja = (fecha: string): boolean => {
     const limite = new Date();
@@ -917,6 +921,20 @@ export default function VentasMostradorClient({
     const nuevoPrecio = calcularPrecioArt(item.costo, nuevoMargen);
     setList(prev => prev.map(i => i.id === item.id ? { ...i, precio_unit: nuevoPrecio, subtotal: i.cantidad * nuevoPrecio } : i));
     cancelarEdicionMarcacionItem();
+  };
+
+  const iniciarEdicionPrecioItem = (item: ItemVenta) => {
+    setPrecioItemEditId(item.id);
+    setPrecioItemTemp(String(redondearA50(item.precio_unit)));
+  };
+
+  // Confirma el precio unitario tipeado "en crudo" en precioItemTemp: recién acá se redondea a
+  // $50 y se aplica al ítem. Se usa tanto en "Registrar Venta" (setItems) como en edición (setEditItems).
+  const guardarPrecioItem = (item: ItemVenta, setList: React.Dispatch<React.SetStateAction<ItemVenta[]>>) => {
+    const nuevoPrecio = redondearA50(Number(precioItemTemp) || 0);
+    setList(prev => prev.map(i => i.id === item.id ? { ...i, precio_unit: nuevoPrecio, subtotal: i.cantidad * nuevoPrecio } : i));
+    setPrecioItemEditId(null);
+    setPrecioItemTemp("");
   };
 
   const handleCostoArtChange = (val: number) => {
@@ -2651,7 +2669,16 @@ export default function VentasMostradorClient({
                               <TableCell className="text-center py-3">
                                 <div className="flex items-center justify-center gap-1">
                                   <span className="text-slate-400 text-xs ml-1">$</span>
-                                  <Input type="text" inputMode="numeric" value={formatearPrecioMiles(obtenerPrecioItemEnVivo(item))} onChange={(e) => { const val = parsearPrecioMiles(e.target.value); setItems(items.map((i: ItemVenta) => i.id === item.id ? { ...i, precio_unit: val, subtotal: i.cantidad * val } : i)); }} className={`w-20 h-8 ${inputSinFlechas} font-bold text-slate-700`} />
+                                  <Input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={precioItemEditId === item.id ? precioItemTemp : formatearPrecioMiles(obtenerPrecioItemEnVivo(item))}
+                                    onFocus={() => iniciarEdicionPrecioItem(item)}
+                                    onChange={(e) => setPrecioItemTemp(e.target.value.replace(/\D/g, ''))}
+                                    onBlur={() => guardarPrecioItem(item, setItems)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                    className={`w-20 h-8 ${inputSinFlechas} font-bold text-slate-700`}
+                                  />
                                   {marcacionItemEditId === item.id ? (
                                     <input
                                       type="number"
@@ -4837,7 +4864,16 @@ export default function VentasMostradorClient({
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
                               <span className="text-slate-400 text-xs ml-1">$</span>
-                              <Input type="text" inputMode="numeric" value={formatearPrecioMiles(obtenerPrecioItemEnVivo(item))} onChange={(e) => { const val = parsearPrecioMiles(e.target.value); setEditItems(editItems.map(i => i.id === item.id ? { ...i, precio_unit: val, subtotal: i.cantidad * val } : i)); }} className={`w-20 h-8 ${inputSinFlechas} font-bold text-slate-700`} />
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                value={precioItemEditId === item.id ? precioItemTemp : formatearPrecioMiles(obtenerPrecioItemEnVivo(item))}
+                                onFocus={() => iniciarEdicionPrecioItem(item)}
+                                onChange={(e) => setPrecioItemTemp(e.target.value.replace(/\D/g, ''))}
+                                onBlur={() => guardarPrecioItem(item, setEditItems)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                className={`w-20 h-8 ${inputSinFlechas} font-bold text-slate-700`}
+                              />
                               {marcacionItemEditId === item.id ? (
                                 <input
                                   type="number"

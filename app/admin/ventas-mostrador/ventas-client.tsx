@@ -32,7 +32,7 @@ import {
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA,
-  exportarVentasListadoParaExcel, revertirVentaAPedido, actualizarPedidoVenta,
+  exportarVentasListadoParaExcel, revertirVentaAPedido, actualizarPedidoVenta, obtenerTodosLosArticulos,
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor, toggleOcultarArticulo } from "@/app/actions/listas";
 import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
@@ -81,6 +81,7 @@ interface Articulo {
   stock: number;
   ultimaModificacion?: string | null;
   esPack?: boolean;
+  oculto?: boolean;
   costo?: number;
   margenGanancia?: number;
   packItems?: {
@@ -197,6 +198,12 @@ export default function VentasMostradorClient({
   const [showNotaInput, setShowNotaInput] = useState(false);
   const [notaTexto, setNotaTexto] = useState("");
   const [expandirPacks, setExpandirPacks] = useState(true);
+
+  // Búsqueda de artículos en los modales: los ocultos quedan afuera salvo que se tilde
+  // explícitamente, y solo se traen de la BD la primera vez que se activa el filtro.
+  const [incluirOcultos, setIncluirOcultos] = useState(false);
+  const [articulosOcultos, setArticulosOcultos] = useState<Articulo[]>([]);
+  const [ocultosCargados, setOcultosCargados] = useState(false);
 
   // Marcación editable "al vuelo" en los buscadores de artículos: solo afecta el precio con el
   // que se agrega ese artículo a esta venta puntual, nunca se guarda en la base de datos.
@@ -727,10 +734,19 @@ export default function VentasMostradorClient({
     setShowSuccess(true);
   }
 
+  useEffect(() => {
+    if (!incluirOcultos || ocultosCargados) return;
+    obtenerTodosLosArticulos(true).then((data) => {
+      setArticulosOcultos(data as Articulo[]);
+      setOcultosCargados(true);
+    });
+  }, [incluirOcultos, ocultosCargados]);
+
   const searchResults = useMemo(() => {
     if (searchTerm.trim().length < 2) return [];
     const queryWords = searchTerm.toLowerCase().trim().split(/\s+/);
-    return articulos.filter(art => {
+    const base = incluirOcultos ? [...articulos, ...articulosOcultos] : articulos;
+    return base.filter(art => {
       const nombreLower = art.nombre.toLowerCase();
       const idLower = art.id.toLowerCase();
       return queryWords.every(word => {
@@ -741,7 +757,7 @@ export default function VentasMostradorClient({
         return nombreLower.includes(word) || idLower.includes(word);
       });
     }).slice(0, 15);
-  }, [searchTerm, articulos]);
+  }, [searchTerm, articulos, incluirOcultos, articulosOcultos]);
 
   const handleCrearNuevoArticulo = async () => {
     if (!newArtData.id || !newArtData.nombre) {
@@ -3596,14 +3612,24 @@ export default function VentasMostradorClient({
             <div className="p-6 bg-white border-b relative">
               <div className="flex items-center justify-between mb-3">
                 <DialogTitle className="text-lg font-bold text-slate-900 flex items-center gap-2"><Search className="h-4 w-4 text-blue-600" /> Buscador Instantáneo</DialogTitle>
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <Checkbox
-                    checked={expandirPacks}
-                    onCheckedChange={(v) => setExpandirPacks(!!v)}
-                    className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
-                  />
-                  <span className="text-xs font-semibold text-slate-500">Detallar artículos del pack</span>
-                </label>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <Checkbox
+                      checked={incluirOcultos}
+                      onCheckedChange={(v) => setIncluirOcultos(!!v)}
+                      className="data-[state=checked]:bg-slate-600 data-[state=checked]:border-slate-600"
+                    />
+                    <span className="text-xs font-semibold text-slate-500">Incluir ocultos</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <Checkbox
+                      checked={expandirPacks}
+                      onCheckedChange={(v) => setExpandirPacks(!!v)}
+                      className="data-[state=checked]:bg-purple-600 data-[state=checked]:border-purple-600"
+                    />
+                    <span className="text-xs font-semibold text-slate-500">Detallar artículos del pack</span>
+                  </label>
+                </div>
               </div>
               <div className="relative"><Search className="absolute left-4 top-3 h-5 w-5 text-slate-400" /><input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre o ID..." className="flex h-12 w-full rounded-xl border-2 border-slate-100 bg-slate-50 px-12 py-6 text-base outline-none focus:border-blue-500 transition-all" /></div>
             </div>
@@ -3620,6 +3646,7 @@ export default function VentasMostradorClient({
                       <div className="flex items-center gap-3 flex-wrap">
                         <p className="font-bold text-slate-900 leading-tight break-words">
                           {prod.esPack && <span className="bg-purple-100 text-purple-700 text-[10px] font-black px-1.5 py-0.5 rounded border border-purple-200 mr-2 uppercase">Pack</span>}
+                          {prod.oculto && <span className="bg-slate-200 text-slate-600 text-[10px] font-black px-1.5 py-0.5 rounded border border-slate-300 mr-2 uppercase">Oculto</span>}
                           {prod.nombre}
                         </p>
                         <span className={`text-sm font-black px-2 py-0.5 rounded-md border shrink-0 ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
@@ -4848,7 +4875,17 @@ export default function VentasMostradorClient({
         <Dialog open={isSearchEditModalOpen} onOpenChange={(open) => { setIsSearchEditModalOpen(open); if (!open) { setPreciosBusquedaOverride({}); cancelarEdicionMarcacionBusqueda(); } }}>
           <DialogContent className="sm:max-w-[1000px] p-0 overflow-hidden rounded-3xl border-2 border-amber-400 shadow-2xl">
             <div className="p-6 bg-amber-50 border-b border-amber-200">
-              <DialogTitle className="text-lg font-bold text-amber-900 mb-3 flex items-center gap-2"><Search className="h-4 w-4" /> Buscar Artículo (Modo Edición)</DialogTitle>
+              <div className="flex items-center justify-between mb-3">
+                <DialogTitle className="text-lg font-bold text-amber-900 flex items-center gap-2"><Search className="h-4 w-4" /> Buscar Artículo (Modo Edición)</DialogTitle>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <Checkbox
+                    checked={incluirOcultos}
+                    onCheckedChange={(v) => setIncluirOcultos(!!v)}
+                    className="data-[state=checked]:bg-amber-600 data-[state=checked]:border-amber-600"
+                  />
+                  <span className="text-xs font-semibold text-amber-700">Incluir ocultos</span>
+                </label>
+              </div>
               <div className="relative"><Search className="absolute left-4 top-3 h-5 w-5 text-amber-500" /><input autoFocus value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Escribe el nombre..." className="flex h-12 w-full rounded-xl border border-amber-200 bg-white px-12 py-6 text-base outline-none focus:border-amber-500" /></div>
             </div>
             <div className="h-[400px] overflow-y-auto p-4 bg-white">
@@ -4862,7 +4899,10 @@ export default function VentasMostradorClient({
                     <Plus className="h-4 w-4 text-slate-400 group-hover:text-amber-600 shrink-0" />
                     <div className="text-left flex flex-col gap-1.5 min-w-0">
                       <div className="flex items-center gap-3 flex-wrap">
-                        <p className="font-bold text-slate-900 leading-tight break-words">{prod.nombre}</p>
+                        <p className="font-bold text-slate-900 leading-tight break-words">
+                          {prod.oculto && <span className="bg-slate-200 text-slate-600 text-[10px] font-black px-1.5 py-0.5 rounded border border-slate-300 mr-2 uppercase">Oculto</span>}
+                          {prod.nombre}
+                        </p>
                         <span className={`text-sm font-black px-2 py-0.5 rounded-md border shrink-0 ${prod.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : prod.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-600 border-green-200'}`}>
                           Stock: {prod.stock}
                         </span>

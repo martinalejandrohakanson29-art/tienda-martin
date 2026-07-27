@@ -223,11 +223,11 @@ async function ajustarStockItemsTx(
   }
 }
 
-export async function obtenerTodosLosArticulos() {
+export async function obtenerTodosLosArticulos(soloOcultos: boolean = false) {
   await requireAdmin();
   try {
     const articulos = await prisma.articuloMostrador.findMany({
-      where: { oculto: false },
+      where: { oculto: soloOcultos },
       orderBy: { nombre: 'asc' },
       include: {
         // Cualquier tipo de modificación cuenta como "última modificación" (edición individual,

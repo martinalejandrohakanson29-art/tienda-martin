@@ -1918,8 +1918,15 @@ export default function VentasMostradorClient({
     setMlMla(venta.mlMla || "");
     setMlDni(venta.mlDni || "");
 
-    const cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
-    setInfo(venta.metodo_pago === "Mixto" ? cleanInfo : (venta.info || ""));
+    let cleanInfo = (venta.info || "").replace(/\[Mixto -> .*?\](?: - )?/, "");
+    if (venta.metodo_pago === "Tarjeta de Crédito") {
+      const matchProcesador = cleanInfo.match(/\[Tarjeta:\s*([^\]]+)\]/);
+      setProcesadorTarjeta(matchProcesador ? matchProcesador[1].trim() : "Posnet Intercap");
+      cleanInfo = cleanInfo.replace(/\[Tarjeta:\s*[^\]]+\](?: - )?/, "");
+    } else {
+      setProcesadorTarjeta("Posnet Intercap");
+    }
+    setInfo(cleanInfo);
 
     setDocTipo(venta.docTipo || 99);
     setDocNro(venta.docNro || "");

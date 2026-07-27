@@ -767,17 +767,18 @@ export default function VentasMostradorClient({
     }
     setIsSubmitting(true);
 
+    const precioRedondeado = redondearA50(newArtData.precio);
     const res = await crearArticuloMostrador({
       id: newArtData.id,
       nombre: newArtData.nombre,
-      precio: newArtData.precio,
+      precio: precioRedondeado,
       stock: newArtData.stock,
       costo: newArtData.costo,
       margenGanancia: newArtData.margenGanancia
     });
 
     if (res.success) {
-      const nuevo = { ...newArtData, precio: Number(newArtData.precio) };
+      const nuevo = { ...newArtData, precio: precioRedondeado };
       setArticulos(prev => [...prev, nuevo]);
       agregarProductoAVenta(nuevo);
       setIsCreateArticuloModalOpen(false);
@@ -789,13 +790,16 @@ export default function VentasMostradorClient({
     setIsSubmitting(false);
   };
 
-  // Precio final siempre redondeado hacia arriba, sin decimales (nunca centavos sueltos).
+  // Redondea al múltiplo de 50 más cercano (arriba o abajo, según corresponda), sin decimales.
+  const redondearA50 = (n: number): number => Math.round(n / 50) * 50;
+
+  // Precio final siempre redondeado al múltiplo de 50 más cercano (nunca centavos sueltos).
   const calcularPrecioArt = (costo: number, margen: number) => {
-    return Math.ceil(costo * (1 + margen / 100));
+    return redondearA50(costo * (1 + margen / 100));
   };
 
-  // Formatea un precio con punto de miles y sin decimales (redondeando siempre hacia arriba).
-  const formatearPrecioMiles = (n: number): string => Math.ceil(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });
+  // Formatea un precio con punto de miles y sin decimales (redondeando al múltiplo de 50 más cercano).
+  const formatearPrecioMiles = (n: number): string => redondearA50(n).toLocaleString('es-AR', { maximumFractionDigits: 0 });
 
   // Convierte lo tipeado en el input de precio (con puntos de miles) de vuelta a un número entero.
   const parsearPrecioMiles = (s: string): number => Number(s.replace(/\D/g, '')) || 0;
@@ -825,7 +829,7 @@ export default function VentasMostradorClient({
   // "al vuelo" si existe, sin tocar el precio guardado en la base de datos.
   const obtenerPrecioBusqueda = (prod: Articulo): number => {
     const override = preciosBusquedaOverride[prod.id];
-    return override !== undefined ? override : Number(prod.precio);
+    return redondearA50(override !== undefined ? override : Number(prod.precio));
   };
 
   // Igual que obtenerPrecioBusqueda, pero si el artículo es el que se está editando en ese
@@ -899,7 +903,7 @@ export default function VentasMostradorClient({
         return calcularPrecioArt(item.costo, tempMarc);
       }
     }
-    return item.precio_unit;
+    return redondearA50(item.precio_unit);
   };
 
   // Recalcula precio_unit y subtotal de ese ítem puntual en base a la marcación tipeada; se usa
@@ -1032,18 +1036,18 @@ export default function VentasMostradorClient({
   const totalBase = items.filter((item: ItemVenta) => !item.esNota).reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
 
   const montoDescuento = descuentoValor > 0
-    ? Math.min(descuentoTipo === "porcentaje" ? totalBase * (descuentoValor / 100) : descuentoValor, totalBase)
+    ? redondearA50(Math.min(descuentoTipo === "porcentaje" ? totalBase * (descuentoValor / 100) : descuentoValor, totalBase))
     : 0;
   const totalConDescuento = totalBase - montoDescuento;
 
-  const base1 = isPagoMixto ? montoPago1 : totalConDescuento;
-  const base2 = isPagoMixto ? Math.max(0, totalConDescuento - montoPago1) : 0;
+  const base1 = isPagoMixto ? redondearA50(montoPago1) : totalConDescuento;
+  const base2 = isPagoMixto ? Math.max(0, totalConDescuento - base1) : 0;
 
   const isCredito1 = metodoPago === "Tarjeta de Crédito";
   const isCredito2 = isPagoMixto && metodoPago2 === "Tarjeta de Crédito";
 
-  const final1 = isCredito1 ? base1 * (1 + (interesTarjeta / 100)) : base1;
-  const final2 = isCredito2 ? base2 * (1 + (interesTarjeta / 100)) : base2;
+  const final1 = isCredito1 ? redondearA50(base1 * (1 + (interesTarjeta / 100))) : base1;
+  const final2 = isCredito2 ? redondearA50(base2 * (1 + (interesTarjeta / 100))) : base2;
 
   const totalFinalCalculado = isPagoMixto ? (final1 + final2) : final1;
 
@@ -1093,17 +1097,20 @@ export default function VentasMostradorClient({
     if (prod.esPack && prod.packItems && prod.packItems.length > 0) {
       if (expandirPacks) {
         // Modo expandido: agregar cada componente como línea separada
-        const componentes = prod.packItems.map(packItem => ({
-          id: crypto.randomUUID(),
-          productoId: packItem.componenteId,
-          nombre: packItem.componente.nombre,
-          cantidad: packItem.cantidad,
-          precio_unit: Number(packItem.componente.precio),
-          subtotal: Number(packItem.cantidad * packItem.componente.precio),
-          stock: packItem.componente.stock,
-          ultimaModificacion: prod.ultimaModificacion,
-          costo: packItem.componente.costo
-        }));
+        const componentes = prod.packItems.map(packItem => {
+          const precioUnitComponente = redondearA50(Number(packItem.componente.precio));
+          return {
+            id: crypto.randomUUID(),
+            productoId: packItem.componenteId,
+            nombre: packItem.componente.nombre,
+            cantidad: packItem.cantidad,
+            precio_unit: precioUnitComponente,
+            subtotal: packItem.cantidad * precioUnitComponente,
+            stock: packItem.componente.stock,
+            ultimaModificacion: prod.ultimaModificacion,
+            costo: packItem.componente.costo,
+          };
+        });
         setItems(prev => [...prev, ...componentes]);
       } else {
         // Modo pack: agregar como ítem único con el ID y precio del pack
@@ -1638,14 +1645,14 @@ export default function VentasMostradorClient({
   // --- CALCULOS EDICIÓN VENTA (LÓGICA MIXTA) ---
   const totalBaseEdit = editItems.filter((item: ItemVenta) => !item.esNota).reduce((acc: number, item: ItemVenta) => acc + item.subtotal, 0);
 
-  const editBase1 = isEditPagoMixto ? editMontoPago1 : totalBaseEdit;
-  const editBase2 = isEditPagoMixto ? Math.max(0, totalBaseEdit - editMontoPago1) : 0;
+  const editBase1 = isEditPagoMixto ? redondearA50(editMontoPago1) : totalBaseEdit;
+  const editBase2 = isEditPagoMixto ? Math.max(0, totalBaseEdit - editBase1) : 0;
 
   const isEditCredito1 = editMetodoPago === "Tarjeta de Crédito";
   const isEditCredito2 = isEditPagoMixto && editMetodoPago2 === "Tarjeta de Crédito";
 
-  const editFinal1 = isEditCredito1 ? editBase1 * (1 + (editInteresTarjeta / 100)) : editBase1;
-  const editFinal2 = isEditCredito2 ? editBase2 * (1 + (editInteresTarjeta / 100)) : editBase2;
+  const editFinal1 = isEditCredito1 ? redondearA50(editBase1 * (1 + (editInteresTarjeta / 100))) : editBase1;
+  const editFinal2 = isEditCredito2 ? redondearA50(editBase2 * (1 + (editInteresTarjeta / 100))) : editBase2;
 
   const editTotalFinalCalculado = isEditPagoMixto ? (editFinal1 + editFinal2) : editFinal1;
 
@@ -2280,8 +2287,8 @@ export default function VentasMostradorClient({
       setFastUpdateData({
         id: articulo.id,
         nombre: articulo.nombre,
-        oldPrice: Number(articulo.precio),
-        newPrice: precioInputActual
+        oldPrice: redondearA50(Number(articulo.precio)),
+        newPrice: redondearA50(precioInputActual)
       });
       setIsFastUpdateDbModalOpen(true);
     }
@@ -2605,7 +2612,7 @@ export default function VentasMostradorClient({
                               <TableCell className="text-center py-3 pl-1 pr-0">
                                 {item.costo && item.costo > 0 ? (
                                   <span className="text-sm text-black font-semibold" title="Costo del artículo">
-                                    $ {Number(item.costo).toLocaleString('es-AR')}
+                                    $ {redondearA50(Number(item.costo)).toLocaleString('es-AR')}
                                   </span>
                                 ) : (
                                   <span className="text-red-600 font-black text-sm" title="Sin costo cargado">✕</span>
@@ -3671,7 +3678,7 @@ export default function VentasMostradorClient({
                       <div className="flex flex-col items-end gap-0.5">
                         {!!prod.costo && (
                           <span className="text-[10px] text-slate-400 font-semibold">
-                            Costo: <span className="text-slate-600">$ {Number(prod.costo).toLocaleString('es-AR')}</span>
+                            Costo: <span className="text-slate-600">$ {redondearA50(Number(prod.costo)).toLocaleString('es-AR')}</span>
                           </span>
                         )}
                         {!!prod.ultimaModificacion && (
@@ -3852,7 +3859,7 @@ export default function VentasMostradorClient({
                     checked={isPagoMixto}
                     onChange={(e) => {
                       setIsPagoMixto(e.target.checked);
-                      if (e.target.checked && montoPago1 === 0) setMontoPago1(totalConDescuento / 2);
+                      if (e.target.checked && montoPago1 === 0) setMontoPago1(redondearA50(totalConDescuento / 2));
                     }}
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                   />
@@ -4428,7 +4435,7 @@ export default function VentasMostradorClient({
                       checked={isEditPagoMixto}
                       onChange={(e) => {
                         setIsEditPagoMixto(e.target.checked);
-                        if (e.target.checked && editMontoPago1 === 0) setEditMontoPago1(totalBaseEdit / 2);
+                        if (e.target.checked && editMontoPago1 === 0) setEditMontoPago1(redondearA50(totalBaseEdit / 2));
                       }}
                       className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
                     />
@@ -4791,7 +4798,7 @@ export default function VentasMostradorClient({
                           <TableCell className="text-center pl-1 pr-0">
                             {item.costo && item.costo > 0 ? (
                               <span className="text-sm text-black font-semibold" title="Costo del artículo">
-                                $ {Number(item.costo).toLocaleString('es-AR')}
+                                $ {redondearA50(Number(item.costo)).toLocaleString('es-AR')}
                               </span>
                             ) : (
                               <span className="text-red-600 font-black text-sm" title="Sin costo cargado">✕</span>
@@ -4925,7 +4932,7 @@ export default function VentasMostradorClient({
                       <div className="flex flex-col items-end gap-0.5">
                         {!!prod.costo && (
                           <span className="text-[10px] text-slate-400 font-semibold">
-                            Costo: <span className="text-slate-600">$ {Number(prod.costo).toLocaleString('es-AR')}</span>
+                            Costo: <span className="text-slate-600">$ {redondearA50(Number(prod.costo)).toLocaleString('es-AR')}</span>
                           </span>
                         )}
                         {!!prod.ultimaModificacion && (

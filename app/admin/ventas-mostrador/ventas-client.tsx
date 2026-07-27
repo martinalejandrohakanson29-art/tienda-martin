@@ -1096,16 +1096,34 @@ export default function VentasMostradorClient({
     const precioFinal = obtenerPrecioBusqueda(prod);
     if (prod.esPack && prod.packItems && prod.packItems.length > 0) {
       if (expandirPacks) {
-        // Modo expandido: agregar cada componente como línea separada
-        const componentes = prod.packItems.map(packItem => {
-          const precioUnitComponente = redondearA50(Number(packItem.componente.precio));
+        // Modo expandido: agregar cada componente como línea separada, repartiendo
+        // el precio definido del pack (precioFinal) en proporción al precio de lista
+        // de cada componente. Así la suma de las líneas respeta el precio del pack
+        // en vez del precio de lista sumado de cada artículo por separado.
+        const valorLista = prod.packItems.reduce(
+          (acc, packItem) => acc + packItem.cantidad * Number(packItem.componente.precio), 0
+        );
+        let acumulado = 0;
+        const componentes = prod.packItems.map((packItem, idx) => {
+          const esUltimo = idx === prod.packItems!.length - 1;
+          let subtotalComponente: number;
+          if (esUltimo) {
+            // El último componente absorbe la diferencia de redondeo para que la
+            // suma total coincida exactamente con el precio del pack.
+            subtotalComponente = precioFinal - acumulado;
+          } else {
+            const valorComponente = packItem.cantidad * Number(packItem.componente.precio);
+            const proporcion = valorLista > 0 ? valorComponente / valorLista : 1 / prod.packItems!.length;
+            subtotalComponente = redondearA50(precioFinal * proporcion);
+            acumulado += subtotalComponente;
+          }
           return {
             id: crypto.randomUUID(),
             productoId: packItem.componenteId,
             nombre: packItem.componente.nombre,
             cantidad: packItem.cantidad,
-            precio_unit: precioUnitComponente,
-            subtotal: packItem.cantidad * precioUnitComponente,
+            precio_unit: subtotalComponente / packItem.cantidad,
+            subtotal: subtotalComponente,
             stock: packItem.componente.stock,
             ultimaModificacion: prod.ultimaModificacion,
             costo: packItem.componente.costo,

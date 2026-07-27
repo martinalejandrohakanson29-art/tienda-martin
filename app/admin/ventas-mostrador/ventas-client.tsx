@@ -41,18 +41,26 @@ import { consultarPadron } from "@/app/actions/afip";
 import PedidosVentaEdicionClient, { type Venta as PedidoVentaData } from "@/app/admin/erp/pedidos-venta/pedidos-venta-edicion-client";
 import EnviosAndreaniTab from "./envios-andreani-tab";
 
-// Métodos de pago con ícono y color suave para distinguir cada opción de un vistazo.
+// Métodos de pago con ícono y color de fuente para distinguir cada opción de un vistazo.
+// El color va solo en el texto (no en el fondo del renglón) y coincide con el color del
+// panel de detalle que se despliega más abajo al elegir ese método (coherencia visual).
 // El `value` se mantiene idéntico al guardado en BD; solo cambia la etiqueta visible.
 const METODOS_PAGO = [
-  { value: "Efectivo", label: "💵 Efectivo", color: "#dcfce7" },
-  { value: "Tarjeta de Crédito", label: "💳 Tarjeta de Crédito", color: "#dbeafe" },
-  { value: "Tarjeta de Débito", label: "🏧 Tarjeta de Débito", color: "#cffafe" },
-  { value: "MercadoLibre", label: "🟡 MercadoLibre", color: "#fef9c3" },
-  { value: "MercadoPago", label: "🔵 MercadoPago", color: "#e0e7ff" },
-  { value: "Cruzada", label: "🔁 Cruzada", color: "#f3e8ff" },
-  { value: "A Cuenta Corriente", label: "📒 A Cuenta Corriente", color: "#ffedd5" },
-  { value: "A Confirmar", label: "⏳ A Confirmar", color: "#f1f5f9" },
+  { value: "Efectivo", label: "💵 Efectivo", color: "#16a34a" },
+  { value: "Tarjeta de Crédito", label: "💳 Tarjeta de Crédito", color: "#2563eb" },
+  { value: "Tarjeta de Débito", label: "🏧 Tarjeta de Débito", color: "#0891b2" },
+  { value: "MercadoLibre", label: "🟡 MercadoLibre", color: "#b45309" },
+  { value: "MercadoPago", label: "🔵 MercadoPago", color: "#0284c7" },
+  { value: "Cruzada", label: "🔁 Cruzada", color: "#0d9488" },
+  { value: "A Cuenta Corriente", label: "📒 A Cuenta Corriente", color: "#059669" },
+  { value: "A Confirmar", label: "⏳ A Confirmar", color: "#64748b" },
 ];
+
+// Color de fuente del método de pago actualmente elegido, para pintar un borde
+// izquierdo sutil en el <select> cerrado (misma idea de color, sin fondos).
+function colorMetodoPago(value: string): string {
+  return METODOS_PAGO.find((m) => m.value === value)?.color ?? "#cbd5e1";
+}
 
 function OpcionesMetodoPago({ incluirAConfirmar = true }: { incluirAConfirmar?: boolean }) {
   return (
@@ -60,7 +68,7 @@ function OpcionesMetodoPago({ incluirAConfirmar = true }: { incluirAConfirmar?: 
       {METODOS_PAGO
         .filter((m) => incluirAConfirmar || m.value !== "A Confirmar")
         .map((m) => (
-          <option key={m.value} value={m.value} style={{ backgroundColor: m.color }}>
+          <option key={m.value} value={m.value} style={{ color: m.color, fontWeight: 600 }}>
             {m.label}
           </option>
         ))}
@@ -3881,15 +3889,15 @@ export default function VentasMostradorClient({
                 </div>
 
                 <div className="flex gap-4">
-                  <div className="flex items-center space-x-3 bg-amber-50 p-3 rounded-xl border border-amber-200 flex-1">
+                  <div className="flex items-center space-x-3 bg-blue-50/60 p-3 rounded-xl border border-blue-100 flex-1">
                     <input
                       type="checkbox"
                       id="solicitarFactura"
                       checked={solicitarFactura}
                       onChange={(e) => setSolicitarFactura(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600"
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
                     />
-                    <Label htmlFor="solicitarFactura" className="text-sm font-bold text-amber-700 cursor-pointer flex items-center gap-2">
+                    <Label htmlFor="solicitarFactura" className="text-sm font-bold text-blue-700 cursor-pointer flex items-center gap-2">
                       <FileText className="h-4 w-4" /> Generar Factura AFIP
                     </Label>
                   </div>
@@ -3914,42 +3922,52 @@ export default function VentasMostradorClient({
                 </div>
 
                 {isPagoMixto ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-200 animate-in fade-in">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50/60 p-4 rounded-xl border border-blue-200 animate-in fade-in">
                     <div className="space-y-3">
-                      <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 1</Label>
-                      <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                      <Label className="text-xs font-bold text-blue-800 uppercase">Metodo 1</Label>
+                      <select
+                        value={metodoPago}
+                        onChange={(e) => setMetodoPago(e.target.value)}
+                        style={{ borderLeftWidth: 3, borderLeftColor: colorMetodoPago(metodoPago) }}
+                        className="w-full h-10 rounded-xl border border-blue-200 bg-white px-3 text-sm focus:outline-none"
+                      >
                         <OpcionesMetodoPago incluirAConfirmar={false} />
                       </select>
                       <div>
-                        <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base a pagar 1</Label>
-                        <Input type="number" value={montoPago1} onChange={(e) => setMontoPago1(Number(e.target.value))} className="font-bold border-purple-200 h-10 text-base" />
+                        <Label className="text-[10px] font-bold text-blue-600 uppercase block mb-1">Monto Base a pagar 1</Label>
+                        <Input type="number" value={montoPago1} onChange={(e) => setMontoPago1(Number(e.target.value))} className="font-bold border-blue-200 h-10 text-base" />
                       </div>
                       {isCredito1 && (
-                        <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
+                        <p className="text-[10px] font-bold text-blue-700 bg-blue-100 p-2 rounded-lg border border-blue-200">
                           Total P1 (+{interesTarjeta}%): <span className="text-sm block">$ {final1.toLocaleString('es-AR')}</span>
                         </p>
                       )}
                     </div>
 
                     <div className="space-y-3">
-                      <Label className="text-xs font-bold text-purple-800 uppercase">Metodo 2</Label>
-                      <select value={metodoPago2} onChange={(e) => setMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                      <Label className="text-xs font-bold text-blue-800 uppercase">Metodo 2</Label>
+                      <select
+                        value={metodoPago2}
+                        onChange={(e) => setMetodoPago2(e.target.value)}
+                        style={{ borderLeftWidth: 3, borderLeftColor: colorMetodoPago(metodoPago2) }}
+                        className="w-full h-10 rounded-xl border border-blue-200 bg-white px-3 text-sm focus:outline-none"
+                      >
                         <OpcionesMetodoPago />
                       </select>
                       <div>
-                        <Label className="text-[10px] font-bold text-purple-600 uppercase block mb-1">Monto Base Restante 2</Label>
-                        <div className="h-10 bg-purple-100/50 rounded-xl border border-purple-200 flex items-center px-3 font-bold text-purple-900">
+                        <Label className="text-[10px] font-bold text-blue-600 uppercase block mb-1">Monto Base Restante 2</Label>
+                        <div className="h-10 bg-blue-100/50 rounded-xl border border-blue-200 flex items-center px-3 font-bold text-blue-900">
                           $ {base2.toLocaleString('es-AR')}
                         </div>
                       </div>
                       {isCredito2 && (
-                        <p className="text-[10px] font-bold text-purple-700 bg-purple-100 p-2 rounded-lg border border-purple-200">
+                        <p className="text-[10px] font-bold text-blue-700 bg-blue-100 p-2 rounded-lg border border-blue-200">
                           Total P2 (+{interesTarjeta}%): <span className="text-sm block">$ {final2.toLocaleString('es-AR')}</span>
                         </p>
                       )}
                     </div>
 
-                    <div className="col-span-1 md:col-span-2 mt-2 bg-purple-700 text-white p-4 rounded-xl flex justify-between items-center shadow-md">
+                    <div className="col-span-1 md:col-span-2 mt-2 bg-blue-700 text-white p-4 rounded-xl flex justify-between items-center shadow-md">
                       <span className="text-xs font-bold uppercase tracking-wider">Total Final Calculado</span>
                       <span className="text-2xl font-black">$ {totalFinalCalculado.toLocaleString('es-AR')}</span>
                     </div>
@@ -3957,7 +3975,12 @@ export default function VentasMostradorClient({
                 ) : (
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago</Label>
-                    <select value={metodoPago} onChange={(e) => setMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none">
+                    <select
+                      value={metodoPago}
+                      onChange={(e) => setMetodoPago(e.target.value)}
+                      style={{ borderLeftWidth: 3, borderLeftColor: colorMetodoPago(metodoPago) }}
+                      className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm focus:outline-none"
+                    >
                       <OpcionesMetodoPago />
                     </select>
                     {esTarjetaCreditoUnica && (
@@ -3983,30 +4006,30 @@ export default function VentasMostradorClient({
                 )}
 
                 {requiereMercadoLibre && (
-                  <div className="grid grid-cols-2 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
-                    <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id Venta <span className="text-red-500">*</span></Label><Input value={mlIdVenta} onChange={(e) => setMlIdVenta(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
-                    <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id Envío <span className="text-red-500">*</span></Label><Input value={mlIdEnvio} onChange={(e) => setMlIdEnvio(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
-                    <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">MLA <span className="text-red-500">*</span></Label><Input value={mlMla} onChange={(e) => setMlMla(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
-                    <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Dni <span className="text-slate-400">(Opcional)</span></Label><Input value={mlDni} onChange={(e) => setMlDni(e.target.value)} className="bg-white border-indigo-200" placeholder="DNI del cliente" /></div>
+                  <div className="grid grid-cols-2 gap-3 bg-sky-50/60 p-3 rounded-xl border border-sky-100 animate-in fade-in">
+                    <div className="space-y-2"><Label className="text-xs font-bold text-sky-700">Id Venta <span className="text-red-500">*</span></Label><Input value={mlIdVenta} onChange={(e) => setMlIdVenta(e.target.value)} className="bg-white border-sky-200" placeholder="Obligatorio" /></div>
+                    <div className="space-y-2"><Label className="text-xs font-bold text-sky-700">Id Envío <span className="text-red-500">*</span></Label><Input value={mlIdEnvio} onChange={(e) => setMlIdEnvio(e.target.value)} className="bg-white border-sky-200" placeholder="Obligatorio" /></div>
+                    <div className="space-y-2"><Label className="text-xs font-bold text-sky-700">MLA <span className="text-red-500">*</span></Label><Input value={mlMla} onChange={(e) => setMlMla(e.target.value)} className="bg-white border-sky-200" placeholder="Obligatorio" /></div>
+                    <div className="space-y-2"><Label className="text-xs font-bold text-sky-700">Dni <span className="text-slate-400">(Opcional)</span></Label><Input value={mlDni} onChange={(e) => setMlDni(e.target.value)} className="bg-white border-sky-200" placeholder="DNI del cliente" /></div>
                   </div>
                 )}
 
                 {requiereMercadoPago && (
-                  <div className="grid grid-cols-1 gap-3 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 animate-in fade-in">
-                    <div className="space-y-2"><Label className="text-xs font-bold text-indigo-700">Id de pago <span className="text-red-500">*</span></Label><Input value={mlIdVenta} onChange={(e) => setMlIdVenta(e.target.value)} className="bg-white border-indigo-200" placeholder="Obligatorio" /></div>
+                  <div className="grid grid-cols-1 gap-3 bg-sky-50/60 p-3 rounded-xl border border-sky-100 animate-in fade-in">
+                    <div className="space-y-2"><Label className="text-xs font-bold text-sky-700">Id de pago <span className="text-red-500">*</span></Label><Input value={mlIdVenta} onChange={(e) => setMlIdVenta(e.target.value)} className="bg-white border-sky-200" placeholder="Obligatorio" /></div>
                   </div>
                 )}
 
                 {requiereCruzada && !isPagoMixto && (
-                  <div className="space-y-3 bg-amber-50/50 p-4 rounded-xl border border-amber-100 animate-in fade-in">
+                  <div className="space-y-3 bg-teal-50/60 p-4 rounded-xl border border-teal-100 animate-in fade-in">
                     <div className="flex justify-between items-center mb-1">
-                      <Label className="text-xs font-bold text-amber-700">Pago Cruzada: Detalle de Proveedores</Label>
+                      <Label className="text-xs font-bold text-teal-700">Pago Cruzada: Detalle de Proveedores</Label>
                       {proveedoresCruzada.length < 4 && (
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          className="h-7 text-[10px] font-bold border-amber-300 text-amber-700 hover:bg-amber-100"
+                          className="h-7 text-[10px] font-bold border-teal-300 text-teal-700 hover:bg-teal-100"
                           onClick={agregarProveedorCruzada}
                         >
                           <Plus className="h-3 w-3 mr-1" /> Añadir Persona
@@ -4016,17 +4039,17 @@ export default function VentasMostradorClient({
 
                     <div className="space-y-3">
                       <div className="space-y-1.5">
-                        <Label className="text-[10px] font-bold text-amber-600 uppercase">Origen (De)</Label>
+                        <Label className="text-[10px] font-bold text-teal-600 uppercase">Origen (De)</Label>
                         <Input
                           value={deCruzada}
                           onChange={(e) => setDeCruzada(e.target.value)}
-                          className="h-9 bg-white border-amber-200"
+                          className="h-9 bg-white border-teal-200"
                           placeholder="¿Quién envía el dinero?"
                         />
                       </div>
 
                       {proveedoresCruzada.map((item, idx) => (
-                        <div key={idx} className="flex gap-2 items-start bg-white/50 p-2 rounded-lg border border-amber-100/50 relative">
+                        <div key={idx} className="flex gap-2 items-start bg-white/50 p-2 rounded-lg border border-teal-100/50 relative">
                           <div className="flex-1 space-y-1">
                             <Label className="text-[10px] font-bold text-slate-500 uppercase">Proveedor {idx + 1}</Label>
                             <div className="relative">
@@ -4037,7 +4060,7 @@ export default function VentasMostradorClient({
                                   setShowProvListMulti(idx);
                                 }}
                                 onFocus={() => setShowProvListMulti(idx)}
-                                className="h-9 bg-white border-amber-200 text-xs"
+                                className="h-9 bg-white border-teal-200 text-xs"
                                 placeholder="Buscar..."
                               />
                               {showProvListMulti === idx && proveedores.length > 0 && (
@@ -4047,7 +4070,7 @@ export default function VentasMostradorClient({
                                     .map(p => (
                                       <div
                                         key={p.id}
-                                        className="p-2 hover:bg-amber-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
+                                        className="p-2 hover:bg-teal-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
                                         onMouseDown={(e) => {
                                           e.preventDefault();
                                           e.stopPropagation();
@@ -4073,7 +4096,7 @@ export default function VentasMostradorClient({
                               type="number"
                               value={item.monto}
                               onChange={(e) => actualizarProveedorCruzada(idx, 'monto', Number(e.target.value))}
-                              className="h-9 bg-white border-amber-200 text-xs font-bold text-amber-900"
+                              className="h-9 bg-white border-teal-200 text-xs font-bold text-teal-900"
                             />
                           </div>
 
@@ -4092,8 +4115,8 @@ export default function VentasMostradorClient({
                       ))}
                     </div>
 
-                    <div className="flex justify-between items-center p-2 bg-amber-100/50 rounded-lg border border-amber-200 mt-2">
-                      <span className="text-[10px] font-bold text-amber-700 uppercase">Suma Total Cruzada:</span>
+                    <div className="flex justify-between items-center p-2 bg-teal-100/50 rounded-lg border border-teal-200 mt-2">
+                      <span className="text-[10px] font-bold text-teal-700 uppercase">Suma Total Cruzada:</span>
                       <span className={`text-sm font-black ${Math.abs(proveedoresCruzada.reduce((acc, curr) => acc + curr.monto, 0) - totalFinalCalculado) < 0.01 ? 'text-green-600' : 'text-red-600'}`}>
                         $ {proveedoresCruzada.reduce((acc, curr) => acc + curr.monto, 0).toLocaleString('es-AR')} / $ {totalFinalCalculado.toLocaleString('es-AR')}
                       </span>
@@ -4108,31 +4131,31 @@ export default function VentasMostradorClient({
                 {esMixtoCruzadaCC && (
                   <div className="space-y-3 animate-in fade-in">
                     {/* Sección Cruzada */}
-                    <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200">
+                    <div className="bg-teal-50/60 p-3 rounded-xl border border-teal-200">
                       <div className="flex items-center justify-between mb-2">
-                        <Label className="text-xs font-bold text-amber-800 uppercase">Pago Cruzada</Label>
-                        <span className="text-xs font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-lg">
+                        <Label className="text-xs font-bold text-teal-800 uppercase">Pago Cruzada</Label>
+                        <span className="text-xs font-black text-teal-700 bg-teal-100 px-2 py-0.5 rounded-lg">
                           $ {(metodoPago === "Cruzada" ? final1 : final2).toLocaleString('es-AR')}
                         </span>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] font-bold text-amber-700 uppercase">Quien Envía (De) <span className="text-red-500">*</span></Label>
+                          <Label className="text-[10px] font-bold text-teal-700 uppercase">Quien Envía (De) <span className="text-red-500">*</span></Label>
                           <Input
                             value={deCruzada}
                             onChange={(e) => setDeCruzada(e.target.value)}
-                            className="bg-white border-amber-200 h-9 text-sm"
+                            className="bg-white border-teal-200 h-9 text-sm"
                             placeholder="Nombre de quien envía..."
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[10px] font-bold text-amber-700 uppercase">Proveedor (Para) <span className="text-red-500">*</span></Label>
+                          <Label className="text-[10px] font-bold text-teal-700 uppercase">Proveedor (Para) <span className="text-red-500">*</span></Label>
                           <div className="relative">
                             <Input
                               value={paraCruzada}
                               onChange={(e) => { setParaCruzada(e.target.value); setShowProvList(true); }}
                               onFocus={() => setShowProvList(true)}
-                              className="bg-white border-amber-200 h-9 text-sm"
+                              className="bg-white border-teal-200 h-9 text-sm"
                               placeholder="Buscar proveedor..."
                             />
                             {showProvList && proveedores.length > 0 && (
@@ -4140,7 +4163,7 @@ export default function VentasMostradorClient({
                                 {proveedores
                                   .filter(p => p.razonSocial.toLowerCase().includes(paraCruzada.toLowerCase()) || p.cuit.includes(paraCruzada))
                                   .map(p => (
-                                    <div key={p.id} className="p-2 hover:bg-amber-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
+                                    <div key={p.id} className="p-2 hover:bg-teal-50 cursor-pointer text-xs border-b border-slate-50 last:border-0"
                                       onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setParaCruzada(p.razonSocial); setShowProvList(false); }}>
                                       <div className="flex justify-between items-start">
                                         <div><p className="font-bold text-slate-800">{p.razonSocial}</p><p className="text-[9px] text-slate-400">{p.cuit}</p></div>
@@ -4206,19 +4229,19 @@ export default function VentasMostradorClient({
 
                 {/* Mixto con solo Cruzada, o solo Cuenta Corriente (sin el otro) */}
                 {((requiereCruzada && isPagoMixto && !esMixtoCruzadaCC) || (requiereCuentaCorriente && !esMixtoCruzadaCC)) && (
-                  <div className="grid grid-cols-2 gap-3 bg-amber-50/50 p-3 rounded-xl border border-amber-100 animate-in fade-in">
+                  <div className={`grid grid-cols-2 gap-3 p-3 rounded-xl border animate-in fade-in ${requiereCruzada ? 'bg-teal-50/60 border-teal-100' : 'bg-emerald-50/60 border-emerald-100'}`}>
                     {requiereCruzada && (
-                      <div className="space-y-2"><Label className="text-xs font-bold text-amber-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-amber-200" placeholder="Origen" /></div>
+                      <div className="space-y-2"><Label className="text-xs font-bold text-teal-700">De <span className="text-red-500">*</span></Label><Input value={deCruzada} onChange={(e) => setDeCruzada(e.target.value)} className="bg-white border-teal-200" placeholder="Origen" /></div>
                     )}
                     <div className={`space-y-2 relative ${!requiereCruzada ? 'col-span-2' : ''}`}>
-                      <Label className="text-xs font-bold text-amber-700">{requiereCuentaCorriente ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
+                      <Label className={`text-xs font-bold ${requiereCruzada ? 'text-teal-700' : 'text-emerald-700'}`}>{requiereCuentaCorriente ? "Cuenta / Proveedor" : "Para"} <span className="text-red-500">*</span></Label>
                       <div className="flex gap-2">
                         <div className="relative flex-1">
                           <Input
                             value={paraCruzada}
                             onChange={(e) => { setParaCruzada(e.target.value); setShowProvList(true); }}
                             onFocus={() => setShowProvList(true)}
-                            className="bg-white border-amber-200"
+                            className={requiereCruzada ? 'bg-white border-teal-200' : 'bg-white border-emerald-200'}
                             placeholder="Buscar proveedor..."
                           />
                           {showProvList && proveedores.length > 0 && (
@@ -4228,7 +4251,7 @@ export default function VentasMostradorClient({
                                 .map(p => (
                                   <div
                                     key={p.id}
-                                    className="p-2 hover:bg-amber-50 cursor-pointer text-sm border-b border-slate-50 last:border-0"
+                                    className={`p-2 cursor-pointer text-sm border-b border-slate-50 last:border-0 ${requiereCruzada ? 'hover:bg-teal-50' : 'hover:bg-emerald-50'}`}
                                     onMouseDown={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
@@ -4257,7 +4280,7 @@ export default function VentasMostradorClient({
                           type="button"
                           size="icon"
                           variant="outline"
-                          className="border-amber-200 text-amber-600 hover:bg-amber-50 h-10 w-10 shrink-0"
+                          className={requiereCruzada ? 'border-teal-200 text-teal-600 hover:bg-teal-50 h-10 w-10 shrink-0' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50 h-10 w-10 shrink-0'}
                           onClick={() => setIsAddProveedorModalOpen(true)}
                           title="Nuevo Proveedor"
                         >
@@ -4342,7 +4365,7 @@ export default function VentasMostradorClient({
                     <Button
                       onClick={() => handleFinalizarVenta()}
                       disabled={isSubmitting}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white h-12 rounded-xl font-bold w-full"
+                      className="bg-blue-600 hover:bg-blue-700 text-white h-12 rounded-xl font-bold w-full"
                     >
                       {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-5 w-5 mr-2" /> Guardar Cambios</>}
                     </Button>
@@ -4353,14 +4376,14 @@ export default function VentasMostradorClient({
                           <Button
                             onClick={() => handleFinalizarVenta(false, false)}
                             disabled={isSubmitting}
-                            className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold w-full"
                           >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar sin fiscalizar</>}
                           </Button>
                           <Button
                             onClick={() => handleFinalizarVenta(false, true)}
                             disabled={isSubmitting}
-                            className="bg-emerald-700 hover:bg-emerald-800 text-white h-12 rounded-xl font-bold w-full"
+                            className="bg-emerald-800 hover:bg-emerald-900 text-white h-12 rounded-xl font-bold w-full"
                           >
                             {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ShieldCheck className="h-5 w-5 mr-2" /> Registrar y fiscalizar</>}
                           </Button>
@@ -4377,7 +4400,7 @@ export default function VentasMostradorClient({
                       <Button
                         onClick={() => handleFinalizarVenta(true)}
                         disabled={isSubmitting}
-                        className="bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700 text-white h-10 rounded-xl font-bold w-full text-sm shadow-md"
+                        className="bg-amber-500 hover:bg-amber-600 text-white h-10 rounded-xl font-bold w-full text-sm shadow-md"
                       >
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de venta</>}
                       </Button>
@@ -4493,7 +4516,12 @@ export default function VentasMostradorClient({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-purple-50 p-4 rounded-xl border border-purple-200 animate-in fade-in">
                       <div className="space-y-3">
                         <Label className="text-xs font-bold text-purple-800 uppercase">Pago 1 (Principal)</Label>
-                        <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                        <select
+                          value={editMetodoPago}
+                          onChange={(e) => setEditMetodoPago(e.target.value)}
+                          style={{ borderLeftWidth: 3, borderLeftColor: colorMetodoPago(editMetodoPago) }}
+                          className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none"
+                        >
                           <OpcionesMetodoPago incluirAConfirmar={false} />
                         </select>
                         <div>
@@ -4509,7 +4537,12 @@ export default function VentasMostradorClient({
 
                       <div className="space-y-3">
                         <Label className="text-xs font-bold text-purple-800 uppercase">Pago 2 (Restante)</Label>
-                        <select value={editMetodoPago2} onChange={(e) => setEditMetodoPago2(e.target.value)} className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none">
+                        <select
+                          value={editMetodoPago2}
+                          onChange={(e) => setEditMetodoPago2(e.target.value)}
+                          style={{ borderLeftWidth: 3, borderLeftColor: colorMetodoPago(editMetodoPago2) }}
+                          className="w-full h-10 rounded-xl border border-purple-200 bg-white px-3 text-sm focus:outline-none"
+                        >
                           <OpcionesMetodoPago incluirAConfirmar={false} />
                         </select>
                         <div>
@@ -4533,7 +4566,12 @@ export default function VentasMostradorClient({
                   ) : (
                     <div className="space-y-2 w-64">
                       <Label className="text-xs font-bold text-slate-500 uppercase">Forma de Pago Única</Label>
-                      <select value={editMetodoPago} onChange={(e) => setEditMetodoPago(e.target.value)} className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none">
+                      <select
+                        value={editMetodoPago}
+                        onChange={(e) => setEditMetodoPago(e.target.value)}
+                        style={{ borderLeftWidth: 3, borderLeftColor: colorMetodoPago(editMetodoPago) }}
+                        className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none"
+                      >
                         <OpcionesMetodoPago incluirAConfirmar={false} />
                       </select>
                     </div>

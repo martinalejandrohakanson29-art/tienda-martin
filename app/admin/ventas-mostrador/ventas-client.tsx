@@ -92,6 +92,7 @@ interface Articulo {
       nombre: string;
       precio: number;
       stock: number;
+      costo?: number;
     };
     cantidad: number;
   }[];
@@ -1100,7 +1101,8 @@ export default function VentasMostradorClient({
           precio_unit: Number(packItem.componente.precio),
           subtotal: Number(packItem.cantidad * packItem.componente.precio),
           stock: packItem.componente.stock,
-          ultimaModificacion: prod.ultimaModificacion
+          ultimaModificacion: prod.ultimaModificacion,
+          costo: packItem.componente.costo
         }));
         setItems(prev => [...prev, ...componentes]);
       } else {

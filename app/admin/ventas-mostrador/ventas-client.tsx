@@ -1887,15 +1887,16 @@ export default function VentasMostradorClient({
     setParaCuentaCorriente("");
     try {
       const paraParsed = paraVal.trim().startsWith('[') ? JSON.parse(paraVal) : null;
-      if (Array.isArray(paraParsed) && paraParsed.length === 2) {
-        // Caso "esMixtoCruzadaCC": Cruzada + A Cuenta Corriente combinados en un pago Mixto.
-        setParaCruzada(paraParsed[0]?.razonSocial || "");
-        setParaCuentaCorriente(paraParsed[1]?.razonSocial || "");
-      } else if (venta.metodo_pago === "Cruzada" && Array.isArray(paraParsed)) {
-        // Caso Cruzada simple con uno o varios proveedores.
+      if (venta.metodo_pago === "Cruzada" && Array.isArray(paraParsed)) {
+        // Caso Cruzada simple con uno o varios proveedores (chequear ANTES del caso
+        // Mixto+CC de abajo: una Cruzada con 2 proveedores también tiene length === 2).
         setProveedoresCruzada(paraParsed.map((p: any) => ({
           id: p.id || "", razonSocial: p.razonSocial || "", monto: Number(p.monto) || 0
         })));
+      } else if (Array.isArray(paraParsed) && paraParsed.length === 2) {
+        // Caso "esMixtoCruzadaCC": Cruzada + A Cuenta Corriente combinados en un pago Mixto.
+        setParaCruzada(paraParsed[0]?.razonSocial || "");
+        setParaCuentaCorriente(paraParsed[1]?.razonSocial || "");
       } else if (venta.metodo_pago === "Cruzada") {
         // Dato legado guardado como string plano (un solo proveedor).
         setProveedoresCruzada([{ id: "", razonSocial: paraVal, monto: Number(venta.totalFinal) || 0 }]);

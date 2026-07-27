@@ -189,6 +189,49 @@ export default function MovimientosClient({
     }).format(amount);
   };
 
+  // --- Formato clásico (Debe/Haber/Saldo) para la cuenta de un único proveedor filtrado ---
+  const proveedorIdsEnFiltro = useMemo(
+    () => Array.from(new Set(filteredMovimientos.map((m) => m.proveedorId))),
+    [filteredMovimientos]
+  );
+  const isSingleProveedor = proveedorIdsEnFiltro.length === 1;
+
+  const movimientosAsc = useMemo(() => {
+    return [...filteredMovimientos].sort(
+      (a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime()
+    );
+  }, [filteredMovimientos]);
+
+  const saldoInicial = useMemo(() => {
+    if (!isSingleProveedor || movimientosAsc.length === 0) return 0;
+    const primero = movimientosAsc[0];
+    return primero.saldo - primero.monto;
+  }, [isSingleProveedor, movimientosAsc]);
+
+  const totalDebe = useMemo(
+    () =>
+      movimientosAsc
+        .filter((m) => !m.anulado && m.tipo === "DEBE")
+        .reduce((acc, m) => acc + Math.abs(m.monto), 0),
+    [movimientosAsc]
+  );
+  const totalHaber = useMemo(
+    () =>
+      movimientosAsc
+        .filter((m) => !m.anulado && m.tipo === "HABER")
+        .reduce((acc, m) => acc + Math.abs(m.monto), 0),
+    [movimientosAsc]
+  );
+  const saldoFinal = movimientosAsc.length > 0
+    ? movimientosAsc[movimientosAsc.length - 1].saldo
+    : saldoInicial;
+
+  const periodoTexto = useMemo(() => {
+    const desde = appliedStartDate ? format(new Date(appliedStartDate + "T12:00:00"), "dd/MM/yyyy") : "—";
+    const hasta = appliedEndDate ? format(new Date(appliedEndDate + "T12:00:00"), "dd/MM/yyyy") : "—";
+    return `Desde ${desde} hasta ${hasta}`;
+  }, [appliedStartDate, appliedEndDate]);
+
   const handleAnularConfirm = async () => {
     if (!pendingAnulacion) return;
     const id = pendingAnulacion;
@@ -216,36 +259,60 @@ export default function MovimientosClient({
       return;
     }
 
-    const dataToExport = filteredMovimientos.map((m) => ({
-      Registro: format(new Date(m.fecha), "dd/MM/yyyy HH:mm", { locale: es }),
-      "Fecha Real": m.fechaIngreso
-        ? format(new Date(m.fechaIngreso), "dd/MM/yyyy", { locale: es })
-        : m.fechaPago
-          ? format(new Date(m.fechaPago), "dd/MM/yyyy", { locale: es })
-          : format(new Date(m.fecha), "dd/MM/yyyy", { locale: es }),
-      Proveedor: m.proveedorNombre,
-      Tipo: m.tipo,
-      Descripción: m.descripcion || "---",
-      Monto: m.monto,
-      Saldo: m.saldo,
-      Anulado: m.anulado ? "SÍ" : "NO",
-    }));
+    const rows: (string | number)[][] = [];
+    let columnWidths: { wch: number }[];
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    if (isSingleProveedor) {
+      rows.push([`Cliente: ${movimientosAsc[0].proveedorNombre}`]);
+      rows.push([`Periodo: ${periodoTexto}`]);
+      rows.push([`Moneda: PESOS`]);
+      rows.push([]);
+      rows.push(["Fecha y Hora", "Movimiento", "Debe", "Haber", "Saldo"]);
+      rows.push(["", "Saldo al Inicio", "", "", saldoInicial]);
+      movimientosAsc.forEach((m) => {
+        rows.push([
+          format(new Date(m.fecha), "dd/MM/yyyy HH:mm", { locale: es }),
+          (m.anulado ? "ANULADO - " : "") + (m.descripcion || m.tipo),
+          m.anulado ? 0 : m.tipo === "DEBE" ? Math.abs(m.monto) : 0,
+          m.anulado ? 0 : m.tipo === "HABER" ? Math.abs(m.monto) : 0,
+          m.anulado ? 0 : m.saldo,
+        ]);
+      });
+      rows.push(["", "Totales", totalDebe, totalHaber, saldoFinal]);
+
+      columnWidths = [
+        { wch: 20 }, // Fecha y Hora
+        { wch: 45 }, // Movimiento
+        { wch: 16 }, // Debe
+        { wch: 16 }, // Haber
+        { wch: 16 }, // Saldo
+      ];
+    } else {
+      rows.push(["Fecha y Hora", "Proveedor", "Movimiento", "Debe", "Haber", "Saldo"]);
+      filteredMovimientos.forEach((m) => {
+        rows.push([
+          format(new Date(m.fecha), "dd/MM/yyyy HH:mm", { locale: es }),
+          m.proveedorNombre,
+          (m.anulado ? "ANULADO - " : "") + (m.descripcion || m.tipo),
+          m.anulado ? 0 : m.tipo === "DEBE" ? Math.abs(m.monto) : 0,
+          m.anulado ? 0 : m.tipo === "HABER" ? Math.abs(m.monto) : 0,
+          m.anulado ? 0 : m.saldo,
+        ]);
+      });
+
+      columnWidths = [
+        { wch: 20 }, // Fecha y Hora
+        { wch: 30 }, // Proveedor
+        { wch: 40 }, // Movimiento
+        { wch: 16 }, // Debe
+        { wch: 16 }, // Haber
+        { wch: 16 }, // Saldo
+      ];
+    }
+
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Movimientos");
-
-    // Ajustar anchos de columna
-    const columnWidths = [
-      { wch: 20 }, // Registro
-      { wch: 18 }, // Fecha Real
-      { wch: 30 }, // Proveedor
-      { wch: 15 }, // Tipo
-      { wch: 40 }, // Descripción
-      { wch: 15 }, // Monto
-      { wch: 15 }, // Saldo
-      { wch: 10 }, // Anulado
-    ];
     worksheet["!cols"] = columnWidths;
 
     XLSX.writeFile(workbook, `Reporte_Movimientos_${format(new Date(), "dd-MM-yyyy_HHmm")}.xlsx`);
@@ -253,9 +320,7 @@ export default function MovimientosClient({
   };
 
   const handleExportPDFCliente = () => {
-    const activeMovimientos = filteredMovimientos.filter(m => !m.anulado);
-
-    if (activeMovimientos.length === 0) {
+    if (movimientosAsc.length === 0) {
       toast.error("No hay movimientos para exportar");
       return;
     }
@@ -263,81 +328,66 @@ export default function MovimientosClient({
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    const provNombre = searchTerm || "Todos los proveedores";
+    const provNombre = isSingleProveedor
+      ? movimientosAsc[0].proveedorNombre
+      : (searchTerm || "Todos los proveedores");
 
-    doc.setFontSize(20);
+    doc.setFontSize(18);
     doc.setTextColor(0, 0, 0);
-    doc.text("Estado de Cuenta", 14, 22);
+    doc.text("Listado de Movimientos", 14, 20);
 
-    doc.setFontSize(13);
-    doc.setTextColor(60);
-    doc.text(provNombre, 14, 32);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(0, 0, 0);
+    doc.text("CLIENTE:", 14, 30);
+    doc.text("Moneda:", pageWidth - 14, 30, { align: 'right' });
+    doc.setFont("helvetica", "normal");
+    doc.text(provNombre, 32, 30);
+    doc.text("PESOS", pageWidth - 14 - doc.getTextWidth("PESOS"), 30);
 
-    doc.setFontSize(9);
-    doc.setTextColor(120);
-    doc.text(`Generado el: ${format(new Date(), "dd/MM/yyyy HH:mm", { locale: es })}`, 14, 40);
+    doc.setFont("helvetica", "bold");
+    doc.text("PERIODO:", 14, 36);
+    doc.setFont("helvetica", "normal");
+    doc.text(periodoTexto, 34, 36);
 
-    let startY = 48;
-    if (appliedStartDate || appliedEndDate) {
-      const start = appliedStartDate ? format(new Date(appliedStartDate + "T12:00:00"), "dd/MM/yyyy") : "Inicio";
-      const end = appliedEndDate ? format(new Date(appliedEndDate + "T12:00:00"), "dd/MM/yyyy") : "Hoy";
-      doc.text(`Período: ${start} al ${end}`, 14, 46);
-      startY = 52;
-    }
+    const startY = 44;
 
-    const simplifyTipo = (tipo: string): string => {
-      return tipo.toUpperCase() === "DEBE" ? "Pago" : "Compra";
-    };
-
-    const tableColumn = ["Fecha", "Concepto", "Monto", "Saldo"];
-    const tableRows = activeMovimientos.map(m => [
-      format(new Date(m.fechaIngreso ?? m.fechaPago ?? m.fecha), "dd/MM/yyyy"),
-      simplifyTipo(m.tipo),
-      formatCurrency(m.monto),
-      formatCurrency(m.saldo),
-    ]);
+    const tableColumn = ["Fecha y Hora", "Movimiento", "Debe", "Haber", "Saldo"];
+    const tableRows: (string | { content: string; styles?: Record<string, unknown> })[][] = [
+      [
+        "",
+        { content: "Saldo al Inicio", styles: { fontStyle: 'italic' } },
+        "",
+        "",
+        formatCurrency(saldoInicial),
+      ],
+      ...movimientosAsc.map((m) => {
+        const styles = m.anulado ? { textColor: [220, 38, 38] as [number, number, number] } : {};
+        return [
+          { content: format(new Date(m.fecha), "dd/MM/yyyy HH:mm"), styles },
+          { content: m.descripcion || m.tipo, styles },
+          { content: formatCurrency(m.anulado ? 0 : m.tipo === "DEBE" ? Math.abs(m.monto) : 0), styles },
+          { content: formatCurrency(m.anulado ? 0 : m.tipo === "HABER" ? Math.abs(m.monto) : 0), styles },
+          { content: formatCurrency(m.anulado ? 0 : m.saldo), styles },
+        ];
+      }),
+    ];
 
     autoTable(doc, {
       head: [tableColumn],
-      body: tableRows,
+      body: tableRows as any,
+      foot: [["", "Totales", formatCurrency(totalDebe), formatCurrency(totalHaber), formatCurrency(saldoFinal)]],
       startY,
       theme: 'grid',
       headStyles: { fillColor: [43, 140, 238], textColor: [255, 255, 255], fontStyle: 'bold', lineWidth: 0.1 },
-      styles: { fontSize: 9, cellPadding: 3, textColor: [0, 0, 0] },
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: 0.1 },
+      styles: { fontSize: 8, cellPadding: 3, textColor: [0, 0, 0] },
       columnStyles: {
         2: { halign: 'right' },
-        3: { halign: 'right', fontStyle: 'bold' },
+        3: { halign: 'right' },
+        4: { halign: 'right', fontStyle: 'bold' },
       },
     });
-
-    // El saldo actual debe ser el total REAL de la cuenta corriente del proveedor
-    // (misma fuente de verdad que /admin/erp/cuenta-corriente), no el snapshot del
-    // último movimiento del set filtrado, que puede estar desfasado por el filtro de
-    // fechas o por el orden. Buscamos el proveedor por su id en la lista cargada.
-    const proveedorIds = Array.from(new Set(activeMovimientos.map(m => m.proveedorId)));
-    const proveedorActual = proveedorIds.length === 1
-      ? proveedores.find(p => p.id === proveedorIds[0])
-      : undefined;
-    const saldoActual = proveedorActual
-      ? proveedorActual.total
-      : (activeMovimientos[0]?.saldo ?? 0);
-    const finalY = (doc as any).lastAutoTable.finalY;
-    const saldoPositivo = saldoActual >= 0;
-
-    const boxY = finalY + 12;
-    doc.setFillColor(...(saldoPositivo ? [255, 228, 230] : [209, 250, 229]) as [number, number, number]);
-    doc.roundedRect(14, boxY, pageWidth - 28, 30, 3, 3, 'F');
-
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.setFont("helvetica", "normal");
-    doc.text("SALDO ACTUAL", 24, boxY + 10);
-
-    doc.setFontSize(24);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...(saldoPositivo ? [190, 18, 60] : [4, 120, 87]) as [number, number, number]);
-    doc.text(formatCurrency(saldoActual), pageWidth - 18, boxY + 22, { align: 'right' });
-    doc.setFont("helvetica", "normal");
 
     const pdfUrl = doc.output('bloburl');
     window.open(pdfUrl, '_blank');
@@ -373,18 +423,13 @@ export default function MovimientosClient({
       doc.text(`Filtro búsqueda: "${searchTerm}"`, 14, 42);
     }
 
-    const tableColumn = ["Registro", "F. Real", "Proveedor", "Tipo", "Descripción", "Monto", "Saldo"];
+    const tableColumn = ["Fecha y Hora", "Proveedor", "Movimiento", "Debe", "Haber", "Saldo"];
     const tableRows = activeMovimientos.map(m => [
       format(new Date(m.fecha), "dd/MM/yy HH:mm"),
-      m.fechaIngreso
-        ? format(new Date(m.fechaIngreso), "dd/MM/yy")
-        : m.fechaPago
-          ? format(new Date(m.fechaPago), "dd/MM/yy")
-          : format(new Date(m.fecha), "dd/MM/yy"),
       m.proveedorNombre,
-      m.tipo,
-      m.descripcion || "---",
-      formatCurrency(m.monto),
+      m.descripcion || m.tipo,
+      formatCurrency(m.tipo === "DEBE" ? Math.abs(m.monto) : 0),
+      formatCurrency(m.tipo === "HABER" ? Math.abs(m.monto) : 0),
       formatCurrency(m.saldo)
     ]);
 
@@ -396,8 +441,9 @@ export default function MovimientosClient({
       headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: 0.1 },
       styles: { fontSize: 7, cellPadding: 2, textColor: [0, 0, 0] },
       columnStyles: {
+        3: { halign: 'right' },
+        4: { halign: 'right' },
         5: { halign: 'right' },
-        6: { halign: 'right' },
       }
     });
 
@@ -570,73 +616,68 @@ export default function MovimientosClient({
           </div>
 
           {/* Movements Table */}
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                    <th
-                      className={`px-6 py-4 text-xs font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${sortBy === "fecha" ? "text-[#2b8cee]" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
-                      onClick={() => setSortBy("fecha")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Registro
-                        {sortBy === "fecha" && <span className="material-symbols-outlined text-sm">arrow_downward</span>}
-                      </div>
-                    </th>
-                    <th
-                      className={`px-6 py-4 text-xs font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${sortBy === "fechaReal" ? "text-[#2b8cee]" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
-                      onClick={() => setSortBy("fechaReal")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Fecha Real
-                        {sortBy === "fechaReal" && <span className="material-symbols-outlined text-sm">arrow_downward</span>}
-                      </div>
-                    </th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Descripción</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Monto</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredMovimientos.length > 0 ? (
-                    filteredMovimientos.map((m) => (
-                      <tr key={m.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${m.anulado ? "opacity-60 grayscale-[0.5]" : ""}`}>
+          {isSingleProveedor && movimientosAsc.length > 0 ? (
+            /* Formato clásico Debe / Haber / Saldo, para la cuenta del proveedor filtrado */
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-baseline gap-x-8 gap-y-1">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-2">Cliente:</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-white">{movimientosAsc[0].proveedorNombre}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-2">Periodo:</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">{periodoTexto}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-2">Moneda:</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-300">PESOS</span>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha y Hora</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Movimiento</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Debe</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Haber</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tr className="bg-slate-50/60 dark:bg-slate-800/20">
+                      <td className="px-6 py-3 whitespace-nowrap text-xs text-slate-400">—</td>
+                      <td className="px-6 py-3 text-sm italic font-bold text-slate-500 dark:text-slate-400">Saldo al Inicio</td>
+                      <td className="px-6 py-3 text-right text-sm text-slate-400">—</td>
+                      <td className="px-6 py-3 text-right text-sm text-slate-400">—</td>
+                      <td className="px-6 py-3 whitespace-nowrap text-right text-sm font-bold text-slate-700 dark:text-slate-300">
+                        {formatCurrency(saldoInicial)}
+                      </td>
+                      <td></td>
+                    </tr>
+                    {movimientosAsc.map((m) => (
+                      <tr key={m.id} className={`transition-colors ${m.anulado ? "bg-rose-50/40 dark:bg-rose-950/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/30"}`}>
                         <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
                           <div className="flex flex-col">
                             <span>{format(new Date(m.fecha), "dd/MM/yy", { locale: es })}</span>
                             <span className="text-[10px] opacity-50">{format(new Date(m.fecha), "HH:mm", { locale: es })}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
-                          {format(
-                            new Date(m.fechaIngreso ?? m.fechaPago ?? m.fecha),
-                            "dd/MM/yy",
-                            { locale: es }
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`text-sm font-bold text-slate-900 dark:text-white ${m.anulado ? "line-through" : ""}`}>{m.proveedorNombre}</span>
-                        </td>
                         <td className="px-6 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase text-[#2b8cee] mb-0.5">
-                              {m.tipo}
-                            </span>
-                            <p className={`text-sm text-slate-600 dark:text-slate-400 ${m.anulado ? "italic text-red-500 line-through opacity-70" : ""}`}>
-                              {m.anulado && <span className="mr-1">⚠️</span>}
-                              {m.descripcion || "---"}
-                            </p>
-                          </div>
+                          <span className={`text-sm ${m.anulado ? "italic text-rose-500 line-through" : "text-slate-700 dark:text-slate-300"}`}>
+                            {m.anulado && <span className="mr-1">⚠️</span>}
+                            {m.descripcion || m.tipo}
+                          </span>
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${m.anulado ? "text-slate-400 line-through" : (m.monto >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")
-                          }`}>
-                          {formatCurrency(m.monto)}
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${m.anulado ? "text-rose-400" : "text-slate-700 dark:text-slate-300"}`}>
+                          {formatCurrency(m.anulado ? 0 : m.tipo === "DEBE" ? Math.abs(m.monto) : 0)}
                         </td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right ${m.anulado ? "text-slate-400" : ""}`}>
-                          {formatCurrency(m.saldo)}
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${m.anulado ? "text-rose-400" : "text-slate-700 dark:text-slate-300"}`}>
+                          {formatCurrency(m.anulado ? 0 : m.tipo === "HABER" ? Math.abs(m.monto) : 0)}
+                        </td>
+                        <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${m.anulado ? "text-rose-400" : "text-slate-900 dark:text-white"}`}>
+                          {formatCurrency(m.anulado ? 0 : m.saldo)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           {!m.anulado && (
@@ -655,21 +696,120 @@ export default function MovimientosClient({
                           )}
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center">
-                        <div className="flex flex-col items-center">
-                          <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">history</span>
-                          <p className="text-slate-500 font-medium">No se encontraron movimientos.</p>
-                        </div>
-                      </td>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-t-2 border-slate-300 dark:border-slate-700">
+                      <td colSpan={2} className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Totales</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right">{formatCurrency(totalDebe)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right">{formatCurrency(totalHaber)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right">{formatCurrency(saldoFinal)}</td>
+                      <td></td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </tfoot>
+                </table>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                      <th
+                        className={`px-6 py-4 text-xs font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${sortBy === "fecha" ? "text-[#2b8cee]" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                        onClick={() => setSortBy("fecha")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Registro
+                          {sortBy === "fecha" && <span className="material-symbols-outlined text-sm">arrow_downward</span>}
+                        </div>
+                      </th>
+                      <th
+                        className={`px-6 py-4 text-xs font-bold uppercase tracking-wider cursor-pointer select-none transition-colors ${sortBy === "fechaReal" ? "text-[#2b8cee]" : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"}`}
+                        onClick={() => setSortBy("fechaReal")}
+                      >
+                        <div className="flex items-center gap-1">
+                          Fecha Real
+                          {sortBy === "fechaReal" && <span className="material-symbols-outlined text-sm">arrow_downward</span>}
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Proveedor</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Movimiento</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Debe</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Haber</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo</th>
+                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredMovimientos.length > 0 ? (
+                      filteredMovimientos.map((m) => (
+                        <tr key={m.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${m.anulado ? "opacity-60 grayscale-[0.5]" : ""}`}>
+                          <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
+                            <div className="flex flex-col">
+                              <span>{format(new Date(m.fecha), "dd/MM/yy", { locale: es })}</span>
+                              <span className="text-[10px] opacity-50">{format(new Date(m.fecha), "HH:mm", { locale: es })}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
+                            {format(
+                              new Date(m.fechaIngreso ?? m.fechaPago ?? m.fecha),
+                              "dd/MM/yy",
+                              { locale: es }
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`text-sm font-bold text-slate-900 dark:text-white ${m.anulado ? "line-through" : ""}`}>{m.proveedorNombre}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`text-sm text-slate-600 dark:text-slate-400 ${m.anulado ? "italic text-red-500 line-through opacity-70" : ""}`}>
+                              {m.anulado && <span className="mr-1">⚠️</span>}
+                              {m.descripcion || m.tipo}
+                            </span>
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${m.anulado ? "text-slate-400 line-through" : "text-slate-700 dark:text-slate-300"}`}>
+                            {formatCurrency(m.anulado ? 0 : m.tipo === "DEBE" ? Math.abs(m.monto) : 0)}
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${m.anulado ? "text-slate-400 line-through" : "text-slate-700 dark:text-slate-300"}`}>
+                            {formatCurrency(m.anulado ? 0 : m.tipo === "HABER" ? Math.abs(m.monto) : 0)}
+                          </td>
+                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900 dark:text-white text-right ${m.anulado ? "text-slate-400" : ""}`}>
+                            {formatCurrency(m.saldo)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            {!m.anulado && (
+                              <button
+                                onClick={() => setPendingAnulacion(m.id)}
+                                disabled={isAnulando === m.id}
+                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-all"
+                                title="Anular movimiento"
+                              >
+                                {isAnulando === m.id ? (
+                                  <span className="w-5 h-5 border-2 border-rose-500/30 border-t-rose-500 rounded-full animate-spin inline-block" />
+                                ) : (
+                                  <span className="material-symbols-outlined text-lg">block</span>
+                                )}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">history</span>
+                            <p className="text-slate-500 font-medium">No se encontraron movimientos.</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <>

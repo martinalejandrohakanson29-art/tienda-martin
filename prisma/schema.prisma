@@ -686,6 +686,8 @@ model ArticuloMostrador {
   stock        Int                 @default(0)
   precio       Decimal             @default(0) @db.Decimal(20, 2)
   costo        Decimal?            @default(0) @db.Decimal(20, 2)
+  costoUsd     Decimal?            @db.Decimal(20, 2)
+  esCostoDolar Boolean             @default(false)
   margenGanancia Decimal?          @default(0) @db.Decimal(10, 2)
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt

@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User, ListChecks, Truck, Check, X, FileSpreadsheet, Upload, TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
+import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User, ListChecks, Truck, Check, X, FileSpreadsheet, Upload, TrendingUp, TrendingDown, Minus, RefreshCw, DollarSign } from "lucide-react";
 import Link from "next/link";
 import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo, aplicarProveedorMasivo, previsualizarExcelProveedor, aplicarActualizacionMasivaExcel } from "@/app/actions/listas";
 import type { PreviewExcelResultado } from "@/app/actions/listas";
+import { obtenerCotizacionDolar } from "@/app/actions/dolar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -25,6 +26,8 @@ interface Articulo {
   precio: number;
   stock: number;
   costo?: number;
+  costoUsd?: number | null;
+  esCostoDolar?: boolean;
   margenGanancia?: number;
   oculto?: boolean;
   codigoProveedor?: string | null;
@@ -86,6 +89,7 @@ export default function ArticulosClient({
   // Estado para ocultar/mostrar artículos
   const [togglingOcultoId, setTogglingOcultoId] = useState<string | null>(null);
   const [soloOcultos, setSoloOcultos] = useState(false);
+  const [soloAtadosDolar, setSoloAtadosDolar] = useState(false);
 
   // Estado para el filtro de listado por Proveedor ("" = todos, "__sin__" = sin proveedor asignado)
   const [filtroProveedorId, setFiltroProveedorId] = useState<string>("");
@@ -116,8 +120,19 @@ export default function ArticulosClient({
   const [excelError, setExcelError] = useState<string | null>(null);
   const [excelPreview, setExcelPreview] = useState<PreviewExcelResultado | null>(null);
   const [excelPorcentaje, setExcelPorcentaje] = useState<string>("");
+  const [excelEsDolares, setExcelEsDolares] = useState(false);
+  const [excelDescuentoPct, setExcelDescuentoPct] = useState<string>("");
   const [aplicandoExcel, setAplicandoExcel] = useState(false);
   const excelFileRef = useRef<HTMLInputElement>(null);
+
+  // Cotización del dólar oficial (venta), mostrada siempre en esta sección.
+  // Se actualiza sola en el server (1x/hora, 8 a 15hs AR); acá solo la consultamos.
+  const [dolarInfo, setDolarInfo] = useState<{ valor: number; fecha: string } | null>(null);
+  useEffect(() => {
+    obtenerCotizacionDolar().then(res => {
+      if (res.success) setDolarInfo({ valor: res.valor, fecha: res.fecha });
+    });
+  }, []);
 
   // Estados para el Modal de Historial
   const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
@@ -144,6 +159,8 @@ export default function ArticulosClient({
 
     let lista = soloOcultos ? articulos.filter(art => art.oculto) : articulos;
 
+    if (soloAtadosDolar) lista = lista.filter(art => art.esCostoDolar);
+
     if (filtroProveedorId === "__sin__") {
       lista = lista.filter(art => !art.proveedorId);
     } else if (filtroProveedorId) {
@@ -162,11 +179,11 @@ export default function ArticulosClient({
       const proveedorLimpio = quitarAcentos((art.proveedorNombre || "").toLowerCase());
       return palabrasBuscadas.every(p => nombreLimpio.includes(p) || idLimpio.includes(p) || codigoProveedorLimpio.includes(p) || proveedorLimpio.includes(p));
     });
-  }, [searchTerm, articulos, soloOcultos, filtroProveedorId]);
+  }, [searchTerm, articulos, soloOcultos, soloAtadosDolar, filtroProveedorId]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, soloOcultos, filtroProveedorId]);
+  }, [searchTerm, soloOcultos, soloAtadosDolar, filtroProveedorId]);
 
   // Lógica de Paginación
   const totalPages = Math.ceil(articulosFiltrados.length / itemsPerPage);
@@ -307,13 +324,24 @@ export default function ArticulosClient({
     setExcelPreview(null);
     setExcelError(null);
     setExcelPorcentaje("");
+    setExcelEsDolares(false);
+    setExcelDescuentoPct("");
     setExcelDragging(false);
     setIsExcelModalOpen(true);
+    // Refrescamos la cotización al abrir por si el usuario la dejó abierta un rato largo.
+    obtenerCotizacionDolar().then(res => {
+      if (res.success) setDolarInfo({ valor: res.valor, fecha: res.fecha });
+    });
   };
 
   const procesarArchivoExcel = async (file: File) => {
     if (!excelProveedorId) {
       setExcelError("Elegí primero el proveedor de la lista de precios.");
+      return;
+    }
+    const descuentoPct = excelDescuentoPct.trim() === "" ? 0 : Number(excelDescuentoPct);
+    if (isNaN(descuentoPct) || descuentoPct < 0 || descuentoPct >= 100) {
+      setExcelError("El % de descuento del proveedor no es válido.");
       return;
     }
     setCargandoExcel(true);
@@ -322,7 +350,7 @@ export default function ArticulosClient({
 
     const fd = new FormData();
     fd.append("file", file);
-    const res = await previsualizarExcelProveedor(fd, excelProveedorId);
+    const res = await previsualizarExcelProveedor(fd, excelProveedorId, { esDolar: excelEsDolares, descuentoPct });
 
     if (res.success && res.data) {
       setExcelPreview(res.data);
@@ -355,15 +383,19 @@ export default function ArticulosClient({
     }
     setAplicandoExcel(true);
 
-    const updates = excelPreview.items.map(it => ({ id: it.id, costoNuevo: it.costoNuevo }));
-    const res = await aplicarActualizacionMasivaExcel(updates, pct);
+    const updates = excelPreview.items.map(it => ({ id: it.id, costoNuevo: it.costoNuevo, costoUsdNuevo: it.costoUsdNuevo }));
+    const res = await aplicarActualizacionMasivaExcel(updates, pct, {
+      esDolar: excelPreview.esDolar,
+      descuentoPct: excelPreview.descuentoPct,
+      dolarVentaUsado: excelPreview.dolarVentaUsado
+    });
 
     if (res.success) {
-      const updatesMap = new Map(excelPreview.items.map(it => [it.id, it.costoNuevo]));
+      const updatesMap = new Map(excelPreview.items.map(it => [it.id, it]));
       setArticulos(prev => prev.map(a => {
-        const costoNuevo = updatesMap.get(a.id);
-        if (costoNuevo === undefined) return a;
-        return { ...a, costo: costoNuevo, margenGanancia: pct, precio: calcularPrecio(costoNuevo, pct) };
+        const it = updatesMap.get(a.id);
+        if (!it) return a;
+        return { ...a, costo: it.costoNuevo, costoUsd: it.costoUsdNuevo, esCostoDolar: it.costoUsdNuevo != null, margenGanancia: pct, precio: calcularPrecio(it.costoNuevo, pct) };
       }));
       setIsExcelModalOpen(false);
     } else {
@@ -395,7 +427,14 @@ export default function ArticulosClient({
 
     if (res.success) {
       const proveedorNombre = proveedores.find(p => p.id === editData.proveedorId)?.nombre || null;
-      setArticulos(prev => prev.map(a => a.id === editData.id ? { ...editData, proveedorNombre } : a));
+      const original = articulos.find(a => a.id === editData.id);
+      // Igual que en el servidor: tocar el costo a mano desvincula del seguimiento del dólar.
+      const costoCambio = original && (original.costo ?? 0) !== (editData.costo ?? 0);
+      setArticulos(prev => prev.map(a => a.id === editData.id ? {
+        ...editData,
+        proveedorNombre,
+        ...(costoCambio ? { esCostoDolar: false, costoUsd: null } : {})
+      } : a));
       setIsEditModalOpen(false);
     } else {
       alert("Error: " + res.error);
@@ -452,7 +491,8 @@ export default function ArticulosClient({
     );
 
     if (res.success) {
-      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, costo: nuevoCosto } : a));
+      // Igual que en el servidor: tocar el costo a mano desvincula del seguimiento del dólar.
+      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, costo: nuevoCosto, esCostoDolar: false, costoUsd: null } : a));
     } else {
       alert("Error: " + res.error);
     }
@@ -653,6 +693,12 @@ export default function ArticulosClient({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {dolarInfo && (
+            <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mr-1" title={`Actualizado ${new Date(dolarInfo.fecha).toLocaleString('es-AR')}`}>
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+              <span className="text-xs font-bold text-emerald-700">Dólar venta ${dolarInfo.valor.toLocaleString('es-AR')}</span>
+            </div>
+          )}
           <Button
             onClick={abrirModalExcel}
             variant="outline"
@@ -696,6 +742,15 @@ export default function ArticulosClient({
           >
             <EyeOff className="h-3.5 w-3.5" />
             Solo ocultos
+          </button>
+
+          <button
+            onClick={() => setSoloAtadosDolar(prev => !prev)}
+            title="Artículos cuyo costo sigue la cotización del dólar"
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all flex-shrink-0 ${soloAtadosDolar ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}
+          >
+            <DollarSign className="h-3.5 w-3.5" />
+            Atados al dólar
           </button>
 
           <div className="relative flex-shrink-0" ref={filtroProveedorRef}>
@@ -1052,9 +1107,12 @@ export default function ArticulosClient({
                           <button
                             type="button"
                             onClick={() => iniciarEdicionCosto(art)}
-                            title="Clic para editar el costo"
-                            className="ml-auto block text-right rounded-lg px-2 py-1 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200 transition-all"
+                            title={art.esCostoDolar ? `USD ${art.costoUsd?.toLocaleString('es-AR')} — sigue la cotización del dólar. Clic para editar y desvincular.` : "Clic para editar el costo"}
+                            className="ml-auto flex items-center justify-end gap-1 text-right rounded-lg px-2 py-1 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200 transition-all"
                           >
+                            {art.esCostoDolar && (
+                              <DollarSign className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+                            )}
                             {art.costo && art.costo > 0 ? (
                               <span className="font-bold text-slate-700">$ {art.costo.toLocaleString('es-AR')}</span>
                             ) : (
@@ -1490,6 +1548,27 @@ export default function ArticulosClient({
                 </p>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 h-10 cursor-pointer">
+                  <Checkbox checked={excelEsDolares} onCheckedChange={setExcelEsDolares} />
+                  <span className="text-xs font-bold text-slate-600">
+                    La lista está en dólares{dolarInfo ? ` (venta $${dolarInfo.valor.toLocaleString('es-AR')})` : ""}
+                  </span>
+                </label>
+                <div className="space-y-1">
+                  <Input
+                    type="number"
+                    value={excelDescuentoPct}
+                    onChange={(e) => setExcelDescuentoPct(e.target.value)}
+                    placeholder="% descuento del proveedor (opcional)"
+                    className="h-10 text-xs bg-slate-50 border-slate-200"
+                  />
+                </div>
+              </div>
+              {excelEsDolares && !dolarInfo && (
+                <p className="text-[11px] text-amber-600">No se pudo obtener la cotización del dólar todavía; probá de nuevo en un momento.</p>
+              )}
+
               <div
                 className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center gap-3 transition-all
                   ${!excelProveedorId ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-50" :
@@ -1553,6 +1632,14 @@ export default function ArticulosClient({
                   <span className="text-amber-600">{excelPreview.sinMatchEnExcel} artículo{excelPreview.sinMatchEnExcel !== 1 ? "s" : ""} sin coincidencia en el Excel</span>
                 )}
               </div>
+
+              {(excelPreview.esDolar || excelPreview.descuentoPct > 0) && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-[11px] text-blue-700 font-medium">
+                  Costo Nuevo ya calculado {excelPreview.esDolar && excelPreview.dolarVentaUsado ? `convirtiendo de USD a $${excelPreview.dolarVentaUsado.toLocaleString('es-AR')} (dólar venta)` : ""}
+                  {excelPreview.esDolar && excelPreview.descuentoPct > 0 ? " y " : ""}
+                  {excelPreview.descuentoPct > 0 ? `aplicando ${excelPreview.descuentoPct}% de descuento del proveedor` : ""}.
+                </div>
+              )}
 
               {excelPreview.items.length > 0 && (
                 <div className="border border-slate-100 rounded-xl max-h-[220px] overflow-y-auto">

@@ -5,19 +5,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import * as XLSX from "xlsx"
 import { validarComponentesSinCicloTx, recalcularStockYCostoPackTx, propagarHaciaArribaTx } from "@/lib/packs-stock"
-
-type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0]
-
-// Mantiene sincronizado el costo con la tabla legado de MercadoLibre (costos_articulos_old),
-// que alimenta la vista vista_costos_productos usada en /admin/mercadolibre/costos.
-// Mismo patrón que upsertCostosML en compras.ts, pero con el costo ya en ARS (es_dolar: false).
-async function syncCostoArticuloML(tx: TxClient, id: string, nombre: string, costoArs: number) {
-  await tx.costosArticulos.upsert({
-    where: { id_articulo: id },
-    update: { costo_usd: costoArs, es_dolar: false, costo_final_ars: costoArs, fecha_actualizacion: new Date() },
-    create: { id_articulo: id, descripcion: nombre, costo_usd: costoArs, es_dolar: false, costo_final_ars: costoArs }
-  });
-}
+import { getCotizacionDolarVenta } from "@/lib/dolar"
+import { syncCostoArticuloML } from "@/lib/sync-costo-ml"
 
 // Función para obtener todos los artículos para la vista de listas
 export async function obtenerArticulosParaListas() {
@@ -42,6 +31,8 @@ export async function obtenerArticulosParaListas() {
         precio: Number(art.precio),
         stock: art.stock,
         costo: Number(art.costo || 0),
+        costoUsd: art.costoUsd != null ? Number(art.costoUsd) : null,
+        esCostoDolar: art.esCostoDolar,
         margenGanancia: Number(art.margenGanancia || 0),
         esPack: art.esPack || false,
         oculto: art.oculto,
@@ -75,6 +66,8 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
       const anterior = await tx.articuloMostrador.findUnique({ where: { id }, include: { proveedor: true } });
       if (!anterior) throw new Error("Artículo no encontrado");
 
+      const costoCambio = costo !== undefined && Number(anterior.costo || 0) !== costo;
+
       await tx.articuloMostrador.update({
         where: { id },
         data: {
@@ -84,7 +77,9 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
           costo,
           margenGanancia,
           codigoProveedor: codigoProveedor?.trim() || null,
-          proveedorId: proveedorId || null
+          proveedorId: proveedorId || null,
+          // Tocar el costo a mano desvincula al artículo del seguimiento automático del dólar.
+          ...(costoCambio ? { esCostoDolar: false, costoUsd: null } : {})
         }
       });
 
@@ -98,8 +93,8 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
       if (anterior.stock !== stock) {
         cambios.push(`Stock: ${anterior.stock} → ${stock}`);
       }
-      if (costo !== undefined && Number(anterior.costo || 0) !== costo) {
-        cambios.push(`Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${costo.toLocaleString('es-AR')}`);
+      if (costoCambio) {
+        cambios.push(`Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${costo!.toLocaleString('es-AR')}${anterior.esCostoDolar ? " (se desvincula del dólar)" : ""}`);
       }
       if (margenGanancia !== undefined && Number(anterior.margenGanancia || 0) !== margenGanancia) {
         cambios.push(`Margen: ${Number(anterior.margenGanancia || 0)}% → ${margenGanancia}%`);
@@ -123,8 +118,8 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
         });
       }
 
-      if (costo !== undefined && Number(anterior.costo || 0) !== costo) {
-        await syncCostoArticuloML(tx, id, nombre, costo);
+      if (costoCambio) {
+        await syncCostoArticuloML(tx, id, nombre, costo!);
       }
     });
 
@@ -190,6 +185,7 @@ export type PreviewItemExcel = {
   codigoProveedor: string;
   costoActual: number;
   costoNuevo: number;
+  costoUsdNuevo: number | null;
 };
 
 export type PreviewExcelResultado = {
@@ -201,15 +197,39 @@ export type PreviewExcelResultado = {
   iguales: number;
   sinMatchEnExcel: number;
   items: PreviewItemExcel[];
+  esDolar: boolean;
+  descuentoPct: number;
+  dolarVentaUsado: number | null;
+};
+
+export type OpcionesExcelProveedor = {
+  esDolar?: boolean;
+  descuentoPct?: number;
 };
 
 // Lee la planilla del proveedor, detecta las columnas de código y precio, y cruza
 // contra los artículos que tienen ese proveedor + código de proveedor cargado.
-export async function previsualizarExcelProveedor(formData: FormData, proveedorId: string) {
+// Si la lista viene en USD y/o con descuento del proveedor, el precio de cada fila
+// se convierte ANTES de armar el preview: costoNuevo = precioExcel * (1 - descuento%) * [dólar venta si esDolar].
+export async function previsualizarExcelProveedor(formData: FormData, proveedorId: string, opciones?: OpcionesExcelProveedor) {
   try {
     const file = formData.get("file") as File | null;
     if (!file) return { success: false, error: "No se recibió ningún archivo." };
     if (!proveedorId) return { success: false, error: "Seleccioná primero el proveedor." };
+
+    const esDolar = opciones?.esDolar ?? false;
+    const descuentoPct = opciones?.descuentoPct ?? 0;
+    if (isNaN(descuentoPct) || descuentoPct < 0 || descuentoPct >= 100) {
+      return { success: false, error: "El % de descuento del proveedor no es válido." };
+    }
+
+    let dolarVentaUsado: number | null = null;
+    if (esDolar) {
+      const cot = await getCotizacionDolarVenta();
+      if (!cot) return { success: false, error: "No se pudo obtener la cotización del dólar para convertir la lista." };
+      dolarVentaUsado = cot.valor;
+    }
+    const factorDescuento = 1 - descuentoPct / 100;
 
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!["xlsx", "xls", "csv"].includes(ext ?? ""))
@@ -280,12 +300,14 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
     for (const art of articulos) {
       const codigo = (art.codigoProveedor || "").trim().toUpperCase();
       if (!codigo || !excelMap.has(codigo)) continue;
-      const costoNuevo = excelMap.get(codigo)!;
+      const costoPostDescuento = excelMap.get(codigo)! * factorDescuento;
+      const costoNuevo = Number((costoPostDescuento * (dolarVentaUsado ?? 1)).toFixed(2));
+      const costoUsdNuevo = esDolar ? Number(costoPostDescuento.toFixed(2)) : null;
       const costoActual = Number(art.costo || 0);
       if (costoNuevo > costoActual) suben++;
       else if (costoNuevo < costoActual) bajan++;
       else iguales++;
-      items.push({ id: art.id, nombre: art.nombre, codigoProveedor: art.codigoProveedor || "", costoActual, costoNuevo });
+      items.push({ id: art.id, nombre: art.nombre, codigoProveedor: art.codigoProveedor || "", costoActual, costoNuevo, costoUsdNuevo });
     }
 
     const data: PreviewExcelResultado = {
@@ -296,7 +318,10 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
       bajan,
       iguales,
       sinMatchEnExcel: articulos.length - items.length,
-      items
+      items,
+      esDolar,
+      descuentoPct,
+      dolarVentaUsado
     };
 
     return { success: true, data };
@@ -307,7 +332,11 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
 }
 
 // Aplica los nuevos costos (según lo previsualizado) y recalcula el precio con el % de marcación indicado
-export async function aplicarActualizacionMasivaExcel(updates: { id: string; costoNuevo: number }[], porcentajeMarcacion: number) {
+export async function aplicarActualizacionMasivaExcel(
+  updates: { id: string; costoNuevo: number; costoUsdNuevo: number | null }[],
+  porcentajeMarcacion: number,
+  origen?: { esDolar: boolean; descuentoPct: number; dolarVentaUsado: number | null }
+) {
   try {
     if (!updates || updates.length === 0) {
       return { success: false, error: "No hay artículos para actualizar." };
@@ -321,6 +350,13 @@ export async function aplicarActualizacionMasivaExcel(updates: { id: string; cos
 
     const calcularPrecio = (costo: number, margen: number) => Number((costo * (1 + margen / 100)).toFixed(2));
 
+    const detalleOrigen = origen && (origen.esDolar || origen.descuentoPct > 0)
+      ? ` [${[
+          origen.esDolar && origen.dolarVentaUsado ? `USD a $${origen.dolarVentaUsado.toLocaleString('es-AR')}` : null,
+          origen.descuentoPct > 0 ? `${origen.descuentoPct}% desc. proveedor` : null
+        ].filter(Boolean).join(', ')}]`
+      : '';
+
     await prisma.$transaction(async (tx) => {
       const ids = updates.map(u => u.id);
       const anteriores = await tx.articuloMostrador.findMany({ where: { id: { in: ids } } });
@@ -333,10 +369,17 @@ export async function aplicarActualizacionMasivaExcel(updates: { id: string; cos
         if (!anterior) continue;
 
         const precioNuevo = calcularPrecio(u.costoNuevo, porcentajeMarcacion);
+        const esCostoDolar = u.costoUsdNuevo != null;
 
         await tx.articuloMostrador.update({
           where: { id: u.id },
-          data: { costo: u.costoNuevo, margenGanancia: porcentajeMarcacion, precio: precioNuevo }
+          data: {
+            costo: u.costoNuevo,
+            margenGanancia: porcentajeMarcacion,
+            precio: precioNuevo,
+            costoUsd: u.costoUsdNuevo,
+            esCostoDolar
+          }
         });
 
         await syncCostoArticuloML(tx, u.id, anterior.nombre, u.costoNuevo);
@@ -345,7 +388,7 @@ export async function aplicarActualizacionMasivaExcel(updates: { id: string; cos
           articuloId: u.id,
           usuario,
           accion: "ACTUALIZACION_EXCEL_PROVEEDOR",
-          detalle: `Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${u.costoNuevo.toLocaleString('es-AR')}; Marcación ${porcentajeMarcacion}%; Precio: $${Number(anterior.precio).toLocaleString('es-AR')} → $${precioNuevo.toLocaleString('es-AR')} (importación desde Excel)`
+          detalle: `Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${u.costoNuevo.toLocaleString('es-AR')}; Marcación ${porcentajeMarcacion}%; Precio: $${Number(anterior.precio).toLocaleString('es-AR')} → $${precioNuevo.toLocaleString('es-AR')} (importación desde Excel)${detalleOrigen}${esCostoDolar ? " — queda atado al dólar, se recalcula solo" : ""}`
         });
       }
 

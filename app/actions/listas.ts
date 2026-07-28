@@ -788,6 +788,27 @@ export async function actualizarObservacionesProveedor(id: string, observaciones
   }
 }
 
+export async function actualizarDatosClienteProveedor(id: string, data: { razonSocial: string; cuit: string; condicionIva: number }) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return { success: false, error: "No autorizado" }
+  }
+  try {
+    await prisma.proveedor.update({
+      where: { id },
+      data: {
+        razonSocial: data.razonSocial.trim(),
+        cuit: data.cuit.trim() || null,
+        condicionIva: data.condicionIva,
+      },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al guardar los datos del cliente:", error);
+    return { success: false, error: "No se pudieron guardar los datos del cliente." };
+  }
+}
+
 export async function crearProveedor(data: {
   razonSocial: string;
   cuit?: string | null;

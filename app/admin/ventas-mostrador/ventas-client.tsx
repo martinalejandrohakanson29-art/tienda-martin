@@ -767,8 +767,9 @@ export default function VentasMostradorClient({
       const idLower = art.id.toLowerCase();
       return queryWords.every(word => {
         if (/^\d+$/.test(word)) {
-          const regexNumerico = new RegExp(`(?:^|[^0-9])${word}(?:[^0-9]|$)`);
-          return regexNumerico.test(nombreLower) || regexNumerico.test(idLower);
+          const numerosNombre = nombreLower.match(/\d+/g) || [];
+          const numerosId = idLower.match(/\d+/g) || [];
+          return numerosNombre.some(n => n.startsWith(word)) || numerosId.some(n => n.startsWith(word));
         }
         return nombreLower.includes(word) || idLower.includes(word);
       });

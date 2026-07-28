@@ -34,7 +34,7 @@ import {
   generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA,
   exportarVentasListadoParaExcel, revertirVentaAPedido, actualizarPedidoVenta, obtenerTodosLosArticulos,
 } from "@/app/actions/ventas-mostrador";
-import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor, actualizarDatosClienteProveedor, toggleOcultarArticulo } from "@/app/actions/listas";
+import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor, toggleOcultarArticulo } from "@/app/actions/listas";
 import { obtenerFotosEnvio, obtenerEnviosConFoto } from "@/app/actions/preparacion";
 import { obtenerFotosPedido, obtenerPedidosConFoto } from "@/app/actions/preparacion-pedidos";
 import { consultarPadron } from "@/app/actions/afip";
@@ -300,8 +300,6 @@ export default function VentasMostradorClient({
   const [isSearchingSujetos, setIsSearchingSujetos] = useState(false);
   const [showSujetoList, setShowSujetoList] = useState(false);
   const [isSavingObsProveedor, setIsSavingObsProveedor] = useState(false);
-  const [isSavingDatosCliente, setIsSavingDatosCliente] = useState(false);
-  const [datosClienteBD, setDatosClienteBD] = useState<{ razonSocial: string; cuit: string; condicionIva: number } | null>(null);
 
   const searchSujetoRef = useRef<HTMLDivElement>(null);
 
@@ -1273,25 +1271,7 @@ export default function VentasMostradorClient({
     setEmail(s.email || "");
     setTelefono(s.telefono || "");
     if (s.observaciones) setInfo(s.observaciones);
-    setDatosClienteBD({ razonSocial: s.razonSocial, cuit: s.cuit || "", condicionIva: s.condicionIva || 5 });
     setShowSujetoList(false);
-  };
-
-  const handleGuardarDatosCliente = async () => {
-    if (!sujetoId) return;
-    setIsSavingDatosCliente(true);
-    const res = await actualizarDatosClienteProveedor(sujetoId, {
-      razonSocial: cliente,
-      cuit: cuitBusqueda,
-      condicionIva,
-    });
-    setIsSavingDatosCliente(false);
-    if (!res.success) {
-      alert(res.error || "No se pudieron guardar los datos del cliente.");
-    } else {
-      setDocNro(cuitBusqueda);
-      setDatosClienteBD({ razonSocial: cliente, cuit: cuitBusqueda, condicionIva });
-    }
   };
 
   const handleBuscarPadronProv = async () => {
@@ -1694,7 +1674,6 @@ export default function VentasMostradorClient({
     setMlIdVenta(""); setMlIdEnvio(""); setMlMla(""); setMlDni("");
     setDocTipo(99); setDocNro(""); setCondicionIva(5); setTipoFacturaSugerida(6);
     setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false); setSolicitarFactura(false);
-    setDatosClienteBD(null);
     setProveedoresCruzada([]); setIsGuardarComoPedido(false);
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false);
     setPedidoEnEdicionId(null); setNumeroPedidoEnEdicion(null); setPedidoEdicionExtra(null);
@@ -2008,7 +1987,7 @@ export default function VentasMostradorClient({
     setCuitBusqueda(venta.docNro || venta.dni || "");
     setTipoFacturaSugerida(venta.tipoComprobante || 6);
     setSolicitarFactura(false);
-    setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false); setDatosClienteBD(null);
+    setSujetoId(null); setSujetosEncontrados([]); setShowSujetoList(false);
 
     setItems(venta.items.map((i) => {
       const articuloBase = articulos.find((a) => a.id === i.productoId);
@@ -2425,11 +2404,6 @@ export default function VentasMostradorClient({
 
   const inputSinFlechas = "text-right bg-slate-50 border-slate-200 focus:bg-white transition-all text-sm text-slate-900 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
-  const clienteDatosGuardados = !!datosClienteBD &&
-    cliente === datosClienteBD.razonSocial &&
-    cuitBusqueda === datosClienteBD.cuit &&
-    condicionIva === datosClienteBD.condicionIva;
-
   const bloqueObservacionesFinalizar = (
     <div className="space-y-2">
       <Label className="text-xs font-bold text-slate-500 uppercase">Observaciones / Datos de Envío (Dirección, Teléfono, etc.)</Label>
@@ -2472,6 +2446,18 @@ export default function VentasMostradorClient({
           </Button>
         ) : (
           <>
+            <div className="flex items-center justify-center gap-2">
+              <input
+                type="checkbox"
+                id="solicitarFactura"
+                checked={solicitarFactura}
+                onChange={(e) => setSolicitarFactura(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+              />
+              <Label htmlFor="solicitarFactura" className="text-xs font-bold text-blue-700 cursor-pointer flex items-center gap-1.5">
+                <FileText className="h-3.5 w-3.5" /> Generar Factura AFIP
+              </Label>
+            </div>
             {requiereFiscalizacionOpcional ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Button
@@ -3900,7 +3886,7 @@ export default function VentasMostradorClient({
               <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-blue-600" /> Detalles del Cobro</DialogTitle></DialogHeader>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-4">
+                  <div className={`grid grid-cols-1 gap-4 ${docNro ? '' : 'md:grid-cols-[3fr_2fr]'}`}>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-500 uppercase">CUIT / DNI (Padrón A13)</Label>
                       <div className="flex gap-2">
@@ -3917,7 +3903,6 @@ export default function VentasMostradorClient({
                                 setCondicionIva(5);
                                 setTipoFacturaSugerida(6);
                                 setSujetoId(null);
-                                setDatosClienteBD(null);
                               }
                             }}
                             onFocus={() => {
@@ -3958,7 +3943,7 @@ export default function VentasMostradorClient({
                         <Button
                           type="button"
                           variant="ghost"
-                          onClick={() => { setCuitBusqueda(""); setCliente("Consumidor Final"); setSujetoId(null); setDocNro(""); setDocTipo(99); setCondicionIva(5); setDatosClienteBD(null); }}
+                          onClick={() => { setCuitBusqueda(""); setCliente("Consumidor Final"); setSujetoId(null); setDocNro(""); setDocTipo(99); setCondicionIva(5); }}
                           className="rounded-xl h-10 px-3 shrink-0 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-slate-100"
                           title="Limpiar y volver a Consumidor Final"
                         >
@@ -3966,21 +3951,27 @@ export default function VentasMostradorClient({
                         </Button>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-500 uppercase">Cliente / Razón Social</Label>
-                      <div className="relative">
-                        <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors" />
-                        <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                    {!docNro && (
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold text-slate-500 uppercase">Cliente / Razón Social</Label>
+                        <div className="relative">
+                          <Input value={cliente} onChange={(e) => setCliente(e.target.value)} className="pl-9 h-10 bg-slate-50 border-slate-200 focus:bg-white transition-colors" />
+                          <User className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {docNro && (
                     <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl animate-in fade-in slide-in-from-top-1">
                       <div className="flex justify-between items-start gap-3 flex-wrap">
-                        <div className="min-w-0">
-                          <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Razón Social Encontrada</Label>
-                          <p className="text-sm font-black text-emerald-900 break-words">{cliente}</p>
+                        <div className="min-w-0 flex-1">
+                          <Label className="text-[10px] font-bold uppercase text-emerald-600 tracking-wider">Razón Social</Label>
+                          <Input
+                            value={cliente}
+                            onChange={(e) => setCliente(e.target.value)}
+                            className="h-7 px-0 border-0 border-b border-emerald-200 rounded-none bg-transparent text-sm font-black text-emerald-900 shadow-none focus-visible:ring-0 focus:border-emerald-400"
+                          />
                         </div>
                         <Badge className={`${condicionIva === 1 ? 'bg-blue-100 text-blue-700 border-blue-200' :
                           condicionIva === 6 ? 'bg-amber-100 text-amber-700 border-amber-200' :
@@ -3994,46 +3985,8 @@ export default function VentasMostradorClient({
                           {docTipo === 80 ? 'CUIT' : 'DNI'}: <span className="text-emerald-900 font-black">{docNro}</span>
                         </span>
                       </div>
-                      {sujetoId && (
-                        clienteDatosGuardados ? (
-                          <div className="flex items-center gap-1.5 border-t border-emerald-100/50 pt-2 mt-2">
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
-                            <span className="text-[10px] font-bold text-emerald-700 uppercase">Cliente guardado</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center space-x-2 border-t border-emerald-100/50 pt-2 mt-2">
-                            <input
-                              type="checkbox"
-                              id="guardarDatosCliente"
-                              checked={false}
-                              disabled={isSavingDatosCliente}
-                              onChange={() => handleGuardarDatosCliente()}
-                              className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-600"
-                            />
-                            <Label htmlFor="guardarDatosCliente" className="text-[10px] font-bold text-emerald-700 cursor-pointer uppercase flex items-center gap-1.5">
-                              {isSavingDatosCliente ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                              Guardar datos de cliente en Base de datos
-                            </Label>
-                          </div>
-                        )
-                      )}
                     </div>
                   )}
-
-                  <div className="flex gap-4">
-                    <div className="flex items-center space-x-3 bg-blue-50/60 p-3 rounded-xl border border-blue-100 flex-1">
-                      <input
-                        type="checkbox"
-                        id="solicitarFactura"
-                        checked={solicitarFactura}
-                        onChange={(e) => setSolicitarFactura(e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-                      />
-                      <Label htmlFor="solicitarFactura" className="text-sm font-bold text-blue-700 cursor-pointer flex items-center gap-2">
-                        <FileText className="h-4 w-4" /> Generar Factura AFIP
-                      </Label>
-                    </div>
-                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                     <div className="space-y-2">

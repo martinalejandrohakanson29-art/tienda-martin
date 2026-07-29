@@ -24,6 +24,49 @@ export async function getArticulosMayoristasAdmin() {
             },
         },
     })
+
+    // El campo `codigo` se carga con el id real de ArticuloMostrador, pero el
+    // vínculo articuloMostradorId no se persistía solo. Autovinculamos acá.
+    const sinVincular = articulos.filter(a => !a.articuloMostradorId)
+    if (sinVincular.length > 0) {
+        const candidatos = await prisma.articuloMostrador.findMany({
+            where: { id: { in: sinVincular.map(a => a.codigo) } },
+            select: { id: true, nombre: true, costo: true, esPack: true },
+        })
+        const porId = new Map(candidatos.map(c => [c.id, c]))
+        const paraActualizar = sinVincular.filter(a => porId.has(a.codigo))
+        if (paraActualizar.length > 0) {
+            await prisma.$transaction(
+                paraActualizar.map(a =>
+                    prisma.articuloMayorista.update({
+                        where: { id: a.id },
+                        data: { articuloMostradorId: a.codigo },
+                    })
+                )
+            )
+            for (const a of paraActualizar) {
+                a.articuloMostrador = porId.get(a.codigo)!
+            }
+        }
+    }
+
+    // El nombre ya cargado es, hoy, el título: si todavía no se cargó un título propio,
+    // lo autocompletamos con el nombre (solo queda pendiente escribir la descripción a mano).
+    const sinTitulo = articulos.filter(a => !a.titulo)
+    if (sinTitulo.length > 0) {
+        await prisma.$transaction(
+            sinTitulo.map(a =>
+                prisma.articuloMayorista.update({
+                    where: { id: a.id },
+                    data: { titulo: a.nombre },
+                })
+            )
+        )
+        for (const a of sinTitulo) {
+            a.titulo = a.nombre
+        }
+    }
+
     return articulos.map(a => ({
         ...a,
         precio: Number(a.precio),
@@ -72,6 +115,8 @@ export async function actualizarImagenMayorista(id: string, imageUrl: string) {
 
 export async function actualizarArticuloMayorista(id: string, data: {
     nombre?: string
+    titulo?: string | null
+    descripcion?: string | null
     categoria?: string
     marca?: string | null
     codigo?: string

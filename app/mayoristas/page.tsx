@@ -24,8 +24,8 @@ export default async function MayoristasPage() {
                 <span className="text-gray-200 font-medium">Mayoristas</span>
             </div>
 
-            <h1 className="text-3xl font-black uppercase tracking-tight text-white mb-2">Lista Mayorista</h1>
-            <p className="text-gray-400 mb-8">Potenciación y repuestos. Precios exclusivos para clientes mayoristas.</p>
+            <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white mb-2">Lista Mayorista</h1>
+            <p className="text-sm sm:text-base text-gray-400 mb-6 sm:mb-8">Potenciación y repuestos. Precios exclusivos para clientes mayoristas.</p>
 
             <MayoristasClient articulos={articulos} />
         </div>

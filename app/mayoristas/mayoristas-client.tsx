@@ -10,6 +10,8 @@ interface ArticuloMayorista {
     id: string
     categoria: string
     nombre: string
+    titulo: string | null
+    descripcion: string | null
     marca: string | null
     codigo: string
     precio: number
@@ -25,19 +27,44 @@ export default function MayoristasClient({ articulos }: { articulos: ArticuloMay
         return Array.from(set)
     }, [articulos])
 
+    // Buscador flexible: separa el texto en palabras y matchea cada una sin importar el orden
+    // en el que se escriban (ej. "titan cilindro" encuentra "Cilindro Titan 190"), ignorando acentos.
     const filtrados = useMemo(() => {
         let result = articulos
         if (categoria) result = result.filter(a => a.categoria === categoria)
-        if (search) {
-            const s = search.toLowerCase()
-            result = result.filter(a =>
-                a.nombre.toLowerCase().includes(s) ||
-                a.codigo.toLowerCase().includes(s) ||
-                (a.marca || "").toLowerCase().includes(s)
-            )
+        if (search.trim()) {
+            const diacriticos = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g")
+            const quitarAcentos = (texto: string) => texto.normalize("NFD").replace(diacriticos, "")
+            const palabras = quitarAcentos(search.toLowerCase().trim()).split(/\s+/)
+            result = result.filter(a => {
+                const nombreLimpio = quitarAcentos(a.nombre.toLowerCase())
+                const tituloLimpio = quitarAcentos((a.titulo || "").toLowerCase())
+                const descripcionLimpia = quitarAcentos((a.descripcion || "").toLowerCase())
+                const codigoLimpio = quitarAcentos(a.codigo.toLowerCase())
+                const marcaLimpia = quitarAcentos((a.marca || "").toLowerCase())
+                const categoriaLimpia = quitarAcentos(a.categoria.toLowerCase())
+                return palabras.every(p =>
+                    nombreLimpio.includes(p) || tituloLimpio.includes(p) || descripcionLimpia.includes(p) ||
+                    codigoLimpio.includes(p) || marcaLimpia.includes(p) || categoriaLimpia.includes(p)
+                )
+            })
         }
         return result
     }, [articulos, search, categoria])
+
+    // Agrupa por categoría (en bloques separados, tipo cilindros / tapas / etc.) respetando
+    // el orden en el que aparecen las categorías en el catálogo completo.
+    const grupos = useMemo(() => {
+        const map = new Map<string, ArticuloMayorista[]>()
+        for (const a of filtrados) {
+            const arr = map.get(a.categoria) || []
+            arr.push(a)
+            map.set(a.categoria, arr)
+        }
+        return categorias
+            .filter(c => map.has(c))
+            .map(c => [c, map.get(c)!] as const)
+    }, [filtrados, categorias])
 
     return (
         <div className="space-y-6">
@@ -59,7 +86,7 @@ export default function MayoristasClient({ articulos }: { articulos: ArticuloMay
             <div className="flex flex-wrap gap-2">
                 <button
                     onClick={() => setCategoria(null)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                    className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-bold border transition-colors ${
                         categoria === null
                             ? "bg-red-600 border-red-600 text-white"
                             : "bg-[#1A1A1A] border-white/15 text-gray-400 hover:text-white hover:border-white/30"
@@ -71,7 +98,7 @@ export default function MayoristasClient({ articulos }: { articulos: ArticuloMay
                     <button
                         key={c}
                         onClick={() => setCategoria(c)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                        className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-bold border transition-colors ${
                             categoria === c
                                 ? "bg-red-600 border-red-600 text-white"
                                 : "bg-[#1A1A1A] border-white/15 text-gray-400 hover:text-white hover:border-white/30"
@@ -96,49 +123,69 @@ export default function MayoristasClient({ articulos }: { articulos: ArticuloMay
                     )}
                 </div>
             ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {filtrados.map((articulo) => (
-                        <div
-                            key={articulo.id}
-                            className="group relative overflow-hidden border-0 ring-1 ring-white/10 hover:ring-red-600/60 bg-[#111] text-white transition-all duration-300 h-full flex flex-col rounded-lg shadow-lg"
-                        >
-                            <div className="h-[3px] w-full bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0" />
-
-                            <div className="aspect-square relative overflow-hidden bg-white flex-shrink-0">
-                                {articulo.imageUrl ? (
-                                    <img
-                                        src={articulo.imageUrl}
-                                        alt={articulo.nombre}
-                                        className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-105"
-                                        referrerPolicy="no-referrer"
-                                    />
-                                ) : (
-                                    <div className="h-full w-full flex items-center justify-center text-gray-300 text-xs font-bold uppercase">
-                                        Sin foto
-                                    </div>
-                                )}
+                <div className="space-y-8">
+                    {grupos.map(([nombreCategoria, items]) => (
+                        <div key={nombreCategoria}>
+                            <div className="flex items-center gap-3 mb-3">
+                                <h2 className="text-lg sm:text-xl font-black uppercase tracking-wide text-white whitespace-nowrap">
+                                    {nombreCategoria}
+                                </h2>
+                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                                    {items.length}
+                                </span>
+                                <div className="flex-1 h-px bg-white/10" />
                             </div>
 
-                            <div className="p-3 flex-1 flex flex-col bg-[#111]">
-                                <p className="text-[10px] text-red-400 uppercase tracking-widest font-bold mb-0.5 truncate">
-                                    {articulo.categoria}
-                                </p>
-                                <h3 className="font-semibold text-gray-100 text-sm leading-tight line-clamp-2 h-9">
-                                    {articulo.nombre}
-                                </h3>
-                                {articulo.marca && (
-                                    <p className="text-[11px] text-gray-500 mt-0.5">{articulo.marca}</p>
-                                )}
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                                {items.map((articulo) => (
+                                    <div
+                                        key={articulo.id}
+                                        className="group relative overflow-hidden border-0 ring-1 ring-white/10 hover:ring-red-600/60 bg-[#111] text-white transition-all duration-300 h-full flex flex-col rounded-lg shadow-lg"
+                                    >
+                                        <div className="h-[3px] w-full bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0" />
 
-                                <div className="mt-auto pt-2 flex items-end justify-between border-t border-white/10">
-                                    <span className="text-lg font-extrabold leading-none text-white">
-                                        {formatPrice(articulo.precio)}
-                                    </span>
-                                    <span className="flex items-center gap-1 text-[10px] text-gray-500 font-mono">
-                                        <Tag size={10} />
-                                        {articulo.codigo}
-                                    </span>
-                                </div>
+                                        <div className="aspect-square relative overflow-hidden bg-white flex-shrink-0">
+                                            {articulo.imageUrl ? (
+                                                <img
+                                                    src={articulo.imageUrl}
+                                                    alt={articulo.nombre}
+                                                    loading="lazy"
+                                                    decoding="async"
+                                                    className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-105"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                <div className="h-full w-full flex items-center justify-center text-gray-300 text-xs font-bold uppercase">
+                                                    Sin foto
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="p-3 flex-1 flex flex-col bg-[#111]">
+                                            <h3 className="font-semibold text-gray-100 text-sm leading-tight line-clamp-2">
+                                                {articulo.titulo || articulo.nombre}
+                                            </h3>
+                                            {articulo.descripcion && (
+                                                <p className="text-[11px] text-gray-400 leading-snug line-clamp-2 mt-0.5">
+                                                    {articulo.descripcion}
+                                                </p>
+                                            )}
+                                            {articulo.marca && (
+                                                <p className="text-[11px] text-gray-500 mt-0.5">{articulo.marca}</p>
+                                            )}
+
+                                            <div className="mt-auto pt-2 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between border-t border-white/10">
+                                                <span className="text-lg font-extrabold leading-none text-white">
+                                                    {formatPrice(articulo.precio)}
+                                                </span>
+                                                <span className="flex items-center gap-1 text-[10px] text-gray-500 font-mono min-w-0">
+                                                    <Tag size={10} className="shrink-0" />
+                                                    <span className="truncate">{articulo.codigo}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     ))}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, ImageOff, Check, ExternalLink, Search, X, Link2, Link2Off, Loader2 } from "lucide-react"
+import { ArrowLeft, ImageOff, Check, ExternalLink, Search, X, Link2Off, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +13,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 import {
     actualizarImagenMayorista,
     actualizarArticuloMayorista,
@@ -34,11 +35,19 @@ function calcularMarcacion(costo?: number, precio?: number): number | null {
     return ((precio - costo) / costo) * 100
 }
 
-// Mismos umbrales de color que /admin/ventas-mostrador.
+// Mismo redondeo que /admin/ventas-mostrador: precio final siempre en múltiplos de 50.
+function redondearA50(n: number): number {
+    return Math.round(n / 50) * 50
+}
+
+function calcularPrecioDesdeMarcacion(costo: number, margen: number): number {
+    return redondearA50(costo * (1 + margen / 100))
+}
+
+// Umbrales propios de la lista mayorista: <25% rojo, 25-35% verde, >35% magenta.
 function claseColorMarcacion(marc: number): string {
-    if (marc >= 60) return "bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200"
-    if (marc >= 50) return "bg-green-50 text-green-600 border-green-200"
-    if (marc >= 40) return "bg-orange-50 text-orange-600 border-orange-200"
+    if (marc > 35) return "bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200"
+    if (marc >= 25) return "bg-green-50 text-green-600 border-green-200"
     return "bg-red-50 text-red-600 border-red-200"
 }
 
@@ -53,6 +62,8 @@ interface Articulo {
     id: string
     categoria: string
     nombre: string
+    titulo: string | null
+    descripcion: string | null
     marca: string | null
     codigo: string
     precio: number
@@ -60,6 +71,18 @@ interface Articulo {
     orden: number
     activo: boolean
     articuloMostrador: ArticuloMostradorVinculado | null
+}
+
+type Columna = "nombre" | "codigo" | "costo" | "marcacion" | "precio"
+
+function valorColumna(articulo: { nombre: string; codigo: string; precio: number; articuloMostrador: { costo: number } | null }, columna: Columna): string | number | null {
+    switch (columna) {
+        case "nombre": return articulo.nombre.toLowerCase()
+        case "codigo": return articulo.codigo.toLowerCase()
+        case "costo": return articulo.articuloMostrador?.costo ?? null
+        case "marcacion": return calcularMarcacion(articulo.articuloMostrador?.costo, articulo.precio)
+        case "precio": return articulo.precio
+    }
 }
 
 interface ResultadoBusqueda {
@@ -84,10 +107,17 @@ export default function MayoristasAdminClient({
     const [vincularResultados, setVincularResultados] = useState<ResultadoBusqueda[]>([])
     const [buscando, setBuscando] = useState(false)
     const [search, setSearch] = useState("")
+    const [marcacionEditId, setMarcacionEditId] = useState<string | null>(null)
+    const [marcacionTemp, setMarcacionTemp] = useState<string>("")
+    const [precioEditId, setPrecioEditId] = useState<string | null>(null)
+    const [precioTemp, setPrecioTemp] = useState<string>("")
+    const [sortColumna, setSortColumna] = useState<Columna | null>(null)
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
     const [, startTransition] = useTransition()
 
     const faltantes = useMemo(() => articulos.filter(a => !a.imageUrl).length, [articulos])
     const sinCosto = useMemo(() => articulos.filter(a => !a.articuloMostrador).length, [articulos])
+    const sinTitulo = useMemo(() => articulos.filter(a => !a.titulo).length, [articulos])
 
     useEffect(() => {
         if (!vincularFor) return
@@ -135,8 +165,23 @@ export default function MayoristasAdminClient({
             arr.push(a)
             map.set(a.categoria, arr)
         }
-        return Array.from(map.entries())
-    }, [articulosFiltrados])
+        const entries = Array.from(map.entries())
+        if (sortColumna) {
+            for (const [, items] of entries) {
+                items.sort((a, b) => {
+                    const va = valorColumna(a, sortColumna)
+                    const vb = valorColumna(b, sortColumna)
+                    if (va == null && vb == null) return 0
+                    if (va == null) return 1
+                    if (vb == null) return -1
+                    if (va < vb) return sortDir === "asc" ? -1 : 1
+                    if (va > vb) return sortDir === "asc" ? 1 : -1
+                    return 0
+                })
+            }
+        }
+        return entries
+    }, [articulosFiltrados, sortColumna, sortDir])
 
     function setLocal(id: string, patch: Partial<Articulo>) {
         setArticulos(prev => prev.map(a => (a.id === id ? { ...a, ...patch } : a)))
@@ -154,6 +199,62 @@ export default function MayoristasAdminClient({
         startTransition(() => {
             actualizarArticuloMayorista(id, patch as any)
         })
+    }
+
+    function iniciarEdicionMarcacion(articulo: Articulo) {
+        const costo = articulo.articuloMostrador?.costo
+        if (!costo || costo <= 0) return
+        const marc = calcularMarcacion(costo, articulo.precio)
+        setMarcacionEditId(articulo.id)
+        setMarcacionTemp(marc !== null ? String(Number(marc.toFixed(1))) : "")
+    }
+
+    function cancelarEdicionMarcacion() {
+        setMarcacionEditId(null)
+        setMarcacionTemp("")
+    }
+
+    function guardarMarcacion(articulo: Articulo) {
+        const costo = articulo.articuloMostrador?.costo
+        const nuevoMargen = Number(marcacionTemp)
+        if (marcacionTemp.trim() === "" || isNaN(nuevoMargen) || !costo || costo <= 0) {
+            cancelarEdicionMarcacion()
+            return
+        }
+        const nuevoPrecio = calcularPrecioDesdeMarcacion(costo, nuevoMargen)
+        cancelarEdicionMarcacion()
+        if (nuevoPrecio !== articulo.precio) {
+            setLocal(articulo.id, { precio: nuevoPrecio })
+            guardarCampo(articulo.id, { precio: nuevoPrecio })
+        }
+    }
+
+    // Mientras se edita la marcación, el precio final mostrado se recalcula en vivo con lo
+    // tipeado; mientras se edita el precio directamente, muestra el buffer de esa edición.
+    function precioMostrado(articulo: Articulo): string {
+        if (precioEditId === articulo.id) return precioTemp
+        if (marcacionEditId === articulo.id) {
+            const costo = articulo.articuloMostrador?.costo
+            const tempMarc = Number(marcacionTemp)
+            if (costo && costo > 0 && marcacionTemp.trim() !== "" && !isNaN(tempMarc)) {
+                return formatMiles(calcularPrecioDesdeMarcacion(costo, tempMarc))
+            }
+        }
+        return formatMiles(articulo.precio)
+    }
+
+    function toggleSort(columna: Columna) {
+        if (sortColumna === columna) {
+            setSortDir(d => (d === "asc" ? "desc" : "asc"))
+        } else {
+            setSortColumna(columna)
+            setSortDir("asc")
+        }
+    }
+
+    function iconoOrden(columna: Columna) {
+        if (sortColumna !== columna) return <ArrowUpDown className="h-3 w-3 opacity-40" />
+        return sortDir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
     }
 
     function abrirVincular(id: string) {
@@ -187,7 +288,7 @@ export default function MayoristasAdminClient({
                     <div className="flex-1">
                         <h1 className="text-3xl font-black text-slate-900 mb-1">Lista Mayorista</h1>
                         <p className="text-sm text-slate-500 font-bold uppercase tracking-wider">
-                            {articulos.length} artículos · {faltantes > 0 ? `${faltantes} sin foto` : "todos con foto"} · {sinCosto > 0 ? `${sinCosto} sin costo vinculado` : "todos con costo"}
+                            {articulos.length} artículos · {faltantes > 0 ? `${faltantes} sin foto` : "todos con foto"} · {sinCosto > 0 ? `${sinCosto} sin costo vinculado` : "todos con costo"} · {sinTitulo > 0 ? `${sinTitulo} sin título` : "todos con título"}
                         </p>
                     </div>
                     <Link
@@ -221,130 +322,202 @@ export default function MayoristasAdminClient({
                     <p className="text-center py-16 text-slate-400 font-bold">No se encontraron artículos.</p>
                 )}
 
+                {grupos.length > 0 && (
+                    <div className="flex items-center gap-4 px-3 text-sm font-black uppercase tracking-wider text-slate-400">
+                        <div className="w-16 shrink-0" />
+                        <button
+                            onClick={() => toggleSort("nombre")}
+                            className={`flex-1 min-w-0 flex items-center gap-1 text-left hover:text-slate-600 transition-colors ${sortColumna === "nombre" ? "text-indigo-600" : ""}`}
+                        >
+                            Artículo {iconoOrden("nombre")}
+                        </button>
+                        <button
+                            onClick={() => toggleSort("codigo")}
+                            className={`w-24 shrink-0 flex items-center gap-1 hover:text-slate-600 transition-colors ${sortColumna === "codigo" ? "text-indigo-600" : ""}`}
+                        >
+                            Código {iconoOrden("codigo")}
+                        </button>
+                        <button
+                            onClick={() => toggleSort("costo")}
+                            className={`w-24 shrink-0 flex items-center gap-1 hover:text-slate-600 transition-colors ${sortColumna === "costo" ? "text-indigo-600" : ""}`}
+                        >
+                            Costo {iconoOrden("costo")}
+                        </button>
+                        <button
+                            onClick={() => toggleSort("marcacion")}
+                            className={`w-32 shrink-0 flex items-center gap-1 hover:text-slate-600 transition-colors ${sortColumna === "marcacion" ? "text-indigo-600" : ""}`}
+                        >
+                            Marcación {iconoOrden("marcacion")}
+                        </button>
+                        <button
+                            onClick={() => toggleSort("precio")}
+                            className={`w-28 shrink-0 flex items-center gap-1 hover:text-slate-600 transition-colors ${sortColumna === "precio" ? "text-indigo-600" : ""}`}
+                        >
+                            Precio final {iconoOrden("precio")}
+                        </button>
+                        <div className="w-10 shrink-0" />
+                    </div>
+                )}
+
                 {grupos.map(([categoria, items]) => (
                     <div key={categoria} className="bg-white rounded-2xl border-2 border-slate-200 overflow-hidden">
                         <div className="px-5 py-3 bg-slate-900 text-white font-black text-sm uppercase tracking-wider">
                             {categoria}
                         </div>
                         <div className="divide-y divide-slate-100">
-                            {items.map(articulo => (
-                                <div
-                                    key={articulo.id}
-                                    className={`flex items-center gap-4 p-3 ${!articulo.activo ? "opacity-50" : ""}`}
-                                >
-                                    <button
-                                        onClick={() => setPickerFor(articulo.id)}
-                                        className="relative shrink-0 w-16 h-16 rounded-lg border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50 overflow-hidden flex items-center justify-center transition-colors"
-                                        title="Asignar foto"
+                            {items.map(articulo => {
+                                const costo = articulo.articuloMostrador?.costo
+                                const marc = calcularMarcacion(costo, articulo.precio)
+                                return (
+                                    <div
+                                        key={articulo.id}
+                                        className={`flex items-center gap-4 p-3 ${!articulo.activo ? "opacity-50" : ""}`}
                                     >
-                                        {articulo.imageUrl ? (
-                                            <img src={articulo.imageUrl} alt="" className="w-full h-full object-contain" />
-                                        ) : (
-                                            <ImageOff className="h-5 w-5 text-red-400" />
-                                        )}
-                                    </button>
+                                        <button
+                                            onClick={() => setPickerFor(articulo.id)}
+                                            className="relative shrink-0 w-16 h-16 rounded-lg border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50 overflow-hidden flex items-center justify-center transition-colors"
+                                            title="Asignar foto"
+                                        >
+                                            {articulo.imageUrl ? (
+                                                <img src={articulo.imageUrl} alt="" className="w-full h-full object-contain" />
+                                            ) : (
+                                                <ImageOff className="h-5 w-5 text-red-400" />
+                                            )}
+                                        </button>
 
-                                    <div className="flex-1 min-w-0 space-y-1">
-                                        <Input
-                                            defaultValue={articulo.nombre}
-                                            onBlur={(e) => {
-                                                if (e.target.value !== articulo.nombre) {
-                                                    setLocal(articulo.id, { nombre: e.target.value })
-                                                    guardarCampo(articulo.id, { nombre: e.target.value })
-                                                }
-                                            }}
-                                            className="h-8 font-semibold text-sm border-transparent hover:border-slate-200 focus:border-indigo-400 px-2"
-                                        />
-                                        {articulo.marca && (
-                                            <p className="text-xs text-slate-400 px-2">{articulo.marca}</p>
-                                        )}
+                                        <div className="flex-1 min-w-0 space-y-1">
+                                            <Input
+                                                defaultValue={articulo.titulo || articulo.nombre}
+                                                title="Nombre / título que se ve en /mayoristas"
+                                                onBlur={(e) => {
+                                                    const val = e.target.value
+                                                    if (val !== articulo.nombre || val !== articulo.titulo) {
+                                                        setLocal(articulo.id, { nombre: val, titulo: val })
+                                                        guardarCampo(articulo.id, { nombre: val, titulo: val })
+                                                    }
+                                                }}
+                                                className="h-8 font-semibold text-sm border-transparent hover:border-slate-200 focus:border-indigo-400 px-2"
+                                            />
+                                            {articulo.marca && (
+                                                <p className="text-xs text-slate-400 px-2">{articulo.marca}</p>
+                                            )}
+                                            <Textarea
+                                                defaultValue={articulo.descripcion || ""}
+                                                placeholder="Descripción (opcional, para /mayoristas)"
+                                                title="Descripción que se ve en /mayoristas"
+                                                onBlur={(e) => {
+                                                    // Siempre se guarda en minúscula, sin importar cómo se haya tipeado.
+                                                    const val = e.target.value.trim().toLowerCase() || null
+                                                    e.target.value = val || ""
+                                                    if (val !== articulo.descripcion) {
+                                                        setLocal(articulo.id, { descripcion: val })
+                                                        guardarCampo(articulo.id, { descripcion: val })
+                                                    }
+                                                }}
+                                                rows={2}
+                                                className="min-h-0 resize-none text-xs text-slate-500 border-transparent hover:border-slate-200 focus:border-indigo-400 px-2 py-1"
+                                            />
+                                        </div>
+
+                                        {/* Código */}
+                                        <div className="flex flex-col items-start gap-1 shrink-0 w-24">
+                                            <Badge variant="outline" className="font-mono text-xs">
+                                                {articulo.codigo}
+                                            </Badge>
+                                            {!articulo.articuloMostrador && (
+                                                <button
+                                                    onClick={() => abrirVincular(articulo.id)}
+                                                    className="flex items-center gap-1 text-[10px] font-bold text-indigo-500 hover:text-indigo-700"
+                                                >
+                                                    <Link2Off className="h-3 w-3 shrink-0" />
+                                                    Vincular
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Costo */}
+                                        <div className="shrink-0 w-24">
+                                            {articulo.articuloMostrador ? (
+                                                <button
+                                                    onClick={() => abrirVincular(articulo.id)}
+                                                    title="Cambiar vínculo de costo"
+                                                    className="text-sm font-semibold text-slate-700 hover:text-indigo-600"
+                                                >
+                                                    $ {formatMiles(costo!)}
+                                                </button>
+                                            ) : (
+                                                <span className="text-sm text-slate-300">—</span>
+                                            )}
+                                        </div>
+
+                                        {/* Marcación */}
+                                        <div className="shrink-0 w-32">
+                                            {marcacionEditId === articulo.id ? (
+                                                <Input
+                                                    autoFocus
+                                                    type="number"
+                                                    value={marcacionTemp}
+                                                    onChange={(e) => setMarcacionTemp(e.target.value)}
+                                                    onBlur={() => guardarMarcacion(articulo)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter") e.currentTarget.blur()
+                                                        if (e.key === "Escape") cancelarEdicionMarcacion()
+                                                    }}
+                                                    className="h-10 w-24 text-center text-base font-black bg-white border-indigo-300 focus-visible:ring-indigo-500"
+                                                />
+                                            ) : marc != null ? (
+                                                <button
+                                                    onClick={() => iniciarEdicionMarcacion(articulo)}
+                                                    title="Clic para editar la marcación y recalcular el precio final"
+                                                    className={`text-base font-black px-3 py-1.5 rounded-lg border transition-all hover:ring-1 hover:ring-indigo-300 ${claseColorMarcacion(marc)}`}
+                                                >
+                                                    {marc.toFixed(0)}%
+                                                </button>
+                                            ) : (
+                                                <span className="text-[11px] text-slate-400">—</span>
+                                            )}
+                                        </div>
+
+                                        {/* Precio final */}
+                                        <div className="flex items-center gap-1 shrink-0 w-28">
+                                            <span className="text-slate-400 text-sm">$</span>
+                                            <Input
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={precioMostrado(articulo)}
+                                                onFocus={() => {
+                                                    setPrecioEditId(articulo.id)
+                                                    setPrecioTemp(formatMiles(articulo.precio))
+                                                }}
+                                                onChange={(e) => setPrecioTemp(formatMiles(parseMiles(e.target.value)))}
+                                                onBlur={() => {
+                                                    const val = parseMiles(precioTemp)
+                                                    setPrecioEditId(null)
+                                                    if (val !== articulo.precio) {
+                                                        setLocal(articulo.id, { precio: val })
+                                                        guardarCampo(articulo.id, { precio: val })
+                                                    }
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") e.currentTarget.blur()
+                                                }}
+                                                className="h-8 w-24 text-sm"
+                                            />
+                                        </div>
+
+                                        <div className="flex items-center gap-2 shrink-0" title="Visible en el catálogo público">
+                                            <Checkbox
+                                                checked={articulo.activo}
+                                                onCheckedChange={(checked) => {
+                                                    const val = checked === true
+                                                    setLocal(articulo.id, { activo: val })
+                                                    guardarCampo(articulo.id, { activo: val })
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-
-                                    <Badge variant="outline" className="font-mono text-xs shrink-0">
-                                        {articulo.codigo}
-                                    </Badge>
-
-                                    <div className="flex items-center gap-1 shrink-0">
-                                        <span className="text-slate-400 text-sm">$</span>
-                                        <Input
-                                            type="text"
-                                            inputMode="numeric"
-                                            defaultValue={formatMiles(articulo.precio)}
-                                            onChange={(e) => {
-                                                const val = parseMiles(e.target.value)
-                                                e.target.value = val ? formatMiles(val) : ""
-                                            }}
-                                            onBlur={(e) => {
-                                                const val = parseMiles(e.target.value)
-                                                e.target.value = formatMiles(val)
-                                                if (val !== articulo.precio) {
-                                                    setLocal(articulo.id, { precio: val })
-                                                    guardarCampo(articulo.id, { precio: val })
-                                                }
-                                            }}
-                                            className="h-8 w-28 text-sm"
-                                        />
-                                    </div>
-
-                                    <div className="flex flex-col items-start gap-1 shrink-0 w-44">
-                                        {articulo.articuloMostrador ? (
-                                            (() => {
-                                                const costo = articulo.articuloMostrador!.costo
-                                                const marc = calcularMarcacion(costo, articulo.precio)
-                                                return (
-                                                    <>
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-xs text-slate-500">
-                                                                Costo: <span className="font-semibold text-slate-700">$ {formatMiles(costo)}</span>
-                                                            </span>
-                                                            <button
-                                                                onClick={() => abrirVincular(articulo.id)}
-                                                                title="Cambiar vínculo"
-                                                                className="text-slate-300 hover:text-indigo-500"
-                                                            >
-                                                                <Link2 className="h-3.5 w-3.5" />
-                                                            </button>
-                                                        </div>
-                                                        {marc != null ? (
-                                                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border ${claseColorMarcacion(marc)}`}>
-                                                                Marcación {marc.toFixed(0)}%
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-[11px] text-slate-400">Sin costo &gt; 0</span>
-                                                        )}
-                                                        <button
-                                                            onClick={() => vincular(articulo.id, null)}
-                                                            className="text-[10px] text-slate-400 hover:text-red-500 truncate max-w-full"
-                                                            title={`Desvincular de "${articulo.articuloMostrador!.nombre}"`}
-                                                        >
-                                                            {articulo.articuloMostrador!.nombre}
-                                                        </button>
-                                                    </>
-                                                )
-                                            })()
-                                        ) : (
-                                            <button
-                                                onClick={() => abrirVincular(articulo.id)}
-                                                className="flex items-center gap-1.5 text-xs font-bold text-indigo-500 hover:text-indigo-700 border border-dashed border-indigo-200 hover:border-indigo-400 rounded-lg px-2 py-1.5 transition-colors"
-                                            >
-                                                <Link2 className="h-3.5 w-3.5" />
-                                                Vincular costo
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    <div className="flex items-center gap-2 shrink-0" title="Visible en el catálogo público">
-                                        <Checkbox
-                                            checked={articulo.activo}
-                                            onCheckedChange={(checked) => {
-                                                const val = checked === true
-                                                setLocal(articulo.id, { activo: val })
-                                                guardarCampo(articulo.id, { activo: val })
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
                 ))}
@@ -459,6 +632,7 @@ export default function MayoristasAdminClient({
                     </div>
                 </DialogContent>
             </Dialog>
+
         </div>
     )
 }

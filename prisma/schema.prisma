@@ -969,6 +969,8 @@ model ArticuloMayorista {
   id                  String             @id @default(cuid())
   categoria           String
   nombre              String
+  titulo              String?
+  descripcion         String?            @db.Text
   marca               String?
   codigo              String
   precio              Decimal            @db.Decimal(20, 2)

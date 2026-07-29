@@ -13,8 +13,9 @@ import {
     ListTodo,
     LayoutDashboard,
     Globe,
-    MessageCircle // Importamos el icono para Chatwoot
-} from "lucide-react" 
+    MessageCircle, // Importamos el icono para Chatwoot
+    ShoppingBag
+} from "lucide-react"
 import Link from "next/link"
 import TaskForm from "./task-form"
 
@@ -157,6 +158,24 @@ export default async function AdminDashboard() {
                             <Link href="/admin/chatwoot">
                                 <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white gap-2 shadow-sm h-12 text-lg">
                                     Entrar al Panel <ArrowRight size={18} />
+                                </Button>
+                            </Link>
+                        </CardContent>
+                    </Card>
+
+                    {/* NUEVA TARJETA: MAYORISTAS */}
+                    <Card className="border-l-4 border-l-rose-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-rose-50/50">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-rose-800 text-xl">
+                                <ShoppingBag className="h-6 w-6" />
+                                Mayoristas
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                            <p className="text-sm text-gray-600 mb-6">Catálogo de pedidos para clientes por mayor.</p>
+                            <Link href="/mayoristas" target="_blank">
+                                <Button className="w-full bg-rose-600 hover:bg-rose-700 text-white gap-2 shadow-sm h-12 text-lg">
+                                    Ver Catálogo <ArrowRight size={18} />
                                 </Button>
                             </Link>
                         </CardContent>

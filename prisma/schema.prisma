@@ -701,6 +701,7 @@ model ArticuloMostrador {
   packItems    PackMostradorItem[] @relation("PackPadre")
   faltantes    ArticuloFaltante[]
   controlStockEntradas ControlStockEntrada[]
+  mayoristas   ArticuloMayorista[]
 
   @@index([nombre])
   @@index([proveedorId])
@@ -962,6 +963,26 @@ model NumerosMayoristas {
   createdAt DateTime @default(now())
 
   @@map("NumerosMayoristas")
+}
+
+model ArticuloMayorista {
+  id                  String             @id @default(cuid())
+  categoria           String
+  nombre              String
+  marca               String?
+  codigo              String
+  precio              Decimal            @db.Decimal(20, 2)
+  imageUrl            String             @default("")
+  orden               Int                @default(0)
+  activo              Boolean            @default(true)
+  articuloMostradorId String?
+  articuloMostrador   ArticuloMostrador? @relation(fields: [articuloMostradorId], references: [id], onDelete: SetNull)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([categoria])
+  @@index([articuloMostradorId])
+  @@map("articulos_mayoristas")
 }
 
 model AuditoriaPreparacionFull {

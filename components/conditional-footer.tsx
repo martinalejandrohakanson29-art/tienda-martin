@@ -14,8 +14,8 @@ export default function ConditionalFooter({
 }) {
   const pathname = usePathname()
   
-  // Verificamos si la ruta actual es parte del panel de administración
-  const isAdminPage = pathname?.startsWith("/admin")
+  // Verificamos si la ruta actual es parte del panel de administración o del catálogo mayorista
+  const isAdminPage = pathname?.startsWith("/admin") || pathname?.startsWith("/mayoristas")
 
   // Si es una página de admin, retornamos null para que no se vea nada
   if (isAdminPage) {

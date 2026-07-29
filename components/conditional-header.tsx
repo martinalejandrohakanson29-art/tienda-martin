@@ -10,8 +10,8 @@ export default function ConditionalHeader({
 }) {
   const pathname = usePathname()
 
-  // Ocultamos si la ruta empieza con /admin
-  const isFullscreen = pathname?.startsWith("/admin")
+  // Ocultamos si la ruta empieza con /admin o es el catálogo mayorista (página standalone, sin chrome de tienda)
+  const isFullscreen = pathname?.startsWith("/admin") || pathname?.startsWith("/mayoristas")
 
   if (isFullscreen) return null
 

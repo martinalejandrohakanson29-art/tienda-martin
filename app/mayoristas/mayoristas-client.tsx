@@ -39,6 +39,7 @@ export default function MayoristasClient({
 
     const [pasoCheckout, setPasoCheckout] = useState<PasoCheckout>("carrito")
     const [dniInput, setDniInput] = useState("")
+    const [telefonoInput, setTelefonoInput] = useState("")
     const [nombreManualInput, setNombreManualInput] = useState("")
     const [clienteResuelto, setClienteResuelto] = useState<{ nombre: string; cuit: string } | null>(null)
     const [errorCheckout, setErrorCheckout] = useState<string | null>(null)
@@ -51,6 +52,7 @@ export default function MayoristasClient({
         if (!carritoAbierto) {
             setPasoCheckout("carrito")
             setDniInput("")
+            setTelefonoInput("")
             setNombreManualInput("")
             setClienteResuelto(null)
             setErrorCheckout(null)
@@ -157,6 +159,10 @@ export default function MayoristasClient({
             setErrorCheckout("Ingresá un DNI válido")
             return
         }
+        if (telefonoInput.replace(/\D/g, "").length < 6) {
+            setErrorCheckout("Ingresá un WhatsApp válido")
+            return
+        }
         setErrorCheckout(null)
         setBuscandoCliente(true)
         try {
@@ -191,6 +197,7 @@ export default function MayoristasClient({
             const res = await crearPedidoMayoristaWeb({
                 cuit: clienteResuelto.cuit,
                 nombre: clienteResuelto.nombre,
+                telefono: telefonoInput,
                 items: itemsCarrito.map(({ articulo, cantidad }) => ({ articuloMayoristaId: articulo.id, cantidad })),
             })
             if (res.success) {
@@ -460,13 +467,20 @@ export default function MayoristasClient({
 
                                 {pasoCheckout === "dni" && (
                                     <div className="space-y-2">
-                                        <p className="text-xs text-gray-400">Ingresá tu DNI para identificarte y confirmar el pedido.</p>
+                                        <p className="text-xs text-gray-400">Ingresá tu DNI y WhatsApp para identificarte y confirmar el pedido.</p>
                                         <Input
                                             value={dniInput}
                                             onChange={(e) => setDniInput(e.target.value.replace(/\D/g, ""))}
-                                            placeholder="Ej: 30123456"
+                                            placeholder="DNI. Ej: 30123456"
                                             inputMode="numeric"
                                             autoFocus
+                                            className="bg-[#111] border-white/15 text-white placeholder:text-gray-600"
+                                        />
+                                        <Input
+                                            value={telefonoInput}
+                                            onChange={(e) => setTelefonoInput(e.target.value.replace(/[^\d+\s()-]/g, ""))}
+                                            placeholder="WhatsApp. Ej: 11 2345-6789"
+                                            inputMode="tel"
                                             className="bg-[#111] border-white/15 text-white placeholder:text-gray-600"
                                         />
                                         {errorCheckout && <p className="text-xs text-red-400">{errorCheckout}</p>}
@@ -479,7 +493,7 @@ export default function MayoristasClient({
                                             </button>
                                             <button
                                                 onClick={handleContinuarDni}
-                                                disabled={buscandoCliente || dniInput.length < 7}
+                                                disabled={buscandoCliente || dniInput.length < 7 || telefonoInput.replace(/\D/g, "").length < 6}
                                                 className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg transition-colors"
                                             >
                                                 {buscandoCliente && <Loader2 size={14} className="animate-spin" />}
@@ -548,9 +562,9 @@ export default function MayoristasClient({
 
                                 {pasoCheckout === "exito" && (
                                     <div className="text-center space-y-2 py-2">
-                                        <p className="text-green-400 font-black text-lg">¡Pedido enviado!</p>
+                                        <p className="text-green-400 font-black text-lg">Pedido cargado</p>
                                         <p className="text-sm text-gray-300">
-                                            Tu número de pedido es <span className="font-bold text-white">#{numeroVentaExito}</span>. Te vamos a contactar para coordinar el pago y la entrega.
+                                            En breve nos comunicamos para coordinar todo, ¡muchas gracias! <span className="text-gray-500">(Pedido #{numeroVentaExito})</span>
                                         </p>
                                         <button
                                             onClick={() => setCarritoAbierto(false)}

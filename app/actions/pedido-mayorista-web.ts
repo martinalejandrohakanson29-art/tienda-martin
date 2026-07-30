@@ -48,16 +48,21 @@ export async function buscarClienteMayoristaPorDni(dni: string) {
 export async function crearPedidoMayoristaWeb(data: {
     cuit: string
     nombre: string
+    telefono: string
     items: { articuloMayoristaId: string; cantidad: number }[]
 }) {
     const cuit = data.cuit.replace(/\D/g, "")
     const nombre = data.nombre.trim()
+    const telefono = data.telefono.trim()
 
     if (!cuit || cuit.length < 7) {
         return { success: false, error: "DNI inválido" }
     }
     if (!nombre) {
         return { success: false, error: "Falta el nombre del cliente" }
+    }
+    if (!telefono) {
+        return { success: false, error: "Falta el WhatsApp del cliente" }
     }
     const itemsPedidos = (data.items || []).filter(i => i.cantidad > 0)
     if (itemsPedidos.length === 0) {
@@ -96,8 +101,8 @@ export async function crearPedidoMayoristaWeb(data: {
             const existente = await tx.proveedor.findFirst({ where: { cuit } })
 
             const sujeto = existente
-                ? await tx.proveedor.update({ where: { id: existente.id }, data: { esMayorista: true } })
-                : await tx.proveedor.create({ data: { razonSocial: nombre, cuit, esMayorista: true } })
+                ? await tx.proveedor.update({ where: { id: existente.id }, data: { esMayorista: true, telefono } })
+                : await tx.proveedor.create({ data: { razonSocial: nombre, cuit, esMayorista: true, telefono } })
 
             const venta = await tx.venta.create({
                 data: {
@@ -109,6 +114,7 @@ export async function crearPedidoMayoristaWeb(data: {
                     metodo_pago: "A Confirmar",
                     dni: cuit,
                     docNro: cuit,
+                    telefono,
                     sujetoId: sujeto.id,
                     items: { create: itemsVenta },
                 },

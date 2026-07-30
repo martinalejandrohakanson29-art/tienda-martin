@@ -203,14 +203,14 @@ export default function MayoristasClient({
                 <div className="space-y-8">
                     {grupos.map(([nombreCategoria, items]) => (
                         <div key={nombreCategoria}>
-                            <div className="flex items-center gap-3 mb-3">
-                                <h2 className="text-lg sm:text-xl font-black uppercase tracking-wide text-white whitespace-nowrap">
+                            <div className="flex items-center gap-3 mb-3 min-w-0">
+                                <h2 className="text-lg sm:text-xl font-black uppercase tracking-wide text-white min-w-0 shrink">
                                     {nombreCategoria}
                                 </h2>
-                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
+                                <span className="text-xs text-gray-500 font-medium whitespace-nowrap shrink-0">
                                     {items.length}
                                 </span>
-                                <div className="flex-1 h-px bg-white/10" />
+                                <div className="flex-1 h-px bg-white/10 shrink-0" />
                             </div>
 
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">

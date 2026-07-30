@@ -294,6 +294,7 @@ export default function MayoristasClient({
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
                                 {items.map((articulo) => {
                                     const cantidadEnCarrito = carrito[articulo.id] || 0
+                                    const sinStock = articulo.nivelStock === 0
                                     return (
                                         <div
                                             key={articulo.id}
@@ -327,15 +328,18 @@ export default function MayoristasClient({
                                                         {articulo.descripcion}
                                                     </p>
                                                 )}
-                                                {articulo.marca && (
-                                                    <p className="text-[11px] text-gray-500 mt-0.5">{articulo.marca}</p>
-                                                )}
-
-                                                <div className="mt-1.5 h-1.5 w-full rounded-full bg-white/10 overflow-hidden" title="Disponibilidad">
-                                                    <div
-                                                        className="h-full rounded-full transition-all"
-                                                        style={{ width: `${articulo.nivelStock}%`, backgroundColor: colorNivelStock(articulo.nivelStock) }}
-                                                    />
+                                                <div className="mt-1.5 flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-bold uppercase tracking-wide text-gray-500 shrink-0">Stock</span>
+                                                    {sinStock ? (
+                                                        <span className="text-[10px] font-bold uppercase text-red-500">Sin stock</span>
+                                                    ) : (
+                                                        <div className="h-1.5 flex-1 rounded-full bg-white/10 overflow-hidden" title="Nivel de stock">
+                                                            <div
+                                                                className="h-full rounded-full transition-all"
+                                                                style={{ width: `${articulo.nivelStock}%`, backgroundColor: colorNivelStock(articulo.nivelStock) }}
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 <div className="mt-auto pt-2 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between border-t border-white/10">
@@ -366,8 +370,10 @@ export default function MayoristasClient({
                                                     </span>
                                                     <button
                                                         onClick={() => cambiarCantidad(articulo.id, 1)}
-                                                        className="h-8 w-8 flex items-center justify-center rounded bg-red-600 hover:bg-red-700 text-white transition-colors"
+                                                        disabled={sinStock}
+                                                        className="h-8 w-8 flex items-center justify-center rounded bg-red-600 hover:bg-red-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-red-600 text-white transition-colors"
                                                         aria-label="Sumar cantidad"
+                                                        title={sinStock ? "Sin stock disponible" : undefined}
                                                     >
                                                         <Plus size={14} />
                                                     </button>

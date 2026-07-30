@@ -1222,7 +1222,13 @@ export default function PedidosVentaEdicionClient({
                           {venta.cliente || "Sin cliente"}
                         </TableCell>
                         <TableCell className="text-slate-700 py-4">
-                          {venta.vendedor}
+                          {venta.vendedor === "Mayorista Web" ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+                              {venta.vendedor}
+                            </span>
+                          ) : (
+                            venta.vendedor
+                          )}
                         </TableCell>
                         <TableCell className="py-4">
                           <Button variant="ghost" size="sm" className="h-8 px-2 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg" onClick={() => {

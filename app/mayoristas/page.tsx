@@ -1,5 +1,4 @@
 import { getArticulosMayoristasPublicos } from "@/app/actions/articulos-mayoristas"
-import { getConfig } from "@/app/actions/config"
 import MayoristasClient from "./mayoristas-client"
 
 export const dynamic = "force-dynamic"
@@ -10,16 +9,13 @@ export const metadata = {
 }
 
 export default async function MayoristasPage() {
-    const [articulos, config] = await Promise.all([
-        getArticulosMayoristasPublicos(),
-        getConfig(),
-    ])
+    const articulos = await getArticulosMayoristasPublicos()
 
     return (
         <div className="container mx-auto px-4 py-6 sm:py-8">
             <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white mb-6">Lista Mayorista</h1>
 
-            <MayoristasClient articulos={articulos} whatsappNumber={config?.whatsappNumber || null} />
+            <MayoristasClient articulos={articulos} />
         </div>
     )
 }

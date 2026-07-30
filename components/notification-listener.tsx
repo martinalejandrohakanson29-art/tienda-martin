@@ -5,7 +5,9 @@ import { useSession } from "next-auth/react"
 import { createPortal } from "react-dom"
 import { Bell } from "lucide-react"
 
-function playNotificationSound() {
+// Ambas alertas (general y mayorista) reproducen dos tonos en dos repeticiones,
+// solo cambian las frecuencias — esta función hace el trabajo común.
+function reproducirParDeTonos(freqA: number, freqB: number) {
     try {
         const ctx = new AudioContext()
         const playTone = (freq: number, start: number, duration: number, volume = 0.25) => {
@@ -23,14 +25,24 @@ function playNotificationSound() {
         }
         const t = ctx.currentTime
         // Primera repetición
-        playTone(880,  t,        0.18)
-        playTone(1100, t + 0.16, 0.22)
+        playTone(freqA, t,        0.18)
+        playTone(freqB, t + 0.16, 0.22)
         // Segunda repetición (con pausa de 0.1s entre ambas)
-        playTone(880,  t + 0.5,  0.18)
-        playTone(1100, t + 0.66, 0.22)
+        playTone(freqA, t + 0.5,  0.18)
+        playTone(freqB, t + 0.66, 0.22)
     } catch {
         // AudioContext no disponible
     }
+}
+
+function playNotificationSound() {
+    reproducirParDeTonos(880, 1100)
+}
+
+// Sonido grave y distinto para pedidos mayoristas web, para que no se confunda
+// con el beep agudo del resto de las alertas operativas.
+function playAlertaMayoristaSound() {
+    reproducirParDeTonos(330, 220)
 }
 
 type NotifRow = {
@@ -182,7 +194,11 @@ export function NotificationListener() {
                         // Evita repetir el toast si ya se mostró en esta sesión.
                         if (shownIdsRef.current.has(notif.id)) continue
                         shownIdsRef.current.add(notif.id)
-                        playNotificationSound()
+                        if (notif.eventType === "PEDIDO_MAYORISTA_WEB") {
+                            playAlertaMayoristaSound()
+                        } else {
+                            playNotificationSound()
+                        }
                         setNotifs(prev => [
                             ...prev,
                             { ...notif, displayId: `${notif.id}-${Date.now()}` },
@@ -222,22 +238,37 @@ export function NotificationListener() {
 
     if (!mounted || notifs.length === 0) return null
 
-    const showSummary = notifs.length > SUMMARY_THRESHOLD && !expanded
+    // Los pedidos mayoristas web tienen su propia cola, separada de las alertas
+    // operativas generales, para que no se mezclen ni visual ni sonoramente.
+    const notifsMayorista = notifs.filter(n => n.eventType === "PEDIDO_MAYORISTA_WEB")
+    const notifsGenerales = notifs.filter(n => n.eventType !== "PEDIDO_MAYORISTA_WEB")
+    const showSummary = notifsGenerales.length > SUMMARY_THRESHOLD && !expanded
 
     return createPortal(
-        <div className="fixed bottom-5 right-5 z-[9999] flex flex-col-reverse gap-2.5 pointer-events-none">
-            {showSummary ? (
-                <div className="pointer-events-auto">
-                    <NotificationSummaryCard count={notifs.length} onExpand={() => setExpanded(true)} />
-                </div>
-            ) : (
-                notifs.map(n => (
-                    <div key={n.displayId} className="pointer-events-auto">
-                        <NotificationCard notif={n} onClose={dismiss} />
+        <>
+            <div className="fixed bottom-5 right-5 z-[9999] flex flex-col-reverse gap-2.5 pointer-events-none">
+                {showSummary ? (
+                    <div className="pointer-events-auto">
+                        <NotificationSummaryCard count={notifsGenerales.length} onExpand={() => setExpanded(true)} />
                     </div>
-                ))
+                ) : (
+                    notifsGenerales.map(n => (
+                        <div key={n.displayId} className="pointer-events-auto">
+                            <NotificationCard notif={n} onClose={dismiss} />
+                        </div>
+                    ))
+                )}
+            </div>
+            {notifsMayorista.length > 0 && (
+                <div className="fixed top-5 left-5 z-[9999] flex flex-col gap-2.5 pointer-events-none">
+                    {notifsMayorista.map(n => (
+                        <div key={n.displayId} className="pointer-events-auto">
+                            <NotificationCard notif={n} onClose={dismiss} />
+                        </div>
+                    ))}
+                </div>
             )}
-        </div>,
+        </>,
         document.body
     )
 }

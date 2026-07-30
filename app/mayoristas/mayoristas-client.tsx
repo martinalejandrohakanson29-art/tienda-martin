@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet"
-import { Search, Tag, ShoppingCart, Plus, Minus, Trash2, MessageCircle } from "lucide-react"
+import { Search, Tag, ShoppingCart, Plus, Minus, Trash2, Loader2 } from "lucide-react"
 import { formatPrice } from "@/lib/utils"
+import { buscarClienteMayoristaPorDni, crearPedidoMayoristaWeb } from "@/app/actions/pedido-mayorista-web"
 
 interface ArticuloMayorista {
     id: string
@@ -21,18 +22,40 @@ interface ArticuloMayorista {
 
 const CARRITO_KEY = "mayoristas-carrito"
 
+// Pasos del checkout dentro del panel del carrito: se pide el DNI, se intenta
+// identificar al cliente (Proveedores o padrón ARCA) y se confirma el pedido.
+type PasoCheckout = "carrito" | "dni" | "nombreManual" | "confirmar" | "enviando" | "exito"
+
 export default function MayoristasClient({
     articulos,
-    whatsappNumber,
 }: {
     articulos: ArticuloMayorista[]
-    whatsappNumber: string | null
 }) {
     const [search, setSearch] = useState("")
     const [categoria, setCategoria] = useState<string | null>(null)
     const [carrito, setCarrito] = useState<Record<string, number>>({})
     const [carritoAbierto, setCarritoAbierto] = useState(false)
     const [montado, setMontado] = useState(false)
+
+    const [pasoCheckout, setPasoCheckout] = useState<PasoCheckout>("carrito")
+    const [dniInput, setDniInput] = useState("")
+    const [nombreManualInput, setNombreManualInput] = useState("")
+    const [clienteResuelto, setClienteResuelto] = useState<{ nombre: string; cuit: string } | null>(null)
+    const [errorCheckout, setErrorCheckout] = useState<string | null>(null)
+    const [buscandoCliente, setBuscandoCliente] = useState(false)
+    const [numeroVentaExito, setNumeroVentaExito] = useState<number | null>(null)
+
+    // Al cerrar el panel del carrito (por fuera de "Cerrar" en el paso de éxito), se reinicia
+    // el checkout para que la próxima vez que se abra arranque desde el resumen del pedido.
+    useEffect(() => {
+        if (!carritoAbierto) {
+            setPasoCheckout("carrito")
+            setDniInput("")
+            setNombreManualInput("")
+            setClienteResuelto(null)
+            setErrorCheckout(null)
+        }
+    }, [carritoAbierto])
 
     // Carga el pedido guardado (si había uno a medio armar) y lo mantiene sincronizado en localStorage.
     useEffect(() => {
@@ -128,20 +151,61 @@ export default function MayoristasClient({
     const cantidadTotal = itemsCarrito.reduce((sum, i) => sum + i.cantidad, 0)
     const totalCarrito = itemsCarrito.reduce((sum, i) => sum + i.articulo.precio * i.cantidad, 0)
 
-    const linkWhatsapp = useMemo(() => {
-        if (!whatsappNumber || itemsCarrito.length === 0) return null
-        const lineas = itemsCarrito.map(({ articulo, cantidad }) =>
-            `• ${cantidad} x ${articulo.titulo || articulo.nombre} (${articulo.codigo}) — ${formatPrice(articulo.precio)} c/u = ${formatPrice(articulo.precio * cantidad)}`
-        )
-        const mensaje = [
-            "Hola! Quiero hacer este pedido de la lista mayorista:",
-            "",
-            ...lineas,
-            "",
-            `Total: ${formatPrice(totalCarrito)}`,
-        ].join("\n")
-        return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(mensaje)}`
-    }, [whatsappNumber, itemsCarrito, totalCarrito])
+    async function handleContinuarDni() {
+        const limpio = dniInput.replace(/\D/g, "")
+        if (limpio.length < 7) {
+            setErrorCheckout("Ingresá un DNI válido")
+            return
+        }
+        setErrorCheckout(null)
+        setBuscandoCliente(true)
+        try {
+            const res = await buscarClienteMayoristaPorDni(limpio)
+            if (res.encontrado && res.nombre) {
+                setClienteResuelto({ nombre: res.nombre, cuit: res.cuit })
+                setPasoCheckout("confirmar")
+            } else {
+                setClienteResuelto({ nombre: "", cuit: res.cuit })
+                setNombreManualInput("")
+                setPasoCheckout("nombreManual")
+            }
+        } catch {
+            setErrorCheckout("No pudimos verificar el DNI. Probá de nuevo.")
+        } finally {
+            setBuscandoCliente(false)
+        }
+    }
+
+    function handleContinuarNombreManual() {
+        const nombre = nombreManualInput.trim()
+        if (!nombre || !clienteResuelto) return
+        setClienteResuelto({ ...clienteResuelto, nombre })
+        setPasoCheckout("confirmar")
+    }
+
+    async function handleAceptarPedido() {
+        if (!clienteResuelto) return
+        setErrorCheckout(null)
+        setPasoCheckout("enviando")
+        try {
+            const res = await crearPedidoMayoristaWeb({
+                cuit: clienteResuelto.cuit,
+                nombre: clienteResuelto.nombre,
+                items: itemsCarrito.map(({ articulo, cantidad }) => ({ articuloMayoristaId: articulo.id, cantidad })),
+            })
+            if (res.success) {
+                setNumeroVentaExito(res.numeroVenta ?? null)
+                vaciarCarrito()
+                setPasoCheckout("exito")
+            } else {
+                setErrorCheckout(res.error || "No se pudo generar el pedido")
+                setPasoCheckout("confirmar")
+            }
+        } catch {
+            setErrorCheckout("No se pudo generar el pedido. Probá de nuevo.")
+            setPasoCheckout("confirmar")
+        }
+    }
 
     return (
         <div className="space-y-6 pb-24">
@@ -316,10 +380,11 @@ export default function MayoristasClient({
                 <SheetContent side="right" className="bg-[#111] border-white/10 text-white w-full sm:max-w-md flex flex-col">
                     <SheetTitle className="text-white text-lg font-black uppercase tracking-wide">Tu pedido</SheetTitle>
 
-                    {itemsCarrito.length === 0 ? (
+                    {itemsCarrito.length === 0 && pasoCheckout === "carrito" ? (
                         <p className="text-gray-500 text-sm mt-4">Todavía no agregaste artículos.</p>
                     ) : (
                         <>
+                            {pasoCheckout === "carrito" && (
                             <div className="flex-1 overflow-y-auto space-y-3 mt-4 pr-1">
                                 {itemsCarrito.map(({ articulo, cantidad }) => (
                                     <div key={articulo.id} className="flex items-center gap-3 border-b border-white/10 pb-3">
@@ -359,33 +424,142 @@ export default function MayoristasClient({
                                     </div>
                                 ))}
                             </div>
+                            )}
+
+                            {pasoCheckout !== "carrito" && pasoCheckout !== "exito" && (
+                                <div className="mt-4 flex items-center justify-between text-xs text-gray-400 bg-white/5 rounded-lg p-3">
+                                    <span>{itemsCarrito.length} artículo(s)</span>
+                                    <span className="font-bold text-white">{formatPrice(totalCarrito)}</span>
+                                </div>
+                            )}
 
                             <div className="pt-4 border-t border-white/10 mt-2 space-y-3">
-                                <div className="flex items-center justify-between text-lg font-black">
-                                    <span>Total</span>
-                                    <span>{formatPrice(totalCarrito)}</span>
-                                </div>
-                                {linkWhatsapp ? (
-                                    <a
-                                        href={linkWhatsapp}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors"
-                                    >
-                                        <MessageCircle size={18} />
-                                        Enviar pedido por WhatsApp
-                                    </a>
-                                ) : (
-                                    <p className="text-xs text-amber-400 text-center">
-                                        Falta configurar un número de WhatsApp para poder enviar el pedido.
-                                    </p>
+                                {pasoCheckout === "carrito" && (
+                                    <div className="flex items-center justify-between text-lg font-black">
+                                        <span>Total</span>
+                                        <span>{formatPrice(totalCarrito)}</span>
+                                    </div>
                                 )}
-                                <button
-                                    onClick={vaciarCarrito}
-                                    className="w-full text-xs text-gray-500 hover:text-red-400 transition-colors"
-                                >
-                                    Vaciar pedido
-                                </button>
+
+                                {pasoCheckout === "carrito" && (
+                                    <>
+                                        <button
+                                            onClick={() => setPasoCheckout("dni")}
+                                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg transition-colors"
+                                        >
+                                            Confirmar pedido
+                                        </button>
+                                        <button
+                                            onClick={vaciarCarrito}
+                                            className="w-full text-xs text-gray-500 hover:text-red-400 transition-colors"
+                                        >
+                                            Vaciar pedido
+                                        </button>
+                                    </>
+                                )}
+
+                                {pasoCheckout === "dni" && (
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-gray-400">Ingresá tu DNI para identificarte y confirmar el pedido.</p>
+                                        <Input
+                                            value={dniInput}
+                                            onChange={(e) => setDniInput(e.target.value.replace(/\D/g, ""))}
+                                            placeholder="Ej: 30123456"
+                                            inputMode="numeric"
+                                            autoFocus
+                                            className="bg-[#111] border-white/15 text-white placeholder:text-gray-600"
+                                        />
+                                        {errorCheckout && <p className="text-xs text-red-400">{errorCheckout}</p>}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setPasoCheckout("carrito")}
+                                                className="flex-1 text-xs text-gray-400 hover:text-white py-2.5"
+                                            >
+                                                Volver
+                                            </button>
+                                            <button
+                                                onClick={handleContinuarDni}
+                                                disabled={buscandoCliente || dniInput.length < 7}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg transition-colors"
+                                            >
+                                                {buscandoCliente && <Loader2 size={14} className="animate-spin" />}
+                                                {buscandoCliente ? "Buscando..." : "Continuar"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {pasoCheckout === "nombreManual" && (
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-gray-400">No encontramos ese DNI registrado. Decinos tu nombre y apellido para continuar.</p>
+                                        <Input
+                                            value={nombreManualInput}
+                                            onChange={(e) => setNombreManualInput(e.target.value)}
+                                            placeholder="Nombre y apellido"
+                                            autoFocus
+                                            className="bg-[#111] border-white/15 text-white placeholder:text-gray-600"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setPasoCheckout("dni")}
+                                                className="flex-1 text-xs text-gray-400 hover:text-white py-2.5"
+                                            >
+                                                Volver
+                                            </button>
+                                            <button
+                                                onClick={handleContinuarNombreManual}
+                                                disabled={!nombreManualInput.trim()}
+                                                className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg transition-colors"
+                                            >
+                                                Continuar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {pasoCheckout === "confirmar" && clienteResuelto && (
+                                    <div className="space-y-2">
+                                        <p className="text-sm text-gray-200">
+                                            ¿Confirmás el pedido a nombre de <span className="font-bold text-white">{clienteResuelto.nombre}</span>?
+                                        </p>
+                                        {errorCheckout && <p className="text-xs text-red-400">{errorCheckout}</p>}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => { setClienteResuelto(null); setDniInput(""); setPasoCheckout("dni") }}
+                                                className="flex-1 text-xs text-gray-400 hover:text-white py-2.5"
+                                            >
+                                                No soy yo, cambiar DNI
+                                            </button>
+                                            <button
+                                                onClick={handleAceptarPedido}
+                                                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+                                            >
+                                                Aceptar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {pasoCheckout === "enviando" && (
+                                    <div className="flex items-center justify-center gap-2 py-3 text-gray-300 text-sm">
+                                        <Loader2 size={16} className="animate-spin" /> Enviando pedido...
+                                    </div>
+                                )}
+
+                                {pasoCheckout === "exito" && (
+                                    <div className="text-center space-y-2 py-2">
+                                        <p className="text-green-400 font-black text-lg">¡Pedido enviado!</p>
+                                        <p className="text-sm text-gray-300">
+                                            Tu número de pedido es <span className="font-bold text-white">#{numeroVentaExito}</span>. Te vamos a contactar para coordinar el pago y la entrega.
+                                        </p>
+                                        <button
+                                            onClick={() => setCarritoAbierto(false)}
+                                            className="w-full bg-white/10 hover:bg-white/20 text-white font-bold py-2.5 rounded-lg mt-2 transition-colors"
+                                        >
+                                            Cerrar
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         </>
                     )}

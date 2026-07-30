@@ -7,4 +7,5 @@ export const EVENT_TYPES = [
     { value: "PEDIDO_PREPARADO_FULL", label: "Pedido preparado Full (foto cargada)" },
     { value: "PEDIDO_VENTA_PREPARADO_FOTO", label: "Pedido de venta preparado (foto cargada)" },
     { value: "PEDIDO_VENTA_PDF_SUBIDO", label: "PDF subido en Pedidos de Venta" },
+    { value: "PEDIDO_MAYORISTA_WEB", label: "Nuevo pedido mayorista (web)" },
 ]

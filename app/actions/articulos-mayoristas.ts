@@ -20,7 +20,7 @@ export async function getArticulosMayoristasAdmin() {
         orderBy: { orden: "asc" },
         include: {
             articuloMostrador: {
-                select: { id: true, nombre: true, costo: true, esPack: true },
+                select: { id: true, nombre: true, costo: true, esPack: true, stock: true },
             },
         },
     })
@@ -31,7 +31,7 @@ export async function getArticulosMayoristasAdmin() {
     if (sinVincular.length > 0) {
         const candidatos = await prisma.articuloMostrador.findMany({
             where: { id: { in: sinVincular.map(a => a.codigo) } },
-            select: { id: true, nombre: true, costo: true, esPack: true },
+            select: { id: true, nombre: true, costo: true, esPack: true, stock: true },
         })
         const porId = new Map(candidatos.map(c => [c.id, c]))
         const paraActualizar = sinVincular.filter(a => porId.has(a.codigo))
@@ -87,7 +87,7 @@ export async function buscarArticulosMostradorParaVincular(query: string) {
                 { codigoProveedor: { contains: query, mode: "insensitive" } },
             ],
         },
-        select: { id: true, nombre: true, costo: true, esPack: true, codigoProveedor: true },
+        select: { id: true, nombre: true, costo: true, esPack: true, codigoProveedor: true, stock: true },
         orderBy: { nombre: "asc" },
         take: 25,
     })
@@ -122,8 +122,12 @@ export async function actualizarArticuloMayorista(id: string, data: {
     codigo?: string
     precio?: number
     activo?: boolean
+    nivelStock?: number
 }) {
     await requireAdmin()
+    if (data.nivelStock != null) {
+        data = { ...data, nivelStock: Math.max(0, Math.min(100, Math.round(data.nivelStock))) }
+    }
     await prisma.articuloMayorista.update({
         where: { id },
         data,

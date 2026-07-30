@@ -977,6 +977,10 @@ model ArticuloMayorista {
   imageUrl            String             @default("")
   orden               Int                @default(0)
   activo              Boolean            @default(true)
+  // Nivel de stock manual (0-100) que se fija a mano en el admin con una barra
+  // deslizante de color (rojo = sin stock, verde = stock máximo); no es el stock
+  // real del artículo vinculado, es solo lo que se muestra en /mayoristas.
+  nivelStock          Int                @default(100)
   articuloMostradorId String?
   articuloMostrador   ArticuloMostrador? @relation(fields: [articuloMostradorId], references: [id], onDelete: SetNull)
   createdAt           DateTime           @default(now())

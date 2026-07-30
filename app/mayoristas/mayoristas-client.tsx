@@ -18,6 +18,13 @@ interface ArticuloMayorista {
     codigo: string
     precio: number
     imageUrl: string
+    nivelStock: number
+}
+
+// Interpola de rojo (sin stock) a verde (stock máximo) según el nivel 0-100
+// que se fija a mano en el admin con la barra deslizante.
+function colorNivelStock(nivel: number): string {
+    return `hsl(${Math.max(0, Math.min(100, nivel)) * 1.2}, 70%, 45%)`
 }
 
 const CARRITO_KEY = "mayoristas-carrito"
@@ -323,6 +330,13 @@ export default function MayoristasClient({
                                                 {articulo.marca && (
                                                     <p className="text-[11px] text-gray-500 mt-0.5">{articulo.marca}</p>
                                                 )}
+
+                                                <div className="mt-1.5 h-1.5 w-full rounded-full bg-white/10 overflow-hidden" title="Disponibilidad">
+                                                    <div
+                                                        className="h-full rounded-full transition-all"
+                                                        style={{ width: `${articulo.nivelStock}%`, backgroundColor: colorNivelStock(articulo.nivelStock) }}
+                                                    />
+                                                </div>
 
                                                 <div className="mt-auto pt-2 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between border-t border-white/10">
                                                     <span className="text-lg font-extrabold leading-none text-white">

@@ -56,6 +56,7 @@ interface ArticuloMostradorVinculado {
     nombre: string
     costo: number
     esPack: boolean | null
+    stock: number
 }
 
 interface Articulo {
@@ -70,19 +71,28 @@ interface Articulo {
     imageUrl: string
     orden: number
     activo: boolean
+    nivelStock: number
     articuloMostrador: ArticuloMostradorVinculado | null
 }
 
-type Columna = "nombre" | "codigo" | "costo" | "marcacion" | "precio"
+type Columna = "nombre" | "codigo" | "stock" | "costo" | "marcacion" | "precio"
 
-function valorColumna(articulo: { nombre: string; codigo: string; precio: number; articuloMostrador: { costo: number } | null }, columna: Columna): string | number | null {
+function valorColumna(articulo: { nombre: string; codigo: string; precio: number; articuloMostrador: { costo: number; stock: number } | null }, columna: Columna): string | number | null {
     switch (columna) {
         case "nombre": return articulo.nombre.toLowerCase()
         case "codigo": return articulo.codigo.toLowerCase()
+        case "stock": return articulo.articuloMostrador?.stock ?? null
         case "costo": return articulo.articuloMostrador?.costo ?? null
         case "marcacion": return calcularMarcacion(articulo.articuloMostrador?.costo, articulo.precio)
         case "precio": return articulo.precio
     }
+}
+
+// Color del texto del nivel de stock manual (barra deslizante): rojo sin stock, verde al máximo.
+function claseColorNivelStock(n: number): string {
+    if (n <= 15) return "text-red-500"
+    if (n <= 60) return "text-yellow-600"
+    return "text-green-600"
 }
 
 interface ResultadoBusqueda {
@@ -91,6 +101,7 @@ interface ResultadoBusqueda {
     costo: number
     esPack: boolean | null
     codigoProveedor: string | null
+    stock: number
 }
 
 export default function MayoristasAdminClient({
@@ -338,6 +349,12 @@ export default function MayoristasAdminClient({
                             Código {iconoOrden("codigo")}
                         </button>
                         <button
+                            onClick={() => toggleSort("stock")}
+                            className={`w-16 shrink-0 flex items-center gap-1 hover:text-slate-600 transition-colors ${sortColumna === "stock" ? "text-indigo-600" : ""}`}
+                        >
+                            Stock {iconoOrden("stock")}
+                        </button>
+                        <button
                             onClick={() => toggleSort("costo")}
                             className={`w-24 shrink-0 flex items-center gap-1 hover:text-slate-600 transition-colors ${sortColumna === "costo" ? "text-indigo-600" : ""}`}
                         >
@@ -355,6 +372,7 @@ export default function MayoristasAdminClient({
                         >
                             Precio final {iconoOrden("precio")}
                         </button>
+                        <div className="w-28 shrink-0">Nivel stock (público)</div>
                         <div className="w-10 shrink-0" />
                     </div>
                 )}
@@ -435,6 +453,17 @@ export default function MayoristasAdminClient({
                                             )}
                                         </div>
 
+                                        {/* Stock real (mismo artículo del que sale el costo) */}
+                                        <div className="shrink-0 w-16">
+                                            {articulo.articuloMostrador ? (
+                                                <span className={`text-sm font-semibold ${articulo.articuloMostrador.stock > 0 ? "text-slate-700" : "text-red-500"}`}>
+                                                    {articulo.articuloMostrador.stock}
+                                                </span>
+                                            ) : (
+                                                <span className="text-sm text-slate-300">—</span>
+                                            )}
+                                        </div>
+
                                         {/* Costo */}
                                         <div className="shrink-0 w-24">
                                             {articulo.articuloMostrador ? (
@@ -503,6 +532,25 @@ export default function MayoristasAdminClient({
                                                 }}
                                                 className="h-8 w-24 text-sm"
                                             />
+                                        </div>
+
+                                        {/* Nivel de stock manual: barra roja (sin stock) a verde (máximo) que se ve en /mayoristas */}
+                                        <div className="flex flex-col gap-0.5 shrink-0 w-28">
+                                            <input
+                                                type="range"
+                                                min={0}
+                                                max={100}
+                                                value={articulo.nivelStock}
+                                                onChange={(e) => setLocal(articulo.id, { nivelStock: Number(e.target.value) })}
+                                                onMouseUp={(e) => guardarCampo(articulo.id, { nivelStock: Number(e.currentTarget.value) })}
+                                                onTouchEnd={(e) => guardarCampo(articulo.id, { nivelStock: Number(e.currentTarget.value) })}
+                                                onKeyUp={(e) => guardarCampo(articulo.id, { nivelStock: Number(e.currentTarget.value) })}
+                                                className="stock-slider"
+                                                title="Nivel de stock que se muestra en /mayoristas"
+                                            />
+                                            <span className={`text-[10px] font-bold text-center ${claseColorNivelStock(articulo.nivelStock)}`}>
+                                                {articulo.nivelStock}%
+                                            </span>
                                         </div>
 
                                         <div className="flex items-center gap-2 shrink-0" title="Visible en el catálogo público">
@@ -614,7 +662,7 @@ export default function MayoristasAdminClient({
                         {!buscando && vincularResultados.map(r => (
                             <button
                                 key={r.id}
-                                onClick={() => vincularFor && vincular(vincularFor, { id: r.id, nombre: r.nombre, costo: r.costo, esPack: r.esPack })}
+                                onClick={() => vincularFor && vincular(vincularFor, { id: r.id, nombre: r.nombre, costo: r.costo, esPack: r.esPack, stock: r.stock })}
                                 className="flex items-center justify-between gap-3 text-left px-3 py-2 rounded-lg border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/50 transition-colors"
                             >
                                 <div className="min-w-0">

@@ -104,4 +104,36 @@
     color: #000000;
     padding: 8px 16px;
   }
+
+  /* Barra deslizante de nivel de stock: rojo (sin stock) -> verde (stock máximo) */
+  .stock-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    border-radius: 9999px;
+    background: linear-gradient(to right, #ef4444, #eab308, #22c55e);
+    outline: none;
+    cursor: pointer;
+  }
+  .stock-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 2px solid #1e293b;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+  .stock-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 9999px;
+    background: #ffffff;
+    border: 2px solid #1e293b;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
 }

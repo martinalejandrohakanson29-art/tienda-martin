@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, ImageOff, Check, ExternalLink, Search, X, Link2Off, Loader2, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import { ArrowLeft, ImageOff, Check, ExternalLink, Search, X, Link2Off, Loader2, ArrowUp, ArrowDown, ArrowUpDown, Layers, Link2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +19,8 @@ import {
     actualizarArticuloMayorista,
     buscarArticulosMostradorParaVincular,
     vincularArticuloMostrador,
+    agruparVariante,
+    desagruparVariante,
 } from "@/app/actions/articulos-mayoristas"
 
 function formatMiles(n: number) {
@@ -72,8 +74,14 @@ interface Articulo {
     orden: number
     activo: boolean
     nivelStock: number
+    grupoVarianteId: string | null
+    variante: string | null
     articuloMostrador: ArticuloMostradorVinculado | null
 }
+
+// Campos que se comparten entre variantes de un mismo grupo: el server ya los propaga al guardar,
+// esto además los refleja localmente para que la UI no quede desincronizada hasta refrescar.
+const CAMPOS_COMPARTIDOS: (keyof Articulo)[] = ["categoria", "nombre", "titulo", "descripcion", "marca", "imageUrl"]
 
 type Columna = "nombre" | "codigo" | "stock" | "costo" | "marcacion" | "precio"
 
@@ -124,6 +132,8 @@ export default function MayoristasAdminClient({
     const [precioTemp, setPrecioTemp] = useState<string>("")
     const [sortColumna, setSortColumna] = useState<Columna | null>(null)
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+    const [agruparFor, setAgruparFor] = useState<string | null>(null)
+    const [agruparQuery, setAgruparQuery] = useState("")
     const [, startTransition] = useTransition()
 
     const faltantes = useMemo(() => articulos.filter(a => !a.imageUrl).length, [articulos])
@@ -190,16 +200,116 @@ export default function MayoristasAdminClient({
                     return 0
                 })
             }
+        } else {
+            // Sin sort explícito: agrupar variantes de un mismo artículo adyacentes entre sí.
+            for (const [, items] of entries) {
+                items.sort((a, b) => {
+                    const ga = a.grupoVarianteId ?? a.id
+                    const gb = b.grupoVarianteId ?? b.id
+                    if (ga !== gb) return ga < gb ? -1 : 1
+                    return a.orden - b.orden
+                })
+            }
         }
         return entries
     }, [articulosFiltrados, sortColumna, sortDir])
+
+    const conteoGrupo = useMemo(() => {
+        const map = new Map<string, number>()
+        for (const a of articulos) {
+            if (!a.grupoVarianteId) continue
+            map.set(a.grupoVarianteId, (map.get(a.grupoVarianteId) || 0) + 1)
+        }
+        return map
+    }, [articulos])
 
     function setLocal(id: string, patch: Partial<Articulo>) {
         setArticulos(prev => prev.map(a => (a.id === id ? { ...a, ...patch } : a)))
     }
 
+    // Además de guardar `patch` en `id`, refleja localmente los campos compartidos
+    // (título, foto, descripción, etc.) en el resto de las variantes de su grupo.
+    function setLocalConGrupo(id: string, patch: Partial<Articulo>) {
+        setArticulos(prev => {
+            const actual = prev.find(a => a.id === id)
+            const grupoId = actual?.grupoVarianteId
+            const patchCompartido: Partial<Articulo> = {}
+            for (const campo of CAMPOS_COMPARTIDOS) {
+                if (campo in patch) (patchCompartido as Record<string, unknown>)[campo] = (patch as Record<string, unknown>)[campo]
+            }
+            return prev.map(a => {
+                if (a.id === id) return { ...a, ...patch }
+                if (grupoId && a.grupoVarianteId === grupoId && Object.keys(patchCompartido).length > 0) {
+                    return { ...a, ...patchCompartido }
+                }
+                return a
+            })
+        })
+    }
+
+    const agruparCandidatos = useMemo(() => {
+        if (!agruparFor) return []
+        const actual = articulos.find(a => a.id === agruparFor)
+        const q = agruparQuery.trim().toLowerCase()
+        return articulos
+            .filter(a =>
+                a.id !== agruparFor &&
+                a.grupoVarianteId !== actual?.grupoVarianteId // ya está en el mismo grupo
+            )
+            .filter(a => !q || a.nombre.toLowerCase().includes(q) || a.codigo.toLowerCase().includes(q) || (a.marca || "").toLowerCase().includes(q))
+            .slice(0, 25)
+    }, [articulos, agruparFor, agruparQuery])
+
+    function abrirAgrupar(id: string) {
+        setAgruparFor(id)
+        setAgruparQuery("")
+    }
+
+    function confirmarAgrupar(destino: Articulo) {
+        if (!agruparFor) return
+        const origenId = agruparFor
+        setAgruparFor(null)
+        setArticulos(prev => {
+            const grupoVarianteId = destino.grupoVarianteId ?? destino.id
+            return prev.map(a => {
+                if (a.id === destino.id) return { ...a, grupoVarianteId }
+                if (a.id === origenId) {
+                    return {
+                        ...a,
+                        grupoVarianteId,
+                        categoria: destino.categoria,
+                        nombre: destino.nombre,
+                        titulo: destino.titulo,
+                        descripcion: destino.descripcion,
+                        marca: destino.marca,
+                        imageUrl: destino.imageUrl,
+                    }
+                }
+                return a
+            })
+        })
+        startTransition(() => {
+            agruparVariante(origenId, destino.id)
+        })
+    }
+
+    function quitarDelGrupo(articulo: Articulo) {
+        const grupoId = articulo.grupoVarianteId
+        setArticulos(prev => {
+            const restantes = grupoId ? prev.filter(a => a.grupoVarianteId === grupoId && a.id !== articulo.id) : []
+            return prev.map(a => {
+                if (a.id === articulo.id) return { ...a, grupoVarianteId: null, variante: null }
+                if (grupoId && restantes.length === 1 && a.id === restantes[0].id) return { ...a, grupoVarianteId: null, variante: null }
+                return a
+            })
+        })
+        startTransition(() => {
+            desagruparVariante(articulo.id)
+        })
+    }
+
     function asignarFoto(id: string, url: string) {
-        setLocal(id, { imageUrl: url })
+        setLocalConGrupo(id, { imageUrl: url })
         setPickerFor(null)
         startTransition(() => {
             actualizarImagenMayorista(id, url)
@@ -284,6 +394,7 @@ export default function MayoristasAdminClient({
 
     const articuloActivo = articulos.find(a => a.id === pickerFor)
     const articuloVinculando = articulos.find(a => a.id === vincularFor)
+    const articuloAgrupando = articulos.find(a => a.id === agruparFor)
 
     return (
         <div className="h-full w-full overflow-y-auto p-6">
@@ -344,7 +455,7 @@ export default function MayoristasAdminClient({
                         </button>
                         <button
                             onClick={() => toggleSort("codigo")}
-                            className={`w-24 shrink-0 flex items-center gap-1 hover:text-slate-600 transition-colors ${sortColumna === "codigo" ? "text-indigo-600" : ""}`}
+                            className={`w-32 shrink-0 flex items-center gap-1 hover:text-slate-600 transition-colors ${sortColumna === "codigo" ? "text-indigo-600" : ""}`}
                         >
                             Código {iconoOrden("codigo")}
                         </button>
@@ -410,7 +521,7 @@ export default function MayoristasAdminClient({
                                                 onBlur={(e) => {
                                                     const val = e.target.value
                                                     if (val !== articulo.nombre || val !== articulo.titulo) {
-                                                        setLocal(articulo.id, { nombre: val, titulo: val })
+                                                        setLocalConGrupo(articulo.id, { nombre: val, titulo: val })
                                                         guardarCampo(articulo.id, { nombre: val, titulo: val })
                                                     }
                                                 }}
@@ -428,7 +539,7 @@ export default function MayoristasAdminClient({
                                                     const val = e.target.value.trim().toLowerCase() || null
                                                     e.target.value = val || ""
                                                     if (val !== articulo.descripcion) {
-                                                        setLocal(articulo.id, { descripcion: val })
+                                                        setLocalConGrupo(articulo.id, { descripcion: val })
                                                         guardarCampo(articulo.id, { descripcion: val })
                                                     }
                                                 }}
@@ -437,8 +548,8 @@ export default function MayoristasAdminClient({
                                             />
                                         </div>
 
-                                        {/* Código */}
-                                        <div className="flex flex-col items-start gap-1 shrink-0 w-24">
+                                        {/* Código + agrupar variantes */}
+                                        <div className="flex flex-col items-start gap-1 shrink-0 w-32">
                                             <Badge variant="outline" className="font-mono text-xs">
                                                 {articulo.codigo}
                                             </Badge>
@@ -449,6 +560,42 @@ export default function MayoristasAdminClient({
                                                 >
                                                     <Link2Off className="h-3 w-3 shrink-0" />
                                                     Vincular
+                                                </button>
+                                            )}
+                                            {articulo.grupoVarianteId ? (
+                                                <div className="flex flex-col gap-1 w-full">
+                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600" title="Artículo con variantes agrupadas">
+                                                        <Layers className="h-3 w-3 shrink-0" />
+                                                        Grupo · {conteoGrupo.get(articulo.grupoVarianteId) ?? 1}
+                                                    </span>
+                                                    <Input
+                                                        defaultValue={articulo.variante || ""}
+                                                        placeholder="Medida / variante"
+                                                        title="Etiqueta de esta variante (ej. 12mm), se ve como pill en /mayoristas"
+                                                        onBlur={(e) => {
+                                                            const val = e.target.value.trim() || null
+                                                            if (val !== articulo.variante) {
+                                                                setLocal(articulo.id, { variante: val })
+                                                                guardarCampo(articulo.id, { variante: val })
+                                                            }
+                                                        }}
+                                                        className="h-6 text-[11px] px-1.5 border-purple-200 focus-visible:ring-purple-400"
+                                                    />
+                                                    <button
+                                                        onClick={() => quitarDelGrupo(articulo)}
+                                                        className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-red-500"
+                                                    >
+                                                        <Link2Off className="h-3 w-3 shrink-0" />
+                                                        Quitar del grupo
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => abrirAgrupar(articulo.id)}
+                                                    className="flex items-center gap-1 text-[10px] font-bold text-purple-500 hover:text-purple-700"
+                                                >
+                                                    <Link2 className="h-3 w-3 shrink-0" />
+                                                    Agrupar variante
                                                 </button>
                                             )}
                                         </div>
@@ -675,6 +822,50 @@ export default function MayoristasAdminClient({
                                     )}
                                 </div>
                                 <span className="text-sm font-bold text-slate-600 shrink-0">$ {formatMiles(r.costo)}</span>
+                            </button>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!agruparFor} onOpenChange={(open) => !open && setAgruparFor(null)}>
+                <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Agrupar variante{articuloAgrupando ? ` — ${articuloAgrupando.nombre}` : ""}</DialogTitle>
+                        <DialogDescription>
+                            Buscá el artículo del que esta fila es una variante (ej. otra medida). Título, foto, descripción, marca y categoría pasan a ser los del artículo elegido, y en /mayoristas van a aparecer juntos en un solo card con selector de variante.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                            autoFocus
+                            placeholder="Nombre, código o marca..."
+                            value={agruparQuery}
+                            onChange={(e) => setAgruparQuery(e.target.value)}
+                            className="pl-9"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        {agruparCandidatos.length === 0 && (
+                            <p className="text-center py-6 text-sm text-slate-400">Sin resultados.</p>
+                        )}
+                        {agruparCandidatos.map(a => (
+                            <button
+                                key={a.id}
+                                onClick={() => confirmarAgrupar(a)}
+                                className="flex items-center justify-between gap-3 text-left px-3 py-2 rounded-lg border border-slate-100 hover:border-purple-300 hover:bg-purple-50/50 transition-colors"
+                            >
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 truncate">
+                                        {a.grupoVarianteId && <Badge className="bg-purple-100 text-purple-700 border-purple-200 shrink-0">Grupo · {conteoGrupo.get(a.grupoVarianteId) ?? 1}</Badge>}
+                                        <span className="truncate">{a.titulo || a.nombre}</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-400 font-mono">{a.codigo}</p>
+                                </div>
+                                <span className="text-sm font-bold text-slate-600 shrink-0">$ {formatMiles(a.precio)}</span>
                             </button>
                         ))}
                     </div>

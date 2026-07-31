@@ -72,7 +72,7 @@ export async function crearPedidoMayoristaWeb(data: {
     try {
         const articulos = await prisma.articuloMayorista.findMany({
             where: { id: { in: itemsPedidos.map(i => i.articuloMayoristaId) }, activo: true },
-            select: { id: true, nombre: true, titulo: true, precio: true, articuloMostradorId: true },
+            select: { id: true, nombre: true, titulo: true, precio: true, articuloMostradorId: true, variante: true },
         })
         const porId = new Map(articulos.map(a => [a.id, a]))
 
@@ -81,9 +81,12 @@ export async function crearPedidoMayoristaWeb(data: {
                 const art = porId.get(i.articuloMayoristaId)
                 if (!art) return null
                 const precioUnit = Number(art.precio)
+                const nombreBase = art.titulo || art.nombre
                 return {
                     productoId: art.articuloMostradorId,
-                    nombre: art.titulo || art.nombre,
+                    // Cuando el artículo tiene variantes (ej. medidas), la venta guarda cuál
+                    // se pidió: si no, dos medidas del mismo artículo generan líneas idénticas.
+                    nombre: art.variante ? `${nombreBase} (${art.variante})` : nombreBase,
                     cantidad: i.cantidad,
                     precio_unit: precioUnit,
                     subtotal: precioUnit * i.cantidad,

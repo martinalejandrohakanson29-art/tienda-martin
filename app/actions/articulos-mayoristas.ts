@@ -105,13 +105,25 @@ export async function vincularArticuloMostrador(id: string, articuloMostradorId:
 
 export async function actualizarImagenMayorista(id: string, imageUrl: string) {
     await requireAdmin()
-    await prisma.articuloMayorista.update({
+    const actualizado = await prisma.articuloMayorista.update({
         where: { id },
         data: { imageUrl },
+        select: { grupoVarianteId: true },
     })
+    if (actualizado.grupoVarianteId) {
+        await prisma.articuloMayorista.updateMany({
+            where: { grupoVarianteId: actualizado.grupoVarianteId, id: { not: id } },
+            data: { imageUrl },
+        })
+    }
     revalidatePath("/admin/listas/mayoristas")
     revalidatePath("/mayoristas")
 }
+
+// Campos que se comparten entre todas las variantes de un mismo grupo (ver grupoVarianteId):
+// al editarlos en una fila, se propagan al resto del grupo para que el card público
+// (que toma estos datos de la primera variante) quede consistente.
+const CAMPOS_COMPARTIDOS_VARIANTE = ["categoria", "nombre", "titulo", "descripcion", "marca"] as const
 
 export async function actualizarArticuloMayorista(id: string, data: {
     nombre?: string
@@ -123,15 +135,92 @@ export async function actualizarArticuloMayorista(id: string, data: {
     precio?: number
     activo?: boolean
     nivelStock?: number
+    variante?: string | null
 }) {
     await requireAdmin()
     if (data.nivelStock != null) {
         data = { ...data, nivelStock: Math.max(0, Math.min(100, Math.round(data.nivelStock))) }
     }
-    await prisma.articuloMayorista.update({
+    const actualizado = await prisma.articuloMayorista.update({
         where: { id },
         data,
+        select: { grupoVarianteId: true },
     })
+
+    const patchCompartido: Record<string, unknown> = {}
+    for (const campo of CAMPOS_COMPARTIDOS_VARIANTE) {
+        if (campo in data) patchCompartido[campo] = (data as Record<string, unknown>)[campo]
+    }
+    if (actualizado.grupoVarianteId && Object.keys(patchCompartido).length > 0) {
+        await prisma.articuloMayorista.updateMany({
+            where: { grupoVarianteId: actualizado.grupoVarianteId, id: { not: id } },
+            data: patchCompartido,
+        })
+    }
+
+    revalidatePath("/admin/listas/mayoristas")
+    revalidatePath("/mayoristas")
+}
+
+// Vincula la fila `id` como variante (ej. otra medida) de la fila `articuloDestinoId`,
+// reusando el id de esta última como identificador del grupo si todavía no tenía uno,
+// y copiando sobre `id` los datos compartidos del grupo (ver CAMPOS_COMPARTIDOS_VARIANTE + foto).
+export async function agruparVariante(id: string, articuloDestinoId: string) {
+    await requireAdmin()
+    if (id === articuloDestinoId) return
+
+    const destino = await prisma.articuloMayorista.findUniqueOrThrow({
+        where: { id: articuloDestinoId },
+        select: { id: true, grupoVarianteId: true, categoria: true, nombre: true, titulo: true, descripcion: true, marca: true, imageUrl: true },
+    })
+    const grupoVarianteId = destino.grupoVarianteId ?? destino.id
+
+    if (!destino.grupoVarianteId) {
+        await prisma.articuloMayorista.update({ where: { id: destino.id }, data: { grupoVarianteId } })
+    }
+    await prisma.articuloMayorista.update({
+        where: { id },
+        data: {
+            grupoVarianteId,
+            categoria: destino.categoria,
+            nombre: destino.nombre,
+            titulo: destino.titulo,
+            descripcion: destino.descripcion,
+            marca: destino.marca,
+            imageUrl: destino.imageUrl,
+        },
+    })
+
+    revalidatePath("/admin/listas/mayoristas")
+    revalidatePath("/mayoristas")
+}
+
+export async function desagruparVariante(id: string) {
+    await requireAdmin()
+    const fila = await prisma.articuloMayorista.findUniqueOrThrow({
+        where: { id },
+        select: { grupoVarianteId: true },
+    })
+
+    await prisma.articuloMayorista.update({
+        where: { id },
+        data: { grupoVarianteId: null, variante: null },
+    })
+
+    if (fila.grupoVarianteId) {
+        const restantes = await prisma.articuloMayorista.findMany({
+            where: { grupoVarianteId: fila.grupoVarianteId },
+            select: { id: true },
+        })
+        // Un "grupo" de una sola fila no tiene sentido: se desarma también.
+        if (restantes.length === 1) {
+            await prisma.articuloMayorista.update({
+                where: { id: restantes[0].id },
+                data: { grupoVarianteId: null, variante: null },
+            })
+        }
+    }
+
     revalidatePath("/admin/listas/mayoristas")
     revalidatePath("/mayoristas")
 }

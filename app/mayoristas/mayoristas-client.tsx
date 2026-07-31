@@ -19,6 +19,32 @@ interface ArticuloMayorista {
     precio: number
     imageUrl: string
     nivelStock: number
+    grupoVarianteId: string | null
+    variante: string | null
+}
+
+// Un artículo con variantes (ej. medidas) se carga como varias filas que comparten
+// grupoVarianteId; acá se agrupan en una sola card con selector. Un artículo sin
+// variantes queda como "grupo de 1", mismo camino de renderizado para ambos casos.
+interface CardArticulo {
+    key: string
+    categoria: string
+    variantes: ArticuloMayorista[]
+}
+
+function agruparEnCards(articulos: ArticuloMayorista[]): CardArticulo[] {
+    const map = new Map<string, ArticuloMayorista[]>()
+    for (const a of articulos) {
+        const key = a.grupoVarianteId ?? a.id
+        const arr = map.get(key) || []
+        arr.push(a)
+        map.set(key, arr)
+    }
+    return Array.from(map.entries()).map(([key, variantes]) => ({
+        key,
+        categoria: variantes[0].categoria,
+        variantes,
+    }))
 }
 
 // Interpola de rojo (sin stock) a verde (stock máximo) según el nivel 0-100
@@ -104,49 +130,64 @@ export default function MayoristasClient({
         setCarrito({})
     }
 
+    const [seleccion, setSeleccion] = useState<Record<string, string>>({})
+
     const categorias = useMemo(() => {
         const set = new Set(articulos.map(a => a.categoria))
         return Array.from(set)
     }, [articulos])
 
+    const cards = useMemo(() => agruparEnCards(articulos), [articulos])
+
     // Buscador flexible: separa el texto en palabras y matchea cada una sin importar el orden
     // en el que se escriban (ej. "titan cilindro" encuentra "Cilindro Titan 190"), ignorando acentos.
-    const filtrados = useMemo(() => {
-        let result = articulos
-        if (categoria) result = result.filter(a => a.categoria === categoria)
+    // Una card matchea si alguna de sus variantes matchea (así buscar "12mm" no rompe el agrupamiento).
+    const cardsFiltradas = useMemo(() => {
+        let result = cards
+        if (categoria) result = result.filter(c => c.categoria === categoria)
         if (search.trim()) {
             const diacriticos = new RegExp("[" + String.fromCharCode(0x300) + "-" + String.fromCharCode(0x36f) + "]", "g")
             const quitarAcentos = (texto: string) => texto.normalize("NFD").replace(diacriticos, "")
             const palabras = quitarAcentos(search.toLowerCase().trim()).split(/\s+/)
-            result = result.filter(a => {
+            result = result.filter(c => c.variantes.some(a => {
                 const nombreLimpio = quitarAcentos(a.nombre.toLowerCase())
                 const tituloLimpio = quitarAcentos((a.titulo || "").toLowerCase())
                 const descripcionLimpia = quitarAcentos((a.descripcion || "").toLowerCase())
                 const codigoLimpio = quitarAcentos(a.codigo.toLowerCase())
                 const marcaLimpia = quitarAcentos((a.marca || "").toLowerCase())
                 const categoriaLimpia = quitarAcentos(a.categoria.toLowerCase())
+                const varianteLimpia = quitarAcentos((a.variante || "").toLowerCase())
                 return palabras.every(p =>
                     nombreLimpio.includes(p) || tituloLimpio.includes(p) || descripcionLimpia.includes(p) ||
-                    codigoLimpio.includes(p) || marcaLimpia.includes(p) || categoriaLimpia.includes(p)
+                    codigoLimpio.includes(p) || marcaLimpia.includes(p) || categoriaLimpia.includes(p) || varianteLimpia.includes(p)
                 )
-            })
+            }))
         }
         return result
-    }, [articulos, search, categoria])
+    }, [cards, search, categoria])
 
     // Agrupa por categoría (en bloques separados, tipo cilindros / tapas / etc.) respetando
     // el orden en el que aparecen las categorías en el catálogo completo.
     const grupos = useMemo(() => {
-        const map = new Map<string, ArticuloMayorista[]>()
-        for (const a of filtrados) {
-            const arr = map.get(a.categoria) || []
-            arr.push(a)
-            map.set(a.categoria, arr)
+        const map = new Map<string, CardArticulo[]>()
+        for (const c of cardsFiltradas) {
+            const arr = map.get(c.categoria) || []
+            arr.push(c)
+            map.set(c.categoria, arr)
         }
         return categorias
             .filter(c => map.has(c))
             .map(c => [c, map.get(c)!] as const)
-    }, [filtrados, categorias])
+    }, [cardsFiltradas, categorias])
+
+    // Variante elegida para una card: la que el cliente tocó, o por default la primera con
+    // stock (si ninguna tiene, la primera de la lista).
+    function varianteSeleccionada(card: CardArticulo): ArticuloMayorista {
+        const elegidaId = seleccion[card.key]
+        const elegida = elegidaId && card.variantes.find(v => v.id === elegidaId)
+        if (elegida) return elegida
+        return card.variantes.find(v => v.nivelStock > 0) || card.variantes[0]
+    }
 
     const itemsCarrito = useMemo(() => {
         return Object.entries(carrito)
@@ -234,7 +275,7 @@ export default function MayoristasClient({
                     />
                 </div>
                 <span className="text-xs text-gray-500 font-medium whitespace-nowrap">
-                    {filtrados.length} artículos
+                    {cardsFiltradas.length} artículos
                 </span>
             </div>
 
@@ -264,7 +305,7 @@ export default function MayoristasClient({
                 ))}
             </div>
 
-            {filtrados.length === 0 ? (
+            {cardsFiltradas.length === 0 ? (
                 <div className="text-center py-20">
                     <p className="text-xl text-gray-500">No se encontraron artículos.</p>
                     {(search || categoria) && (
@@ -292,12 +333,14 @@ export default function MayoristasClient({
                             </div>
 
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                                {items.map((articulo) => {
+                                {items.map((card) => {
+                                    const articulo = varianteSeleccionada(card)
+                                    const tieneVariantes = card.variantes.length > 1
                                     const cantidadEnCarrito = carrito[articulo.id] || 0
                                     const sinStock = articulo.nivelStock === 0
                                     return (
                                         <div
-                                            key={articulo.id}
+                                            key={card.key}
                                             className="group relative overflow-hidden border-0 ring-1 ring-white/10 hover:ring-red-600/60 bg-[#111] text-white transition-all duration-300 h-full flex flex-col rounded-lg shadow-lg"
                                         >
                                             <div className="h-[3px] w-full bg-gradient-to-r from-red-700 via-red-500 to-red-700 flex-shrink-0" />
@@ -328,6 +371,33 @@ export default function MayoristasClient({
                                                         {articulo.descripcion}
                                                     </p>
                                                 )}
+
+                                                {tieneVariantes && (
+                                                    <div className="mt-1.5 flex flex-wrap gap-1">
+                                                        {card.variantes.map(v => {
+                                                            const activa = v.id === articulo.id
+                                                            const enCarrito = (carrito[v.id] || 0) > 0
+                                                            return (
+                                                                <button
+                                                                    key={v.id}
+                                                                    onClick={() => setSeleccion(prev => ({ ...prev, [card.key]: v.id }))}
+                                                                    className={`relative px-2 py-0.5 rounded text-[10px] font-bold border transition-colors ${
+                                                                        activa
+                                                                            ? "bg-red-600 border-red-600 text-white"
+                                                                            : "bg-white/5 border-white/15 text-gray-300 hover:border-white/40"
+                                                                    } ${v.nivelStock === 0 ? "opacity-40" : ""}`}
+                                                                    title={v.nivelStock === 0 ? "Sin stock" : undefined}
+                                                                >
+                                                                    {v.variante || v.codigo}
+                                                                    {enCarrito && (
+                                                                        <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-green-400 ring-1 ring-[#111]" />
+                                                                    )}
+                                                                </button>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                )}
+
                                                 <div className="mt-1.5 flex items-center gap-1.5">
                                                     <span className="text-[9px] font-bold uppercase tracking-wide text-gray-500 shrink-0">Stock</span>
                                                     {sinStock ? (
@@ -421,7 +491,10 @@ export default function MayoristasClient({
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold truncate">{articulo.titulo || articulo.nombre}</p>
+                                            <p className="text-sm font-semibold truncate">
+                                                {articulo.titulo || articulo.nombre}
+                                                {articulo.variante && <span className="text-gray-400 font-normal"> — {articulo.variante}</span>}
+                                            </p>
                                             <p className="text-xs text-gray-500">{formatPrice(articulo.precio)} c/u</p>
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0">

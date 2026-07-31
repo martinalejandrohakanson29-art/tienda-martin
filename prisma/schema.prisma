@@ -983,11 +983,16 @@ model ArticuloMayorista {
   nivelStock          Int                @default(100)
   articuloMostradorId String?
   articuloMostrador   ArticuloMostrador? @relation(fields: [articuloMostradorId], references: [id], onDelete: SetNull)
+  // Variantes (ej. medidas) del mismo artículo: grupoVarianteId es el id de la primera fila
+  // que arma el grupo (no es una relación Prisma), variante es la etiqueta visible (ej. "12mm").
+  grupoVarianteId     String?
+  variante            String?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
 
   @@index([categoria])
   @@index([articuloMostradorId])
+  @@index([grupoVarianteId])
   @@map("articulos_mayoristas")
 }
 

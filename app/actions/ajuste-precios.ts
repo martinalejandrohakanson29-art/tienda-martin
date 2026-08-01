@@ -37,9 +37,14 @@ function calcularNuevoPrecio(params: {
   const denominador = precioOriginal * (1 - r);
   if (denominador <= 0) return null;
 
-  const x = (precioOriginal * (1 - r * (1 - m)) - K) / denominador;
-  // ML exige descuento entre 5% y 80%
-  if (x < 0.05 || x >= 0.8) return null;
+  const xCalculado = (precioOriginal * (1 - r * (1 - m)) - K) / denominador;
+  // ML exige descuento entre 5% y 80%. Si la ganancia actual ya está muy
+  // cerca del target, el ajuste matemático puede dar <5%: en ese caso se
+  // aplica el mínimo de ML (el margen resultante queda un poco por debajo
+  // del target, pero sigue siendo un descuento válido) en vez de descartar
+  // el artículo silenciosamente.
+  if (xCalculado <= 0 || xCalculado >= 0.8) return null;
+  const x = Math.max(xCalculado, 0.05);
 
   // Redondeo "seguro": si el redondeo a $50 deja el descuento en <=5%, sigue
   // bajando el precio hasta quedar por encima del mínimo real de ML.

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { redondear } from "@/lib/precios";
+import { redondear, TAX_RATE_ML } from "@/lib/precios";
 
 export type SnapshotPrecios = {
   id: string;
@@ -165,8 +165,9 @@ export async function prepararRestauracionSnapshot(snapshotId: string): Promise<
 
       const envio = Number(fee.envio_costo || 0);
       const costoFijoML = Number(fee.costo_fijo_ml || 0);
+      const impuesto = nuevoPrecio * TAX_RATE_ML;
 
-      const neto = nuevoPrecio - cargoVenta - costoCuotas - envio - costoFijoML;
+      const neto = nuevoPrecio - cargoVenta - costoCuotas - envio - costoFijoML - impuesto;
       const gananciaPct = costo > 0 ? ((neto - costo) / costo) * 100 : null;
 
       restaurables.push({

@@ -1,3 +1,8 @@
+// Impuesto/retención (IIBB, etc.) que se descuenta sobre el precio público en
+// cada venta de ML. Debe aplicarse en todo cálculo de ganancia neta y en el
+// solver de precio objetivo para que coincidan entre sí (ver rentabilidad-table).
+export const TAX_RATE_ML = 0.02;
+
 // Redondea al múltiplo de 50 más cercano (precios más limpios en ML)
 export function redondear(precio: number): number {
   return Math.round(precio / 50) * 50;

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { TAX_RATE_ML } from "@/lib/precios";
 
 // Función para obtener y calcular los datos en tiempo real
 export async function getRentabilidadData() {
@@ -92,8 +93,9 @@ export async function getRentabilidadData() {
 
       const envio = Number(fee?.envio_costo || 0);
       const costoFijoML = Number(fee?.costo_fijo_ml || 0);
+      const impuesto = precioFinalML * TAX_RATE_ML;
 
-      const netoTeorico = precioFinalNuestro - cargoVenta - costoCuotas - envio - costoFijoML;
+      const netoTeorico = precioFinalNuestro - cargoVenta - costoCuotas - envio - costoFijoML - impuesto;
       const gananciaNeta = netoTeorico - costoPropio;
       const gananciaPorcentaje = costoPropio > 0 ? (gananciaNeta / costoPropio) * 100 : 0;
 

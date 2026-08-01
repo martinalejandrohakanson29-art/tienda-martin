@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "./agregado-filter";
 import type { AjustePrecio, TipoAjuste } from "@/app/actions/ajuste-precios";
 import { crearAjusteManual } from "./manual-ajuste";
+import { TAX_RATE_ML } from "@/lib/precios";
 
 export interface ProductoRentabilidad {
   item_id: string;
@@ -169,12 +170,11 @@ export default function RentabilidadTable({
       : item.costo_total;
 
     const fee_rate = item.precio_final > 0 ? item.cargo_venta_real / item.precio_final : 0;
-    const TAX_RATE = 0.02;
 
     const nuevo_precio_final_nuestro = basePrice * (1 - simulatedDescNuestro / 100);
     const nuevo_precio_final_publico = basePrice * (1 - (simulatedDescNuestro + desc_pct_ml) / 100);
     const nuevo_cargo_venta = nuevo_precio_final_publico * fee_rate;
-    const nuevo_impuesto = nuevo_precio_final_publico * TAX_RATE;
+    const nuevo_impuesto = nuevo_precio_final_publico * TAX_RATE_ML;
     const nuevo_neto = nuevo_precio_final_nuestro - nuevo_cargo_venta - item.envio_costo - item.costo_fijo_ml - nuevo_impuesto;
     const nueva_ganancia = nuevo_neto - simulatedCosto;
     const nuevo_pct = simulatedCosto > 0 ? (nueva_ganancia / simulatedCosto) * 100 : 0;
@@ -188,7 +188,7 @@ export default function RentabilidadTable({
       precio_final_nuestro: nuevo_precio_final_nuestro,
       cargo_venta_real: nuevo_cargo_venta,
       comision_pct: fee_rate * 100,
-      impuesto_pct: TAX_RATE * 100,
+      impuesto_pct: TAX_RATE_ML * 100,
       neto_teorico: nuevo_neto,
       ganancia_neta: nueva_ganancia,
       ganancia_porcentaje: nuevo_pct,

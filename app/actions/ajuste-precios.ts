@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getReglasAjuste, type ReglaAjuste } from "./reglas-ajuste";
-import { redondear, redondearDescuento, pctDescuento } from "@/lib/precios";
+import { redondear, redondearDescuento, pctDescuento, TAX_RATE_ML } from "@/lib/precios";
 
 const WEBHOOK_DESCUENTO = "https://n8n.revolucionmotos.tech/webhook/ajuste-precios";
 const WEBHOOK_SUBA = "https://n8n.revolucionmotos.tech/webhook/suba-precios";
@@ -28,7 +28,9 @@ function calcularNuevoPrecio(params: {
 
   if (precioOriginal <= 0 || costo <= 0) return null;
 
-  const r = (cargoVentaPct + cuotasPct) / 100;
+  // r incluye el impuesto (TAX_RATE_ML) para que el descuento calculado lleve
+  // la ganancia real (post-impuesto) al target, igual que en gananciaPct.
+  const r = (cargoVentaPct + cuotasPct) / 100 + TAX_RATE_ML;
   const m = meliPct / 100;
   const K = (1 + target) * costo + envio + costoFijoML;
 
@@ -168,9 +170,10 @@ export async function calcularAjustesRentabilidad(): Promise<{
 
       const envio = Number(fee.envio_costo || 0);
       const costoFijoML = Number(fee.costo_fijo_ml || 0);
+      const impuesto = precioFinalML * TAX_RATE_ML;
 
       const precioFinalNuestro = precioOriginal * (1 - pctVendedor / 100);
-      const neto = precioFinalNuestro - cargoVenta - costoCuotas - envio - costoFijoML;
+      const neto = precioFinalNuestro - cargoVenta - costoCuotas - envio - costoFijoML - impuesto;
       const gananciaPct = ((neto - costo) / costo) * 100;
       const ventas30d = ventasMLMap.get(p.mla.trim()) ?? 0;
 

@@ -250,9 +250,53 @@ export async function getCostosKits() {
       es_nuevo: esNuevoMap.get(`${item.mla}-${item.variation_id || ''}`) ?? false,
     }));
 
-  } catch (error) { 
+  } catch (error) {
     console.error("Error en getCostosKits:", error);
-    return []; 
+    return [];
+  }
+}
+
+// Dispara vía n8n la actualización de la pestaña "Comparador" del Google Sheet
+// (columna A = MLA, columna M = costo Final), usando los costos calculados en /costos.
+export async function triggerActualizarSheetComparador() {
+  try {
+    const costos = await getCostosKits();
+
+    // Un valor por MLA: preferimos la fila base (variation_id null); si no existe, la primera variante.
+    const ordenado = [...costos].sort((a, b) => {
+      const aEsBase = !a.variation_id;
+      const bEsBase = !b.variation_id;
+      if (aEsBase === bEsBase) return 0;
+      return aEsBase ? -1 : 1;
+    });
+
+    const porMla = new Map<string, { mla: string; costo_total: number }>();
+    for (const item of ordenado) {
+      if (!porMla.has(item.mla)) {
+        porMla.set(item.mla, { mla: item.mla, costo_total: item.costo_total });
+      }
+    }
+
+    const items = Array.from(porMla.values());
+
+    const response = await fetch(
+      "https://n8n.revolucionmotos.tech/webhook/actualizar-sheet-comparador",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+        cache: "no-store",
+      }
+    );
+
+    if (!response.ok) {
+      return { success: false, error: `n8n respondió con estado ${response.status}` };
+    }
+
+    return { success: true, total: items.length };
+  } catch (error) {
+    console.error("Error al actualizar sheet Comparador:", error);
+    return { success: false, error: "Error inesperado al conectar con n8n" };
   }
 }
 

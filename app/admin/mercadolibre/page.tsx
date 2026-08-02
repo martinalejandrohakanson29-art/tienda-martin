@@ -16,8 +16,10 @@ import {
   ScanSearch,
   FileSearch,
   MessageCircleQuestionMark,
+  FileSpreadsheet,
 } from "lucide-react";
 import Link from "next/link";
+import ActualizarSheetButton from "./actualizar-sheet/actualizar-sheet-button";
 
 export default function MercadoLibreDashboard() {
   return (
@@ -310,6 +312,25 @@ export default function MercadoLibreDashboard() {
                 Entrar <ArrowRight size={18} />
               </Button>
             </Link>
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 12: ACTUALIZAR SHEET */}
+        <Card className="border-l-4 border-l-lime-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-lime-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lime-800 text-xl">
+              <FileSpreadsheet className="h-6 w-6" />
+              Actualizar Sheet
+            </CardTitle>
+            <CardDescription className="text-lime-700/80 font-medium">
+              Exportar costos a Google Sheets
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Envía a n8n los costos calculados en Costos de Kits para actualizar la pestaña &quot;Comparador&quot; (columna A: MLA, columna M: Final).
+            </p>
+            <ActualizarSheetButton />
           </CardContent>
         </Card>
 

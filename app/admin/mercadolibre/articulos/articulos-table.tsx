@@ -5,10 +5,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 // Agregamos Filter para el ícono del nuevo filtro
-import { RefreshCw, Search, Plus, Pencil, Trash2, Boxes, Trash, Filter } from "lucide-react";
-import { upsertArticulo, deleteArticulo, getComponentes, updateComponentes, recalculateAllArticulos } from "@/app/actions/costos";
+import { RefreshCw, Search, Plus, Pencil, Trash2, Boxes, Trash, Filter, DollarSign, X } from "lucide-react";
+import { upsertArticulo, deleteArticulo, getComponentes, updateComponentes, recalculateAllArticulos, bulkDeleteArticulos, bulkUpdateEsDolar, bulkUpdateCosto } from "@/app/actions/costos";
 import { updateConfig } from "@/app/actions/config";
 
 export function ArticulosTable({ data, initialConfig }: { data: any[], initialConfig: any }) {
@@ -31,6 +32,13 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
   const [selectedPadre, setSelectedPadre] = useState<any>(null);
   const [componentesTemp, setComponentesTemp] = useState<{sku_hijo: string, cantidad: number}[]>([]);
   const [busquedaHijo, setBusquedaHijo] = useState("");
+
+  // SELECCIÓN MÚLTIPLE PARA ACCIONES POR LOTE
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isBulkCostoModalOpen, setIsBulkCostoModalOpen] = useState(false);
+  const [bulkModo, setBulkModo] = useState<"fijo" | "porcentaje">("fijo");
+  const [bulkValor, setBulkValor] = useState(0);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const aplicarCambiosGlobales = async () => {
     setActiveDolar(tempDolar);
@@ -80,6 +88,60 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
     }
   };
 
+  const toggleSelected = (id: number) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    const visibleIds = filteredData.map(item => item.id);
+    if (checked) {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...visibleIds])));
+    } else {
+      setSelectedIds(prev => prev.filter(id => !visibleIds.includes(id)));
+    }
+  };
+
+  const clearSelection = () => setSelectedIds([]);
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`¿Eliminar ${selectedIds.length} artículo(s) seleccionado(s)? Esta acción no se puede deshacer.`)) return;
+    setBulkLoading(true);
+    const res = await bulkDeleteArticulos(selectedIds);
+    setBulkLoading(false);
+    if (res?.success) {
+      clearSelection();
+    } else {
+      alert("Error al eliminar en lote: " + res?.error);
+    }
+  };
+
+  const handleBulkEsDolar = async (esDolar: boolean) => {
+    setBulkLoading(true);
+    const res = await bulkUpdateEsDolar(selectedIds, esDolar);
+    setBulkLoading(false);
+    if (res?.success) {
+      clearSelection();
+    } else {
+      alert("Error al actualizar en lote: " + res?.error);
+    }
+  };
+
+  const handleBulkCosto = async () => {
+    setBulkLoading(true);
+    const res = await bulkUpdateCosto(selectedIds, bulkModo, bulkValor);
+    setBulkLoading(false);
+    if (res?.success) {
+      setIsBulkCostoModalOpen(false);
+      const omitidos = (res as any).omitidos || 0;
+      clearSelection();
+      if (omitidos > 0) {
+        alert(`Costo actualizado. Se omitieron ${omitidos} kit(s): su costo se calcula automáticamente a partir de sus componentes.`);
+      }
+    } else {
+      alert("Error al actualizar costo en lote: " + res?.error);
+    }
+  };
+
   const handleOpenModal = (articulo = null) => {
     setEditingArticulo(articulo || { id_articulo: "", descripcion: "", costo_usd: 0, es_dolar: true });
     setIsModalOpen(true);
@@ -97,13 +159,16 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
 
   // LÓGICA DE FILTRADO ACTUALIZADA (Buscador + Filtro Dólar)
   const filteredData = data.filter(item => {
-    const matchesSearch = item.descripcion?.toLowerCase().includes(filter.toLowerCase()) ||
-                         item.id_articulo?.toLowerCase().includes(filter.toLowerCase());
-    
-    const matchesDolar = dolarFilter === "all" || 
-                        (dolarFilter === "dolar" && item.es_dolar) || 
+    // Búsqueda por palabras sueltas: no importa el orden en que se escriban,
+    // cada palabra debe aparecer en algún lugar de la descripción o el código.
+    const texto = `${item.descripcion || ""} ${item.id_articulo || ""}`.toLowerCase();
+    const palabras = filter.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    const matchesSearch = palabras.every(palabra => texto.includes(palabra));
+
+    const matchesDolar = dolarFilter === "all" ||
+                        (dolarFilter === "dolar" && item.es_dolar) ||
                         (dolarFilter === "pesos" && !item.es_dolar);
-    
+
     return matchesSearch && matchesDolar;
   });
 
@@ -167,11 +232,61 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
         </div>
       </div>
       
+      {/* BARRA DE ACCIONES POR LOTE */}
+      {selectedIds.length > 0 && (
+        <div className="sticky top-[64px] z-20 flex items-center gap-3 bg-slate-900 text-white rounded-xl px-4 py-3 shadow-lg">
+          <span className="text-sm font-bold whitespace-nowrap">{selectedIds.length} seleccionado(s)</span>
+          <div className="h-6 w-px bg-slate-700" />
+          <Button
+            size="sm"
+            disabled={bulkLoading}
+            className="bg-blue-600 hover:bg-blue-700 gap-2"
+            onClick={() => handleBulkEsDolar(true)}
+          >
+            Marcar Dólar
+          </Button>
+          <Button
+            size="sm"
+            disabled={bulkLoading}
+            className="bg-slate-600 hover:bg-slate-700 gap-2"
+            onClick={() => handleBulkEsDolar(false)}
+          >
+            Marcar Pesos
+          </Button>
+          <Button
+            size="sm"
+            disabled={bulkLoading}
+            className="bg-amber-600 hover:bg-amber-700 gap-2"
+            onClick={() => { setBulkModo("fijo"); setBulkValor(0); setIsBulkCostoModalOpen(true); }}
+          >
+            <DollarSign className="h-4 w-4" /> Cambiar costo
+          </Button>
+          <Button
+            size="sm"
+            disabled={bulkLoading}
+            className="bg-red-600 hover:bg-red-700 gap-2"
+            onClick={handleBulkDelete}
+          >
+            <Trash2 className="h-4 w-4" /> Eliminar
+          </Button>
+          <div className="flex-1" />
+          <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white hover:bg-slate-800 gap-2" onClick={clearSelection}>
+            <X className="h-4 w-4" /> Cancelar
+          </Button>
+        </div>
+      )}
+
       {/* TABLA PRINCIPAL */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         <Table>
           <TableHeader className="bg-slate-50">
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={filteredData.length > 0 && filteredData.every(item => selectedIds.includes(item.id))}
+                  onCheckedChange={toggleSelectAllVisible}
+                />
+              </TableHead>
               <TableHead className="w-[150px] font-bold">Cód. Artículo</TableHead>
               <TableHead className="font-bold">Descripción</TableHead>
               <TableHead className="w-[80px] text-center">Kit</TableHead>
@@ -196,7 +311,10 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               }
 
               return (
-                <TableRow key={item.id} className="hover:bg-blue-50/30 transition-colors">
+                <TableRow key={item.id} className={`hover:bg-blue-50/30 transition-colors ${selectedIds.includes(item.id) ? 'bg-blue-50/50' : ''}`}>
+                  <TableCell>
+                    <Checkbox checked={selectedIds.includes(item.id)} onCheckedChange={() => toggleSelected(item.id)} />
+                  </TableCell>
                   <TableCell className="font-mono text-blue-600">{item.id_articulo}</TableCell>
                   <TableCell className="font-medium uppercase text-[11px]">{item.descripcion}</TableCell>
                   <TableCell className="text-center">
@@ -327,6 +445,40 @@ export function ArticulosTable({ data, initialConfig }: { data: any[], initialCo
               <Button onClick={saveComposicion} className="bg-amber-600 hover:bg-amber-700 px-8">Guardar Composición</Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 3: CAMBIO DE COSTO POR LOTE */}
+      <Dialog open={isBulkCostoModalOpen} onOpenChange={setIsBulkCostoModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Cambiar costo de {selectedIds.length} artículo(s)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="grid gap-2">
+              <Label>Modo</Label>
+              <select
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={bulkModo}
+                onChange={e => setBulkModo(e.target.value as "fijo" | "porcentaje")}
+              >
+                <option value="fijo">Establecer valor fijo</option>
+                <option value="porcentaje">Ajustar por porcentaje (+/-)</option>
+              </select>
+            </div>
+            <div className="grid gap-2">
+              <Label>{bulkModo === "fijo" ? "Nuevo costo base" : "Porcentaje de ajuste (ej: 10 o -5)"}</Label>
+              <Input type="number" step="0.01" value={bulkValor} onChange={e => setBulkValor(Number(e.target.value))} />
+            </div>
+            <p className="text-[11px] text-slate-500 italic">
+              * Los kits se omiten: su costo se calcula automáticamente sumando el de sus componentes.
+            </p>
+          </div>
+          <DialogFooter className="pt-4">
+            <Button onClick={handleBulkCosto} disabled={bulkLoading} className="bg-amber-600 hover:bg-amber-700 px-8">
+              Aplicar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

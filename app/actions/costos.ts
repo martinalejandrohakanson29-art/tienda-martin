@@ -364,6 +364,71 @@ export async function deleteArticulo(id: number) {
   } catch (error) { return { success: false, error: "Error al eliminar." }; }
 }
 
+// --- ACCIONES POR LOTE (selección múltiple en la tabla) ---
+
+export async function bulkDeleteArticulos(ids: number[]) {
+  try {
+    await prisma.costosArticulos.deleteMany({ where: { id: { in: ids } } });
+    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/composicion");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error en bulkDeleteArticulos:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function bulkUpdateEsDolar(ids: number[], esDolar: boolean) {
+  try {
+    const articulos = await prisma.costosArticulos.findMany({ where: { id: { in: ids } } });
+    await prisma.costosArticulos.updateMany({
+      where: { id: { in: ids } },
+      data: { es_dolar: esDolar, fecha_actualizacion: new Date() }
+    });
+    for (const art of articulos) {
+      await recalculateProductCost(art.id_articulo);
+    }
+    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/composicion");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error en bulkUpdateEsDolar:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Cambia el costo base de varios artículos a la vez.
+// Los kits se ignoran: su costo se calcula solo, sumando el de sus componentes.
+export async function bulkUpdateCosto(ids: number[], modo: "fijo" | "porcentaje", valor: number) {
+  try {
+    const [articulos, kits] = await Promise.all([
+      prisma.costosArticulos.findMany({ where: { id: { in: ids } } }),
+      prisma.articulosCompuestos.findMany({ select: { sku_padre: true }, distinct: ['sku_padre'] })
+    ]);
+    const kitSkus = new Set(kits.map(k => k.sku_padre));
+    const editables = articulos.filter(art => !kitSkus.has(art.id_articulo));
+
+    for (const art of editables) {
+      const costoActual = Number(art.costo_usd || 0);
+      const nuevoCosto = modo === "fijo" ? valor : costoActual * (1 + valor / 100);
+      await prisma.costosArticulos.update({
+        where: { id: art.id },
+        data: { costo_usd: nuevoCosto, fecha_actualizacion: new Date() }
+      });
+    }
+    for (const art of editables) {
+      await recalculateProductCost(art.id_articulo);
+    }
+
+    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/mercadolibre/composicion");
+    return { success: true, omitidos: articulos.length - editables.length };
+  } catch (error: any) {
+    console.error("Error en bulkUpdateCosto:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getComponentes(skuPadre: string) {
   try {
     return await prisma.articulosCompuestos.findMany({ where: { sku_padre: skuPadre } });

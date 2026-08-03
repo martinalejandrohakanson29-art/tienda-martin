@@ -12,8 +12,9 @@ export interface PublicacionEstado {
   status: string;
   permalink: string | null;
   ventas_30d: number;
-  stock_full: number | null; // null = no es una publicación Full
-  inventory_id: string | null; // presente = inventario combinado Full + depósito propio
+  stock_full: number | null; // null = no tiene stock en Full
+  stock_deposito: number | null; // null = no hay depósito propio editable (Full puro)
+  user_product_id: string | null; // presente = stock multi-origen (Full + depósito por ubicación)
 }
 
 const N8N_ESTADO_PUBLICACIONES_URL =
@@ -91,16 +92,11 @@ export async function getEstadoPublicacionesML(): Promise<{
       status: it.status,
       permalink: it.permalink ?? null,
       ventas_30d: ventasMap.get((it.item_id || "").trim()) ?? 0,
-      // Si tiene inventory_id, available_quantity suma Full + depósito propio: usamos el stock
-      // Full real que n8n consultó aparte. Si no tiene inventory_id y es Full puro, todo el
-      // available_quantity está en el depósito de ML.
-      stock_full:
-        it.inventory_id
-          ? Number(it.full_stock_real ?? 0)
-          : it.logistic_type === "fulfillment"
-          ? Number(it.available_quantity || 0)
-          : null,
-      inventory_id: it.inventory_id ?? null,
+      // n8n ya separó Full vs depósito propio consultando /user-products/{id}/stock
+      // (stock multi-origen) cuando corresponde; acá solo tipamos los valores.
+      stock_full: it.stock_full === null || it.stock_full === undefined ? null : Number(it.stock_full),
+      stock_deposito: it.stock_deposito === null || it.stock_deposito === undefined ? null : Number(it.stock_deposito),
+      user_product_id: it.user_product_id ?? null,
     }));
 
     return { success: true, data };
@@ -140,19 +136,19 @@ export async function setEstadoPublicacionML(
 }
 
 // Actualiza el stock del depósito propio de una publicación en ML vía n8n.
-// Si tiene inventory_id (Full + depósito combinado) n8n pega contra el endpoint de
-// inventario en vez del ítem, porque ML rechaza el PUT directo de available_quantity
-// a nivel publicación para esos casos.
+// Si tiene user_product_id (stock multi-origen) n8n lee la ubicación actual del depósito
+// propio (seller_warehouse/selling_address) y la actualiza vía /user-products; el stock
+// en Full (meli_facility) queda intacto porque es de solo lectura para el vendedor.
 export async function setStockPublicacionML(
   itemId: string,
-  inventoryId: string | null,
+  userProductId: string | null,
   nuevoStock: number
 ): Promise<{ success: boolean; available_quantity?: number; error?: string }> {
   try {
     const response = await fetch(N8N_ACTUALIZAR_STOCK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ item_id: itemId, inventory_id: inventoryId, available_quantity: nuevoStock }),
+      body: JSON.stringify({ item_id: itemId, user_product_id: userProductId, available_quantity: nuevoStock }),
       cache: "no-store",
     });
 

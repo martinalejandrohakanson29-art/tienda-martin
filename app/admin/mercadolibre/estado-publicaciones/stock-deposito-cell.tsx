@@ -7,13 +7,13 @@ import { setStockPublicacionML } from "@/app/actions/estado-publicaciones";
 
 interface Props {
   itemId: string;
-  inventoryId: string | null;
+  userProductId: string | null;
   stock: number;
   editable: boolean;
   onUpdated: (itemId: string, nuevoStock: number) => void;
 }
 
-export default function StockDepositoCell({ itemId, inventoryId, stock, editable, onUpdated }: Props) {
+export default function StockDepositoCell({ itemId, userProductId, stock, editable, onUpdated }: Props) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(String(stock));
   const [loading, setLoading] = useState(false);
@@ -23,8 +23,8 @@ export default function StockDepositoCell({ itemId, inventoryId, stock, editable
     setEditing(true);
   };
 
-  // Solo bloqueado en items 100% Full (sin inventory_id): ahí no existe depósito propio,
-  // todo el stock físico vive en la bodega de ML y hay que despachar mercadería, no declarar un número.
+  // Solo bloqueado en items 100% Full (sin depósito propio detectado): ahí no existe
+  // depósito, todo el stock físico vive en la bodega de ML y hay que despachar mercadería.
   if (!editable) {
     return (
       <span
@@ -48,7 +48,7 @@ export default function StockDepositoCell({ itemId, inventoryId, stock, editable
       return;
     }
     setLoading(true);
-    const result = await setStockPublicacionML(itemId, inventoryId, nuevo);
+    const result = await setStockPublicacionML(itemId, userProductId, nuevo);
     setLoading(false);
     if (result.success) {
       onUpdated(itemId, result.available_quantity ?? nuevo);

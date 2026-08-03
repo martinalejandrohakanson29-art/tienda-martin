@@ -64,8 +64,8 @@
             },
             {
               "id": "f3d2b1a0-9876-4cba-8def-fedcba987654",
-              "name": "inventory_id",
-              "value": "={{ $('Webhook').first().json.body.inventory_id }}",
+              "name": "user_product_id",
+              "value": "={{ $('Webhook').first().json.body.user_product_id }}",
               "type": "string"
             }
           ]
@@ -80,42 +80,13 @@
     },
     {
       "parameters": {
-        "method": "PUT",
-        "url": "={{ $json.inventory_id ? ('https://api.mercadolibre.com/inventories/' + $json.inventory_id) : ('https://api.mercadolibre.com/items/' + $json.item_id) }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json[\"Access Token\"]}}" },
-            { "name": "Content-Type", "value": "application/json" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ available_quantity: $json.nuevo_stock }) }}",
-        "options": {
-          "response": {
-            "response": {
-              "neverError": true,
-              "fullResponse": true
-            }
-          }
-        }
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [12080, 2144],
-      "id": "c3a3e3c3-0001-4001-8001-000000000004",
-      "name": "Actualizar stock en ML"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Normaliza la respuesta de ML (fullResponse) a un formato simple para la app.\n// Si el item tiene inventory_id (Full + deposito combinado) se pego contra\n// /inventories/{id} en vez de /items/{id}; su respuesta puede no traer available_quantity\n// de vuelta, por eso hacemos fallback al valor que mandamos.\nconst res = $input.first().json;\nconst statusCode = res.statusCode ?? 200;\nconst body = res.body ?? res;\nconst nuevoStock = $('Edit Fields').first().json.nuevo_stock;\n\nif (statusCode >= 200 && statusCode < 300) {\n  return [{ json: { success: true, item_id: body.id ?? $('Edit Fields').first().json.item_id, available_quantity: body.available_quantity ?? nuevoStock } }];\n}\n\nconst mensaje = body?.message || body?.cause?.[0]?.message || 'Error al actualizar el stock en MercadoLibre';\nreturn [{ json: { success: false, error: mensaje, statusCode } }];"
+        "jsCode": "// Doc oficial ML: \"Stock distribuido\" / \"Stock multi-origen\".\n//\n// Sin user_product_id: item simple, PUT directo /items/{id} con available_quantity.\n//\n// Con user_product_id: el item separa stock por ubicacion. Hay que:\n//   1) GET /user-products/{id}/stock (fresco, YA en este request) para sacar el header\n//      x-version (obligatorio para escribir) y la ubicacion actual de deposito propio.\n//   2) PUT /user-products/{id}/stock/type/{seller_warehouse|selling_address} con el\n//      x-version y el mismo array de locations pero con la cantidad nueva.\n// Full (meli_facility) es de solo lectura: no se puede tocar desde aca.\nconst token = $('Edit Fields').first().json['Access Token'];\nconst itemId = $json.item_id;\nconst userProductId = $json.user_product_id;\nconst nuevoStock = Number($json.nuevo_stock);\n\nfunction extraerError(e, fallback) {\n  const body = e.response?.body ?? e.cause?.response?.body ?? null;\n  const statusCode = e.response?.statusCode ?? e.statusCode ?? 400;\n  const mensaje = (body && (body.message || body.cause?.[0]?.message)) || e.message || fallback;\n  return { success: false, error: mensaje, statusCode };\n}\n\nfunction headerCaseInsensitive(headers, nombre) {\n  if (!headers) return undefined;\n  const key = Object.keys(headers).find(k => k.toLowerCase() === nombre.toLowerCase());\n  return key ? headers[key] : undefined;\n}\n\n// Caso simple: sin stock multi-origen.\nif (!userProductId) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'PUT',\n      url: `https://api.mercadolibre.com/items/${itemId}`,\n      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },\n      body: { available_quantity: nuevoStock },\n      json: true,\n    });\n    return [{ json: { success: true, item_id: resp.id, available_quantity: resp.available_quantity } }];\n  } catch (e) {\n    return [{ json: extraerError(e, 'Error al actualizar el stock en MercadoLibre') }];\n  }\n}\n\n// Caso multi-origen: leer ubicaciones + x-version fresco.\nlet stockActual, xVersion;\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `https://api.mercadolibre.com/user-products/${userProductId}/stock`,\n    headers: { Authorization: `Bearer ${token}` },\n    json: true,\n    returnFullResponse: true,\n  });\n  stockActual = resp.body;\n  xVersion = headerCaseInsensitive(resp.headers, 'x-version');\n} catch (e) {\n  return [{ json: extraerError(e, 'No se pudo leer el stock actual del depósito') }];\n}\n\nconst locations = stockActual?.locations || [];\nconst depositoLocations = locations.filter(l => l.type === 'seller_warehouse' || l.type === 'selling_address');\n\nif (depositoLocations.length === 0) {\n  return [{ json: { success: false, error: 'Este ítem no tiene depósito propio configurado en Mercado Libre (solo Full).' } }];\n}\nif (depositoLocations.length > 1) {\n  return [{ json: { success: false, error: 'Este ítem tiene múltiples depósitos propios; no soportado todavía desde acá.' } }];\n}\n\nconst tipo = depositoLocations[0].type;\nconst nuevasUbicaciones = depositoLocations.map(({ type, ...resto }) => ({ ...resto, quantity: nuevoStock }));\n\ntry {\n  await this.helpers.httpRequest({\n    method: 'PUT',\n    url: `https://api.mercadolibre.com/user-products/${userProductId}/stock/type/${tipo}`,\n    headers: {\n      Authorization: `Bearer ${token}`,\n      'Content-Type': 'application/json',\n      'x-version': String(xVersion),\n    },\n    body: { locations: nuevasUbicaciones },\n    json: true,\n  });\n  return [{ json: { success: true, item_id: itemId, available_quantity: nuevoStock } }];\n} catch (e) {\n  return [{ json: extraerError(e, 'Error al actualizar el stock del depósito en MercadoLibre') }];\n}"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [12336, 2144],
-      "id": "c3a3e3c3-0001-4001-8001-000000000005",
-      "name": "Formatear respuesta"
+      "position": [12080, 2144],
+      "id": "c3a3e3c3-0001-4001-8001-000000000004",
+      "name": "Actualizar stock en ML"
     },
     {
       "parameters": {
@@ -142,9 +113,6 @@
       "main": [[{ "node": "Actualizar stock en ML", "type": "main", "index": 0 }]]
     },
     "Actualizar stock en ML": {
-      "main": [[{ "node": "Formatear respuesta", "type": "main", "index": 0 }]]
-    },
-    "Formatear respuesta": {
       "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
     }
   },

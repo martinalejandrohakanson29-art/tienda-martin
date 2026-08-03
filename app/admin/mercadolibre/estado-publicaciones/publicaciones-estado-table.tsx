@@ -24,7 +24,7 @@ type SortKey =
   | "status"
   | "ventas_30d"
   | "price"
-  | "available_quantity"
+  | "stock_deposito"
   | "stock_full"
   | "sold_quantity";
 
@@ -89,9 +89,9 @@ export default function PublicacionesEstadoTable({
       if (key === "title" || key === "status") {
         return factor * (a[key] || "").localeCompare(b[key] || "", "es");
       }
-      // stock_full puede ser null (no es Full): lo tratamos como el valor más bajo
-      const aVal = key === "stock_full" ? a.stock_full ?? -1 : a[key];
-      const bVal = key === "stock_full" ? b.stock_full ?? -1 : b[key];
+      // stock_full / stock_deposito pueden ser null: los tratamos como el valor más bajo
+      const aVal = key === "stock_full" || key === "stock_deposito" ? a[key] ?? -1 : a[key];
+      const bVal = key === "stock_full" || key === "stock_deposito" ? b[key] ?? -1 : b[key];
       return factor * (aVal - bVal);
     });
   }, [filteredData, sortConfig]);
@@ -199,7 +199,7 @@ export default function PublicacionesEstadoTable({
               <SortableHead label="Estado" sortKey="status" justify="center" className="font-bold text-slate-700 text-[11px]" />
               <SortableHead label="Ventas 30d" sortKey="ventas_30d" justify="center" className="font-bold text-indigo-600 text-[11px]" />
               <SortableHead label="Precio" sortKey="price" className="font-bold text-slate-700 text-[11px]" />
-              <SortableHead label="Stock" sortKey="available_quantity" className="font-bold text-slate-700 text-[11px]" />
+              <SortableHead label="Stock" sortKey="stock_deposito" className="font-bold text-slate-700 text-[11px]" />
               <SortableHead label="Stock Full" sortKey="stock_full" className="font-bold text-cyan-700 text-[11px]" />
               <SortableHead label="Vendidos" sortKey="sold_quantity" className="font-bold text-slate-500 text-[11px]" />
               <TableHead className="text-center font-bold text-slate-700 text-[11px]">Acciones</TableHead>
@@ -251,9 +251,9 @@ export default function PublicacionesEstadoTable({
                 <TableCell className="text-right text-slate-600">
                   <StockDepositoCell
                     itemId={item.item_id}
-                    inventoryId={item.inventory_id}
-                    stock={item.available_quantity}
-                    editable={item.stock_full === null || item.inventory_id !== null}
+                    userProductId={item.user_product_id}
+                    stock={item.stock_deposito ?? item.available_quantity}
+                    editable={item.stock_deposito !== null}
                     onUpdated={onStockActualizado}
                   />
                 </TableCell>

@@ -23,6 +23,10 @@ const N8N_CAMBIAR_ESTADO_URL =
   process.env.N8N_WEBHOOK_CAMBIAR_ESTADO_PUBLICACION ||
   "https://n8n.revolucionmotos.tech/webhook/cambiar-estado-publicacion";
 
+const N8N_ACTUALIZAR_STOCK_URL =
+  process.env.N8N_WEBHOOK_ACTUALIZAR_STOCK_PUBLICACION ||
+  "https://n8n.revolucionmotos.tech/webhook/actualizar-stock-publicacion";
+
 // Ventas de ML últimos 30 días por MLA: misma lógica que /admin/mercadolibre/rentabilidad
 async function getVentasML30dMap(): Promise<Map<string, number>> {
   const hoy = new Date();
@@ -129,6 +133,37 @@ export async function setEstadoPublicacionML(
     return { success: true, status: result.status };
   } catch (error) {
     console.error("Error al cambiar estado de publicación:", error);
+    return { success: false, error: "Error inesperado al conectar con n8n" };
+  }
+}
+
+// Actualiza el stock del depósito propio de una publicación en ML vía n8n.
+// Para publicaciones con inventario combinado (Full + depósito), ML puede rechazar
+// el cambio directo; en ese caso el error real de ML queda en result.error.
+export async function setStockPublicacionML(
+  itemId: string,
+  nuevoStock: number
+): Promise<{ success: boolean; available_quantity?: number; error?: string }> {
+  try {
+    const response = await fetch(N8N_ACTUALIZAR_STOCK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item_id: itemId, available_quantity: nuevoStock }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return { success: false, error: `n8n respondió con estado ${response.status}` };
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+      return { success: false, error: result.error || "MercadoLibre rechazó el cambio de stock" };
+    }
+
+    return { success: true, available_quantity: result.available_quantity };
+  } catch (error) {
+    console.error("Error al actualizar stock de publicación:", error);
     return { success: false, error: "Error inesperado al conectar con n8n" };
   }
 }

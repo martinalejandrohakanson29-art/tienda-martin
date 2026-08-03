@@ -42,6 +42,12 @@ export default function EstadoPublicacionesClient({ agregados }: { agregados: Ag
     setItems((prev) => prev.map((it) => (it.item_id === itemId ? { ...it, status: nuevoEstado } : it)));
   }, []);
 
+  const handleStockActualizado = useCallback((itemId: string, nuevoStock: number) => {
+    setItems((prev) =>
+      prev.map((it) => (it.item_id === itemId ? { ...it, available_quantity: nuevoStock } : it))
+    );
+  }, []);
+
   const activas = useMemo(() => items.filter((i) => i.status === "active").length, [items]);
   const pausadas = useMemo(() => items.filter((i) => i.status === "paused").length, [items]);
 
@@ -91,6 +97,7 @@ export default function EstadoPublicacionesClient({ agregados }: { agregados: Ag
             loading={loading}
             onRefresh={() => cargar()}
             onEstadoActualizado={handleEstadoActualizado}
+            onStockActualizado={handleStockActualizado}
           />
         </div>
       )}

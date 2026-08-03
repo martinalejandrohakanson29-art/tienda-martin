@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "../rentabilidad/agregado-filter";
 import type { PublicacionEstado } from "@/app/actions/estado-publicaciones";
 import EstadoToggleButton from "./estado-toggle-button";
+import StockDepositoCell from "./stock-deposito-cell";
 
 type FiltroEstado = "todos" | "active" | "paused";
 
@@ -33,6 +34,7 @@ interface Props {
   loading: boolean;
   onRefresh: () => void;
   onEstadoActualizado: (itemId: string, nuevoEstado: string) => void;
+  onStockActualizado: (itemId: string, nuevoStock: number) => void;
 }
 
 export default function PublicacionesEstadoTable({
@@ -41,6 +43,7 @@ export default function PublicacionesEstadoTable({
   loading,
   onRefresh,
   onEstadoActualizado,
+  onStockActualizado,
 }: Props) {
   const [filter, setFilter] = useState("");
   const [selectedAgregados, setSelectedAgregados] = useState<string[]>([]);
@@ -245,7 +248,13 @@ export default function PublicacionesEstadoTable({
                 <TableCell className="text-right font-medium text-slate-700">
                   ${item.price.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                 </TableCell>
-                <TableCell className="text-right text-slate-600">{item.available_quantity}</TableCell>
+                <TableCell className="text-right text-slate-600">
+                  <StockDepositoCell
+                    itemId={item.item_id}
+                    stock={item.available_quantity}
+                    onUpdated={onStockActualizado}
+                  />
+                </TableCell>
                 <TableCell className="text-right font-bold text-cyan-700">
                   {item.stock_full !== null ? item.stock_full : <span className="text-slate-300 font-normal">-</span>}
                 </TableCell>

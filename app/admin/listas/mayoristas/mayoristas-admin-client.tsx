@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, ImageOff, Check, ExternalLink, Search, X, Link2Off, Loader2, ArrowUp, ArrowDown, ArrowUpDown, Layers, Link2 } from "lucide-react"
+import { ArrowLeft, ImageOff, Check, ExternalLink, Search, X, Link2Off, Loader2, ArrowUp, ArrowDown, ArrowUpDown, Layers, Plus, CornerDownRight, Trash2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
@@ -19,8 +19,11 @@ import {
     actualizarArticuloMayorista,
     buscarArticulosMostradorParaVincular,
     vincularArticuloMostrador,
-    agruparVariante,
+    agregarVariante,
     desagruparVariante,
+    eliminarArticuloMayorista,
+    crearArticuloMayorista,
+    crearGrupoVariantes,
 } from "@/app/actions/articulos-mayoristas"
 
 function formatMiles(n: number) {
@@ -83,6 +86,13 @@ interface Articulo {
 // esto además los refleja localmente para que la UI no quede desincronizada hasta refrescar.
 const CAMPOS_COMPARTIDOS: (keyof Articulo)[] = ["categoria", "nombre", "titulo", "descripcion", "marca", "imageUrl"]
 
+// Valor numérico de una etiqueta de variante (ej. "26mm" -> 26) para poder ordenar
+// las medidas de menor a mayor dentro de un grupo; sin número, va al final.
+function valorOrdenVariante(v: { variante: string | null }): number {
+    const match = v.variante?.match(/\d+(?:[.,]\d+)?/)
+    return match ? parseFloat(match[0].replace(",", ".")) : Number.POSITIVE_INFINITY
+}
+
 type Columna = "nombre" | "codigo" | "stock" | "costo" | "marcacion" | "precio"
 
 function valorColumna(articulo: { nombre: string; codigo: string; precio: number; articuloMostrador: { costo: number; stock: number } | null }, columna: Columna): string | number | null {
@@ -132,8 +142,20 @@ export default function MayoristasAdminClient({
     const [precioTemp, setPrecioTemp] = useState<string>("")
     const [sortColumna, setSortColumna] = useState<Columna | null>(null)
     const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
-    const [agruparFor, setAgruparFor] = useState<string | null>(null)
-    const [agruparQuery, setAgruparQuery] = useState("")
+    const [agregarVarianteFor, setAgregarVarianteFor] = useState<string | null>(null)
+    const [agregarVarianteQuery, setAgregarVarianteQuery] = useState("")
+    const [agregarVarianteResultados, setAgregarVarianteResultados] = useState<ResultadoBusqueda[]>([])
+    const [agregarVarianteSeleccion, setAgregarVarianteSeleccion] = useState<ResultadoBusqueda[]>([])
+    const [buscandoVariante, setBuscandoVariante] = useState(false)
+    const [guardandoVariantes, setGuardandoVariantes] = useState(false)
+    const [agregarArticuloOpen, setAgregarArticuloOpen] = useState(false)
+    const [agregarArticuloCategoria, setAgregarArticuloCategoria] = useState("")
+    const [agregarArticuloQuery, setAgregarArticuloQuery] = useState("")
+    const [agregarArticuloResultados, setAgregarArticuloResultados] = useState<ResultadoBusqueda[]>([])
+    const [agregarArticuloSeleccion, setAgregarArticuloSeleccion] = useState<ResultadoBusqueda[]>([])
+    const [agregarArticuloEsVariante, setAgregarArticuloEsVariante] = useState(false)
+    const [buscandoArticulo, setBuscandoArticulo] = useState(false)
+    const [guardandoArticulos, setGuardandoArticulos] = useState(false)
     const [, startTransition] = useTransition()
 
     const faltantes = useMemo(() => articulos.filter(a => !a.imageUrl).length, [articulos])
@@ -156,6 +178,45 @@ export default function MayoristasAdminClient({
         }, 300)
         return () => clearTimeout(timeout)
     }, [vincularQuery, vincularFor])
+
+    useEffect(() => {
+        if (!agregarVarianteFor) return
+        const query = agregarVarianteQuery.trim()
+        if (!query) {
+            setAgregarVarianteResultados([])
+            setBuscandoVariante(false)
+            return
+        }
+        setBuscandoVariante(true)
+        const timeout = setTimeout(() => {
+            buscarArticulosMostradorParaVincular(query)
+                .then(setAgregarVarianteResultados)
+                .finally(() => setBuscandoVariante(false))
+        }, 300)
+        return () => clearTimeout(timeout)
+    }, [agregarVarianteQuery, agregarVarianteFor])
+
+    useEffect(() => {
+        if (!agregarArticuloOpen) return
+        const query = agregarArticuloQuery.trim()
+        if (!query) {
+            setAgregarArticuloResultados([])
+            setBuscandoArticulo(false)
+            return
+        }
+        setBuscandoArticulo(true)
+        const timeout = setTimeout(() => {
+            buscarArticulosMostradorParaVincular(query)
+                .then(setAgregarArticuloResultados)
+                .finally(() => setBuscandoArticulo(false))
+        }, 300)
+        return () => clearTimeout(timeout)
+    }, [agregarArticuloQuery, agregarArticuloOpen])
+
+    const categoriasExistentes = useMemo(
+        () => Array.from(new Set(articulos.map(a => a.categoria))).sort(),
+        [articulos]
+    )
 
     const articulosFiltrados = useMemo(() => {
         if (!search.trim()) return articulos
@@ -201,13 +262,14 @@ export default function MayoristasAdminClient({
                 })
             }
         } else {
-            // Sin sort explícito: agrupar variantes de un mismo artículo adyacentes entre sí.
+            // Sin sort explícito: agrupar variantes de un mismo artículo adyacentes entre sí,
+            // ordenadas entre ellas por medida (ej. 26, 28, 30) igual que en /mayoristas.
             for (const [, items] of entries) {
                 items.sort((a, b) => {
                     const ga = a.grupoVarianteId ?? a.id
                     const gb = b.grupoVarianteId ?? b.id
                     if (ga !== gb) return ga < gb ? -1 : 1
-                    return a.orden - b.orden
+                    return valorOrdenVariante(a) - valorOrdenVariante(b)
                 })
             }
         }
@@ -247,50 +309,79 @@ export default function MayoristasAdminClient({
         })
     }
 
-    const agruparCandidatos = useMemo(() => {
-        if (!agruparFor) return []
-        const actual = articulos.find(a => a.id === agruparFor)
-        const q = agruparQuery.trim().toLowerCase()
-        return articulos
-            .filter(a =>
-                a.id !== agruparFor &&
-                a.grupoVarianteId !== actual?.grupoVarianteId // ya está en el mismo grupo
-            )
-            .filter(a => !q || a.nombre.toLowerCase().includes(q) || a.codigo.toLowerCase().includes(q) || (a.marca || "").toLowerCase().includes(q))
-            .slice(0, 25)
-    }, [articulos, agruparFor, agruparQuery])
+    // Artículos Mostrador que ya están en la lista mayorista (en cualquier categoría/grupo),
+    // para no ofrecer de nuevo el mismo artículo real al agregar uno completamente nuevo.
+    const articulosMostradorYaEnLista = useMemo(
+        () => new Set(articulos.filter(a => a.articuloMostrador).map(a => a.articuloMostrador!.id)),
+        [articulos]
+    )
 
-    function abrirAgrupar(id: string) {
-        setAgruparFor(id)
-        setAgruparQuery("")
+    function abrirAgregarArticulo() {
+        setAgregarArticuloOpen(true)
+        setAgregarArticuloCategoria("")
+        setAgregarArticuloQuery("")
+        setAgregarArticuloResultados([])
+        setAgregarArticuloSeleccion([])
+        setAgregarArticuloEsVariante(false)
     }
 
-    function confirmarAgrupar(destino: Articulo) {
-        if (!agruparFor) return
-        const origenId = agruparFor
-        setAgruparFor(null)
-        setArticulos(prev => {
-            const grupoVarianteId = destino.grupoVarianteId ?? destino.id
-            return prev.map(a => {
-                if (a.id === destino.id) return { ...a, grupoVarianteId }
-                if (a.id === origenId) {
-                    return {
-                        ...a,
-                        grupoVarianteId,
-                        categoria: destino.categoria,
-                        nombre: destino.nombre,
-                        titulo: destino.titulo,
-                        descripcion: destino.descripcion,
-                        marca: destino.marca,
-                        imageUrl: destino.imageUrl,
-                    }
-                }
-                return a
-            })
-        })
-        startTransition(() => {
-            agruparVariante(origenId, destino.id)
-        })
+    function toggleSeleccionArticulo(resultado: ResultadoBusqueda) {
+        setAgregarArticuloSeleccion(prev =>
+            prev.some(s => s.id === resultado.id) ? prev.filter(s => s.id !== resultado.id) : [...prev, resultado]
+        )
+    }
+
+    async function confirmarAgregarArticulos() {
+        const categoria = agregarArticuloCategoria.trim()
+        if (!categoria || agregarArticuloSeleccion.length === 0) return
+        const seleccion = agregarArticuloSeleccion
+        setGuardandoArticulos(true)
+        const creados = agregarArticuloEsVariante
+            ? await crearGrupoVariantes(seleccion.map(r => r.id), categoria)
+            : await Promise.all(seleccion.map(r => crearArticuloMayorista(r.id, categoria)))
+        setArticulos(prev => [...prev, ...(creados as Articulo[])])
+        setGuardandoArticulos(false)
+        setAgregarArticuloOpen(false)
+    }
+
+    // Artículos Mostrador ya usados como variante dentro del grupo de `agregarVarianteFor`,
+    // para no ofrecer de nuevo el mismo artículo real en la búsqueda.
+    const agregarVarianteUsados = useMemo(() => {
+        const actual = articulos.find(a => a.id === agregarVarianteFor)
+        if (!actual) return new Set<string>()
+        const grupoId = actual.grupoVarianteId ?? actual.id
+        return new Set(
+            articulos
+                .filter(a => (a.grupoVarianteId ?? a.id) === grupoId && a.articuloMostrador)
+                .map(a => a.articuloMostrador!.id)
+        )
+    }, [articulos, agregarVarianteFor])
+
+    function abrirAgregarVariante(id: string) {
+        setAgregarVarianteFor(id)
+        setAgregarVarianteQuery("")
+        setAgregarVarianteResultados([])
+        setAgregarVarianteSeleccion([])
+    }
+
+    function toggleSeleccionVariante(resultado: ResultadoBusqueda) {
+        setAgregarVarianteSeleccion(prev =>
+            prev.some(s => s.id === resultado.id) ? prev.filter(s => s.id !== resultado.id) : [...prev, resultado]
+        )
+    }
+
+    async function confirmarAgregarVariantes() {
+        if (!agregarVarianteFor || agregarVarianteSeleccion.length === 0) return
+        const destinoId = agregarVarianteFor
+        const seleccion = agregarVarianteSeleccion
+        setGuardandoVariantes(true)
+        const creados = await Promise.all(seleccion.map(r => agregarVariante(destinoId, r.id)))
+        setArticulos(prev => [
+            ...prev.map(a => (a.id === destinoId ? { ...a, grupoVarianteId: creados[0].grupoVarianteId } : a)),
+            ...(creados as Articulo[]),
+        ])
+        setGuardandoVariantes(false)
+        setAgregarVarianteFor(null)
     }
 
     function quitarDelGrupo(articulo: Articulo) {
@@ -305,6 +396,22 @@ export default function MayoristasAdminClient({
         })
         startTransition(() => {
             desagruparVariante(articulo.id)
+        })
+    }
+
+    function eliminarArticulo(articulo: Articulo) {
+        const etiqueta = `${articulo.titulo || articulo.nombre}${articulo.variante ? ` (${articulo.variante})` : ""}`
+        if (!window.confirm(`¿Eliminar "${etiqueta}" de la lista mayorista? La acción no se puede deshacer.`)) return
+
+        const grupoId = articulo.grupoVarianteId
+        setArticulos(prev => {
+            const restantes = grupoId ? prev.filter(a => a.grupoVarianteId === grupoId && a.id !== articulo.id) : []
+            return prev
+                .filter(a => a.id !== articulo.id)
+                .map(a => (grupoId && restantes.length === 1 && a.id === restantes[0].id ? { ...a, grupoVarianteId: null, variante: null } : a))
+        })
+        startTransition(() => {
+            eliminarArticuloMayorista(articulo.id)
         })
     }
 
@@ -394,7 +501,7 @@ export default function MayoristasAdminClient({
 
     const articuloActivo = articulos.find(a => a.id === pickerFor)
     const articuloVinculando = articulos.find(a => a.id === vincularFor)
-    const articuloAgrupando = articulos.find(a => a.id === agruparFor)
+    const articuloAgregandoVariante = articulos.find(a => a.id === agregarVarianteFor)
 
     return (
         <div className="h-full w-full overflow-y-auto p-6">
@@ -413,6 +520,12 @@ export default function MayoristasAdminClient({
                             {articulos.length} artículos · {faltantes > 0 ? `${faltantes} sin foto` : "todos con foto"} · {sinCosto > 0 ? `${sinCosto} sin costo vinculado` : "todos con costo"} · {sinTitulo > 0 ? `${sinTitulo} sin título` : "todos con título"}
                         </p>
                     </div>
+                    <button
+                        onClick={abrirAgregarArticulo}
+                        className="flex items-center gap-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-4 py-2 rounded-xl transition-colors"
+                    >
+                        <Plus className="h-4 w-4" /> Agregar artículo
+                    </button>
                     <Link
                         href="/mayoristas"
                         target="_blank"
@@ -494,59 +607,76 @@ export default function MayoristasAdminClient({
                             {categoria}
                         </div>
                         <div className="divide-y divide-slate-100">
-                            {items.map(articulo => {
+                            {items.map((articulo, idx) => {
                                 const costo = articulo.articuloMostrador?.costo
                                 const marc = calcularMarcacion(costo, articulo.precio)
+                                // Con el orden por defecto (sin columna de sort activa) las variantes de un
+                                // mismo grupo quedan adyacentes; a partir de la 2da se muestran compactas
+                                // (sin foto/nombre/descripción propios, que son iguales al resto del grupo).
+                                const esContinuacionDeGrupo =
+                                    !sortColumna && !!articulo.grupoVarianteId && idx > 0 && items[idx - 1].grupoVarianteId === articulo.grupoVarianteId
                                 return (
                                     <div
                                         key={articulo.id}
-                                        className={`flex items-center gap-4 p-3 ${!articulo.activo ? "opacity-50" : ""}`}
+                                        className={`flex items-center gap-4 p-3 ${!articulo.activo ? "opacity-50" : ""} ${esContinuacionDeGrupo ? "bg-purple-50/40 border-l-4 border-purple-200" : ""}`}
                                     >
-                                        <button
-                                            onClick={() => setPickerFor(articulo.id)}
-                                            className="relative shrink-0 w-16 h-16 rounded-lg border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50 overflow-hidden flex items-center justify-center transition-colors"
-                                            title="Asignar foto"
-                                        >
-                                            {articulo.imageUrl ? (
-                                                <img src={articulo.imageUrl} alt="" className="w-full h-full object-contain" />
-                                            ) : (
-                                                <ImageOff className="h-5 w-5 text-red-400" />
-                                            )}
-                                        </button>
+                                        {esContinuacionDeGrupo ? (
+                                            <div className="shrink-0 w-16 h-16 flex items-center justify-center">
+                                                <CornerDownRight className="h-5 w-5 text-purple-300" />
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setPickerFor(articulo.id)}
+                                                className="relative shrink-0 w-16 h-16 rounded-lg border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50 overflow-hidden flex items-center justify-center transition-colors"
+                                                title="Asignar foto"
+                                            >
+                                                {articulo.imageUrl ? (
+                                                    <img src={articulo.imageUrl} alt="" className="w-full h-full object-contain" />
+                                                ) : (
+                                                    <ImageOff className="h-5 w-5 text-red-400" />
+                                                )}
+                                            </button>
+                                        )}
 
-                                        <div className="flex-1 min-w-0 space-y-1">
-                                            <Input
-                                                defaultValue={articulo.titulo || articulo.nombre}
-                                                title="Nombre / título que se ve en /mayoristas"
-                                                onBlur={(e) => {
-                                                    const val = e.target.value
-                                                    if (val !== articulo.nombre || val !== articulo.titulo) {
-                                                        setLocalConGrupo(articulo.id, { nombre: val, titulo: val })
-                                                        guardarCampo(articulo.id, { nombre: val, titulo: val })
-                                                    }
-                                                }}
-                                                className="h-8 font-semibold text-sm border-transparent hover:border-slate-200 focus:border-indigo-400 px-2"
-                                            />
-                                            {articulo.marca && (
-                                                <p className="text-xs text-slate-400 px-2">{articulo.marca}</p>
-                                            )}
-                                            <Textarea
-                                                defaultValue={articulo.descripcion || ""}
-                                                placeholder="Descripción (opcional, para /mayoristas)"
-                                                title="Descripción que se ve en /mayoristas"
-                                                onBlur={(e) => {
-                                                    // Siempre se guarda en minúscula, sin importar cómo se haya tipeado.
-                                                    const val = e.target.value.trim().toLowerCase() || null
-                                                    e.target.value = val || ""
-                                                    if (val !== articulo.descripcion) {
-                                                        setLocalConGrupo(articulo.id, { descripcion: val })
-                                                        guardarCampo(articulo.id, { descripcion: val })
-                                                    }
-                                                }}
-                                                rows={2}
-                                                className="min-h-0 resize-none text-xs text-slate-500 border-transparent hover:border-slate-200 focus:border-indigo-400 px-2 py-1"
-                                            />
-                                        </div>
+                                        {esContinuacionDeGrupo ? (
+                                            <div className="flex-1 min-w-0 text-sm text-slate-400 italic px-2">
+                                                Variante del artículo de arriba
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 min-w-0 space-y-1">
+                                                <Input
+                                                    defaultValue={articulo.titulo || articulo.nombre}
+                                                    title="Nombre / título que se ve en /mayoristas"
+                                                    onBlur={(e) => {
+                                                        const val = e.target.value
+                                                        if (val !== articulo.nombre || val !== articulo.titulo) {
+                                                            setLocalConGrupo(articulo.id, { nombre: val, titulo: val })
+                                                            guardarCampo(articulo.id, { nombre: val, titulo: val })
+                                                        }
+                                                    }}
+                                                    className="h-8 font-semibold text-sm border-transparent hover:border-slate-200 focus:border-indigo-400 px-2"
+                                                />
+                                                {articulo.marca && (
+                                                    <p className="text-xs text-slate-400 px-2">{articulo.marca}</p>
+                                                )}
+                                                <Textarea
+                                                    defaultValue={articulo.descripcion || ""}
+                                                    placeholder="Descripción (opcional, para /mayoristas)"
+                                                    title="Descripción que se ve en /mayoristas"
+                                                    onBlur={(e) => {
+                                                        // Siempre se guarda en minúscula, sin importar cómo se haya tipeado.
+                                                        const val = e.target.value.trim().toLowerCase() || null
+                                                        e.target.value = val || ""
+                                                        if (val !== articulo.descripcion) {
+                                                            setLocalConGrupo(articulo.id, { descripcion: val })
+                                                            guardarCampo(articulo.id, { descripcion: val })
+                                                        }
+                                                    }}
+                                                    rows={2}
+                                                    className="min-h-0 resize-none text-xs text-slate-500 border-transparent hover:border-slate-200 focus:border-indigo-400 px-2 py-1"
+                                                />
+                                            </div>
+                                        )}
 
                                         {/* Código + agrupar variantes */}
                                         <div className="flex flex-col items-start gap-1 shrink-0 w-32">
@@ -562,12 +692,14 @@ export default function MayoristasAdminClient({
                                                     Vincular
                                                 </button>
                                             )}
-                                            {articulo.grupoVarianteId ? (
+                                            {articulo.grupoVarianteId && (
                                                 <div className="flex flex-col gap-1 w-full">
-                                                    <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600" title="Artículo con variantes agrupadas">
-                                                        <Layers className="h-3 w-3 shrink-0" />
-                                                        Grupo · {conteoGrupo.get(articulo.grupoVarianteId) ?? 1}
-                                                    </span>
+                                                    {!esContinuacionDeGrupo && (
+                                                        <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600" title="Artículo con variantes agrupadas">
+                                                            <Layers className="h-3 w-3 shrink-0" />
+                                                            Grupo · {conteoGrupo.get(articulo.grupoVarianteId) ?? 1}
+                                                        </span>
+                                                    )}
                                                     <Input
                                                         defaultValue={articulo.variante || ""}
                                                         placeholder="Medida / variante"
@@ -589,13 +721,14 @@ export default function MayoristasAdminClient({
                                                         Quitar del grupo
                                                     </button>
                                                 </div>
-                                            ) : (
+                                            )}
+                                            {!esContinuacionDeGrupo && (
                                                 <button
-                                                    onClick={() => abrirAgrupar(articulo.id)}
+                                                    onClick={() => abrirAgregarVariante(articulo.id)}
                                                     className="flex items-center gap-1 text-[10px] font-bold text-purple-500 hover:text-purple-700"
                                                 >
-                                                    <Link2 className="h-3 w-3 shrink-0" />
-                                                    Agrupar variante
+                                                    <Plus className="h-3 w-3 shrink-0" />
+                                                    Agregar variante
                                                 </button>
                                             )}
                                         </div>
@@ -710,6 +843,14 @@ export default function MayoristasAdminClient({
                                                 }}
                                             />
                                         </div>
+
+                                        <button
+                                            onClick={() => eliminarArticulo(articulo)}
+                                            title="Eliminar de la lista mayorista"
+                                            className="shrink-0 p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
                                     </div>
                                 )
                             })}
@@ -828,47 +969,190 @@ export default function MayoristasAdminClient({
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!agruparFor} onOpenChange={(open) => !open && setAgruparFor(null)}>
+            <Dialog open={!!agregarVarianteFor} onOpenChange={(open) => !open && setAgregarVarianteFor(null)}>
                 <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>Agrupar variante{articuloAgrupando ? ` — ${articuloAgrupando.nombre}` : ""}</DialogTitle>
-                        <DialogDescription>
-                            Buscá el artículo del que esta fila es una variante (ej. otra medida). Título, foto, descripción, marca y categoría pasan a ser los del artículo elegido, y en /mayoristas van a aparecer juntos en un solo card con selector de variante.
-                        </DialogDescription>
+                        <DialogTitle>Agregar variante{articuloAgregandoVariante ? ` — ${articuloAgregandoVariante.nombre}` : ""}</DialogTitle>
                     </DialogHeader>
 
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
                             autoFocus
-                            placeholder="Nombre, código o marca..."
-                            value={agruparQuery}
-                            onChange={(e) => setAgruparQuery(e.target.value)}
+                            placeholder="Nombre o código de proveedor..."
+                            value={agregarVarianteQuery}
+                            onChange={(e) => setAgregarVarianteQuery(e.target.value)}
                             className="pl-9"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        {agruparCandidatos.length === 0 && (
+                        {buscandoVariante && (
+                            <div className="flex items-center justify-center py-6 text-slate-400">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                        )}
+                        {!buscandoVariante && agregarVarianteQuery.trim() && agregarVarianteResultados.length === 0 && (
                             <p className="text-center py-6 text-sm text-slate-400">Sin resultados.</p>
                         )}
-                        {agruparCandidatos.map(a => (
-                            <button
-                                key={a.id}
-                                onClick={() => confirmarAgrupar(a)}
-                                className="flex items-center justify-between gap-3 text-left px-3 py-2 rounded-lg border border-slate-100 hover:border-purple-300 hover:bg-purple-50/50 transition-colors"
-                            >
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 truncate">
-                                        {a.grupoVarianteId && <Badge className="bg-purple-100 text-purple-700 border-purple-200 shrink-0">Grupo · {conteoGrupo.get(a.grupoVarianteId) ?? 1}</Badge>}
-                                        <span className="truncate">{a.titulo || a.nombre}</span>
+                        {!buscandoVariante && agregarVarianteResultados.map(r => {
+                            const yaEnGrupo = agregarVarianteUsados.has(r.id)
+                            const seleccionado = agregarVarianteSeleccion.some(s => s.id === r.id)
+                            return (
+                                <button
+                                    key={r.id}
+                                    disabled={yaEnGrupo}
+                                    onClick={() => toggleSeleccionVariante(r)}
+                                    className={`flex items-center justify-between gap-3 text-left px-3 py-2 rounded-lg border transition-colors disabled:opacity-40 disabled:hover:border-slate-100 disabled:hover:bg-transparent ${
+                                        seleccionado
+                                            ? "border-purple-400 bg-purple-50"
+                                            : "border-slate-100 hover:border-purple-300 hover:bg-purple-50/50"
+                                    }`}
+                                >
+                                    <div className={`flex items-center justify-center shrink-0 h-5 w-5 rounded-full border-2 ${
+                                        seleccionado ? "bg-purple-600 border-purple-600" : "border-slate-300"
+                                    }`}>
+                                        {seleccionado && <Check className="h-3.5 w-3.5 text-white" />}
                                     </div>
-                                    <p className="text-[11px] text-slate-400 font-mono">{a.codigo}</p>
-                                </div>
-                                <span className="text-sm font-bold text-slate-600 shrink-0">$ {formatMiles(a.precio)}</span>
-                            </button>
-                        ))}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 truncate">
+                                            {r.esPack && <Badge className="bg-purple-100 text-purple-700 border-purple-200 shrink-0">Pack</Badge>}
+                                            <span className="truncate">{r.nombre}</span>
+                                            {yaEnGrupo && <Badge variant="outline" className="shrink-0">Ya agregado</Badge>}
+                                        </div>
+                                        {r.codigoProveedor && (
+                                            <p className="text-[11px] text-slate-400 font-mono">{r.codigoProveedor}</p>
+                                        )}
+                                    </div>
+                                    <span className="text-sm font-bold text-slate-600 shrink-0">$ {formatMiles(r.costo)}</span>
+                                </button>
+                            )
+                        })}
                     </div>
+
+                    {agregarVarianteSeleccion.length > 0 && (
+                        <button
+                            onClick={confirmarAgregarVariantes}
+                            disabled={guardandoVariantes}
+                            className="flex items-center justify-center gap-2 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-60 rounded-xl px-4 py-2.5 transition-colors"
+                        >
+                            {guardandoVariantes ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Plus className="h-4 w-4" />
+                            )}
+                            Agregar {agregarVarianteSeleccion.length > 1 ? `${agregarVarianteSeleccion.length} variantes` : "variante"}
+                        </button>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={agregarArticuloOpen} onOpenChange={(open) => !open && setAgregarArticuloOpen(false)}>
+                <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Agregar artículo</DialogTitle>
+                    </DialogHeader>
+
+                    <div>
+                        <Input
+                            autoFocus
+                            list="categorias-existentes"
+                            placeholder="Categoría (ej. Filtros)"
+                            value={agregarArticuloCategoria}
+                            onChange={(e) => setAgregarArticuloCategoria(e.target.value)}
+                        />
+                        <datalist id="categorias-existentes">
+                            {categoriasExistentes.map(c => (
+                                <option key={c} value={c} />
+                            ))}
+                        </datalist>
+                    </div>
+
+                    <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer">
+                        <Checkbox
+                            checked={agregarArticuloEsVariante}
+                            onCheckedChange={(checked) => setAgregarArticuloEsVariante(checked === true)}
+                        />
+                        Son variantes (medidas) de un mismo producto
+                    </label>
+
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                            placeholder="Nombre o código de proveedor..."
+                            value={agregarArticuloQuery}
+                            onChange={(e) => setAgregarArticuloQuery(e.target.value)}
+                            className="pl-9"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        {buscandoArticulo && (
+                            <div className="flex items-center justify-center py-6 text-slate-400">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                        )}
+                        {!buscandoArticulo && agregarArticuloQuery.trim() && agregarArticuloResultados.length === 0 && (
+                            <p className="text-center py-6 text-sm text-slate-400">Sin resultados.</p>
+                        )}
+                        {!buscandoArticulo && agregarArticuloResultados.map(r => {
+                            const yaEnLista = articulosMostradorYaEnLista.has(r.id)
+                            const seleccionado = agregarArticuloSeleccion.some(s => s.id === r.id)
+                            return (
+                                <button
+                                    key={r.id}
+                                    disabled={yaEnLista}
+                                    onClick={() => toggleSeleccionArticulo(r)}
+                                    className={`flex items-center justify-between gap-3 text-left px-3 py-2 rounded-lg border transition-colors disabled:opacity-40 disabled:hover:border-slate-100 disabled:hover:bg-transparent ${
+                                        seleccionado
+                                            ? "border-indigo-400 bg-indigo-50"
+                                            : "border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/50"
+                                    }`}
+                                >
+                                    <div className={`flex items-center justify-center shrink-0 h-5 w-5 rounded-full border-2 ${
+                                        seleccionado ? "bg-indigo-600 border-indigo-600" : "border-slate-300"
+                                    }`}>
+                                        {seleccionado && <Check className="h-3.5 w-3.5 text-white" />}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 truncate">
+                                            {r.esPack && <Badge className="bg-purple-100 text-purple-700 border-purple-200 shrink-0">Pack</Badge>}
+                                            <span className="truncate">{r.nombre}</span>
+                                            {yaEnLista && <Badge variant="outline" className="shrink-0">Ya en la lista</Badge>}
+                                        </div>
+                                        {r.codigoProveedor && (
+                                            <p className="text-[11px] text-slate-400 font-mono">{r.codigoProveedor}</p>
+                                        )}
+                                    </div>
+                                    <span className="text-sm font-bold text-slate-600 shrink-0">$ {formatMiles(r.costo)}</span>
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    {agregarArticuloSeleccion.length > 0 && (
+                        <button
+                            onClick={confirmarAgregarArticulos}
+                            disabled={guardandoArticulos || !agregarArticuloCategoria.trim() || (agregarArticuloEsVariante && agregarArticuloSeleccion.length < 2)}
+                            title={
+                                !agregarArticuloCategoria.trim()
+                                    ? "Elegí una categoría primero"
+                                    : agregarArticuloEsVariante && agregarArticuloSeleccion.length < 2
+                                        ? "Elegí al menos 2 artículos para agrupar como variantes"
+                                        : undefined
+                            }
+                            className="flex items-center justify-center gap-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 rounded-xl px-4 py-2.5 transition-colors"
+                        >
+                            {guardandoArticulos ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <Plus className="h-4 w-4" />
+                            )}
+                            {agregarArticuloEsVariante
+                                ? `Agregar como ${agregarArticuloSeleccion.length} variantes`
+                                : `Agregar ${agregarArticuloSeleccion.length > 1 ? `${agregarArticuloSeleccion.length} artículos` : "artículo"}`}
+                        </button>
+                    )}
                 </DialogContent>
             </Dialog>
 

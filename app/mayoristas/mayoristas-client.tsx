@@ -32,6 +32,13 @@ interface CardArticulo {
     variantes: ArticuloMayorista[]
 }
 
+// Valor numérico de una etiqueta de variante (ej. "26mm" -> 26) para poder ordenar
+// las medidas de menor a mayor; sin número, va al final.
+function valorOrdenVariante(v: ArticuloMayorista): number {
+    const match = v.variante?.match(/\d+(?:[.,]\d+)?/)
+    return match ? parseFloat(match[0].replace(",", ".")) : Number.POSITIVE_INFINITY
+}
+
 function agruparEnCards(articulos: ArticuloMayorista[]): CardArticulo[] {
     const map = new Map<string, ArticuloMayorista[]>()
     for (const a of articulos) {
@@ -43,7 +50,7 @@ function agruparEnCards(articulos: ArticuloMayorista[]): CardArticulo[] {
     return Array.from(map.entries()).map(([key, variantes]) => ({
         key,
         categoria: variantes[0].categoria,
-        variantes,
+        variantes: [...variantes].sort((a, b) => valorOrdenVariante(a) - valorOrdenVariante(b)),
     }))
 }
 
@@ -52,6 +59,13 @@ function agruparEnCards(articulos: ArticuloMayorista[]): CardArticulo[] {
 function colorNivelStock(nivel: number): string {
     return `hsl(${Math.max(0, Math.min(100, nivel)) * 1.2}, 70%, 45%)`
 }
+
+// Categoría que siempre se muestra primero (tanto en los tabs de filtro como en los
+// bloques del catálogo), sin importar el orden de creación de sus artículos.
+const CATEGORIA_DESTACADA = "KITS DE POTENCIACION / CILINDROS Y CIGUEÑALES"
+
+// Categoría que siempre se muestra al final, mismo criterio que la destacada.
+const CATEGORIA_AL_FINAL = "PLANTILLAS Y ADMISIÓN"
 
 const CARRITO_KEY = "mayoristas-carrito"
 
@@ -134,7 +148,13 @@ export default function MayoristasClient({
 
     const categorias = useMemo(() => {
         const set = new Set(articulos.map(a => a.categoria))
-        return Array.from(set)
+        return Array.from(set).sort((a, b) => {
+            if (a === CATEGORIA_DESTACADA) return -1
+            if (b === CATEGORIA_DESTACADA) return 1
+            if (a === CATEGORIA_AL_FINAL) return 1
+            if (b === CATEGORIA_AL_FINAL) return -1
+            return 0
+        })
     }, [articulos])
 
     const cards = useMemo(() => agruparEnCards(articulos), [articulos])

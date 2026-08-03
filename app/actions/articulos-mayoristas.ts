@@ -3,12 +3,13 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
+import type { ArticuloMayorista } from "@prisma/client"
 
 // Público: catálogo visible en /mayoristas
 export async function getArticulosMayoristasPublicos() {
     const articulos = await prisma.articuloMayorista.findMany({
         where: { activo: true },
-        orderBy: { orden: "asc" },
+        orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
     })
     return articulos.map(a => ({ ...a, precio: Number(a.precio) }))
 }
@@ -17,7 +18,7 @@ export async function getArticulosMayoristasPublicos() {
 export async function getArticulosMayoristasAdmin() {
     await requireAdmin()
     const articulos = await prisma.articuloMayorista.findMany({
-        orderBy: { orden: "asc" },
+        orderBy: [{ orden: "asc" }, { createdAt: "asc" }],
         include: {
             articuloMostrador: {
                 select: { id: true, nombre: true, costo: true, esPack: true, stock: true },
@@ -76,16 +77,21 @@ export async function getArticulosMayoristasAdmin() {
     }))
 }
 
-// Busca artículos mostrador (incluye packs) por nombre o código de proveedor, para vincular
+// Busca artículos mostrador (incluye packs) por nombre o código de proveedor, para vincular.
+// Cada palabra del query se busca por separado (AND entre palabras, sin importar el orden),
+// así "keihin metal" encuentra igual "metal keihin" o "kit metal x keihin".
 export async function buscarArticulosMostradorParaVincular(query: string) {
     await requireAdmin()
-    if (!query.trim()) return []
+    const palabras = query.trim().split(/\s+/).filter(Boolean)
+    if (palabras.length === 0) return []
     const articulos = await prisma.articuloMostrador.findMany({
         where: {
-            OR: [
-                { nombre: { contains: query, mode: "insensitive" } },
-                { codigoProveedor: { contains: query, mode: "insensitive" } },
-            ],
+            AND: palabras.map(palabra => ({
+                OR: [
+                    { nombre: { contains: palabra, mode: "insensitive" as const } },
+                    { codigoProveedor: { contains: palabra, mode: "insensitive" as const } },
+                ],
+            })),
         },
         select: { id: true, nombre: true, costo: true, esPack: true, codigoProveedor: true, stock: true },
         orderBy: { nombre: "asc" },
@@ -162,34 +168,198 @@ export async function actualizarArticuloMayorista(id: string, data: {
     revalidatePath("/mayoristas")
 }
 
-// Vincula la fila `id` como variante (ej. otra medida) de la fila `articuloDestinoId`,
-// reusando el id de esta última como identificador del grupo si todavía no tenía uno,
-// y copiando sobre `id` los datos compartidos del grupo (ver CAMPOS_COMPARTIDOS_VARIANTE + foto).
-export async function agruparVariante(id: string, articuloDestinoId: string) {
+const REGEX_VARIANTE = /\d+(?:[.,]\d+)?\s?(?:mm|cm|ml|kg|lts?|l)?\b/i
+
+// Extrae la etiqueta de variante (ej. "26") del nombre real del artículo mostrador elegido,
+// tomando el primer número que aparece (con su unidad pegada si la tiene, ej. "12mm").
+// Ej: "Carburador 26 Keihin Plano Cuba Metal" -> "26".
+function extraerVarianteDeNombre(nombre: string): string | null {
+    const match = nombre.match(REGEX_VARIANTE)
+    return match ? match[0].trim() : null
+}
+
+// Igual que extraerVarianteDeNombre, pero además devuelve el nombre sin ese número/unidad
+// (el "nombre base" de la familia). Ej: "Codo Adm Inclinado Cg 30mm" -> variante "30mm",
+// base "Codo Adm Inclinado Cg".
+function extraerVarianteYBase(nombre: string): { variante: string | null; base: string } {
+    const match = nombre.match(REGEX_VARIANTE)
+    if (!match || match.index == null) return { variante: null, base: nombre }
+    const base = (nombre.slice(0, match.index) + nombre.slice(match.index + match[0].length))
+        .replace(/\s{2,}/g, " ")
+        .trim()
+    return { variante: match[0].trim(), base: base || nombre }
+}
+
+// Crea un artículo nuevo (sin grupo de variantes) en la lista mayorista, a partir de un artículo
+// real elegido en Artículos Mostrador. Nombre/título salen del nombre real; precio arranca en 0 y
+// foto vacía, a completar a mano (mismo flujo de siempre para artículos recién agregados).
+export async function crearArticuloMayorista(articuloMostradorId: string, categoria: string) {
     await requireAdmin()
-    if (id === articuloDestinoId) return
 
-    const destino = await prisma.articuloMayorista.findUniqueOrThrow({
-        where: { id: articuloDestinoId },
-        select: { id: true, grupoVarianteId: true, categoria: true, nombre: true, titulo: true, descripcion: true, marca: true, imageUrl: true },
+    const maestro = await prisma.articuloMostrador.findUniqueOrThrow({
+        where: { id: articuloMostradorId },
+        select: { id: true, nombre: true, costo: true, esPack: true, stock: true },
     })
-    const grupoVarianteId = destino.grupoVarianteId ?? destino.id
 
-    if (!destino.grupoVarianteId) {
-        await prisma.articuloMayorista.update({ where: { id: destino.id }, data: { grupoVarianteId } })
-    }
-    await prisma.articuloMayorista.update({
-        where: { id },
+    const creado = await prisma.articuloMayorista.create({
         data: {
-            grupoVarianteId,
+            categoria: categoria.trim(),
+            nombre: maestro.nombre,
+            titulo: maestro.nombre,
+            codigo: maestro.id,
+            precio: 0,
+            imageUrl: "",
+            articuloMostradorId: maestro.id,
+        },
+    })
+
+    revalidatePath("/admin/listas/mayoristas")
+    revalidatePath("/mayoristas")
+
+    return {
+        ...creado,
+        precio: Number(creado.precio),
+        articuloMostrador: { ...maestro, costo: Number(maestro.costo || 0) },
+    }
+}
+
+// Crea varios artículos nuevos de una sola vez, ya agrupados como variantes entre sí (ej. las 4
+// medidas de un mismo codo de admisión). El título compartido del grupo sale de sacarle el número
+// de variante al nombre real del primer artículo elegido (ver extraerVarianteYBase); cada fila
+// se linkea a su propio artículo mostrador y saca su etiqueta de variante del mismo modo.
+export async function crearGrupoVariantes(articulosMostradorIds: string[], categoria: string) {
+    await requireAdmin()
+    if (articulosMostradorIds.length === 0) return []
+
+    const maestros = await prisma.articuloMostrador.findMany({
+        where: { id: { in: articulosMostradorIds } },
+        select: { id: true, nombre: true, costo: true, esPack: true, stock: true },
+    })
+    const porId = new Map(maestros.map(m => [m.id, m]))
+    const ordenados = articulosMostradorIds.map(id => porId.get(id)).filter((m): m is NonNullable<typeof m> => !!m)
+    if (ordenados.length === 0) return []
+
+    const catTrim = categoria.trim()
+    const { base: titulo } = extraerVarianteYBase(ordenados[0].nombre)
+
+    const creados = await prisma.$transaction(async (tx) => {
+        const filas: ArticuloMayorista[] = []
+        let grupoVarianteId: string | null = null
+        for (const maestro of ordenados) {
+            const { variante } = extraerVarianteYBase(maestro.nombre)
+            const fila: ArticuloMayorista = await tx.articuloMayorista.create({
+                data: {
+                    categoria: catTrim,
+                    nombre: titulo,
+                    titulo,
+                    codigo: maestro.id,
+                    precio: 0,
+                    imageUrl: "",
+                    articuloMostradorId: maestro.id,
+                    variante,
+                    grupoVarianteId,
+                },
+            })
+            if (!grupoVarianteId) {
+                grupoVarianteId = fila.id
+                await tx.articuloMayorista.update({ where: { id: fila.id }, data: { grupoVarianteId } })
+            }
+            filas.push({ ...fila, grupoVarianteId })
+        }
+        return filas
+    })
+
+    revalidatePath("/admin/listas/mayoristas")
+    revalidatePath("/mayoristas")
+
+    return creados.map(fila => ({
+        ...fila,
+        precio: Number(fila.precio),
+        articuloMostrador: (() => {
+            const m = porId.get(fila.articuloMostradorId!)!
+            return { ...m, costo: Number(m.costo || 0) }
+        })(),
+    }))
+}
+
+// Crea una nueva fila de ArticuloMayorista como variante (ej. otra medida) de `articuloDestinoId`,
+// vinculada a `articuloMostradorId` (el artículo real elegido en Artículos Mostrador, de donde
+// sale su costo/stock propio). Reusa el id de la fila destino como identificador del grupo si
+// todavía no tenía uno, y copia los datos compartidos del grupo (ver CAMPOS_COMPARTIDOS_VARIANTE + foto).
+// La etiqueta de variante se autocompleta desde el nombre real (ver extraerVarianteDeNombre).
+export async function agregarVariante(articuloDestinoId: string, articuloMostradorId: string) {
+    await requireAdmin()
+
+    const [destino, maestro] = await Promise.all([
+        prisma.articuloMayorista.findUniqueOrThrow({
+            where: { id: articuloDestinoId },
+            select: {
+                grupoVarianteId: true, categoria: true, nombre: true, titulo: true,
+                descripcion: true, marca: true, imageUrl: true, precio: true,
+                nivelStock: true, orden: true, activo: true,
+            },
+        }),
+        prisma.articuloMostrador.findUniqueOrThrow({
+            where: { id: articuloMostradorId },
+            select: { id: true, nombre: true, costo: true, esPack: true, stock: true },
+        }),
+    ])
+
+    const grupoVarianteId = destino.grupoVarianteId ?? articuloDestinoId
+    if (!destino.grupoVarianteId) {
+        await prisma.articuloMayorista.update({ where: { id: articuloDestinoId }, data: { grupoVarianteId } })
+    }
+
+    const creado = await prisma.articuloMayorista.create({
+        data: {
             categoria: destino.categoria,
             nombre: destino.nombre,
             titulo: destino.titulo,
             descripcion: destino.descripcion,
             marca: destino.marca,
+            codigo: maestro.id,
+            precio: destino.precio,
             imageUrl: destino.imageUrl,
+            orden: destino.orden,
+            activo: destino.activo,
+            nivelStock: destino.nivelStock,
+            articuloMostradorId: maestro.id,
+            grupoVarianteId,
+            variante: extraerVarianteDeNombre(maestro.nombre),
         },
     })
+
+    revalidatePath("/admin/listas/mayoristas")
+    revalidatePath("/mayoristas")
+
+    return {
+        ...creado,
+        precio: Number(creado.precio),
+        articuloMostrador: { ...maestro, costo: Number(maestro.costo || 0) },
+    }
+}
+
+// Elimina la fila de la lista mayorista. Si era parte de un grupo de variantes y queda una sola
+// fila restante, ese grupo se desarma también (un "grupo" de una sola fila no tiene sentido).
+export async function eliminarArticuloMayorista(id: string) {
+    await requireAdmin()
+    const eliminado = await prisma.articuloMayorista.delete({
+        where: { id },
+        select: { grupoVarianteId: true },
+    })
+
+    if (eliminado.grupoVarianteId) {
+        const restantes = await prisma.articuloMayorista.findMany({
+            where: { grupoVarianteId: eliminado.grupoVarianteId },
+            select: { id: true },
+        })
+        if (restantes.length === 1) {
+            await prisma.articuloMayorista.update({
+                where: { id: restantes[0].id },
+                data: { grupoVarianteId: null, variante: null },
+            })
+        }
+    }
 
     revalidatePath("/admin/listas/mayoristas")
     revalidatePath("/mayoristas")

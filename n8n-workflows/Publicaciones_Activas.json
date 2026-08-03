@@ -1,0 +1,486 @@
+{
+  "name": "Publicaciones_Activas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "publicaciones-activas",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        11376,
+        2144
+      ],
+      "id": "77ca33fa-9a08-4031-adeb-2e6bdf328df7",
+      "name": "Webhook",
+      "webhookId": "0b942403-87f6-484e-8ebe-e6ba23c5f787"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MUsInFnHGy2zWvn0",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/MUsInFnHGy2zWvn0",
+          "cachedResultName": "Read_token"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        11584,
+        2144
+      ],
+      "id": "0277ac7f-3fcd-4bfc-8b51-9cdd2c1fe6e8",
+      "name": "Call 'Read_token'"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "df78bf6b-4d4c-4f82-a10f-3d17986850ad",
+              "name": "Access Token",
+              "value": "={{ $json[\"Access Token\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "f91fa219-c645-4991-8db6-58362732c292",
+              "name": "seller_id",
+              "value": "194083300",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        11824,
+        2144
+      ],
+      "id": "690a2c2d-b70e-464d-884b-09b7807c349b",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/users/{{$json.seller_id}}/items/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "active"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json[\"Access Token\"]}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12080,
+        2144
+      ],
+      "id": "fbb29b39-c464-4940-b74b-4ca3e35a3c0b",
+      "name": "Primera página"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lee el total de la primera página y genera un item por cada página necesaria\nconst p1 = $input.first().json;\nconst total = p1.paging?.total ?? 0;\nconst token = $('Edit Fields').first().json['Access Token'];\nconst sellerId = $('Edit Fields').first().json.seller_id;\nconst limit = 50;\n\nif (total === 0) return [];\n\nconst out = [];\nfor (let offset = 0; offset < total; offset += limit) {\n  out.push({ json: { offset, limit, token, sellerId } });\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12336,
+        2144
+      ],
+      "id": "3291dad2-d51c-421e-a277-81bb7f497142",
+      "name": "Generar offsets"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/users/{{$json.sellerId}}/items/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "active"
+            },
+            {
+              "name": "offset",
+              "value": "={{$json.offset}}"
+            },
+            {
+              "name": "limit",
+              "value": "={{$json.limit}}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12592,
+        2144
+      ],
+      "id": "9d4186cb-2968-401e-ba96-d3ff6504a82f",
+      "name": "Listar páginas"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Junta todos los results de todas las páginas y arma batches de 20 IDs\nconst token = $('Edit Fields').first().json['Access Token'];\nconst allIds = [];\nfor (const item of $input.all()) {\n  const results = item.json.results || [];\n  allIds.push(...results);\n}\nif (allIds.length === 0) return [];\nconst out = [];\nfor (let i = 0; i < allIds.length; i += 20) {\n  out.push({ json: { ids_csv: allIds.slice(i, i + 20).join(','), token } });\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12848,
+        2144
+      ],
+      "id": "d1296847-a810-473e-b98f-6877fa0ee308",
+      "name": "Agrupar IDs en batches"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.mercadolibre.com/items?ids={{$json.ids_csv}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        13104,
+        2144
+      ],
+      "id": "57fe5b00-5a7f-435c-961a-297092528abf",
+      "name": "Detalle items (batch)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// La respuesta de /items?ids=... puede llegar como array o como items separados\nconst results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  const entries = Array.isArray(data) ? data : [data];\n  for (const r of entries) {\n    if (r && r.code === 200 && r.body) {\n      const b = r.body;\n      results.push({\n        json: {\n          item_id: b.id,\n          title: b.title,\n          price: b.price,\n          currency_id: b.currency_id,\n          available_quantity: b.available_quantity,\n          sold_quantity: b.sold_quantity,\n          condition: b.condition,\n          status: b.status,\n          listing_type_id: b.listing_type_id,\n          permalink: b.permalink\n        }\n      });\n    }\n  }\n}\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13360,
+        2144
+      ],
+      "id": "d7690a22-fe66-4b68-870a-c855785ffc4e",
+      "name": "Expand detalle items"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8d411f33-1522-4f58-ad33-000f0acaa773",
+              "name": "item_id",
+              "value": "={{ $json.item_id }}",
+              "type": "string"
+            },
+            {
+              "id": "9143a07b-cf6d-4b44-a53a-8c075e1c4d7f",
+              "name": "price",
+              "value": "={{ $json.price }}",
+              "type": "number"
+            },
+            {
+              "id": "6dbbffb6-f4d9-42b4-9f87-21e3d996b623",
+              "name": "available_quantity",
+              "value": "={{ $json.available_quantity }}",
+              "type": "number"
+            },
+            {
+              "id": "775237f3-ab53-45b9-9532-cbc2b8e956bc",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        13616,
+        2144
+      ],
+      "id": "51688fce-7f6e-4bfe-8a3f-a2669b3d76b0",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://revolucionmotos.tech/api/webhooks/n8n/rentabilidad",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer revolucion_motos_super_secreto_2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "item_id",
+              "value": "={{ $json.item_id }}"
+            },
+            {
+              "name": "price",
+              "value": "={{ $json.price }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        13872,
+        2144
+      ],
+      "id": "7712b75f-727b-4a4a-b905-296d5de8685b",
+      "name": "Enviar a rentabilidad"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Recolecta todos los item_ids y los pasa a cargo_ventas\nconst items = $('Edit Fields1').all();\nconst mlas = [...new Set(items.map(item => item.json.item_id))];\nreturn [{ json: { mlas, count: mlas.length } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14128,
+        2144
+      ],
+      "id": "9da90411-547a-48e2-89ab-d683bdc3ccbe",
+      "name": "Finalizar"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n.revolucionmotos.tech/webhook/cargo_ventas",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ mlas: $json.mlas }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        14384,
+        2144
+      ],
+      "id": "8c598460-6e66-4398-acdb-d468adb5860e",
+      "name": "Llamar cargo_ventas"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Read_token'": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Primera página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Primera página": {
+      "main": [
+        [
+          {
+            "node": "Generar offsets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar offsets": {
+      "main": [
+        [
+          {
+            "node": "Listar páginas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar páginas": {
+      "main": [
+        [
+          {
+            "node": "Agrupar IDs en batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agrupar IDs en batches": {
+      "main": [
+        [
+          {
+            "node": "Detalle items (batch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detalle items (batch)": {
+      "main": [
+        [
+          {
+            "node": "Expand detalle items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand detalle items": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Enviar a rentabilidad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar a rentabilidad": {
+      "main": [
+        [
+          {
+            "node": "Finalizar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalizar": {
+      "main": [
+        [
+          {
+            "node": "Llamar cargo_ventas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "executionOrder": "v0",
+    "binaryMode": "separate"
+  },
+  "versionId": "789be6d4-dd09-412c-89c8-7cb9b0e4e3fd",
+  "meta": {
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
+  },
+  "id": "z1AIVuB3jZqHHL9S",
+  "tags": []
+}

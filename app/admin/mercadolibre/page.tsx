@@ -17,6 +17,7 @@ import {
   FileSearch,
   MessageCircleQuestionMark,
   FileSpreadsheet,
+  ToggleRight,
 } from "lucide-react";
 import Link from "next/link";
 import ActualizarSheetButton from "./actualizar-sheet/actualizar-sheet-button";
@@ -331,6 +332,29 @@ export default function MercadoLibreDashboard() {
               Envía a n8n los costos calculados en Costos de Kits para actualizar la pestaña &quot;Comparador&quot; (columna A: MLA, columna M: Final).
             </p>
             <ActualizarSheetButton />
+          </CardContent>
+        </Card>
+
+        {/* TARJETA 13: ESTADO DE PUBLICACIONES */}
+        <Card className="border-l-4 border-l-fuchsia-500 shadow-md hover:shadow-lg transition-all bg-gradient-to-br from-white to-fuchsia-50/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-fuchsia-800 text-xl">
+              <ToggleRight className="h-6 w-6" />
+              Estado de Publicaciones
+            </CardTitle>
+            <CardDescription className="text-fuchsia-700/80 font-medium">
+              Activas, pausadas y ventas 30d
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-6">
+              Listá publicaciones activas y pausadas, filtrá por artículo y pausá o activá sin ir a Mercado Libre.
+            </p>
+            <Link href="/admin/mercadolibre/estado-publicaciones">
+              <Button className="w-full bg-fuchsia-600 hover:bg-fuchsia-700 text-white gap-2 shadow-sm h-12 text-lg">
+                Entrar <ArrowRight size={18} />
+              </Button>
+            </Link>
           </CardContent>
         </Card>
 

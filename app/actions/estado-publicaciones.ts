@@ -86,8 +86,15 @@ export async function getEstadoPublicacionesML(): Promise<{
       status: it.status,
       permalink: it.permalink ?? null,
       ventas_30d: ventasMap.get((it.item_id || "").trim()) ?? 0,
-      // Full = ML administra el stock; available_quantity es directamente el stock en su depósito.
-      stock_full: it.logistic_type === "fulfillment" ? Number(it.available_quantity || 0) : null,
+      // Si tiene inventory_id, available_quantity suma Full + depósito propio: usamos el stock
+      // Full real que n8n consultó aparte. Si no tiene inventory_id y es Full puro, todo el
+      // available_quantity está en el depósito de ML.
+      stock_full:
+        it.inventory_id
+          ? Number(it.full_stock_real ?? 0)
+          : it.logistic_type === "fulfillment"
+          ? Number(it.available_quantity || 0)
+          : null,
     }));
 
     return { success: true, data };

@@ -226,7 +226,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// La respuesta de /items?ids=... puede llegar como array o como items separados.\n// El status (active/paused) viene directo del detalle de ML: es el dato real y actual.\n// shipping.logistic_type === 'fulfillment' indica que el stock vive en un deposito Full de ML,\n// y en ese caso available_quantity ES el stock Full (ML lo administra por completo).\nconst results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  const entries = Array.isArray(data) ? data : [data];\n  for (const r of entries) {\n    if (r && r.code === 200 && r.body) {\n      const b = r.body;\n      results.push({\n        json: {\n          item_id: b.id,\n          title: b.title,\n          price: b.price,\n          currency_id: b.currency_id,\n          available_quantity: b.available_quantity,\n          sold_quantity: b.sold_quantity,\n          condition: b.condition,\n          status: b.status,\n          listing_type_id: b.listing_type_id,\n          logistic_type: b.shipping?.logistic_type ?? null,\n          permalink: b.permalink\n        }\n      });\n    }\n  }\n}\nreturn results;"
+        "jsCode": "// La respuesta de /items?ids=... puede llegar como array o como items separados.\n// El status (active/paused) viene directo del detalle de ML: es el dato real y actual.\n// shipping.logistic_type === 'fulfillment' indica que la publicacion opera con Full, pero\n// OJO: si el item tiene inventory_id, available_quantity es la SUMA de Full + deposito propio\n// (modelo de inventario combinado). El stock Full real hay que pedirlo aparte (siguiente nodo).\nconst results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  const entries = Array.isArray(data) ? data : [data];\n  for (const r of entries) {\n    if (r && r.code === 200 && r.body) {\n      const b = r.body;\n      results.push({\n        json: {\n          item_id: b.id,\n          title: b.title,\n          price: b.price,\n          currency_id: b.currency_id,\n          available_quantity: b.available_quantity,\n          sold_quantity: b.sold_quantity,\n          condition: b.condition,\n          status: b.status,\n          listing_type_id: b.listing_type_id,\n          logistic_type: b.shipping?.logistic_type ?? null,\n          inventory_id: b.inventory_id ?? null,\n          permalink: b.permalink\n        }\n      });\n    }\n  }\n}\nreturn results;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -236,12 +236,22 @@
     },
     {
       "parameters": {
+        "jsCode": "// Si el item tiene inventory_id (modelo de inventario combinado Full + deposito propio),\n// available_quantity NO es el stock Full real: hay que consultarlo aparte por inventario.\n// Este endpoint devuelve exclusivamente lo que hay fisicamente en los depositos Full de ML.\nconst token = $('Edit Fields').first().json['Access Token'];\nconst results = [];\n\nfor (const item of $input.all()) {\n  const data = { ...item.json };\n\n  if (data.inventory_id) {\n    try {\n      const resp = await this.helpers.httpRequest({\n        method: 'GET',\n        url: `https://api.mercadolibre.com/inventories/${data.inventory_id}/stock/fulfillment`,\n        headers: { Authorization: `Bearer ${token}` },\n        json: true,\n      });\n      data.full_stock_real = resp?.available_quantity ?? null;\n    } catch (e) {\n      data.full_stock_real = null;\n    }\n  } else {\n    data.full_stock_real = null;\n  }\n\n  results.push({ json: data });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [13872, 2160],
+      "id": "a1e1c1a1-0001-4001-8001-000000000015",
+      "name": "Completar stock Full real"
+    },
+    {
+      "parameters": {
         "respondWith": "allIncomingItems",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [13872, 2160],
+      "position": [14128, 2160],
       "id": "a1e1c1a1-0001-4001-8001-000000000014",
       "name": "Respond to Webhook"
     }
@@ -290,6 +300,9 @@
       "main": [[{ "node": "Expand detalle items", "type": "main", "index": 0 }]]
     },
     "Expand detalle items": {
+      "main": [[{ "node": "Completar stock Full real", "type": "main", "index": 0 }]]
+    },
+    "Completar stock Full real": {
       "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
     }
   },

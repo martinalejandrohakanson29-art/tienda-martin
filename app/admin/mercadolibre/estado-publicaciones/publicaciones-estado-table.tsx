@@ -133,6 +133,7 @@ export default function PublicacionesEstadoTable({
               <TableHead className="text-center font-bold text-indigo-600 text-[11px]">Ventas 30d</TableHead>
               <TableHead className="text-right font-bold text-slate-700 text-[11px]">Precio</TableHead>
               <TableHead className="text-right font-bold text-slate-700 text-[11px]">Stock</TableHead>
+              <TableHead className="text-right font-bold text-cyan-700 text-[11px]">Stock Full</TableHead>
               <TableHead className="text-right font-bold text-slate-500 text-[11px]">Vendidos</TableHead>
               <TableHead className="text-center font-bold text-slate-700 text-[11px]">Acciones</TableHead>
             </TableRow>
@@ -181,6 +182,9 @@ export default function PublicacionesEstadoTable({
                   ${item.price.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
                 </TableCell>
                 <TableCell className="text-right text-slate-600">{item.available_quantity}</TableCell>
+                <TableCell className="text-right font-bold text-cyan-700">
+                  {item.stock_full !== null ? item.stock_full : <span className="text-slate-300 font-normal">-</span>}
+                </TableCell>
                 <TableCell className="text-right text-slate-400">{item.sold_quantity}</TableCell>
                 <TableCell className="text-center">
                   <EstadoToggleButton

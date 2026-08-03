@@ -12,6 +12,7 @@ export interface PublicacionEstado {
   status: string;
   permalink: string | null;
   ventas_30d: number;
+  stock_full: number | null; // null = no es una publicación Full
 }
 
 const N8N_ESTADO_PUBLICACIONES_URL =
@@ -85,6 +86,8 @@ export async function getEstadoPublicacionesML(): Promise<{
       status: it.status,
       permalink: it.permalink ?? null,
       ventas_30d: ventasMap.get((it.item_id || "").trim()) ?? 0,
+      // Full = ML administra el stock; available_quantity es directamente el stock en su depósito.
+      stock_full: it.logistic_type === "fulfillment" ? Number(it.available_quantity || 0) : null,
     }));
 
     return { success: true, data };

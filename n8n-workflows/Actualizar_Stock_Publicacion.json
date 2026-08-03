@@ -80,13 +80,181 @@
     },
     {
       "parameters": {
-        "jsCode": "// Doc oficial ML: \"Stock distribuido\" / \"Stock multi-origen\".\n//\n// Sin user_product_id: item simple, PUT directo /items/{id} con available_quantity.\n//\n// Con user_product_id: el item separa stock por ubicacion. Hay que:\n//   1) GET /user-products/{id}/stock (fresco, YA en este request) para sacar el header\n//      x-version (obligatorio para escribir) y la ubicacion actual de deposito propio.\n//   2) PUT /user-products/{id}/stock/type/{seller_warehouse|selling_address} con el\n//      x-version y el mismo array de locations pero con la cantidad nueva.\n// Full (meli_facility) es de solo lectura: no se puede tocar desde aca.\nconst token = $('Edit Fields').first().json['Access Token'];\nconst itemId = $json.item_id;\nconst userProductId = $json.user_product_id;\nconst nuevoStock = Number($json.nuevo_stock);\n\nfunction extraerError(e, fallback) {\n  const body = e.response?.body ?? e.cause?.response?.body ?? null;\n  const statusCode = e.response?.statusCode ?? e.statusCode ?? 400;\n  const mensaje = (body && (body.message || body.cause?.[0]?.message)) || e.message || fallback;\n  return { success: false, error: mensaje, statusCode };\n}\n\nfunction headerCaseInsensitive(headers, nombre) {\n  if (!headers) return undefined;\n  const key = Object.keys(headers).find(k => k.toLowerCase() === nombre.toLowerCase());\n  return key ? headers[key] : undefined;\n}\n\n// Caso simple: sin stock multi-origen.\nif (!userProductId) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'PUT',\n      url: `https://api.mercadolibre.com/items/${itemId}`,\n      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },\n      body: { available_quantity: nuevoStock },\n      json: true,\n    });\n    return [{ json: { success: true, item_id: resp.id, available_quantity: resp.available_quantity } }];\n  } catch (e) {\n    return [{ json: extraerError(e, 'Error al actualizar el stock en MercadoLibre') }];\n  }\n}\n\n// Caso multi-origen: leer ubicaciones + x-version fresco.\nlet stockActual, xVersion;\ntry {\n  const resp = await this.helpers.httpRequest({\n    method: 'GET',\n    url: `https://api.mercadolibre.com/user-products/${userProductId}/stock`,\n    headers: { Authorization: `Bearer ${token}` },\n    json: true,\n    returnFullResponse: true,\n  });\n  stockActual = resp.body;\n  xVersion = headerCaseInsensitive(resp.headers, 'x-version');\n} catch (e) {\n  return [{ json: extraerError(e, 'No se pudo leer el stock actual del depósito') }];\n}\n\nconst locations = stockActual?.locations || [];\nconst depositoLocations = locations.filter(l => l.type === 'seller_warehouse' || l.type === 'selling_address');\n\nif (depositoLocations.length === 0) {\n  return [{ json: { success: false, error: 'Este ítem no tiene depósito propio configurado en Mercado Libre (solo Full).' } }];\n}\nif (depositoLocations.length > 1) {\n  return [{ json: { success: false, error: 'Este ítem tiene múltiples depósitos propios; no soportado todavía desde acá.' } }];\n}\n\nconst tipo = depositoLocations[0].type;\nconst nuevasUbicaciones = depositoLocations.map(({ type, ...resto }) => ({ ...resto, quantity: nuevoStock }));\n\ntry {\n  await this.helpers.httpRequest({\n    method: 'PUT',\n    url: `https://api.mercadolibre.com/user-products/${userProductId}/stock/type/${tipo}`,\n    headers: {\n      Authorization: `Bearer ${token}`,\n      'Content-Type': 'application/json',\n      'x-version': String(xVersion),\n    },\n    body: { locations: nuevasUbicaciones },\n    json: true,\n  });\n  return [{ json: { success: true, item_id: itemId, available_quantity: nuevoStock } }];\n} catch (e) {\n  return [{ json: extraerError(e, 'Error al actualizar el stock del depósito en MercadoLibre') }];\n}"
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-tiene-user-product",
+              "leftValue": "={{ $json.user_product_id }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [12080, 2144],
+      "id": "c3a3e3c3-0001-4001-8001-000000000007",
+      "name": "¿Tiene user_product_id?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.mercadolibre.com/user-products/{{$json.user_product_id}}/stock",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$json[\"Access Token\"]}}" }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [12336, 2000],
+      "id": "c3a3e3c3-0001-4001-8001-000000000008",
+      "name": "GET stock ubicaciones"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Doc oficial ML \"Stock multi-origen\": separa Full (meli_facility, solo lectura) de\n// deposito propio (seller_warehouse / selling_address, editable). El x-version del GET\n// es obligatorio para el PUT siguiente (control de concurrencia optimista de ML).\nconst respGet = $input.first().json; // { statusCode, headers, body }\nconst itemId = $('Edit Fields').first().json.item_id;\nconst userProductId = $('Edit Fields').first().json.user_product_id;\nconst nuevoStock = $('Edit Fields').first().json.nuevo_stock;\nconst token = $('Edit Fields').first().json['Access Token'];\n\nif (respGet.statusCode < 200 || respGet.statusCode >= 300) {\n  const msg = respGet.body?.message || respGet.body?.cause?.[0]?.message || 'No se pudo leer el stock actual del depósito';\n  return [{ json: { error_previo: `[GET stock] ${msg}` } }];\n}\n\nconst headers = respGet.headers || {};\nconst xVersionKey = Object.keys(headers).find(k => k.toLowerCase() === 'x-version');\nconst xVersion = xVersionKey ? headers[xVersionKey] : '';\n\nconst locations = respGet.body?.locations || [];\nconst depositoLocations = locations.filter(l => l.type === 'seller_warehouse' || l.type === 'selling_address');\n\nif (depositoLocations.length === 0) {\n  return [{ json: { error_previo: 'Este ítem no tiene depósito propio configurado en Mercado Libre (solo Full).' } }];\n}\n\nconst tipo = depositoLocations[0].type;\nconst nuevasUbicaciones = depositoLocations.map(({ type, ...resto }) => ({ ...resto, quantity: nuevoStock }));\n\nreturn [{\n  json: {\n    error_previo: '',\n    tipo,\n    x_version: xVersion,\n    locations_body: JSON.stringify({ locations: nuevasUbicaciones }),\n    item_id: itemId,\n    user_product_id: userProductId,\n    nuevo_stock: nuevoStock,\n    token,\n  },\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [12080, 2144],
-      "id": "c3a3e3c3-0001-4001-8001-000000000004",
-      "name": "Actualizar stock en ML"
+      "position": [12592, 2000],
+      "id": "c3a3e3c3-0001-4001-8001-000000000009",
+      "name": "Preparar PUT depósito"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-hay-error-previo",
+              "leftValue": "={{ $json.error_previo }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [12848, 2000],
+      "id": "c3a3e3c3-0001-4001-8001-000000000010",
+      "name": "¿Hay error previo?"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { success: false, error: $input.first().json.error_previo } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [13104, 1900],
+      "id": "c3a3e3c3-0001-4001-8001-000000000011",
+      "name": "Formatear error previo"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.mercadolibre.com/user-products/{{$json.user_product_id}}/stock/type/{{$json.tipo}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$json.token}}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "x-version", "value": "={{$json.x_version}}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.locations_body }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [13104, 2100],
+      "id": "c3a3e3c3-0001-4001-8001-000000000012",
+      "name": "PUT stock depósito"
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json; // { statusCode, headers, body }\nconst itemId = $('Preparar PUT depósito').first().json.item_id;\nconst nuevoStock = $('Preparar PUT depósito').first().json.nuevo_stock;\n\nif (res.statusCode >= 200 && res.statusCode < 300) {\n  return [{ json: { success: true, item_id: itemId, available_quantity: nuevoStock } }];\n}\n\nconst mensaje = res.body?.message || res.body?.cause?.[0]?.message || 'Error al actualizar el stock del depósito en MercadoLibre';\nreturn [{ json: { success: false, error: `[PUT stock] ${mensaje}`, statusCode: res.statusCode } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [13360, 2100],
+      "id": "c3a3e3c3-0001-4001-8001-000000000013",
+      "name": "Formatear respuesta depósito"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.mercadolibre.com/items/{{$json.item_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{$json[\"Access Token\"]}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ available_quantity: $json.nuevo_stock }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [12336, 2320],
+      "id": "c3a3e3c3-0001-4001-8001-000000000014",
+      "name": "PUT item simple"
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json; // { statusCode, headers, body }\nconst statusCode = res.statusCode ?? 200;\nconst body = res.body ?? res;\nconst itemId = $('Edit Fields').first().json.item_id;\nconst nuevoStock = $('Edit Fields').first().json.nuevo_stock;\n\nif (statusCode >= 200 && statusCode < 300) {\n  return [{ json: { success: true, item_id: body.id ?? itemId, available_quantity: body.available_quantity ?? nuevoStock } }];\n}\n\nconst mensaje = body?.message || body?.cause?.[0]?.message || 'Error al actualizar el stock en MercadoLibre';\nreturn [{ json: { success: false, error: mensaje, statusCode } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [12592, 2320],
+      "id": "c3a3e3c3-0001-4001-8001-000000000015",
+      "name": "Formatear respuesta simple"
     },
     {
       "parameters": {
@@ -96,7 +264,7 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [12592, 2144],
+      "position": [13616, 2144],
       "id": "c3a3e3c3-0001-4001-8001-000000000006",
       "name": "Respond to Webhook"
     }
@@ -110,9 +278,39 @@
       "main": [[{ "node": "Edit Fields", "type": "main", "index": 0 }]]
     },
     "Edit Fields": {
-      "main": [[{ "node": "Actualizar stock en ML", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "¿Tiene user_product_id?", "type": "main", "index": 0 }]]
     },
-    "Actualizar stock en ML": {
+    "¿Tiene user_product_id?": {
+      "main": [
+        [{ "node": "GET stock ubicaciones", "type": "main", "index": 0 }],
+        [{ "node": "PUT item simple", "type": "main", "index": 0 }]
+      ]
+    },
+    "GET stock ubicaciones": {
+      "main": [[{ "node": "Preparar PUT depósito", "type": "main", "index": 0 }]]
+    },
+    "Preparar PUT depósito": {
+      "main": [[{ "node": "¿Hay error previo?", "type": "main", "index": 0 }]]
+    },
+    "¿Hay error previo?": {
+      "main": [
+        [{ "node": "Formatear error previo", "type": "main", "index": 0 }],
+        [{ "node": "PUT stock depósito", "type": "main", "index": 0 }]
+      ]
+    },
+    "Formatear error previo": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    },
+    "PUT stock depósito": {
+      "main": [[{ "node": "Formatear respuesta depósito", "type": "main", "index": 0 }]]
+    },
+    "Formatear respuesta depósito": {
+      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+    },
+    "PUT item simple": {
+      "main": [[{ "node": "Formatear respuesta simple", "type": "main", "index": 0 }]]
+    },
+    "Formatear respuesta simple": {
       "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
     }
   },
@@ -128,7 +326,7 @@
     "executionOrder": "v0",
     "binaryMode": "separate"
   },
-  "versionId": "c3a3e3c3-0002-4002-8002-000000000000",
+  "versionId": "c3a3e3c3-0003-4003-8003-000000000000",
   "meta": {
     "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
   },

@@ -49,7 +49,7 @@ export async function updateConfig(raw: unknown) {
     }
 
     revalidateTag("config")
-    revalidatePath("/admin/mercadolibre/articulos")
+    revalidatePath("/admin/listas/articulos-importados")
     revalidatePath("/admin/mercadolibre/costos")
     revalidatePath("/", "layout")
 

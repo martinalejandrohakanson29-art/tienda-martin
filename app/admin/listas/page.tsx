@@ -206,6 +206,43 @@ export default function ListasPage() {
               </div>
             </div>
           </Link>
+
+          {/* Tarjeta: Artículos Importados */}
+          <Link
+            href="/admin/listas/articulos-importados"
+            className="group block bg-white rounded-2xl border-2 border-slate-200 shadow-sm hover:shadow-xl hover:border-orange-400 transition-all duration-300 overflow-hidden"
+          >
+            <div className="flex flex-col">
+              <div className="p-6">
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="bg-orange-600 p-3 rounded-xl text-white shadow-md shadow-orange-200 group-hover:scale-110 transition-transform">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16V8z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 mb-1 group-hover:text-orange-600 transition-colors">Artículos Importados</h2>
+                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">Costos base y kits</p>
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <p className="text-xs text-slate-400 font-bold uppercase mb-1">Descripción</p>
+                  <p className="text-sm text-slate-600">Tabla maestra de artículos importados: costo base en dólares o pesos, composición de kits y recálculo de precios.</p>
+                </div>
+              </div>
+              <div className="p-4 bg-gradient-to-r from-orange-50 to-white border-t border-orange-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-orange-600 uppercase tracking-wider group-hover:translate-x-1 transition-transform">
+                    Acceder &rarr;
+                  </span>
+                  <svg className="w-5 h-5 text-orange-600 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </Link>
         </div>
       </div>
     </div>

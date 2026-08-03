@@ -90,7 +90,7 @@ export async function recalculateAllArticulos() {
     for (const art of todos) {
       await recalculateProductCost(art.id_articulo);
     }
-    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/listas/articulos-importados");
     revalidatePath("/admin/mercadolibre/costos");
     revalidatePath("/admin/mercadolibre/composicion");
     return { success: true };
@@ -346,7 +346,7 @@ export async function upsertArticulo(data: any) {
     // Recalcular costos
     await recalculateProductCost(cleanSku);
     
-    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/listas/articulos-importados");
     revalidatePath("/admin/mercadolibre/composicion");
     
     return { success: true };
@@ -359,7 +359,7 @@ export async function upsertArticulo(data: any) {
 export async function deleteArticulo(id: number) {
   try {
     await prisma.costosArticulos.delete({ where: { id } });
-    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/listas/articulos-importados");
     return { success: true };
   } catch (error) { return { success: false, error: "Error al eliminar." }; }
 }
@@ -369,7 +369,7 @@ export async function deleteArticulo(id: number) {
 export async function bulkDeleteArticulos(ids: number[]) {
   try {
     await prisma.costosArticulos.deleteMany({ where: { id: { in: ids } } });
-    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/listas/articulos-importados");
     revalidatePath("/admin/mercadolibre/composicion");
     return { success: true };
   } catch (error: any) {
@@ -388,7 +388,7 @@ export async function bulkUpdateEsDolar(ids: number[], esDolar: boolean) {
     for (const art of articulos) {
       await recalculateProductCost(art.id_articulo);
     }
-    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/listas/articulos-importados");
     revalidatePath("/admin/mercadolibre/composicion");
     return { success: true };
   } catch (error: any) {
@@ -420,7 +420,7 @@ export async function bulkUpdateCosto(ids: number[], modo: "fijo" | "porcentaje"
       await recalculateProductCost(art.id_articulo);
     }
 
-    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/listas/articulos-importados");
     revalidatePath("/admin/mercadolibre/composicion");
     return { success: true, omitidos: articulos.length - editables.length };
   } catch (error: any) {
@@ -444,7 +444,7 @@ export async function updateComponentes(skuPadre: string, componentes: { sku_hij
       });
     }
     await recalculateProductCost(skuPadre);
-    revalidatePath("/admin/mercadolibre/articulos");
+    revalidatePath("/admin/listas/articulos-importados");
     return { success: true };
   } catch (error: any) { return { success: false, error: error.message }; }
 }

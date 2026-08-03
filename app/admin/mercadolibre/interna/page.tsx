@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import {
   Ship,
   ReceiptText,
-  Package,
   ArrowLeft,
   ArrowRight,
   ArrowLeftRight,
@@ -81,26 +80,6 @@ export default function GestionInternaPage() {
             <Link href="/admin/mercadolibre/costos">
               <Button className="w-full bg-cyan-600 hover:bg-cyan-700 text-white gap-2">
                 Ver Análisis de Costos <ArrowRight size={16} />
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* TARJETA 3: Costos Base */}
-        <Card className="hover:shadow-md transition-all border-l-4 border-l-amber-500 bg-amber-50/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-amber-700">
-              <Package className="h-6 w-6" />
-              Tabla de Costos Base
-            </CardTitle>
-            <CardDescription>
-              Mantenimiento de precios de artículos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/admin/mercadolibre/articulos">
-              <Button className="w-full bg-amber-600 hover:bg-amber-700 text-white gap-2">
-                Ver Tabla Maestra <ArrowRight size={16} />
               </Button>
             </Link>
           </CardContent>

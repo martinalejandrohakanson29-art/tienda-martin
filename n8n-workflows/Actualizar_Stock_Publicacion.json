@@ -61,6 +61,12 @@
               "name": "nuevo_stock",
               "value": "={{ $('Webhook').first().json.body.available_quantity }}",
               "type": "number"
+            },
+            {
+              "id": "f3d2b1a0-9876-4cba-8def-fedcba987654",
+              "name": "inventory_id",
+              "value": "={{ $('Webhook').first().json.body.inventory_id }}",
+              "type": "string"
             }
           ]
         },
@@ -75,7 +81,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "=https://api.mercadolibre.com/items/{{$json.item_id}}",
+        "url": "={{ $json.inventory_id ? ('https://api.mercadolibre.com/inventories/' + $json.inventory_id) : ('https://api.mercadolibre.com/items/' + $json.item_id) }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -103,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Normaliza la respuesta de ML (fullResponse) a un formato simple para la app.\n// Ojo: si el item usa inventario combinado (Full + deposito propio, tiene inventory_id),\n// ML puede rechazar el PUT directo de available_quantity; el mensaje de error queda visible.\nconst res = $input.first().json;\nconst statusCode = res.statusCode ?? 200;\nconst body = res.body ?? res;\n\nif (statusCode >= 200 && statusCode < 300) {\n  return [{ json: { success: true, item_id: body.id, available_quantity: body.available_quantity } }];\n}\n\nconst mensaje = body?.message || body?.cause?.[0]?.message || 'Error al actualizar el stock en MercadoLibre';\nreturn [{ json: { success: false, error: mensaje, statusCode } }];"
+        "jsCode": "// Normaliza la respuesta de ML (fullResponse) a un formato simple para la app.\n// Si el item tiene inventory_id (Full + deposito combinado) se pego contra\n// /inventories/{id} en vez de /items/{id}; su respuesta puede no traer available_quantity\n// de vuelta, por eso hacemos fallback al valor que mandamos.\nconst res = $input.first().json;\nconst statusCode = res.statusCode ?? 200;\nconst body = res.body ?? res;\nconst nuevoStock = $('Edit Fields').first().json.nuevo_stock;\n\nif (statusCode >= 200 && statusCode < 300) {\n  return [{ json: { success: true, item_id: body.id ?? $('Edit Fields').first().json.item_id, available_quantity: body.available_quantity ?? nuevoStock } }];\n}\n\nconst mensaje = body?.message || body?.cause?.[0]?.message || 'Error al actualizar el stock en MercadoLibre';\nreturn [{ json: { success: false, error: mensaje, statusCode } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

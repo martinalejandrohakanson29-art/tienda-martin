@@ -251,7 +251,9 @@ export default function PublicacionesEstadoTable({
                 <TableCell className="text-right text-slate-600">
                   <StockDepositoCell
                     itemId={item.item_id}
+                    inventoryId={item.inventory_id}
                     stock={item.available_quantity}
+                    editable={item.stock_full === null || item.inventory_id !== null}
                     onUpdated={onStockActualizado}
                   />
                 </TableCell>

@@ -13,6 +13,7 @@ export interface PublicacionEstado {
   permalink: string | null;
   ventas_30d: number;
   stock_full: number | null; // null = no es una publicación Full
+  inventory_id: string | null; // presente = inventario combinado Full + depósito propio
 }
 
 const N8N_ESTADO_PUBLICACIONES_URL =
@@ -99,6 +100,7 @@ export async function getEstadoPublicacionesML(): Promise<{
           : it.logistic_type === "fulfillment"
           ? Number(it.available_quantity || 0)
           : null,
+      inventory_id: it.inventory_id ?? null,
     }));
 
     return { success: true, data };
@@ -138,17 +140,19 @@ export async function setEstadoPublicacionML(
 }
 
 // Actualiza el stock del depósito propio de una publicación en ML vía n8n.
-// Para publicaciones con inventario combinado (Full + depósito), ML puede rechazar
-// el cambio directo; en ese caso el error real de ML queda en result.error.
+// Si tiene inventory_id (Full + depósito combinado) n8n pega contra el endpoint de
+// inventario en vez del ítem, porque ML rechaza el PUT directo de available_quantity
+// a nivel publicación para esos casos.
 export async function setStockPublicacionML(
   itemId: string,
+  inventoryId: string | null,
   nuevoStock: number
 ): Promise<{ success: boolean; available_quantity?: number; error?: string }> {
   try {
     const response = await fetch(N8N_ACTUALIZAR_STOCK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ item_id: itemId, available_quantity: nuevoStock }),
+      body: JSON.stringify({ item_id: itemId, inventory_id: inventoryId, available_quantity: nuevoStock }),
       cache: "no-store",
     });
 

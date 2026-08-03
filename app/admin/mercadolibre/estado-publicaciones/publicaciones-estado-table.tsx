@@ -10,13 +10,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, X, RefreshCw, ExternalLink } from "lucide-react";
+import { Search, X, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "../rentabilidad/agregado-filter";
 import type { PublicacionEstado } from "@/app/actions/estado-publicaciones";
 import EstadoToggleButton from "./estado-toggle-button";
 
 type FiltroEstado = "todos" | "active" | "paused";
+
+type SortKey =
+  | "title"
+  | "status"
+  | "ventas_30d"
+  | "price"
+  | "available_quantity"
+  | "stock_full"
+  | "sold_quantity";
 
 interface Props {
   data: PublicacionEstado[];
@@ -36,6 +45,15 @@ export default function PublicacionesEstadoTable({
   const [filter, setFilter] = useState("");
   const [selectedAgregados, setSelectedAgregados] = useState<string[]>([]);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todos");
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: "asc" | "desc" } | null>(null);
+
+  const handleSort = (key: SortKey) => {
+    setSortConfig((prev) =>
+      prev?.key === key
+        ? { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+        : { key, direction: "asc" }
+    );
+  };
 
   // MLAs permitidos según los agregados elegidos (unión). null = sin filtro de agregado.
   const allowedMlas = useMemo(() => {
@@ -59,6 +77,52 @@ export default function PublicacionesEstadoTable({
       );
     });
   }, [data, filter, filtroEstado, allowedMlas]);
+
+  const sortedData = useMemo(() => {
+    if (!sortConfig) return filteredData;
+    const { key, direction } = sortConfig;
+    const factor = direction === "asc" ? 1 : -1;
+    return [...filteredData].sort((a, b) => {
+      if (key === "title" || key === "status") {
+        return factor * (a[key] || "").localeCompare(b[key] || "", "es");
+      }
+      // stock_full puede ser null (no es Full): lo tratamos como el valor más bajo
+      const aVal = key === "stock_full" ? a.stock_full ?? -1 : a[key];
+      const bVal = key === "stock_full" ? b.stock_full ?? -1 : b[key];
+      return factor * (aVal - bVal);
+    });
+  }, [filteredData, sortConfig]);
+
+  const SortableHead = ({
+    label,
+    sortKey,
+    className,
+    justify = "end",
+  }: {
+    label: string;
+    sortKey: SortKey;
+    className?: string;
+    justify?: "start" | "center" | "end";
+  }) => (
+    <TableHead
+      className={cn("cursor-pointer hover:bg-slate-200 transition-colors select-none", className)}
+      onClick={() => handleSort(sortKey)}
+    >
+      <div
+        className={cn(
+          "flex items-center gap-1",
+          justify === "start" ? "justify-start" : justify === "center" ? "justify-center" : "justify-end"
+        )}
+      >
+        {label}
+        {sortConfig?.key === sortKey ? (
+          sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 text-slate-300" />
+        )}
+      </div>
+    </TableHead>
+  );
 
   const EstadoTab = ({ value, label }: { value: FiltroEstado; label: string }) => (
     <button
@@ -128,18 +192,18 @@ export default function PublicacionesEstadoTable({
         <Table>
           <TableHeader className="sticky top-0 z-10 bg-slate-100/95 backdrop-blur-sm border-b shadow-sm">
             <TableRow>
-              <TableHead className="min-w-[300px] font-bold text-slate-700 text-[11px]">Publicación</TableHead>
-              <TableHead className="text-center font-bold text-slate-700 text-[11px]">Estado</TableHead>
-              <TableHead className="text-center font-bold text-indigo-600 text-[11px]">Ventas 30d</TableHead>
-              <TableHead className="text-right font-bold text-slate-700 text-[11px]">Precio</TableHead>
-              <TableHead className="text-right font-bold text-slate-700 text-[11px]">Stock</TableHead>
-              <TableHead className="text-right font-bold text-cyan-700 text-[11px]">Stock Full</TableHead>
-              <TableHead className="text-right font-bold text-slate-500 text-[11px]">Vendidos</TableHead>
+              <SortableHead label="Publicación" sortKey="title" justify="start" className="min-w-[300px] font-bold text-slate-700 text-[11px]" />
+              <SortableHead label="Estado" sortKey="status" justify="center" className="font-bold text-slate-700 text-[11px]" />
+              <SortableHead label="Ventas 30d" sortKey="ventas_30d" justify="center" className="font-bold text-indigo-600 text-[11px]" />
+              <SortableHead label="Precio" sortKey="price" className="font-bold text-slate-700 text-[11px]" />
+              <SortableHead label="Stock" sortKey="available_quantity" className="font-bold text-slate-700 text-[11px]" />
+              <SortableHead label="Stock Full" sortKey="stock_full" className="font-bold text-cyan-700 text-[11px]" />
+              <SortableHead label="Vendidos" sortKey="sold_quantity" className="font-bold text-slate-500 text-[11px]" />
               <TableHead className="text-center font-bold text-slate-700 text-[11px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredData.map((item) => (
+            {sortedData.map((item) => (
               <TableRow key={item.item_id} className="transition-colors border-slate-100 text-[11px] bg-white hover:bg-slate-50/80">
                 <TableCell>
                   <div className="flex flex-col leading-tight">

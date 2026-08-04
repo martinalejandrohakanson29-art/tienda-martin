@@ -61,3 +61,11 @@ export function resetConversation(accountId: string, conversationId: string) {
     const store = getStore()
     store.conversations.delete(key(accountId, conversationId))
 }
+
+// Borra el historial de TODAS las conversaciones de prueba guardadas (botón
+// "Borrar todo el historial" de /admin/chatwoot/prueba). Solo tiene sentido acá:
+// es un mock, no hay nada que preservar entre sesiones de prueba.
+export function resetAllConversations() {
+    const store = getStore()
+    store.conversations.clear()
+}

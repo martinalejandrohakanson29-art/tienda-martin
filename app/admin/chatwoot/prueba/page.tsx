@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote, Users, Power } from "lucide-react"
+import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote, Users, Power, Trash2 } from "lucide-react"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type ItemCliente = { id: string; kind: "cliente"; hora: string; mensaje: string; ok: boolean; detalle?: string }
 type ItemBot = { id: string; kind: "bot"; hora: string; mensaje: string }
@@ -34,6 +35,11 @@ export default function PruebaMensajesPage() {
     const [respuestaEquipo, setRespuestaEquipo] = useState("")
     const [enviandoRespuesta, setEnviandoRespuesta] = useState(false)
     const [reactivandoBot, setReactivandoBot] = useState(false)
+
+    // ESTADOS PARA "BORRAR TODO EL HISTORIAL" (limpia todas las conversaciones
+    // de prueba guardadas en el mock, no solo la actual)
+    const [confirmBorrarTodoOpen, setConfirmBorrarTodoOpen] = useState(false)
+    const [borrandoTodo, setBorrandoTodo] = useState(false)
 
     const chatRef = useRef<HTMLDivElement>(null)
     const settingsRef = useRef<HTMLDivElement>(null)
@@ -204,6 +210,22 @@ export default function PruebaMensajesPage() {
         setReactivandoBot(false)
     }
 
+    // BORRAR TODO EL HISTORIAL: vacía el store del mock completo (todas las
+    // conversaciones de prueba, no solo la actual) y arranca de cero acá.
+    const handleBorrarTodoHistorial = async () => {
+        setBorrandoTodo(true)
+        try {
+            await fetch("/api/chatwoot/mock/reset", { method: "DELETE" })
+        } catch {
+            // si falla la llamada igual limpiamos la UI; es solo un mock de pruebas
+        } finally {
+            setConversationId(generarConversationId())
+            setTimeline([])
+            setBorrandoTodo(false)
+            setConfirmBorrarTodoOpen(false)
+        }
+    }
+
     const copiarMockUrl = () => {
         navigator.clipboard.writeText(mockBaseUrl).then(() => {
             setMockUrlCopiada(true)
@@ -296,6 +318,17 @@ export default function PruebaMensajesPage() {
                         </Popover>
                         <Button type="button" variant="ghost" size="icon" title="Nueva conversación de prueba" className="text-white hover:bg-white/15 hover:text-white" onClick={handleNuevaConversacion} disabled={enviandoPrueba}>
                             <RefreshCw size={18} />
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Borrar todo el historial de conversaciones de prueba"
+                            className="text-white hover:bg-white/15 hover:text-white"
+                            onClick={() => setConfirmBorrarTodoOpen(true)}
+                            disabled={enviandoPrueba}
+                        >
+                            <Trash2 size={18} />
                         </Button>
                     </div>
                 </div>
@@ -471,6 +504,17 @@ export default function PruebaMensajesPage() {
                     nueva para seguir probando mensajes del cliente después de responder.
                 </p>
             </div>
+
+            <ConfirmDialog
+                open={confirmBorrarTodoOpen}
+                onOpenChange={setConfirmBorrarTodoOpen}
+                title="¿Borrar todo el historial de prueba?"
+                description="Se va a limpiar el historial guardado de todas las conversaciones de prueba (no solo la actual) y se arranca una conversación nueva. Es solo el mock de pruebas, no afecta datos reales."
+                confirmLabel="Borrar todo"
+                variant="danger"
+                isLoading={borrandoTodo}
+                onConfirm={handleBorrarTodoHistorial}
+            />
         </div>
     )
 }

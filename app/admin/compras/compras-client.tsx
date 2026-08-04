@@ -20,7 +20,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  crearCompra, obtenerComprasPorRango, actualizarCompra, eliminarCompra, obtenerHistorialCompra, guardarComoPedidoCompra, actualizarPedidoCompra
+  crearCompra, obtenerComprasPorRango, actualizarCompra, eliminarCompra, obtenerHistorialCompra, guardarComoPedidoCompra, actualizarPedidoCompra, confirmarPedidoCompra
 } from "@/app/actions/compras";
 import { obtenerProveedores, crearProveedor } from "@/app/actions/listas";
 import { actualizarPrecioArticuloDB, sincronizarArticulosMostrador } from "@/app/actions/ventas-mostrador";
@@ -130,6 +130,8 @@ export default function ComprasClient({
   const [numeroPedidoEnEdicion, setNumeroPedidoEnEdicion] = useState<number | null>(null);
   const [compraEnEdicionId, setCompraEnEdicionId] = useState<string | null>(null);
   const [numeroCompraEnEdicion, setNumeroCompraEnEdicion] = useState<number | null>(null);
+  const [pedidoEnRegistroId, setPedidoEnRegistroId] = useState<string | null>(null);
+  const [numeroPedidoEnRegistro, setNumeroPedidoEnRegistro] = useState<number | null>(null);
   const [pedidosCompraRefreshKey, setPedidosCompraRefreshKey] = useState(0);
 
   // Helper para color del margen
@@ -448,6 +450,7 @@ export default function ComprasClient({
     setIsFinalizarModalOpen(false); setIsConfirmDiscardOpen(false); setIsConfirmResumenOpen(false);
     setPedidoEnEdicionId(null); setNumeroPedidoEnEdicion(null);
     setCompraEnEdicionId(null); setNumeroCompraEnEdicion(null);
+    setPedidoEnRegistroId(null); setNumeroPedidoEnRegistro(null);
   };
 
   // Carga un pedido de compra existente en el estado de "Nueva Compra" para
@@ -501,9 +504,69 @@ export default function ComprasClient({
       };
     }));
 
+    setCompraEnEdicionId(null); setNumeroCompraEnEdicion(null);
+    setPedidoEnRegistroId(null); setNumeroPedidoEnRegistro(null);
     setPedidoEnEdicionId(compra.id);
     setNumeroPedidoEnEdicion((compra as any).numeroCompra ?? null);
     setActiveTab("registrar");
+  };
+
+  // Carga un pedido de compra en el estado de "Nueva Compra" para registrarlo
+  // como compra efectiva, mostrando el mismo modal completo de edición
+  // (proveedor, descuento, fechas, etc.) pre-cargado con sus datos.
+  const cargarPedidoParaRegistrarCompra = async (compra: PedidoCompraData) => {
+    if (!pedidoEnEdicionId && !compraEnEdicionId && !pedidoEnRegistroId && items.length > 0) {
+      if (!confirm("Hay una compra en curso sin guardar en 'Nueva Compra'. ¿Descartarla para registrar este pedido?")) {
+        return;
+      }
+    }
+
+    const sync = await sincronizarArticulosMostrador();
+    const articulosActualizados = sync.success && sync.data ? sync.data : articulos;
+    if (sync.success && sync.data) setArticulos(sync.data);
+
+    setIsConfirmResumenOpen(false);
+    setIsConfirmDiscardOpen(false);
+
+    setProveedor(compra.proveedor || "");
+    setProveedorId(compra.proveedorId || "");
+    setMetodoPago(compra.metodo_pago || "Efectivo");
+    setComprobante((compra as any).comprobante || "");
+    setInfo(compra.info || "");
+    setDni(compra.dni || "");
+    setTelefono(compra.telefono || "");
+    setTransaccionId((compra as any).transaccionId || "");
+    setInteres(Number(compra.interes) || 0);
+    setDescuento(Number(compra.descuento) || 0);
+    setImpactarCostos(false);
+    setIva(false);
+    setMoneda((compra.moneda as 'ARS' | 'USD') || 'ARS');
+    setFechaCompra(compra.fechaCarga ? new Date(compra.fechaCarga).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+    setFechaIngreso(compra.fechaIngreso ? new Date(compra.fechaIngreso).toISOString().split('T')[0] : "");
+
+    setItems(compra.items.map((i: any) => {
+      const c = Number(i.costo_unit);
+      const m = i.margenGanancia || 50;
+      const articuloBase = (articulosActualizados as any[]).find((a: any) => a.id === i.productoId);
+      return {
+        id: i.id || crypto.randomUUID(),
+        productoId: i.productoId || undefined,
+        nombre: i.nombre,
+        cantidad: i.cantidad,
+        costo_unit: c,
+        subtotal: Number(i.subtotal),
+        stock: articuloBase ? articuloBase.stock : 0,
+        ultimaModificacion: articuloBase?.ultimaModificacion || null,
+        margenGanancia: m,
+        precioPublico: Math.round(c * (1 + m / 100))
+      };
+    }));
+
+    setPedidoEnEdicionId(null); setNumeroPedidoEnEdicion(null);
+    setCompraEnEdicionId(null); setNumeroCompraEnEdicion(null);
+    setPedidoEnRegistroId(compra.id);
+    setNumeroPedidoEnRegistro((compra as any).numeroCompra ?? null);
+    setIsFinalizarModalOpen(true);
   };
 
   const handleGuardarCambiosPedidoCompra = async () => {
@@ -547,6 +610,72 @@ export default function ComprasClient({
         setActiveTab("pedidos");
       } else {
         alert("Error: " + res.error);
+      }
+    } catch (e) {
+      alert("Ocurrió un error inesperado.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Guarda los cambios del pedido y lo registra como compra efectiva (suma
+  // stock, impacta costos si corresponde y genera el movimiento a Cuenta
+  // Corriente), todo desde el mismo modal de "Detalles de la Compra".
+  const handleRegistrarPedidoCompra = async () => {
+    if (!pedidoEnRegistroId) return;
+    if (metodoPago === "A Cuenta Corriente" && !proveedorId) {
+      alert("Debe seleccionar un proveedor de la lista para compras a Cuenta Corriente.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const itemsPayload = items.map(i => ({ ...i, costo_unit: iva ? Math.round(i.costo_unit * 1.21 * 100) / 100 : i.costo_unit }));
+
+      const resActualizar = await actualizarPedidoCompra(
+        pedidoEnRegistroId,
+        {
+          proveedor,
+          proveedorId,
+          moneda,
+          total: totalBase,
+          interes,
+          descuento,
+          totalFinal: totalFinalCalculado,
+          items: itemsPayload,
+          metodo_pago: metodoPago,
+          dni,
+          telefono,
+          info,
+          comprobante,
+          transaccionId,
+          impactarCostos: false,
+          fechaCompra,
+          fechaIngreso
+        },
+        compradorNombre,
+        "Datos actualizados al registrar como compra efectiva"
+      );
+
+      if (!resActualizar.success) {
+        alert("Error: " + resActualizar.error);
+        return;
+      }
+
+      const resConfirmar = await confirmarPedidoCompra(pedidoEnRegistroId, {
+        impactarCostos,
+        items: itemsPayload,
+        usuario: compradorNombre,
+        moneda
+      });
+
+      if (resConfirmar.success) {
+        mostrarMensajeExito("¡Pedido registrado como compra efectiva!");
+        resetForm();
+        setPedidosCompraRefreshKey(k => k + 1);
+        cargarCompras();
+      } else {
+        alert("Los datos se guardaron pero no se pudo confirmar la recepción: " + resConfirmar.error);
       }
     } catch (e) {
       alert("Ocurrió un error inesperado.");
@@ -607,6 +736,8 @@ export default function ComprasClient({
       };
     }));
 
+    setPedidoEnEdicionId(null); setNumeroPedidoEnEdicion(null);
+    setPedidoEnRegistroId(null); setNumeroPedidoEnRegistro(null);
     setCompraEnEdicionId(compra.id);
     setNumeroCompraEnEdicion(compra.numeroCompra ?? null);
     setActiveTab("registrar");
@@ -751,6 +882,22 @@ export default function ComprasClient({
                   className="text-amber-700 hover:bg-amber-100"
                 >
                   Cancelar edición
+                </Button>
+              </div>
+            )}
+            {pedidoEnRegistroId && (
+              <div className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex-shrink-0">
+                <span className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4" /> Registrando Pedido de Compra #{numeroPedidoEnRegistro} como compra efectiva
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { resetForm(); setActiveTab("pedidos"); }}
+                  className="text-emerald-700 hover:bg-emerald-100"
+                >
+                  Cancelar registro
                 </Button>
               </div>
             )}
@@ -905,7 +1052,7 @@ export default function ComprasClient({
               <div className="flex items-center gap-4">
                 <Button variant="outline" onClick={() => setIsConfirmDiscardOpen(true)} className="text-red-500 border-red-200 hover:bg-red-50 h-12 rounded-xl">Descartar</Button>
                 <Button onClick={() => setIsFinalizarModalOpen(true)} disabled={items.length === 0 || isSubmitting} className="h-12 px-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-md">
-                  {pedidoEnEdicionId ? "Guardar Cambios del Pedido" : compraEnEdicionId ? "Guardar Cambios de la Compra" : "Finalizar Compra"}
+                  {pedidoEnEdicionId ? "Guardar Cambios del Pedido" : compraEnEdicionId ? "Guardar Cambios de la Compra" : pedidoEnRegistroId ? "Registrar Compra del Pedido" : "Finalizar Compra"}
                 </Button>
               </div>
             </div>
@@ -1106,7 +1253,7 @@ export default function ComprasClient({
 
         <TabsContent value="pedidos" className="flex-grow overflow-hidden m-0 data-[state=active]:flex data-[state=active]:flex-col h-full bg-white">
           <div className="flex-grow overflow-auto">
-            <PedidosCompraClient key={pedidosCompraRefreshKey} initialData={[]} dolarCotizacion={dolarCotizacion} factorFob={factorFob} onEditarPedido={cargarPedidoParaEdicionCompra} />
+            <PedidosCompraClient key={pedidosCompraRefreshKey} initialData={[]} dolarCotizacion={dolarCotizacion} factorFob={factorFob} onEditarPedido={cargarPedidoParaEdicionCompra} onRegistrarPedido={cargarPedidoParaRegistrarCompra} />
           </div>
         </TabsContent>
 
@@ -1328,7 +1475,7 @@ export default function ComprasClient({
       <Dialog open={isFinalizarModalOpen} onOpenChange={setIsFinalizarModalOpen}>
         <DialogContent className="sm:max-w-[550px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
           <div className="max-h-[95vh] overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-200">
-            <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-emerald-600" /> {pedidoEnEdicionId ? `Guardar Cambios del Pedido #${numeroPedidoEnEdicion}` : compraEnEdicionId ? `Guardar Cambios de la Compra #${numeroCompraEnEdicion}` : "Detalles de la Compra"}</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle className="text-xl font-bold flex items-center gap-2"><CreditCard className="h-5 w-5 text-emerald-600" /> {pedidoEnEdicionId ? `Guardar Cambios del Pedido #${numeroPedidoEnEdicion}` : compraEnEdicionId ? `Guardar Cambios de la Compra #${numeroCompraEnEdicion}` : pedidoEnRegistroId ? `Registrar Compra del Pedido #${numeroPedidoEnRegistro}` : "Detalles de la Compra"}</DialogTitle></DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2 relative">
                 <Label className="text-xs font-bold text-slate-500 uppercase">Proveedor</Label>
@@ -1486,6 +1633,14 @@ export default function ComprasClient({
                     className="bg-amber-500 hover:bg-amber-600 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-amber-500/10"
                   >
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-5 w-5 mr-2" /> Guardar Cambios</>}
+                  </Button>
+                ) : pedidoEnRegistroId ? (
+                  <Button
+                    onClick={handleRegistrarPedidoCompra}
+                    disabled={items.length === 0 || isSubmitting}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold w-full shadow-lg shadow-emerald-600/10"
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar Compra</>}
                   </Button>
                 ) : (
                   <>

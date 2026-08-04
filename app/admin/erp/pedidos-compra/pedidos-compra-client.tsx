@@ -90,14 +90,13 @@ interface PedidosCompraClientProps {
   dolarCotizacion?: number;
   factorFob?: number;
   onEditarPedido?: (compra: Compra) => void;
+  onRegistrarPedido?: (compra: Compra) => void;
 }
 
-export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFob = 1, onEditarPedido }: PedidosCompraClientProps) {
+export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFob = 1, onEditarPedido, onRegistrarPedido }: PedidosCompraClientProps) {
   const [compras, setCompras] = useState<Compra[]>(initialData as Compra[]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [compraSeleccionada, setCompraSeleccionada] = useState<Compra | null>(null);
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [isEliminarDialogOpen, setIsEliminarDialogOpen] = useState(false);
   const [compraParaEliminar, setCompraParaEliminar] = useState<Compra | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -108,10 +107,10 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
   // Editing state
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingCompra, setEditingCompra] = useState<Compra | null>(null);
+  const [registrando, setRegistrando] = useState(false);
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [showProvListEdit, setShowProvListEdit] = useState(false);
   const [impactarCostos, setImpactarCostos] = useState(false);
-  const [confirmImpactarCostos, setConfirmImpactarCostos] = useState(false);
 
   const totalesPorMoneda = useMemo(() => {
     return compras.reduce(
@@ -165,11 +164,6 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
     }
   };
 
-  const handleConfirmarPedido = (compra: Compra) => {
-    setCompraSeleccionada(compra);
-    setIsConfirmDialogOpen(true);
-  };
-
   const handleEliminarPedido = (compra: Compra) => {
     setCompraParaEliminar(compra);
     setIsEliminarDialogOpen(true);
@@ -179,29 +173,51 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
     window.open(`/admin/erp/pedidos-compra/pdf/${compra.id}`, '_blank');
   };
 
-  const handleEditarPedido = async (compra: Compra) => {
+  // Carga los datos frescos del pedido y abre el flujo de edición o de
+  // registro (compra efectiva), delegando al padre si está embebido en
+  // /admin/compras, o usando el diálogo local si es la página standalone.
+  const cargarPedidoParaAccion = async (compra: Compra, modo: "editar" | "registrar") => {
     setIsProcessing(true);
     try {
       const data = await obtenerPedidoCompraPorId(compra.id);
-      if (data) {
-        if (onEditarPedido) {
-          onEditarPedido(data as unknown as Compra);
-        } else {
-          const mappedItems = data.items.map((i: any) => ({
-            ...i,
-            margenGanancia: i.margenGanancia || 50
-          }));
-          setEditingCompra({ ...data, items: mappedItems } as Compra);
-          setImpactarCostos(false);
-          setIsEditDialogOpen(true);
-        }
+      if (!data) return;
+
+      if (modo === "editar" && onEditarPedido) {
+        onEditarPedido(data as unknown as Compra);
+        return;
       }
+      if (modo === "registrar" && onRegistrarPedido) {
+        onRegistrarPedido(data as unknown as Compra);
+        return;
+      }
+
+      const mappedItems = data.items.map((i: any) => ({
+        ...i,
+        margenGanancia: i.margenGanancia || 50
+      }));
+      setEditingCompra({ ...data, items: mappedItems } as Compra);
+      setImpactarCostos(false);
+      setRegistrando(modo === "registrar");
+      setIsEditDialogOpen(true);
     } catch (err) {
-      console.error("Error al cargar pedido para editar:", err);
+      console.error(`Error al cargar pedido para ${modo}:`, err);
       alert("Error al cargar los datos del pedido");
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleEditarPedido = (compra: Compra) => cargarPedidoParaAccion(compra, "editar");
+  const handleConfirmarPedido = (compra: Compra) => cargarPedidoParaAccion(compra, "registrar");
+
+  // actualizarPedidoCompra espera fechaCompra/fechaIngreso como "YYYY-MM-DD".
+  // editingCompra guarda fechaCarga/fechaIngreso como ISO completo (o "" si el
+  // usuario limpió el input de fecha). null/undefined = no tocar ese campo;
+  // "" = limpiarlo explícitamente; cualquier otro string = normalizar a fecha corta.
+  const toDateOnly = (iso?: string | null): string | undefined => {
+    if (iso === null || iso === undefined) return undefined;
+    if (iso === "") return "";
+    return new Date(iso).toISOString().split('T')[0];
   };
 
   const confirmarEdicion = async () => {
@@ -211,7 +227,12 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
       setIsProcessing(true);
       const result = await actualizarPedidoCompra(
         editingCompra.id,
-        { ...editingCompra, impactarCostos },
+        {
+          ...editingCompra,
+          fechaCompra: toDateOnly(editingCompra.fechaCarga),
+          fechaIngreso: toDateOnly(editingCompra.fechaIngreso),
+          impactarCostos
+        },
         "Admin", // TODO: Get actual user
         "Pedido editado desde el ERP"
       );
@@ -231,26 +252,49 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
     }
   };
 
-  const confirmarPedido = async () => {
-    if (!compraSeleccionada) return;
+  // Guarda los cambios del pedido y lo registra como compra efectiva (suma
+  // stock, impacta costos si corresponde y genera el movimiento a Cuenta
+  // Corriente), reutilizando los mismos datos del diálogo de edición.
+  const handleRegistrarDesdeEdicion = async () => {
+    if (!editingCompra) return;
 
     try {
       setIsProcessing(true);
-      const result = await confirmarPedidoCompra(compraSeleccionada.id, {
-        impactarCostos: confirmImpactarCostos,
-        items: compraSeleccionada.items,
-        usuario: "Admin" // TODO: Get actual user
+      const resActualizar = await actualizarPedidoCompra(
+        editingCompra.id,
+        {
+          ...editingCompra,
+          fechaCompra: toDateOnly(editingCompra.fechaCarga),
+          fechaIngreso: toDateOnly(editingCompra.fechaIngreso),
+          impactarCostos: false
+        },
+        "Admin", // TODO: Get actual user
+        "Datos actualizados al registrar como compra efectiva"
+      );
+
+      if (!resActualizar.success) {
+        alert(resActualizar.error || "Error al actualizar el pedido");
+        return;
+      }
+
+      const resConfirmar = await confirmarPedidoCompra(editingCompra.id, {
+        impactarCostos,
+        items: editingCompra.items,
+        usuario: "Admin", // TODO: Get actual user
+        moneda: editingCompra.moneda
       });
-      if (result.success) {
-        setCompraSeleccionada(null);
-        setIsConfirmDialogOpen(false);
+
+      if (resConfirmar.success) {
+        setIsEditDialogOpen(false);
+        setEditingCompra(null);
+        setRegistrando(false);
         cargarPedidos();
       } else {
-        alert(result.error || "Error al confirmar el pedido");
+        alert(resConfirmar.error || "Los datos se guardaron pero no se pudo confirmar la recepción");
       }
     } catch (err) {
-      console.error("Error al confirmar pedido:", err);
-      alert("Error al confirmar el pedido. Intente nuevamente.");
+      console.error("Error al registrar pedido:", err);
+      alert("Error al registrar el pedido");
     } finally {
       setIsProcessing(false);
     }
@@ -641,7 +685,7 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
                               size="sm"
                               onClick={() => handleConfirmarPedido(compra)}
                               className="border-green-600 text-green-700 hover:bg-green-50"
-                              title="Confirmar Recepción"
+                              title="Registrar Compra"
                             >
                               <CheckCircle2 className="h-4 w-4" />
                             </Button>
@@ -708,112 +752,6 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
         </div>
       </div>
 
-      {/* Confirm Dialog */}
-      <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogContent className="sm:max-w-[550px] rounded-2xl max-h-[90vh] overflow-hidden flex flex-col p-0">
-          <div className="p-6 border-b bg-white flex-shrink-0">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-indigo-900">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                Confirmar Recepción de Compra
-              </DialogTitle>
-            </DialogHeader>
-          </div>
-
-          <div className="flex-grow overflow-y-auto p-6 space-y-4">
-            {compraSeleccionada && (
-              <>
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Proveedor</p>
-                    <p className="text-sm font-bold text-slate-700">{compraSeleccionada.proveedor || "Sin proveedor"}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Final</p>
-                    <p className="text-lg font-black text-slate-900">{formatPrice(compraSeleccionada.totalFinal)}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumen de Artículos</p>
-                  <div className="border rounded-xl overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-slate-50">
-                        <TableRow>
-                          <TableHead className="text-[10px] py-2">Artículo</TableHead>
-                          <TableHead className="text-center text-[10px] py-2">Cant.</TableHead>
-                          <TableHead className="text-right text-[10px] py-2">Subtotal</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {compraSeleccionada.items.map((item, idx) => (
-                          <TableRow key={idx} className="text-xs">
-                            <TableCell className="py-2">{item.nombre}</TableCell>
-                            <TableCell className="text-center py-2">x{item.cantidad}</TableCell>
-                            <TableCell className="text-right py-2">{formatPrice(item.subtotal)}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="confirmImpactarCostos"
-                      checked={confirmImpactarCostos}
-                      onChange={(e) => setConfirmImpactarCostos(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <Label htmlFor="confirmImpactarCostos" className="text-sm font-bold text-amber-900 cursor-pointer">
-                      Impactar costos y actualizar precios públicos
-                    </Label>
-                  </div>
-                  <p className="text-[10px] text-amber-700 leading-relaxed italic">
-                    * Si marcas esta opción, el costo de los productos se actualizará con los valores de este pedido y se recalcularán los precios de venta según los márgenes establecidos.
-                  </p>
-                </div>
-
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  ¿Desea confirmar que ha recibido este pedido? Esto marcará la compra como confirmada y actualizará el saldo con el proveedor si el pago es a Cuenta Corriente.
-                </p>
-              </>
-            )}
-          </div>
-
-          <div className="p-6 border-t bg-slate-50 flex-shrink-0">
-            <DialogFooter className="flex gap-2">
-              <Button
-                variant="ghost"
-                onClick={() => setIsConfirmDialogOpen(false)}
-                className="flex-1"
-              >
-                Cancelar
-              </Button>
-              <Button
-                onClick={confirmarPedido}
-                disabled={isProcessing}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Confirmando...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Confirmar Recepción
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Eliminate Dialog */}
       <Dialog open={isEliminarDialogOpen} onOpenChange={setIsEliminarDialogOpen}>
         <DialogContent className="sm:max-w-[450px] rounded-2xl border-red-200">
@@ -864,11 +802,15 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
           <div className="p-6 border-b bg-white flex-shrink-0 flex justify-between items-center">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-indigo-900 text-xl font-bold">
-                <Edit className="h-6 w-6 text-amber-500" />
-                Editando Pedido de Compra #{editingCompra?.numeroCompra || editingCompra?.id.slice(0, 8)}
+                {registrando ? (
+                  <CheckCircle className="h-6 w-6 text-emerald-500" />
+                ) : (
+                  <Edit className="h-6 w-6 text-amber-500" />
+                )}
+                {registrando ? "Registrar Compra del Pedido" : "Editando Pedido de Compra"} #{editingCompra?.numeroCompra || editingCompra?.id.slice(0, 8)}
               </DialogTitle>
             </DialogHeader>
-            <Button variant="ghost" size="icon" onClick={() => setIsEditDialogOpen(false)} className="rounded-full">
+            <Button variant="ghost" size="icon" onClick={() => { setIsEditDialogOpen(false); setRegistrando(false); }} className="rounded-full">
               <RefreshCcw className="h-4 w-4 rotate-45" />
             </Button>
           </div>
@@ -1154,23 +1096,38 @@ export function PedidosCompraClient({ initialData, dolarCotizacion = 1, factorFo
                     <div className="flex gap-3">
                       <Button
                         variant="ghost"
-                        onClick={() => setIsEditDialogOpen(false)}
+                        onClick={() => { setIsEditDialogOpen(false); setRegistrando(false); }}
                         className="h-12 px-8 rounded-xl font-medium text-slate-600"
                       >
                         Cancelar
                       </Button>
-                      <Button
-                        onClick={confirmarEdicion}
-                        disabled={isProcessing}
-                        className="h-12 px-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-600/20"
-                      >
-                        {isProcessing ? (
-                          <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                        ) : (
-                          <Save className="h-5 w-5 mr-2" />
-                        )}
-                        Guardar Cambios
-                      </Button>
+                      {registrando ? (
+                        <Button
+                          onClick={handleRegistrarDesdeEdicion}
+                          disabled={isProcessing}
+                          className="h-12 px-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-600/20"
+                        >
+                          {isProcessing ? (
+                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                          ) : (
+                            <CheckCircle className="h-5 w-5 mr-2" />
+                          )}
+                          Registrar Compra
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={confirmarEdicion}
+                          disabled={isProcessing}
+                          className="h-12 px-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-600/20"
+                        >
+                          {isProcessing ? (
+                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                          ) : (
+                            <Save className="h-5 w-5 mr-2" />
+                          )}
+                          Guardar Cambios
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>

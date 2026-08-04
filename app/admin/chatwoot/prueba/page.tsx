@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote, Users, Power, Trash2 } from "lucide-react"
+import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote, Users, Power, Trash2, Mic, Square } from "lucide-react"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -29,6 +29,14 @@ export default function PruebaMensajesPage() {
     const [enviandoPrueba, setEnviandoPrueba] = useState(false)
     const [timeline, setTimeline] = useState<TimelineItem[]>([])
     const [mockUrlCopiada, setMockUrlCopiada] = useState(false)
+
+    // ESTADOS PARA MANDAR AUDIO (grabado con el micro o subido como archivo), para
+    // probar la rama de transcripción del workflow sin depender de un cliente real.
+    const [grabando, setGrabando] = useState(false)
+    const [subiendoAudio, setSubiendoAudio] = useState(false)
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+    const audioChunksRef = useRef<Blob[]>([])
+    const audioInputRef = useRef<HTMLInputElement>(null)
 
     // ESTADOS PARA "RESPONDER COMO EQUIPO" (simular que un agente le contesta
     // la nota privada de escalado a la conversación)
@@ -156,6 +164,87 @@ export default function PruebaMensajesPage() {
             e.preventDefault()
             handleEnviarPrueba(e as unknown as React.FormEvent)
         }
+    }
+
+    // ENVIAR UN AUDIO DE PRUEBA (grabado o subido como archivo): lo sube a S3 y
+    // manda al webhook de n8n un mensaje con attachments[0].file_type = "audio",
+    // igual que llegaría un mensaje de voz real de WhatsApp.
+    const enviarAudio = async (blob: Blob) => {
+        if (subiendoAudio || enviandoPrueba) return
+        setSubiendoAudio(true)
+        const id = `cli-${Date.now()}`
+
+        try {
+            const extension = blob.type.includes("mp3") ? "mp3" : blob.type.includes("wav") ? "wav" : blob.type.includes("ogg") ? "ogg" : "webm"
+            const formData = new FormData()
+            formData.append("audio", blob, `audio.${extension}`)
+
+            const subida = await fetch("/api/chatwoot/prueba-audio-upload", { method: "POST", body: formData })
+            const subidaData = await subida.json().catch(() => ({}))
+            if (!subida.ok || !subidaData.audioUrl) {
+                throw new Error(subidaData?.error || "No se pudo subir el audio")
+            }
+
+            const respuesta = await fetch("/api/chatwoot/prueba-mensaje", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    conversationId,
+                    telefono: telefonoContacto,
+                    nombre: nombreContacto,
+                    audioUrl: subidaData.audioUrl,
+                }),
+            })
+            const data = await respuesta.json().catch(() => ({}))
+
+            setTimeline((prev) => [
+                ...prev,
+                { id, kind: "cliente", hora: horaActual(), mensaje: "🎤 Mensaje de voz", ok: respuesta.ok, detalle: !respuesta.ok ? data?.error : undefined },
+            ])
+        } catch (error) {
+            setTimeline((prev) => [
+                ...prev,
+                { id, kind: "cliente", hora: horaActual(), mensaje: "🎤 Mensaje de voz", ok: false, detalle: error instanceof Error ? error.message : "Error al enviar el audio" },
+            ])
+        } finally {
+            setSubiendoAudio(false)
+        }
+    }
+
+    // Graba con el micrófono del navegador (click para empezar, click de nuevo para
+    // terminar y mandar) — alternativa a subir un archivo cuando no tenés un audio
+    // ya grabado a mano.
+    const toggleGrabacion = async () => {
+        if (grabando) {
+            mediaRecorderRef.current?.stop()
+            return
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            audioChunksRef.current = []
+            const recorder = new MediaRecorder(stream)
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) audioChunksRef.current.push(e.data)
+            }
+            recorder.onstop = () => {
+                stream.getTracks().forEach((t) => t.stop())
+                const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" })
+                setGrabando(false)
+                enviarAudio(blob)
+            }
+            mediaRecorderRef.current = recorder
+            recorder.start()
+            setGrabando(true)
+        } catch {
+            alert("No se pudo acceder al micrófono. Revisá los permisos del navegador.")
+        }
+    }
+
+    // Manda como audio un archivo ya existente (ej. un audio de WhatsApp descargado a mano).
+    const handleArchivoAudioSeleccionado = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        e.target.value = ""
+        if (file) enviarAudio(file)
     }
 
     // NUEVA CONVERSACIÓN: limpia el chat de la UI y borra lo que el mock de
@@ -424,23 +513,48 @@ export default function PruebaMensajesPage() {
 
                 {/* Barra de composición */}
                 <form onSubmit={handleEnviarPrueba} className="flex items-end gap-2 bg-[#f0f0f0] px-3 py-2">
-                    <Paperclip size={20} className="mb-2.5 shrink-0 text-gray-400" />
+                    <input
+                        ref={audioInputRef}
+                        type="file"
+                        accept="audio/*"
+                        className="hidden"
+                        onChange={handleArchivoAudioSeleccionado}
+                    />
+                    <button
+                        type="button"
+                        title="Adjuntar un archivo de audio"
+                        onClick={() => audioInputRef.current?.click()}
+                        disabled={enviandoPrueba || grabando || subiendoAudio}
+                        className="mb-2.5 shrink-0 text-gray-400 hover:text-gray-600 disabled:opacity-40"
+                    >
+                        <Paperclip size={20} />
+                    </button>
                     <div className="flex flex-1 items-center gap-2 rounded-full bg-white px-3 py-2 shadow-sm">
                         <Smile size={20} className="shrink-0 text-gray-400" />
                         <textarea
                             value={mensajePrueba}
                             onChange={(e) => setMensajePrueba(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder="Escribí un mensaje"
+                            placeholder={grabando ? "Grabando audio…" : "Escribí un mensaje"}
                             rows={1}
-                            disabled={enviandoPrueba}
+                            disabled={enviandoPrueba || grabando}
                             className="max-h-24 flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-gray-400"
                         />
                     </div>
                     <Button
+                        type="button"
+                        size="icon"
+                        title={grabando ? "Detener grabación y enviar" : "Grabar un audio con el micrófono"}
+                        onClick={toggleGrabacion}
+                        disabled={enviandoPrueba || subiendoAudio}
+                        className={`mb-0 shrink-0 rounded-full text-white ${grabando ? "bg-red-500 hover:bg-red-600 animate-pulse" : "bg-slate-500 hover:bg-slate-600"}`}
+                    >
+                        {subiendoAudio ? <Loader2 size={18} className="animate-spin" /> : grabando ? <Square size={18} /> : <Mic size={18} />}
+                    </Button>
+                    <Button
                         type="submit"
                         size="icon"
-                        disabled={enviandoPrueba || !mensajePrueba || !telefonoContacto}
+                        disabled={enviandoPrueba || grabando || !mensajePrueba || !telefonoContacto}
                         className="mb-0 shrink-0 rounded-full bg-[#00a884] hover:bg-[#029672] text-white"
                     >
                         {enviandoPrueba ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

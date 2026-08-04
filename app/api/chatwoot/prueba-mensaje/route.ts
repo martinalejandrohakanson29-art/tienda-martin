@@ -7,22 +7,27 @@ const N8N_WEBHOOK_URL = "https://n8n.revolucionmotos.tech/webhook/chatwoot-mensa
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { conversationId, telefono, nombre, mensaje } = body;
+        const { conversationId, telefono, nombre, mensaje, audioUrl } = body;
 
-        if (!conversationId || !telefono || !mensaje) {
-            return NextResponse.json({ error: "Faltan datos (conversationId, telefono o mensaje)" }, { status: 400 });
+        if (!conversationId || !telefono || (!mensaje && !audioUrl)) {
+            return NextResponse.json({ error: "Faltan datos (conversationId, telefono, y mensaje o audioUrl)" }, { status: 400 });
         }
 
         const ahoraIso = new Date().toISOString();
         const ahoraUnix = Math.floor(Date.now() / 1000);
         const telefonoConMas = telefono.startsWith("+") ? telefono : `+${telefono}`;
+        // Si viene audioUrl simulamos un mensaje de voz (sin texto, con adjunto de
+        // audio) — así el workflow lo manda por la rama "Audio" del switch "Tipo de
+        // Mensaje" en vez de la rama "Texto".
+        const esAudio = Boolean(audioUrl);
+        const contenido = esAudio ? "" : mensaje;
 
         const payloadChatwoot = {
             account: { id: 1, name: "Revolucion" },
             additional_attributes: {},
             content_attributes: {},
-            content_type: "text",
-            content: mensaje,
+            content_type: esAudio ? "audio" : "text",
+            content: contenido,
             conversation: {
                 additional_attributes: {},
                 can_reply: true,
@@ -41,7 +46,7 @@ export async function POST(request: Request) {
                 messages: [
                     {
                         id: Date.now(),
-                        content: mensaje,
+                        content: contenido,
                         account_id: 1,
                         inbox_id: 1,
                         conversation_id: conversationId,
@@ -50,8 +55,9 @@ export async function POST(request: Request) {
                         updated_at: ahoraIso,
                         private: false,
                         status: "sent",
-                        content_type: "text",
+                        content_type: esAudio ? "audio" : "text",
                         content_attributes: {},
+                        ...(esAudio ? { attachments: [{ id: 1, file_type: "audio", data_url: audioUrl }] } : {}),
                         sender_type: "Contact",
                         sender_id: 1,
                         sender: {

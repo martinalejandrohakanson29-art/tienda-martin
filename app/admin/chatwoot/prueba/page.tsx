@@ -219,6 +219,10 @@ export default function PruebaMensajesPage() {
             mediaRecorderRef.current?.stop()
             return
         }
+        if (!navigator.mediaDevices?.getUserMedia) {
+            alert("Este navegador/WebView no tiene disponible el acceso al micrófono (getUserMedia no existe). Probá subir un archivo de audio con el clip en su lugar.")
+            return
+        }
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
             audioChunksRef.current = []
@@ -235,8 +239,10 @@ export default function PruebaMensajesPage() {
             mediaRecorderRef.current = recorder
             recorder.start()
             setGrabando(true)
-        } catch {
-            alert("No se pudo acceder al micrófono. Revisá los permisos del navegador.")
+        } catch (error) {
+            console.error("Error al acceder al micrófono:", error)
+            const detalle = error instanceof DOMException ? error.name : error instanceof Error ? error.message : String(error)
+            alert(`No se pudo acceder al micrófono (${detalle}). Revisá los permisos, o probá subir un archivo de audio con el clip en su lugar.`)
         }
     }
 

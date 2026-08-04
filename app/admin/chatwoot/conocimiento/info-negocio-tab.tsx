@@ -12,10 +12,10 @@ import { Save, Loader2, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
 import {
     guardarInfoNegocio,
     eliminarInfoNegocio,
-    TEMAS_NEGOCIO,
     type InfoNegocio,
     type InfoNegocioInput,
 } from "@/app/actions/info-negocio"
+import { TEMAS_NEGOCIO } from "@/lib/temas-negocio"
 
 const FORM_VACIO: InfoNegocioInput = { tema: "", respuesta: "" }
 

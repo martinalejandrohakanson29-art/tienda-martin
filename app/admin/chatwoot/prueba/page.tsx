@@ -3,17 +3,19 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip } from "lucide-react"
+import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote } from "lucide-react"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 
-type MensajeLog = {
-    id: number
-    hora: string
-    mensaje: string
-    ok: boolean
-    detalle?: string
-}
+type ItemCliente = { id: string; kind: "cliente"; hora: string; mensaje: string; ok: boolean; detalle?: string }
+type ItemBot = { id: string; kind: "bot"; hora: string; mensaje: string }
+type ItemNota = { id: string; kind: "nota"; hora: string; mensaje: string }
+type ItemLabel = { id: string; kind: "label"; hora: string; labels: string[] }
+type TimelineItem = ItemCliente | ItemBot | ItemNota | ItemLabel
+
+const ACCOUNT_ID = "1" // coincide con el "account.id" fijo que manda /api/chatwoot/prueba-mensaje
+
+const horaActual = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
 
 export default function PruebaMensajesPage() {
     // ESTADOS PARA "PRUEBA MENSAJES" (simular un mensaje entrante de WhatsApp hacia n8n)
@@ -23,16 +25,19 @@ export default function PruebaMensajesPage() {
     const [telefonoContacto, setTelefonoContacto] = useState("5493511234567")
     const [mensajePrueba, setMensajePrueba] = useState("")
     const [enviandoPrueba, setEnviandoPrueba] = useState(false)
-    const [logPrueba, setLogPrueba] = useState<MensajeLog[]>([])
+    const [timeline, setTimeline] = useState<TimelineItem[]>([])
+    const [mockUrlCopiada, setMockUrlCopiada] = useState(false)
 
     const chatRef = useRef<HTMLDivElement>(null)
-    const [settingsOpen, setSettingsOpen] = useState(false)
     const settingsRef = useRef<HTMLDivElement>(null)
+    const [settingsOpen, setSettingsOpen] = useState(false)
+    const ultimoEventoIdRef = useRef(0)
+    const mockBaseUrl = typeof window !== "undefined" ? `${window.location.origin}/api/chatwoot/mock` : "/api/chatwoot/mock"
 
-    // Cada vez que se agrega un mensaje, bajamos el scroll al final (como un chat real)
+    // Cada vez que se agrega un item, bajamos el scroll al final (como un chat real)
     useEffect(() => {
         chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: "smooth" })
-    }, [logPrueba])
+    }, [timeline])
 
     // Cerrar el popover de configuración al hacer click afuera
     useEffect(() => {
@@ -44,6 +49,49 @@ export default function PruebaMensajesPage() {
         document.addEventListener("mousedown", handleClickOutside)
         return () => document.removeEventListener("mousedown", handleClickOutside)
     }, [])
+
+    // POLLING: cada 2s consultamos qué fue posteando el workflow (respuesta al
+    // cliente, nota privada de escalado, labels) para esta conversación, tal
+    // como hacía la respuesta real de Chatwoot en el entorno local de pruebas.
+    useEffect(() => {
+        ultimoEventoIdRef.current = 0
+        let cancelado = false
+
+        const poll = async () => {
+            try {
+                const res = await fetch(
+                    `/api/chatwoot/mock/accounts/${ACCOUNT_ID}/conversations/${conversationId}/events?after=${ultimoEventoIdRef.current}`
+                )
+                if (!res.ok || cancelado) return
+                const data = await res.json()
+                const eventos: Array<{ id: number; kind: string; content?: string; private?: boolean; labels?: string[] }> = data.events || []
+                if (eventos.length === 0) return
+
+                setTimeline((prev) => {
+                    const nuevos: TimelineItem[] = eventos.map((e) => {
+                        if (e.kind === "label") {
+                            return { id: `evt-${e.id}`, kind: "label", hora: horaActual(), labels: e.labels || [] }
+                        }
+                        if (e.private) {
+                            return { id: `evt-${e.id}`, kind: "nota", hora: horaActual(), mensaje: e.content || "" }
+                        }
+                        return { id: `evt-${e.id}`, kind: "bot", hora: horaActual(), mensaje: e.content || "" }
+                    })
+                    return [...prev, ...nuevos]
+                })
+                ultimoEventoIdRef.current = Math.max(ultimoEventoIdRef.current, ...eventos.map((e) => e.id))
+            } catch {
+                // errores de red en el polling no rompen la UI, se reintenta en el próximo tick
+            }
+        }
+
+        poll()
+        const interval = setInterval(poll, 2000)
+        return () => {
+            cancelado = true
+            clearInterval(interval)
+        }
+    }, [conversationId])
 
     const iniciales = (nombreContacto || "?")
         .split(" ")
@@ -59,7 +107,7 @@ export default function PruebaMensajesPage() {
 
         setEnviandoPrueba(true)
         const mensajeEnviado = mensajePrueba
-        const id = Date.now()
+        const id = `cli-${Date.now()}`
         setMensajePrueba("")
 
         try {
@@ -76,14 +124,14 @@ export default function PruebaMensajesPage() {
 
             const data = await respuesta.json().catch(() => ({}))
 
-            setLogPrueba((prev) => [
+            setTimeline((prev) => [
                 ...prev,
-                { id, hora: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), mensaje: mensajeEnviado, ok: respuesta.ok, detalle: !respuesta.ok ? data?.error : undefined },
+                { id, kind: "cliente", hora: horaActual(), mensaje: mensajeEnviado, ok: respuesta.ok, detalle: !respuesta.ok ? data?.error : undefined },
             ])
         } catch (error) {
-            setLogPrueba((prev) => [
+            setTimeline((prev) => [
                 ...prev,
-                { id, hora: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }), mensaje: mensajeEnviado, ok: false, detalle: "Error de conexión con el servidor" },
+                { id, kind: "cliente", hora: horaActual(), mensaje: mensajeEnviado, ok: false, detalle: "Error de conexión con el servidor" },
             ])
         } finally {
             setEnviandoPrueba(false)
@@ -97,6 +145,25 @@ export default function PruebaMensajesPage() {
         }
     }
 
+    // NUEVA CONVERSACIÓN: limpia el chat de la UI y borra lo que el mock de
+    // Chatwoot tenía guardado para la conversación anterior.
+    const handleNuevaConversacion = () => {
+        const idAnterior = conversationId
+        const nuevoId = generarConversationId()
+        setConversationId(nuevoId)
+        setTimeline([])
+        fetch(`/api/chatwoot/mock/accounts/${ACCOUNT_ID}/conversations/${idAnterior}/events`, { method: "DELETE" }).catch(() => {})
+    }
+
+    const copiarMockUrl = () => {
+        navigator.clipboard.writeText(mockBaseUrl).then(() => {
+            setMockUrlCopiada(true)
+            setTimeout(() => setMockUrlCopiada(false), 2000)
+        })
+    }
+
+    const ultimoEsDelCliente = timeline.length > 0 && timeline[timeline.length - 1].kind === "cliente" && (timeline[timeline.length - 1] as ItemCliente).ok
+
     return (
         <div className="space-y-6 pb-12">
             <div>
@@ -106,8 +173,24 @@ export default function PruebaMensajesPage() {
                 </h1>
                 <p className="text-gray-500">
                     Simulá un mensaje entrante de WhatsApp y envialo al workflow real de n8n, tal como lo haría Chatwoot.
-                    Si el ID de conversación corresponde a una conversación real, la respuesta del asistente se publicará ahí.
+                    Esta página también actúa como un Chatwoot de mentira: recibe acá mismo la respuesta del bot, las notas
+                    privadas de escalado y las labels, para poder probar el workflow completo sin depender de Chatwoot real.
                 </p>
+            </div>
+
+            {/* ---------------- URL DE CHATWOOT (MOCK) PARA CONFIGURAR EN n8n ---------------- */}
+            <div className="mx-auto w-full max-w-xl rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm">
+                <p className="font-semibold text-violet-900">Configuración necesaria en n8n (mientras probamos)</p>
+                <p className="mt-1 text-violet-800">
+                    En los nodos HTTP del workflow que hoy dicen <code className="rounded bg-white px-1 py-0.5">TU_INSTANCIA_CHATWOOT.com</code>,
+                    reemplazá el dominio por esta URL base (el <code className="rounded bg-white px-1 py-0.5">api_access_token</code> puede ser cualquier texto, no se valida):
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                    <code className="flex-1 truncate rounded bg-white px-2 py-1.5 text-xs text-violet-900 border border-violet-200">{mockBaseUrl}</code>
+                    <Button type="button" size="icon" variant="outline" onClick={copiarMockUrl} title="Copiar URL">
+                        {mockUrlCopiada ? <CheckCheck size={16} className="text-green-600" /> : <Copy size={16} />}
+                    </Button>
+                </div>
             </div>
 
             {/* ---------------- MOCKUP ESTILO WHATSAPP ---------------- */}
@@ -154,7 +237,7 @@ export default function PruebaMensajesPage() {
                                                 onChange={(e) => setConversationId(Number(e.target.value))}
                                                 disabled={enviandoPrueba}
                                             />
-                                            <Button type="button" variant="outline" size="icon" title="Generar nueva conversación" onClick={() => setConversationId(generarConversationId())} disabled={enviandoPrueba}>
+                                            <Button type="button" variant="outline" size="icon" title="Nueva conversación" onClick={handleNuevaConversacion} disabled={enviandoPrueba}>
                                                 <RefreshCw size={16} />
                                             </Button>
                                         </div>
@@ -162,7 +245,7 @@ export default function PruebaMensajesPage() {
                                 </PopoverContent>
                             )}
                         </Popover>
-                        <Button type="button" variant="ghost" size="icon" title="Nueva conversación de prueba" className="text-white hover:bg-white/15 hover:text-white" onClick={() => { setConversationId(generarConversationId()); setLogPrueba([]) }} disabled={enviandoPrueba}>
+                        <Button type="button" variant="ghost" size="icon" title="Nueva conversación de prueba" className="text-white hover:bg-white/15 hover:text-white" onClick={handleNuevaConversacion} disabled={enviandoPrueba}>
                             <RefreshCw size={18} />
                         </Button>
                     </div>
@@ -170,11 +253,11 @@ export default function PruebaMensajesPage() {
 
                 {/* Cuerpo del chat */}
                 <div ref={chatRef} className="h-[440px] overflow-y-auto bg-[#e5ddd5] px-4 py-4 space-y-1.5">
-                    {logPrueba.length === 0 ? (
+                    {timeline.length === 0 ? (
                         <div className="flex h-full items-center justify-center px-8">
                             <p className="rounded-lg bg-white/80 px-4 py-3 text-center text-sm text-gray-500 shadow-sm">
                                 Los mensajes que envíes acá simulan lo que el cliente escribe por WhatsApp.
-                                Escribí uno abajo y tocá enviar.
+                                Escribí uno abajo y tocá enviar; la respuesta del bot va a aparecer sola.
                             </p>
                         </div>
                     ) : (
@@ -182,22 +265,64 @@ export default function PruebaMensajesPage() {
                             <div className="flex justify-center pb-2">
                                 <span className="rounded-md bg-white/70 px-3 py-1 text-xs text-gray-500 shadow-sm">Hoy</span>
                             </div>
-                            {logPrueba.map((item) => (
-                                <div key={item.id} className="flex justify-end">
-                                    <div className={`max-w-[75%] rounded-lg rounded-tr-sm px-3 py-2 shadow-sm ${item.ok ? "bg-[#dcf8c6]" : "bg-red-50 border border-red-200"}`}>
-                                        <p className="whitespace-pre-wrap break-words text-sm text-gray-800">{item.mensaje}</p>
-                                        <div className="mt-1 flex items-center justify-end gap-1">
-                                            {!item.ok && <span className="text-[11px] text-red-600 mr-1">{item.detalle || "No se pudo enviar"}</span>}
-                                            <span className="text-[11px] text-gray-500">{item.hora}</span>
-                                            {item.ok ? (
-                                                <Check size={14} className="text-sky-500" />
-                                            ) : (
-                                                <AlertCircle size={13} className="text-red-500" />
-                                            )}
+                            {timeline.map((item) => {
+                                if (item.kind === "cliente") {
+                                    return (
+                                        <div key={item.id} className="flex justify-end">
+                                            <div className={`max-w-[75%] rounded-lg rounded-tr-sm px-3 py-2 shadow-sm ${item.ok ? "bg-[#dcf8c6]" : "bg-red-50 border border-red-200"}`}>
+                                                <p className="whitespace-pre-wrap break-words text-sm text-gray-800">{item.mensaje}</p>
+                                                <div className="mt-1 flex items-center justify-end gap-1">
+                                                    {!item.ok && <span className="text-[11px] text-red-600 mr-1">{item.detalle || "No se pudo enviar"}</span>}
+                                                    <span className="text-[11px] text-gray-500">{item.hora}</span>
+                                                    {item.ok ? (
+                                                        <Check size={14} className="text-sky-500" />
+                                                    ) : (
+                                                        <AlertCircle size={13} className="text-red-500" />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                }
+                                if (item.kind === "bot") {
+                                    return (
+                                        <div key={item.id} className="flex justify-start">
+                                            <div className="max-w-[75%] rounded-lg rounded-tl-sm bg-white px-3 py-2 shadow-sm">
+                                                <p className="whitespace-pre-wrap break-words text-sm text-gray-800">{item.mensaje}</p>
+                                                <div className="mt-1 flex items-center justify-end">
+                                                    <span className="text-[11px] text-gray-500">{item.hora}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                }
+                                if (item.kind === "nota") {
+                                    return (
+                                        <div key={item.id} className="flex justify-center">
+                                            <div className="flex max-w-[85%] items-start gap-1.5 rounded-md bg-amber-100 border border-amber-200 px-3 py-1.5 text-xs text-amber-800 shadow-sm">
+                                                <StickyNote size={13} className="mt-0.5 shrink-0" />
+                                                <span><span className="font-semibold">Nota interna (no la ve el cliente):</span> {item.mensaje}</span>
+                                            </div>
+                                        </div>
+                                    )
+                                }
+                                // label
+                                return (
+                                    <div key={item.id} className="flex justify-center">
+                                        <div className="flex items-center gap-1.5 rounded-md bg-slate-200 px-3 py-1 text-xs text-slate-700 shadow-sm">
+                                            <Tag size={12} className="shrink-0" />
+                                            <span>{item.labels.join(", ") || "(sin labels)"}</span>
                                         </div>
                                     </div>
+                                )
+                            })}
+                            {ultimoEsDelCliente && (
+                                <div className="flex justify-start">
+                                    <div className="rounded-lg rounded-tl-sm bg-white px-3 py-2 shadow-sm">
+                                        <Loader2 size={14} className="animate-spin text-gray-400" />
+                                    </div>
                                 </div>
-                            ))}
+                            )}
                         </>
                     )}
                 </div>

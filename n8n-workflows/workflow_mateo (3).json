@@ -1,0 +1,6262 @@
+{
+  "name": "workflow_mateo",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatwoot-mensaje",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -6512,
+        16384
+      ],
+      "id": "b6cb94de-b95d-4b4a-b680-e1dfb6cbafa8",
+      "name": "Webhook1",
+      "webhookId": "d3181880-243d-4a5f-8f54-04382cf104c5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "959931e2-8147-4ab6-ad53-04cddd0c6b78",
+              "leftValue": "={{ $json.body.event }}",
+              "rightValue": "message_created",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -6288,
+        16384
+      ],
+      "id": "a77a6f1f-b9f8-4c72-8160-445412a440d5",
+      "name": "Solo mensajes creados1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8380608d-139b-4244-970b-1f84c3980c11",
+              "leftValue": "={{ $json.body.conversation.messages[0].sender_type }}",
+              "rightValue": "Contact",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -6064,
+        16384
+      ],
+      "id": "c6545cb3-ac60-4f07-98a1-42a10ee18307",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "531b8118-2092-4c8a-a013-d840b9da1d6b",
+              "leftValue": "={{ $json.body.message_type }}",
+              "rightValue": "=incoming",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -5840,
+        16384
+      ],
+      "id": "dfbcb648-7b9d-49c7-8271-505bdeccc97a",
+      "name": "incoming?1"
+    },
+    {
+      "parameters": {
+        "content": "## FIX: contenido no soportado\nAntes, si un cliente mandaba una foto, sticker o ubicacion, el mensaje se perdia en silencio (no habia rama para eso).\n\nAhora el switch 'Tipo de Mensaje' manda todo lo que no es texto ni audio a la rama 'Otro', que etiqueta la conversacion y avisa a un humano.",
+        "height": 260,
+        "width": 320,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -5840,
+        16656
+      ],
+      "id": "c84cbc7c-9381-4075-a07f-f5e22ba7e75d",
+      "name": "Nota - Fix Contenido"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.conversation.messages[0].attachments[0].file_type }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "da1e5077-cd3b-47c6-a0e1-f27a7a9d844b"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Audio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.conversation.messages[0].content }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty",
+                      "singleValue": true
+                    },
+                    "id": "86cfed33-4718-4b8e-b4ca-9186907a038f"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Texto"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Otro"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -5616,
+        16384
+      ],
+      "id": "88ed2109-1a3f-4198-bf91-fa7a25d4628d",
+      "name": "Tipo de Mensaje"
+    },
+    {
+      "parameters": {
+        "url": "={{\n  (() => {\n    const url = $('Webhook1').item.json.body.conversation.messages[0].attachments[0].data_url;\n    if (url.includes('easypanel.host')) {\n      return url.replace(\n        /^https?:\\/\\/[^/]+/,\n        'https://TU_INSTANCIA_CHATWOOT.com'\n      );\n    }\n    if (url.startsWith('http')) {\n      return url;\n    }\n    return 'https://TU_INSTANCIA_CHATWOOT.com' + url;\n  })()\n}}\n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -4944,
+        16288
+      ],
+      "id": "50af5067-80a9-46d3-b27c-a6cd65c35d93",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        -4720,
+        16288
+      ],
+      "id": "4b948436-8eca-4b33-94e7-343f6af2e856",
+      "name": "Transcribe a recording1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "335c193a-5a67-4521-a6cc-ee6ed5da2fbe",
+              "name": "data_url",
+              "value": "={{ $('Webhook1').item.json.body.attachments[0].data_url }}",
+              "type": "string"
+            },
+            {
+              "id": "2f6acad2-3af6-431b-bd14-ce3d27610416",
+              "name": "texto",
+              "value": "={{ $('Transcribe a recording1').item.json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "1d760c29-0e79-4df3-a86c-af8a2273cae4",
+              "name": "conversation_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "28ee1901-ada6-48b4-b028-c4ee7f475263",
+              "name": "contact_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.contact_inbox.contact_id }}",
+              "type": "string"
+            },
+            {
+              "id": "f85e66a4-7bf7-4429-90a5-dd9cc770e511",
+              "name": "telefono_usuario",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+              "type": "string"
+            },
+            {
+              "id": "24526d7a-c8a3-4e0e-b303-baf7051f76e8",
+              "name": "account_id",
+              "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
+              "type": "number"
+            },
+            {
+              "id": "8ad7f707-c822-4124-874c-f692aa14929d",
+              "name": "url_chatwoot",
+              "value": "https://revolucionmotos.tech/api/chatwoot/mock/",
+              "type": "string"
+            },
+            {
+              "id": "3d29669a-5b8c-45c4-893f-2c956091f48a",
+              "name": "api_key_chatwoot",
+              "value": "mock-token-prueba",
+              "type": "string"
+            },
+            {
+              "id": "4a923291-40bf-4288-add4-ff1eae5fff28",
+              "name": "date_time",
+              "value": "={{ $('Webhook1').item.json.body.conversation.timestamp.toDateTime('s').toLocal().setZone('America/Argentina/Buenos_Aires') }}",
+              "type": "string"
+            },
+            {
+              "id": "a2e619d4-cb6d-49ed-8364-99446bbef49f",
+              "name": "session_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "ignoreConversionErrors": true
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4496,
+        16288
+      ],
+      "id": "54da7553-a0dc-4961-82da-071c2a6aaa5d",
+      "name": "datos_audio1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "48eafaa7-3566-4311-85a3-1a8d553c9a45",
+              "name": "data_url",
+              "value": "={{ $('Webhook1').item.json.webhookUrl }}",
+              "type": "string"
+            },
+            {
+              "id": "9f3d09f1-7275-4625-bdf0-dbdeea6d5f0d",
+              "name": "texto",
+              "value": "={{ $('Webhook1').item.json.body.content }}",
+              "type": "string"
+            },
+            {
+              "id": "d3455b92-b73f-41c5-8a10-0e8a82a4f758",
+              "name": "conversation_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "a6f3f1eb-e8df-4915-bc7f-d137cc255a0b",
+              "name": "contact_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.contact_inbox.contact_id }}",
+              "type": "string"
+            },
+            {
+              "id": "bf2f264d-1cfa-45bd-8877-930b18f0758e",
+              "name": "telefono_usuario",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+              "type": "string"
+            },
+            {
+              "id": "3955c79a-0ac9-4466-b3af-ea56635f545a",
+              "name": "account_id",
+              "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
+              "type": "number"
+            },
+            {
+              "id": "45f17950-4221-42e1-b991-497f2f915f92",
+              "name": "url_chatwoot",
+              "value": "https://revolucionmotos.tech/api/chatwoot/mock/",
+              "type": "string"
+            },
+            {
+              "id": "96f28692-0e24-4409-8250-f5bb4be688a5",
+              "name": "api_key_chatwoot",
+              "value": "mock-token-prueba",
+              "type": "string"
+            },
+            {
+              "id": "9c74c1ac-9f47-4dc8-be3b-f94451491ea8",
+              "name": "date_time",
+              "value": "={{ $('Webhook1').item.json.body.conversation.timestamp.toDateTime('s').toLocal().setZone('America/Argentina/Buenos_Aires') }}",
+              "type": "string"
+            },
+            {
+              "id": "8712a294-d9bd-4efd-a007-ed73efce695a",
+              "name": "session_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4496,
+        16480
+      ],
+      "id": "eb935296-bcf5-4b48-88ad-f97dd3e17699",
+      "name": "datos_txt1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "19c528c8-5a17-4e74-8053-48c5a54c31d0",
+              "name": "texto",
+              "value": "={{ $json.texto }}",
+              "type": "string"
+            },
+            {
+              "id": "6e186c31-004c-4b3f-9e42-561900556c56",
+              "name": "session_id",
+              "value": "={{ $json.session_id }}",
+              "type": "string"
+            },
+            {
+              "id": "5891c852-10b8-46da-854a-8a21f2ba84e4",
+              "name": "date_time",
+              "value": "={{ $json.date_time }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4272,
+        16384
+      ],
+      "id": "bc148d29-a12e-47cc-9e50-48ea5e93730f",
+      "name": "datos_redis1"
+    },
+    {
+      "parameters": {
+        "operation": "push",
+        "list": "={{ $json.session_id }}",
+        "messageData": "={{ JSON.stringify(\n{\n\"message\": $json.texto,\n\"session_id\": $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number,\n\"date_time\": $json.date_time\n}\n) }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -4048,
+        16384
+      ],
+      "id": "6ba791ec-d7f0-454a-a18b-7a503dba1dcf",
+      "name": "buffer1"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "message",
+        "key": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -3824,
+        16384
+      ],
+      "id": "d387abe0-d5ab-4d5c-aaac-3ba4f077e618",
+      "name": "get_buffer_data1"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message[0].parseJson().session_id }}",
+                    "rightValue": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEquals"
+                    },
+                    "id": "4f70a3df-0411-49d5-bb28-9e4fbadf754d"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Ignorar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "f70b1bdf-b61a-40bb-b24f-3455456d1a81",
+                    "leftValue": "={{ DateTime.fromISO(JSON.parse($json.message[$json.message.length - 1]).date_time) }}",
+                    "rightValue": "={{ $now.setZone('America/Argentina/Buenos_Aires').minus({ seconds: 15 }) }}",
+                    "operator": {
+                      "type": "dateTime",
+                      "operation": "before"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Continuar"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Esperar"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -3600,
+        16272
+      ],
+      "id": "02e80443-10b2-4371-ad15-39d8368f1611",
+      "name": "Matcheo de núm Tel1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -3376,
+        16096
+      ],
+      "id": "cff1b5c5-6d86-46dc-ac9d-e7d4b191b09f",
+      "name": "No Operation, do nothing4"
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -3376,
+        16480
+      ],
+      "id": "bd68a6a3-c320-4439-9ccc-b473ac79a248",
+      "name": "Wait3",
+      "webhookId": "a1db237a-cdf5-407e-a769-1040394cc101"
+    },
+    {
+      "parameters": {
+        "content": "## FIX: condicion de carrera\nSi el cliente manda varios mensajes seguidos, se disparan varias ejecuciones en paralelo. Todas miran el mismo buffer y, cuando queda 'quieto' 15s, TODAS pueden pasar a 'Continuar' al mismo tiempo -> respuesta duplicada.\n\nEste candado (INCR atomico en Redis) asegura que solo UNA ejecucion procese y responda. Las demas se detienen en 'Duplicado'.\n\nVerificar el nombre exacto del campo de salida del nodo Redis (incr) la primera vez que se corre, y ajustar el IF si hace falta (puede llamarse distinto segun version de n8n).",
+        "height": 320,
+        "width": 340,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -3296,
+        16640
+      ],
+      "id": "f067ceee-fdb5-4bf6-a4da-e86c664e5b5e",
+      "name": "Nota - Fix Lock"
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "=lock:{{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -3296,
+        16272
+      ],
+      "id": "2f18cab0-c60b-4666-a258-97fd678a08c9",
+      "name": "Intentar Tomar Lock"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d6f37760-9dac-4789-a376-8ca9ac0e3e4a",
+              "leftValue": "={{ Object.values($json)[0] }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3120,
+        16272
+      ],
+      "id": "5ac9cbe2-c0cc-497e-8adf-286d7effc3e0",
+      "name": "¿Gané el lock?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -2960,
+        16368
+      ],
+      "id": "da44163b-29df-4e44-a260-979a40cc8396",
+      "name": "Duplicado - ya procesado"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "={{ $('buffer1').item.json.session_id }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -2816,
+        16192
+      ],
+      "id": "d88b7e6c-ed2b-4960-9922-48faa42bb3dd",
+      "name": "delete_buffer1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $('get_buffer_data1').item.json.message || [];\n\nconst orderedText = raw\n  .slice()\n  .reverse()\n  .map(s => {\n    try {\n      const obj = typeof s === 'string' ? JSON.parse(s) : s;\n      return obj?.message || '';\n    } catch (e) {\n      return String(s);\n    }\n  })\n  .join('\\n');\n\nreturn [\n  {\n    ...$json,\n    ordered_text: orderedText,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2672,
+        16192
+      ],
+      "id": "bf331394-e169-4487-9c26-bc3aa7e48cb9",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d23f1b29-e922-4eca-b15a-995e597e58fe",
+              "name": "key",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+              "type": "string"
+            },
+            {
+              "id": "24d744bb-6698-45b8-a379-330418d546b3",
+              "name": "texto",
+              "value": "={{ $json.ordered_text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2512,
+        16192
+      ],
+      "id": "d4ffb7f2-9273-4f87-85ff-613737b4fa36",
+      "name": "datos_finales2"
+    },
+    {
+      "parameters": {
+        "content": "## NUEVO: Clasificador de intencion (Portero)\nAntes, todos los mensajes iban directo a un unico agente generico, sin distinguir tipo de consulta.\n\nAhora un primer paso clasifica el mensaje. Si es MAYORISTA o LISTO_COMPRAR, se deriva directo a un humano (no tiene sentido que la IA intente cerrar esa venta). El resto sigue al agente.\n\nEsto es la base para, mas adelante, separar tambien TECNICA y PRECIO_COMBO_STOCK en sub-flujos con su propia fuente de datos (catalogo estructurado / RAG por categoria) en vez de un unico agente para todo.",
+        "height": 300,
+        "width": 340,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2512,
+        16640
+      ],
+      "id": "d0d620bf-2528-4359-a031-c1e9014849a1",
+      "name": "Nota - Clasificador"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('datos_finales2').item.json.texto }}",
+        "options": {
+          "systemMessage": "Sos un clasificador de intencion para mensajes de WhatsApp de un negocio de repuestos de motos (Revolucion Motos). Leé el mensaje del cliente (puede venir con varias lineas si mando varios mensajes seguidos) y clasificalo usando estas categorias:\n\nTECNICA - pregunta por una pieza especifica, compatibilidad con un modelo de moto, o especificacion tecnica (ej: leva, cilindro, kit de arrastre para tal modelo).\nPRECIO_COMBO_STOCK - pregunta por precio, que incluye un combo, o si hay stock de algo puntual.\nMAYORISTA - quiere comprar por mayor, revender, o pregunta condiciones de mayorista.\nINFO_NEGOCIO - pregunta sobre el negocio en si (no sobre un repuesto puntual): ubicacion o direccion del local, horarios de atencion, medios de pago, formas de envio, garantias, redes sociales, etc.\nLISTO_COMPRAR - ya decidio comprar y quiere coordinar el pago o el envio.\nHOSTIL - insulta, agrede, amenaza (ej. con mala resena), o tiene un reclamo furioso/agresivo con tono claramente agresivo.\nRECLAMO - un reclamo o queja real (demora, algo que fallo, mal servicio) pero SIN insultos ni tono agresivo. Si hay insultos, amenazas o tono claramente agresivo, es HOSTIL, no RECLAMO.\nOTRO - saludo, mensaje ambiguo, spam, o cualquier cosa que no encaje arriba.\n\nReglas para responder:\n1. Si el mensaje encaja en MAYORISTA, LISTO_COMPRAR, HOSTIL o RECLAMO, respondé UNICAMENTE esa palabra sola (nunca se combinan entre si ni con otras categorias).\n2. Si el mensaje mezcla varias preguntas de TECNICA, PRECIO_COMBO_STOCK y/o INFO_NEGOCIO (ej: pregunta por un repuesto Y por el precio Y por la ubicacion en el mismo mensaje), respondé con TODAS las que apliquen, separadas por coma y sin espacios, en cualquier orden (ej: TECNICA,PRECIO_COMBO_STOCK).\n3. Si no aplica ninguna de TECNICA, PRECIO_COMBO_STOCK o INFO_NEGOCIO, y tampoco es de las exclusivas del punto 1, respondé OTRO.\n\nRespondé UNICAMENTE con la(s) palabra(s), sin explicacion, sin puntuacion, sin comillas."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -2368,
+        16560
+      ],
+      "id": "a264700a-708b-4d11-8aa9-f07cffd2d935",
+      "name": "Clasificador Intento"
+    },
+    {
+      "parameters": {
+        "model": "deepseek-v4-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        -2704,
+        16512
+      ],
+      "id": "e5cca7de-e2a8-497f-978c-02a0325079bb",
+      "name": "DeepSeek Chat Model1",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "6uiYD2nzluzyDXnZ",
+          "name": "DeepSeek account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const PRIORITARIAS = ['MAYORISTA', 'LISTO_COMPRAR', 'HOSTIL', 'RECLAMO'];\nconst ORDEN_INFORMATIVAS = ['TECNICA', 'PRECIO_COMBO_STOCK', 'INFO_NEGOCIO'];\n\nconst raw = ($json.output || '').toString().trim().toUpperCase();\nconst partes = [...new Set(raw.split(',').map(s => s.trim()).filter(Boolean))];\n\nconst prioritariaEncontrada = PRIORITARIAS.find(p => partes.includes(p));\n\nlet categorias;\nif (prioritariaEncontrada) {\n  categorias = [prioritariaEncontrada];\n} else {\n  const informativasEncontradas = ORDEN_INFORMATIVAS.filter(c => partes.includes(c));\n  categorias = informativasEncontradas.length ? informativasEncontradas : ['OTRO'];\n}\n\nreturn [{\n  json: {\n    categoria: categorias[0],\n    categorias,\n    key: $('datos_finales2').item.json.key,\n    texto: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.sender.account.id\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2144,
+        16560
+      ],
+      "id": "b4617080-a20b-4860-ad57-30925123131d",
+      "name": "Normalizar Categoria"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "236325dc-353f-4809-8eab-aa0778063002",
+                    "leftValue": "={{ ['MAYORISTA','LISTO_COMPRAR','HOSTIL','RECLAMO'].includes($json.categoria) }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Escalar"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "bc70c580-43aa-4eb2-a7f8-7c9a19a355b0",
+                    "leftValue": "={{ $json.categorias.length > 1 }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "MultiIntencion"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "8d430863-48c8-4fc2-b4ff-54686fc735c2",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "TECNICA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Tecnica"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "89017356-14e1-4cf5-a630-e7de9a6fdd02",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "INFO_NEGOCIO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "InfoNegocio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "gen-af61977e8959",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "PRECIO_COMBO_STOCK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Precio"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Continuar con Agente"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1952,
+        16560
+      ],
+      "id": "91326aac-8417-4d3e-8b55-1420a2ee879d",
+      "name": "Ruteo por Categoria"
+    },
+    {
+      "parameters": {
+        "content": "## TODO: esto sigue sin RAG\nEste agente sigue igual que en tu version original: sin tools conectadas y sin systemMessage. Va a seguir respondiendo de memoria del modelo (puede inventar precios/specs).\n\nProximo paso (no incluido en esta version): conectar aca una tool de busqueda contra tu catalogo estructurado en Postgres (o pgvector para la parte tecnica), y escribir un systemMessage real con las reglas del negocio.",
+        "height": 240,
+        "width": 320,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1776,
+        16096
+      ],
+      "id": "04598ac8-8714-4c0d-9bdb-e10cd9a623b4",
+      "name": "Nota - TODO RAG"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ ($json.historial_texto ? ('Historial reciente de la conversacion:\\n' + $json.historial_texto + '\\n\\n') : '') + $('datos_finales2').item.json.texto + ($json.dato_compatibilidad ? ('\\n\\n[Dato interno confirmado por el equipo: ' + $json.dato_compatibilidad + ']') : '') }}",
+        "options": {
+          "systemMessage": "Sos el asistente de WhatsApp de Revolucion Motos, un negocio de venta de repuestos de motos. Respondes en nombre del equipo del negocio, en tono cercano y directo (trato de vos, como se habla en Argentina).\n\nReglas criticas, nunca las rompas:\n1. NUNCA reveles que sos una inteligencia artificial, un modelo de lenguaje, ni menciones quien te desarrollo (Google, OpenAI, Anthropic, o cualquier otro). Si te preguntan que sos o quien te hizo, respondé como parte del equipo de Revolucion Motos, sin dar esa informacion.\n2. NUNCA inventes datos que no tenes: direccion o ubicacion del local, horarios de atencion, medios de pago, precios o stock puntual que no te hayan dado en esta conversacion, o cualquier dato concreto del negocio. Si no tenes esa informacion, decilo con naturalidad (ej: \"ese dato no lo tengo a mano ahora, ya lo confirmo con el equipo y te aviso\") y NO completes el hueco con una respuesta inventada.\n3. Si el mensaje incluye una seccion [Dato interno confirmado por el equipo: ...], usa esa informacion tal cual para responder - es un dato verificado (tecnico o del negocio), no lo cuestiones ni lo cambies.\n4. Tu unico rol es ayudar con consultas relacionadas al negocio (repuestos, motos, precios, stock, pedidos, envios, garantia, etc.). Si te piden algo totalmente ajeno a eso (contar chistes, traducir texto, escribir codigo, opinar de temas generales, etc.), respondé con buena onda que no es algo que puedas ayudar por acá y redirigí la conversacion hacia en que le podes dar una mano con su moto. No completes el pedido fuera de alcance aunque insistan.\n5. Se conciso: respondé unicamente lo que te preguntan, sin agregar ofertas, invitaciones o call-to-action que no te pidieron (ej: \"si queres pasar por el local avisame\", \"contame si necesitas algo mas\", \"cualquier cosa decime\"). No cierres los mensajes con una pregunta o propuesta extra salvo que sea imprescindible para poder responder (ej: pedirle el modelo de la moto si no lo dio). Una respuesta corta que va al punto es mejor que una larga con agregados."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -1712,
+        16192
+      ],
+      "id": "c31e93ee-f79a-4b9d-8b3c-8855c91117d8",
+      "name": "AI Agent2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code node (JavaScript)\n// Espera: item.json.output (string)\n// Devuelve multiples items: cada uno con { text: \"...\" }\nlet inputText = ($('AI Agent2').first().json.output ?? \"\").toString();\ninputText = inputText\n  .replace(/\\\\n|\\\\r/g, \" \")\n  .replace(/\\n|\\r/g, \" \")\n  .replace(/\\\\\"/g, \"\")\n  .replace(/¿/g, \"\")\n  .replace(/\\s+/g, \" \")\n  .trim();\nif (!inputText) return [];\nconst DOT_TOKEN = \"__DOT__\";\nlet protectedText = inputText.replace(/(\\d)\\.(\\d)/g, `$1${DOT_TOKEN}$2`);\nconst rawParts = protectedText\n  .split(\".\")\n  .map(s => s.trim())\n  .filter(Boolean);\nconst parts = rawParts.map(s => {\n  let restored = s.replaceAll(DOT_TOKEN, \".\");\n  restored = restored.replace(/\\./g, \"\");\n  restored = restored.replace(/\\s+/g, \" \").trim();\n  return restored;\n}).filter(Boolean);\nreturn parts.map(p => ({\n  json: { text: p }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1408,
+        16192
+      ],
+      "id": "d782cc21-c247-49ca-8de6-8dc684bcb82e",
+      "name": "devuelve outputs"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bbcd14f8-20de-47cc-af32-499b6ce0bf10",
+              "name": "message",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "4030aebf-2425-4af9-b9f1-4b78aec0cf92",
+              "name": "conversation_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1184,
+        16192
+      ],
+      "id": "ab7ea4a1-24c1-45dc-9a70-4c35cecd310c",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -976,
+        16192
+      ],
+      "id": "58cd9d29-b4fd-4399-89d4-271483a8f569",
+      "name": "Loop Over Items2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.message, message_type: 'outgoing' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -752,
+        16128
+      ],
+      "id": "5ba7a6aa-8b4e-4593-93b8-1651715826f2",
+      "name": "1ª Parte Respuesta1",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -528,
+        16128
+      ],
+      "id": "50c2d10a-d1a8-4e98-8423-ac46d3baf680",
+      "name": "Replace Me2"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -304,
+        16192
+      ],
+      "id": "f25254c0-4154-47d4-b98b-098b61deca01",
+      "name": "Wait2",
+      "webhookId": "834a70c9-c733-4ed2-8130-df0e50fb227c"
+    },
+    {
+      "parameters": {
+        "content": "## NUEVO: escalado a humano\nAmbas rutas (contenido no soportado, y mayorista/listo para comprar) caen aca. Se etiqueta la conversacion, se deja una nota privada para el operador con el motivo, y se le avisa al cliente que un asesor lo va a atender.\n\nTODO: reemplazar 'TU_LABEL_...' por el label real que uses en tu Chatwoot, y revisar si preferis asignar a un team/agente puntual en vez de (o ademas de) la etiqueta.",
+        "height": 280,
+        "width": 340,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -5472,
+        15808
+      ],
+      "id": "723f1107-13b3-4f80-ae31-fde7807ddbf5",
+      "name": "Nota - Escalado Humano"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "12b4b303-2080-4f8f-8325-9f752452298a",
+              "name": "motivo",
+              "value": "Cliente envio contenido no soportado (imagen, sticker, ubicacion o documento) y requiere revision manual.",
+              "type": "string"
+            },
+            {
+              "id": "7d666794-5704-480e-be3c-1d2f56c2afd5",
+              "name": "label",
+              "value": "requiere-humano",
+              "type": "string"
+            },
+            {
+              "id": "56dbdfba-0aed-4785-94bc-969f830012f9",
+              "name": "conversation_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "97d45677-9e9d-41ee-b22b-90010ed1695c",
+              "name": "account_id",
+              "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -5376,
+        16016
+      ],
+      "id": "a72348da-c701-4366-8fe6-c3c6d9cc0587",
+      "name": "Preparar Escalado - Contenido"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "855f74bd-b6bf-4024-972b-7d57590c1282",
+              "name": "motivo",
+              "value": "={{ $json.categoria === 'HOSTIL' ? ('Cliente con tono hostil/agresivo, requiere atencion URGENTE de un asesor. Mensaje: ' + $json.texto) : $json.categoria === 'RECLAMO' ? ('Cliente con un reclamo/queja (sin agresividad), requiere seguimiento de un asesor. Mensaje: ' + $json.texto) : ('Cliente clasificado como ' + $json.categoria + ', requiere atencion de un asesor.') }}",
+              "type": "string"
+            },
+            {
+              "id": "e5d0528f-091b-4c91-8753-f115cd67069e",
+              "name": "label",
+              "value": "={{ $json.categoria === 'HOSTIL' ? 'requiere-humano-urgente' : $json.categoria === 'RECLAMO' ? 'requiere-humano-reclamo' : 'requiere-humano' }}",
+              "type": "string"
+            },
+            {
+              "id": "85eb1e9f-19bb-4f26-87b6-3bc8739356d2",
+              "name": "conversation_id",
+              "value": "={{ $json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "b7e2b9b9-7b81-454b-9654-43e877df68a7",
+              "name": "account_id",
+              "value": "={{ $json.account_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1952,
+        16736
+      ],
+      "id": "cb7acd4e-9d9f-4a36-9560-8344f7c997ad",
+      "name": "Preparar Escalado - Mayorista o Compra"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $json.account_id }}/conversations/{{ $json.conversation_id }}/labels",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ labels: $json.labels ? $json.labels : [$json.label] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -5152,
+        16016
+      ],
+      "id": "5329814f-8d4c-480c-95ca-34284f1f37ea",
+      "name": "Escalar - Agregar Label",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.motivo, message_type: 'outgoing', private: true }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4944,
+        16016
+      ],
+      "id": "2b865bd7-5c3a-48c8-8fcd-e835ff1a9d67",
+      "name": "Escalar - Nota Privada",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -4496,
+        16016
+      ],
+      "id": "3db7d072-3e9a-4320-8543-a6208b88f3f2",
+      "name": "Fin - Escalado a Humano"
+    },
+    {
+      "parameters": {
+        "content": "## NUEVO: consulta de compatibilidad antes de generar\nAntes de dejar que el agente responda una pregunta tecnica, se busca primero en la tabla `compatibilidades`. Si no hay dato, el agente NUNCA se llama para esa pregunta puntual -> se escala directo, sin arriesgarse a que invente.\n\nSQL para crear las tablas (correrlo una vez en tu Postgres):\n\nCREATE TABLE compatibilidades (\n  id serial PRIMARY KEY,\n  modelo_moto text,\n  kit text,\n  compatible boolean,\n  detalle text,\n  fuente text DEFAULT 'equipo',\n  creado_en timestamptz DEFAULT now()\n);\n\nCREATE TABLE preguntas_tecnicas_pendientes (\n  id serial PRIMARY KEY,\n  conversation_id bigint,\n  modelo_moto text,\n  kit text,\n  pregunta_original text,\n  estado text DEFAULT 'pendiente',\n  creado_en timestamptz DEFAULT now()\n);",
+        "height": 420,
+        "width": 420,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1776,
+        16816
+      ],
+      "id": "262dc977-9052-4159-af6d-153b63e16821",
+      "name": "Nota - SQL Tablas"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('datos_finales2').item.json.texto }}",
+        "options": {
+          "systemMessage": "Extraé del mensaje del cliente el modelo de moto y el kit o pieza que menciona. Respondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"modelo_moto\": \"...\", \"kit\": \"...\"}\n\nSi no podés identificar alguno de los dos campos con claridad, dejalo como string vacio \"\". No inventes valores."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -1744,
+        16560
+      ],
+      "id": "f03bd74f-ed18-41e8-ab82-e119c4ab5094",
+      "name": "Extraer Datos Tecnicos"
+    },
+    {
+      "parameters": {
+        "jsCode": "let modelo = '';\nlet kit = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  modelo = (parsed.modelo_moto || '').toString().trim();\n  kit = (parsed.kit || '').toString().trim();\n} catch (e) {\n  // si no se pudo parsear, quedan vacios y va a caer en 'no encontrado' -> escala igual\n}\n\n// escapado basico de comillas simples para uso en SQL embebido\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    modelo_moto: modelo,\n    kit: kit,\n    modelo_moto_sql: escapar(modelo),\n    kit_sql: escapar(kit),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.sender.account.id\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        16560
+      ],
+      "id": "a7fc8588-6e13-4087-a5eb-b41f16d7a9f3",
+      "name": "Parsear Extraccion"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT compatible, detalle FROM compatibilidades WHERE modelo_moto ILIKE '%{{ $json.modelo_moto_sql }}%' AND kit ILIKE '%{{ $json.kit_sql }}%' ORDER BY creado_en DESC LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1312,
+        16560
+      ],
+      "id": "d08f3096-1c2d-4f6b-a4d8-f68b5c470bc7",
+      "name": "Buscar Compatibilidad",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ec6278c9-d2b6-40d4-b217-c95eda4b4e63",
+              "leftValue": "={{ $json.compatible !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1088,
+        16560
+      ],
+      "id": "03dea322-ec0e-43a8-89b0-6b218ea8a67f",
+      "name": "¿Hay Dato?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "03d8bd88-f642-413b-8613-df7f3082b30d",
+              "name": "dato_compatibilidad",
+              "value": "={{ 'Modelo: ' + $('Parsear Extraccion').item.json.modelo_moto + ' | Kit: ' + $('Parsear Extraccion').item.json.kit + ' | Compatible: ' + ($json.compatible ? 'SI' : 'NO') + ' | Detalle: ' + ($json.detalle || 'sin detalle adicional') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -864,
+        16496
+      ],
+      "id": "06761bff-0d48-4db9-8304-2646101a00c5",
+      "name": "Preparar Contexto Encontrado"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO preguntas_tecnicas_pendientes (conversation_id, modelo_moto, kit, pregunta_original)\nVALUES ({{ $('Parsear Extraccion').item.json.conversation_id }}, '{{ $('Parsear Extraccion').item.json.modelo_moto_sql }}', '{{ $('Parsear Extraccion').item.json.kit_sql }}', '{{ $('Parsear Extraccion').item.json.texto_original.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -864,
+        16656
+      ],
+      "id": "7115c83a-a742-4665-be1f-9eeaf5a5d2e4",
+      "name": "Registrar Pregunta Pendiente"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0da68097-080b-4b43-8b3b-86f3991c6e2f",
+              "name": "motivo",
+              "value": "=Consulta tecnica sin dato en la base: modelo '{{ $('Parsear Extraccion').item.json.modelo_moto }}', kit '{{ $('Parsear Extraccion').item.json.kit }}'. Pregunta original: {{ $('Parsear Extraccion').item.json.texto_original }}",
+              "type": "string"
+            },
+            {
+              "id": "77e72817-b7d8-448e-bcc1-5a49d120cea8",
+              "name": "label",
+              "value": "requiere-humano-tecnica",
+              "type": "string"
+            },
+            {
+              "id": "5dbf69c9-34a6-4f5e-8901-c298909586ad",
+              "name": "conversation_id",
+              "value": "={{ $('Parsear Extraccion').item.json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "af8ce551-e0a7-4c08-813c-4c498e0f4327",
+              "name": "account_id",
+              "value": "={{ $('Parsear Extraccion').item.json.account_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -656,
+        16656
+      ],
+      "id": "c5a5603a-2628-4722-b9f6-33e87fd87a32",
+      "name": "Preparar Escalado - Consulta Tecnica"
+    },
+    {
+      "parameters": {
+        "content": "## NUEVO: aprendizaje automatico\nAntes, el webhook descartaba todo lo que no fuera mensaje del cliente. Esta rama SI procesa tus propias respuestas: si contestaste una conversacion marcada como pendiente tecnica, un extractor interpreta tu respuesta y la guarda en `compatibilidades` - solo si la extraccion sale clara (campo `confianza`).\n\nSi no esta clara, no se guarda nada y la pregunta sigue pendiente para la proxima vez que la respondas.",
+        "height": 280,
+        "width": 340,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -6064,
+        15808
+      ],
+      "id": "b35a3279-12f4-4afa-bbb3-012fc51becad",
+      "name": "Nota - Aprendizaje"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "827d58d7-d256-4928-bfe7-e674f660bae2",
+              "leftValue": "={{ $json.body.conversation.messages[0].message_type }}",
+              "rightValue": "outgoing",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "8405ff54-e00b-4f4f-b498-2941e22b8cfd",
+              "leftValue": "={{ $json.body.conversation.messages[0].sender_type }}",
+              "rightValue": "User",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -6064,
+        16016
+      ],
+      "id": "250c015b-5047-4b55-84c5-100a5da81bda",
+      "name": "¿Es respuesta de mi equipo?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('id', id, 'modelo_moto', modelo_moto, 'kit', kit) ORDER BY creado_en ASC), '[]'::json) AS pendientes FROM preguntas_tecnicas_pendientes WHERE conversation_id = {{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }} AND estado = 'pendiente';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -5840,
+        16016
+      ],
+      "id": "449688ea-ba91-4504-a213-bbfd015c26a4",
+      "name": "Buscar Pregunta Pendiente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d7961be1-8ce5-4bcb-88e1-09b071e94110",
+              "leftValue": "={{ Array.isArray($json.pendientes) && $json.pendientes.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -5616,
+        16016
+      ],
+      "id": "6c3b2e8f-632b-4439-b054-98e3c253386a",
+      "name": "¿Hay Pregunta Pendiente?"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Preguntas tecnicas pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': modelo \"' + p.modelo_moto + '\", kit \"' + p.kit + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
+        "options": {
+          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y si esa respuesta confirma o descarta la compatibilidad. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"compatible\": true o false, \"detalle\": \"resumen breve\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese modelo/kit (o es una confirmacion/negacion generica que tiene sentido para esa pregunta), esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un modelo o kit distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -5392,
+        16016
+      ],
+      "id": "3a4a614d-5e4d-4d05-9bc6-26d1c6f261f9",
+      "name": "Extraer Respuesta Tecnica"
+    },
+    {
+      "parameters": {
+        "jsCode": "let compatible = null, detalle = '', confianza = 'baja', preguntaIdRaw = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  compatible = !!parsed.compatible;\n  detalle = (parsed.detalle || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match) {\n  confianza = 'baja';\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    compatible,\n    detalle,\n    detalle_sql: escapar(detalle),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    modelo_moto: match ? (match.modelo_moto || '') : '',\n    kit: match ? (match.kit || '') : '',\n    modelo_moto_sql: escapar(match ? (match.modelo_moto || '') : ''),\n    kit_sql: escapar(match ? (match.kit || '') : '')\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5184,
+        16016
+      ],
+      "id": "2ddfce37-70d8-4c75-9cea-fb388c356a33",
+      "name": "Parsear Respuesta"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e4b28133-2f12-4893-82fe-6efbddafb03f",
+              "leftValue": "={{ $json.confianza }}",
+              "rightValue": "alta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -4960,
+        16016
+      ],
+      "id": "748185a8-ecfc-4de0-ab7b-f1ad58a8ca66",
+      "name": "¿Extraccion Confiable?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO compatibilidades (modelo_moto, kit, compatible, detalle, fuente)\nVALUES ('{{ $json.modelo_moto_sql }}', '{{ $json.kit_sql }}', {{ $json.compatible }}, '{{ $json.detalle_sql }}', 'equipo');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -4736,
+        15952
+      ],
+      "id": "e108c823-37b4-4af6-8ec5-5e5384a17bc2",
+      "name": "Guardar en Compatibilidades"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE preguntas_tecnicas_pendientes SET estado = 'respondida' WHERE id = {{ $('Parsear Respuesta').item.json.pregunta_id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -4512,
+        15952
+      ],
+      "id": "7a5cb926-38a4-48c2-8ef5-24921366eb36",
+      "name": "Marcar Pregunta Respondida"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -4304,
+        15952
+      ],
+      "id": "91eb9867-88dd-4e98-8134-b7bd65de27d2",
+      "name": "Fin - Aprendizaje Guardado"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -4736,
+        16128
+      ],
+      "id": "746d22d8-16c9-4eea-bc97-9459d7dae4ab",
+      "name": "Fin - Extraccion No Confiable"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -5392,
+        16176
+      ],
+      "id": "60b9c3c0-14bf-4e34-a6a2-2588cd3abb43",
+      "name": "Fin - Nada Pendiente"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -6064,
+        16176
+      ],
+      "id": "ad8b517e-e338-4b7b-aab0-82bae169cf0c",
+      "name": "Fin - No es Respuesta de Equipo"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "id": "8ed622df-cf2c-4639-9a33-1025622bd661",
+      "name": "Traer Historial (Generico)",
+      "position": [
+        -1792,
+        15968
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.historial || [];\nconst historialTexto = raw\n  .map((m) => (m.role === 'human' ? 'Cliente: ' : 'Asesor: ') + (m.content || ''))\n  .join('\\n');\n\nreturn [\n  {\n    historial_texto: historialTexto,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "605dcf9a-25cc-4265-8831-a1de20cc0794",
+      "name": "Formatear Historial (Generico)",
+      "position": [
+        -1632,
+        15968
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "id": "24273099-4228-4f91-8192-9e5531911d1e",
+      "name": "Traer Historial (Tecnica)",
+      "position": [
+        -864,
+        16304
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.historial || [];\nconst historialTexto = raw\n  .map((m) => (m.role === 'human' ? 'Cliente: ' : 'Asesor: ') + (m.content || ''))\n  .join('\\n');\n\nreturn [\n  {\n    historial_texto: historialTexto,\n    dato_compatibilidad: $('Preparar Contexto Encontrado').item.json.dato_compatibilidad,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "9680e976-526d-4886-bddc-4570cae8af88",
+      "name": "Formatear Historial (Tecnica)",
+      "position": [
+        -704,
+        16304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversaciones_historial (session_key, role, content) VALUES ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'human', '{{ $('datos_finales2').item.json.texto.replace(/'/g, \"''\") }}'), ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'ai', '{{ $('AI Agent2').item.json.output.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "id": "2e7f8309-2d96-435a-9a1c-98ca21952c0b",
+      "name": "Guardar Turno Conversacion",
+      "position": [
+        -1408,
+        16064
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function tryGet(nodeName) {\n  try {\n    return $(nodeName).item.json;\n  } catch (e) {\n    return null;\n  }\n}\n\nconst origen =\n  tryGet('Preparar Escalado - Contenido') ||\n  tryGet('Preparar Escalado - Mayorista o Compra') ||\n  tryGet('Preparar Escalado - Consulta Tecnica') ||\n  tryGet('Preparar Escalado - Consulta Negocio') ||\n  tryGet('Preparar Escalado - Consulta Precio') ||\n  tryGet('Preparar Escalado - Multi Intencion') ||\n  {};\n\nreturn [{ motivo: origen.motivo || '' }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "id": "edfaaa1f-239c-491b-bc5c-4fabad8cdf2e",
+      "name": "Recuperar Motivo Escalado",
+      "position": [
+        -5040,
+        16016
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=lock:{{ $(\"Webhook1\").item.json.body.conversation.messages[0].sender.phone_number }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -2816,
+        16304
+      ],
+      "id": "71e5ef3d-4a0a-45fb-9da7-02ac24fe5a80",
+      "name": "Borrar Lock"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('datos_finales2').item.json.texto }}",
+        "options": {
+          "systemMessage": "Extrae del mensaje del cliente el tema puntual sobre el negocio que esta preguntando (no sobre un repuesto especifico). Respondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"tema\": \"...\"}\n\nElegi el tema entre: ubicacion, horarios, medios_pago, envios, garantia, otro. Usa \"otro\" si es sobre el negocio pero no encaja en los anteriores. No inventes datos, solo clasifica."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -1744,
+        16960
+      ],
+      "id": "2f2c9991-05b2-47be-b90d-d397ac3168c5",
+      "name": "Extraer Tema Negocio"
+    },
+    {
+      "parameters": {
+        "jsCode": "let tema = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  tema = (parsed.tema || '').toString().trim().toLowerCase();\n} catch (e) {\n  // si no se pudo parsear, queda vacio -> no matchea nada -> escala igual\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    tema: tema,\n    tema_sql: escapar(tema),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.sender.account.id\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1536,
+        16960
+      ],
+      "id": "0e230d39-1702-4e7b-a358-60be157871c6",
+      "name": "Parsear Tema"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT respuesta FROM info_negocio WHERE tema ILIKE '%{{ $json.tema_sql }}%' ORDER BY creado_en DESC LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1312,
+        16960
+      ],
+      "id": "cd1186a7-c0f1-4e5c-9747-5aac7b688dcf",
+      "name": "Buscar Info Negocio",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "409d7358-c86c-44d8-957a-20046133c79a",
+              "leftValue": "={{ $json.respuesta !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1088,
+        16960
+      ],
+      "id": "1b9d71e8-df95-4d00-9e76-827bc46fe1af",
+      "name": "¿Hay Info Negocio?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0f85dbfd-b0f8-4899-bd90-97c0cd01e18e",
+              "name": "dato_compatibilidad",
+              "value": "={{ 'Tema: ' + $('Parsear Tema').item.json.tema + ' | Respuesta: ' + $json.respuesta }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -864,
+        16896
+      ],
+      "id": "39a4535d-ea2e-4145-9edd-07fd7c6ee3e0",
+      "name": "Preparar Contexto Info Encontrada"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -672,
+        16896
+      ],
+      "id": "b8c7c17b-0f9e-41c1-b9fa-6f9d1eec218f",
+      "name": "Traer Historial (Negocio)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.historial || [];\nconst historialTexto = raw\n  .map((m) => (m.role === 'human' ? 'Cliente: ' : 'Asesor: ') + (m.content || ''))\n  .join('\\n');\n\nreturn [\n  {\n    historial_texto: historialTexto,\n    dato_compatibilidad: $('Preparar Contexto Info Encontrada').item.json.dato_compatibilidad,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        16896
+      ],
+      "id": "a5a814f4-738f-40e7-bb38-4cdf3516401b",
+      "name": "Formatear Historial (Negocio)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO preguntas_negocio_pendientes (conversation_id, tema, pregunta_original)\nVALUES ({{ $('Parsear Tema').item.json.conversation_id }}, '{{ $('Parsear Tema').item.json.tema_sql }}', '{{ $('Parsear Tema').item.json.texto_original.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -864,
+        17056
+      ],
+      "id": "e5e2f6c7-7639-4722-8061-f14898899641",
+      "name": "Registrar Pregunta Negocio Pendiente"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f7c11219-355a-426b-b08a-1907751b8fb8",
+              "name": "motivo",
+              "value": "=Consulta sobre el negocio sin dato registrado: tema '{{ $('Parsear Tema').item.json.tema }}'. Pregunta original: {{ $('Parsear Tema').item.json.texto_original }}",
+              "type": "string"
+            },
+            {
+              "id": "1176f67d-07d7-44e3-9d5f-c8cae3d68c63",
+              "name": "label",
+              "value": "requiere-humano-info",
+              "type": "string"
+            },
+            {
+              "id": "753de2ac-241f-46d2-8df8-dae782623cc5",
+              "name": "conversation_id",
+              "value": "={{ $('Parsear Tema').item.json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "48d88180-aa4e-4e22-acff-f4327e4b2fa6",
+              "name": "account_id",
+              "value": "={{ $('Parsear Tema').item.json.account_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -656,
+        17056
+      ],
+      "id": "e716b9b2-082c-4df0-bf1f-3484d2f62d5f",
+      "name": "Preparar Escalado - Consulta Negocio"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('id', id, 'tema', tema) ORDER BY creado_en ASC), '[]'::json) AS pendientes FROM preguntas_negocio_pendientes WHERE conversation_id = {{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }} AND estado = 'pendiente';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -5840,
+        16464
+      ],
+      "id": "b3994451-5b5e-4543-bdf1-d9f031457375",
+      "name": "Buscar Pregunta Negocio Pendiente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e436df12-6f4d-423c-b8e1-a9905232fa5b",
+              "leftValue": "={{ Array.isArray($json.pendientes) && $json.pendientes.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -5616,
+        16464
+      ],
+      "id": "00a20430-dec7-4bf1-a0ce-f1522d8dd61f",
+      "name": "¿Hay Pregunta Negocio Pendiente?"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Preguntas sobre el negocio pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': tema \"' + p.tema + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
+        "options": {
+          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y resumila en una oracion clara y directa, lista para reutilizar cuando otro cliente pregunte lo mismo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"respuesta\": \"resumen breve y claro\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese tema, esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un tema distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual, o la respuesta del equipo es ambigua."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -5392,
+        16464
+      ],
+      "id": "375d10bc-2084-4845-abe8-2b6433c20ebc",
+      "name": "Extraer Respuesta Negocio"
+    },
+    {
+      "parameters": {
+        "jsCode": "let respuesta = '', confianza = 'baja', preguntaIdRaw = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  respuesta = (parsed.respuesta || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Negocio Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match) {\n  confianza = 'baja';\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    respuesta,\n    respuesta_sql: escapar(respuesta),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    tema: match ? (match.tema || '') : '',\n    tema_sql: escapar(match ? (match.tema || '') : '')\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5184,
+        16464
+      ],
+      "id": "60107423-e1d1-4e92-a376-abedabbcf856",
+      "name": "Parsear Respuesta Negocio"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3c541351-cfc5-496e-a5b1-30616e483432",
+              "leftValue": "={{ $json.confianza }}",
+              "rightValue": "alta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -4960,
+        16464
+      ],
+      "id": "26c6567b-da0d-43dc-9dde-8db031aea12e",
+      "name": "¿Extraccion Confiable Negocio?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO info_negocio (tema, respuesta, fuente)\nVALUES ('{{ $json.tema_sql }}', '{{ $json.respuesta_sql }}', 'equipo');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -4736,
+        16400
+      ],
+      "id": "2f8ff114-a081-4321-b6bd-a2d3dcfddb6f",
+      "name": "Guardar en Info Negocio"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE preguntas_negocio_pendientes SET estado = 'respondida' WHERE id = {{ $('Parsear Respuesta Negocio').item.json.pregunta_id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -4512,
+        16400
+      ],
+      "id": "64c380fd-f1f0-4e18-9900-e238d95a7463",
+      "name": "Marcar Pregunta Negocio Respondida"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "06de7d93-6a8e-4d5e-a8ac-bfb3d8452746",
+              "name": "content",
+              "value": "={{ ($('Parsear Respuesta').item.json.compatible ? 'Sí, el ' : 'No, el ') + $('Parsear Respuesta').item.json.kit + ($('Parsear Respuesta').item.json.compatible ? ' es compatible con la ' : ' no es compatible con la ') + $('Parsear Respuesta').item.json.modelo_moto + '. ' + $('Parsear Respuesta').item.json.detalle }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4304,
+        15888
+      ],
+      "id": "c7088749-bdc3-4be3-a1e0-02c787b76c50",
+      "name": "Preparar Respuesta Cliente - Tecnica"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4112,
+        15888
+      ],
+      "id": "85450296-92c3-49c3-8089-da50aed4f283",
+      "name": "Responder Cliente - Aprendizaje Tecnico"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1a457412-43aa-4a2a-b2d9-f83e20762630",
+              "name": "content",
+              "value": "={{ $('Parsear Respuesta Negocio').item.json.respuesta }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4304,
+        16336
+      ],
+      "id": "01799f11-b24f-487c-8acd-01e7e531ad42",
+      "name": "Preparar Respuesta Cliente - Negocio"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -4112,
+        16336
+      ],
+      "id": "0a3f5bc9-90a5-4a4e-bc48-ed407a2d4b11",
+      "name": "Responder Cliente - Aprendizaje Negocio"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "pausado",
+        "key": "=bot_pausado:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        15056
+      ],
+      "id": "28907992-5c78-484e-9876-d2f8d1824b24",
+      "name": "Chequear Bot Pausado",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-5e3c6e4490bd",
+              "leftValue": "={{ !!$json.pausado }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        15056
+      ],
+      "id": "acca01ca-81af-4d30-bc66-7260add365b8",
+      "name": "¿Bot Pausado?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        464,
+        15056
+      ],
+      "id": "84237e79-02bb-4cb2-afc9-298d49358800",
+      "name": "Fin - Bot Pausado"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "eco",
+        "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        720,
+        15056
+      ],
+      "id": "45a4e89f-b714-4bb9-b561-33672bcf8ab0",
+      "name": "Chequear Auto-Eco",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-c86b46240836",
+              "leftValue": "={{ !!$json.eco && $json.eco.includes(($('Webhook1').item.json.body.conversation.messages[0].content || '').trim()) && ($('Webhook1').item.json.body.conversation.messages[0].content || '').trim() !== '' }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        976,
+        15056
+      ],
+      "id": "223f2e1a-0eaf-4279-93ee-bd8bc9460960",
+      "name": "¿Es Auto-Eco?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        15056
+      ],
+      "id": "b33a1a7c-042a-4594-8b59-5c4208b5abc2",
+      "name": "Fin - Auto-Eco Ignorado"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-9d03749641c4",
+              "leftValue": "={{ ($('Webhook1').item.json.body.conversation.messages[0].content || '').trim().toLowerCase() }}",
+              "rightValue": "/bot on",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -64,
+        15280
+      ],
+      "id": "76b84318-70d9-4b86-85ad-75c78ace1419",
+      "name": "¿Es Comando Reactivar?"
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "key": "=bot_pausado:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        208,
+        15280
+      ],
+      "id": "79df0eb4-d084-4ca4-9165-b74e18504e9d",
+      "name": "Reactivar Bot"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        464,
+        15280
+      ],
+      "id": "3f71a187-44ea-4d5d-b99a-aed745c56d68",
+      "name": "Fin - Bot Reactivado"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=bot_pausado:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "1",
+        "expire": true,
+        "ttl": 2592000
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        720,
+        15280
+      ],
+      "id": "f9c1c36a-fd5c-49b5-bc4d-9b057616fb39",
+      "name": "Marcar Bot Pausado"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "={{ $json.content }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        976,
+        15280
+      ],
+      "id": "f5462916-6098-45f6-90d0-7fa8c16d87ca",
+      "name": "Marcar Auto-Eco - Aprendizaje Tecnico"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "={{ $json.content }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        1248,
+        15280
+      ],
+      "id": "a5eda504-308e-45a9-b93c-ea49412df73a",
+      "name": "Marcar Auto-Eco - Aprendizaje Negocio"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "={{ $json.output }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        15504
+      ],
+      "id": "d8f1a545-75dc-4df7-95cb-1e2561612986",
+      "name": "Marcar Auto-Eco - Respuesta Principal"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "cooldown",
+        "key": "=escalado_cooldown:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        208,
+        15504
+      ],
+      "id": "41e2d4c1-78a5-4d01-9bdc-24060278afb3",
+      "name": "Chequear Cooldown Escalado",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-ea4bd4418031",
+              "leftValue": "={{ !!$json.cooldown }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        15504
+      ],
+      "id": "49eb2046-9440-4d34-a3ab-07d3d59bb332",
+      "name": "¿Escalado en Cooldown?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        720,
+        15504
+      ],
+      "id": "58a15f32-97f3-4f9f-823a-b3a05673e9e7",
+      "name": "Fin - Escalado Omitido (cooldown)"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=escalado_cooldown:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "1",
+        "expire": true,
+        "ttl": 300
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        976,
+        15504
+      ],
+      "id": "80b1888b-52c2-49ce-83ea-a0940e376810",
+      "name": "Marcar Cooldown Escalado"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-ecdcd93f8aca",
+              "leftValue": "={{ !!$json.modelo_moto_sql && !!$json.kit_sql }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -64,
+        17456
+      ],
+      "id": "b0f315df-5547-4071-84be-266475805dbc",
+      "name": "¿Datos Tecnicos Suficientes?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-1e57308a8819",
+              "leftValue": "={{ !!$json.tema_sql }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        208,
+        17456
+      ],
+      "id": "4cb13318-feb4-496c-975b-a6dd747e4e10",
+      "name": "¿Tema Negocio Valido?"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('datos_finales2').item.json.texto }}",
+        "options": {
+          "systemMessage": "Extraé del mensaje del cliente el producto, combo o kit puntual por el que pregunta precio o stock. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"producto\": \"...\"}\n\nSi no podés identificar el producto con claridad, dejalo como string vacio \"\". No inventes valores."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        17856
+      ],
+      "id": "b71d3745-7524-44a4-88bc-f6387e0f30ab",
+      "name": "Extraer Producto"
+    },
+    {
+      "parameters": {
+        "jsCode": "let producto = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  producto = (parsed.producto || '').toString().trim();\n} catch (e) {\n  // si no se pudo parsear, queda vacio -> no matchea nada -> escala igual\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    producto: producto,\n    producto_sql: escapar(producto),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.sender.account.id\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        17856
+      ],
+      "id": "5d27b47b-7b4b-4c37-8b10-2aabe58bdcac",
+      "name": "Parsear Extraccion Precio"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-55f212effebb",
+              "leftValue": "={{ !!$json.producto_sql }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        17856
+      ],
+      "id": "325b13f1-f1df-4b79-92da-5772f1081113",
+      "name": "¿Datos Precio Suficientes?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT precio, stock, detalle FROM precios_stock WHERE producto ILIKE '%{{ $json.producto_sql }}%' ORDER BY creado_en DESC LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        17856
+      ],
+      "id": "d5d57c8a-bbe9-407c-a941-5a6942aa00f5",
+      "name": "Buscar Precio Stock",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-eb61a79290b1",
+              "leftValue": "={{ $json.precio !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        976,
+        17856
+      ],
+      "id": "dfdb118f-3172-49c1-840a-aa55e3274778",
+      "name": "¿Hay Dato Precio?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "gen-b81f7fad17f1",
+              "name": "dato_compatibilidad",
+              "value": "={{ 'Producto: ' + $('Parsear Extraccion Precio').item.json.producto + ' | Precio: ' + ($json.precio || 'sin dato') + ' | Stock: ' + ($json.stock || 'sin dato') + ' | Detalle: ' + ($json.detalle || 'sin detalle adicional') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1248,
+        17856
+      ],
+      "id": "5c7f07fc-4209-40f9-a66d-861103410f6e",
+      "name": "Preparar Contexto Precio Encontrado"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -64,
+        18080
+      ],
+      "id": "84b0d1da-9e99-4a42-aef6-4a587ef40a8c",
+      "name": "Traer Historial (Precio)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.historial || [];\nconst historialTexto = raw\n  .map((m) => (m.role === 'human' ? 'Cliente: ' : 'Asesor: ') + (m.content || ''))\n  .join('\\n');\n\nreturn [\n  {\n    historial_texto: historialTexto,\n    dato_compatibilidad: $('Preparar Contexto Precio Encontrado').item.json.dato_compatibilidad,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        18080
+      ],
+      "id": "39628688-962f-428a-9b18-2acd895c8971",
+      "name": "Formatear Historial (Precio)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO preguntas_precio_pendientes (conversation_id, producto, pregunta_original)\nVALUES ({{ $('Parsear Extraccion Precio').item.json.conversation_id }}, '{{ $('Parsear Extraccion Precio').item.json.producto_sql }}', '{{ $('Parsear Extraccion Precio').item.json.texto_original.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        464,
+        18080
+      ],
+      "id": "1ef8c917-d75f-4823-ac41-76babc4238fe",
+      "name": "Registrar Pregunta Precio Pendiente"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "gen-fe1ba37d1201",
+              "name": "motivo",
+              "value": "=Consulta de precio/stock sin dato en la base: producto '{{ $('Parsear Extraccion Precio').item.json.producto }}'. Pregunta original: {{ $('Parsear Extraccion Precio').item.json.texto_original }}",
+              "type": "string"
+            },
+            {
+              "id": "gen-48ba4cc75a6c",
+              "name": "label",
+              "value": "requiere-humano-precio",
+              "type": "string"
+            },
+            {
+              "id": "gen-206998644088",
+              "name": "conversation_id",
+              "value": "={{ $('Parsear Extraccion Precio').item.json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "gen-70a31d29dc3b",
+              "name": "account_id",
+              "value": "={{ $('Parsear Extraccion Precio').item.json.account_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        720,
+        18080
+      ],
+      "id": "b326442d-ba17-4946-a694-5738479d8ece",
+      "name": "Preparar Escalado - Consulta Precio"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('id', id, 'producto', producto) ORDER BY creado_en ASC), '[]'::json) AS pendientes FROM preguntas_precio_pendientes WHERE conversation_id = {{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }} AND estado = 'pendiente';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        976,
+        18080
+      ],
+      "id": "d14a78c9-88c9-41a4-b52f-c2da115c74c4",
+      "name": "Buscar Pregunta Precio Pendiente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-cb61a590a427",
+              "leftValue": "={{ Array.isArray($json.pendientes) && $json.pendientes.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1248,
+        18080
+      ],
+      "id": "f5575920-5e5e-4c1e-a6b3-0ffeb89d8556",
+      "name": "¿Hay Pregunta Precio Pendiente?"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Preguntas de precio/stock pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': producto \"' + p.producto + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
+        "options": {
+          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y extraé el precio y/o stock que informo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro>, \"precio\": \"precio informado o vacio si no lo dio\", \"stock\": \"stock informado (ej. 'hay stock', 'no hay', '3 unidades') o vacio si no lo dio\", \"detalle\": \"resumen breve\", \"confianza\": \"alta\" o \"baja\"}\n\nUsa \"confianza\": \"baja\" si la respuesta es ambigua, no da ni precio ni stock con claridad, no queda claro a cual pregunta corresponde (cuando hay mas de una pendiente), o el producto del que habla la respuesta no tiene nada que ver con el producto de la unica pregunta pendiente (en ese caso no asumas que es esa)."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -64,
+        18304
+      ],
+      "id": "3be0e90e-96fb-4a48-9c08-583c76139939",
+      "name": "Extraer Respuesta Precio"
+    },
+    {
+      "parameters": {
+        "jsCode": "let precio = '', stock = '', detalle = '', confianza = 'baja', preguntaIdRaw = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  precio = (parsed.precio || '').toString();\n  stock = (parsed.stock || '').toString();\n  detalle = (parsed.detalle || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Precio Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || (!precio && !stock)) {\n  confianza = 'baja';\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    precio, stock, detalle,\n    precio_sql: escapar(precio), stock_sql: escapar(stock), detalle_sql: escapar(detalle),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    producto: match ? (match.producto || '') : '',\n    producto_sql: escapar(match ? (match.producto || '') : '')\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        18304
+      ],
+      "id": "ec13b584-f3ab-4b92-94fc-f321d69437a3",
+      "name": "Parsear Respuesta Precio"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-7334e9988289",
+              "leftValue": "={{ $json.confianza }}",
+              "rightValue": "alta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        464,
+        18304
+      ],
+      "id": "5dc7270b-1880-4a13-bd63-2ed1662a3aae",
+      "name": "¿Extraccion Confiable Precio?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO precios_stock (producto, precio, stock, detalle, fuente)\nVALUES ('{{ $json.producto_sql }}', '{{ $json.precio_sql }}', '{{ $json.stock_sql }}', '{{ $json.detalle_sql }}', 'equipo');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        720,
+        18304
+      ],
+      "id": "85bf5357-19cb-4bd6-bc82-635aeb4d5f5f",
+      "name": "Guardar en Precios Stock"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE preguntas_precio_pendientes SET estado = 'respondida' WHERE id = {{ $('Parsear Respuesta Precio').item.json.pregunta_id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        976,
+        18304
+      ],
+      "id": "901f2c3f-bf1f-4054-b8ea-5a5afdf35a7e",
+      "name": "Marcar Pregunta Precio Respondida"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "gen-36a1d22ad636",
+              "name": "content",
+              "value": "={{ 'Sobre ' + $('Parsear Respuesta Precio').item.json.producto + ': ' + ($('Parsear Respuesta Precio').item.json.precio ? ('precio ' + $('Parsear Respuesta Precio').item.json.precio + '. ') : '') + ($('Parsear Respuesta Precio').item.json.stock ? ('Stock: ' + $('Parsear Respuesta Precio').item.json.stock + '. ') : '') + $('Parsear Respuesta Precio').item.json.detalle }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1248,
+        18304
+      ],
+      "id": "4ed036aa-1586-4e68-906d-b3bd16b6e609",
+      "name": "Preparar Respuesta Cliente - Precio"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -64,
+        18528
+      ],
+      "id": "ae32135b-0677-4b77-b5ff-004066dc0937",
+      "name": "Responder Cliente - Aprendizaje Precio"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "={{ $json.content }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        208,
+        18528
+      ],
+      "id": "6052f48c-53ca-4a54-a93f-eb255d3eb670",
+      "name": "Marcar Auto-Eco - Aprendizaje Precio"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM preguntas_tecnicas_pendientes WHERE conversation_id = {{ $('Parsear Extraccion').item.json.conversation_id }} AND LOWER(modelo_moto) = LOWER('{{ $('Parsear Extraccion').item.json.modelo_moto_sql }}') AND LOWER(kit) = LOWER('{{ $('Parsear Extraccion').item.json.kit_sql }}') AND estado = 'pendiente' LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -960,
+        16720
+      ],
+      "id": "5bb0278b-7576-4317-890f-125ec9459c8f",
+      "name": "Buscar Pendiente Tecnica Existente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ff44f817-b11d-445f-bd5b-73270eaf8ff1",
+              "leftValue": "={{ $json.id !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -960,
+        16800
+      ],
+      "id": "98b4e8c3-69de-4c90-bbf0-8acd21049131",
+      "name": "¿Ya Existe Pendiente Tecnica?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM preguntas_negocio_pendientes WHERE conversation_id = {{ $('Parsear Tema').item.json.conversation_id }} AND LOWER(tema) = LOWER('{{ $('Parsear Tema').item.json.tema_sql }}') AND estado = 'pendiente' LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -960,
+        17120
+      ],
+      "id": "9b222dcf-bc43-4e7d-a022-83c281331f68",
+      "name": "Buscar Pendiente Negocio Existente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "da0ab1ee-c20b-4476-8d88-ec8f915e1194",
+              "leftValue": "={{ $json.id !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -960,
+        17200
+      ],
+      "id": "2d1fbe4e-3456-40be-a020-12caeec674de",
+      "name": "¿Ya Existe Pendiente Negocio?"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM preguntas_precio_pendientes WHERE conversation_id = {{ $('Parsear Extraccion Precio').item.json.conversation_id }} AND LOWER(producto) = LOWER('{{ $('Parsear Extraccion Precio').item.json.producto_sql }}') AND estado = 'pendiente' LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -960,
+        18368
+      ],
+      "id": "d7cdc6a7-f48b-46c6-8bb6-3637ccafc9db",
+      "name": "Buscar Pendiente Precio Existente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6cb84687-375c-4d52-9326-b4bbf9cb2d04",
+              "leftValue": "={{ $json.id !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -960,
+        18448
+      ],
+      "id": "c3ca3ab5-c627-4d41-a468-24592ed4747b",
+      "name": "¿Ya Existe Pendiente Precio?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const categorias = $json.categorias;\nconst texto = $json.texto;\nconst conversation_id = $json.conversation_id;\nconst account_id = $json.account_id;\nconst key = $json.key;\n\nreturn categorias.map((categoria) => ({\n  json: { categoria, texto, conversation_id, account_id, key },\n  pairedItem: { item: 0 },\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1952,
+        17360
+      ],
+      "id": "e1742de1-f6db-4cb2-aa6d-832d67837f3c",
+      "name": "Expandir Intenciones"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1712,
+        17360
+      ],
+      "id": "9fddbb1b-6809-47a8-934e-3348916f6314",
+      "name": "Loop Intenciones"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "29253b56-823a-48ae-867b-13b42feeecbc",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "TECNICA",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Tecnica"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0e8f061d-dcbe-4927-8a28-eb2775e10e03",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "PRECIO_COMBO_STOCK",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Precio"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b664b4f5-824b-4536-b7c0-5cf6d122ef6c",
+                    "leftValue": "={{ $json.categoria }}",
+                    "rightValue": "INFO_NEGOCIO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "InfoNegocio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1472,
+        17360
+      ],
+      "id": "21b04f77-a0c3-4f0d-8f52-dc3ac4ff5eb7",
+      "name": "Ruteo Intencion (Multi)"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    resultado_tipo: 'encontrado',\n    categoria: $('Ruteo Intencion (Multi)').item.json.categoria,\n    dato_compatibilidad: $json.dato_compatibilidad,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        17056
+      ],
+      "id": "92abb8b1-463f-4a17-8944-c88e602c9bea",
+      "name": "Etiquetar Encontrado (Multi)"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    resultado_tipo: 'pendiente',\n    categoria: $('Ruteo Intencion (Multi)').item.json.categoria,\n    motivo: $json.motivo,\n    label: $json.label,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        17664
+      ],
+      "id": "949a0988-f1c2-459e-9f18-57bd1478b7d2",
+      "name": "Etiquetar Pendiente (Multi)"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.texto }}",
+        "options": {
+          "systemMessage": "Extraé del mensaje del cliente el modelo de moto y el kit o pieza que menciona. Respondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"modelo_moto\": \"...\", \"kit\": \"...\"}\n\nSi no podés identificar alguno de los dos campos con claridad, dejalo como string vacio \"\". No inventes valores."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        16864
+      ],
+      "id": "cd061ca9-3974-4df2-9eff-725b3fdd45db",
+      "name": "Extraer Datos Tecnicos (Multi)"
+    },
+    {
+      "parameters": {
+        "jsCode": "let modelo = '';\nlet kit = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  modelo = (parsed.modelo_moto || '').toString().trim();\n  kit = (parsed.kit || '').toString().trim();\n} catch (e) {\n  // si no se pudo parsear, quedan vacios y va a caer en 'no encontrado'\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    modelo_moto: modelo,\n    kit: kit,\n    modelo_moto_sql: escapar(modelo),\n    kit_sql: escapar(kit),\n    texto_original: $('Ruteo Intencion (Multi)').item.json.texto,\n    conversation_id: $('Ruteo Intencion (Multi)').item.json.conversation_id,\n    account_id: $('Ruteo Intencion (Multi)').item.json.account_id\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        16864
+      ],
+      "id": "37db1e07-5409-4080-8468-9c0bed4044cb",
+      "name": "Parsear Datos Tecnicos (Multi)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e1331c07-0f70-4c47-9d3e-90c579a609a4",
+              "leftValue": "={{ !!$json.modelo_moto_sql && !!$json.kit_sql }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -752,
+        16864
+      ],
+      "id": "7dfaa64b-60ff-492a-a41e-72eef01b76b3",
+      "name": "¿Datos Tecnicos Suficiente? (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT compatible, detalle FROM compatibilidades WHERE modelo_moto ILIKE '%{{ $json.modelo_moto_sql }}%' AND kit ILIKE '%{{ $json.kit_sql }}%' ORDER BY creado_en DESC LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        16864
+      ],
+      "id": "17e9bf2e-b942-4ffb-a43a-0128acc47c4b",
+      "name": "Buscar Datos Tecnicos (Multi)",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e332aacd-75db-4394-9f72-ed68bfdf7d2d",
+              "leftValue": "={{ $json.compatible !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        17024
+      ],
+      "id": "d495f7f6-0673-4f67-936e-46f6870e4e43",
+      "name": "¿Hay Dato Datos Tecnicos? (Multi)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b0a7ec10-b402-4df3-8dff-27c514512e3d",
+              "name": "dato_compatibilidad",
+              "value": "={{ 'Modelo: ' + $('Parsear Datos Tecnicos (Multi)').item.json.modelo_moto + ' | Kit: ' + $('Parsear Datos Tecnicos (Multi)').item.json.kit + ' | Compatible: ' + ($json.compatible ? 'SI' : 'NO') + ' | Detalle: ' + ($json.detalle || 'sin detalle adicional') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        17184
+      ],
+      "id": "99eb64eb-47fd-4150-a98b-f1c16340c2f9",
+      "name": "Preparar Contexto Datos Tecnicos (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM preguntas_tecnicas_pendientes WHERE conversation_id = {{ $('Parsear Datos Tecnicos (Multi)').item.json.conversation_id }} AND modelo_moto = '{{ $('Parsear Datos Tecnicos (Multi)').item.json.modelo_moto_sql }}' AND kit = '{{ $('Parsear Datos Tecnicos (Multi)').item.json.kit_sql }}' AND estado = 'pendiente' LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        17344
+      ],
+      "id": "02cf058b-8cad-4c4b-81cd-eb57b941252d",
+      "name": "Buscar Pendiente Datos Tecnicos (Multi) Existente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "67f38df5-cb11-41ba-8e86-27d34170e200",
+              "leftValue": "={{ $json.id !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        17424
+      ],
+      "id": "25f8ede9-ece3-48d7-aa3a-e2a569245749",
+      "name": "¿Ya Existe Pendiente Datos Tecnicos? (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO preguntas_tecnicas_pendientes (conversation_id, modelo_moto, kit, pregunta_original)\nVALUES ({{ $('Parsear Datos Tecnicos (Multi)').item.json.conversation_id }}, '{{ $('Parsear Datos Tecnicos (Multi)').item.json.modelo_moto_sql }}', '{{ $('Parsear Datos Tecnicos (Multi)').item.json.kit_sql }}', '{{ $('Parsear Datos Tecnicos (Multi)').item.json.texto_original.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        17504
+      ],
+      "id": "6385d5c1-e639-46cd-8880-1d1d48159b63",
+      "name": "Registrar Pregunta Datos Tecnicos (Multi) Pendiente"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "369afc80-008a-44b8-a19a-813b4faad2ca",
+              "name": "motivo",
+              "value": "=Consulta tecnica sin dato en la base: modelo '{{ $('Parsear Datos Tecnicos (Multi)').item.json.modelo_moto }}', kit '{{ $('Parsear Datos Tecnicos (Multi)').item.json.kit }}'. Pregunta original: {{ $('Parsear Datos Tecnicos (Multi)').item.json.texto_original }}",
+              "type": "string"
+            },
+            {
+              "id": "85e56ed0-e350-4372-b2f5-4006221d2293",
+              "name": "label",
+              "value": "requiere-humano-tecnica",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        17584
+      ],
+      "id": "2cbe839e-8cab-4f94-ad71-db9038c87e2e",
+      "name": "Preparar Escalado - Datos Tecnicos (Multi)"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.texto }}",
+        "options": {
+          "systemMessage": "Extrae del mensaje del cliente el tema puntual sobre el negocio que esta preguntando (no sobre un repuesto especifico). Respondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"tema\": \"...\"}\n\nElegi el tema entre: ubicacion, horarios, medios_pago, envios, garantia, otro. Usa \"otro\" si es sobre el negocio pero no encaja en los anteriores. No inventes datos, solo clasifica."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        17264
+      ],
+      "id": "bf6baabd-b541-4321-a23f-557bb6c1c1c6",
+      "name": "Extraer Tema Negocio (Multi)"
+    },
+    {
+      "parameters": {
+        "jsCode": "let tema = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  tema = (parsed.tema || '').toString().trim().toLowerCase();\n} catch (e) {\n  // si no se pudo parsear, queda vacio -> no matchea nada\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    tema: tema,\n    tema_sql: escapar(tema),\n    texto_original: $('Ruteo Intencion (Multi)').item.json.texto,\n    conversation_id: $('Ruteo Intencion (Multi)').item.json.conversation_id,\n    account_id: $('Ruteo Intencion (Multi)').item.json.account_id\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        17264
+      ],
+      "id": "11bb4084-43d1-4efc-88ba-9dc85abed54a",
+      "name": "Parsear Tema Negocio (Multi)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c0650a6a-fef5-4e3c-8d4f-87a293a1132c",
+              "leftValue": "={{ !!$json.tema_sql }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -752,
+        17264
+      ],
+      "id": "94bed519-e016-497a-9962-4139db447d43",
+      "name": "¿Tema Negocio Suficiente? (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT respuesta FROM info_negocio WHERE tema ILIKE '%{{ $json.tema_sql }}%' ORDER BY creado_en DESC LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        17264
+      ],
+      "id": "be141f70-12d5-4b15-a6a4-e46ec660d4dd",
+      "name": "Buscar Tema Negocio (Multi)",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5f56bf5f-da5e-4576-a362-9f06ade5784f",
+              "leftValue": "={{ $json.respuesta !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        17424
+      ],
+      "id": "f7b6c632-e9cf-4b01-840f-7d4065783a7d",
+      "name": "¿Hay Dato Tema Negocio? (Multi)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d05399fa-cda9-46e1-ba95-60b4c7263ad9",
+              "name": "dato_compatibilidad",
+              "value": "={{ 'Tema: ' + $('Parsear Tema Negocio (Multi)').item.json.tema + ' | Respuesta: ' + $json.respuesta }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        17584
+      ],
+      "id": "1915eab7-5662-44ba-b507-f4ee5053748d",
+      "name": "Preparar Contexto Tema Negocio (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM preguntas_negocio_pendientes WHERE conversation_id = {{ $('Parsear Tema Negocio (Multi)').item.json.conversation_id }} AND LOWER(tema) = LOWER('{{ $('Parsear Tema Negocio (Multi)').item.json.tema_sql }}') AND estado = 'pendiente' LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        17744
+      ],
+      "id": "e72e53d7-7d7e-4622-af20-61f3dbf81a78",
+      "name": "Buscar Pendiente Tema Negocio (Multi) Existente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "38ba71be-f138-4fa6-8579-c03c4efb0b8e",
+              "leftValue": "={{ $json.id !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        17824
+      ],
+      "id": "f80267d5-ac57-4938-96db-4048e2c4172a",
+      "name": "¿Ya Existe Pendiente Tema Negocio? (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO preguntas_negocio_pendientes (conversation_id, tema, pregunta_original)\nVALUES ({{ $('Parsear Tema Negocio (Multi)').item.json.conversation_id }}, '{{ $('Parsear Tema Negocio (Multi)').item.json.tema_sql }}', '{{ $('Parsear Tema Negocio (Multi)').item.json.texto_original.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        17904
+      ],
+      "id": "af2e1cbc-c859-45cd-8970-5e4e92207fe9",
+      "name": "Registrar Pregunta Tema Negocio (Multi) Pendiente"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1812f3ba-7b71-4e46-ab60-5ce1bf4d009a",
+              "name": "motivo",
+              "value": "=Consulta sobre el negocio sin dato registrado: tema '{{ $('Parsear Tema Negocio (Multi)').item.json.tema }}'. Pregunta original: {{ $('Parsear Tema Negocio (Multi)').item.json.texto_original }}",
+              "type": "string"
+            },
+            {
+              "id": "35c3d2f3-afab-4d51-9331-5f441a12da64",
+              "name": "label",
+              "value": "requiere-humano-info",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        17984
+      ],
+      "id": "95bf38c1-98d1-461d-8356-8f98b2793e04",
+      "name": "Preparar Escalado - Tema Negocio (Multi)"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.texto }}",
+        "options": {
+          "systemMessage": "Extraé del mensaje del cliente el producto, combo o kit puntual por el que pregunta precio o stock. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"producto\": \"...\"}\n\nSi no podés identificar el producto con claridad, dejalo como string vacio \"\". No inventes valores."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        17664
+      ],
+      "id": "6f4ca0cf-820e-453a-a377-d324c04802ac",
+      "name": "Extraer Producto (Multi)"
+    },
+    {
+      "parameters": {
+        "jsCode": "let producto = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  producto = (parsed.producto || '').toString().trim();\n} catch (e) {\n  // si no se pudo parsear, queda vacio -> no matchea nada\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    producto: producto,\n    producto_sql: escapar(producto),\n    texto_original: $('Ruteo Intencion (Multi)').item.json.texto,\n    conversation_id: $('Ruteo Intencion (Multi)').item.json.conversation_id,\n    account_id: $('Ruteo Intencion (Multi)').item.json.account_id\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -992,
+        17664
+      ],
+      "id": "39a39f24-1cca-42a1-a4b0-059f97ee679e",
+      "name": "Parsear Producto (Multi)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dadaed97-0df9-4e6e-84dc-c42b9f601bfe",
+              "leftValue": "={{ !!$json.producto_sql }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -752,
+        17664
+      ],
+      "id": "e1500db0-c8c1-4dbf-93d3-59977daf28c2",
+      "name": "¿Producto Suficiente? (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT precio, stock, detalle FROM precios_stock WHERE producto ILIKE '%{{ $json.producto_sql }}%' ORDER BY creado_en DESC LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        17664
+      ],
+      "id": "e5e41ffb-7dcf-4bd4-9563-9a1dc6636e3b",
+      "name": "Buscar Producto (Multi)",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4855278c-f566-4e9a-9c16-256d09ca2901",
+              "leftValue": "={{ $json.precio !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        17824
+      ],
+      "id": "4888ec61-2f83-4bc7-a308-2ef700b3bc9d",
+      "name": "¿Hay Dato Producto? (Multi)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f7f8c15e-a605-4014-b686-ec833ed97bd5",
+              "name": "dato_compatibilidad",
+              "value": "={{ 'Producto: ' + $('Parsear Producto (Multi)').item.json.producto + ' | Precio: ' + ($json.precio || 'sin dato') + ' | Stock: ' + ($json.stock || 'sin dato') + ' | Detalle: ' + ($json.detalle || 'sin detalle adicional') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        17984
+      ],
+      "id": "32e275d0-982b-41d5-adb8-94e29cc767bc",
+      "name": "Preparar Contexto Producto (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM preguntas_precio_pendientes WHERE conversation_id = {{ $('Parsear Producto (Multi)').item.json.conversation_id }} AND LOWER(producto) = LOWER('{{ $('Parsear Producto (Multi)').item.json.producto_sql }}') AND estado = 'pendiente' LIMIT 1;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        18144
+      ],
+      "id": "3eec5cf9-cbd8-4685-8e48-9cfe75a65def",
+      "name": "Buscar Pendiente Producto (Multi) Existente",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d765be3e-cc7f-4997-a1aa-ab106e67b5c5",
+              "leftValue": "={{ $json.id !== undefined }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        18224
+      ],
+      "id": "8cba2c60-def3-402e-99fc-589daddcc3ec",
+      "name": "¿Ya Existe Pendiente Producto? (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO preguntas_precio_pendientes (conversation_id, producto, pregunta_original)\nVALUES ({{ $('Parsear Producto (Multi)').item.json.conversation_id }}, '{{ $('Parsear Producto (Multi)').item.json.producto_sql }}', '{{ $('Parsear Producto (Multi)').item.json.texto_original.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        18304
+      ],
+      "id": "684874f4-e7d8-4dec-b211-16176c38b228",
+      "name": "Registrar Pregunta Producto (Multi) Pendiente"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ce7785a0-b715-4c0c-b6c6-6ae079faa4af",
+              "name": "motivo",
+              "value": "=Consulta de precio/stock sin dato en la base: producto '{{ $('Parsear Producto (Multi)').item.json.producto }}'. Pregunta original: {{ $('Parsear Producto (Multi)').item.json.texto_original }}",
+              "type": "string"
+            },
+            {
+              "id": "eff00166-377a-4fd7-8ae4-34603ef63abe",
+              "name": "label",
+              "value": "requiere-humano-precio",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -512,
+        18384
+      ],
+      "id": "bb2a4e98-e2c9-44b7-85c1-6138dcd26da3",
+      "name": "Preparar Escalado - Producto (Multi)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst encontrados = items.filter(i => i.json.resultado_tipo === 'encontrado');\nconst pendientes = items.filter(i => i.json.resultado_tipo === 'pendiente');\n\nreturn [{\n  json: {\n    dato_compatibilidad: encontrados.map(i => i.json.dato_compatibilidad).join('\\n'),\n    hay_encontrados: encontrados.length > 0,\n    hay_pendientes: pendientes.length > 0,\n    motivo: pendientes.map(i => i.json.motivo).join(' | '),\n    labels: [...new Set(pendientes.map(i => i.json.label))],\n    conversation_id: $('Webhook1').first().json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').first().json.body.sender.account.id,\n  },\n  // pairedItem explicito: al consolidar N items (uno por intencion) en 1 solo,\n  // n8n no puede inferir el mapeo automaticamente. Todos los N items comparten\n  // el mismo origen (el mensaje unico que disparo Expandir Intenciones), asi que\n  // enlazar con el item 0 de esta misma tanda alcanza para no romper la cadena\n  // de referencias $('nodo').item mas adelante (ej Traer Historial (Multi)).\n  pairedItem: { item: 0 },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        17360
+      ],
+      "id": "9b47c9ff-3182-4245-8e1d-3b29976d48ef",
+      "name": "Consolidar Resultados (Multi)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2fd91667-3d4a-4779-91ea-814623966e54",
+              "leftValue": "={{ $json.hay_encontrados }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        48,
+        17264
+      ],
+      "id": "cb2f0d24-0445-4993-9bca-d533c5a9b165",
+      "name": "¿Hay Encontrados? (Multi)"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c39e7bfe-ce40-4e54-9ed2-d007cc0ce85f",
+              "leftValue": "={{ $json.hay_pendientes }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        48,
+        17456
+      ],
+      "id": "81628963-c849-4069-92e4-75d49677e8fc",
+      "name": "¿Hay Pendientes? (Multi)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        288,
+        17216
+      ],
+      "id": "536af022-c988-4b4b-9072-d09466ff4459",
+      "name": "Traer Historial (Multi)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.historial || [];\nconst historialTexto = raw\n  .map((m) => (m.role === 'human' ? 'Cliente: ' : 'Asesor: ') + (m.content || ''))\n  .join('\\n');\n\nreturn [\n  {\n    historial_texto: historialTexto,\n    dato_compatibilidad: $('Consolidar Resultados (Multi)').first().json.dato_compatibilidad,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        17216
+      ],
+      "id": "84824245-e18a-4753-a831-db11105499a6",
+      "name": "Formatear Historial (Multi)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4601293a-ed7a-43a4-ab2a-7aa5684994ee",
+              "name": "motivo",
+              "value": "={{ $json.motivo }}",
+              "type": "string"
+            },
+            {
+              "id": "9bf37978-eae2-4813-9b56-7e41d221dbcd",
+              "name": "labels",
+              "value": "={{ $json.labels }}",
+              "type": "array"
+            },
+            {
+              "id": "ec859d25-9b8c-468e-a29e-6e2803b2e920",
+              "name": "conversation_id",
+              "value": "={{ $json.conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "8b00f39d-73fa-41a6-980c-c6557d7ef3b0",
+              "name": "account_id",
+              "value": "={{ $json.account_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        288,
+        17520
+      ],
+      "id": "c8d83c5d-b493-4576-883c-88eeb55ed5c9",
+      "name": "Preparar Escalado - Multi Intencion"
+    },
+    {
+      "parameters": {
+        "model": "deepseek-v4-flash",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
+      "typeVersion": 1,
+      "position": [
+        -2704,
+        17360
+      ],
+      "id": "146c2caa-1fb6-46a0-8107-133d5a1d5dd5",
+      "name": "DeepSeek Chat Model - Extraccion",
+      "credentials": {
+        "deepSeekApi": {
+          "id": "6uiYD2nzluzyDXnZ",
+          "name": "DeepSeek account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Solo mensajes creados1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Solo mensajes creados1": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "incoming?1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Es respuesta de mi equipo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "incoming?1": {
+      "main": [
+        [
+          {
+            "node": "Tipo de Mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tipo de Mensaje": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "datos_txt1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Escalado - Contenido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording1": {
+      "main": [
+        [
+          {
+            "node": "datos_audio1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "datos_audio1": {
+      "main": [
+        [
+          {
+            "node": "datos_redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "datos_txt1": {
+      "main": [
+        [
+          {
+            "node": "datos_redis1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "datos_redis1": {
+      "main": [
+        [
+          {
+            "node": "buffer1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buffer1": {
+      "main": [
+        [
+          {
+            "node": "get_buffer_data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "get_buffer_data1": {
+      "main": [
+        [
+          {
+            "node": "Matcheo de núm Tel1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Matcheo de núm Tel1": {
+      "main": [
+        [
+          {
+            "node": "No Operation, do nothing4",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Intentar Tomar Lock",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait3": {
+      "main": [
+        [
+          {
+            "node": "get_buffer_data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intentar Tomar Lock": {
+      "main": [
+        [
+          {
+            "node": "¿Gané el lock?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Gané el lock?": {
+      "main": [
+        [
+          {
+            "node": "delete_buffer1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicado - ya procesado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "delete_buffer1": {
+      "main": [
+        [
+          {
+            "node": "Borrar Lock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "datos_finales2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "datos_finales2": {
+      "main": [
+        [
+          {
+            "node": "Chequear Bot Pausado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clasificador Intento": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Categoria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Categoria": {
+      "main": [
+        [
+          {
+            "node": "Ruteo por Categoria",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ruteo por Categoria": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Mayorista o Compra",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Expandir Intenciones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extraer Datos Tecnicos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extraer Tema Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extraer Producto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Traer Historial (Generico)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent2": {
+      "main": [
+        [
+          {
+            "node": "Guardar Turno Conversacion",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar Auto-Eco - Respuesta Principal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "devuelve outputs": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items2": {
+      "main": [
+        [],
+        [
+          {
+            "node": "1ª Parte Respuesta1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1ª Parte Respuesta1": {
+      "main": [
+        [
+          {
+            "node": "Replace Me2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Me2": {
+      "main": [
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Contenido": {
+      "main": [
+        [
+          {
+            "node": "Escalar - Agregar Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Mayorista o Compra": {
+      "main": [
+        [
+          {
+            "node": "Escalar - Agregar Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalar - Agregar Label": {
+      "main": [
+        [
+          {
+            "node": "Chequear Cooldown Escalado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalar - Nota Privada": {
+      "main": [
+        [
+          {
+            "node": "Fin - Escalado a Humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Datos Tecnicos": {
+      "main": [
+        [
+          {
+            "node": "Parsear Extraccion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Extraccion": {
+      "main": [
+        [
+          {
+            "node": "¿Datos Tecnicos Suficientes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Compatibilidad": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Dato?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Dato?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto Encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Tecnica Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto Encontrado": {
+      "main": [
+        [
+          {
+            "node": "Traer Historial (Tecnica)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Pregunta Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Consulta Tecnica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Consulta Tecnica": {
+      "main": [
+        [
+          {
+            "node": "Escalar - Agregar Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es respuesta de mi equipo?": {
+      "main": [
+        [
+          {
+            "node": "Chequear Auto-Eco",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin - No es Respuesta de Equipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pregunta Pendiente": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Pregunta Pendiente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Pregunta Pendiente?": {
+      "main": [
+        [
+          {
+            "node": "Extraer Respuesta Tecnica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pregunta Negocio Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Respuesta Tecnica": {
+      "main": [
+        [
+          {
+            "node": "Parsear Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Respuesta": {
+      "main": [
+        [
+          {
+            "node": "¿Extraccion Confiable?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Extraccion Confiable?": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Compatibilidades",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin - Extraccion No Confiable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar en Compatibilidades": {
+      "main": [
+        [
+          {
+            "node": "Marcar Pregunta Respondida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Pregunta Respondida": {
+      "main": [
+        [
+          {
+            "node": "Preparar Respuesta Cliente - Tecnica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Historial (Generico)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Historial (Generico)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Historial (Generico)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Historial (Tecnica)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Historial (Tecnica)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Historial (Tecnica)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Turno Conversacion": {
+      "main": [
+        [
+          {
+            "node": "devuelve outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recuperar Motivo Escalado": {
+      "main": [
+        [
+          {
+            "node": "Escalar - Nota Privada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Borrar Lock": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Tema Negocio": {
+      "main": [
+        [
+          {
+            "node": "Parsear Tema",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Tema": {
+      "main": [
+        [
+          {
+            "node": "¿Tema Negocio Valido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Info Negocio": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Info Negocio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Info Negocio?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto Info Encontrada",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Negocio Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto Info Encontrada": {
+      "main": [
+        [
+          {
+            "node": "Traer Historial (Negocio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Historial (Negocio)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Historial (Negocio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Historial (Negocio)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Pregunta Negocio Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Consulta Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Consulta Negocio": {
+      "main": [
+        [
+          {
+            "node": "Escalar - Agregar Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pregunta Negocio Pendiente": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Pregunta Negocio Pendiente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Pregunta Negocio Pendiente?": {
+      "main": [
+        [
+          {
+            "node": "Extraer Respuesta Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pregunta Precio Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Respuesta Negocio": {
+      "main": [
+        [
+          {
+            "node": "Parsear Respuesta Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Respuesta Negocio": {
+      "main": [
+        [
+          {
+            "node": "¿Extraccion Confiable Negocio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Extraccion Confiable Negocio?": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Info Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin - Extraccion No Confiable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar en Info Negocio": {
+      "main": [
+        [
+          {
+            "node": "Marcar Pregunta Negocio Respondida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Pregunta Negocio Respondida": {
+      "main": [
+        [
+          {
+            "node": "Preparar Respuesta Cliente - Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Respuesta Cliente - Tecnica": {
+      "main": [
+        [
+          {
+            "node": "Responder Cliente - Aprendizaje Tecnico",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar Auto-Eco - Aprendizaje Tecnico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Cliente - Aprendizaje Tecnico": {
+      "main": [
+        [
+          {
+            "node": "Fin - Aprendizaje Guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Respuesta Cliente - Negocio": {
+      "main": [
+        [
+          {
+            "node": "Responder Cliente - Aprendizaje Negocio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar Auto-Eco - Aprendizaje Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Cliente - Aprendizaje Negocio": {
+      "main": [
+        [
+          {
+            "node": "Fin - Aprendizaje Guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chequear Bot Pausado": {
+      "main": [
+        [
+          {
+            "node": "¿Bot Pausado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Bot Pausado?": {
+      "main": [
+        [
+          {
+            "node": "Fin - Bot Pausado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clasificador Intento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chequear Auto-Eco": {
+      "main": [
+        [
+          {
+            "node": "¿Es Auto-Eco?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Auto-Eco?": {
+      "main": [
+        [
+          {
+            "node": "Fin - Auto-Eco Ignorado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Es Comando Reactivar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Comando Reactivar?": {
+      "main": [
+        [
+          {
+            "node": "Reactivar Bot",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar Bot Pausado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reactivar Bot": {
+      "main": [
+        [
+          {
+            "node": "Fin - Bot Reactivado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Bot Pausado": {
+      "main": [
+        [
+          {
+            "node": "Buscar Pregunta Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chequear Cooldown Escalado": {
+      "main": [
+        [
+          {
+            "node": "¿Escalado en Cooldown?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Escalado en Cooldown?": {
+      "main": [
+        [
+          {
+            "node": "Fin - Escalado Omitido (cooldown)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar Cooldown Escalado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Cooldown Escalado": {
+      "main": [
+        [
+          {
+            "node": "Recuperar Motivo Escalado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Datos Tecnicos Suficientes?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Compatibilidad",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Tecnica Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tema Negocio Valido?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Info Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Negocio Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Producto": {
+      "main": [
+        [
+          {
+            "node": "Parsear Extraccion Precio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Extraccion Precio": {
+      "main": [
+        [
+          {
+            "node": "¿Datos Precio Suficientes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Datos Precio Suficientes?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Precio Stock",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Precio Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Precio Stock": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Dato Precio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Dato Precio?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto Precio Encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Precio Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto Precio Encontrado": {
+      "main": [
+        [
+          {
+            "node": "Traer Historial (Precio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Historial (Precio)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Historial (Precio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Historial (Precio)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Pregunta Precio Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Consulta Precio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Consulta Precio": {
+      "main": [
+        [
+          {
+            "node": "Escalar - Agregar Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pregunta Precio Pendiente": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Pregunta Precio Pendiente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Pregunta Precio Pendiente?": {
+      "main": [
+        [
+          {
+            "node": "Extraer Respuesta Precio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin - Nada Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Respuesta Precio": {
+      "main": [
+        [
+          {
+            "node": "Parsear Respuesta Precio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Respuesta Precio": {
+      "main": [
+        [
+          {
+            "node": "¿Extraccion Confiable Precio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Extraccion Confiable Precio?": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Precios Stock",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin - Extraccion No Confiable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar en Precios Stock": {
+      "main": [
+        [
+          {
+            "node": "Marcar Pregunta Precio Respondida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Pregunta Precio Respondida": {
+      "main": [
+        [
+          {
+            "node": "Preparar Respuesta Cliente - Precio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Respuesta Cliente - Precio": {
+      "main": [
+        [
+          {
+            "node": "Responder Cliente - Aprendizaje Precio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar Auto-Eco - Aprendizaje Precio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Cliente - Aprendizaje Precio": {
+      "main": [
+        [
+          {
+            "node": "Fin - Aprendizaje Guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pendiente Tecnica Existente": {
+      "main": [
+        [
+          {
+            "node": "¿Ya Existe Pendiente Tecnica?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya Existe Pendiente Tecnica?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Consulta Tecnica",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Pregunta Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pendiente Negocio Existente": {
+      "main": [
+        [
+          {
+            "node": "¿Ya Existe Pendiente Negocio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya Existe Pendiente Negocio?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Consulta Negocio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Pregunta Negocio Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pendiente Precio Existente": {
+      "main": [
+        [
+          {
+            "node": "¿Ya Existe Pendiente Precio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya Existe Pendiente Precio?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Consulta Precio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Pregunta Precio Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expandir Intenciones": {
+      "main": [
+        [
+          {
+            "node": "Loop Intenciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Intenciones": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Resultados (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ruteo Intencion (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Etiquetar Encontrado (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Loop Intenciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Etiquetar Pendiente (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Loop Intenciones",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ruteo Intencion (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Extraer Datos Tecnicos (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extraer Producto (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extraer Tema Negocio (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Datos Tecnicos (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Parsear Datos Tecnicos (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Datos Tecnicos (Multi)": {
+      "main": [
+        [
+          {
+            "node": "¿Datos Tecnicos Suficiente? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Datos Tecnicos Suficiente? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Datos Tecnicos (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Datos Tecnicos (Multi) Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Datos Tecnicos (Multi)": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Dato Datos Tecnicos? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Dato Datos Tecnicos? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto Datos Tecnicos (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Datos Tecnicos (Multi) Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto Datos Tecnicos (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Etiquetar Encontrado (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pendiente Datos Tecnicos (Multi) Existente": {
+      "main": [
+        [
+          {
+            "node": "¿Ya Existe Pendiente Datos Tecnicos? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya Existe Pendiente Datos Tecnicos? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Datos Tecnicos (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Pregunta Datos Tecnicos (Multi) Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Pregunta Datos Tecnicos (Multi) Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Datos Tecnicos (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Datos Tecnicos (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Etiquetar Pendiente (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Tema Negocio (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Parsear Tema Negocio (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Tema Negocio (Multi)": {
+      "main": [
+        [
+          {
+            "node": "¿Tema Negocio Suficiente? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tema Negocio Suficiente? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Tema Negocio (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Tema Negocio (Multi) Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Tema Negocio (Multi)": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Dato Tema Negocio? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Dato Tema Negocio? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto Tema Negocio (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Tema Negocio (Multi) Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto Tema Negocio (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Etiquetar Encontrado (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pendiente Tema Negocio (Multi) Existente": {
+      "main": [
+        [
+          {
+            "node": "¿Ya Existe Pendiente Tema Negocio? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya Existe Pendiente Tema Negocio? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Tema Negocio (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Pregunta Tema Negocio (Multi) Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Pregunta Tema Negocio (Multi) Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Tema Negocio (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Tema Negocio (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Etiquetar Pendiente (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer Producto (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Parsear Producto (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Producto (Multi)": {
+      "main": [
+        [
+          {
+            "node": "¿Producto Suficiente? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Producto Suficiente? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Buscar Producto (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Producto (Multi) Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Producto (Multi)": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Dato Producto? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Dato Producto? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Preparar Contexto Producto (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Pendiente Producto (Multi) Existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Contexto Producto (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Etiquetar Encontrado (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Pendiente Producto (Multi) Existente": {
+      "main": [
+        [
+          {
+            "node": "¿Ya Existe Pendiente Producto? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya Existe Pendiente Producto? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Producto (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Pregunta Producto (Multi) Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Pregunta Producto (Multi) Pendiente": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Producto (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Producto (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Etiquetar Pendiente (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar Resultados (Multi)": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Encontrados? (Multi)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "¿Hay Pendientes? (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Encontrados? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Traer Historial (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Historial (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Historial (Multi)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Historial (Multi)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Pendientes? (Multi)": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Multi Intencion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Multi Intencion": {
+      "main": [
+        [
+          {
+            "node": "Escalar - Agregar Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek Chat Model - Extraccion": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Clasificador Intento",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Datos Tecnicos",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Respuesta Tecnica",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Tema Negocio",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Respuesta Negocio",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Producto",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Respuesta Precio",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Datos Tecnicos (Multi)",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Producto (Multi)",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Extraer Tema Negocio (Multi)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "bad442fb-19fc-43bb-97c3-fbd6d8c6c238",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
+  },
+  "id": "MAqIthTkpuAo7iKi",
+  "tags": []
+}

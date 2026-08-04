@@ -70,8 +70,14 @@ const CATEGORIA_AL_FINAL = "PLANTILLAS Y ADMISIÓN"
 const CARRITO_KEY = "mayoristas-carrito"
 
 // Pasos del checkout dentro del panel del carrito: se pide el DNI, se intenta
-// identificar al cliente (Proveedores o padrón ARCA) y se confirma el pedido.
-type PasoCheckout = "carrito" | "dni" | "nombreManual" | "confirmar" | "enviando" | "exito"
+// identificar al cliente (Proveedores o padrón ARCA), se elige la entrega y se confirma el pedido.
+type PasoCheckout = "carrito" | "dni" | "nombreManual" | "envio" | "confirmar" | "enviando" | "exito"
+
+const TIPOS_ENVIO = [
+    { value: "andreani", label: "Andreani" },
+    { value: "via cargo", label: "Via Cargo" },
+    { value: "retiran aca", label: "Retiran en el local" },
+] as const
 
 export default function MayoristasClient({
     articulos,
@@ -88,6 +94,8 @@ export default function MayoristasClient({
     const [dniInput, setDniInput] = useState("")
     const [telefonoInput, setTelefonoInput] = useState("")
     const [nombreManualInput, setNombreManualInput] = useState("")
+    const [tipoEnvioInput, setTipoEnvioInput] = useState<string>("andreani")
+    const [observacionesInput, setObservacionesInput] = useState("")
     const [clienteResuelto, setClienteResuelto] = useState<{ nombre: string; cuit: string } | null>(null)
     const [errorCheckout, setErrorCheckout] = useState<string | null>(null)
     const [buscandoCliente, setBuscandoCliente] = useState(false)
@@ -101,6 +109,8 @@ export default function MayoristasClient({
             setDniInput("")
             setTelefonoInput("")
             setNombreManualInput("")
+            setTipoEnvioInput("andreani")
+            setObservacionesInput("")
             setClienteResuelto(null)
             setErrorCheckout(null)
         }
@@ -237,7 +247,7 @@ export default function MayoristasClient({
             const res = await buscarClienteMayoristaPorDni(limpio)
             if (res.encontrado && res.nombre) {
                 setClienteResuelto({ nombre: res.nombre, cuit: res.cuit })
-                setPasoCheckout("confirmar")
+                setPasoCheckout("envio")
             } else {
                 setClienteResuelto({ nombre: "", cuit: res.cuit })
                 setNombreManualInput("")
@@ -254,7 +264,7 @@ export default function MayoristasClient({
         const nombre = nombreManualInput.trim()
         if (!nombre || !clienteResuelto) return
         setClienteResuelto({ ...clienteResuelto, nombre })
-        setPasoCheckout("confirmar")
+        setPasoCheckout("envio")
     }
 
     async function handleAceptarPedido() {
@@ -266,6 +276,8 @@ export default function MayoristasClient({
                 cuit: clienteResuelto.cuit,
                 nombre: clienteResuelto.nombre,
                 telefono: telefonoInput,
+                tipoEnvio: tipoEnvioInput,
+                observaciones: observacionesInput,
                 items: itemsCarrito.map(({ articulo, cantidad }) => ({ articuloMayoristaId: articulo.id, cantidad })),
             })
             if (res.success) {
@@ -644,11 +656,53 @@ export default function MayoristasClient({
                                     </div>
                                 )}
 
+                                {pasoCheckout === "envio" && (
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-gray-400">¿Cómo querés recibir el pedido?</p>
+                                        <select
+                                            value={tipoEnvioInput}
+                                            onChange={(e) => setTipoEnvioInput(e.target.value)}
+                                            className="w-full bg-[#111] border border-white/15 text-white rounded-lg px-3 py-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-red-600/50"
+                                        >
+                                            {TIPOS_ENVIO.map(t => (
+                                                <option key={t.value} value={t.value}>{t.label}</option>
+                                            ))}
+                                        </select>
+                                        <textarea
+                                            value={observacionesInput}
+                                            onChange={(e) => setObservacionesInput(e.target.value)}
+                                            placeholder="Observaciones (opcional). Ej: dirección de entrega, horarios, aclaraciones..."
+                                            rows={3}
+                                            className="w-full bg-[#111] border border-white/15 text-white placeholder:text-gray-600 rounded-lg px-3 py-2.5 text-sm outline-none resize-none focus-visible:ring-2 focus-visible:ring-red-600/50"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setPasoCheckout("dni")}
+                                                className="flex-1 text-xs text-gray-400 hover:text-white py-2.5"
+                                            >
+                                                Volver
+                                            </button>
+                                            <button
+                                                onClick={() => setPasoCheckout("confirmar")}
+                                                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg transition-colors"
+                                            >
+                                                Continuar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {pasoCheckout === "confirmar" && clienteResuelto && (
                                     <div className="space-y-2">
                                         <p className="text-sm text-gray-200">
                                             ¿Confirmás el pedido a nombre de <span className="font-bold text-white">{clienteResuelto.nombre}</span>?
                                         </p>
+                                        <div className="bg-white/5 rounded-lg p-2.5 text-xs text-gray-400 space-y-1">
+                                            <p>Entrega: <span className="text-gray-200 font-semibold">{TIPOS_ENVIO.find(t => t.value === tipoEnvioInput)?.label}</span></p>
+                                            {observacionesInput.trim() && (
+                                                <p className="whitespace-pre-wrap">Observaciones: <span className="text-gray-200">{observacionesInput.trim()}</span></p>
+                                            )}
+                                        </div>
                                         {errorCheckout && <p className="text-xs text-red-400">{errorCheckout}</p>}
                                         <div className="flex gap-2">
                                             <button

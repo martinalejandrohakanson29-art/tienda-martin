@@ -45,15 +45,21 @@ export async function buscarClienteMayoristaPorDni(dni: string) {
     }
 }
 
+const TIPOS_ENVIO_VALIDOS = ["andreani", "via cargo", "retiran aca"]
+
 export async function crearPedidoMayoristaWeb(data: {
     cuit: string
     nombre: string
     telefono: string
+    tipoEnvio: string
+    observaciones?: string
     items: { articuloMayoristaId: string; cantidad: number }[]
 }) {
     const cuit = data.cuit.replace(/\D/g, "")
     const nombre = data.nombre.trim()
     const telefono = data.telefono.trim()
+    const tipoEnvio = TIPOS_ENVIO_VALIDOS.includes(data.tipoEnvio) ? data.tipoEnvio : "andreani"
+    const observaciones = (data.observaciones || "").trim()
 
     if (!cuit || cuit.length < 7) {
         return { success: false, error: "DNI inválido" }
@@ -118,6 +124,8 @@ export async function crearPedidoMayoristaWeb(data: {
                     dni: cuit,
                     docNro: cuit,
                     telefono,
+                    tipoEnvio,
+                    info: observaciones || null,
                     sujetoId: sujeto.id,
                     items: { create: itemsVenta },
                 },

@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, TrendingDown, TrendingUp, BadgePercent } from "lucide-react";
+import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, TrendingDown, TrendingUp, BadgePercent, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "./agregado-filter";
@@ -51,6 +51,8 @@ interface Props {
   selectedIds?: Set<string>;
   qualifyingIds?: Set<string>;
   onToggle?: (itemId: string) => void;
+  onSelectMany?: (itemIds: string[]) => void;
+  onDeselectMany?: (itemIds: string[]) => void;
   headerActions?: React.ReactNode;
   ajustesMap?: Map<string, number>;
   tipoMap?: Map<string, "DESCUENTO" | "SUBA">;
@@ -65,6 +67,8 @@ export default function RentabilidadTable({
   selectedIds,
   qualifyingIds,
   onToggle,
+  onSelectMany,
+  onDeselectMany,
   headerActions,
   ajustesMap,
   tipoMap,
@@ -206,6 +210,22 @@ export default function RentabilidadTable({
     );
   });
 
+  // ids únicos actualmente visibles según los filtros (buscador, agregados, sin descuento)
+  const filteredItemIds = useMemo(
+    () => Array.from(new Set(filteredData.map((item) => item.item_id))),
+    [filteredData]
+  );
+  const allFilteredSelected =
+    filteredItemIds.length > 0 && filteredItemIds.every((id) => selectedIds?.has(id));
+
+  const handleToggleFiltered = () => {
+    if (allFilteredSelected) {
+      onDeselectMany?.(filteredItemIds);
+    } else {
+      onSelectMany?.(filteredItemIds);
+    }
+  };
+
   const handleSort = (key: SortKey) => {
     const direction = sortConfig.key === key && sortConfig.direction === "asc" ? "desc" : "asc";
     setSortConfig({ key, direction });
@@ -297,9 +317,26 @@ export default function RentabilidadTable({
             </button>
           </div>
           <div className="flex items-center gap-3 self-end sm:self-auto">
+            {hasSelection && filteredItemIds.length > 0 && (
+              <button
+                type="button"
+                onClick={handleToggleFiltered}
+                className="flex items-center gap-1.5 h-8 px-2 text-xs font-medium text-slate-500 hover:text-violet-700 hover:bg-violet-50 rounded-md transition-colors"
+                title="Tilda o destilda solo las publicaciones que están visibles con el filtro/búsqueda actual"
+              >
+                {allFilteredSelected ? (
+                  <><CheckSquare className="h-3.5 w-3.5 text-violet-600" /> Destildar filtrados</>
+                ) : (
+                  <><Square className="h-3.5 w-3.5" /> Tildar filtrados</>
+                )}
+              </button>
+            )}
             {headerActions}
             <div className="text-xs text-slate-500 font-medium whitespace-nowrap">
               {filteredData.length} ítems analizados
+              {hasSelection && !!selectedIds?.size && (
+                <span className="ml-1 text-violet-600">· {selectedIds.size} tildados</span>
+              )}
             </div>
           </div>
         </div>

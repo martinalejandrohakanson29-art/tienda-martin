@@ -1,0 +1,179 @@
+{
+  "name": "Suba_precios",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "suba-precios",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "224f2b88-c61f-4253-8f77-239fc7cd0805",
+      "name": "Webhook",
+      "webhookId": "suba-precios"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "MUsInFnHGy2zWvn0",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/MUsInFnHGy2zWvn0",
+          "cachedResultName": "Read_token"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        208,
+        0
+      ],
+      "id": "a5755ef2-68f7-431c-85a6-ebbda163cad8",
+      "name": "Call 'Read_token'"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Consolida resultados: separa OK de errores\n// Respuesta exitosa de PUT /items: el objeto del ítem con { id, price, ... }\nconst results = $input.all();\nconst ok = results.filter(r => r.json.id != null).length;\nconst errores = results.filter(r => r.json.id == null).map(r => r.json);\nreturn [{ json: { total: results.length, ok, errores } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        0
+      ],
+      "id": "3903eceb-5db1-4d14-93b3-6b4388aa6318",
+      "name": "Resultado"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.mercadolibre.com/items/{{ $json.item_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $('Call \\'Read_token\\'').first().json['Access Token'] }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ price: $json.nuevo_precio }) }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 3,
+              "batchInterval": 800
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        608,
+        0
+      ],
+      "id": "45965f87-fb61-464f-9c98-58b8f30bfce3",
+      "name": "Subir precio ML",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Expande el array items del webhook en ítems individuales de n8n\nconst input = $('Webhook').first().json;\n// n8n envuelve el body en $json.body\nconst items = input.body?.items || input.items || [];\nif (items.length === 0) return [{ json: { error: 'No items received' } }];\nreturn items.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ],
+      "id": "8fae203d-0be5-413a-8ea3-ee2e3ef5d78a",
+      "name": "Expandir items"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Read_token'": {
+      "main": [
+        [
+          {
+            "node": "Expandir items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Subir precio ML": {
+      "main": [
+        [
+          {
+            "node": "Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expandir items": {
+      "main": [
+        [
+          {
+            "node": "Subir precio ML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "e1fc85f7-6530-426b-b2b7-9ebca30ea324",
+  "meta": {
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
+  },
+  "id": "aoIF9bng6ICb5GbA",
+  "tags": []
+}

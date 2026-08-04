@@ -4,10 +4,11 @@ import { useState, useMemo } from "react";
 import RentabilidadTable, { type ProductoRentabilidad } from "./rentabilidad-table";
 import OptimizarPreciosButton from "./optimizar-button";
 import DescuentoManualMasivoButton from "./manual-masivo-button";
+import ObjetivoMasivoButton from "./objetivo-masivo-button";
 import type { AjustePrecio } from "@/app/actions/ajuste-precios";
 import type { Agregado } from "./agregado-filter";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, Square } from "lucide-react";
+import { X } from "lucide-react";
 
 export default function RentabilidadClient({
   data,
@@ -45,6 +46,21 @@ export default function RentabilidadClient({
       return next;
     });
   };
+
+  const handleSelectMany = (itemIds: string[]) => {
+    setSelectedIds((prev) => new Set([...prev, ...itemIds]));
+  };
+
+  const handleDeselectMany = (itemIds: string[]) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      itemIds.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+
+  // Vacía la selección completa, sin importar qué haya quedado filtrado/oculto
+  const handleClearAll = () => setSelectedIds(new Set());
 
   // Ajustes manuales cargados a mano por el usuario (clave: item_id)
   const [manualAjustes, setManualAjustes] = useState<Map<string, AjustePrecio>>(
@@ -94,37 +110,24 @@ export default function RentabilidadClient({
     return [...manuales, ...porRegla];
   }, [ajustes, selectedIds, manualAjustes]);
 
-  const allQualifyingSelected = ajustes.every((a) => selectedIds.has(a.item_id));
-
-  const handleToggleAll = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allQualifyingSelected) {
-        ajustes.forEach((a) => next.delete(a.item_id));
-      } else {
-        ajustes.forEach((a) => next.add(a.item_id));
-      }
-      return next;
-    });
-  };
-
   const headerActions = (
     <>
-      {ajustes.length > 0 && (
+      {selectedIds.size > 0 && (
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleToggleAll}
-          className="h-8 text-xs text-slate-500 hover:text-violet-700 hover:bg-violet-50 gap-1.5"
+          onClick={handleClearAll}
+          className="h-8 text-xs text-slate-500 hover:text-red-600 hover:bg-red-50 gap-1.5"
         >
-          {allQualifyingSelected ? (
-            <><CheckSquare className="h-3.5 w-3.5 text-violet-600" /> Destildar todos</>
-          ) : (
-            <><Square className="h-3.5 w-3.5" /> Tildar todos</>
-          )}
+          <X className="h-3.5 w-3.5" /> Vaciar selección
         </Button>
       )}
       <DescuentoManualMasivoButton
+        data={data}
+        selectedIds={selectedIds}
+        onAplicar={handleSetManualBulk}
+      />
+      <ObjetivoMasivoButton
         data={data}
         selectedIds={selectedIds}
         onAplicar={handleSetManualBulk}
@@ -139,6 +142,8 @@ export default function RentabilidadClient({
       selectedIds={selectedIds}
       qualifyingIds={qualifyingIds}
       onToggle={handleToggle}
+      onSelectMany={handleSelectMany}
+      onDeselectMany={handleDeselectMany}
       headerActions={headerActions}
       ajustesMap={ajustesMap}
       tipoMap={tipoMap}

@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, TrendingDown, TrendingUp, Zap, CheckCircle2 } from "lucide-react";
+import { Loader2, TrendingDown, TrendingUp, ArrowUpDown, Zap, CheckCircle2 } from "lucide-react";
 import { ejecutarAjustesRentabilidad, type AjustePrecio } from "@/app/actions/ajuste-precios";
 import { cn } from "@/lib/utils";
 
@@ -89,8 +89,8 @@ export default function OptimizarPreciosButton({
               )}
               {subas.length > 0 && (
                 <span className="flex items-center gap-1 text-emerald-600">
-                  <TrendingUp className="h-3.5 w-3.5" />
-                  {subas.length} suba(s) → cambia el precio de lista real
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                  {subas.length} cambio(s) directo(s) de precio → precio de lista real
                 </span>
               )}
               {manuales.length > 0 && (
@@ -116,7 +116,10 @@ export default function OptimizarPreciosButton({
               </thead>
               <tbody>
                 {ajustes.map((a, i) => {
-                  const esSuba = a.tipo === "SUBA";
+                  // La dirección real (sube/baja) se determina por el precio, no por el
+                  // tipo: "SUBA" es el mecanismo de precio directo y también se usa para
+                  // bajar precio sin promoción (ver objetivo-ajuste.ts).
+                  const sube = a.nuevo_precio >= a.precio_actual_nuestro;
                   return (
                     <tr
                       key={a.item_id}
@@ -155,13 +158,13 @@ export default function OptimizarPreciosButton({
                         </div>
                       </td>
                       <td className="p-2 text-center">
-                        {esSuba ? (
+                        {sube ? (
                           <Badge className="text-[9px] h-5 bg-emerald-100 text-emerald-700 gap-0.5 hover:bg-emerald-100">
-                            <TrendingUp className="h-3 w-3" /> Suba
+                            <TrendingUp className="h-3 w-3" /> Sube
                           </Badge>
                         ) : (
                           <Badge className="text-[9px] h-5 bg-amber-100 text-amber-700 gap-0.5 hover:bg-amber-100">
-                            <TrendingDown className="h-3 w-3" /> Descuento
+                            <TrendingDown className="h-3 w-3" /> {a.tipo === "DESCUENTO" ? "Descuento" : "Baja"}
                           </Badge>
                         )}
                       </td>
@@ -174,11 +177,11 @@ export default function OptimizarPreciosButton({
                       <td className="p-2 text-right text-slate-600 font-medium">
                         ${a.precio_actual_nuestro.toLocaleString("es-AR")}
                       </td>
-                      <td className={cn("p-2 pr-4 text-right font-black", esSuba ? "text-emerald-700" : "text-violet-700")}>
+                      <td className={cn("p-2 pr-4 text-right font-black", sube ? "text-emerald-700" : "text-violet-700")}>
                         ${a.nuevo_precio.toLocaleString("es-AR")}
                       </td>
-                      <td className={cn("p-2 pr-4 text-right font-bold", esSuba ? "text-emerald-600" : "text-amber-600")}>
-                        {esSuba ? "+" : "-"}{a.ajuste_pct.toFixed(1)}%
+                      <td className={cn("p-2 pr-4 text-right font-bold", sube ? "text-emerald-600" : "text-amber-600")}>
+                        {sube ? "+" : "-"}{Math.abs(a.ajuste_pct).toFixed(1)}%
                       </td>
                     </tr>
                   );
@@ -190,7 +193,7 @@ export default function OptimizarPreciosButton({
           <DialogFooter className="p-4 border-t bg-slate-50 rounded-b-lg">
             <div className="flex items-center justify-between w-full">
               <p className="text-xs text-slate-500">
-                Descuentos: promoción <strong>PRICE_DISCOUNT</strong>. Subas: actualiza <strong>price</strong> real del ítem.
+                Descuentos: promoción <strong>PRICE_DISCOUNT</strong> (precio de lista intacto). Cambios directos: actualiza <strong>price</strong> real del ítem (sube o baja).
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)} disabled={ejecutando}>

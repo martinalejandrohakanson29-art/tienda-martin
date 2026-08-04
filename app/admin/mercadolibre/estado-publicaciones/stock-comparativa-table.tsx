@@ -14,6 +14,8 @@ import { Search, X, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide
 import { cn } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "../rentabilidad/agregado-filter";
 import type { PublicacionEstado } from "@/app/actions/estado-publicaciones";
+import EstadoToggleButton from "./estado-toggle-button";
+import StockDepositoCell from "./stock-deposito-cell";
 
 type FiltroEstado = "todos" | "active" | "paused";
 
@@ -22,9 +24,11 @@ type SortKey = "title" | "status" | "ventas_30d" | "stock_nuestro" | "stock_ml" 
 interface Props {
   data: PublicacionEstado[];
   agregados: Agregado[];
+  onEstadoActualizado: (itemId: string, nuevoEstado: string) => void;
+  onStockActualizado: (itemId: string, variationId: string | null, nuevoStock: number) => void;
 }
 
-export default function StockComparativaTable({ data, agregados }: Props) {
+export default function StockComparativaTable({ data, agregados, onEstadoActualizado, onStockActualizado }: Props) {
   const [filter, setFilter] = useState("");
   const [selectedAgregados, setSelectedAgregados] = useState<string[]>([]);
   const [filtroEstado, setFiltroEstado] = useState<FiltroEstado>("todos");
@@ -48,14 +52,19 @@ export default function StockComparativaTable({ data, agregados }: Props) {
     return mlas;
   }, [selectedAgregados, agregados]);
 
-  // Diferencia = stock nuestro - stock que reporta ML. null cuando no hay receta cargada.
+  // stock_ml = mismo valor editable que la pestaña "Publicaciones" (depósito propio si lo
+  // hay, sino el total que reporta ML). Diferencia = stock nuestro - ese valor; null cuando
+  // no hay receta cargada.
   const conDiferencia = useMemo(
     () =>
-      data.map((item) => ({
-        ...item,
-        stock_ml: item.available_quantity,
-        diferencia: item.stock_nuestro != null ? item.stock_nuestro - item.available_quantity : null,
-      })),
+      data.map((item) => {
+        const stockMl = item.stock_deposito ?? item.available_quantity;
+        return {
+          ...item,
+          stock_ml: stockMl,
+          diferencia: item.stock_nuestro != null ? item.stock_nuestro - stockMl : null,
+        };
+      }),
     [data]
   );
 
@@ -181,6 +190,7 @@ export default function StockComparativaTable({ data, agregados }: Props) {
               <SortableHead label="Stock Nuestro" sortKey="stock_nuestro" className="font-bold text-slate-700 text-[11px]" />
               <SortableHead label="Stock ML" sortKey="stock_ml" className="font-bold text-cyan-700 text-[11px]" />
               <SortableHead label="Diferencia" sortKey="diferencia" className="font-bold text-slate-700 text-[11px]" />
+              <TableHead className="text-center font-bold text-slate-700 text-[11px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -240,7 +250,16 @@ export default function StockComparativaTable({ data, agregados }: Props) {
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-right font-bold text-cyan-700">{item.stock_ml}</TableCell>
+                <TableCell className="text-right text-slate-600">
+                  <StockDepositoCell
+                    itemId={item.item_id}
+                    variationId={item.variation_id}
+                    userProductId={item.user_product_id}
+                    stock={item.stock_ml}
+                    editable={item.stock_deposito !== null}
+                    onUpdated={onStockActualizado}
+                  />
+                </TableCell>
                 <TableCell className="text-right">
                   {item.diferencia == null ? (
                     <span className="text-slate-300 font-normal">-</span>
@@ -259,6 +278,13 @@ export default function StockComparativaTable({ data, agregados }: Props) {
                       {item.diferencia > 0 ? `+${item.diferencia}` : item.diferencia}
                     </span>
                   )}
+                </TableCell>
+                <TableCell className="text-center">
+                  <EstadoToggleButton
+                    itemId={item.item_id}
+                    status={item.status}
+                    onUpdated={onEstadoActualizado}
+                  />
                 </TableCell>
               </TableRow>
             ))}

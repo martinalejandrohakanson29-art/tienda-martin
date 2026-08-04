@@ -137,7 +137,12 @@ export default function EstadoPublicacionesClient({ agregados }: { agregados: Ag
                 onStockActualizado={handleStockActualizado}
               />
             ) : (
-              <StockComparativaTable data={items} agregados={agregados} />
+              <StockComparativaTable
+                data={items}
+                agregados={agregados}
+                onEstadoActualizado={handleEstadoActualizado}
+                onStockActualizado={handleStockActualizado}
+              />
             )}
           </div>
         </>

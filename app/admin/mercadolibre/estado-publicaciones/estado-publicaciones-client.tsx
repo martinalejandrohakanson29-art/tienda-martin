@@ -2,19 +2,24 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { RefreshCw, Loader2 } from "lucide-react";
+import { RefreshCw, Loader2, List, Scale } from "lucide-react";
 import {
   getEstadoPublicacionesML,
   type PublicacionEstado,
 } from "@/app/actions/estado-publicaciones";
 import type { Agregado } from "../rentabilidad/agregado-filter";
+import { cn } from "@/lib/utils";
 import PublicacionesEstadoTable from "./publicaciones-estado-table";
+import StockComparativaTable from "./stock-comparativa-table";
+
+type Vista = "publicaciones" | "stock";
 
 export default function EstadoPublicacionesClient({ agregados }: { agregados: Agregado[] }) {
   const [items, setItems] = useState<PublicacionEstado[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedOnce, setLoadedOnce] = useState(false);
+  const [vista, setVista] = useState<Vista>("publicaciones");
 
   const cargar = useCallback(async (silencioso = false) => {
     setLoading(true);
@@ -92,16 +97,50 @@ export default function EstadoPublicacionesClient({ agregados }: { agregados: Ag
           )}
         </div>
       ) : (
-        <div className="flex-1 min-h-0">
-          <PublicacionesEstadoTable
-            data={items}
-            agregados={agregados}
-            loading={loading}
-            onRefresh={() => cargar()}
-            onEstadoActualizado={handleEstadoActualizado}
-            onStockActualizado={handleStockActualizado}
-          />
-        </div>
+        <>
+          <div className="flex items-center gap-1.5 flex-none">
+            <button
+              type="button"
+              onClick={() => setVista("publicaciones")}
+              className={cn(
+                "flex items-center gap-1.5 h-9 px-3 rounded-md border text-sm font-medium transition-colors",
+                vista === "publicaciones"
+                  ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              )}
+            >
+              <List className="h-4 w-4" />
+              Publicaciones
+            </button>
+            <button
+              type="button"
+              onClick={() => setVista("stock")}
+              className={cn(
+                "flex items-center gap-1.5 h-9 px-3 rounded-md border text-sm font-medium transition-colors",
+                vista === "stock"
+                  ? "border-fuchsia-300 bg-fuchsia-50 text-fuchsia-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              )}
+            >
+              <Scale className="h-4 w-4" />
+              Comparar Stock
+            </button>
+          </div>
+          <div className="flex-1 min-h-0">
+            {vista === "publicaciones" ? (
+              <PublicacionesEstadoTable
+                data={items}
+                agregados={agregados}
+                loading={loading}
+                onRefresh={() => cargar()}
+                onEstadoActualizado={handleEstadoActualizado}
+                onStockActualizado={handleStockActualizado}
+              />
+            ) : (
+              <StockComparativaTable data={items} agregados={agregados} />
+            )}
+          </div>
+        </>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { crearResolverAgregados } from "@/lib/agregados";
 
 export interface PublicacionEstado {
   item_id: string;
@@ -17,6 +18,7 @@ export interface PublicacionEstado {
   stock_full: number | null; // null = no tiene stock en Full
   stock_deposito: number | null; // null = no hay depósito propio editable (Full puro)
   user_product_id: string | null; // presente = stock multi-origen (Full + depósito por ubicación)
+  stock_nuestro: number | null; // null = no hay receta de composición cargada para este MLA/variante
 }
 
 const N8N_ESTADO_PUBLICACIONES_URL =
@@ -84,24 +86,54 @@ export async function getEstadoPublicacionesML(): Promise<{
       return { success: false, data: [], error: "Respuesta inesperada de n8n" };
     }
 
-    const data: PublicacionEstado[] = items.map((it: any) => ({
-      item_id: it.item_id,
-      variation_id: it.variation_id != null ? String(it.variation_id) : null,
-      variant_label: it.variant_label ?? null,
-      title: it.title || "Sin título",
-      price: Number(it.price || 0),
-      currency_id: it.currency_id ?? null,
-      available_quantity: Number(it.available_quantity || 0),
-      sold_quantity: Number(it.sold_quantity || 0),
-      status: it.status,
-      permalink: it.permalink ?? null,
-      ventas_30d: ventasMap.get((it.item_id || "").trim()) ?? 0,
-      // n8n ya separó Full vs depósito propio consultando /user-products/{id}/stock
-      // (stock multi-origen) cuando corresponde; acá solo tipamos los valores.
-      stock_full: it.stock_full === null || it.stock_full === undefined ? null : Number(it.stock_full),
-      stock_deposito: it.stock_deposito === null || it.stock_deposito === undefined ? null : Number(it.stock_deposito),
-      user_product_id: it.user_product_id ?? null,
-    }));
+    // "Stock nuestro": para cada MLA/variante, resolvemos la receta de composición (misma
+    // fuente de verdad que /admin/mercadolibre/composicion) y calculamos el stock disponible
+    // como el mínimo de floor(stock_componente / cantidad) entre sus componentes — la misma
+    // fórmula que ya usan los packs de mostrador (lib/packs-stock.ts, ventas-mostrador.ts).
+    // null = no hay receta cargada para ese MLA/variante (no se puede calcular).
+    const resolverAgregados = await crearResolverAgregados(items.map((it: any) => it.item_id));
+    const componentesPorItem = items.map((it: any) =>
+      resolverAgregados(it.item_id, it.variation_id != null ? String(it.variation_id) : null)
+    );
+    const idsArticulos = Array.from(
+      new Set(componentesPorItem.flatMap((comps) => comps.map((c) => c.id_articulo)))
+    );
+    const articulos = idsArticulos.length > 0
+      ? await prisma.articuloMostrador.findMany({
+          where: { id: { in: idsArticulos } },
+          select: { id: true, stock: true },
+        })
+      : [];
+    const stockPorArticulo = new Map(articulos.map((a) => [a.id, a.stock]));
+
+    const data: PublicacionEstado[] = items.map((it: any, idx: number) => {
+      const componentes = componentesPorItem[idx];
+      const stockNuestro = componentes.length > 0
+        ? Math.min(
+            ...componentes.map((c) => Math.floor((stockPorArticulo.get(c.id_articulo) ?? 0) / (c.cantidad || 1)))
+          )
+        : null;
+
+      return {
+        item_id: it.item_id,
+        variation_id: it.variation_id != null ? String(it.variation_id) : null,
+        variant_label: it.variant_label ?? null,
+        title: it.title || "Sin título",
+        price: Number(it.price || 0),
+        currency_id: it.currency_id ?? null,
+        available_quantity: Number(it.available_quantity || 0),
+        sold_quantity: Number(it.sold_quantity || 0),
+        status: it.status,
+        permalink: it.permalink ?? null,
+        ventas_30d: ventasMap.get((it.item_id || "").trim()) ?? 0,
+        // n8n ya separó Full vs depósito propio consultando /user-products/{id}/stock
+        // (stock multi-origen) cuando corresponde; acá solo tipamos los valores.
+        stock_full: it.stock_full === null || it.stock_full === undefined ? null : Number(it.stock_full),
+        stock_deposito: it.stock_deposito === null || it.stock_deposito === undefined ? null : Number(it.stock_deposito),
+        user_product_id: it.user_product_id ?? null,
+        stock_nuestro: stockNuestro,
+      };
+    });
 
     return { success: true, data };
   } catch (error) {

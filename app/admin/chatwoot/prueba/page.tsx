@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote } from "lucide-react"
+import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote, Users, Power } from "lucide-react"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 
@@ -11,7 +11,8 @@ type ItemCliente = { id: string; kind: "cliente"; hora: string; mensaje: string;
 type ItemBot = { id: string; kind: "bot"; hora: string; mensaje: string }
 type ItemNota = { id: string; kind: "nota"; hora: string; mensaje: string }
 type ItemLabel = { id: string; kind: "label"; hora: string; labels: string[] }
-type TimelineItem = ItemCliente | ItemBot | ItemNota | ItemLabel
+type ItemEquipo = { id: string; kind: "equipo"; hora: string; mensaje: string; ok: boolean; detalle?: string }
+type TimelineItem = ItemCliente | ItemBot | ItemNota | ItemLabel | ItemEquipo
 
 const ACCOUNT_ID = "1" // coincide con el "account.id" fijo que manda /api/chatwoot/prueba-mensaje
 
@@ -27,6 +28,12 @@ export default function PruebaMensajesPage() {
     const [enviandoPrueba, setEnviandoPrueba] = useState(false)
     const [timeline, setTimeline] = useState<TimelineItem[]>([])
     const [mockUrlCopiada, setMockUrlCopiada] = useState(false)
+
+    // ESTADOS PARA "RESPONDER COMO EQUIPO" (simular que un agente le contesta
+    // la nota privada de escalado a la conversación)
+    const [respuestaEquipo, setRespuestaEquipo] = useState("")
+    const [enviandoRespuesta, setEnviandoRespuesta] = useState(false)
+    const [reactivandoBot, setReactivandoBot] = useState(false)
 
     const chatRef = useRef<HTMLDivElement>(null)
     const settingsRef = useRef<HTMLDivElement>(null)
@@ -153,6 +160,48 @@ export default function PruebaMensajesPage() {
         setConversationId(nuevoId)
         setTimeline([])
         fetch(`/api/chatwoot/mock/accounts/${ACCOUNT_ID}/conversations/${idAnterior}/events`, { method: "DELETE" }).catch(() => {})
+    }
+
+    // ENVIAR LA RESPUESTA DEL EQUIPO (simula que un agente escribe en la conversación:
+    // sender_type "User" en vez de "Contact"). El workflow, al recibirlo, busca la
+    // pregunta pendiente de esta conversación, extrae la respuesta, la guarda para
+    // el futuro y le contesta al cliente — ese mensaje va a aparecer solo en el chat.
+    const enviarComoEquipo = async (texto: string) => {
+        const id = `equipo-${Date.now()}`
+        try {
+            const res = await fetch("/api/chatwoot/prueba-responder-equipo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ conversationId, respuesta: texto }),
+            })
+            const data = await res.json().catch(() => ({}))
+            setTimeline((prev) => [
+                ...prev,
+                { id, kind: "equipo", hora: horaActual(), mensaje: texto, ok: res.ok, detalle: !res.ok ? data?.error : undefined },
+            ])
+        } catch {
+            setTimeline((prev) => [
+                ...prev,
+                { id, kind: "equipo", hora: horaActual(), mensaje: texto, ok: false, detalle: "Error de conexión con el servidor" },
+            ])
+        }
+    }
+
+    const handleResponderEquipo = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!respuestaEquipo || enviandoRespuesta) return
+        setEnviandoRespuesta(true)
+        const texto = respuestaEquipo
+        setRespuestaEquipo("")
+        await enviarComoEquipo(texto)
+        setEnviandoRespuesta(false)
+    }
+
+    const handleReactivarBot = async () => {
+        if (reactivandoBot) return
+        setReactivandoBot(true)
+        await enviarComoEquipo("/bot on")
+        setReactivandoBot(false)
     }
 
     const copiarMockUrl = () => {
@@ -306,12 +355,25 @@ export default function PruebaMensajesPage() {
                                         </div>
                                     )
                                 }
-                                // label
+                                if (item.kind === "label") {
+                                    return (
+                                        <div key={item.id} className="flex justify-center">
+                                            <div className="flex items-center gap-1.5 rounded-md bg-slate-200 px-3 py-1 text-xs text-slate-700 shadow-sm">
+                                                <Tag size={12} className="shrink-0" />
+                                                <span>{item.labels.join(", ") || "(sin labels)"}</span>
+                                            </div>
+                                        </div>
+                                    )
+                                }
+                                // equipo
                                 return (
                                     <div key={item.id} className="flex justify-center">
-                                        <div className="flex items-center gap-1.5 rounded-md bg-slate-200 px-3 py-1 text-xs text-slate-700 shadow-sm">
-                                            <Tag size={12} className="shrink-0" />
-                                            <span>{item.labels.join(", ") || "(sin labels)"}</span>
+                                        <div className={`flex max-w-[85%] items-start gap-1.5 rounded-md border px-3 py-1.5 text-xs shadow-sm ${item.ok ? "bg-violet-100 border-violet-200 text-violet-800" : "bg-red-50 border-red-200 text-red-700"}`}>
+                                            <Users size={13} className="mt-0.5 shrink-0" />
+                                            <span>
+                                                <span className="font-semibold">Vos (equipo):</span> {item.mensaje}
+                                                {!item.ok && <span className="block text-red-600">{item.detalle || "No se pudo enviar"}</span>}
+                                            </span>
                                         </div>
                                     </div>
                                 )
@@ -351,6 +413,63 @@ export default function PruebaMensajesPage() {
                         {enviandoPrueba ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                     </Button>
                 </form>
+            </div>
+
+            {/* ---------------- RESPONDER COMO EQUIPO (cierra el ciclo: nota -> respuesta -> aprendizaje) ---------------- */}
+            <div className="mx-auto w-full max-w-xl overflow-hidden rounded-xl border shadow-xl">
+                <div className="flex items-center justify-between bg-slate-800 px-4 py-3 text-white">
+                    <div className="flex items-center gap-2 min-w-0">
+                        <Users size={20} className="shrink-0" />
+                        <div className="min-w-0">
+                            <p className="truncate font-semibold leading-tight">Responder como equipo</p>
+                            <p className="truncate text-xs text-white/70">Simula que un agente le contesta la nota interna de arriba</p>
+                        </div>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        title='Reactiva el bot en esta conversación (equivale a mandar "/bot on")'
+                        className="shrink-0 gap-1.5 text-white hover:bg-white/15 hover:text-white"
+                        onClick={handleReactivarBot}
+                        disabled={reactivandoBot}
+                    >
+                        {reactivandoBot ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
+                        /bot on
+                    </Button>
+                </div>
+
+                <form onSubmit={handleResponderEquipo} className="flex items-end gap-2 bg-[#f0f0f0] px-3 py-2">
+                    <div className="flex flex-1 items-center gap-2 rounded-full bg-white px-3 py-2 shadow-sm">
+                        <textarea
+                            value={respuestaEquipo}
+                            onChange={(e) => setRespuestaEquipo(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                    e.preventDefault()
+                                    handleResponderEquipo(e as unknown as React.FormEvent)
+                                }
+                            }}
+                            placeholder="Ej: Sí, el kit XYZ es compatible con esa moto…"
+                            rows={1}
+                            disabled={enviandoRespuesta}
+                            className="max-h-24 flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-gray-400"
+                        />
+                    </div>
+                    <Button
+                        type="submit"
+                        size="icon"
+                        disabled={enviandoRespuesta || !respuestaEquipo}
+                        className="mb-0 shrink-0 rounded-full bg-slate-800 hover:bg-slate-700 text-white"
+                    >
+                        {enviandoRespuesta ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    </Button>
+                </form>
+                <p className="border-t bg-white px-4 py-2 text-[11px] leading-snug text-gray-400">
+                    El workflow espera 5 min de calma entre escalados de una misma conversación (cooldown), y pausa
+                    el bot en esa conversación apenas el equipo escribe algo. Usá "/bot on" o iniciá una conversación
+                    nueva para seguir probando mensajes del cliente después de responder.
+                </p>
             </div>
         </div>
     )

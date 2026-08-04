@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Search, X, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getGananciaPctStyle } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "../rentabilidad/agregado-filter";
 import type { PublicacionEstado } from "@/app/actions/estado-publicaciones";
 import EstadoToggleButton from "./estado-toggle-button";
@@ -26,7 +26,8 @@ type SortKey =
   | "price"
   | "stock_deposito"
   | "stock_full"
-  | "sold_quantity";
+  | "sold_quantity"
+  | "ganancia_pct";
 
 interface Props {
   data: PublicacionEstado[];
@@ -90,9 +91,10 @@ export default function PublicacionesEstadoTable({
       if (key === "title" || key === "status") {
         return factor * (a[key] || "").localeCompare(b[key] || "", "es");
       }
-      // stock_full / stock_deposito pueden ser null: los tratamos como el valor más bajo
-      const aVal = key === "stock_full" || key === "stock_deposito" ? a[key] ?? -1 : a[key];
-      const bVal = key === "stock_full" || key === "stock_deposito" ? b[key] ?? -1 : b[key];
+      // stock_full / stock_deposito / ganancia_pct pueden ser null: los tratamos como el valor más bajo
+      const esNullable = key === "stock_full" || key === "stock_deposito" || key === "ganancia_pct";
+      const aVal = esNullable ? a[key] ?? -Infinity : a[key];
+      const bVal = esNullable ? b[key] ?? -Infinity : b[key];
       return factor * (aVal - bVal);
     });
   }, [filteredData, sortConfig]);
@@ -200,6 +202,7 @@ export default function PublicacionesEstadoTable({
               <SortableHead label="Estado" sortKey="status" justify="center" className="font-bold text-slate-700 text-[11px]" />
               <SortableHead label="Ventas 30d" sortKey="ventas_30d" justify="center" className="font-bold text-indigo-600 text-[11px]" />
               <SortableHead label="Precio" sortKey="price" className="font-bold text-slate-700 text-[11px]" />
+              <SortableHead label="Ganancia %" sortKey="ganancia_pct" className="font-bold text-green-700 text-[11px]" />
               <SortableHead label="Stock" sortKey="stock_deposito" className="font-bold text-slate-700 text-[11px]" />
               <SortableHead label="Stock Full" sortKey="stock_full" className="font-bold text-cyan-700 text-[11px]" />
               <SortableHead label="Vendidos" sortKey="sold_quantity" className="font-bold text-slate-500 text-[11px]" />
@@ -256,6 +259,9 @@ export default function PublicacionesEstadoTable({
                 </TableCell>
                 <TableCell className="text-right font-medium text-slate-700">
                   ${item.price.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                </TableCell>
+                <TableCell className={cn("text-right", item.ganancia_pct != null ? getGananciaPctStyle(item.ganancia_pct) : "text-slate-300 font-normal")}>
+                  {item.ganancia_pct != null ? `${item.ganancia_pct.toFixed(1)}%` : "-"}
                 </TableCell>
                 <TableCell className="text-right text-slate-600">
                   <StockDepositoCell

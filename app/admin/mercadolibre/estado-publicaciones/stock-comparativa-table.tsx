@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Search, X, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getGananciaPctStyle } from "@/lib/utils";
 import AgregadoFilter, { type Agregado } from "../rentabilidad/agregado-filter";
 import type { PublicacionEstado } from "@/app/actions/estado-publicaciones";
 import EstadoToggleButton from "./estado-toggle-button";
@@ -19,7 +19,7 @@ import StockDepositoCell from "./stock-deposito-cell";
 
 type FiltroEstado = "todos" | "active" | "paused";
 
-type SortKey = "title" | "status" | "ventas_30d" | "stock_nuestro" | "stock_ml" | "diferencia";
+type SortKey = "title" | "status" | "ventas_30d" | "stock_nuestro" | "stock_ml" | "diferencia" | "ganancia_pct";
 
 interface Props {
   data: PublicacionEstado[];
@@ -187,6 +187,7 @@ export default function StockComparativaTable({ data, agregados, onEstadoActuali
               <SortableHead label="Publicación" sortKey="title" justify="start" className="min-w-[300px] font-bold text-slate-700 text-[11px]" />
               <SortableHead label="Estado" sortKey="status" justify="center" className="font-bold text-slate-700 text-[11px]" />
               <SortableHead label="Ventas 30d" sortKey="ventas_30d" justify="center" className="font-bold text-indigo-600 text-[11px]" />
+              <SortableHead label="Ganancia %" sortKey="ganancia_pct" className="font-bold text-green-700 text-[11px]" />
               <SortableHead label="Stock Nuestro" sortKey="stock_nuestro" className="font-bold text-slate-700 text-[11px]" />
               <SortableHead label="Stock ML" sortKey="stock_ml" className="font-bold text-cyan-700 text-[11px]" />
               <SortableHead label="Diferencia" sortKey="diferencia" className="font-bold text-slate-700 text-[11px]" />
@@ -240,6 +241,9 @@ export default function StockComparativaTable({ data, agregados, onEstadoActuali
                 </TableCell>
                 <TableCell className="text-center font-bold text-indigo-700">
                   {item.ventas_30d > 0 ? item.ventas_30d : <span className="text-slate-300">-</span>}
+                </TableCell>
+                <TableCell className={cn("text-right", item.ganancia_pct != null ? getGananciaPctStyle(item.ganancia_pct) : "text-slate-300 font-normal")}>
+                  {item.ganancia_pct != null ? `${item.ganancia_pct.toFixed(1)}%` : "-"}
                 </TableCell>
                 <TableCell className="text-right font-medium text-slate-700">
                   {item.stock_nuestro != null ? (

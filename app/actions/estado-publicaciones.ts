@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { crearResolverAgregados } from "@/lib/agregados";
+import { getRentabilidadData } from "./rentabilidad";
 
 export interface PublicacionEstado {
   item_id: string;
@@ -19,6 +20,7 @@ export interface PublicacionEstado {
   stock_deposito: number | null; // null = no hay depósito propio editable (Full puro)
   user_product_id: string | null; // presente = stock multi-origen (Full + depósito por ubicación)
   stock_nuestro: number | null; // null = no hay receta de composición cargada para este MLA/variante
+  ganancia_pct: number | null; // mismo cálculo que /admin/mercadolibre/rentabilidad; null = sin datos de costo/rentabilidad
 }
 
 const N8N_ESTADO_PUBLICACIONES_URL =
@@ -72,10 +74,18 @@ export async function getEstadoPublicacionesML(): Promise<{
   error?: string;
 }> {
   try {
-    const [response, ventasMap] = await Promise.all([
+    const [response, ventasMap, rentabilidadData] = await Promise.all([
       fetch(N8N_ESTADO_PUBLICACIONES_URL, { method: "POST", cache: "no-store" }),
       getVentasML30dMap(),
+      getRentabilidadData(),
     ]);
+
+    // Ganancia %: mismo cálculo que /admin/mercadolibre/rentabilidad (fees + descuentos + costo
+    // real de la receta). Esa función devuelve 1 fila por MLA (no por variante), así que el
+    // porcentaje se repite en todas las variantes de un mismo MLA — igual que ventas_30d.
+    const gananciaPorMla = new Map<string, number>(
+      rentabilidadData.map((r) => [r.item_id, r.ganancia_porcentaje])
+    );
 
     if (!response.ok) {
       return { success: false, data: [], error: `n8n respondió con estado ${response.status}` };
@@ -132,6 +142,7 @@ export async function getEstadoPublicacionesML(): Promise<{
         stock_deposito: it.stock_deposito === null || it.stock_deposito === undefined ? null : Number(it.stock_deposito),
         user_product_id: it.user_product_id ?? null,
         stock_nuestro: stockNuestro,
+        ganancia_pct: gananciaPorMla.get(it.item_id) ?? null,
       };
     });
 

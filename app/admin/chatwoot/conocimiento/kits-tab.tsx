@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Package, Save, Loader2, Wand2, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
+import { Save, Loader2, Wand2, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
 
 import { guardarKit, eliminarKit, alternarActivo, type Kit, type KitInput } from "@/app/actions/kits-publicidad"
 
@@ -23,7 +23,7 @@ const FORM_VACIO: KitInput = {
     activo: true,
 }
 
-export function KitsClient({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[]; errorInicial: string | null }) {
+export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[]; errorInicial: string | null }) {
     const [kits, setKits] = useState<Kit[]>(kitsIniciales)
     const [form, setForm] = useState<KitInput>(FORM_VACIO)
     const [guardando, setGuardando] = useState(false)
@@ -118,18 +118,12 @@ export function KitsClient({ kitsIniciales, errorInicial }: { kitsIniciales: Kit
     }
 
     return (
-        <div className="space-y-6 pb-12">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-                    <Package className="h-8 w-8 text-violet-600" />
-                    Kits Publicitados
-                </h1>
-                <p className="text-gray-500">
-                    Cargá los kits/combos armados con su precio y detalle. Los que marques como &quot;en publicidad&quot;
-                    disparan un mensaje predefinido apenas un cliente los menciona explícitamente por WhatsApp;
-                    el resto queda disponible para que el agente responda preguntas de precio/stock sin escalar a un humano.
-                </p>
-            </div>
+        <div className="space-y-6">
+            <p className="text-sm text-gray-500">
+                Los kits marcados como &quot;en publicidad&quot; disparan un mensaje predefinido apenas un cliente
+                los menciona explícitamente por WhatsApp; el resto queda disponible para que el agente responda
+                preguntas de precio/stock sin escalar a un humano.
+            </p>
 
             {error && (
                 <Card className="border-l-4 border-l-amber-500 bg-amber-50">

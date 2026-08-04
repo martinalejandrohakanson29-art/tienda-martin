@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, Package } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit } from "lucide-react"
 import Link from "next/link"
 
 export const dynamic = "force-dynamic"
@@ -14,10 +14,10 @@ export default function ChatwootPage() {
             color: "border-l-4 border-l-teal-500"
         },
         {
-            title: "Kits Publicitados",
-            description: "Cargá kits/combos con precio y detalle, y definí el mensaje predefinido para el que esté en publicidad.",
-            icon: <Package className="h-8 w-8 text-amber-600" />,
-            href: "/admin/chatwoot/kits",
+            title: "Base de Conocimiento",
+            description: "Kits/combos, horarios, medios de pago, envíos, precios y compatibilidad técnica para que el agente responda sin escalar a un humano.",
+            icon: <BrainCircuit className="h-8 w-8 text-amber-600" />,
+            href: "/admin/chatwoot/conocimiento",
             color: "border-l-4 border-l-amber-500"
         },
         {

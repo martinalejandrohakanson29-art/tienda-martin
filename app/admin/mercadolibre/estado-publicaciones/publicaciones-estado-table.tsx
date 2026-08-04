@@ -34,7 +34,7 @@ interface Props {
   loading: boolean;
   onRefresh: () => void;
   onEstadoActualizado: (itemId: string, nuevoEstado: string) => void;
-  onStockActualizado: (itemId: string, nuevoStock: number) => void;
+  onStockActualizado: (itemId: string, variationId: string | null, nuevoStock: number) => void;
 }
 
 export default function PublicacionesEstadoTable({
@@ -76,7 +76,8 @@ export default function PublicacionesEstadoTable({
       if (allowedMlas && !allowedMlas.has((item.item_id || "").trim())) return false;
       return (
         (item.title || "").toLowerCase().includes(searchLower) ||
-        (item.item_id || "").toLowerCase().includes(searchLower)
+        (item.item_id || "").toLowerCase().includes(searchLower) ||
+        (item.variant_label || "").toLowerCase().includes(searchLower)
       );
     });
   }, [data, filter, filtroEstado, allowedMlas]);
@@ -207,12 +208,20 @@ export default function PublicacionesEstadoTable({
           </TableHeader>
           <TableBody>
             {sortedData.map((item) => (
-              <TableRow key={item.item_id} className="transition-colors border-slate-100 text-[11px] bg-white hover:bg-slate-50/80">
+              <TableRow
+                key={`${item.item_id}-${item.variation_id ?? "base"}`}
+                className="transition-colors border-slate-100 text-[11px] bg-white hover:bg-slate-50/80"
+              >
                 <TableCell>
                   <div className="flex flex-col leading-tight">
                     <span className="font-semibold text-slate-800 truncate max-w-[320px]" title={item.title}>
                       {item.title}
                     </span>
+                    {item.variant_label && (
+                      <span className="inline-flex w-fit items-center px-1.5 py-0.5 mt-0.5 rounded bg-fuchsia-50 text-fuchsia-700 text-[9px] font-semibold">
+                        {item.variant_label}
+                      </span>
+                    )}
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[9px] font-mono text-slate-400">{item.item_id}</span>
                       {item.permalink && (
@@ -251,6 +260,7 @@ export default function PublicacionesEstadoTable({
                 <TableCell className="text-right text-slate-600">
                   <StockDepositoCell
                     itemId={item.item_id}
+                    variationId={item.variation_id}
                     userProductId={item.user_product_id}
                     stock={item.stock_deposito ?? item.available_quantity}
                     editable={item.stock_deposito !== null}

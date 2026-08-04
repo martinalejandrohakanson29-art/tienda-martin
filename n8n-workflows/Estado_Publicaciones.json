@@ -10,8 +10,11 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [11376, 2144],
-      "id": "a1e1c1a1-0001-4001-8001-000000000001",
+      "position": [
+        8064,
+        2752
+      ],
+      "id": "97b0742b-3a32-48e9-8800-c7f7cc27db81",
       "name": "Webhook",
       "webhookId": "a1e1c1a1-0001-4001-8001-000000000001"
     },
@@ -36,8 +39,11 @@
       },
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
-      "position": [11584, 2144],
-      "id": "a1e1c1a1-0001-4001-8001-000000000002",
+      "position": [
+        8272,
+        2752
+      ],
+      "id": "2980acbc-9a3c-4295-94a5-a12e75d01a07",
       "name": "Call 'Read_token'"
     },
     {
@@ -62,8 +68,11 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [11824, 2144],
-      "id": "a1e1c1a1-0001-4001-8001-000000000003",
+      "position": [
+        8512,
+        2752
+      ],
+      "id": "9e07506c-4f21-4646-af9f-4857359b4958",
       "name": "Edit Fields"
     },
     {
@@ -72,23 +81,38 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "status", "value": "active" },
-            { "name": "offset", "value": "0" },
-            { "name": "limit", "value": "50" }
+            {
+              "name": "status",
+              "value": "active"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
           ]
         },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json[\"Access Token\"]}}" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json[\"Access Token\"]}}"
+            }
           ]
         },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [12080, 2000],
-      "id": "a1e1c1a1-0001-4001-8001-000000000004",
+      "position": [
+        8768,
+        2608
+      ],
+      "id": "d4dd2892-8e5c-4ec9-8e75-490b378c3a3a",
       "name": "Primera página (Activas)"
     },
     {
@@ -97,23 +121,38 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "status", "value": "paused" },
-            { "name": "offset", "value": "0" },
-            { "name": "limit", "value": "50" }
+            {
+              "name": "status",
+              "value": "paused"
+            },
+            {
+              "name": "offset",
+              "value": "0"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
           ]
         },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json[\"Access Token\"]}}" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json[\"Access Token\"]}}"
+            }
           ]
         },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [12080, 2320],
-      "id": "a1e1c1a1-0001-4001-8001-000000000005",
+      "position": [
+        8768,
+        2928
+      ],
+      "id": "6a458ffc-361d-438e-97cf-c72d800faa25",
       "name": "Primera página (Pausadas)"
     },
     {
@@ -122,8 +161,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [12336, 2000],
-      "id": "a1e1c1a1-0001-4001-8001-000000000006",
+      "position": [
+        9024,
+        2608
+      ],
+      "id": "32bed9fb-f736-44dd-b48d-13d99603f885",
       "name": "Generar offsets (Activas)"
     },
     {
@@ -132,8 +174,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [12336, 2320],
-      "id": "a1e1c1a1-0001-4001-8001-000000000007",
+      "position": [
+        9024,
+        2928
+      ],
+      "id": "7b0511cd-4e7f-4224-8869-7f948473a0c6",
       "name": "Generar offsets (Pausadas)"
     },
     {
@@ -142,23 +187,38 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "status", "value": "={{$json.status}}" },
-            { "name": "offset", "value": "={{$json.offset}}" },
-            { "name": "limit", "value": "={{$json.limit}}" }
+            {
+              "name": "status",
+              "value": "={{$json.status}}"
+            },
+            {
+              "name": "offset",
+              "value": "={{$json.offset}}"
+            },
+            {
+              "name": "limit",
+              "value": "={{$json.limit}}"
+            }
           ]
         },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json.token}}" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
           ]
         },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [12592, 2000],
-      "id": "a1e1c1a1-0001-4001-8001-000000000008",
+      "position": [
+        9280,
+        2608
+      ],
+      "id": "e5d0fc31-e501-485d-b2a0-fc8119e629d4",
       "name": "Listar páginas (Activas)"
     },
     {
@@ -167,34 +227,49 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "status", "value": "={{$json.status}}" },
-            { "name": "offset", "value": "={{$json.offset}}" },
-            { "name": "limit", "value": "={{$json.limit}}" }
+            {
+              "name": "status",
+              "value": "={{$json.status}}"
+            },
+            {
+              "name": "offset",
+              "value": "={{$json.offset}}"
+            },
+            {
+              "name": "limit",
+              "value": "={{$json.limit}}"
+            }
           ]
         },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json.token}}" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
           ]
         },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [12592, 2320],
-      "id": "a1e1c1a1-0001-4001-8001-000000000009",
+      "position": [
+        9280,
+        2928
+      ],
+      "id": "01b91e73-b85f-4869-85c0-ea6e5bfbf134",
       "name": "Listar páginas (Pausadas)"
     },
     {
-      "parameters": {
-        "mode": "append",
-        "options": {}
-      },
+      "parameters": {},
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.1,
-      "position": [12848, 2160],
-      "id": "a1e1c1a1-0001-4001-8001-000000000010",
+      "position": [
+        9536,
+        2768
+      ],
+      "id": "ea063ca0-ee93-49a0-b6ce-0f1554a33f1b",
       "name": "Merge estados"
     },
     {
@@ -203,8 +278,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [13104, 2160],
-      "id": "a1e1c1a1-0001-4001-8001-000000000011",
+      "position": [
+        9792,
+        2768
+      ],
+      "id": "38626b2a-8f93-4e01-9d96-baa0de67cd1c",
       "name": "Agrupar IDs en batches"
     },
     {
@@ -213,25 +291,34 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json.token}}" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            }
           ]
         },
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [13360, 2160],
-      "id": "a1e1c1a1-0001-4001-8001-000000000012",
+      "position": [
+        10048,
+        2768
+      ],
+      "id": "b75c2ae5-af58-41c6-a10c-6b57b7579cae",
       "name": "Detalle items (batch)"
     },
     {
       "parameters": {
-        "jsCode": "// La respuesta de /items?ids=... puede llegar como array o como items separados.\n// El status (active/paused) viene directo del detalle de ML: es el dato real y actual.\n// user_product_id (doc oficial: stock distribuido / stock multi-origen) indica que el item\n// separa su stock por ubicacion (Full vs deposito propio); hay que consultarlo aparte\n// (siguiente nodo) via /user-products/{id}/stock, porque available_quantity aca puede ser\n// un agregado que no distingue Full de deposito propio.\nconst results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  const entries = Array.isArray(data) ? data : [data];\n  for (const r of entries) {\n    if (r && r.code === 200 && r.body) {\n      const b = r.body;\n      results.push({\n        json: {\n          item_id: b.id,\n          title: b.title,\n          price: b.price,\n          currency_id: b.currency_id,\n          available_quantity: b.available_quantity,\n          sold_quantity: b.sold_quantity,\n          condition: b.condition,\n          status: b.status,\n          listing_type_id: b.listing_type_id,\n          logistic_type: b.shipping?.logistic_type ?? null,\n          user_product_id: b.user_product_id ?? null,\n          permalink: b.permalink\n        }\n      });\n    }\n  }\n}\nreturn results;"
+        "jsCode": "// La respuesta de /items?ids=... puede llegar como array o como items separados.\n// El status (active/paused) viene directo del detalle de ML: es el dato real y actual.\n// user_product_id (doc oficial: stock distribuido / stock multi-origen) indica que el item\n// (o esa variacion puntual) separa su stock por ubicacion (Full vs deposito propio); hay que\n// consultarlo aparte (siguiente nodo) via /user-products/{id}/stock, porque available_quantity\n// aca puede ser un agregado que no distingue Full de deposito propio.\n//\n// MLA + variaciones (MLU): cuando el item tiene b.variations, el stock y el precio reales\n// viven en CADA variacion (el nivel raiz del item no tiene stock propio), y cada variacion\n// puede tener su propio user_product_id. Por eso expandimos una fila por variacion en vez de\n// una sola fila agregada para todo el MLA.\nconst results = [];\nfor (const item of $input.all()) {\n  const data = item.json;\n  const entries = Array.isArray(data) ? data : [data];\n  for (const r of entries) {\n    if (r && r.code === 200 && r.body) {\n      const b = r.body;\n      const base = {\n        item_id: b.id,\n        title: b.title,\n        currency_id: b.currency_id,\n        condition: b.condition,\n        status: b.status,\n        listing_type_id: b.listing_type_id,\n        logistic_type: b.shipping?.logistic_type ?? null,\n        permalink: b.permalink\n      };\n      const variaciones = Array.isArray(b.variations) ? b.variations : [];\n      if (variaciones.length > 0) {\n        for (const v of variaciones) {\n          const etiqueta = (v.attribute_combinations || [])\n            .map(a => a.value_name)\n            .filter(Boolean)\n            .join(' / ');\n          results.push({\n            json: {\n              ...base,\n              variation_id: String(v.id),\n              variant_label: etiqueta || null,\n              price: v.price ?? b.price,\n              available_quantity: v.available_quantity ?? 0,\n              sold_quantity: v.sold_quantity ?? 0,\n              user_product_id: v.user_product_id ?? b.user_product_id ?? null\n            }\n          });\n        }\n      } else {\n        results.push({\n          json: {\n            ...base,\n            variation_id: null,\n            variant_label: null,\n            price: b.price,\n            available_quantity: b.available_quantity,\n            sold_quantity: b.sold_quantity,\n            user_product_id: b.user_product_id ?? null\n          }\n        });\n      }\n    }\n  }\n}\nreturn results;"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [13616, 2160],
-      "id": "a1e1c1a1-0001-4001-8001-000000000013",
+      "position": [
+        10304,
+        2768
+      ],
+      "id": "801e5628-6c02-4bf7-a1c2-2fbeb4b71e7c",
       "name": "Expand detalle items"
     },
     {
@@ -240,8 +327,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [13872, 2160],
-      "id": "a1e1c1a1-0001-4001-8001-000000000015",
+      "position": [
+        10560,
+        2768
+      ],
+      "id": "5cead876-da6f-49a4-9865-415efdb27fe2",
       "name": "Completar stock por ubicación"
     },
     {
@@ -251,77 +341,192 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [14128, 2160],
-      "id": "a1e1c1a1-0001-4001-8001-000000000014",
+      "position": [
+        10816,
+        2768
+      ],
+      "id": "4edc0f7a-0f49-4c02-8fcc-2c1960453a8e",
       "name": "Respond to Webhook"
     }
   ],
   "pinData": {},
   "connections": {
     "Webhook": {
-      "main": [[{ "node": "Call 'Read_token'", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call 'Read_token'": {
-      "main": [[{ "node": "Edit Fields", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Edit Fields": {
       "main": [
         [
-          { "node": "Primera página (Activas)", "type": "main", "index": 0 },
-          { "node": "Primera página (Pausadas)", "type": "main", "index": 0 }
+          {
+            "node": "Primera página (Activas)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Primera página (Pausadas)",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
     "Primera página (Activas)": {
-      "main": [[{ "node": "Generar offsets (Activas)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Generar offsets (Activas)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Primera página (Pausadas)": {
-      "main": [[{ "node": "Generar offsets (Pausadas)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Generar offsets (Pausadas)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Generar offsets (Activas)": {
-      "main": [[{ "node": "Listar páginas (Activas)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Listar páginas (Activas)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Generar offsets (Pausadas)": {
-      "main": [[{ "node": "Listar páginas (Pausadas)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Listar páginas (Pausadas)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Listar páginas (Activas)": {
-      "main": [[{ "node": "Merge estados", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Merge estados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Listar páginas (Pausadas)": {
-      "main": [[{ "node": "Merge estados", "type": "main", "index": 1 }]]
+      "main": [
+        [
+          {
+            "node": "Merge estados",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
     },
     "Merge estados": {
-      "main": [[{ "node": "Agrupar IDs en batches", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Agrupar IDs en batches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Agrupar IDs en batches": {
-      "main": [[{ "node": "Detalle items (batch)", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Detalle items (batch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Detalle items (batch)": {
-      "main": [[{ "node": "Expand detalle items", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Expand detalle items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Expand detalle items": {
-      "main": [[{ "node": "Completar stock por ubicación", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Completar stock por ubicación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Completar stock por ubicación": {
-      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
-    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "binaryMode": "separate",
     "availableInMCP": false,
     "timeSavedMode": "fixed",
     "saveDataErrorExecution": "all",
     "saveDataSuccessExecution": "all",
     "saveExecutionProgress": true,
     "saveManualExecutions": true,
-    "executionOrder": "v0",
-    "binaryMode": "separate"
+    "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "a1e1c1a1-0002-4002-8002-000000000000",
+  "versionId": "af26bf5d-c25a-4eb8-b68c-07dd772d1342",
   "meta": {
     "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
   },
-  "id": "estadoPublicacionesZ1",
+  "id": "TkTsfOluAGTC0el3",
   "tags": []
 }

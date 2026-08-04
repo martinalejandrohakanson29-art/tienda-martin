@@ -10,8 +10,11 @@
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
-      "position": [11376, 2144],
-      "id": "c3a3e3c3-0001-4001-8001-000000000001",
+      "position": [
+        -2448,
+        2528
+      ],
+      "id": "626626e0-e30a-45f3-905d-bb51f9e5572d",
       "name": "Webhook",
       "webhookId": "c3a3e3c3-0001-4001-8001-000000000001"
     },
@@ -36,8 +39,11 @@
       },
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1.3,
-      "position": [11584, 2144],
-      "id": "c3a3e3c3-0001-4001-8001-000000000002",
+      "position": [
+        -2240,
+        2528
+      ],
+      "id": "92dd458c-ef48-4408-ba55-d7c603295d56",
       "name": "Call 'Read_token'"
     },
     {
@@ -67,6 +73,12 @@
               "name": "user_product_id",
               "value": "={{ $('Webhook').first().json.body.user_product_id }}",
               "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-1111-4abc-9def-000000000001",
+              "name": "variation_id",
+              "value": "={{ $('Webhook').first().json.body.variation_id }}",
+              "type": "string"
             }
           ]
         },
@@ -74,8 +86,11 @@
       },
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [11824, 2144],
-      "id": "c3a3e3c3-0001-4001-8001-000000000003",
+      "position": [
+        -2000,
+        2528
+      ],
+      "id": "e27ba5f1-8000-4313-ab1d-ed6367884b85",
       "name": "Edit Fields"
     },
     {
@@ -92,7 +107,11 @@
               "id": "cond-tiene-user-product",
               "leftValue": "={{ $json.user_product_id }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -101,43 +120,54 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [12080, 2144],
-      "id": "c3a3e3c3-0001-4001-8001-000000000007",
+      "position": [
+        -1744,
+        2528
+      ],
+      "id": "c6527635-9d07-4037-aa07-0d424be898b6",
       "name": "¿Tiene user_product_id?"
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "=https://api.mercadolibre.com/user-products/{{$json.user_product_id}}/stock",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json[\"Access Token\"]}}" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json[\"Access Token\"]}}"
+            }
           ]
         },
         "options": {
           "response": {
             "response": {
-              "neverError": true,
-              "fullResponse": true
+              "fullResponse": true,
+              "neverError": true
             }
           }
         }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [12336, 2000],
-      "id": "c3a3e3c3-0001-4001-8001-000000000008",
+      "position": [
+        -1488,
+        2384
+      ],
+      "id": "0ba6f16c-9b24-4c1b-bd9a-b2f4e42166c6",
       "name": "GET stock ubicaciones"
     },
     {
       "parameters": {
-        "jsCode": "// Doc oficial ML \"Stock multi-origen\": separa Full (meli_facility, solo lectura) de\n// deposito propio (seller_warehouse / selling_address, editable). El x-version del GET\n// es obligatorio para el PUT siguiente (control de concurrencia optimista de ML).\nconst respGet = $input.first().json; // { statusCode, headers, body }\nconst itemId = $('Edit Fields').first().json.item_id;\nconst userProductId = $('Edit Fields').first().json.user_product_id;\nconst nuevoStock = $('Edit Fields').first().json.nuevo_stock;\nconst token = $('Edit Fields').first().json['Access Token'];\n\nif (respGet.statusCode < 200 || respGet.statusCode >= 300) {\n  const msg = respGet.body?.message || respGet.body?.cause?.[0]?.message || 'No se pudo leer el stock actual del depósito';\n  return [{ json: { error_previo: `[GET stock] ${msg}` } }];\n}\n\nconst headers = respGet.headers || {};\nconst xVersionKey = Object.keys(headers).find(k => k.toLowerCase() === 'x-version');\nconst xVersion = xVersionKey ? headers[xVersionKey] : '';\n\nconst locations = respGet.body?.locations || [];\nconst depositoLocations = locations.filter(l => l.type === 'seller_warehouse' || l.type === 'selling_address');\n\nif (depositoLocations.length === 0) {\n  return [{ json: { error_previo: 'Este ítem no tiene depósito propio configurado en Mercado Libre (solo Full).' } }];\n}\n\nconst tipo = depositoLocations[0].type;\nconst nuevasUbicaciones = depositoLocations.map(({ type, ...resto }) => ({ ...resto, quantity: nuevoStock }));\n\nreturn [{\n  json: {\n    error_previo: '',\n    tipo,\n    x_version: xVersion,\n    locations_body: JSON.stringify({ locations: nuevasUbicaciones }),\n    item_id: itemId,\n    user_product_id: userProductId,\n    nuevo_stock: nuevoStock,\n    token,\n  },\n}];"
+        "jsCode": "// Doc oficial ML \"Stock multi-origen\": separa Full (meli_facility, solo lectura) de\n// deposito propio (seller_warehouse / selling_address, editable). El x-version del GET\n// es obligatorio para el PUT siguiente (control de concurrencia optimista de ML).\nconst respGet = $input.first().json; // { statusCode, headers, body }\nconst itemId = $('Edit Fields').first().json.item_id;\nconst userProductId = $('Edit Fields').first().json.user_product_id;\n// Forzamos numero: si llega como string o undefined, JSON.stringify puede omitir\n// la clave \"quantity\" silenciosamente y ML responde \"quantity is required\".\nconst nuevoStock = Number($('Edit Fields').first().json.nuevo_stock);\nconst token = $('Edit Fields').first().json['Access Token'];\n\nif (respGet.statusCode < 200 || respGet.statusCode >= 300) {\n  const msg = respGet.body?.message || respGet.body?.cause?.[0]?.message || 'No se pudo leer el stock actual del depósito';\n  return [{ json: { error_previo: `[GET stock] ${msg}` } }];\n}\n\nif (!Number.isFinite(nuevoStock)) {\n  return [{ json: { error_previo: `nuevo_stock inválido: ${JSON.stringify($('Edit Fields').first().json.nuevo_stock)}` } }];\n}\n\nconst headers = respGet.headers || {};\nconst xVersionKey = Object.keys(headers).find(k => k.toLowerCase() === 'x-version');\nconst xVersion = xVersionKey ? headers[xVersionKey] : '';\n\nconst locations = respGet.body?.locations || [];\nconst depositoLocations = locations.filter(l => l.type === 'seller_warehouse' || l.type === 'selling_address');\n\nif (depositoLocations.length === 0) {\n  return [{ json: { error_previo: 'Este ítem no tiene depósito propio configurado en Mercado Libre (solo Full).' } }];\n}\n\nconst tipo = depositoLocations[0].type;\n// Doc \"Distributed Stock\": el PUT /stock/type/{type} espera { quantity } en la\n// raiz del body, no un array \"locations\" (eso es de la API distinta \"Multi-Origen\"\n// con store_id/network_node_id). Por eso ML devolvia \"quantity is required\".\n\nreturn [{\n  json: {\n    error_previo: '',\n    tipo,\n    x_version: xVersion,\n    locations_body: JSON.stringify({ quantity: nuevoStock }),\n    item_id: itemId,\n    user_product_id: userProductId,\n    nuevo_stock: nuevoStock,\n    token,\n  },\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [12592, 2000],
-      "id": "c3a3e3c3-0001-4001-8001-000000000009",
+      "position": [
+        -1232,
+        2384
+      ],
+      "id": "fec924ec-bb7a-4bba-ad4c-b6bb34fd034c",
       "name": "Preparar PUT depósito"
     },
     {
@@ -154,7 +184,11 @@
               "id": "cond-hay-error-previo",
               "leftValue": "={{ $json.error_previo }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
             }
           ],
           "combinator": "and"
@@ -163,8 +197,11 @@
       },
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [12848, 2000],
-      "id": "c3a3e3c3-0001-4001-8001-000000000010",
+      "position": [
+        -976,
+        2384
+      ],
+      "id": "cb3229ce-9a95-400a-aefe-849d03700a10",
       "name": "¿Hay error previo?"
     },
     {
@@ -173,8 +210,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [13104, 1900],
-      "id": "c3a3e3c3-0001-4001-8001-000000000011",
+      "position": [
+        -720,
+        2272
+      ],
+      "id": "42281b25-9339-46f6-9836-00cab53585b4",
       "name": "Formatear error previo"
     },
     {
@@ -184,9 +224,18 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json.token}}" },
-            { "name": "Content-Type", "value": "application/json" },
-            { "name": "x-version", "value": "={{$json.x_version}}" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json.token}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-version",
+              "value": "={{$json.x_version}}"
+            }
           ]
         },
         "sendBody": true,
@@ -195,16 +244,19 @@
         "options": {
           "response": {
             "response": {
-              "neverError": true,
-              "fullResponse": true
+              "fullResponse": true,
+              "neverError": true
             }
           }
         }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [13104, 2100],
-      "id": "c3a3e3c3-0001-4001-8001-000000000012",
+      "position": [
+        -720,
+        2480
+      ],
+      "id": "446b0b8c-05e9-4a7b-af61-ce34a244db45",
       "name": "PUT stock depósito"
     },
     {
@@ -213,19 +265,62 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [13360, 2100],
-      "id": "c3a3e3c3-0001-4001-8001-000000000013",
+      "position": [
+        -464,
+        2480
+      ],
+      "id": "84096d85-4b9f-4676-bf02-78ef2e10f8ce",
       "name": "Formatear respuesta depósito"
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-tiene-variation-id",
+              "leftValue": "={{ $json.variation_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1744,
+        2704
+      ],
+      "id": "d1e2f3a4-2222-4bcd-8ef0-000000000002",
+      "name": "¿Tiene variation_id?"
+    },
+    {
+      "parameters": {
         "method": "PUT",
-        "url": "=https://api.mercadolibre.com/items/{{$json.item_id}}",
+        "url": "=https://api.mercadolibre.com/items/{{$json.item_id}}/variations/{{$json.variation_id}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$json[\"Access Token\"]}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json[\"Access Token\"]}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -234,16 +329,70 @@
         "options": {
           "response": {
             "response": {
-              "neverError": true,
-              "fullResponse": true
+              "fullResponse": true,
+              "neverError": true
             }
           }
         }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [12336, 2320],
-      "id": "c3a3e3c3-0001-4001-8001-000000000014",
+      "position": [
+        -1488,
+        2832
+      ],
+      "id": "e2f3a4b5-3333-4cde-9f01-000000000003",
+      "name": "PUT variación simple"
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json; // { statusCode, headers, body }\nconst statusCode = res.statusCode ?? 200;\nconst body = res.body ?? res;\nconst itemId = $('Edit Fields').first().json.item_id;\nconst nuevoStock = $('Edit Fields').first().json.nuevo_stock;\n\nif (statusCode >= 200 && statusCode < 300) {\n  return [{ json: { success: true, item_id: itemId, available_quantity: body.available_quantity ?? nuevoStock } }];\n}\n\nconst mensaje = body?.message || body?.cause?.[0]?.message || 'Error al actualizar el stock de la variación en MercadoLibre';\nreturn [{ json: { success: false, error: mensaje, statusCode } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        2832
+      ],
+      "id": "f3a4b5c6-4444-4def-a012-000000000004",
+      "name": "Formatear respuesta variación simple"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.mercadolibre.com/items/{{$json.item_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$json[\"Access Token\"]}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ available_quantity: $json.nuevo_stock }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1488,
+        2704
+      ],
+      "id": "4cbfd7fd-b34f-403b-a8f0-6a835e751ab9",
       "name": "PUT item simple"
     },
     {
@@ -252,8 +401,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [12592, 2320],
-      "id": "c3a3e3c3-0001-4001-8001-000000000015",
+      "position": [
+        -1232,
+        2704
+      ],
+      "id": "39d8c3d5-a86c-4990-95bb-64a0afef9294",
       "name": "Formatear respuesta simple"
     },
     {
@@ -264,72 +416,219 @@
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [13616, 2144],
-      "id": "c3a3e3c3-0001-4001-8001-000000000006",
+      "position": [
+        -208,
+        2528
+      ],
+      "id": "df09d63c-d9a4-41c7-8cb1-8e2a6b7f33ba",
       "name": "Respond to Webhook"
     }
   ],
   "pinData": {},
   "connections": {
     "Webhook": {
-      "main": [[{ "node": "Call 'Read_token'", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Call 'Read_token'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call 'Read_token'": {
-      "main": [[{ "node": "Edit Fields", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Edit Fields": {
-      "main": [[{ "node": "¿Tiene user_product_id?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "¿Tiene user_product_id?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "¿Tiene user_product_id?": {
       "main": [
-        [{ "node": "GET stock ubicaciones", "type": "main", "index": 0 }],
-        [{ "node": "PUT item simple", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "GET stock ubicaciones",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Tiene variation_id?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene variation_id?": {
+      "main": [
+        [
+          {
+            "node": "PUT variación simple",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PUT item simple",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PUT variación simple": {
+      "main": [
+        [
+          {
+            "node": "Formatear respuesta variación simple",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear respuesta variación simple": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "GET stock ubicaciones": {
-      "main": [[{ "node": "Preparar PUT depósito", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Preparar PUT depósito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Preparar PUT depósito": {
-      "main": [[{ "node": "¿Hay error previo?", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "¿Hay error previo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "¿Hay error previo?": {
       "main": [
-        [{ "node": "Formatear error previo", "type": "main", "index": 0 }],
-        [{ "node": "PUT stock depósito", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Formatear error previo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PUT stock depósito",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Formatear error previo": {
-      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "PUT stock depósito": {
-      "main": [[{ "node": "Formatear respuesta depósito", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Formatear respuesta depósito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Formatear respuesta depósito": {
-      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "PUT item simple": {
-      "main": [[{ "node": "Formatear respuesta simple", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Formatear respuesta simple",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Formatear respuesta simple": {
-      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
-    "callerPolicy": "workflowsFromSameOwner",
+    "executionOrder": "v1",
+    "binaryMode": "separate",
     "availableInMCP": false,
     "timeSavedMode": "fixed",
     "saveDataErrorExecution": "all",
     "saveDataSuccessExecution": "all",
     "saveExecutionProgress": true,
     "saveManualExecutions": true,
-    "executionOrder": "v0",
-    "binaryMode": "separate"
+    "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "c3a3e3c3-0003-4003-8003-000000000000",
+  "versionId": "c8f4b7a3-7a68-4436-ad97-48c521ea7329",
   "meta": {
     "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
   },
-  "id": "actualizarStockPublicacionZ1",
+  "id": "dQeqLEhx0PVG1QtS",
   "tags": []
 }

@@ -7,13 +7,14 @@ import { setStockPublicacionML } from "@/app/actions/estado-publicaciones";
 
 interface Props {
   itemId: string;
+  variationId: string | null;
   userProductId: string | null;
   stock: number;
   editable: boolean;
-  onUpdated: (itemId: string, nuevoStock: number) => void;
+  onUpdated: (itemId: string, variationId: string | null, nuevoStock: number) => void;
 }
 
-export default function StockDepositoCell({ itemId, userProductId, stock, editable, onUpdated }: Props) {
+export default function StockDepositoCell({ itemId, variationId, userProductId, stock, editable, onUpdated }: Props) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(String(stock));
   const [loading, setLoading] = useState(false);
@@ -48,10 +49,10 @@ export default function StockDepositoCell({ itemId, userProductId, stock, editab
       return;
     }
     setLoading(true);
-    const result = await setStockPublicacionML(itemId, userProductId, nuevo);
+    const result = await setStockPublicacionML(itemId, userProductId, nuevo, variationId);
     setLoading(false);
     if (result.success) {
-      onUpdated(itemId, result.available_quantity ?? nuevo);
+      onUpdated(itemId, variationId, result.available_quantity ?? nuevo);
       setEditing(false);
       toast.success("Stock del depósito actualizado en Mercado Libre.");
     } else {

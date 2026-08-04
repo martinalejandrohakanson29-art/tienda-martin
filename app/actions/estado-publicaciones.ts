@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 
 export interface PublicacionEstado {
   item_id: string;
+  variation_id: string | null; // MLU: presente = esta fila es una variante puntual del MLA, no el item entero
+  variant_label: string | null; // ej: "Rojo / L", armado con los attribute_combinations de ML
   title: string;
   price: number;
   currency_id: string | null;
@@ -84,6 +86,8 @@ export async function getEstadoPublicacionesML(): Promise<{
 
     const data: PublicacionEstado[] = items.map((it: any) => ({
       item_id: it.item_id,
+      variation_id: it.variation_id != null ? String(it.variation_id) : null,
+      variant_label: it.variant_label ?? null,
       title: it.title || "Sin título",
       price: Number(it.price || 0),
       currency_id: it.currency_id ?? null,
@@ -135,20 +139,28 @@ export async function setEstadoPublicacionML(
   }
 }
 
-// Actualiza el stock del depósito propio de una publicación en ML vía n8n.
+// Actualiza el stock del depósito propio de una publicación (o de una variante puntual) en ML vía n8n.
 // Si tiene user_product_id (stock multi-origen) n8n lee la ubicación actual del depósito
 // propio (seller_warehouse/selling_address) y la actualiza vía /user-products; el stock
 // en Full (meli_facility) queda intacto porque es de solo lectura para el vendedor.
+// Si no tiene user_product_id pero sí variation_id (variante sin stock distribuido), n8n
+// actualiza el stock de esa variación puntual vía /items/{id}/variations/{variation_id}.
 export async function setStockPublicacionML(
   itemId: string,
   userProductId: string | null,
-  nuevoStock: number
+  nuevoStock: number,
+  variationId: string | null = null
 ): Promise<{ success: boolean; available_quantity?: number; error?: string }> {
   try {
     const response = await fetch(N8N_ACTUALIZAR_STOCK_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ item_id: itemId, user_product_id: userProductId, available_quantity: nuevoStock }),
+      body: JSON.stringify({
+        item_id: itemId,
+        user_product_id: userProductId,
+        variation_id: variationId,
+        available_quantity: nuevoStock,
+      }),
       cache: "no-store",
     });
 

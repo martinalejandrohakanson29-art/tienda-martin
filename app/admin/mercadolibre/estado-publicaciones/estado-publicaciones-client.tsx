@@ -42,9 +42,11 @@ export default function EstadoPublicacionesClient({ agregados }: { agregados: Ag
     setItems((prev) => prev.map((it) => (it.item_id === itemId ? { ...it, status: nuevoEstado } : it)));
   }, []);
 
-  const handleStockActualizado = useCallback((itemId: string, nuevoStock: number) => {
+  const handleStockActualizado = useCallback((itemId: string, variationId: string | null, nuevoStock: number) => {
     setItems((prev) =>
-      prev.map((it) => (it.item_id === itemId ? { ...it, stock_deposito: nuevoStock } : it))
+      prev.map((it) =>
+        it.item_id === itemId && it.variation_id === variationId ? { ...it, stock_deposito: nuevoStock } : it
+      )
     );
   }, []);
 

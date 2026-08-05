@@ -56,6 +56,26 @@ function claseColorMarcacion(marc: number): string {
     return "bg-red-50 text-red-600 border-red-200"
 }
 
+// Acepta cualquier formato común de link público de Google Drive (o el id pelado)
+// y devuelve el id del archivo, o null si no se pudo reconocer.
+function extraerIdDriveDesdeLink(input: string): string | null {
+    const s = input.trim()
+    if (!s) return null
+    const patrones = [/\/d\/([a-zA-Z0-9_-]{10,})/, /[?&]id=([a-zA-Z0-9_-]{10,})/]
+    for (const patron of patrones) {
+        const m = s.match(patron)
+        if (m) return m[1]
+    }
+    if (/^[a-zA-Z0-9_-]{10,}$/.test(s)) return s
+    return null
+}
+
+// URL de imagen embebible a partir de un id de archivo de Google Drive (el archivo debe
+// tener el acceso "Cualquier usuario con el enlace" en Drive para que cargue).
+function urlImagenDrive(fileId: string): string {
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
+}
+
 interface ArticuloMostradorVinculado {
     id: string
     nombre: string
@@ -131,6 +151,8 @@ export default function MayoristasAdminClient({
 }) {
     const [articulos, setArticulos] = useState(articulosIniciales)
     const [pickerFor, setPickerFor] = useState<string | null>(null)
+    const [driveLinkInput, setDriveLinkInput] = useState("")
+    const [driveLinkError, setDriveLinkError] = useState(false)
     const [vincularFor, setVincularFor] = useState<string | null>(null)
     const [vincularQuery, setVincularQuery] = useState("")
     const [vincularResultados, setVincularResultados] = useState<ResultadoBusqueda[]>([])
@@ -418,9 +440,21 @@ export default function MayoristasAdminClient({
     function asignarFoto(id: string, url: string) {
         setLocalConGrupo(id, { imageUrl: url })
         setPickerFor(null)
+        setDriveLinkInput("")
+        setDriveLinkError(false)
         startTransition(() => {
             actualizarImagenMayorista(id, url)
         })
+    }
+
+    function usarLinkDrive() {
+        if (!pickerFor) return
+        const fileId = extraerIdDriveDesdeLink(driveLinkInput)
+        if (!fileId) {
+            setDriveLinkError(true)
+            return
+        }
+        asignarFoto(pickerFor, urlImagenDrive(fileId))
     }
 
     function guardarCampo(id: string, patch: Partial<Articulo>) {
@@ -859,14 +893,50 @@ export default function MayoristasAdminClient({
                 ))}
             </div>
 
-            <Dialog open={!!pickerFor} onOpenChange={(open) => !open && setPickerFor(null)}>
+            <Dialog
+                open={!!pickerFor}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setPickerFor(null)
+                        setDriveLinkInput("")
+                        setDriveLinkError(false)
+                    }
+                }}
+            >
                 <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Elegir foto{articuloActivo ? ` — ${articuloActivo.nombre}` : ""}</DialogTitle>
                         <DialogDescription>
-                            Fotos extraídas de la lista mayorista en PDF. Una foto puede repetirse en más de un artículo si el proveedor usó la misma imagen.
+                            Fotos extraídas de la lista mayorista en PDF, o pegá el link público de Google Drive de una foto nueva. Una foto puede repetirse en más de un artículo si el proveedor usó la misma imagen.
                         </DialogDescription>
                     </DialogHeader>
+
+                    <div className="flex items-start gap-2">
+                        <div className="flex-1">
+                            <Input
+                                placeholder="Link público de Google Drive (compartir → cualquiera con el enlace)"
+                                value={driveLinkInput}
+                                onChange={(e) => {
+                                    setDriveLinkInput(e.target.value)
+                                    setDriveLinkError(false)
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") usarLinkDrive()
+                                }}
+                                className={driveLinkError ? "border-red-400 focus-visible:ring-red-400" : ""}
+                            />
+                            {driveLinkError && (
+                                <p className="text-xs text-red-500 mt-1">No se pudo reconocer el link. Copiá el link de "Compartir" de Google Drive.</p>
+                            )}
+                        </div>
+                        <button
+                            onClick={usarLinkDrive}
+                            disabled={!driveLinkInput.trim()}
+                            className="shrink-0 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-lg px-4 py-2 transition-colors"
+                        >
+                            Usar link
+                        </button>
+                    </div>
 
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-3">
                         {articuloActivo?.imageUrl && (

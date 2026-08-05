@@ -4,6 +4,23 @@ import { s3Client } from "@/lib/s3";
 
 const PREFIX = "chatwoot-prueba/";
 
+// Arma la URL pública real a partir de los headers que pone el reverse proxy en
+// cada request (reflejan el dominio que el cliente usó de verdad). NEXTAUTH_URL
+// y request.url quedan solo de fallback: en este deploy NEXTAUTH_URL apunta a un
+// dominio interno de Easypanel que no sirve esta ruta, y request.url resuelve a
+// la dirección interna "0.0.0.0:3000" donde escucha Next detrás del proxy.
+function resolveBaseUrl(request: Request): string {
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    if (forwardedHost) {
+        const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+        return `${forwardedProto}://${forwardedHost}`;
+    }
+    if (process.env.NEXTAUTH_URL) {
+        return process.env.NEXTAUTH_URL.replace(/\/$/, "");
+    }
+    return new URL(request.url).origin;
+}
+
 // Sube un audio grabado/subido en /admin/chatwoot/prueba a S3 y devuelve una URL de
 // este mismo endpoint (GET, sin auth) para que n8n la descargue como si fuera el
 // data_url de un adjunto real de WhatsApp/Chatwoot. Garage no permite acceso anónimo
@@ -35,11 +52,7 @@ export async function POST(request: Request) {
             ContentType: contentType,
         }));
 
-        // OJO: no usar new URL(request.url).origin acá — detrás del reverse proxy de
-        // este deploy, request.url resuelve a "0.0.0.0:3000" (la dirección interna
-        // donde escucha Next), no al dominio público. NEXTAUTH_URL sí es la URL real.
-        const baseUrl = (process.env.NEXTAUTH_URL || new URL(request.url).origin).replace(/\/$/, "");
-        const audioUrl = `${baseUrl}/api/chatwoot/prueba-audio-upload?key=${encodeURIComponent(key)}`;
+        const audioUrl = `${resolveBaseUrl(request)}/api/chatwoot/prueba-audio-upload?key=${encodeURIComponent(key)}`;
 
         return NextResponse.json({ success: true, audioUrl });
     } catch (error) {

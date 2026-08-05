@@ -78,7 +78,15 @@ export async function crearPedidoMayoristaWeb(data: {
     try {
         const articulos = await prisma.articuloMayorista.findMany({
             where: { id: { in: itemsPedidos.map(i => i.articuloMayoristaId) }, activo: true },
-            select: { id: true, nombre: true, titulo: true, precio: true, articuloMostradorId: true, variante: true },
+            select: {
+                id: true,
+                nombre: true,
+                titulo: true,
+                precio: true,
+                articuloMostradorId: true,
+                variante: true,
+                articuloMostrador: { select: { nombre: true } },
+            },
         })
         const porId = new Map(articulos.map(a => [a.id, a]))
 
@@ -87,7 +95,10 @@ export async function crearPedidoMayoristaWeb(data: {
                 const art = porId.get(i.articuloMayoristaId)
                 if (!art) return null
                 const precioUnit = Number(art.precio)
-                const nombreBase = art.titulo || art.nombre
+                // El pedido se guarda con el nombre real de Artículos Mostrador (no el
+                // nombre comercial del catálogo mayorista) para que coincida con lo que
+                // se ve en /admin/ventas-mostrador y /admin/listas/articulos-mostrador.
+                const nombreBase = art.articuloMostrador?.nombre || art.titulo || art.nombre
                 return {
                     productoId: art.articuloMostradorId,
                     // Cuando el artículo tiene variantes (ej. medidas), la venta guarda cuál

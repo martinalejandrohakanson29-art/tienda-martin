@@ -1,0 +1,69 @@
+{
+  "name": "Errores - Avisar a la app",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "0f5c8a31-7b62-4d94-a018-3e7c5b90d264",
+      "name": "Error Trigger"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://revolucionmotos.tech/api/n8n/error",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-token",
+              "value": "={{ $env.N8N_ERROR_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  workflow: $json.workflow?.name ?? 'desconocido',\n  nodo: $json.execution?.lastNodeExecuted ?? null,\n  mensaje: $json.execution?.error?.message ?? 'sin mensaje',\n  executionUrl: $json.execution?.url ?? null\n}) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [224, 0],
+      "id": "6b17e0d5-3f48-4a21-9c76-84b0e2f51a39",
+      "name": "Avisar a la app",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "content": "## Workflow de errores\n\nSe dispara solo cuando **otro** workflow termina con error. No se activa con el toggle Active: hay que seleccionarlo en\n\n`Settings > Error Workflow`\n\nde cada workflow que se quiera vigilar (arrancar por workflow_mateo).\n\n### Requisitos\n\n1. Variable de entorno **N8N_ERROR_TOKEN** en n8n, con el mismo valor que en la app.\n2. Una regla de notificacion activa con eventType **N8N_WORKFLOW_ERROR** en `/admin/usuarios`. Sin regla, la app recibe el aviso pero no se lo muestra a nadie.\n\n### Como probarlo\n\nRomper a proposito un nodo de workflow_mateo (por ejemplo poniendole una URL invalida), mandar un mensaje, y verificar que llegue la alerta.",
+        "height": 460,
+        "width": 420,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-64, 176],
+      "id": "d38a5c02-9e71-4b63-8250-7fa61c94e0b8",
+      "name": "Nota - Workflow de errores"
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [[{ "node": "Avisar a la app", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

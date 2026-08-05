@@ -2,7 +2,16 @@ import { NextResponse } from "next/server";
 
 // Simula el webhook que Chatwoot manda a n8n cuando llega un mensaje de WhatsApp,
 // para poder probar el workflow de IA sin depender de un mensaje real.
-const N8N_WEBHOOK_URL = "https://n8n.revolucionmotos.tech/webhook/chatwoot-mensaje";
+const N8N_WEBHOOK_BASE = "https://n8n.revolucionmotos.tech/webhook/chatwoot-mensaje";
+
+// El workflow valida un token en la query (Chatwoot no firma sus webhooks ni deja
+// mandar headers custom, así que el secreto va pegado a la URL que se configura del
+// lado de Chatwoot). El mock tiene que mandar el mismo token o el nodo
+// "Webhook autorizado?" lo rechaza igual que a un payload forjado.
+function urlWebhookN8n(): string {
+    const token = process.env.CHATWOOT_WEBHOOK_TOKEN;
+    return token ? `${N8N_WEBHOOK_BASE}?token=${encodeURIComponent(token)}` : N8N_WEBHOOK_BASE;
+}
 
 export async function POST(request: Request) {
     try {
@@ -107,7 +116,7 @@ export async function POST(request: Request) {
             event: "message_created",
         };
 
-        const response = await fetch(N8N_WEBHOOK_URL, {
+        const response = await fetch(urlWebhookN8n(), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payloadChatwoot),

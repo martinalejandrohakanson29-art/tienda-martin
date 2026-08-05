@@ -206,13 +206,13 @@
     },
     {
       "parameters": {
-        "url": "={{\n  (() => {\n    const url = $('Webhook1').item.json.body.conversation.messages[0].attachments[0].data_url;\n    // El mock de /admin/chatwoot/prueba sirve el audio desde la propia app:\n    // esas URLs ya son publicas, no hay que reescribirles el host.\n    if (url.includes('/api/chatwoot/')) {\n      return url;\n    }\n    // Chatwoot devuelve el adjunto con su host interno de Easypanel; hay que\n    // cambiarlo por el dominio publico para poder descargarlo desde n8n.\n    if (url.includes('easypanel.host')) {\n      return url.replace(\n        /^https?:\\/\\/[^/]+/,\n        'https://TU_INSTANCIA_CHATWOOT.com'\n      );\n    }\n    if (url.startsWith('http')) {\n      return url;\n    }\n    return 'https://TU_INSTANCIA_CHATWOOT.com' + url;\n  })()\n}}\n",
+        "url": "={{\n  (() => {\n    const url = $('Webhook1').item.json.body.conversation.messages[0].attachments[0].data_url;\n    // Host publico de Chatwoot, derivado de la config (le saca /api/v1).\n    const base = $('Config Chatwoot').item.json.chatwoot_api.replace(/\\/api\\/v1\\/?$/, '');\n    // Las URLs del mock de /admin/chatwoot/prueba ya son publicas.\n    if (url.includes('/api/chatwoot/')) {\n      return url;\n    }\n    // Chatwoot devuelve el adjunto con su host interno de Easypanel.\n    if (url.includes('easypanel.host')) {\n      return url.replace(/^https?:\\/\\/[^/]+/, base);\n    }\n    if (url.startsWith('http')) {\n      return url;\n    }\n    return base + url;\n  })()\n}}\n",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             }
           ]
         },
@@ -233,7 +233,10 @@
         64464
       ],
       "id": "0a328c15-6852-42db-96b7-f23bd86e18e3",
-      "name": "HTTP Request2"
+      "name": "HTTP Request2",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -274,18 +277,6 @@
               "name": "account_id",
               "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
               "type": "number"
-            },
-            {
-              "id": "8ad7f707-c822-4124-874c-f692aa14929d",
-              "name": "url_chatwoot",
-              "value": "https://revolucionmotos.tech/api/chatwoot/mock/",
-              "type": "string"
-            },
-            {
-              "id": "3d29669a-5b8c-45c4-893f-2c956091f48a",
-              "name": "api_key_chatwoot",
-              "value": "mock-token-prueba",
-              "type": "string"
             },
             {
               "id": "4a923291-40bf-4288-add4-ff1eae5fff28",
@@ -354,18 +345,6 @@
               "name": "account_id",
               "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
               "type": "number"
-            },
-            {
-              "id": "45f17950-4221-42e1-b991-497f2f915f92",
-              "name": "url_chatwoot",
-              "value": "https://revolucionmotos.tech/api/chatwoot/mock/",
-              "type": "string"
-            },
-            {
-              "id": "96f28692-0e24-4409-8250-f5bb4be688a5",
-              "name": "api_key_chatwoot",
-              "value": "mock-token-prueba",
-              "type": "string"
             },
             {
               "id": "9c74c1ac-9f47-4dc8-be3b-f94451491ea8",
@@ -580,7 +559,10 @@
         64736
       ],
       "id": "067d3588-d0ed-4afd-90d9-43c4144f2abf",
-      "name": "Clasificador Intento"
+      "name": "Clasificador Intento",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -788,7 +770,10 @@
         64368
       ],
       "id": "0cf024a9-6847-4cca-bbd5-764a05298d31",
-      "name": "AI Agent2"
+      "name": "AI Agent2",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -848,13 +833,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             },
             {
               "name": "Content-Type",
@@ -875,7 +860,10 @@
       ],
       "id": "365be112-7d09-4d71-b92c-ff08a98d1807",
       "name": "1ª Parte Respuesta1",
-      "onError": "continueErrorOutput"
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {},
@@ -1003,13 +991,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $json.account_id }}/conversations/{{ $json.conversation_id }}/labels",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $json.account_id }}/conversations/{{ $json.conversation_id }}/labels",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             },
             {
               "name": "Content-Type",
@@ -1030,18 +1018,21 @@
       ],
       "id": "28e12b62-b46e-4b7f-bb24-38155444df3c",
       "name": "Escalar - Agregar Label",
-      "onError": "continueErrorOutput"
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             },
             {
               "name": "Content-Type",
@@ -1062,7 +1053,10 @@
       ],
       "id": "5d309381-19bc-492d-a942-c615f6441b5d",
       "name": "Escalar - Nota Privada",
-      "onError": "continueErrorOutput"
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {},
@@ -1106,7 +1100,10 @@
         64736
       ],
       "id": "c13480f4-9c44-4db0-b050-52b082ba01e6",
-      "name": "Extraer Datos Tecnicos"
+      "name": "Extraer Datos Tecnicos",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1141,7 +1138,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1219,7 +1219,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1340,7 +1343,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1391,7 +1397,10 @@
         64192
       ],
       "id": "09562a57-6c8c-4b30-8aa6-f73f460bfc92",
-      "name": "Extraer Respuesta Tecnica"
+      "name": "Extraer Respuesta Tecnica",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1458,7 +1467,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1479,7 +1491,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {},
@@ -1544,7 +1559,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1578,7 +1596,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1612,7 +1633,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1642,7 +1666,10 @@
         65136
       ],
       "id": "8d61d30f-bb76-4dd9-9a9d-676ef00d6f68",
-      "name": "Extraer Tema Negocio"
+      "name": "Extraer Tema Negocio",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1677,7 +1704,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1755,7 +1785,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1789,7 +1822,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1852,7 +1888,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1903,7 +1942,10 @@
         64640
       ],
       "id": "3cafa8b5-e68b-4c16-8392-b6bcc3d8c041",
-      "name": "Extraer Respuesta Negocio"
+      "name": "Extraer Respuesta Negocio",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1970,7 +2012,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -1991,7 +2036,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2019,13 +2067,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             },
             {
               "name": "Content-Type",
@@ -2045,7 +2093,10 @@
         64064
       ],
       "id": "02e2bf21-b29b-4ccd-9b99-4d48ad564b16",
-      "name": "Responder Cliente - Aprendizaje Tecnico"
+      "name": "Responder Cliente - Aprendizaje Tecnico",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2073,13 +2124,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             },
             {
               "name": "Content-Type",
@@ -2099,7 +2150,10 @@
         64512
       ],
       "id": "00780f1d-ebcd-4dd6-80b7-226d66e4aeea",
-      "name": "Responder Cliente - Aprendizaje Negocio"
+      "name": "Responder Cliente - Aprendizaje Negocio",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2564,7 +2618,10 @@
         66032
       ],
       "id": "b655add4-e2b9-4b7c-b80e-bba6a212135e",
-      "name": "Extraer Producto"
+      "name": "Extraer Producto",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2633,7 +2690,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2711,7 +2771,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2745,7 +2808,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2808,7 +2874,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2859,7 +2928,10 @@
         66480
       ],
       "id": "2364ecda-c6a1-42c6-9acf-38c73827b5aa",
-      "name": "Extraer Respuesta Precio"
+      "name": "Extraer Respuesta Precio",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2926,7 +2998,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2947,7 +3022,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -2975,13 +3053,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             },
             {
               "name": "Content-Type",
@@ -3001,7 +3079,10 @@
         66704
       ],
       "id": "066a69f8-5847-493b-80a8-0f84ffc6c1f8",
-      "name": "Responder Cliente - Aprendizaje Precio"
+      "name": "Responder Cliente - Aprendizaje Precio",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3045,7 +3126,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3101,7 +3185,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3157,7 +3244,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3349,7 +3439,10 @@
         65040
       ],
       "id": "7d8060f6-fa7d-420c-ac9f-47b10a662470",
-      "name": "Extraer Datos Tecnicos (Multi)"
+      "name": "Extraer Datos Tecnicos (Multi)",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3418,7 +3511,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3497,7 +3593,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3552,7 +3651,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3598,7 +3700,10 @@
         65440
       ],
       "id": "9bbb6a68-8c70-4608-b1f9-4e617a2a4f94",
-      "name": "Extraer Tema Negocio (Multi)"
+      "name": "Extraer Tema Negocio (Multi)",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3667,7 +3772,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3746,7 +3854,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3801,7 +3912,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3847,7 +3961,10 @@
         65840
       ],
       "id": "de5f61f8-3530-46c5-b6b5-62b8a74331e5",
-      "name": "Extraer Producto (Multi)"
+      "name": "Extraer Producto (Multi)",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3916,7 +4033,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -3995,7 +4115,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4050,7 +4173,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4181,7 +4307,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4370,7 +4499,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4434,7 +4566,10 @@
         67136
       ],
       "id": "f705cbca-afdd-42bf-8f60-31a9271d3140",
-      "name": "Detectar Mencion Kit"
+      "name": "Detectar Mencion Kit",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4600,13 +4735,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             },
             {
               "name": "Content-Type",
@@ -4626,7 +4761,10 @@
         66848
       ],
       "id": "e6e8233f-9c6b-4895-8a00-cc9d30319f7c",
-      "name": "Enviar Saludo Kit"
+      "name": "Enviar Saludo Kit",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4692,7 +4830,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {},
@@ -4731,13 +4872,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "api_access_token",
-              "value": "mock-token-prueba"
+              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
             },
             {
               "name": "Content-Type",
@@ -4757,7 +4898,10 @@
         67232
       ],
       "id": "2021b7a1-6ff4-4f10-9a32-9fdb5e6d9ff5",
-      "name": "Enviar Pregunta Ambigua"
+      "name": "Enviar Pregunta Ambigua",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4800,7 +4944,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {},
@@ -4833,7 +4980,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4854,7 +5004,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4888,7 +5041,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4922,7 +5078,10 @@
           "id": "65YYZNhTfBBheEpo",
           "name": "Postgres account"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -4996,7 +5155,10 @@
           "id": "izKqPEK5NVsAu3IE",
           "name": "OpenAi account 2"
         }
-      }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -5140,6 +5302,113 @@
       ],
       "id": "2c6f8a15-0d74-4e39-b582-9a71e4c0d6f3",
       "name": "Nota - Agrupado de mensajes"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1c4e830-95d2-4f76-b8e1-3c057a94f612",
+              "name": "chatwoot_api",
+              "value": "https://TU-CHATWOOT.com/api/v1",
+              "type": "string"
+            },
+            {
+              "id": "f80b6d15-2a37-4c94-9e60-71d38f0a5b2c",
+              "name": "chatwoot_token",
+              "value": "={{ $env.CHATWOOT_API_TOKEN }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        11552,
+        64400
+      ],
+      "id": "7d3a91e4-4c85-42b7-9a30-5f8c1d6b0e94",
+      "name": "Config Chatwoot"
+    },
+    {
+      "parameters": {
+        "content": "## Config Chatwoot\n\n**Unico lugar** donde se define a que Chatwoot le pega el workflow. Los 10 nodos HTTP leen de aca; no hay URLs ni tokens sueltos.\n\n- `chatwoot_api`: base de la API real, sin barra final.\n  Ej: `https://chat.miempresa.com/api/v1`\n  (en pruebas apuntaba al mock: `.../api/chatwoot/mock`)\n- `chatwoot_token`: se lee de la variable de entorno **CHATWOOT_API_TOKEN** de n8n. NO escribirlo aca: este JSON se versiona en git.\n\nVa antes del IF que separa cliente / equipo, asi que las dos ramas lo ven.\nTiene **Include Other Fields** activado: sin eso se pierde el body del webhook.",
+        "height": 340,
+        "width": 400,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        11408,
+        64048
+      ],
+      "id": "b2e7c491-6d80-4a53-8f12-9c40e7b3a5d6",
+      "name": "Nota - Config Chatwoot"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c39f7a02-8b14-4e65-9d70-2a6c81f45e93",
+              "leftValue": "={{ !!$env.CHATWOOT_WEBHOOK_TOKEN && $json.query.token === $env.CHATWOOT_WEBHOOK_TOKEN }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        11328,
+        64560
+      ],
+      "id": "e5107b3c-9a42-4d68-b071-6f8e29c4a35d",
+      "name": "Webhook autorizado?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        11328,
+        64784
+      ],
+      "id": "3a8d62f1-704e-4b95-8c23-d150a9e6b47c",
+      "name": "Fin - No autorizado"
+    },
+    {
+      "parameters": {
+        "content": "## Autenticacion del webhook\n\nChatwoot no firma sus webhooks ni deja mandar headers custom, pero la URL la elegis vos. En Chatwoot hay que configurarla con el token pegado:\n\n`https://n8n.TU-DOMINIO/webhook/chatwoot-mensaje?token=EL_SECRETO`\n\nEl mismo valor va en la variable de entorno **CHATWOOT_WEBHOOK_TOKEN** de n8n.\n\n### FALLA CERRADO\nSi `CHATWOOT_WEBHOOK_TOKEN` no esta definida, **no pasa ningun mensaje**. Es a proposito: preferible bot mudo que webhook abierto. Si el bot deja de responder despues de importar, es esto.\n\n### Por que importa\nSin esto, cualquiera que sepa la URL puede forjar un payload con `sender_type` != Contact y entrar por la rama de aprendizaje, que **escribe en compatibilidades / info_negocio / precios_stock** como si fuera el equipo. Se envenena la base de conocimiento y el bot se lo repite a clientes reales.",
+        "height": 460,
+        "width": 420,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        10848,
+        64336
+      ],
+      "id": "9c4b1e75-2836-4f09-a5d1-8b73e0c26f41",
+      "name": "Nota - Auth Webhook"
     }
   ],
   "pinData": {
@@ -5265,7 +5534,7 @@
       "main": [
         [
           {
-            "node": "Solo mensajes creados1",
+            "node": "Webhook autorizado?",
             "type": "main",
             "index": 0
           }
@@ -5276,11 +5545,12 @@
       "main": [
         [
           {
-            "node": "If",
+            "node": "Config Chatwoot",
             "type": "main",
             "index": 0
           }
-        ]
+        ],
+        []
       ]
     },
     "If": {
@@ -7643,6 +7913,35 @@
         [
           {
             "node": "Fin - Mensaje agrupado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config Chatwoot": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook autorizado?": {
+      "main": [
+        [
+          {
+            "node": "Solo mensajes creados1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin - No autorizado",
             "type": "main",
             "index": 0
           }

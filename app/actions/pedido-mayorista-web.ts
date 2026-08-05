@@ -5,6 +5,21 @@ import { consultarPadron } from "./afip"
 import { triggerNotification } from "@/lib/notify"
 import { ajustarStockPorVentaOCompraTx } from "@/lib/packs-stock"
 
+// El CUIT de Proveedores se cargó históricamente con formatos distintos (con guiones,
+// con prefijo "RI:"/"MON:", o crudo), así que nunca hay que buscarlo con igualdad exacta
+// de string: siempre se compara solo los dígitos, o se duplica el proveedor y se rompe
+// su cuenta corriente (saldos y movimientos quedan repartidos en dos registros).
+async function buscarProveedorPorDigitosCuit(
+    client: Pick<typeof prisma, "proveedor">,
+    digitos: string,
+) {
+    const candidatos = await client.proveedor.findMany({
+        where: { cuit: { not: null } },
+        select: { id: true, razonSocial: true, cuit: true },
+    })
+    return candidatos.find(c => (c.cuit || "").replace(/\D/g, "") === digitos) ?? null
+}
+
 // Checkout público de /mayoristas: identifica al cliente por DNI/CUIT contra
 // la tabla de Proveedores (que además de proveedores guarda a los clientes
 // mayoristas, distinguidos por esMayorista) y, si no está, contra el padrón
@@ -16,10 +31,7 @@ export async function buscarClienteMayoristaPorDni(dni: string) {
     }
 
     try {
-        const porDniCrudo = await prisma.proveedor.findFirst({
-            where: { cuit: digitos },
-            select: { razonSocial: true, cuit: true },
-        })
+        const porDniCrudo = await buscarProveedorPorDigitosCuit(prisma, digitos)
         if (porDniCrudo) {
             return { encontrado: true, nombre: porDniCrudo.razonSocial, cuit: porDniCrudo.cuit! }
         }
@@ -28,10 +40,7 @@ export async function buscarClienteMayoristaPorDni(dni: string) {
         if (padron.success && padron.cuit) {
             // El DNI puede haber estado cargado ya con el CUIT completo (11 dígitos)
             // en vez del DNI crudo (8 dígitos): re-chequeamos antes de asumir que es nuevo.
-            const porCuitResuelto = await prisma.proveedor.findFirst({
-                where: { cuit: padron.cuit },
-                select: { razonSocial: true, cuit: true },
-            })
+            const porCuitResuelto = await buscarProveedorPorDigitosCuit(prisma, padron.cuit.replace(/\D/g, ""))
             if (porCuitResuelto) {
                 return { encontrado: true, nombre: porCuitResuelto.razonSocial, cuit: porCuitResuelto.cuit! }
             }
@@ -118,7 +127,7 @@ export async function crearPedidoMayoristaWeb(data: {
         const totalFinal = itemsVenta.reduce((sum, i) => sum + i.subtotal, 0)
 
         const result = await prisma.$transaction(async (tx) => {
-            const existente = await tx.proveedor.findFirst({ where: { cuit } })
+            const existente = await buscarProveedorPorDigitosCuit(tx, cuit)
 
             const sujeto = existente
                 ? await tx.proveedor.update({ where: { id: existente.id }, data: { esMayorista: true, telefono } })

@@ -27,8 +27,8 @@ interface ImpactoItem { id?: string; razonSocial?: string; monto: number }
 // ─── Schemas de validación ────────────────────────────────────────────────────
 
 const VentaItemSchema = z.object({
-  productoId: z.string().optional(),
-  id: z.string().optional(),
+  productoId: z.string().nullish(),
+  id: z.string().nullish(),
   nombre: z.string(),
   cantidad: z.number().int().min(0),
   precio_unit: z.number().min(0),
@@ -171,7 +171,7 @@ async function revertirImpactoProveedorTx(
   }
 }
 
-type StockItem = { productoId?: string; id?: string; nombre?: string; cantidad: number }
+type StockItem = { productoId?: string | null; id?: string | null; nombre?: string; cantidad: number }
 
 async function ajustarStockItemsTx(
   tx: TxClient,

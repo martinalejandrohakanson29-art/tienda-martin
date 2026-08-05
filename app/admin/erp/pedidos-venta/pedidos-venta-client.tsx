@@ -288,7 +288,8 @@ export default function PedidosVentaClient() {
             nombre: item.nombre,
             cantidad: item.cantidad,
             precio_unit: item.precio_unit,
-            subtotal: item.subtotal
+            subtotal: item.subtotal,
+            esNota: item.esNota
           }))
         },
         usuario,

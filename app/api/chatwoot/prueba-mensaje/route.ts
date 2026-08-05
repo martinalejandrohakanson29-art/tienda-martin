@@ -28,6 +28,11 @@ export async function POST(request: Request) {
             content_attributes: {},
             content_type: esAudio ? "audio" : "text",
             content: contenido,
+            // Chatwoot manda los adjuntos duplicados: a nivel raíz del webhook y
+            // dentro de conversation.messages[0]. Hay que replicar las dos para que
+            // el workflow se comporte igual acá que en producción (n8n lee una u otra
+            // según el nodo).
+            ...(esAudio ? { attachments: [{ id: 1, file_type: "audio", data_url: audioUrl }] } : {}),
             conversation: {
                 additional_attributes: {},
                 can_reply: true,

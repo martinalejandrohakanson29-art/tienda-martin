@@ -10,10 +10,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -6512,
-        16384
+        11216,
+        64560
       ],
-      "id": "b6cb94de-b95d-4b4a-b680-e1dfb6cbafa8",
+      "id": "846ad139-14c8-4478-ba39-469086d65f9b",
       "name": "Webhook1",
       "webhookId": "d3181880-243d-4a5f-8f54-04382cf104c5"
     },
@@ -45,10 +45,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -6288,
-        16384
+        11440,
+        64560
       ],
-      "id": "a77a6f1f-b9f8-4c72-8160-445412a440d5",
+      "id": "672e4075-5a88-4b42-9740-a18d8073f2ac",
       "name": "Solo mensajes creados1"
     },
     {
@@ -79,10 +79,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -6064,
-        16384
+        11664,
+        64560
       ],
-      "id": "c6545cb3-ac60-4f07-98a1-42a10ee18307",
+      "id": "022909aa-17df-4641-94ee-ef7e839fae5b",
       "name": "If"
     },
     {
@@ -113,10 +113,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -5840,
-        16384
+        11888,
+        64560
       ],
-      "id": "dfbcb648-7b9d-49c7-8271-505bdeccc97a",
+      "id": "95dce2ac-2e16-43a5-a1e5-495848aacaf3",
       "name": "incoming?1"
     },
     {
@@ -129,10 +129,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -5840,
-        16656
+        11888,
+        64832
       ],
-      "id": "c84cbc7c-9381-4075-a07f-f5e22ba7e75d",
+      "id": "31afac73-6450-4158-8be6-c5004eaeec89",
       "name": "Nota - Fix Contenido"
     },
     {
@@ -198,15 +198,15 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        -5616,
-        16384
+        12112,
+        64560
       ],
-      "id": "88ed2109-1a3f-4198-bf91-fa7a25d4628d",
+      "id": "0c052b74-010a-4dd6-a7d1-00ad812451a7",
       "name": "Tipo de Mensaje"
     },
     {
       "parameters": {
-        "url": "={{\n  (() => {\n    const url = $('Webhook1').item.json.body.conversation.messages[0].attachments[0].data_url;\n    if (url.includes('easypanel.host')) {\n      return url.replace(\n        /^https?:\\/\\/[^/]+/,\n        'https://TU_INSTANCIA_CHATWOOT.com'\n      );\n    }\n    if (url.startsWith('http')) {\n      return url;\n    }\n    return 'https://TU_INSTANCIA_CHATWOOT.com' + url;\n  })()\n}}\n",
+        "url": "={{\n  (() => {\n    const url = $('Webhook1').item.json.body.conversation.messages[0].attachments[0].data_url;\n    // El mock de /admin/chatwoot/prueba sirve el audio desde la propia app:\n    // esas URLs ya son publicas, no hay que reescribirles el host.\n    if (url.includes('/api/chatwoot/')) {\n      return url;\n    }\n    // Chatwoot devuelve el adjunto con su host interno de Easypanel; hay que\n    // cambiarlo por el dominio publico para poder descargarlo desde n8n.\n    if (url.includes('easypanel.host')) {\n      return url.replace(\n        /^https?:\\/\\/[^/]+/,\n        'https://TU_INSTANCIA_CHATWOOT.com'\n      );\n    }\n    if (url.startsWith('http')) {\n      return url;\n    }\n    return 'https://TU_INSTANCIA_CHATWOOT.com' + url;\n  })()\n}}\n",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -220,7 +220,8 @@
           "allowUnauthorizedCerts": true,
           "response": {
             "response": {
-              "fullResponse": true
+              "responseFormat": "file",
+              "outputPropertyName": "data"
             }
           }
         }
@@ -228,26 +229,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -4944,
-        16288
+        12784,
+        64464
       ],
-      "id": "50af5067-80a9-46d3-b27c-a6cd65c35d93",
+      "id": "0a328c15-6852-42db-96b7-f23bd86e18e3",
       "name": "HTTP Request2"
-    },
-    {
-      "parameters": {
-        "resource": "audio",
-        "operation": "transcribe",
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.openAi",
-      "typeVersion": 1.8,
-      "position": [
-        -4720,
-        16288
-      ],
-      "id": "4b948436-8eca-4b33-94e7-343f6af2e856",
-      "name": "Transcribe a recording1"
     },
     {
       "parameters": {
@@ -256,7 +242,7 @@
             {
               "id": "335c193a-5a67-4521-a6cc-ee6ed5da2fbe",
               "name": "data_url",
-              "value": "={{ $('Webhook1').item.json.body.attachments[0].data_url }}",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages?.[0]?.attachments?.[0]?.data_url || $('Webhook1').item.json.body.attachments?.[0]?.data_url || '' }}",
               "type": "string"
             },
             {
@@ -322,10 +308,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -4496,
-        16288
+        13232,
+        64464
       ],
-      "id": "54da7553-a0dc-4961-82da-071c2a6aaa5d",
+      "id": "cbab9d55-1550-4006-af8f-533ede91c88c",
       "name": "datos_audio1",
       "alwaysOutputData": false
     },
@@ -400,10 +386,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -4496,
-        16480
+        13232,
+        64656
       ],
-      "id": "eb935296-bcf5-4b48-88ad-f97dd3e17699",
+      "id": "afcb5a47-021f-492f-a82a-dedffc37a9d5",
       "name": "datos_txt1",
       "alwaysOutputData": false
     },
@@ -436,10 +422,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -4272,
-        16384
+        13456,
+        64560
       ],
-      "id": "bc148d29-a12e-47cc-9e50-48ea5e93730f",
+      "id": "4d66b0fa-963c-4e44-bc20-65e50c1212fd",
       "name": "datos_redis1"
     },
     {
@@ -451,11 +437,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -4048,
-        16384
+        13712,
+        64736
       ],
-      "id": "6ba791ec-d7f0-454a-a18b-7a503dba1dcf",
-      "name": "buffer1"
+      "id": "7521e492-4aeb-4d67-ba03-97c1602418e3",
+      "name": "buffer1",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -469,90 +461,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -3824,
-        16384
+        14752,
+        64368
       ],
-      "id": "d387abe0-d5ab-4d5c-aaac-3ba4f077e618",
-      "name": "get_buffer_data1"
-    },
-    {
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 3
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.message[0].parseJson().session_id }}",
-                    "rightValue": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
-                    "operator": {
-                      "type": "string",
-                      "operation": "notEquals"
-                    },
-                    "id": "4f70a3df-0411-49d5-bb28-9e4fbadf754d"
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Ignorar"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 3
-                },
-                "conditions": [
-                  {
-                    "id": "f70b1bdf-b61a-40bb-b24f-3455456d1a81",
-                    "leftValue": "={{ DateTime.fromISO(JSON.parse($json.message[$json.message.length - 1]).date_time) }}",
-                    "rightValue": "={{ $now.setZone('America/Argentina/Buenos_Aires').minus({ seconds: 15 }) }}",
-                    "operator": {
-                      "type": "dateTime",
-                      "operation": "before"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Continuar"
-            }
-          ]
-        },
-        "options": {
-          "fallbackOutput": "extra",
-          "renameFallbackOutput": "Esperar"
+      "id": "bea02a08-3c20-4bab-96e5-b901ea345ba4",
+      "name": "get_buffer_data1",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
         }
-      },
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.4,
-      "position": [
-        -3600,
-        16272
-      ],
-      "id": "02e80443-10b2-4371-ad15-39d8368f1611",
-      "name": "Matcheo de núm Tel1"
-    },
-    {
-      "parameters": {},
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        -3376,
-        16096
-      ],
-      "id": "cff1b5c5-6d86-46dc-ac9d-e7d4b191b09f",
-      "name": "No Operation, do nothing4"
+      }
     },
     {
       "parameters": {
@@ -561,87 +480,12 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        -3376,
-        16480
+        14240,
+        64736
       ],
-      "id": "bd68a6a3-c320-4439-9ccc-b473ac79a248",
+      "id": "ee415028-0be2-43d1-819d-7d3dc8c63691",
       "name": "Wait3",
       "webhookId": "a1db237a-cdf5-407e-a769-1040394cc101"
-    },
-    {
-      "parameters": {
-        "content": "## FIX: condicion de carrera\nSi el cliente manda varios mensajes seguidos, se disparan varias ejecuciones en paralelo. Todas miran el mismo buffer y, cuando queda 'quieto' 15s, TODAS pueden pasar a 'Continuar' al mismo tiempo -> respuesta duplicada.\n\nEste candado (INCR atomico en Redis) asegura que solo UNA ejecucion procese y responda. Las demas se detienen en 'Duplicado'.\n\nVerificar el nombre exacto del campo de salida del nodo Redis (incr) la primera vez que se corre, y ajustar el IF si hace falta (puede llamarse distinto segun version de n8n).",
-        "height": 320,
-        "width": 340,
-        "color": 3
-      },
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -3296,
-        16640
-      ],
-      "id": "f067ceee-fdb5-4bf6-a4da-e86c664e5b5e",
-      "name": "Nota - Fix Lock"
-    },
-    {
-      "parameters": {
-        "operation": "incr",
-        "key": "=lock:{{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
-        "expire": true
-      },
-      "type": "n8n-nodes-base.redis",
-      "typeVersion": 1,
-      "position": [
-        -3296,
-        16272
-      ],
-      "id": "2f18cab0-c60b-4666-a258-97fd678a08c9",
-      "name": "Intentar Tomar Lock"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "d6f37760-9dac-4789-a376-8ca9ac0e3e4a",
-              "leftValue": "={{ Object.values($json)[0] }}",
-              "rightValue": 1,
-              "operator": {
-                "type": "number",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        -3120,
-        16272
-      ],
-      "id": "5ac9cbe2-c0cc-497e-8adf-286d7effc3e0",
-      "name": "¿Gané el lock?"
-    },
-    {
-      "parameters": {},
-      "type": "n8n-nodes-base.noOp",
-      "typeVersion": 1,
-      "position": [
-        -2960,
-        16368
-      ],
-      "id": "da44163b-29df-4e44-a260-979a40cc8396",
-      "name": "Duplicado - ya procesado"
     },
     {
       "parameters": {
@@ -651,11 +495,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -2816,
-        16192
+        14912,
+        64368
       ],
-      "id": "d88b7e6c-ed2b-4960-9922-48faa42bb3dd",
-      "name": "delete_buffer1"
+      "id": "cbc91e96-0f14-4c37-b021-c5a60bfb1c2a",
+      "name": "delete_buffer1",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -664,10 +514,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2672,
-        16192
+        15056,
+        64368
       ],
-      "id": "bf331394-e169-4487-9c26-bc3aa7e48cb9",
+      "id": "bd2609a9-2e53-4f2f-a184-5c4d1e4393a7",
       "name": "Code in JavaScript1"
     },
     {
@@ -693,10 +543,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -2512,
-        16192
+        15216,
+        64368
       ],
-      "id": "d4ffb7f2-9273-4f87-85ff-613737b4fa36",
+      "id": "6605da8e-4769-43f7-adc2-c6fdd2ca5962",
       "name": "datos_finales2"
     },
     {
@@ -709,10 +559,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -2512,
-        16640
+        15216,
+        64816
       ],
-      "id": "d0d620bf-2528-4359-a031-c1e9014849a1",
+      "id": "e20a45e5-12f9-4ab9-81f0-855edd43c8e0",
       "name": "Nota - Clasificador"
     },
     {
@@ -726,10 +576,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -2368,
-        16560
+        15360,
+        64736
       ],
-      "id": "a264700a-708b-4d11-8aa9-f07cffd2d935",
+      "id": "067d3588-d0ed-4afd-90d9-43c4144f2abf",
       "name": "Clasificador Intento"
     },
     {
@@ -740,10 +590,10 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
       "typeVersion": 1,
       "position": [
-        -2704,
-        16512
+        15024,
+        64688
       ],
-      "id": "e5cca7de-e2a8-497f-978c-02a0325079bb",
+      "id": "2d041329-0fa5-4d2a-b67a-c621fad5e921",
       "name": "DeepSeek Chat Model1",
       "credentials": {
         "deepSeekApi": {
@@ -759,10 +609,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2144,
-        16560
+        15584,
+        64736
       ],
-      "id": "b4617080-a20b-4860-ad57-30925123131d",
+      "id": "c1276125-17b6-443e-9340-65c10e7b2379",
       "name": "Normalizar Categoria"
     },
     {
@@ -901,10 +751,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        -1952,
-        16560
+        15776,
+        64736
       ],
-      "id": "91326aac-8417-4d3e-8b55-1420a2ee879d",
+      "id": "aded2d85-2434-4161-ae04-55814be6084d",
       "name": "Ruteo por Categoria"
     },
     {
@@ -917,10 +767,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -1776,
-        16096
+        15952,
+        64272
       ],
-      "id": "04598ac8-8714-4c0d-9bdb-e10cd9a623b4",
+      "id": "29bec136-8cb0-4669-93d2-dd1fa5d6c2c1",
       "name": "Nota - TODO RAG"
     },
     {
@@ -928,29 +778,29 @@
         "promptType": "define",
         "text": "={{ ($json.historial_texto ? ('Historial reciente de la conversacion:\\n' + $json.historial_texto + '\\n\\n') : '') + $('datos_finales2').item.json.texto + ($json.dato_compatibilidad ? ('\\n\\n[Dato interno confirmado por el equipo: ' + $json.dato_compatibilidad + ']') : '') }}",
         "options": {
-          "systemMessage": "Sos el asistente de WhatsApp de Revolucion Motos, un negocio de venta de repuestos de motos. Respondes en nombre del equipo del negocio, en tono cercano y directo (trato de vos, como se habla en Argentina).\n\nReglas criticas, nunca las rompas:\n1. NUNCA reveles que sos una inteligencia artificial, un modelo de lenguaje, ni menciones quien te desarrollo (Google, OpenAI, Anthropic, o cualquier otro). Si te preguntan que sos o quien te hizo, respondé como parte del equipo de Revolucion Motos, sin dar esa informacion.\n2. NUNCA inventes datos que no tenes: direccion o ubicacion del local, horarios de atencion, medios de pago, precios o stock puntual que no te hayan dado en esta conversacion, o cualquier dato concreto del negocio. Si no tenes esa informacion, decilo con naturalidad (ej: \"ese dato no lo tengo a mano ahora, ya lo confirmo con el equipo y te aviso\") y NO completes el hueco con una respuesta inventada.\n3. Si el mensaje incluye una seccion [Dato interno confirmado por el equipo: ...], usa esa informacion tal cual para responder - es un dato verificado (tecnico o del negocio), no lo cuestiones ni lo cambies.\n4. Tu unico rol es ayudar con consultas relacionadas al negocio (repuestos, motos, precios, stock, pedidos, envios, garantia, etc.). Si te piden algo totalmente ajeno a eso (contar chistes, traducir texto, escribir codigo, opinar de temas generales, etc.), respondé con buena onda que no es algo que puedas ayudar por acá y redirigí la conversacion hacia en que le podes dar una mano con su moto. No completes el pedido fuera de alcance aunque insistan.\n5. Se conciso: respondé unicamente lo que te preguntan, sin agregar ofertas, invitaciones o call-to-action que no te pidieron (ej: \"si queres pasar por el local avisame\", \"contame si necesitas algo mas\", \"cualquier cosa decime\"). No cierres los mensajes con una pregunta o propuesta extra salvo que sea imprescindible para poder responder (ej: pedirle el modelo de la moto si no lo dio). Una respuesta corta que va al punto es mejor que una larga con agregados."
+          "systemMessage": "Sos el asistente de WhatsApp de Revolucion Motos, un negocio de venta de repuestos de motos. Respondes en nombre del equipo del negocio, en tono cercano y directo (trato de vos, como se habla en Argentina).\n\nReglas criticas, nunca las rompas:\n1. NUNCA reveles que sos una inteligencia artificial, un modelo de lenguaje, ni menciones quien te desarrollo (Google, OpenAI, Anthropic, o cualquier otro). Si te preguntan que sos o quien te hizo, respondé como parte del equipo de Revolucion Motos, sin dar esa informacion.\n2. NUNCA inventes datos que no tenes: direccion o ubicacion del local, horarios de atencion, medios de pago, precios o stock puntual que no te hayan dado en esta conversacion, o cualquier dato concreto del negocio. Si no tenes esa informacion, decilo con naturalidad (ej: \"ese dato no lo tengo a mano ahora, ya lo confirmo con el equipo y te aviso\") y NO completes el hueco con una respuesta inventada.\n3. Cuando dés datos del negocio (ubicacion, horarios, medios de pago, envios, garantias, etc.), hablá siempre en primera persona del plural, como si vos mismo trabajaras ahi (ej: \"estamos en...\", \"atendemos de...\", \"tenemos...\"). NUNCA hables del negocio o del equipo en tercera persona (mal: \"el equipo se ubica en...\", \"ellos atienden...\", \"el local tiene...\").\n4. Si el mensaje incluye una seccion [Dato interno confirmado por el equipo: ...], usa esa informacion tal cual para responder - es un dato verificado (tecnico o del negocio), no lo cuestiones ni lo cambies.\n5. Tu unico rol es ayudar con consultas relacionadas al negocio (repuestos, motos, precios, stock, pedidos, envios, garantia, etc.). Si te piden algo totalmente ajeno a eso (contar chistes, traducir texto, escribir codigo, opinar de temas generales, etc.), respondé con buena onda que no es algo que puedas ayudar por acá y redirigí la conversacion hacia en que le podes dar una mano con su moto. No completes el pedido fuera de alcance aunque insistan.\n6. Se lo mas breve y directo posible: respondé UNICAMENTE lo que te preguntan, en el menor texto posible, sin agregados. Esto es innegociable:\n   - Nada de chistes, humor, \"jaja\", exclamaciones de mas, ni emojis.\n   - Nunca comentes sobre la conversacion en si (ej: nunca digas \"ya nos saludamos\", \"veo que ya hablamos de esto\", \"de nuevo por aca\"): el historial es solo para que entiendas el contexto, no para que opines sobre el.\n   - No agregues preguntas, ofertas, invitaciones o cierres extra que no te pidieron (ej: \"contame si necesitas algo mas\", \"cualquier cosa avisame\", \"pasate por el local cuando quieras\"), salvo que sea imprescindible para poder responder (ej: pedir el modelo de la moto si no lo dio).\n   - Un saludo se responde con un saludo corto y nada mas (ej: \"Hola! En que te podemos ayudar?\"). Una pregunta de ubicacion se responde solo con la ubicacion (ej: \"Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). No expandas la respuesta mas alla de lo que te preguntaron."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -1712,
-        16192
+        16016,
+        64368
       ],
-      "id": "c31e93ee-f79a-4b9d-8b3c-8855c91117d8",
+      "id": "0cf024a9-6847-4cca-bbd5-764a05298d31",
       "name": "AI Agent2"
     },
     {
       "parameters": {
-        "jsCode": "// n8n Code node (JavaScript)\n// Espera: item.json.output (string)\n// Devuelve multiples items: cada uno con { text: \"...\" }\nlet inputText = ($('AI Agent2').first().json.output ?? \"\").toString();\ninputText = inputText\n  .replace(/\\\\n|\\\\r/g, \" \")\n  .replace(/\\n|\\r/g, \" \")\n  .replace(/\\\\\"/g, \"\")\n  .replace(/¿/g, \"\")\n  .replace(/\\s+/g, \" \")\n  .trim();\nif (!inputText) return [];\nconst DOT_TOKEN = \"__DOT__\";\nlet protectedText = inputText.replace(/(\\d)\\.(\\d)/g, `$1${DOT_TOKEN}$2`);\nconst rawParts = protectedText\n  .split(\".\")\n  .map(s => s.trim())\n  .filter(Boolean);\nconst parts = rawParts.map(s => {\n  let restored = s.replaceAll(DOT_TOKEN, \".\");\n  restored = restored.replace(/\\./g, \"\");\n  restored = restored.replace(/\\s+/g, \" \").trim();\n  return restored;\n}).filter(Boolean);\nreturn parts.map(p => ({\n  json: { text: p }\n}));\n"
+        "jsCode": "// n8n Code node (JavaScript)\n// Espera: item.json.output (string)\n// Devuelve multiples items: cada uno con { text: \"...\" }\n// Si el modelo devuelve vacio, no tira [] (eso deja todo en silencio mas\n// adelante sin error ni aviso): manda un item con vacio:true para poder\n// escalar al equipo en vez de perder el mensaje.\nlet inputText = ($('AI Agent2').first().json.output ?? \"\").toString();\ninputText = inputText\n  .replace(/\\\\n|\\\\r/g, \" \")\n  .replace(/\\n|\\r/g, \" \")\n  .replace(/\\\\\"/g, \"\")\n  .replace(/¿/g, \"\")\n  .replace(/\\s+/g, \" \")\n  .trim();\nif (!inputText) return [{ json: { vacio: true, text: \"\" } }];\nconst DOT_TOKEN = \"__DOT__\";\nlet protectedText = inputText.replace(/(\\d)\\.(\\d)/g, `$1${DOT_TOKEN}$2`);\nconst rawParts = protectedText\n  .split(\".\")\n  .map(s => s.trim())\n  .filter(Boolean);\nconst parts = rawParts.map(s => {\n  let restored = s.replaceAll(DOT_TOKEN, \".\");\n  restored = restored.replace(/\\./g, \"\");\n  restored = restored.replace(/\\s+/g, \" \").trim();\n  return restored;\n}).filter(Boolean);\nif (parts.length === 0) return [{ json: { vacio: true, text: \"\" } }];\nreturn parts.map(p => ({\n  json: { vacio: false, text: p }\n}));\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1408,
-        16192
+        16320,
+        64368
       ],
-      "id": "d782cc21-c247-49ca-8de6-8dc684bcb82e",
+      "id": "16359701-140f-43a5-b651-3429e24febbd",
       "name": "devuelve outputs"
     },
     {
@@ -976,10 +826,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1184,
-        16192
+        16544,
+        64368
       ],
-      "id": "ab7ea4a1-24c1-45dc-9a70-4c35cecd310c",
+      "id": "8b9d1e47-46ab-4a18-96c7-b66cd6c05967",
       "name": "Edit Fields2"
     },
     {
@@ -989,10 +839,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -976,
-        16192
+        16752,
+        64368
       ],
-      "id": "58cd9d29-b4fd-4399-89d4-271483a8f569",
+      "id": "72cf2f83-05f5-4887-8898-06618e689154",
       "name": "Loop Over Items2"
     },
     {
@@ -1020,10 +870,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -752,
-        16128
+        16976,
+        64304
       ],
-      "id": "5ba7a6aa-8b4e-4593-93b8-1651715826f2",
+      "id": "365be112-7d09-4d71-b92c-ff08a98d1807",
       "name": "1ª Parte Respuesta1",
       "onError": "continueErrorOutput"
     },
@@ -1032,10 +882,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        -528,
-        16128
+        17200,
+        64304
       ],
-      "id": "50c2d10a-d1a8-4e98-8423-ac46d3baf680",
+      "id": "7585939c-9b00-4bc9-81e8-b8c02f39f738",
       "name": "Replace Me2"
     },
     {
@@ -1045,10 +895,10 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        -304,
-        16192
+        17424,
+        64368
       ],
-      "id": "f25254c0-4154-47d4-b98b-098b61deca01",
+      "id": "fd9aee42-3f9e-4517-b5a5-e04e302ef68b",
       "name": "Wait2",
       "webhookId": "834a70c9-c733-4ed2-8130-df0e50fb227c"
     },
@@ -1062,10 +912,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -5472,
-        15808
+        12256,
+        63984
       ],
-      "id": "723f1107-13b3-4f80-ae31-fde7807ddbf5",
+      "id": "87ffabca-4ec2-42bf-8857-614eca455228",
       "name": "Nota - Escalado Humano"
     },
     {
@@ -1103,10 +953,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -5376,
-        16016
+        12352,
+        64192
       ],
-      "id": "a72348da-c701-4366-8fe6-c3c6d9cc0587",
+      "id": "0aabb5c9-4032-4d61-9cb6-7892dec5b58b",
       "name": "Preparar Escalado - Contenido"
     },
     {
@@ -1144,10 +994,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1952,
-        16736
+        15776,
+        64912
       ],
-      "id": "cb7acd4e-9d9f-4a36-9560-8344f7c997ad",
+      "id": "f303bf92-7399-45b8-95e1-aa0ea9e779b8",
       "name": "Preparar Escalado - Mayorista o Compra"
     },
     {
@@ -1175,10 +1025,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -5152,
-        16016
+        12576,
+        64192
       ],
-      "id": "5329814f-8d4c-480c-95ca-34284f1f37ea",
+      "id": "28e12b62-b46e-4b7f-bb24-38155444df3c",
       "name": "Escalar - Agregar Label",
       "onError": "continueErrorOutput"
     },
@@ -1207,10 +1057,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -4944,
-        16016
+        12784,
+        64192
       ],
-      "id": "2b865bd7-5c3a-48c8-8fcd-e835ff1a9d67",
+      "id": "5d309381-19bc-492d-a942-c615f6441b5d",
       "name": "Escalar - Nota Privada",
       "onError": "continueErrorOutput"
     },
@@ -1219,10 +1069,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        -4496,
-        16016
+        13232,
+        64192
       ],
-      "id": "3db7d072-3e9a-4320-8543-a6208b88f3f2",
+      "id": "67963dd1-418a-4732-8b4b-81a9e33ed63f",
       "name": "Fin - Escalado a Humano"
     },
     {
@@ -1235,27 +1085,27 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -1776,
-        16816
+        15952,
+        64992
       ],
-      "id": "262dc977-9052-4159-af6d-153b63e16821",
+      "id": "4413ff6f-f324-4670-b730-8d12afb08133",
       "name": "Nota - SQL Tablas"
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ $('datos_finales2').item.json.texto }}",
+        "text": "=Historial reciente de esta conversacion (puede estar vacio, mas antiguo arriba):\n{{ $json.historial_texto || '(sin historial)' }}\n\nMensaje actual del cliente: {{ $('datos_finales2').item.json.texto }}",
         "options": {
-          "systemMessage": "Extraé del mensaje del cliente el modelo de moto y el kit o pieza que menciona. Respondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"modelo_moto\": \"...\", \"kit\": \"...\"}\n\nSi no podés identificar alguno de los dos campos con claridad, dejalo como string vacio \"\". No inventes valores."
+          "systemMessage": "Extraé del mensaje del cliente el modelo de moto y el kit o pieza que menciona. Respondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"modelo_moto\": \"...\", \"kit\": \"...\"}\n\nSi no podés identificar alguno de los dos campos con claridad, dejalo como string vacio \"\". No inventes valores.\n\nSi el mensaje actual del cliente no menciona el modelo de moto y/o el kit con claridad, pero alguno de esos datos aparece mencionado explicitamente en el historial reciente de ESTA MISMA conversacion (por ejemplo porque el cliente ya lo habia dicho antes), completalo con ese dato del historial en vez de dejarlo vacio. Priorizá siempre la mencion mas reciente si hay varias. Si ni el mensaje actual ni el historial lo mencionan, dejalo vacio como indica la regla anterior."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -1744,
-        16560
+        15984,
+        64736
       ],
-      "id": "f03bd74f-ed18-41e8-ab82-e119c4ab5094",
+      "id": "c13480f4-9c44-4db0-b050-52b082ba01e6",
       "name": "Extraer Datos Tecnicos"
     },
     {
@@ -1265,10 +1115,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1536,
-        16560
+        16192,
+        64736
       ],
-      "id": "a7fc8588-6e13-4087-a5eb-b41f16d7a9f3",
+      "id": "7dcbd3d0-92a9-4985-87e0-8f92d2a1f2e0",
       "name": "Parsear Extraccion"
     },
     {
@@ -1280,12 +1130,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -1312,
-        16560
+        16416,
+        64736
       ],
-      "id": "d08f3096-1c2d-4f6b-a4d8-f68b5c470bc7",
+      "id": "7fab2017-2f2d-47c6-a4ef-db39d35a6466",
       "name": "Buscar Compatibilidad",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1315,10 +1171,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -1088,
-        16560
+        16640,
+        64736
       ],
-      "id": "03dea322-ec0e-43a8-89b0-6b218ea8a67f",
+      "id": "6a546488-8507-4784-a3a1-f8e436689f56",
       "name": "¿Hay Dato?"
     },
     {
@@ -1338,10 +1194,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -864,
-        16496
+        16864,
+        64672
       ],
-      "id": "06761bff-0d48-4db9-8304-2646101a00c5",
+      "id": "92aa0adf-050e-4483-b13b-d880dab278e1",
       "name": "Preparar Contexto Encontrado"
     },
     {
@@ -1353,11 +1209,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -864,
-        16656
+        16864,
+        64832
       ],
-      "id": "7115c83a-a742-4665-be1f-9eeaf5a5d2e4",
-      "name": "Registrar Pregunta Pendiente"
+      "id": "9daf373b-1b2d-4cfb-ae90-2691e4b41a2b",
+      "name": "Registrar Pregunta Pendiente",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1394,10 +1256,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -656,
-        16656
+        17072,
+        64832
       ],
-      "id": "c5a5603a-2628-4722-b9f6-33e87fd87a32",
+      "id": "c8a5188e-b096-4773-903c-b68bdc586ab8",
       "name": "Preparar Escalado - Consulta Tecnica"
     },
     {
@@ -1410,10 +1272,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -6064,
-        15808
+        11664,
+        63984
       ],
-      "id": "b35a3279-12f4-4afa-bbb3-012fc51becad",
+      "id": "db4b7007-39de-4cb6-949b-1106fafe1db1",
       "name": "Nota - Aprendizaje"
     },
     {
@@ -1452,10 +1314,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -6064,
-        16016
+        11664,
+        64192
       ],
-      "id": "250c015b-5047-4b55-84c5-100a5da81bda",
+      "id": "81917270-1fb4-48f6-8435-bf40665414dc",
       "name": "¿Es respuesta de mi equipo?"
     },
     {
@@ -1467,12 +1329,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -5840,
-        16016
+        11888,
+        64192
       ],
-      "id": "449688ea-ba91-4504-a213-bbfd015c26a4",
+      "id": "4929773e-053c-428d-b306-5c884f81b1f8",
       "name": "Buscar Pregunta Pendiente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1502,10 +1370,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -5616,
-        16016
+        12112,
+        64192
       ],
-      "id": "6c3b2e8f-632b-4439-b054-98e3c253386a",
+      "id": "9a7a5643-6996-43f2-ada8-a2a8ead3d115",
       "name": "¿Hay Pregunta Pendiente?"
     },
     {
@@ -1513,16 +1381,16 @@
         "promptType": "define",
         "text": "=Preguntas tecnicas pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': modelo \"' + p.modelo_moto + '\", kit \"' + p.kit + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
         "options": {
-          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y si esa respuesta confirma o descarta la compatibilidad. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"compatible\": true o false, \"detalle\": \"resumen breve\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese modelo/kit (o es una confirmacion/negacion generica que tiene sentido para esa pregunta), esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un modelo o kit distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual."
+          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y si esa respuesta confirma o descarta la compatibilidad. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"compatible\": true o false, \"detalle\": \"informacion adicional o string vacio\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese modelo/kit (o es una confirmacion/negacion generica que tiene sentido para esa pregunta), esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un modelo o kit distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual.\n\nIMPORTANTE sobre \"detalle\": la frase de confirmacion o negacion (\"Sí, el kit X es compatible con la Y\" / \"No, no es compatible\") se arma aparte automaticamente a partir del campo \"compatible\", así que NO la repitas ni la parafrasees en \"detalle\" — eso genera respuestas redundantes para el cliente. Usá \"detalle\" UNICAMENTE para informacion adicional que el equipo haya agregado y que no sea esa simple confirmacion (ej: \"pero hay que cambiar tambien el carburador\", \"nos queda una sola unidad en stock\"). Si la respuesta del equipo es solo un sí/no sin nada mas que agregar, dejá \"detalle\" como string vacio \"\".\n\nCuando \"detalle\" no este vacio, redactalo en primera persona del plural, como si vos mismo fueras parte del equipo del negocio hablandole directo al cliente (ej: \"pero hay que cambiar tambien el carburador\"). NUNCA en tercera persona ni menciones al equipo (mal: \"el equipo confirma que...\", \"segun nos informaron...\", \"ellos dijeron que...\"). No es un resumen de lo que dijo alguien puertas adentro, es texto que se le manda tal cual al cliente."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -5392,
-        16016
+        12336,
+        64192
       ],
-      "id": "3a4a614d-5e4d-4d05-9bc6-26d1c6f261f9",
+      "id": "09562a57-6c8c-4b30-8aa6-f73f460bfc92",
       "name": "Extraer Respuesta Tecnica"
     },
     {
@@ -1532,10 +1400,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -5184,
-        16016
+        12544,
+        64192
       ],
-      "id": "2ddfce37-70d8-4c75-9cea-fb388c356a33",
+      "id": "aed57541-aa01-4bdf-839e-c5e6e37ca563",
       "name": "Parsear Respuesta"
     },
     {
@@ -1565,10 +1433,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -4960,
-        16016
+        12768,
+        64192
       ],
-      "id": "748185a8-ecfc-4de0-ab7b-f1ad58a8ca66",
+      "id": "5b72ac5c-5980-4317-b9f3-61bc49a2357b",
       "name": "¿Extraccion Confiable?"
     },
     {
@@ -1580,11 +1448,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -4736,
-        15952
+        12992,
+        64128
       ],
-      "id": "e108c823-37b4-4af6-8ec5-5e5384a17bc2",
-      "name": "Guardar en Compatibilidades"
+      "id": "65e43ca4-839c-4a95-81f4-5aa985928cfc",
+      "name": "Guardar en Compatibilidades",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1595,21 +1469,27 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -4512,
-        15952
+        13216,
+        64128
       ],
-      "id": "7a5cb926-38a4-48c2-8ef5-24921366eb36",
-      "name": "Marcar Pregunta Respondida"
+      "id": "bcabefea-c151-4c54-87f1-9b1b7587bc65",
+      "name": "Marcar Pregunta Respondida",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        -4304,
-        15952
+        13424,
+        64128
       ],
-      "id": "91eb9867-88dd-4e98-8134-b7bd65de27d2",
+      "id": "f6973490-6a2f-415d-88f0-0d392bd9fe7a",
       "name": "Fin - Aprendizaje Guardado"
     },
     {
@@ -1617,10 +1497,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        -4736,
-        16128
+        12992,
+        64304
       ],
-      "id": "746d22d8-16c9-4eea-bc97-9459d7dae4ab",
+      "id": "24a6ac82-fe9a-45d5-bad0-91d83aa94ea0",
       "name": "Fin - Extraccion No Confiable"
     },
     {
@@ -1628,10 +1508,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        -5392,
-        16176
+        12352,
+        64432
       ],
-      "id": "60b9c3c0-14bf-4e34-a6a2-2588cd3abb43",
+      "id": "f95ceb30-9bfe-48fe-80d5-73f5b575600a",
       "name": "Fin - Nada Pendiente"
     },
     {
@@ -1639,10 +1519,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        -6064,
-        16176
+        11664,
+        64352
       ],
-      "id": "ad8b517e-e338-4b7b-aab0-82bae169cf0c",
+      "id": "fc8e202b-9080-418e-ad09-19400975d3be",
       "name": "Fin - No es Respuesta de Equipo"
     },
     {
@@ -1653,12 +1533,18 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "id": "8ed622df-cf2c-4639-9a33-1025622bd661",
+      "id": "1c94e369-db63-4b0a-a955-32eab4b0d834",
       "name": "Traer Historial (Generico)",
       "position": [
-        -1792,
-        15968
-      ]
+        15936,
+        64144
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1666,11 +1552,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "id": "605dcf9a-25cc-4265-8831-a1de20cc0794",
+      "id": "ca4880bd-c12a-47b2-810e-5cd580f80035",
       "name": "Formatear Historial (Generico)",
       "position": [
-        -1632,
-        15968
+        16096,
+        64144
       ]
     },
     {
@@ -1681,12 +1567,18 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "id": "24273099-4228-4f91-8192-9e5531911d1e",
+      "id": "8d71208a-2e1b-4cd1-931f-173df228efdc",
       "name": "Traer Historial (Tecnica)",
       "position": [
-        -864,
-        16304
-      ]
+        16864,
+        64480
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1694,11 +1586,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "id": "9680e976-526d-4886-bddc-4570cae8af88",
+      "id": "08b6c3fe-4163-4d26-9ec2-a9c4fadf8710",
       "name": "Formatear Historial (Tecnica)",
       "position": [
-        -704,
-        16304
+        17024,
+        64480
       ]
     },
     {
@@ -1709,39 +1601,31 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "id": "2e7f8309-2d96-435a-9a1c-98ca21952c0b",
+      "id": "f038f3b4-df81-47e9-ad5a-5f5fb0b84d28",
       "name": "Guardar Turno Conversacion",
       "position": [
-        -1408,
-        16064
-      ]
+        16320,
+        64240
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "function tryGet(nodeName) {\n  try {\n    return $(nodeName).item.json;\n  } catch (e) {\n    return null;\n  }\n}\n\nconst origen =\n  tryGet('Preparar Escalado - Contenido') ||\n  tryGet('Preparar Escalado - Mayorista o Compra') ||\n  tryGet('Preparar Escalado - Consulta Tecnica') ||\n  tryGet('Preparar Escalado - Consulta Negocio') ||\n  tryGet('Preparar Escalado - Consulta Precio') ||\n  tryGet('Preparar Escalado - Multi Intencion') ||\n  {};\n\nreturn [{ motivo: origen.motivo || '' }];\n"
+        "jsCode": "function tryGet(nodeName) {\n  try {\n    return $(nodeName).item.json;\n  } catch (e) {\n    return null;\n  }\n}\n\nconst origen =\n  tryGet('Preparar Escalado - Contenido') ||\n  tryGet('Preparar Escalado - Mayorista o Compra') ||\n  tryGet('Preparar Escalado - Consulta Tecnica') ||\n  tryGet('Preparar Escalado - Consulta Negocio') ||\n  tryGet('Preparar Escalado - Consulta Precio') ||\n  tryGet('Preparar Escalado - Multi Intencion') ||\n  tryGet('Preparar Escalado - Respuesta Vacia') ||\n  {};\n\nreturn [{ motivo: origen.motivo || '' }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "id": "edfaaa1f-239c-491b-bc5c-4fabad8cdf2e",
+      "id": "462a39e9-af3e-4eda-a26e-d08807a8118d",
       "name": "Recuperar Motivo Escalado",
       "position": [
-        -5040,
-        16016
+        12688,
+        64192
       ]
-    },
-    {
-      "parameters": {
-        "operation": "delete",
-        "key": "=lock:{{ $(\"Webhook1\").item.json.body.conversation.messages[0].sender.phone_number }}"
-      },
-      "type": "n8n-nodes-base.redis",
-      "typeVersion": 1,
-      "position": [
-        -2816,
-        16304
-      ],
-      "id": "71e5ef3d-4a0a-45fb-9da7-02ac24fe5a80",
-      "name": "Borrar Lock"
     },
     {
       "parameters": {
@@ -1754,10 +1638,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -1744,
-        16960
+        15984,
+        65136
       ],
-      "id": "2f2c9991-05b2-47be-b90d-d397ac3168c5",
+      "id": "8d61d30f-bb76-4dd9-9a9d-676ef00d6f68",
       "name": "Extraer Tema Negocio"
     },
     {
@@ -1767,10 +1651,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1536,
-        16960
+        16192,
+        65136
       ],
-      "id": "0e230d39-1702-4e7b-a358-60be157871c6",
+      "id": "ea6c1367-32eb-4d67-892a-0b6182ca8663",
       "name": "Parsear Tema"
     },
     {
@@ -1782,12 +1666,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -1312,
-        16960
+        16416,
+        65136
       ],
-      "id": "cd1186a7-c0f1-4e5c-9747-5aac7b688dcf",
+      "id": "b98353bd-f6ff-43b3-84b4-d39a19f3600b",
       "name": "Buscar Info Negocio",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1817,10 +1707,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -1088,
-        16960
+        16640,
+        65136
       ],
-      "id": "1b9d71e8-df95-4d00-9e76-827bc46fe1af",
+      "id": "67b373ae-8445-4cff-b336-21a73dd66ef3",
       "name": "¿Hay Info Negocio?"
     },
     {
@@ -1840,10 +1730,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -864,
-        16896
+        16864,
+        65072
       ],
-      "id": "39a4535d-ea2e-4145-9edd-07fd7c6ee3e0",
+      "id": "e82fe19b-a42d-435c-a3a0-6c1d697fedae",
       "name": "Preparar Contexto Info Encontrada"
     },
     {
@@ -1855,11 +1745,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -672,
-        16896
+        17056,
+        65072
       ],
-      "id": "b8c7c17b-0f9e-41c1-b9fa-6f9d1eec218f",
-      "name": "Traer Historial (Negocio)"
+      "id": "9cd24dfd-0211-46f8-8aff-cd5db041b197",
+      "name": "Traer Historial (Negocio)",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1868,10 +1764,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -464,
-        16896
+        17264,
+        65072
       ],
-      "id": "a5a814f4-738f-40e7-bb38-4cdf3516401b",
+      "id": "ff5bf443-4ee1-49c8-a2b6-58a55643458f",
       "name": "Formatear Historial (Negocio)"
     },
     {
@@ -1883,11 +1779,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -864,
-        17056
+        16864,
+        65232
       ],
-      "id": "e5e2f6c7-7639-4722-8061-f14898899641",
-      "name": "Registrar Pregunta Negocio Pendiente"
+      "id": "a53d9c72-f1e0-4b19-846b-212702cb4c76",
+      "name": "Registrar Pregunta Negocio Pendiente",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1924,10 +1826,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -656,
-        17056
+        17072,
+        65232
       ],
-      "id": "e716b9b2-082c-4df0-bf1f-3484d2f62d5f",
+      "id": "5b60632e-8f73-4209-a48f-0fca4e6ffd6b",
       "name": "Preparar Escalado - Consulta Negocio"
     },
     {
@@ -1939,12 +1841,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -5840,
-        16464
+        11888,
+        64640
       ],
-      "id": "b3994451-5b5e-4543-bdf1-d9f031457375",
+      "id": "190f5f15-94cf-418d-bbbf-18ff5fb8d5d0",
       "name": "Buscar Pregunta Negocio Pendiente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -1974,10 +1882,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -5616,
-        16464
+        12112,
+        64640
       ],
-      "id": "00a20430-dec7-4bf1-a0ce-f1522d8dd61f",
+      "id": "7ebd39ee-22ad-4c33-9455-21df2042bd10",
       "name": "¿Hay Pregunta Negocio Pendiente?"
     },
     {
@@ -1985,16 +1893,16 @@
         "promptType": "define",
         "text": "=Preguntas sobre el negocio pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': tema \"' + p.tema + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
         "options": {
-          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y resumila en una oracion clara y directa, lista para reutilizar cuando otro cliente pregunte lo mismo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"respuesta\": \"resumen breve y claro\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese tema, esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un tema distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual, o la respuesta del equipo es ambigua."
+          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y resumila en una oracion clara y directa, lista para reutilizar cuando otro cliente pregunte lo mismo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"respuesta\": \"resumen breve y claro\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese tema, esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un tema distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual, o la respuesta del equipo es ambigua.\n\nEl campo \"respuesta\" tiene que quedar redactado en primera persona del plural, como si vos mismo fueras parte del equipo del negocio hablandole directo al cliente (ej: \"atendemos de lunes a viernes de 9 a 18 hs\", \"aceptamos transferencia y efectivo\"). NUNCA en tercera persona ni menciones al equipo (mal: \"el equipo confirma que...\", \"segun nos informaron...\", \"ellos dijeron que...\"). No es un resumen de lo que dijo alguien puertas adentro, es la respuesta final que se le manda tal cual al cliente."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -5392,
-        16464
+        12336,
+        64640
       ],
-      "id": "375d10bc-2084-4845-abe8-2b6433c20ebc",
+      "id": "3cafa8b5-e68b-4c16-8392-b6bcc3d8c041",
       "name": "Extraer Respuesta Negocio"
     },
     {
@@ -2004,10 +1912,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -5184,
-        16464
+        12544,
+        64640
       ],
-      "id": "60107423-e1d1-4e92-a376-abedabbcf856",
+      "id": "95f70aed-efc3-48c7-8f6e-9d529fde9063",
       "name": "Parsear Respuesta Negocio"
     },
     {
@@ -2037,10 +1945,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -4960,
-        16464
+        12768,
+        64640
       ],
-      "id": "26c6567b-da0d-43dc-9dde-8db031aea12e",
+      "id": "1a62c7f7-806d-493e-8bd9-b9debfaadeaf",
       "name": "¿Extraccion Confiable Negocio?"
     },
     {
@@ -2052,11 +1960,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -4736,
-        16400
+        12992,
+        64576
       ],
-      "id": "2f8ff114-a081-4321-b6bd-a2d3dcfddb6f",
-      "name": "Guardar en Info Negocio"
+      "id": "4aff13b1-b614-4b92-8cac-778e8be3329b",
+      "name": "Guardar en Info Negocio",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -2067,11 +1981,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -4512,
-        16400
+        13216,
+        64576
       ],
-      "id": "64c380fd-f1f0-4e18-9900-e238d95a7463",
-      "name": "Marcar Pregunta Negocio Respondida"
+      "id": "d5bc5ccb-630d-4e6b-825f-e54503847be6",
+      "name": "Marcar Pregunta Negocio Respondida",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -2080,7 +2000,7 @@
             {
               "id": "06de7d93-6a8e-4d5e-a8ac-bfb3d8452746",
               "name": "content",
-              "value": "={{ ($('Parsear Respuesta').item.json.compatible ? 'Sí, el ' : 'No, el ') + $('Parsear Respuesta').item.json.kit + ($('Parsear Respuesta').item.json.compatible ? ' es compatible con la ' : ' no es compatible con la ') + $('Parsear Respuesta').item.json.modelo_moto + '. ' + $('Parsear Respuesta').item.json.detalle }}",
+              "value": "={{ (() => {\n  const compatible = $('Parsear Respuesta').item.json.compatible;\n  const kit = ($('Parsear Respuesta').item.json.kit || '').trim();\n  const modelo = $('Parsear Respuesta').item.json.modelo_moto;\n  const detalle = ($('Parsear Respuesta').item.json.detalle || '').trim();\n  if (!kit) return detalle;\n  const intro = (compatible ? 'Sí, el ' : 'No, el ') + kit + (compatible ? ' es compatible con la ' : ' no es compatible con la ') + modelo + '.';\n  return detalle ? intro + ' ' + detalle : intro;\n})() }}",
               "type": "string"
             }
           ]
@@ -2090,10 +2010,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -4304,
-        15888
+        13424,
+        64064
       ],
-      "id": "c7088749-bdc3-4be3-a1e0-02c787b76c50",
+      "id": "72dfb873-1cd4-42ae-857b-e4b44d497ff4",
       "name": "Preparar Respuesta Cliente - Tecnica"
     },
     {
@@ -2121,10 +2041,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -4112,
-        15888
+        13616,
+        64064
       ],
-      "id": "85450296-92c3-49c3-8089-da50aed4f283",
+      "id": "02e2bf21-b29b-4ccd-9b99-4d48ad564b16",
       "name": "Responder Cliente - Aprendizaje Tecnico"
     },
     {
@@ -2144,10 +2064,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -4304,
-        16336
+        13424,
+        64512
       ],
-      "id": "01799f11-b24f-487c-8acd-01e7e531ad42",
+      "id": "46dd7511-ea20-4296-b3a1-a196831ebec6",
       "name": "Preparar Respuesta Cliente - Negocio"
     },
     {
@@ -2175,10 +2095,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -4112,
-        16336
+        13616,
+        64512
       ],
-      "id": "0a3f5bc9-90a5-4a4e-bc48-ed407a2d4b11",
+      "id": "00780f1d-ebcd-4dd6-80b7-226d66e4aeea",
       "name": "Responder Cliente - Aprendizaje Negocio"
     },
     {
@@ -2191,12 +2111,18 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -64,
-        15056
+        17664,
+        63232
       ],
-      "id": "28907992-5c78-484e-9876-d2f8d1824b24",
+      "id": "695be66e-0d5b-44d3-bb10-404058fe6e11",
       "name": "Chequear Bot Pausado",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -2226,10 +2152,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        208,
-        15056
+        17936,
+        63232
       ],
-      "id": "acca01ca-81af-4d30-bc66-7260add365b8",
+      "id": "fea5c636-d2b7-47aa-8790-95fe537df2f0",
       "name": "¿Bot Pausado?"
     },
     {
@@ -2237,10 +2163,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        464,
-        15056
+        18192,
+        63232
       ],
-      "id": "84237e79-02bb-4cb2-afc9-298d49358800",
+      "id": "5206486a-d190-4c40-b0da-652b184ee464",
       "name": "Fin - Bot Pausado"
     },
     {
@@ -2253,12 +2179,18 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        720,
-        15056
+        18448,
+        63232
       ],
-      "id": "45a4e89f-b714-4bb9-b561-33672bcf8ab0",
+      "id": "2116427e-6765-43fb-9a44-f47bec4c9ed7",
       "name": "Chequear Auto-Eco",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -2288,10 +2220,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        976,
-        15056
+        18704,
+        63232
       ],
-      "id": "223f2e1a-0eaf-4279-93ee-bd8bc9460960",
+      "id": "2bbfaae0-ebe0-4fbc-95ab-5e2f6275664e",
       "name": "¿Es Auto-Eco?"
     },
     {
@@ -2299,10 +2231,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        1248,
-        15056
+        18976,
+        63232
       ],
-      "id": "b33a1a7c-042a-4594-8b59-5c4208b5abc2",
+      "id": "c5d5aa44-40ff-4672-a58e-33b85e4ea5b3",
       "name": "Fin - Auto-Eco Ignorado"
     },
     {
@@ -2332,10 +2264,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -64,
-        15280
+        17664,
+        63456
       ],
-      "id": "76b84318-70d9-4b86-85ad-75c78ace1419",
+      "id": "8dfface6-f51a-476c-92ed-e4dbb99de71e",
       "name": "¿Es Comando Reactivar?"
     },
     {
@@ -2346,21 +2278,27 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        208,
-        15280
+        17936,
+        63456
       ],
-      "id": "79df0eb4-d084-4ca4-9165-b74e18504e9d",
-      "name": "Reactivar Bot"
+      "id": "6930c736-54aa-411e-bdb2-e8e15ccf89dd",
+      "name": "Reactivar Bot",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        464,
-        15280
+        18192,
+        63456
       ],
-      "id": "3f71a187-44ea-4d5d-b99a-aed745c56d68",
+      "id": "95041c6f-0240-4c26-8fe1-aeb1e112edbb",
       "name": "Fin - Bot Reactivado"
     },
     {
@@ -2374,11 +2312,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        720,
-        15280
+        18448,
+        63456
       ],
-      "id": "f9c1c36a-fd5c-49b5-bc4d-9b057616fb39",
-      "name": "Marcar Bot Pausado"
+      "id": "6aed98a8-d697-4397-8139-d71ccf84e51a",
+      "name": "Marcar Bot Pausado",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -2390,11 +2334,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        976,
-        15280
+        18704,
+        63456
       ],
-      "id": "f5462916-6098-45f6-90d0-7fa8c16d87ca",
-      "name": "Marcar Auto-Eco - Aprendizaje Tecnico"
+      "id": "55694cdb-c3aa-4329-ab78-392c9d555a19",
+      "name": "Marcar Auto-Eco - Aprendizaje Tecnico",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -2406,11 +2356,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        1248,
-        15280
+        18976,
+        63456
       ],
-      "id": "a5eda504-308e-45a9-b93c-ea49412df73a",
-      "name": "Marcar Auto-Eco - Aprendizaje Negocio"
+      "id": "8fac0f5a-4c4d-45bb-a4e9-bcdff20c7b5b",
+      "name": "Marcar Auto-Eco - Aprendizaje Negocio",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -2422,11 +2378,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        -64,
-        15504
+        17664,
+        63680
       ],
-      "id": "d8f1a545-75dc-4df7-95cb-1e2561612986",
-      "name": "Marcar Auto-Eco - Respuesta Principal"
+      "id": "6b5fd011-2abb-4035-a8ce-893fa2298e7e",
+      "name": "Marcar Auto-Eco - Respuesta Principal",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -2438,12 +2400,18 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        208,
-        15504
+        17936,
+        63680
       ],
-      "id": "41e2d4c1-78a5-4d01-9bdc-24060278afb3",
+      "id": "42b28fa3-1621-43f2-80bc-8db6ab55c9ee",
       "name": "Chequear Cooldown Escalado",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -2473,10 +2441,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        464,
-        15504
+        18192,
+        63680
       ],
-      "id": "49eb2046-9440-4d34-a3ab-07d3d59bb332",
+      "id": "556d967b-2ec9-4331-8510-85ea33a0e729",
       "name": "¿Escalado en Cooldown?"
     },
     {
@@ -2484,10 +2452,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        720,
-        15504
+        18448,
+        63680
       ],
-      "id": "58a15f32-97f3-4f9f-823a-b3a05673e9e7",
+      "id": "eb0f5894-1464-4008-bbe7-1b202f71714b",
       "name": "Fin - Escalado Omitido (cooldown)"
     },
     {
@@ -2501,11 +2469,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        976,
-        15504
+        18704,
+        63680
       ],
-      "id": "80b1888b-52c2-49ce-83ea-a0940e376810",
-      "name": "Marcar Cooldown Escalado"
+      "id": "60a48242-4e6a-42e0-9d91-3904bc63e641",
+      "name": "Marcar Cooldown Escalado",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -2535,10 +2509,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -64,
-        17456
+        17664,
+        65632
       ],
-      "id": "b0f315df-5547-4071-84be-266475805dbc",
+      "id": "83683356-b02f-485b-a62a-df89dcc9ec78",
       "name": "¿Datos Tecnicos Suficientes?"
     },
     {
@@ -2569,27 +2543,27 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        208,
-        17456
+        17936,
+        65632
       ],
-      "id": "4cb13318-feb4-496c-975b-a6dd747e4e10",
+      "id": "c64c9d1c-ac17-4a45-a901-eb2d2dd7490b",
       "name": "¿Tema Negocio Valido?"
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ $('datos_finales2').item.json.texto }}",
+        "text": "=Historial reciente de esta conversacion (puede estar vacio, mas antiguo arriba):\n{{ $json.historial_texto || '(sin historial)' }}\n\nMensaje actual del cliente: {{ $('datos_finales2').item.json.texto }}",
         "options": {
-          "systemMessage": "Extraé del mensaje del cliente el producto, combo o kit puntual por el que pregunta precio o stock. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"producto\": \"...\"}\n\nSi no podés identificar el producto con claridad, dejalo como string vacio \"\". No inventes valores."
+          "systemMessage": "Extraé del mensaje del cliente el producto, combo o kit puntual por el que pregunta precio o stock. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"producto\": \"...\"}\n\nSi no podés identificar el producto con claridad, dejalo como string vacio \"\". No inventes valores.\n\nSi el mensaje actual del cliente no menciona el producto/combo/kit con claridad, pero aparece mencionado explicitamente en el historial reciente de ESTA MISMA conversacion (por ejemplo porque el cliente ya lo habia dicho antes), completalo con ese dato del historial en vez de dejarlo vacio. Priorizá siempre la mencion mas reciente si hay varios. Si ni el mensaje actual ni el historial lo mencionan, dejalo vacio como indica la regla anterior."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -64,
-        17856
+        17664,
+        66032
       ],
-      "id": "b71d3745-7524-44a4-88bc-f6387e0f30ab",
+      "id": "b655add4-e2b9-4b7c-b80e-bba6a212135e",
       "name": "Extraer Producto"
     },
     {
@@ -2599,10 +2573,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        208,
-        17856
+        17936,
+        66032
       ],
-      "id": "5d27b47b-7b4b-4c37-8b10-2aabe58bdcac",
+      "id": "0e9b4360-c040-417b-8e43-4fa8cea75ff1",
       "name": "Parsear Extraccion Precio"
     },
     {
@@ -2633,10 +2607,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        464,
-        17856
+        18192,
+        66032
       ],
-      "id": "325b13f1-f1df-4b79-92da-5772f1081113",
+      "id": "37b74485-1576-4eae-a07b-11d61100db57",
       "name": "¿Datos Precio Suficientes?"
     },
     {
@@ -2648,12 +2622,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        720,
-        17856
+        18448,
+        66032
       ],
-      "id": "d5d57c8a-bbe9-407c-a941-5a6942aa00f5",
+      "id": "938f0ae7-bd5f-49ee-a458-736ba9e12932",
       "name": "Buscar Precio Stock",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -2683,10 +2663,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        976,
-        17856
+        18704,
+        66032
       ],
-      "id": "dfdb118f-3172-49c1-840a-aa55e3274778",
+      "id": "0becafdd-92ae-423d-a8c7-7b803ecbc839",
       "name": "¿Hay Dato Precio?"
     },
     {
@@ -2706,10 +2686,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1248,
-        17856
+        18976,
+        66032
       ],
-      "id": "5c7f07fc-4209-40f9-a66d-861103410f6e",
+      "id": "bee2ca45-90d0-4a99-b277-df80da30905e",
       "name": "Preparar Contexto Precio Encontrado"
     },
     {
@@ -2721,11 +2701,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -64,
-        18080
+        17664,
+        66256
       ],
-      "id": "84b0d1da-9e99-4a42-aef6-4a587ef40a8c",
-      "name": "Traer Historial (Precio)"
+      "id": "74663d49-7ec8-4100-8ea0-e93de5b2a9e8",
+      "name": "Traer Historial (Precio)",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -2734,10 +2720,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        208,
-        18080
+        17936,
+        66256
       ],
-      "id": "39628688-962f-428a-9b18-2acd895c8971",
+      "id": "668f4d8e-feb0-47fb-9189-ab2ab01c6634",
       "name": "Formatear Historial (Precio)"
     },
     {
@@ -2749,11 +2735,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        464,
-        18080
+        18192,
+        66256
       ],
-      "id": "1ef8c917-d75f-4823-ac41-76babc4238fe",
-      "name": "Registrar Pregunta Precio Pendiente"
+      "id": "a6c22677-0dac-4c3b-b4be-021bdc9208c4",
+      "name": "Registrar Pregunta Precio Pendiente",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -2790,10 +2782,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        720,
-        18080
+        18448,
+        66256
       ],
-      "id": "b326442d-ba17-4946-a694-5738479d8ece",
+      "id": "f70d17e6-100b-42f1-91dd-f85bd9f756a1",
       "name": "Preparar Escalado - Consulta Precio"
     },
     {
@@ -2805,12 +2797,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        976,
-        18080
+        18704,
+        66256
       ],
-      "id": "d14a78c9-88c9-41a4-b52f-c2da115c74c4",
+      "id": "a4892a04-74b5-4372-85cf-ced254d12851",
       "name": "Buscar Pregunta Precio Pendiente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -2840,10 +2838,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1248,
-        18080
+        18976,
+        66256
       ],
-      "id": "f5575920-5e5e-4c1e-a6b3-0ffeb89d8556",
+      "id": "06ba4f8d-bfd6-47ee-b28d-72200023d728",
       "name": "¿Hay Pregunta Precio Pendiente?"
     },
     {
@@ -2851,16 +2849,16 @@
         "promptType": "define",
         "text": "=Preguntas de precio/stock pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': producto \"' + p.producto + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
         "options": {
-          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y extraé el precio y/o stock que informo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro>, \"precio\": \"precio informado o vacio si no lo dio\", \"stock\": \"stock informado (ej. 'hay stock', 'no hay', '3 unidades') o vacio si no lo dio\", \"detalle\": \"resumen breve\", \"confianza\": \"alta\" o \"baja\"}\n\nUsa \"confianza\": \"baja\" si la respuesta es ambigua, no da ni precio ni stock con claridad, no queda claro a cual pregunta corresponde (cuando hay mas de una pendiente), o el producto del que habla la respuesta no tiene nada que ver con el producto de la unica pregunta pendiente (en ese caso no asumas que es esa)."
+          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y extraé el precio y/o stock que informo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro>, \"precio\": \"precio informado o vacio si no lo dio\", \"stock\": \"stock informado (ej. 'hay stock', 'no hay', '3 unidades') o vacio si no lo dio\", \"detalle\": \"informacion adicional o string vacio\", \"confianza\": \"alta\" o \"baja\"}\n\nUsa \"confianza\": \"baja\" si la respuesta es ambigua, no da ni precio ni stock con claridad, no queda claro a cual pregunta corresponde (cuando hay mas de una pendiente), o el producto del que habla la respuesta no tiene nada que ver con el producto de la unica pregunta pendiente (en ese caso no asumas que es esa).\n\nIMPORTANTE sobre \"detalle\": el precio y el stock ya se le informan al cliente aparte, automaticamente, a partir de los campos \"precio\" y \"stock\", así que NO los repitas ni los parafrasees en \"detalle\" — eso genera respuestas redundantes. Usá \"detalle\" UNICAMENTE para informacion adicional que no sea el precio/stock en si (ej: \"lo podemos conseguir en 2 dias\", \"ese precio no incluye el envio\"). Si la respuesta del equipo no tiene nada mas que agregar, dejá \"detalle\" como string vacio \"\".\n\nCuando \"detalle\" no este vacio, redactalo en primera persona del plural, como si vos mismo fueras parte del equipo del negocio hablandole directo al cliente (ej: \"lo podemos conseguir en 2 dias\"). NUNCA en tercera persona ni menciones al equipo (mal: \"el equipo confirma que...\", \"segun nos informaron...\", \"ellos dijeron que...\")."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -64,
-        18304
+        17664,
+        66480
       ],
-      "id": "3be0e90e-96fb-4a48-9c08-583c76139939",
+      "id": "2364ecda-c6a1-42c6-9acf-38c73827b5aa",
       "name": "Extraer Respuesta Precio"
     },
     {
@@ -2870,10 +2868,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        208,
-        18304
+        17936,
+        66480
       ],
-      "id": "ec13b584-f3ab-4b92-94fc-f321d69437a3",
+      "id": "e63d3ca8-4ada-4d3f-bab0-dd82e181c536",
       "name": "Parsear Respuesta Precio"
     },
     {
@@ -2903,10 +2901,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        464,
-        18304
+        18192,
+        66480
       ],
-      "id": "5dc7270b-1880-4a13-bd63-2ed1662a3aae",
+      "id": "9d8b0db2-903d-4b83-9d24-58ec5643d364",
       "name": "¿Extraccion Confiable Precio?"
     },
     {
@@ -2918,11 +2916,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        720,
-        18304
+        18448,
+        66480
       ],
-      "id": "85bf5357-19cb-4bd6-bc82-635aeb4d5f5f",
-      "name": "Guardar en Precios Stock"
+      "id": "e49d2cda-39b0-4e62-b18c-014ff42ff3d0",
+      "name": "Guardar en Precios Stock",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -2933,11 +2937,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        976,
-        18304
+        18704,
+        66480
       ],
-      "id": "901f2c3f-bf1f-4054-b8ea-5a5afdf35a7e",
-      "name": "Marcar Pregunta Precio Respondida"
+      "id": "da7c727f-2a07-49b7-9110-ee63d94714e4",
+      "name": "Marcar Pregunta Precio Respondida",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -2946,7 +2956,7 @@
             {
               "id": "gen-36a1d22ad636",
               "name": "content",
-              "value": "={{ 'Sobre ' + $('Parsear Respuesta Precio').item.json.producto + ': ' + ($('Parsear Respuesta Precio').item.json.precio ? ('precio ' + $('Parsear Respuesta Precio').item.json.precio + '. ') : '') + ($('Parsear Respuesta Precio').item.json.stock ? ('Stock: ' + $('Parsear Respuesta Precio').item.json.stock + '. ') : '') + $('Parsear Respuesta Precio').item.json.detalle }}",
+              "value": "={{ (() => {\n  const producto = $('Parsear Respuesta Precio').item.json.producto;\n  const precio = $('Parsear Respuesta Precio').item.json.precio;\n  const stock = $('Parsear Respuesta Precio').item.json.stock;\n  const detalle = ($('Parsear Respuesta Precio').item.json.detalle || '').trim();\n  let out = 'Sobre ' + producto + ': ';\n  if (precio) out += 'precio ' + precio + '. ';\n  if (stock) out += 'Stock: ' + stock + '. ';\n  out = out.trim();\n  return detalle ? out + ' ' + detalle : out;\n})() }}",
               "type": "string"
             }
           ]
@@ -2956,10 +2966,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1248,
-        18304
+        18976,
+        66480
       ],
-      "id": "4ed036aa-1586-4e68-906d-b3bd16b6e609",
+      "id": "7cfd3d95-bce0-4cfc-9a8b-836598848cb2",
       "name": "Preparar Respuesta Cliente - Precio"
     },
     {
@@ -2987,10 +2997,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -64,
-        18528
+        17664,
+        66704
       ],
-      "id": "ae32135b-0677-4b77-b5ff-004066dc0937",
+      "id": "066a69f8-5847-493b-80a8-0f84ffc6c1f8",
       "name": "Responder Cliente - Aprendizaje Precio"
     },
     {
@@ -3003,11 +3013,17 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        208,
-        18528
+        17936,
+        66704
       ],
-      "id": "6052f48c-53ca-4a54-a93f-eb255d3eb670",
-      "name": "Marcar Auto-Eco - Aprendizaje Precio"
+      "id": "6b49ed3e-b52a-4f99-84c0-13312fcca838",
+      "name": "Marcar Auto-Eco - Aprendizaje Precio",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
     },
     {
       "parameters": {
@@ -3018,12 +3034,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -960,
-        16720
+        16768,
+        64896
       ],
-      "id": "5bb0278b-7576-4317-890f-125ec9459c8f",
+      "id": "cd63d212-db50-4a26-b2ca-bf2a13e96a8b",
       "name": "Buscar Pendiente Tecnica Existente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3053,10 +3075,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -960,
-        16800
+        16768,
+        64976
       ],
-      "id": "98b4e8c3-69de-4c90-bbf0-8acd21049131",
+      "id": "0ba9c8a8-2997-4368-92b4-fc213803e51d",
       "name": "¿Ya Existe Pendiente Tecnica?"
     },
     {
@@ -3068,12 +3090,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -960,
-        17120
+        16768,
+        65296
       ],
-      "id": "9b222dcf-bc43-4e7d-a022-83c281331f68",
+      "id": "8f26d0e0-79bd-4d95-8222-a5902ef6c359",
       "name": "Buscar Pendiente Negocio Existente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3103,10 +3131,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -960,
-        17200
+        16768,
+        65376
       ],
-      "id": "2d1fbe4e-3456-40be-a020-12caeec674de",
+      "id": "c8399550-8e24-4e29-90ea-13ad71229ce5",
       "name": "¿Ya Existe Pendiente Negocio?"
     },
     {
@@ -3118,12 +3146,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -960,
-        18368
+        16768,
+        66544
       ],
-      "id": "d7cdc6a7-f48b-46c6-8bb6-3637ccafc9db",
+      "id": "5d336402-f74d-484e-b156-de9ce8ab9656",
       "name": "Buscar Pendiente Precio Existente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3153,10 +3187,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -960,
-        18448
+        16768,
+        66624
       ],
-      "id": "c3ca3ab5-c627-4d41-a468-24592ed4747b",
+      "id": "65b1f9f6-3de3-4732-aea1-d480ebeef9bd",
       "name": "¿Ya Existe Pendiente Precio?"
     },
     {
@@ -3166,10 +3200,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1952,
-        17360
+        15776,
+        65536
       ],
-      "id": "e1742de1-f6db-4cb2-aa6d-832d67837f3c",
+      "id": "2a6ab381-2880-4e16-b147-6d5eac7564a7",
       "name": "Expandir Intenciones"
     },
     {
@@ -3179,10 +3213,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -1712,
-        17360
+        16016,
+        65536
       ],
-      "id": "9fddbb1b-6809-47a8-934e-3348916f6314",
+      "id": "75b29255-9077-4c31-80b2-8c3061fe2313",
       "name": "Loop Intenciones"
     },
     {
@@ -3268,10 +3302,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        -1472,
-        17360
+        16256,
+        65536
       ],
-      "id": "21b04f77-a0c3-4f0d-8f52-dc3ac4ff5eb7",
+      "id": "22691588-6fee-45f2-81b8-a03b8e6246f6",
       "name": "Ruteo Intencion (Multi)"
     },
     {
@@ -3281,10 +3315,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -464,
-        17056
+        17264,
+        65232
       ],
-      "id": "92abb8b1-463f-4a17-8944-c88e602c9bea",
+      "id": "041a1cab-9bd9-47dc-acb5-eeef8e1584a8",
       "name": "Etiquetar Encontrado (Multi)"
     },
     {
@@ -3294,10 +3328,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -464,
-        17664
+        17264,
+        65840
       ],
-      "id": "949a0988-f1c2-459e-9f18-57bd1478b7d2",
+      "id": "c6f98cff-fcba-4770-94b7-47f2662f3feb",
       "name": "Etiquetar Pendiente (Multi)"
     },
     {
@@ -3311,10 +3345,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -1232,
-        16864
+        16496,
+        65040
       ],
-      "id": "cd061ca9-3974-4df2-9eff-725b3fdd45db",
+      "id": "7d8060f6-fa7d-420c-ac9f-47b10a662470",
       "name": "Extraer Datos Tecnicos (Multi)"
     },
     {
@@ -3324,10 +3358,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -992,
-        16864
+        16736,
+        65040
       ],
-      "id": "37db1e07-5409-4080-8468-9c0bed4044cb",
+      "id": "d6745366-3c64-4175-a711-256849052ac7",
       "name": "Parsear Datos Tecnicos (Multi)"
     },
     {
@@ -3358,10 +3392,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -752,
-        16864
+        16976,
+        65040
       ],
-      "id": "7dfaa64b-60ff-492a-a41e-72eef01b76b3",
+      "id": "ba0e28ee-86fd-4045-8101-0c372eaa327e",
       "name": "¿Datos Tecnicos Suficiente? (Multi)"
     },
     {
@@ -3373,12 +3407,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        16864
+        17216,
+        65040
       ],
-      "id": "17e9bf2e-b942-4ffb-a43a-0128acc47c4b",
+      "id": "9322cf93-d07c-490f-a097-c3a7df2753d5",
       "name": "Buscar Datos Tecnicos (Multi)",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3408,10 +3448,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -512,
-        17024
+        17216,
+        65200
       ],
-      "id": "d495f7f6-0673-4f67-936e-46f6870e4e43",
+      "id": "5d505690-5e88-48d6-9015-d1a5b834b3b2",
       "name": "¿Hay Dato Datos Tecnicos? (Multi)"
     },
     {
@@ -3431,10 +3471,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -512,
-        17184
+        17216,
+        65360
       ],
-      "id": "99eb64eb-47fd-4150-a98b-f1c16340c2f9",
+      "id": "8660002a-fa34-494e-900c-e0d22ebc4372",
       "name": "Preparar Contexto Datos Tecnicos (Multi)"
     },
     {
@@ -3446,12 +3486,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        17344
+        17216,
+        65520
       ],
-      "id": "02cf058b-8cad-4c4b-81cd-eb57b941252d",
+      "id": "0a5e7219-c83d-4861-a059-ad2028d0025a",
       "name": "Buscar Pendiente Datos Tecnicos (Multi) Existente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3481,10 +3527,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -512,
-        17424
+        17216,
+        65600
       ],
-      "id": "25f8ede9-ece3-48d7-aa3a-e2a569245749",
+      "id": "c9a6e37a-0ac3-47a3-b5b1-1a6e336a450e",
       "name": "¿Ya Existe Pendiente Datos Tecnicos? (Multi)"
     },
     {
@@ -3496,11 +3542,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        17504
+        17216,
+        65680
       ],
-      "id": "6385d5c1-e639-46cd-8880-1d1d48159b63",
-      "name": "Registrar Pregunta Datos Tecnicos (Multi) Pendiente"
+      "id": "00bdb802-af3a-4012-b02c-c289f946bc2b",
+      "name": "Registrar Pregunta Datos Tecnicos (Multi) Pendiente",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3525,10 +3577,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -512,
-        17584
+        17216,
+        65760
       ],
-      "id": "2cbe839e-8cab-4f94-ad71-db9038c87e2e",
+      "id": "0835380d-93d9-4de4-ada3-1b9164534aae",
       "name": "Preparar Escalado - Datos Tecnicos (Multi)"
     },
     {
@@ -3542,10 +3594,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -1232,
-        17264
+        16496,
+        65440
       ],
-      "id": "bf6baabd-b541-4321-a23f-557bb6c1c1c6",
+      "id": "9bbb6a68-8c70-4608-b1f9-4e617a2a4f94",
       "name": "Extraer Tema Negocio (Multi)"
     },
     {
@@ -3555,10 +3607,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -992,
-        17264
+        16736,
+        65440
       ],
-      "id": "11bb4084-43d1-4efc-88ba-9dc85abed54a",
+      "id": "55fa59bb-7ced-4234-bca7-71468295ea6b",
       "name": "Parsear Tema Negocio (Multi)"
     },
     {
@@ -3589,10 +3641,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -752,
-        17264
+        16976,
+        65440
       ],
-      "id": "94bed519-e016-497a-9962-4139db447d43",
+      "id": "259d8672-2813-488f-99a8-b2eff8ff5590",
       "name": "¿Tema Negocio Suficiente? (Multi)"
     },
     {
@@ -3604,12 +3656,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        17264
+        17216,
+        65440
       ],
-      "id": "be141f70-12d5-4b15-a6a4-e46ec660d4dd",
+      "id": "b997af29-80e4-42b9-83c4-5082df64ec53",
       "name": "Buscar Tema Negocio (Multi)",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3639,10 +3697,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -512,
-        17424
+        17216,
+        65600
       ],
-      "id": "f7b6c632-e9cf-4b01-840f-7d4065783a7d",
+      "id": "4e62fecc-af35-4dbc-be9d-8eae90fe3b92",
       "name": "¿Hay Dato Tema Negocio? (Multi)"
     },
     {
@@ -3662,10 +3720,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -512,
-        17584
+        17216,
+        65760
       ],
-      "id": "1915eab7-5662-44ba-b507-f4ee5053748d",
+      "id": "4d96e4b0-97aa-4519-a4ac-9fdbd4afac94",
       "name": "Preparar Contexto Tema Negocio (Multi)"
     },
     {
@@ -3677,12 +3735,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        17744
+        17216,
+        65920
       ],
-      "id": "e72e53d7-7d7e-4622-af20-61f3dbf81a78",
+      "id": "9eb2abce-84d8-4303-a516-db604415ea8b",
       "name": "Buscar Pendiente Tema Negocio (Multi) Existente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3712,10 +3776,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -512,
-        17824
+        17216,
+        66000
       ],
-      "id": "f80267d5-ac57-4938-96db-4048e2c4172a",
+      "id": "7e5707aa-5373-4170-b841-d98e35b64192",
       "name": "¿Ya Existe Pendiente Tema Negocio? (Multi)"
     },
     {
@@ -3727,11 +3791,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        17904
+        17216,
+        66080
       ],
-      "id": "af2e1cbc-c859-45cd-8970-5e4e92207fe9",
-      "name": "Registrar Pregunta Tema Negocio (Multi) Pendiente"
+      "id": "cc6a1eaa-9c8e-46d9-99b5-143f47bc2165",
+      "name": "Registrar Pregunta Tema Negocio (Multi) Pendiente",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3756,10 +3826,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -512,
-        17984
+        17216,
+        66160
       ],
-      "id": "95bf38c1-98d1-461d-8356-8f98b2793e04",
+      "id": "06011ee2-9768-42e2-b73d-5ad5c1484488",
       "name": "Preparar Escalado - Tema Negocio (Multi)"
     },
     {
@@ -3773,10 +3843,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        -1232,
-        17664
+        16496,
+        65840
       ],
-      "id": "6f4ca0cf-820e-453a-a377-d324c04802ac",
+      "id": "de5f61f8-3530-46c5-b6b5-62b8a74331e5",
       "name": "Extraer Producto (Multi)"
     },
     {
@@ -3786,10 +3856,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -992,
-        17664
+        16736,
+        65840
       ],
-      "id": "39a39f24-1cca-42a1-a4b0-059f97ee679e",
+      "id": "8144ca76-e300-4cb4-9a9f-7c685569d81a",
       "name": "Parsear Producto (Multi)"
     },
     {
@@ -3820,10 +3890,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -752,
-        17664
+        16976,
+        65840
       ],
-      "id": "e1500db0-c8c1-4dbf-93d3-59977daf28c2",
+      "id": "7ac143b3-4998-4ecd-b9da-3eb4a61e6824",
       "name": "¿Producto Suficiente? (Multi)"
     },
     {
@@ -3835,12 +3905,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        17664
+        17216,
+        65840
       ],
-      "id": "e5e41ffb-7dcf-4bd4-9563-9a1dc6636e3b",
+      "id": "e221c653-3874-4663-98be-328e1ceadf98",
       "name": "Buscar Producto (Multi)",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3870,10 +3946,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -512,
-        17824
+        17216,
+        66000
       ],
-      "id": "4888ec61-2f83-4bc7-a308-2ef700b3bc9d",
+      "id": "07c6c9ae-e9af-48a5-9842-f8f7f40084bd",
       "name": "¿Hay Dato Producto? (Multi)"
     },
     {
@@ -3893,10 +3969,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -512,
-        17984
+        17216,
+        66160
       ],
-      "id": "32e275d0-982b-41d5-adb8-94e29cc767bc",
+      "id": "5ea9f0d2-641b-46e1-96f6-160fe2034503",
       "name": "Preparar Contexto Producto (Multi)"
     },
     {
@@ -3908,12 +3984,18 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        18144
+        17216,
+        66320
       ],
-      "id": "3eec5cf9-cbd8-4685-8e48-9cfe75a65def",
+      "id": "3053ef3b-089d-4626-b80b-b62cb10cc281",
       "name": "Buscar Pendiente Producto (Multi) Existente",
-      "alwaysOutputData": true
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3943,10 +4025,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -512,
-        18224
+        17216,
+        66400
       ],
-      "id": "8cba2c60-def3-402e-99fc-589daddcc3ec",
+      "id": "a5d188b4-541d-449d-b26e-32a4ab7eba7f",
       "name": "¿Ya Existe Pendiente Producto? (Multi)"
     },
     {
@@ -3958,11 +4040,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -512,
-        18304
+        17216,
+        66480
       ],
-      "id": "684874f4-e7d8-4dec-b211-16176c38b228",
-      "name": "Registrar Pregunta Producto (Multi) Pendiente"
+      "id": "32788881-9327-4fdb-af65-974ffd9d6440",
+      "name": "Registrar Pregunta Producto (Multi) Pendiente",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -3987,10 +4075,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -512,
-        18384
+        17216,
+        66560
       ],
-      "id": "bb2a4e98-e2c9-44b7-85c1-6138dcd26da3",
+      "id": "6eedadf9-74c2-4b96-892a-f9b37af23b9f",
       "name": "Preparar Escalado - Producto (Multi)"
     },
     {
@@ -4000,10 +4088,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -208,
-        17360
+        17520,
+        65536
       ],
-      "id": "9b47c9ff-3182-4245-8e1d-3b29976d48ef",
+      "id": "24374cb3-656e-4863-ba35-1bdd50469774",
       "name": "Consolidar Resultados (Multi)"
     },
     {
@@ -4034,10 +4122,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        48,
-        17264
+        17776,
+        65440
       ],
-      "id": "cb2f0d24-0445-4993-9bca-d533c5a9b165",
+      "id": "2ab46cd3-8076-44b8-80a9-61ed270d8d9b",
       "name": "¿Hay Encontrados? (Multi)"
     },
     {
@@ -4068,10 +4156,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        48,
-        17456
+        17776,
+        65632
       ],
-      "id": "81628963-c849-4069-92e4-75d49677e8fc",
+      "id": "51d5b53a-411a-4371-bd30-67f3cdecca49",
       "name": "¿Hay Pendientes? (Multi)"
     },
     {
@@ -4083,11 +4171,17 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        288,
-        17216
+        18016,
+        65392
       ],
-      "id": "536af022-c988-4b4b-9072-d09466ff4459",
-      "name": "Traer Historial (Multi)"
+      "id": "b41375bc-3bcf-470a-90fe-77783997eda5",
+      "name": "Traer Historial (Multi)",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -4096,10 +4190,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        528,
-        17216
+        18256,
+        65392
       ],
-      "id": "84824245-e18a-4753-a831-db11105499a6",
+      "id": "0eb33097-28bc-4adc-b370-7a84508dd142",
       "name": "Formatear Historial (Multi)"
     },
     {
@@ -4137,10 +4231,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        288,
-        17520
+        18016,
+        65696
       ],
-      "id": "c8d83c5d-b493-4576-883c-88eeb55ed5c9",
+      "id": "767cde38-0f91-4b0a-88cd-21ddebaab17b",
       "name": "Preparar Escalado - Multi Intencion"
     },
     {
@@ -4153,10 +4247,10 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
       "typeVersion": 1,
       "position": [
-        -2704,
-        17360
+        15024,
+        65536
       ],
-      "id": "146c2caa-1fb6-46a0-8107-133d5a1d5dd5",
+      "id": "2ba73a88-f4b5-489b-9310-f1c2e4af600f",
       "name": "DeepSeek Chat Model - Extraccion",
       "credentials": {
         "deepSeekApi": {
@@ -4164,9 +4258,1008 @@
           "name": "DeepSeek account"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "223f9d9d-58b2-4517-922f-ee4f89788435",
+              "leftValue": "={{ $json.vacio }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        16320,
+        64528
+      ],
+      "id": "a07076d0-9592-4ca9-adab-5d643f846b80",
+      "name": "¿Respuesta Vacia?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f5c7c214-95d1-4e09-8503-a2a753731b8c",
+              "name": "motivo",
+              "value": "={{ 'El bot no pudo generar una respuesta para este mensaje del cliente: \"' + $('datos_finales2').item.json.texto + '\". Revisar y responder manualmente si hace falta.' }}",
+              "type": "string"
+            },
+            {
+              "id": "a7635043-7c2c-4b57-a6b8-ae9d042aa8a4",
+              "name": "label",
+              "value": "requiere-humano-error",
+              "type": "string"
+            },
+            {
+              "id": "fbfa0986-a18e-4dcb-9f59-46dddba4843e",
+              "name": "conversation_id",
+              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+              "type": "string"
+            },
+            {
+              "id": "8e770ebc-7f4d-4e04-9550-a773bde4c9dc",
+              "name": "account_id",
+              "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        16320,
+        64688
+      ],
+      "id": "d83483f8-d6e9-4a8a-beda-d905886f274d",
+      "name": "Preparar Escalado - Respuesta Vacia"
+    },
+    {
+      "parameters": {
+        "content": "## NUEVO: Kits en publicidad (mensaje predefinido)\nCuando llega el primer mensaje de una conversacion que menciona explicita e inequivocamente uno de los kits activos en publicidad, se manda tal cual el mensaje_bienvenida cargado (como pegaria un humano) y recien despues sigue la charla normal con el agente.\n\nSi el cliente dice 'kit' de forma generica y hay mas de uno activo, se le pregunta cual es en vez de adivinar (esto evita el bug de asumir 'kit 120' cuando el cliente solo habia dicho 'vengo por el kit').\n\nLa carga de kits (nombre, palabras clave, detalle, precio, envio, mensaje predefinido, activo) se hace desde /admin/chatwoot/kits en la app. Esa misma alta tambien inserta filas en precios_stock (una por cada alias/palabra clave) para que el agente pueda responder preguntas de seguimiento sobre el kit sin escalar a un humano.\n\nSQL para crear la tabla (correrlo una vez en tu Postgres):\n\nCREATE TABLE kits_publicidad (\n  id serial PRIMARY KEY,\n  nombre text NOT NULL,\n  keywords text,\n  detalle text,\n  precio text,\n  envio text,\n  mensaje_bienvenida text NOT NULL,\n  activo boolean DEFAULT true,\n  creado_en timestamptz DEFAULT now()\n);",
+        "height": 420,
+        "width": 460,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        13536,
+        67408
+      ],
+      "id": "6f31a429-04a5-48bd-8bc6-fe9197348764",
+      "name": "Nota - Kits Publicidad"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('id', id, 'nombre', nombre, 'keywords', keywords, 'mensaje_bienvenida', mensaje_bienvenida) ORDER BY creado_en ASC), '[]'::json) AS kits FROM kits_publicidad WHERE activo = true;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        13536,
+        67136
+      ],
+      "id": "0951f495-3019-4711-b5e2-4a3417cbf4c9",
+      "name": "Buscar Kits Activos",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b613f63a-6eaf-4f38-abc9-9efa4bc32359",
+              "leftValue": "={{ Array.isArray($json.kits) && $json.kits.length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        13776,
+        67136
+      ],
+      "id": "15e6cda9-b096-449b-b7f1-635e56e84c6b",
+      "name": "¿Hay Kits Activos?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const kits = $json.kits || [];\nconst listaTexto = kits\n  .map(k => '- id ' + k.id + ': \"' + k.nombre + '\" (palabras clave: ' + (k.keywords || 'sin palabras clave adicionales') + ')')\n  .join('\\n');\nconst nombresTexto = kits.map(k => k.nombre).join(', ');\n\nreturn [{\n  json: {\n    kits,\n    kits_lista_texto: listaTexto,\n    kits_nombres_texto: nombresTexto,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14016,
+        67136
+      ],
+      "id": "45fbec6b-9f7d-4110-8190-1b42506748b2",
+      "name": "Formatear Kits Activos"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Kits activos en publicidad (puede haber mas de uno):\n{{ $('Formatear Kits Activos').item.json.kits_lista_texto }}\n\nHistorial reciente de esta conversacion (puede estar vacio, mas antiguo arriba):\n{{ $json.historial_texto || '(sin historial)' }}\n\nMensaje del cliente: {{ $('datos_finales2').item.json.texto }}",
+        "options": {
+          "systemMessage": "Sos un clasificador que decide si el mensaje de un cliente de WhatsApp menciona explicita e inequivocamente uno de los kits/combos que estan actualmente en publicidad, listados arriba con su id, nombre y palabras clave asociadas.\n\nRespondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"estado\": \"EXACTO\" o \"AMBIGUO\" o \"NINGUNO\", \"kit_id\": <id del kit si estado es EXACTO, sino null>}\n\nReglas:\n- EXACTO: el mensaje incluye un dato puntual que identifica un solo kit sin dudas (un numero, un nombre propio, o una de sus palabras clave concretas) — por ejemplo \"kit 120\", \"cilindro 120\", \"el combo para la Wave\".\n- AMBIGUO: el mensaje menciona \"kit\", \"combo\", \"promo\" o similar de forma GENERICA, SIN ningun numero/nombre/palabra clave puntual que permita saber cual es. Esto aplica SIEMPRE que la mencion sea generica, incluso si en este momento hay un solo kit activo en la lista — el cliente no tiene por que saber cual es \"el\" kit, así que hay que preguntar igual, nunca asumir por descarte.\n- NINGUNO: el mensaje no menciona ningun kit/combo (aunque hable de otra cosa, o incluso si menciona un kit que no esta en la lista).\n\nNUNCA asumas cual kit es solo porque sea el unico activo. Ante la duda entre EXACTO y AMBIGUO, elegi AMBIGUO.\n\nIMPORTANTE — usá el historial para resolver el contexto: si tu ULTIMO mensaje (rol Asesor) en el historial fue una pregunta pidiendole al cliente que aclare a cual kit se referia (por ejemplo \"¿Sobre cuál kit te gustaría info?\" listando las opciones), y el mensaje actual del cliente es su respuesta a esa pregunta, interpretalo en ese contexto aunque no repita la palabra \"kit\"/\"combo\" ni use el mismo orden de palabras que el nombre del kit: si lo que dice coincide claramente con uno de los kits listados, es EXACTO para ese kit. Fuera de ese contexto (el ultimo mensaje tuyo no fue esa pregunta), seguí aplicando las reglas de arriba con normalidad."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        14256,
+        67136
+      ],
+      "id": "f705cbca-afdd-42bf-8f60-31a9271d3140",
+      "name": "Detectar Mencion Kit"
+    },
+    {
+      "parameters": {
+        "jsCode": "let estado = 'NINGUNO';\nlet kitId = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  estado = (parsed.estado || 'NINGUNO').toString().toUpperCase();\n  kitId = parsed.kit_id !== undefined && parsed.kit_id !== null ? Number(parsed.kit_id) : null;\n} catch (e) {\n  estado = 'NINGUNO';\n}\n\nconst kits = $('Formatear Kits Activos').item.json.kits || [];\nconst match = kits.find(k => k.id === kitId) || null;\nif (estado === 'EXACTO' && !match) estado = 'NINGUNO';\n\nreturn [{\n  json: {\n    estado,\n    kit_id: match ? match.id : null,\n    nombre: match ? match.nombre : '',\n    mensaje_bienvenida: match ? match.mensaje_bienvenida : '',\n    kits_nombres_texto: $('Formatear Kits Activos').item.json.kits_nombres_texto,\n  },\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14496,
+        67136
+      ],
+      "id": "b5b6e42b-dc97-4062-8efc-f637f2972c7c",
+      "name": "Parsear Deteccion Kit"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "de185e1a-802e-464a-b5fe-28d9f7cc85e4",
+                    "leftValue": "={{ $json.estado }}",
+                    "rightValue": "EXACTO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Exacto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "3d6c6046-d023-422c-b25d-85032b015e0c",
+                    "leftValue": "={{ $json.estado }}",
+                    "rightValue": "AMBIGUO",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Ambiguo"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Ninguno"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        14736,
+        67136
+      ],
+      "id": "b5c57aa7-bd45-485f-959a-5f9214aa370e",
+      "name": "Ruteo Deteccion Kit"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "enviado",
+        "key": "=kit_saludo:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}:{{ $json.kit_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        14976,
+        67008
+      ],
+      "id": "d06bb048-b81e-4583-a8ec-ba745cd84194",
+      "name": "Chequear Saludo Kit Enviado",
+      "alwaysOutputData": true,
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7df3d2e0-eae2-4497-91a7-d57b8d24eb03",
+              "leftValue": "={{ !!$json.enviado }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        15216,
+        67008
+      ],
+      "id": "233c8061-e840-4637-bdac-e372b79c9052",
+      "name": "¿Ya Se Envio Saludo Kit?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f6e76675-48a6-462c-adde-1398c20e3075",
+              "name": "content",
+              "value": "={{ (() => {\n  const mensaje = $('Parsear Deteccion Kit').item.json.mensaje_bienvenida;\n  const yaHabiaConversacion = ($json.cantidad || 0) > 0;\n  if (!yaHabiaConversacion) return mensaje;\n  const parrafos = mensaje.split(/\\n\\s*\\n/);\n  return parrafos.length > 1 ? parrafos.slice(1).join('\\n\\n').trim() : mensaje;\n})() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        15456,
+        66928
+      ],
+      "id": "451406a2-10da-40af-9689-61dff1ab6768",
+      "name": "Preparar Envio Kit"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        15696,
+        66848
+      ],
+      "id": "e6e8233f-9c6b-4895-8a00-cc9d30319f7c",
+      "name": "Enviar Saludo Kit"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "={{ $json.content }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        15696,
+        67008
+      ],
+      "id": "b433f2c5-1872-4b57-b69f-ba2853a34764",
+      "name": "Marcar Auto-Eco - Saludo Kit",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=kit_saludo:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}:{{ $('Parsear Deteccion Kit').item.json.kit_id }}",
+        "value": "1",
+        "expire": true,
+        "ttl": 2592000
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        15936,
+        66848
+      ],
+      "id": "670104f0-1946-436b-9769-90358eb8cf90",
+      "name": "Marcar Saludo Kit Enviado",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversaciones_historial (session_key, role, content) VALUES ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'human', '{{ $('datos_finales2').item.json.texto.replace(/'/g, \"''\") }}'), ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'ai', '{{ $('Preparar Envio Kit').item.json.content.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        16176,
+        66848
+      ],
+      "id": "2499dd85-a9da-4fb2-ab2b-22193265ab92",
+      "name": "Guardar Historial Saludo Kit",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        16416,
+        66848
+      ],
+      "id": "0b6c08c3-e9a6-4b7d-bca9-ffbbb96b036e",
+      "name": "Fin - Saludo Kit Enviado"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b4cfc751-f09c-4b9d-b873-6b9ee2d4ee05",
+              "name": "content",
+              "value": "={{ '¿Sobre cuál kit te gustaría info? Estos son los que tenemos disponibles: ' + $('Parsear Deteccion Kit').item.json.kits_nombres_texto + '.' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        14976,
+        67312
+      ],
+      "id": "bb73680d-aece-4aa0-8efa-f7cb2e34bc68",
+      "name": "Preparar Pregunta Ambigua"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://revolucionmotos.tech/api/chatwoot/mock/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "mock-token-prueba"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        15216,
+        67232
+      ],
+      "id": "2021b7a1-6ff4-4f10-9a32-9fdb5e6d9ff5",
+      "name": "Enviar Pregunta Ambigua"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "={{ $json.content }}",
+        "expire": true
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        15216,
+        67392
+      ],
+      "id": "5135d8c7-eeb7-4e94-8793-5c40710a6dd6",
+      "name": "Marcar Auto-Eco - Pregunta Ambigua",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversaciones_historial (session_key, role, content) VALUES ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'human', '{{ $('datos_finales2').item.json.texto.replace(/'/g, \"''\") }}'), ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'ai', '{{ $('Preparar Pregunta Ambigua').item.json.content.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        15456,
+        67232
+      ],
+      "id": "c44d520f-d7d6-49e0-84a9-e4c15b80c1d0",
+      "name": "Guardar Historial Pregunta Ambigua",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        15696,
+        67232
+      ],
+      "id": "b98430f5-7e27-433c-9709-d89d06375be3",
+      "name": "Fin - Pregunta Ambigua Enviada"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*)::int AS cantidad FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' AND role = 'ai';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        15216,
+        66784
+      ],
+      "id": "d4d63503-5a49-4eed-829a-deaf1820c9a6",
+      "name": "Chequear Conversacion Iniciada",
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        15776,
+        64544
+      ],
+      "id": "650d3756-7d33-4b54-941b-25ea483e7065",
+      "name": "Traer Historial (Pre-Tecnica)",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.historial || [];\nconst historialTexto = raw\n  .map((m) => (m.role === 'human' ? 'Cliente: ' : 'Asesor: ') + (m.content || ''))\n  .join('\\n');\n\nreturn [\n  {\n    historial_texto: historialTexto,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15920,
+        64544
+      ],
+      "id": "4b1df9c8-6277-4fb8-8a37-927ca88e7d51",
+      "name": "Formatear Historial (Pre-Tecnica)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        17424,
+        65840
+      ],
+      "id": "f8843002-ea60-49d8-88c2-bd2fe8c196cd",
+      "name": "Traer Historial (Pre-Precio)",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.historial || [];\nconst historialTexto = raw\n  .map((m) => (m.role === 'human' ? 'Cliente: ' : 'Asesor: ') + (m.content || ''))\n  .join('\\n');\n\nreturn [\n  {\n    historial_texto: historialTexto,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        17568,
+        65840
+      ],
+      "id": "36d68f40-0db8-4414-ae89-c4f5f7d95d87",
+      "name": "Formatear Historial (Pre-Precio)"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        14144,
+        67344
+      ],
+      "id": "e4e17d07-c20e-4b58-867c-974912555d01",
+      "name": "Traer Historial (Pre-Kit)",
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.historial || [];\nconst historialTexto = raw\n  .map((m) => (m.role === 'human' ? 'Cliente: ' : 'Asesor: ') + (m.content || ''))\n  .join('\\n');\n\nreturn [\n  {\n    historial_texto: historialTexto,\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14256,
+        67344
+      ],
+      "id": "147176cd-d1ec-42e9-9a80-05a6b66b74ab",
+      "name": "Formatear Historial (Pre-Kit)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Whisper (OpenAI y Groq) decide el formato del audio por el nombre de archivo\n// que viaja en el multipart, no por el contenido. Si el binario llega sin\n// extension -- pasa cuando el data_url no termina en .ogg/.mp3, p.ej. el mock\n// que manda la clave del archivo en un query param -- responde\n// \"Invalid file format\" aunque el audio sea perfectamente valido.\n// Aca deducimos la extension real (primero por magic bytes, que no mienten) y\n// reescribimos fileName / fileExtension / mimeType antes de mandarlo.\n\nconst SOPORTADOS = ['flac', 'm4a', 'mp3', 'mp4', 'mpeg', 'mpga', 'oga', 'ogg', 'wav', 'webm'];\n\nconst POR_MIME = {\n  'audio/ogg': 'ogg',\n  'audio/oga': 'oga',\n  'audio/opus': 'ogg',\n  'application/ogg': 'ogg',\n  'audio/mpeg': 'mp3',\n  'audio/mp3': 'mp3',\n  'audio/mp4': 'm4a',\n  'audio/x-m4a': 'm4a',\n  'audio/aac': 'm4a',\n  'video/mp4': 'mp4',\n  'audio/wav': 'wav',\n  'audio/x-wav': 'wav',\n  'audio/wave': 'wav',\n  'audio/webm': 'webm',\n  'video/webm': 'webm',\n  'audio/flac': 'flac',\n  'audio/x-flac': 'flac',\n};\n\nconst MIME_POR_EXT = {\n  ogg: 'audio/ogg',\n  oga: 'audio/ogg',\n  mp3: 'audio/mpeg',\n  mpga: 'audio/mpeg',\n  mpeg: 'audio/mpeg',\n  m4a: 'audio/mp4',\n  mp4: 'video/mp4',\n  wav: 'audio/wav',\n  webm: 'audio/webm',\n  flac: 'audio/flac',\n};\n\nfunction porMagicBytes(buffer) {\n  if (!buffer || buffer.length < 12) return '';\n  const ascii = (desde, largo) => buffer.slice(desde, desde + largo).toString('latin1');\n\n  if (ascii(0, 4) === 'OggS') return 'ogg';\n  if (ascii(0, 4) === 'fLaC') return 'flac';\n  if (ascii(0, 4) === 'RIFF' && ascii(8, 4) === 'WAVE') return 'wav';\n  // EBML: contenedor Matroska/WebM\n  if (buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) return 'webm';\n  if (ascii(4, 4) === 'ftyp') return 'm4a';\n  if (ascii(0, 3) === 'ID3') return 'mp3';\n  // Frame sync de MPEG audio (0xFFEx / 0xFFFx)\n  if (buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0) return 'mp3';\n  return '';\n}\n\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  const bin = item.binary && item.binary.data;\n\n  if (!bin) {\n    throw new Error(\n      'No llego audio binario en la propiedad \"data\". Revisa que \"HTTP Request2\" ' +\n      'tenga Response > Format = File y que la URL del adjunto devuelva el archivo ' +\n      '(un 401/404 en HTML tambien cae aca).'\n    );\n  }\n\n  let ext = '';\n\n  try {\n    const buffer = await this.helpers.getBinaryDataBuffer(i, 'data');\n    ext = porMagicBytes(buffer);\n  } catch (e) {\n    // Si no se puede leer el buffer seguimos con los otros metodos.\n  }\n\n  const mime = String(bin.mimeType || '').split(';')[0].trim().toLowerCase();\n\n  if (!SOPORTADOS.includes(ext)) {\n    ext = POR_MIME[mime] || '';\n  }\n  if (!SOPORTADOS.includes(ext)) {\n    const declarada = String(bin.fileExtension || '').replace('.', '').toLowerCase();\n    if (SOPORTADOS.includes(declarada)) ext = declarada;\n  }\n  if (!SOPORTADOS.includes(ext)) {\n    const m = String(bin.fileName || '').match(/\\.([a-z0-9]+)$/i);\n    if (m && SOPORTADOS.includes(m[1].toLowerCase())) ext = m[1].toLowerCase();\n  }\n  if (!SOPORTADOS.includes(ext)) {\n    // Ultimo recurso: las notas de voz de WhatsApp son ogg/opus.\n    ext = 'ogg';\n  }\n\n  bin.fileExtension = ext;\n  bin.fileName = 'audio.' + ext;\n  bin.mimeType = MIME_POR_EXT[ext] || mime || 'audio/ogg';\n  bin.fileType = 'audio';\n}\n\nreturn items;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12944,
+        64464
+      ],
+      "id": "3f1c0a91-7b64-4f0d-9d2a-1c6f5b8e4a70",
+      "name": "Normalizar Audio"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "language",
+              "value": "es"
+            },
+            {
+              "name": "response_format",
+              "value": "json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        13104,
+        64464
+      ],
+      "id": "b599b776-905f-4ce1-95bf-2a9e09132b7a",
+      "name": "Transcribe a recording1",
+      "credentials": {
+        "openAiApi": {
+          "id": "izKqPEK5NVsAu3IE",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## Transcripcion de audio\n\nEl nodo nativo de OpenAI (`resource: audio / transcribe`) manda **whisper-1 hardcodeado**, por eso con la credencial de Groq tira `The model whisper-1 does not exist`. Se reemplazo por un HTTP Request para poder elegir el modelo.\n\n**OpenAI** (config actual)\n- URL: `https://api.openai.com/v1/audio/transcriptions`\n- model: `whisper-1`\n\n**Groq** (mas rapido y barato)\n- URL: `https://api.groq.com/openai/v1/audio/transcriptions`\n- model: `whisper-large-v3-turbo`\n- Credential: elegir la de Groq en el selector de OpenAI\n\n`Normalizar Audio` arregla el `Invalid file format`: Whisper mira la extension del filename, no el contenido.",
+        "height": 380,
+        "width": 420,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        12896,
+        64064
+      ],
+      "id": "8d5e2c40-91a7-4b3e-8f21-6c0d9a3b7e15",
+      "name": "Nota - Transcripcion Audio"
+    },
+    {
+      "parameters": {
+        "operation": "incr",
+        "key": "=seq:{{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+        "expire": true,
+        "ttl": 300
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        13888,
+        64736
+      ],
+      "id": "5a2f7c10-4e93-4b81-9a6d-2f7c0b13e845",
+      "name": "Secuencia",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b41d8e07-2c96-4f5a-9e83-71a4d0c6b209",
+              "name": "mi_turno",
+              "value": "={{ Object.values($json)[0] }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        14064,
+        64736
+      ],
+      "id": "c7e309a2-58b4-4d17-8f60-e1b93a75d264",
+      "name": "mi_turno"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "propertyName": "seq_actual",
+        "key": "=seq:{{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        14416,
+        64736
+      ],
+      "id": "9b0c4f68-3a21-4d95-b7e2-08c5f6a1d370",
+      "name": "Leer Secuencia",
+      "credentials": {
+        "redis": {
+          "id": "ZUlkjSz8R2bmmO2f",
+          "name": "Redis account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e6a71b3d-95c8-4720-ae14-3f8d02b95c67",
+              "leftValue": "={{ Number($json.seq_actual) }}",
+              "rightValue": "={{ Number($('mi_turno').item.json.mi_turno) }}",
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        14592,
+        64736
+      ],
+      "id": "1d8b5e40-7f62-49a3-8c05-b64e2079af31",
+      "name": "Soy el ultimo?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        14768,
+        64896
+      ],
+      "id": "4e91c072-6b38-4d5f-91ae-c803f7d5b168",
+      "name": "Fin - Mensaje agrupado"
+    },
+    {
+      "parameters": {
+        "content": "## Agrupado de mensajes (debounce por cliente)\n\nSi el cliente manda varios mensajes seguidos se dispara una ejecucion por mensaje. Todas apilan en el mismo buffer de Redis y hay que responder **una sola vez**, con todos juntos.\n\n**Como se resuelve:** al entrar, cada ejecucion toma un numero de turno (`INCR seq:{telefono}`, atomico). Despues de esperar 15s vuelve a leer la secuencia:\n\n- sigue siendo la mia -> soy el ultimo de la rafaga, proceso por todos\n- subio -> llego otro mensaje despues del mio, el va a procesar -> me retiro\n\nCada ejecucion termina en 15s exactos, sin loop de polling y sin candado: `INCR` ya garantiza que gane exactamente una.\n\n### OJO con el nodo Redis\n**No conserva el json de entrada en ninguna operacion**, lo reemplaza:\n- `incr` devuelve `{\"<clave>\": <valor>}` -> por eso `mi_turno` lee `Object.values($json)[0]`, el nombre del campo depende de la clave.\n- `get` devuelve solo `{\"<propertyName>\": <valor>}` -> despues de `Leer Secuencia` ya no existe `mi_turno`, hay que traerlo con `$('mi_turno').item.json.mi_turno`.\n\nSi se toca esto, mirar el json real de cada nodo en Executions antes de asumir que un campo sobrevive.",
+        "height": 560,
+        "width": 460,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        13856,
+        64944
+      ],
+      "id": "2c6f8a15-0d74-4e39-b582-9a71e4c0d6f3",
+      "name": "Nota - Agrupado de mensajes"
     }
   ],
-  "pinData": {},
+  "pinData": {
+    "Webhook1": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n.revolucionmotos.tech",
+            "user-agent": "node",
+            "content-length": "1492",
+            "accept": "*/*",
+            "accept-encoding": "br, gzip, deflate",
+            "accept-language": "*",
+            "content-type": "application/json",
+            "sec-fetch-mode": "cors",
+            "x-forwarded-for": "10.0.1.1",
+            "x-forwarded-host": "n8n.revolucionmotos.tech",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "50a9d52c5318",
+            "x-real-ip": "10.0.1.1"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "account": {
+              "id": 1,
+              "name": "Revolucion"
+            },
+            "additional_attributes": {},
+            "content_attributes": {},
+            "content_type": "text",
+            "content": "donde estan ubicados?",
+            "conversation": {
+              "additional_attributes": {},
+              "can_reply": true,
+              "channel": "Channel::Whatsapp",
+              "contact_inbox": {
+                "id": 1,
+                "contact_id": 1,
+                "inbox_id": 1,
+                "source_id": "5493511234567",
+                "created_at": "2026-08-04T14:50:22.302Z",
+                "updated_at": "2026-08-04T14:50:22.302Z",
+                "hmac_verified": false
+              },
+              "id": 934193,
+              "inbox_id": 1,
+              "messages": [
+                {
+                  "id": 1785855022302,
+                  "content": "donde estan ubicados?",
+                  "account_id": 1,
+                  "inbox_id": 1,
+                  "conversation_id": 934193,
+                  "message_type": 0,
+                  "created_at": 1785855022,
+                  "updated_at": "2026-08-04T14:50:22.302Z",
+                  "private": false,
+                  "status": "sent",
+                  "content_type": "text",
+                  "content_attributes": {},
+                  "sender_type": "Contact",
+                  "sender_id": 1,
+                  "sender": {
+                    "additional_attributes": {},
+                    "custom_attributes": {},
+                    "email": null,
+                    "id": 1,
+                    "identifier": null,
+                    "name": "Cliente Prueba",
+                    "phone_number": "+5493511234567",
+                    "thumbnail": "",
+                    "blocked": false,
+                    "type": "contact"
+                  }
+                }
+              ],
+              "labels": [],
+              "status": "open",
+              "custom_attributes": {},
+              "unread_count": 1,
+              "last_activity_at": 1785855022,
+              "timestamp": 1785855022
+            },
+            "created_at": "2026-08-04T14:50:22.302Z",
+            "id": 1785855022302,
+            "inbox": {
+              "id": 1,
+              "name": "Prueba Manual"
+            },
+            "message_type": "incoming",
+            "private": false,
+            "sender": {
+              "account": {
+                "id": 1,
+                "name": "Revolucion"
+              },
+              "additional_attributes": {},
+              "avatar": "",
+              "custom_attributes": {},
+              "email": null,
+              "id": 1,
+              "identifier": null,
+              "name": "Cliente Prueba",
+              "phone_number": "+5493511234567",
+              "thumbnail": "",
+              "blocked": false
+            },
+            "event": "message_created"
+          },
+          "webhookUrl": "https://n8n.revolucionmotos.tech/webhook/chatwoot-mensaje",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
   "connections": {
     "Webhook1": {
       "main": [
@@ -4248,7 +5341,7 @@
       "main": [
         [
           {
-            "node": "Transcribe a recording1",
+            "node": "Normalizar Audio",
             "type": "main",
             "index": 0
           }
@@ -4303,7 +5396,7 @@
       "main": [
         [
           {
-            "node": "get_buffer_data1",
+            "node": "Secuencia",
             "type": "main",
             "index": 0
           }
@@ -4314,32 +5407,7 @@
       "main": [
         [
           {
-            "node": "Matcheo de núm Tel1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Matcheo de núm Tel1": {
-      "main": [
-        [
-          {
-            "node": "No Operation, do nothing4",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Intentar Tomar Lock",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Wait3",
+            "node": "delete_buffer1",
             "type": "main",
             "index": 0
           }
@@ -4350,36 +5418,7 @@
       "main": [
         [
           {
-            "node": "get_buffer_data1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Intentar Tomar Lock": {
-      "main": [
-        [
-          {
-            "node": "¿Gané el lock?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "¿Gané el lock?": {
-      "main": [
-        [
-          {
-            "node": "delete_buffer1",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Duplicado - ya procesado",
+            "node": "Leer Secuencia",
             "type": "main",
             "index": 0
           }
@@ -4390,7 +5429,7 @@
       "main": [
         [
           {
-            "node": "Borrar Lock",
+            "node": "Code in JavaScript1",
             "type": "main",
             "index": 0
           }
@@ -4459,7 +5498,7 @@
         ],
         [
           {
-            "node": "Extraer Datos Tecnicos",
+            "node": "Traer Historial (Pre-Tecnica)",
             "type": "main",
             "index": 0
           }
@@ -4473,7 +5512,7 @@
         ],
         [
           {
-            "node": "Extraer Producto",
+            "node": "Traer Historial (Pre-Precio)",
             "type": "main",
             "index": 0
           }
@@ -4518,7 +5557,7 @@
       "main": [
         [
           {
-            "node": "Edit Fields2",
+            "node": "¿Respuesta Vacia?",
             "type": "main",
             "index": 0
           }
@@ -4884,17 +5923,6 @@
         ]
       ]
     },
-    "Borrar Lock": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Extraer Tema Negocio": {
       "main": [
         [
@@ -5168,7 +6196,7 @@
         ],
         [
           {
-            "node": "Clasificador Intento",
+            "node": "Buscar Kits Activos",
             "type": "main",
             "index": 0
           }
@@ -6241,18 +7269,401 @@
             "node": "Extraer Tema Negocio (Multi)",
             "type": "ai_languageModel",
             "index": 0
+          },
+          {
+            "node": "Detectar Mencion Kit",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Respuesta Vacia?": {
+      "main": [
+        [
+          {
+            "node": "Preparar Escalado - Respuesta Vacia",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Escalado - Respuesta Vacia": {
+      "main": [
+        [
+          {
+            "node": "Escalar - Agregar Label",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Kits Activos": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Kits Activos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Kits Activos?": {
+      "main": [
+        [
+          {
+            "node": "Formatear Kits Activos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clasificador Intento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Kits Activos": {
+      "main": [
+        [
+          {
+            "node": "Traer Historial (Pre-Kit)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detectar Mencion Kit": {
+      "main": [
+        [
+          {
+            "node": "Parsear Deteccion Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parsear Deteccion Kit": {
+      "main": [
+        [
+          {
+            "node": "Ruteo Deteccion Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ruteo Deteccion Kit": {
+      "main": [
+        [
+          {
+            "node": "Chequear Saludo Kit Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Pregunta Ambigua",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clasificador Intento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chequear Saludo Kit Enviado": {
+      "main": [
+        [
+          {
+            "node": "¿Ya Se Envio Saludo Kit?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya Se Envio Saludo Kit?": {
+      "main": [
+        [
+          {
+            "node": "Clasificador Intento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Chequear Conversacion Iniciada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Envio Kit": {
+      "main": [
+        [
+          {
+            "node": "Enviar Saludo Kit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar Auto-Eco - Saludo Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Saludo Kit": {
+      "main": [
+        [
+          {
+            "node": "Marcar Saludo Kit Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Saludo Kit Enviado": {
+      "main": [
+        [
+          {
+            "node": "Guardar Historial Saludo Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Historial Saludo Kit": {
+      "main": [
+        [
+          {
+            "node": "Fin - Saludo Kit Enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Pregunta Ambigua": {
+      "main": [
+        [
+          {
+            "node": "Enviar Pregunta Ambigua",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar Auto-Eco - Pregunta Ambigua",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Pregunta Ambigua": {
+      "main": [
+        [
+          {
+            "node": "Guardar Historial Pregunta Ambigua",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Historial Pregunta Ambigua": {
+      "main": [
+        [
+          {
+            "node": "Fin - Pregunta Ambigua Enviada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chequear Conversacion Iniciada": {
+      "main": [
+        [
+          {
+            "node": "Preparar Envio Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Historial (Pre-Tecnica)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Historial (Pre-Tecnica)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Historial (Pre-Tecnica)": {
+      "main": [
+        [
+          {
+            "node": "Extraer Datos Tecnicos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Historial (Pre-Precio)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Historial (Pre-Precio)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Historial (Pre-Precio)": {
+      "main": [
+        [
+          {
+            "node": "Extraer Producto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traer Historial (Pre-Kit)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Historial (Pre-Kit)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Historial (Pre-Kit)": {
+      "main": [
+        [
+          {
+            "node": "Detectar Mencion Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Audio": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Secuencia": {
+      "main": [
+        [
+          {
+            "node": "mi_turno",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "mi_turno": {
+      "main": [
+        [
+          {
+            "node": "Wait3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer Secuencia": {
+      "main": [
+        [
+          {
+            "node": "Soy el ultimo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Soy el ultimo?": {
+      "main": [
+        [
+          {
+            "node": "get_buffer_data1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fin - Mensaje agrupado",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
-    "availableInMCP": false
+    "availableInMCP": true,
+    "timeSavedMode": "fixed",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 300
   },
-  "versionId": "bad442fb-19fc-43bb-97c3-fbd6d8c6c238",
+  "versionId": "d2a5070e-02f1-4924-b550-6aeb4ab003c6",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"

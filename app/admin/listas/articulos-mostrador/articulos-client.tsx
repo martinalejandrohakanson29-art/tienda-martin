@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User, ListChecks, Truck, Check, X, FileSpreadsheet, Upload, TrendingUp, TrendingDown, Minus, RefreshCw, DollarSign } from "lucide-react";
+import { Search, ArrowLeft, Edit, Save, Loader2, Database, Plus, EyeOff, Eye, History, User, ListChecks, Truck, Check, X, FileSpreadsheet, Upload, TrendingUp, TrendingDown, Minus, RefreshCw, DollarSign, Lock } from "lucide-react";
 import Link from "next/link";
-import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo, aplicarProveedorMasivo, previsualizarExcelProveedor, aplicarActualizacionMasivaExcel } from "@/app/actions/listas";
+import { actualizarArticuloDesdeLista, crearArticuloMostrador, toggleOcultarArticulo, obtenerHistorialArticulo, aplicarProveedorMasivo, aplicarMargenFijoMasivo, previsualizarExcelProveedor, aplicarActualizacionMasivaExcel } from "@/app/actions/listas";
 import type { PreviewExcelResultado } from "@/app/actions/listas";
 import { obtenerCotizacionDolar } from "@/app/actions/dolar";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ interface Articulo {
   costoUsd?: number | null;
   esCostoDolar?: boolean;
   margenGanancia?: number;
+  margenFijo?: boolean;
   oculto?: boolean;
   codigoProveedor?: string | null;
   proveedorId?: string | null;
@@ -317,6 +318,24 @@ export default function ArticulosClient({
     setAplicandoBulk(false);
   };
 
+  const handleAplicarMargenFijoMasivo = async (margenFijo: boolean) => {
+    if (selectedIds.size === 0) return;
+    setAplicandoBulk(true);
+
+    const ids = Array.from(selectedIds);
+    const res = await aplicarMargenFijoMasivo(ids, margenFijo);
+
+    if (res.success) {
+      const idsSet = new Set(ids);
+      setArticulos(prev => prev.map(a => idsSet.has(a.id) ? { ...a, margenFijo } : a));
+      setSelectedIds(new Set());
+    } else {
+      alert("Error: " + res.error);
+    }
+
+    setAplicandoBulk(false);
+  };
+
   // --- Actualización de precios desde Excel de proveedor ---
   const abrirModalExcel = () => {
     setExcelStep("upload");
@@ -425,7 +444,8 @@ export default function ArticulosClient({
       editData.costo,
       editData.margenGanancia,
       editData.codigoProveedor || undefined,
-      editData.proveedorId || null
+      editData.proveedorId || null,
+      editData.margenFijo
     );
 
     if (res.success) {
@@ -488,14 +508,16 @@ export default function ArticulosClient({
     setEditandoCostoId(null);
     setGuardandoCostoId(art.id);
 
-    // Reutilizamos la acción existente; el precio de venta NO se recalcula al editar el costo inline.
+    // Si el artículo tiene la marcación fija, el precio se recalcula manteniendo el %
+    // de ganancia. Si no, se mantiene el comportamiento histórico: el precio no se toca.
+    const nuevoPrecio = art.margenFijo ? calcularPrecio(nuevoCosto, art.margenGanancia || 0) : art.precio;
     const res = await actualizarArticuloDesdeLista(
-      art.id, art.nombre, art.precio, art.stock, nuevoCosto, art.margenGanancia, art.codigoProveedor || undefined, art.proveedorId || null
+      art.id, art.nombre, nuevoPrecio, art.stock, nuevoCosto, art.margenGanancia, art.codigoProveedor || undefined, art.proveedorId || null
     );
 
     if (res.success) {
       // Igual que en el servidor: tocar el costo a mano desvincula del seguimiento del dólar.
-      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, costo: nuevoCosto, esCostoDolar: false, costoUsd: null } : a));
+      setArticulos(prev => prev.map(a => a.id === art.id ? { ...a, costo: nuevoCosto, precio: nuevoPrecio, esCostoDolar: false, costoUsd: null } : a));
     } else {
       alert("Error: " + res.error);
     }
@@ -863,6 +885,7 @@ export default function ArticulosClient({
               className="h-9 text-xs font-bold bg-white/10 text-white border border-white/25 rounded-xl px-2.5 outline-none cursor-pointer hover:bg-white/15 transition-colors flex-shrink-0"
             >
               <option value="aplicar_proveedor" className="text-slate-800">Aplicar proveedor</option>
+              <option value="marcacion_fija" className="text-slate-800">Marcación fija</option>
             </select>
 
             {bulkAction === "aplicar_proveedor" && (
@@ -922,6 +945,30 @@ export default function ArticulosClient({
                 >
                   {aplicandoBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
                   Aplicar
+                </Button>
+              </div>
+            )}
+
+            {bulkAction === "marcacion_fija" && (
+              <div className="flex items-center gap-2 bg-white/10 rounded-xl p-1.5 pl-3 flex-shrink-0">
+                <Lock className="h-3.5 w-3.5 text-indigo-100 flex-shrink-0" />
+                <Button
+                  onClick={() => handleAplicarMargenFijoMasivo(true)}
+                  disabled={aplicandoBulk}
+                  size="sm"
+                  className="bg-white text-indigo-700 hover:bg-indigo-50 rounded-lg font-bold h-8 px-4 shadow-none"
+                >
+                  {aplicandoBulk ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Check className="h-3.5 w-3.5 mr-1.5" />}
+                  Activar
+                </Button>
+                <Button
+                  onClick={() => handleAplicarMargenFijoMasivo(false)}
+                  disabled={aplicandoBulk}
+                  size="sm"
+                  variant="outline"
+                  className="bg-transparent text-white border-white/25 hover:bg-white/15 hover:text-white rounded-lg font-bold h-8 px-4 shadow-none"
+                >
+                  Desactivar
                 </Button>
               </div>
             )}
@@ -1180,9 +1227,13 @@ export default function ArticulosClient({
                                 type="button"
                                 onClick={() => iniciarEdicionMarcacion(art)}
                                 disabled={!tieneCosto}
-                                title={tieneCosto ? "Clic para editar la marcación (%)" : "Cargá el costo para poder editar la marcación"}
-                                className={`text-xs font-black px-2.5 py-1 rounded-lg border transition-all ${marc === null ? 'text-slate-300 border-transparent cursor-not-allowed' : marc < 0 ? 'bg-red-50 text-red-600 border-red-200 hover:ring-1 hover:ring-indigo-300' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200'}`}
+                                title={
+                                  (art.margenFijo ? "Marcación fija: el precio se recalcula solo si cambia el costo. " : "") +
+                                  (tieneCosto ? "Clic para editar la marcación (%)" : "Cargá el costo para poder editar la marcación")
+                                }
+                                className={`inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-lg border transition-all ${marc === null ? 'text-slate-300 border-transparent cursor-not-allowed' : marc < 0 ? 'bg-red-50 text-red-600 border-red-200 hover:ring-1 hover:ring-indigo-300' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200'}`}
                               >
+                                {art.margenFijo && <Lock className="h-2.5 w-2.5 text-indigo-500 flex-shrink-0" />}
                                 {marc === null ? '—' : `${marc.toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`}
                               </button>
                             );
@@ -1366,6 +1417,22 @@ export default function ArticulosClient({
                   />
                 </div>
               </div>
+
+              <label className="flex items-start gap-2.5 bg-indigo-50/60 p-3 rounded-xl border border-indigo-100 cursor-pointer">
+                <Checkbox
+                  checked={!!editData.margenFijo}
+                  onCheckedChange={(checked) => setEditData({ ...editData, margenFijo: checked === true })}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="flex items-center gap-1.5 text-sm font-bold text-slate-700">
+                    <Lock className="h-3.5 w-3.5 text-indigo-500" /> Marcación fija
+                  </span>
+                  <span className="block text-xs text-slate-500 mt-0.5">
+                    Si el costo cambia (a mano o por Excel), el precio se recalcula solo para mantener este % de ganancia.
+                  </span>
+                </span>
+              </label>
 
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mt-2">
                  <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">ID Interno (No editable)</p>

@@ -34,6 +34,7 @@ export async function obtenerArticulosParaListas() {
         costoUsd: art.costoUsd != null ? Number(art.costoUsd) : null,
         esCostoDolar: art.esCostoDolar,
         margenGanancia: Number(art.margenGanancia || 0),
+        margenFijo: art.margenFijo,
         esPack: art.esPack || false,
         oculto: art.oculto,
         codigoProveedor: art.codigoProveedor,
@@ -57,7 +58,7 @@ export async function obtenerArticulosParaListas() {
 }
 
 // Función para editar un artículo desde la tabla de listas
-export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number, codigoProveedor?: string, proveedorId?: string | null) {
+export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number, codigoProveedor?: string, proveedorId?: string | null, margenFijo?: boolean) {
   try {
     const session = await getServerSession(authOptions);
     const usuario = (session?.user as any)?.name || "Desconocido";
@@ -78,6 +79,7 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
           margenGanancia,
           codigoProveedor: codigoProveedor?.trim() || null,
           proveedorId: proveedorId || null,
+          ...(margenFijo !== undefined ? { margenFijo } : {}),
           // Tocar el costo a mano desvincula al artículo del seguimiento automático del dólar.
           ...(costoCambio ? { esCostoDolar: false, costoUsd: null } : {})
         }
@@ -98,6 +100,9 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
       }
       if (margenGanancia !== undefined && Number(anterior.margenGanancia || 0) !== margenGanancia) {
         cambios.push(`Margen: ${Number(anterior.margenGanancia || 0)}% → ${margenGanancia}%`);
+      }
+      if (margenFijo !== undefined && anterior.margenFijo !== margenFijo) {
+        cambios.push(`Marcación fija: ${margenFijo ? "activada" : "desactivada"}`);
       }
       if ((anterior.codigoProveedor || "") !== (codigoProveedor?.trim() || "")) {
         cambios.push(`Código proveedor: "${anterior.codigoProveedor || ""}" → "${codigoProveedor?.trim() || ""}"`);
@@ -174,6 +179,49 @@ export async function aplicarProveedorMasivo(ids: string[], proveedorId: string 
   } catch (error) {
     console.error("Error al aplicar proveedor masivo:", error);
     return { success: false, error: "Ocurrió un error al aplicar el proveedor a los artículos seleccionados." };
+  }
+}
+
+// Aplica (o quita) la marcación fija a un conjunto de artículos en una sola operación
+// (selección masiva desde la tabla, ej. filtrando por proveedor).
+export async function aplicarMargenFijoMasivo(ids: string[], margenFijo: boolean) {
+  try {
+    if (!ids || ids.length === 0) {
+      return { success: false, error: "No se seleccionaron artículos." };
+    }
+
+    const session = await getServerSession(authOptions);
+    const usuario = (session?.user as any)?.name || "Desconocido";
+
+    await prisma.$transaction(async (tx) => {
+      const anteriores = await tx.articuloMostrador.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, margenFijo: true }
+      });
+
+      await tx.articuloMostrador.updateMany({
+        where: { id: { in: ids } },
+        data: { margenFijo }
+      });
+
+      const auditorias = anteriores
+        .filter(a => a.margenFijo !== margenFijo)
+        .map(a => ({
+          articuloId: a.id,
+          usuario,
+          accion: "EDICION_MASIVA_MARGEN_FIJO",
+          detalle: `Marcación fija: ${margenFijo ? "activada" : "desactivada"} (aplicación masiva a ${ids.length} artículos)`
+        }));
+
+      if (auditorias.length > 0) {
+        await tx.articuloAuditoria.createMany({ data: auditorias });
+      }
+    });
+
+    return { success: true, margenFijo };
+  } catch (error) {
+    console.error("Error al aplicar marcación fija masiva:", error);
+    return { success: false, error: "Ocurrió un error al aplicar la marcación fija a los artículos seleccionados." };
   }
 }
 

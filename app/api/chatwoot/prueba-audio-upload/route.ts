@@ -82,11 +82,18 @@ export async function GET(request: Request) {
         }
 
         const buffer = Buffer.from(byteArray);
+        // La extensión va en el nombre del archivo (Content-Disposition), no solo en
+        // la URL: OpenAI/Whisper decide el formato del audio por el filename que le
+        // llega en el multipart, y como acá el key viaja en un query param (no en el
+        // path de la URL), sin esto n8n arma el binario sin extensión y Whisper
+        // devuelve "Invalid file format" aunque el contenido sea válido.
+        const nombreArchivo = key.split("/").pop() || "audio.webm";
         return new Response(buffer, {
             status: 200,
             headers: {
                 "Content-Type": response.ContentType || "audio/webm",
                 "Content-Length": buffer.length.toString(),
+                "Content-Disposition": `inline; filename="${nombreArchivo}"`,
                 "Cache-Control": "public, max-age=86400",
             },
         });

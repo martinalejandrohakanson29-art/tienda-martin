@@ -89,6 +89,7 @@ export default function ArticulosClient({
   // Estado para ocultar/mostrar artículos
   const [togglingOcultoId, setTogglingOcultoId] = useState<string | null>(null);
   const [soloOcultos, setSoloOcultos] = useState(false);
+  const [soloVisibles, setSoloVisibles] = useState(false);
   const [soloAtadosDolar, setSoloAtadosDolar] = useState(false);
 
   // Estado para el filtro de listado por Proveedor ("" = todos, "__sin__" = sin proveedor asignado)
@@ -157,7 +158,9 @@ export default function ArticulosClient({
     const quitarAcentos = (texto: string) =>
       texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-    let lista = soloOcultos ? articulos.filter(art => art.oculto) : articulos;
+    let lista = articulos;
+    if (soloOcultos) lista = lista.filter(art => art.oculto);
+    else if (soloVisibles) lista = lista.filter(art => !art.oculto);
 
     if (soloAtadosDolar) lista = lista.filter(art => art.esCostoDolar);
 
@@ -179,11 +182,11 @@ export default function ArticulosClient({
       const proveedorLimpio = quitarAcentos((art.proveedorNombre || "").toLowerCase());
       return palabrasBuscadas.every(p => nombreLimpio.includes(p) || idLimpio.includes(p) || codigoProveedorLimpio.includes(p) || proveedorLimpio.includes(p));
     });
-  }, [searchTerm, articulos, soloOcultos, soloAtadosDolar, filtroProveedorId]);
+  }, [searchTerm, articulos, soloOcultos, soloVisibles, soloAtadosDolar, filtroProveedorId]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, soloOcultos, soloAtadosDolar, filtroProveedorId]);
+  }, [searchTerm, soloOcultos, soloVisibles, soloAtadosDolar, filtroProveedorId]);
 
   // Lógica de Paginación
   const totalPages = Math.ceil(articulosFiltrados.length / itemsPerPage);
@@ -737,11 +740,27 @@ export default function ArticulosClient({
             />
           </div>
           <button
-            onClick={() => setSoloOcultos(prev => !prev)}
+            onClick={() => setSoloOcultos(prev => {
+              const next = !prev;
+              if (next) setSoloVisibles(false);
+              return next;
+            })}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all flex-shrink-0 ${soloOcultos ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}
           >
             <EyeOff className="h-3.5 w-3.5" />
             Solo ocultos
+          </button>
+
+          <button
+            onClick={() => setSoloVisibles(prev => {
+              const next = !prev;
+              if (next) setSoloOcultos(false);
+              return next;
+            })}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all flex-shrink-0 ${soloVisibles ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-slate-300'}`}
+          >
+            <Eye className="h-3.5 w-3.5" />
+            Solo visibles
           </button>
 
           <button

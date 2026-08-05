@@ -35,7 +35,11 @@ export async function POST(request: Request) {
             ContentType: contentType,
         }));
 
-        const audioUrl = `${new URL(request.url).origin}/api/chatwoot/prueba-audio-upload?key=${encodeURIComponent(key)}`;
+        // OJO: no usar new URL(request.url).origin acá — detrás del reverse proxy de
+        // este deploy, request.url resuelve a "0.0.0.0:3000" (la dirección interna
+        // donde escucha Next), no al dominio público. NEXTAUTH_URL sí es la URL real.
+        const baseUrl = (process.env.NEXTAUTH_URL || new URL(request.url).origin).replace(/\/$/, "");
+        const audioUrl = `${baseUrl}/api/chatwoot/prueba-audio-upload?key=${encodeURIComponent(key)}`;
 
         return NextResponse.json({ success: true, audioUrl });
     } catch (error) {

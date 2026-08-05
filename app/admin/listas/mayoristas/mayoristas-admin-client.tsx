@@ -76,6 +76,26 @@ function urlImagenDrive(fileId: string): string {
     return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
 }
 
+// Links que ya apuntan directo a un archivo de imagen (ej. fotos públicas de ML en
+// http2.mlstatic.com, o cualquier URL que termine en una extensión de imagen): se usan tal cual.
+function esUrlImagenDirecta(input: string): boolean {
+    const s = input.trim()
+    if (!/^https?:\/\//i.test(s)) return false
+    if (/mlstatic\.com/i.test(s)) return true
+    return /\.(jpg|jpeg|png|webp|gif)(\?.*)?$/i.test(s)
+}
+
+// Resuelve lo que se pegó en el campo de link a una URL de imagen usable: reconoce links
+// de Google Drive (los convierte) y URLs de imagen directas como las de mlstatic.com (ML).
+function resolverUrlImagenDesdeLink(input: string): string | null {
+    const s = input.trim()
+    if (!s) return null
+    if (esUrlImagenDirecta(s)) return s
+    const driveId = extraerIdDriveDesdeLink(s)
+    if (driveId) return urlImagenDrive(driveId)
+    return null
+}
+
 interface ArticuloMostradorVinculado {
     id: string
     nombre: string
@@ -449,12 +469,12 @@ export default function MayoristasAdminClient({
 
     function usarLinkDrive() {
         if (!pickerFor) return
-        const fileId = extraerIdDriveDesdeLink(driveLinkInput)
-        if (!fileId) {
+        const url = resolverUrlImagenDesdeLink(driveLinkInput)
+        if (!url) {
             setDriveLinkError(true)
             return
         }
-        asignarFoto(pickerFor, urlImagenDrive(fileId))
+        asignarFoto(pickerFor, url)
     }
 
     function guardarCampo(id: string, patch: Partial<Articulo>) {
@@ -907,14 +927,14 @@ export default function MayoristasAdminClient({
                     <DialogHeader>
                         <DialogTitle>Elegir foto{articuloActivo ? ` — ${articuloActivo.nombre}` : ""}</DialogTitle>
                         <DialogDescription>
-                            Fotos extraídas de la lista mayorista en PDF, o pegá el link público de Google Drive de una foto nueva. Una foto puede repetirse en más de un artículo si el proveedor usó la misma imagen.
+                            Fotos extraídas de la lista mayorista en PDF, o pegá un link público de Google Drive o una URL de imagen (ej. de MercadoLibre). Una foto puede repetirse en más de un artículo si el proveedor usó la misma imagen.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="flex items-start gap-2">
                         <div className="flex-1">
                             <Input
-                                placeholder="Link público de Google Drive (compartir → cualquiera con el enlace)"
+                                placeholder="Link de Google Drive o URL de imagen (ej. http2.mlstatic.com/...)"
                                 value={driveLinkInput}
                                 onChange={(e) => {
                                     setDriveLinkInput(e.target.value)
@@ -926,7 +946,7 @@ export default function MayoristasAdminClient({
                                 className={driveLinkError ? "border-red-400 focus-visible:ring-red-400" : ""}
                             />
                             {driveLinkError && (
-                                <p className="text-xs text-red-500 mt-1">No se pudo reconocer el link. Copiá el link de "Compartir" de Google Drive.</p>
+                                <p className="text-xs text-red-500 mt-1">No se pudo reconocer el link. Pegá un link de "Compartir" de Google Drive o una URL de imagen (.jpg/.png/.webp).</p>
                             )}
                         </div>
                         <button

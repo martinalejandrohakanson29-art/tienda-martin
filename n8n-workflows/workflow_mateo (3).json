@@ -63,8 +63,8 @@
           "conditions": [
             {
               "id": "8380608d-139b-4244-970b-1f84c3980c11",
-              "leftValue": "={{ $json.body.conversation.messages[0].sender_type }}",
-              "rightValue": "Contact",
+              "leftValue": "={{ $json.body.message_type }}",
+              "rightValue": "incoming",
               "operator": {
                 "type": "string",
                 "operation": "equals",
@@ -275,7 +275,7 @@
             {
               "id": "24526d7a-c8a3-4e0e-b303-baf7051f76e8",
               "name": "account_id",
-              "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
+              "value": "={{ $('Webhook1').item.json.body.account.id }}",
               "type": "number"
             },
             {
@@ -343,7 +343,7 @@
             {
               "id": "3955c79a-0ac9-4466-b3af-ea56635f545a",
               "name": "account_id",
-              "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
+              "value": "={{ $('Webhook1').item.json.body.account.id }}",
               "type": "number"
             },
             {
@@ -586,7 +586,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const PRIORITARIAS = ['MAYORISTA', 'LISTO_COMPRAR', 'HOSTIL', 'RECLAMO'];\nconst ORDEN_INFORMATIVAS = ['TECNICA', 'PRECIO_COMBO_STOCK', 'INFO_NEGOCIO'];\n\nconst raw = ($json.output || '').toString().trim().toUpperCase();\nconst partes = [...new Set(raw.split(',').map(s => s.trim()).filter(Boolean))];\n\nconst prioritariaEncontrada = PRIORITARIAS.find(p => partes.includes(p));\n\nlet categorias;\nif (prioritariaEncontrada) {\n  categorias = [prioritariaEncontrada];\n} else {\n  const informativasEncontradas = ORDEN_INFORMATIVAS.filter(c => partes.includes(c));\n  categorias = informativasEncontradas.length ? informativasEncontradas : ['OTRO'];\n}\n\nreturn [{\n  json: {\n    categoria: categorias[0],\n    categorias,\n    key: $('datos_finales2').item.json.key,\n    texto: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.sender.account.id\n  }\n}];\n"
+        "jsCode": "const PRIORITARIAS = ['MAYORISTA', 'LISTO_COMPRAR', 'HOSTIL', 'RECLAMO'];\nconst ORDEN_INFORMATIVAS = ['TECNICA', 'PRECIO_COMBO_STOCK', 'INFO_NEGOCIO'];\n\nconst raw = ($json.output || '').toString().trim().toUpperCase();\nconst partes = [...new Set(raw.split(',').map(s => s.trim()).filter(Boolean))];\n\nconst prioritariaEncontrada = PRIORITARIAS.find(p => partes.includes(p));\n\nlet categorias;\nif (prioritariaEncontrada) {\n  categorias = [prioritariaEncontrada];\n} else {\n  const informativasEncontradas = ORDEN_INFORMATIVAS.filter(c => partes.includes(c));\n  categorias = informativasEncontradas.length ? informativasEncontradas : ['OTRO'];\n}\n\nreturn [{\n  json: {\n    categoria: categorias[0],\n    categorias,\n    key: $('datos_finales2').item.json.key,\n    texto: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.account.id\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -833,7 +833,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -931,7 +931,7 @@
             {
               "id": "97d45677-9e9d-41ee-b22b-90010ed1695c",
               "name": "account_id",
-              "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
+              "value": "={{ $('Webhook1').item.json.body.account.id }}",
               "type": "string"
             }
           ]
@@ -1026,7 +1026,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1107,7 +1107,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let modelo = '';\nlet kit = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  modelo = (parsed.modelo_moto || '').toString().trim();\n  kit = (parsed.kit || '').toString().trim();\n} catch (e) {\n  // si no se pudo parsear, quedan vacios y va a caer en 'no encontrado' -> escala igual\n}\n\n// escapado basico de comillas simples para uso en SQL embebido\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    modelo_moto: modelo,\n    kit: kit,\n    modelo_moto_sql: escapar(modelo),\n    kit_sql: escapar(kit),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.sender.account.id\n  }\n}];\n"
+        "jsCode": "let modelo = '';\nlet kit = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  modelo = (parsed.modelo_moto || '').toString().trim();\n  kit = (parsed.kit || '').toString().trim();\n} catch (e) {\n  // si no se pudo parsear, quedan vacios y va a caer en 'no encontrado' -> escala igual\n}\n\n// escapado basico de comillas simples para uso en SQL embebido\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    modelo_moto: modelo,\n    kit: kit,\n    modelo_moto_sql: escapar(modelo),\n    kit_sql: escapar(kit),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.account.id\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1293,7 +1293,7 @@
           "conditions": [
             {
               "id": "827d58d7-d256-4928-bfe7-e674f660bae2",
-              "leftValue": "={{ $json.body.conversation.messages[0].message_type }}",
+              "leftValue": "={{ $json.body.message_type }}",
               "rightValue": "outgoing",
               "operator": {
                 "type": "string",
@@ -1302,8 +1302,8 @@
             },
             {
               "id": "8405ff54-e00b-4f4f-b498-2941e22b8cfd",
-              "leftValue": "={{ $json.body.conversation.messages[0].sender_type }}",
-              "rightValue": "User",
+              "leftValue": "={{ $json.body.sender.type }}",
+              "rightValue": "user",
               "operator": {
                 "type": "string",
                 "operation": "equals"
@@ -1385,9 +1385,9 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=Preguntas tecnicas pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': modelo \"' + p.modelo_moto + '\", kit \"' + p.kit + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
+        "text": "=Preguntas tecnicas pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': modelo \"' + p.modelo_moto + '\", kit \"' + p.kit + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.content }}",
         "options": {
-          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y si esa respuesta confirma o descarta la compatibilidad. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"compatible\": true o false, \"detalle\": \"informacion adicional o string vacio\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese modelo/kit (o es una confirmacion/negacion generica que tiene sentido para esa pregunta), esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un modelo o kit distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual.\n\nIMPORTANTE sobre \"detalle\": la frase de confirmacion o negacion (\"Sí, el kit X es compatible con la Y\" / \"No, no es compatible\") se arma aparte automaticamente a partir del campo \"compatible\", así que NO la repitas ni la parafrasees en \"detalle\" — eso genera respuestas redundantes para el cliente. Usá \"detalle\" UNICAMENTE para informacion adicional que el equipo haya agregado y que no sea esa simple confirmacion (ej: \"pero hay que cambiar tambien el carburador\", \"nos queda una sola unidad en stock\"). Si la respuesta del equipo es solo un sí/no sin nada mas que agregar, dejá \"detalle\" como string vacio \"\".\n\nCuando \"detalle\" no este vacio, redactalo en primera persona del plural, como si vos mismo fueras parte del equipo del negocio hablandole directo al cliente (ej: \"pero hay que cambiar tambien el carburador\"). NUNCA en tercera persona ni menciones al equipo (mal: \"el equipo confirma que...\", \"segun nos informaron...\", \"ellos dijeron que...\"). No es un resumen de lo que dijo alguien puertas adentro, es texto que se le manda tal cual al cliente."
+          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"aplica\": true o false, \"compatible\": true o false (solo relevante si \"aplica\" es true, si no poné false), \"detalle\": \"informacion adicional o string vacio\", \"mensaje_cliente\": \"respuesta final y completa, lista para mandarle al cliente\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese modelo/kit (o es una confirmacion/negacion generica que tiene sentido para esa pregunta), esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un modelo o kit distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual.\n\n\"aplica\" es true UNICAMENTE si la respuesta del equipo confirma o descarta explicitamente la compatibilidad (un si/no claro, aunque venga acompañado de mas info). Si el equipo respondio otra cosa -precio, stock, disponibilidad, plazos de entrega, o cualquier informacion que no diga si es compatible o no- poné \"aplica\": false: en ese caso NO inventes un si o un no de compatibilidad.\n\nIMPORTANTE sobre \"detalle\": solo se completa cuando \"aplica\" es true, y es UNICAMENTE la info adicional que el equipo haya agregado ademas del si/no (ej: \"pero hay que cambiar tambien el carburador\", \"nos queda una sola unidad en stock\"). No repitas ahi la confirmacion/negacion. Si \"aplica\" es false, dejalo como string vacio \"\".\n\n\"mensaje_cliente\" es el texto COMPLETO y listo para mandarle al cliente, redactado en primera persona del plural como si vos mismo fueras parte del equipo del negocio (ej: \"Sí, el kit X es compatible con la Y.\" / \"No, el kit X no es compatible con la Y, pero lo podemos conseguir bajo pedido.\"). Si \"aplica\" es false porque el equipo respondio otra cosa (precio, stock, etc.), comunicale esa informacion tal cual en \"mensaje_cliente\", sin mencionar compatibilidad. NUNCA en tercera persona ni menciones al equipo (mal: \"el equipo confirma que...\", \"segun nos informaron...\", \"ellos dijeron que...\"). Nunca dejes una oracion con datos faltantes o cortada a mitad de camino (ej \"no es compatible con la .\"): si falta el modelo de moto o el kit en los datos que tenés, redactá igual una respuesta completa y natural con la info que sí tenés, sin dejar huecos."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -1404,7 +1404,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let compatible = null, detalle = '', confianza = 'baja', preguntaIdRaw = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  compatible = !!parsed.compatible;\n  detalle = (parsed.detalle || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match) {\n  confianza = 'baja';\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    compatible,\n    detalle,\n    detalle_sql: escapar(detalle),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    modelo_moto: match ? (match.modelo_moto || '') : '',\n    kit: match ? (match.kit || '') : '',\n    modelo_moto_sql: escapar(match ? (match.modelo_moto || '') : ''),\n    kit_sql: escapar(match ? (match.kit || '') : '')\n  }\n}];\n"
+        "jsCode": "let aplica = false, compatible = false, detalle = '', mensajeCliente = '', confianza = 'baja', preguntaIdRaw = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  aplica = !!parsed.aplica;\n  compatible = aplica ? !!parsed.compatible : false;\n  detalle = aplica ? (parsed.detalle || '').toString() : '';\n  mensajeCliente = (parsed.mensaje_cliente || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || !mensajeCliente) {\n  confianza = 'baja';\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    aplica,\n    compatible,\n    detalle,\n    detalle_sql: escapar(detalle),\n    mensaje_cliente: mensajeCliente,\n    confianza,\n    pregunta_id: match ? match.id : null,\n    modelo_moto: match ? (match.modelo_moto || '') : '',\n    kit: match ? (match.kit || '') : '',\n    modelo_moto_sql: escapar(match ? (match.modelo_moto || '') : ''),\n    kit_sql: escapar(match ? (match.kit || '') : '')\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1447,6 +1447,40 @@
       ],
       "id": "5b72ac5c-5980-4317-b9f3-61bc49a2357b",
       "name": "¿Extraccion Confiable?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-aplica-compat-if",
+              "leftValue": "={{ $json.aplica }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        12880,
+        64128
+      ],
+      "id": "gen-aplica-compat-node",
+      "name": "¿Aplica Compatibilidad?"
     },
     {
       "parameters": {
@@ -1673,7 +1707,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let tema = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  tema = (parsed.tema || '').toString().trim().toLowerCase();\n} catch (e) {\n  // si no se pudo parsear, queda vacio -> no matchea nada -> escala igual\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    tema: tema,\n    tema_sql: escapar(tema),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.sender.account.id\n  }\n}];\n"
+        "jsCode": "let tema = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  tema = (parsed.tema || '').toString().trim().toLowerCase();\n} catch (e) {\n  // si no se pudo parsear, queda vacio -> no matchea nada -> escala igual\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    tema: tema,\n    tema_sql: escapar(tema),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.account.id\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1930,7 +1964,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=Preguntas sobre el negocio pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': tema \"' + p.tema + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
+        "text": "=Preguntas sobre el negocio pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': tema \"' + p.tema + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.content }}",
         "options": {
           "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y resumila en una oracion clara y directa, lista para reutilizar cuando otro cliente pregunte lo mismo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro a cual de varias corresponde>, \"respuesta\": \"resumen breve y claro\", \"confianza\": \"alta\" o \"baja\"}\n\nSi hay una sola pregunta en la lista Y la respuesta del equipo claramente se refiere a ese tema, esa es la que se esta respondiendo. Pero si el contenido de la respuesta habla de un tema distinto al de la unica pregunta pendiente, NO asumas que es esa pregunta: poné \"confianza\": \"baja\" y \"pregunta_id\": null. Lo mismo si hay mas de una pendiente y no queda claro cual, o la respuesta del equipo es ambigua.\n\nEl campo \"respuesta\" tiene que quedar redactado en primera persona del plural, como si vos mismo fueras parte del equipo del negocio hablandole directo al cliente (ej: \"atendemos de lunes a viernes de 9 a 18 hs\", \"aceptamos transferencia y efectivo\"). NUNCA en tercera persona ni menciones al equipo (mal: \"el equipo confirma que...\", \"segun nos informaron...\", \"ellos dijeron que...\"). No es un resumen de lo que dijo alguien puertas adentro, es la respuesta final que se le manda tal cual al cliente."
         }
@@ -2048,7 +2082,7 @@
             {
               "id": "06de7d93-6a8e-4d5e-a8ac-bfb3d8452746",
               "name": "content",
-              "value": "={{ (() => {\n  const compatible = $('Parsear Respuesta').item.json.compatible;\n  const kit = ($('Parsear Respuesta').item.json.kit || '').trim();\n  const modelo = $('Parsear Respuesta').item.json.modelo_moto;\n  const detalle = ($('Parsear Respuesta').item.json.detalle || '').trim();\n  if (!kit) return detalle;\n  const intro = (compatible ? 'Sí, el ' : 'No, el ') + kit + (compatible ? ' es compatible con la ' : ' no es compatible con la ') + modelo + '.';\n  return detalle ? intro + ' ' + detalle : intro;\n})() }}",
+              "value": "={{ $('Parsear Respuesta').item.json.mensaje_cliente }}",
               "type": "string"
             }
           ]
@@ -2067,7 +2101,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -2124,7 +2158,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -2258,7 +2292,7 @@
           "conditions": [
             {
               "id": "gen-c86b46240836",
-              "leftValue": "={{ !!$json.eco && $json.eco.includes(($('Webhook1').item.json.body.conversation.messages[0].content || '').trim()) && ($('Webhook1').item.json.body.conversation.messages[0].content || '').trim() !== '' }}",
+              "leftValue": "={{ !!$json.eco && $json.eco.includes(($('Webhook1').item.json.body.content || '').trim()) && ($('Webhook1').item.json.body.content || '').trim() !== '' }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -2303,7 +2337,7 @@
           "conditions": [
             {
               "id": "gen-9d03749641c4",
-              "leftValue": "={{ ($('Webhook1').item.json.body.conversation.messages[0].content || '').trim().toLowerCase() }}",
+              "leftValue": "={{ ($('Webhook1').item.json.body.content || '').trim().toLowerCase() }}",
               "rightValue": "/bot on",
               "operator": {
                 "type": "string",
@@ -2625,7 +2659,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let producto = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  producto = (parsed.producto || '').toString().trim();\n} catch (e) {\n  // si no se pudo parsear, queda vacio -> no matchea nada -> escala igual\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    producto: producto,\n    producto_sql: escapar(producto),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.sender.account.id\n  }\n}];\n"
+        "jsCode": "let producto = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  producto = (parsed.producto || '').toString().trim();\n} catch (e) {\n  // si no se pudo parsear, queda vacio -> no matchea nada -> escala igual\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    producto: producto,\n    producto_sql: escapar(producto),\n    texto_original: $('datos_finales2').item.json.texto,\n    conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').item.json.body.account.id\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2916,9 +2950,9 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=Preguntas de precio/stock pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': producto \"' + p.producto + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.conversation.messages[0].content }}",
+        "text": "=Preguntas de precio/stock pendientes en esta conversacion (puede haber mas de una):\n{{ $json.pendientes.map(p => '- id ' + p.id + ': producto \"' + p.producto + '\"').join('\\n') }}\n\nRespuesta que acaba de dar el equipo: {{ $('Webhook1').item.json.body.content }}",
         "options": {
-          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo, y extraé el precio y/o stock que informo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro>, \"precio\": \"precio informado o vacio si no lo dio\", \"stock\": \"stock informado (ej. 'hay stock', 'no hay', '3 unidades') o vacio si no lo dio\", \"detalle\": \"informacion adicional o string vacio\", \"confianza\": \"alta\" o \"baja\"}\n\nUsa \"confianza\": \"baja\" si la respuesta es ambigua, no da ni precio ni stock con claridad, no queda claro a cual pregunta corresponde (cuando hay mas de una pendiente), o el producto del que habla la respuesta no tiene nada que ver con el producto de la unica pregunta pendiente (en ese caso no asumas que es esa).\n\nIMPORTANTE sobre \"detalle\": el precio y el stock ya se le informan al cliente aparte, automaticamente, a partir de los campos \"precio\" y \"stock\", así que NO los repitas ni los parafrasees en \"detalle\" — eso genera respuestas redundantes. Usá \"detalle\" UNICAMENTE para informacion adicional que no sea el precio/stock en si (ej: \"lo podemos conseguir en 2 dias\", \"ese precio no incluye el envio\"). Si la respuesta del equipo no tiene nada mas que agregar, dejá \"detalle\" como string vacio \"\".\n\nCuando \"detalle\" no este vacio, redactalo en primera persona del plural, como si vos mismo fueras parte del equipo del negocio hablandole directo al cliente (ej: \"lo podemos conseguir en 2 dias\"). NUNCA en tercera persona ni menciones al equipo (mal: \"el equipo confirma que...\", \"segun nos informaron...\", \"ellos dijeron que...\")."
+          "systemMessage": "Analiza a cual de las preguntas pendientes listadas corresponde la respuesta del equipo. Respondé UNICAMENTE con un JSON valido, sin texto adicional:\n{\"pregunta_id\": <id de la pregunta que esta respondiendo, o null si no queda claro>, \"aplica\": true o false, \"precio\": \"precio informado o vacio\", \"stock\": \"stock informado (ej. 'hay stock', 'no hay', '3 unidades') o vacio\", \"detalle\": \"informacion adicional o string vacio\", \"mensaje_cliente\": \"respuesta final y completa, lista para mandarle al cliente\", \"confianza\": \"alta\" o \"baja\"}\n\nUsa \"confianza\": \"baja\" si no queda claro a cual pregunta corresponde (cuando hay mas de una pendiente), o el producto del que habla la respuesta no tiene nada que ver con el producto de la unica pregunta pendiente (en ese caso no asumas que es esa).\n\n\"aplica\" es true si la respuesta del equipo da precio y/o stock del producto en cuestion. Si la respuesta es ambigua o no tiene nada que ver con precio/stock de ese producto, poné \"aplica\": false, \"precio\" y \"stock\" vacios — pero igual redactá \"mensaje_cliente\" con lo que el equipo haya dicho, sin inventar un precio o stock que no te dieron.\n\nIMPORTANTE sobre \"detalle\": el precio y el stock ya se le informan al cliente aparte, asi que NO los repitas ni los parafrasees en \"detalle\" — eso genera respuestas redundantes. Usá \"detalle\" UNICAMENTE para informacion adicional que no sea el precio/stock en si (ej: \"lo podemos conseguir en 2 dias\", \"ese precio no incluye el envio\"). Si no hay nada mas que agregar, dejá \"detalle\" vacio.\n\n\"mensaje_cliente\" es el texto COMPLETO y listo para mandarle al cliente, redactado en primera persona del plural como si vos mismo fueras parte del equipo del negocio (ej: \"El kit sale $110.000 e incluye las 2 camaras.\"). NUNCA en tercera persona ni menciones al equipo (mal: \"el equipo confirma que...\", \"segun nos informaron...\", \"ellos dijeron que...\"). Nunca dejes la oracion con datos faltantes o cortada: si falta el nombre exacto del producto, redactá igual una respuesta completa y natural con la info que sí tenés."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -2935,7 +2969,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let precio = '', stock = '', detalle = '', confianza = 'baja', preguntaIdRaw = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  precio = (parsed.precio || '').toString();\n  stock = (parsed.stock || '').toString();\n  detalle = (parsed.detalle || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Precio Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || (!precio && !stock)) {\n  confianza = 'baja';\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    precio, stock, detalle,\n    precio_sql: escapar(precio), stock_sql: escapar(stock), detalle_sql: escapar(detalle),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    producto: match ? (match.producto || '') : '',\n    producto_sql: escapar(match ? (match.producto || '') : '')\n  }\n}];\n"
+        "jsCode": "let aplica = false, precio = '', stock = '', detalle = '', mensajeCliente = '', confianza = 'baja', preguntaIdRaw = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  aplica = !!parsed.aplica;\n  precio = aplica ? (parsed.precio || '').toString() : '';\n  stock = aplica ? (parsed.stock || '').toString() : '';\n  detalle = aplica ? (parsed.detalle || '').toString() : '';\n  mensajeCliente = (parsed.mensaje_cliente || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Precio Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || !mensajeCliente) {\n  confianza = 'baja';\n}\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    aplica,\n    precio, stock, detalle,\n    precio_sql: escapar(precio), stock_sql: escapar(stock), detalle_sql: escapar(detalle),\n    mensaje_cliente: mensajeCliente,\n    confianza,\n    pregunta_id: match ? match.id : null,\n    producto: match ? (match.producto || '') : '',\n    producto_sql: escapar(match ? (match.producto || '') : '')\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2978,6 +3012,40 @@
       ],
       "id": "9d8b0db2-903d-4b83-9d24-58ec5643d364",
       "name": "¿Extraccion Confiable Precio?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "gen-aplica-precio-if",
+              "leftValue": "={{ $json.aplica }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        18320,
+        66480
+      ],
+      "id": "gen-aplica-precio-node",
+      "name": "¿Aplica Precio/Stock?"
     },
     {
       "parameters": {
@@ -3034,7 +3102,7 @@
             {
               "id": "gen-36a1d22ad636",
               "name": "content",
-              "value": "={{ (() => {\n  const producto = $('Parsear Respuesta Precio').item.json.producto;\n  const precio = $('Parsear Respuesta Precio').item.json.precio;\n  const stock = $('Parsear Respuesta Precio').item.json.stock;\n  const detalle = ($('Parsear Respuesta Precio').item.json.detalle || '').trim();\n  let out = 'Sobre ' + producto + ': ';\n  if (precio) out += 'precio ' + precio + '. ';\n  if (stock) out += 'Stock: ' + stock + '. ';\n  out = out.trim();\n  return detalle ? out + ' ' + detalle : out;\n})() }}",
+              "value": "={{ $('Parsear Respuesta Precio').item.json.mensaje_cliente }}",
               "type": "string"
             }
           ]
@@ -3053,7 +3121,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -4209,7 +4277,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst encontrados = items.filter(i => i.json.resultado_tipo === 'encontrado');\nconst pendientes = items.filter(i => i.json.resultado_tipo === 'pendiente');\n\nreturn [{\n  json: {\n    dato_compatibilidad: encontrados.map(i => i.json.dato_compatibilidad).join('\\n'),\n    hay_encontrados: encontrados.length > 0,\n    hay_pendientes: pendientes.length > 0,\n    motivo: pendientes.map(i => i.json.motivo).join(' | '),\n    labels: [...new Set(pendientes.map(i => i.json.label))],\n    conversation_id: $('Webhook1').first().json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').first().json.body.sender.account.id,\n  },\n  // pairedItem explicito: al consolidar N items (uno por intencion) en 1 solo,\n  // n8n no puede inferir el mapeo automaticamente. Todos los N items comparten\n  // el mismo origen (el mensaje unico que disparo Expandir Intenciones), asi que\n  // enlazar con el item 0 de esta misma tanda alcanza para no romper la cadena\n  // de referencias $('nodo').item mas adelante (ej Traer Historial (Multi)).\n  pairedItem: { item: 0 },\n}];\n"
+        "jsCode": "const items = $input.all();\nconst encontrados = items.filter(i => i.json.resultado_tipo === 'encontrado');\nconst pendientes = items.filter(i => i.json.resultado_tipo === 'pendiente');\n\nreturn [{\n  json: {\n    dato_compatibilidad: encontrados.map(i => i.json.dato_compatibilidad).join('\\n'),\n    hay_encontrados: encontrados.length > 0,\n    hay_pendientes: pendientes.length > 0,\n    motivo: pendientes.map(i => i.json.motivo).join(' | '),\n    labels: [...new Set(pendientes.map(i => i.json.label))],\n    conversation_id: $('Webhook1').first().json.body.conversation.messages[0].conversation_id,\n    account_id: $('Webhook1').first().json.body.account.id,\n  },\n  // pairedItem explicito: al consolidar N items (uno por intencion) en 1 solo,\n  // n8n no puede inferir el mapeo automaticamente. Todos los N items comparten\n  // el mismo origen (el mensaje unico que disparo Expandir Intenciones), asi que\n  // enlazar con el item 0 de esta misma tanda alcanza para no romper la cadena\n  // de referencias $('nodo').item mas adelante (ej Traer Historial (Multi)).\n  pairedItem: { item: 0 },\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -4447,7 +4515,7 @@
             {
               "id": "8e770ebc-7f4d-4e04-9550-a773bde4c9dc",
               "name": "account_id",
-              "value": "={{ $('Webhook1').item.json.body.sender.account.id }}",
+              "value": "={{ $('Webhook1').item.json.body.account.id }}",
               "type": "string"
             }
           ]
@@ -4735,7 +4803,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -4872,7 +4940,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.sender.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -6091,7 +6159,7 @@
       "main": [
         [
           {
-            "node": "Guardar en Compatibilidades",
+            "node": "¿Aplica Compatibilidad?",
             "type": "main",
             "index": 0
           }
@@ -6099,6 +6167,24 @@
         [
           {
             "node": "Fin - Extraccion No Confiable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Aplica Compatibilidad?": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Compatibilidades",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar Pregunta Respondida",
             "type": "main",
             "index": 0
           }
@@ -6394,12 +6480,18 @@
       "main": [
         [
           {
-            "node": "Responder Cliente - Aprendizaje Tecnico",
+            "node": "Marcar Auto-Eco - Aprendizaje Tecnico",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Marcar Auto-Eco - Aprendizaje Tecnico": {
+      "main": [
+        [
           {
-            "node": "Marcar Auto-Eco - Aprendizaje Tecnico",
+            "node": "Responder Cliente - Aprendizaje Tecnico",
             "type": "main",
             "index": 0
           }
@@ -6421,12 +6513,18 @@
       "main": [
         [
           {
-            "node": "Responder Cliente - Aprendizaje Negocio",
+            "node": "Marcar Auto-Eco - Aprendizaje Negocio",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Marcar Auto-Eco - Aprendizaje Negocio": {
+      "main": [
+        [
           {
-            "node": "Marcar Auto-Eco - Aprendizaje Negocio",
+            "node": "Responder Cliente - Aprendizaje Negocio",
             "type": "main",
             "index": 0
           }
@@ -6797,7 +6895,7 @@
       "main": [
         [
           {
-            "node": "Guardar en Precios Stock",
+            "node": "¿Aplica Precio/Stock?",
             "type": "main",
             "index": 0
           }
@@ -6805,6 +6903,24 @@
         [
           {
             "node": "Fin - Extraccion No Confiable",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Aplica Precio/Stock?": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Precios Stock",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Marcar Pregunta Precio Respondida",
             "type": "main",
             "index": 0
           }
@@ -6837,12 +6953,18 @@
       "main": [
         [
           {
-            "node": "Responder Cliente - Aprendizaje Precio",
+            "node": "Marcar Auto-Eco - Aprendizaje Precio",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Marcar Auto-Eco - Aprendizaje Precio": {
+      "main": [
+        [
           {
-            "node": "Marcar Auto-Eco - Aprendizaje Precio",
+            "node": "Responder Cliente - Aprendizaje Precio",
             "type": "main",
             "index": 0
           }
@@ -7697,12 +7819,18 @@
       "main": [
         [
           {
-            "node": "Enviar Saludo Kit",
+            "node": "Marcar Auto-Eco - Saludo Kit",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Marcar Auto-Eco - Saludo Kit": {
+      "main": [
+        [
           {
-            "node": "Marcar Auto-Eco - Saludo Kit",
+            "node": "Enviar Saludo Kit",
             "type": "main",
             "index": 0
           }
@@ -7746,12 +7874,18 @@
       "main": [
         [
           {
-            "node": "Enviar Pregunta Ambigua",
+            "node": "Marcar Auto-Eco - Pregunta Ambigua",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Marcar Auto-Eco - Pregunta Ambigua": {
+      "main": [
+        [
           {
-            "node": "Marcar Auto-Eco - Pregunta Ambigua",
+            "node": "Enviar Pregunta Ambigua",
             "type": "main",
             "index": 0
           }

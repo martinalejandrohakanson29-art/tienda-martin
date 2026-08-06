@@ -27,6 +27,7 @@ import {
     despacharColaAhora,
     editarRespuesta,
     obtenerPanelBot,
+    reintentarFallidas,
     reintentarRespuesta,
     type PanelBot,
     type RespuestaEnCola,
@@ -170,11 +171,32 @@ export function ColaClient({
                 </p>
             )}
 
-            {conError > 0 && (
-                <p className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
-                    {conError} {conError === 1 ? "respuesta falló" : "respuestas fallaron"} al salir. Mirá el motivo
-                    debajo del mensaje y reintentá.
+            {panel && !panel.tokenChatwoot && (
+                <p className="flex items-start gap-2 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>
+                        Falta <code>CHATWOOT_API_TOKEN</code> en el servicio de la web: las respuestas se encolan pero
+                        ninguna puede salir. Cargala en Easypanel (el mismo token del usuario Bot que usa n8n),
+                        reiniciá el contenedor y volvé a encolar lo que falló.
+                    </span>
                 </p>
+            )}
+
+            {conError > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800">
+                    <span>
+                        {conError} {conError === 1 ? "respuesta falló" : "respuestas fallaron"} al salir. Mirá el
+                        motivo debajo del mensaje.
+                    </span>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={pendiente}
+                        onClick={() => correr(reintentarFallidas)}
+                    >
+                        <RotateCcw className="mr-2 h-4 w-4" /> Reintentar las {conError}
+                    </Button>
+                </div>
             )}
 
             {grupos.length === 0 && !fallo && (

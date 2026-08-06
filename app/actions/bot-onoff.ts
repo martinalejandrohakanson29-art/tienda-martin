@@ -7,6 +7,7 @@ import {
     contarPendientes,
     getEstadoBot,
     setEstadoBot,
+    tieneTokenChatwoot,
     type EstadoRespuesta,
     type RespuestaPendiente,
 } from "@/lib/chatwoot-bot"
@@ -34,6 +35,8 @@ export type PanelBot = {
     actualizadoPor: string | null
     pendientes: number
     despachando: boolean
+    /** false = falta CHATWOOT_API_TOKEN en el servicio de la web */
+    tokenChatwoot: boolean
     cola: RespuestaEnCola[]
 }
 
@@ -80,6 +83,7 @@ export async function obtenerPanelBot(): Promise<PanelBot> {
             actualizadoPor: estado.actualizadoPor,
             pendientes,
             despachando: despachoEnCurso(),
+            tokenChatwoot: tieneTokenChatwoot(),
             cola: cola.map(serializar),
         }
     } catch (error) {
@@ -152,6 +156,26 @@ export async function reintentarRespuesta(id: number) {
         WHERE id = ${id} AND estado IN ('error', 'enviando', 'descartado')
     `
     revalidatePath("/admin/chatwoot/cola")
+}
+
+/**
+ * Vuelve a encolar todo lo que falló de una. Es lo que hace falta después de
+ * arreglar la causa común (por ejemplo, cargar el token de Chatwoot que le
+ * faltaba a la app): sin esto habría que reintentar respuesta por respuesta.
+ */
+export async function reintentarFallidas() {
+    await requireAdmin()
+    const filas = await prisma.$executeRaw`
+        UPDATE respuestas_pendientes
+        SET estado = 'pendiente', motivo = NULL
+        WHERE estado IN ('error', 'enviando')
+    `
+    const { encendido } = await getEstadoBot()
+    if (encendido && Number(filas) > 0) despacharColaEnSegundoPlano()
+
+    revalidatePath("/admin/chatwoot")
+    revalidatePath("/admin/chatwoot/cola")
+    return { reencoladas: Number(filas) }
 }
 
 /** Corrige el texto antes de que salga (por ejemplo si cambió un precio). */

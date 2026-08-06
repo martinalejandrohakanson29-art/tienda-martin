@@ -110,6 +110,16 @@ export function BotOnOffPanel({ inicial, error }: { inicial: PanelBot | null; er
                                 {panel.despachando ? " · saliendo ahora" : " · ver la cola"}
                             </Link>
                         )}
+                        {!panel.tokenChatwoot && (
+                            <p className="mt-2 flex items-start gap-1.5 text-sm text-red-600">
+                                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>
+                                    Falta <code>CHATWOOT_API_TOKEN</code> en el servicio de la web. Los mensajes se
+                                    encolan igual, pero ninguno va a poder salir hasta que esté cargada (y el
+                                    contenedor reiniciado).
+                                </span>
+                            </p>
+                        )}
                         {fallo && <p className="mt-2 text-sm text-red-600">{fallo}</p>}
                     </div>
                 </div>

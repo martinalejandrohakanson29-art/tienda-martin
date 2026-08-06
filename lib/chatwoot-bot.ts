@@ -149,6 +149,14 @@ export async function encolarRespuesta(params: {
     return filas[0].id
 }
 
+/**
+ * ¿La app tiene con qué hablarle a Chatwoot? Sin token el bot igual encola todo,
+ * pero al prenderlo cada respuesta falla de a una. Conviene avisarlo antes.
+ */
+export function tieneTokenChatwoot() {
+    return Boolean(chatwootConfig().token)
+}
+
 export async function contarPendientes(): Promise<number> {
     const filas = await prisma.$queryRaw<{ n: bigint }[]>`
         SELECT count(*)::bigint AS n FROM respuestas_pendientes WHERE estado IN ('pendiente', 'enviando', 'error')

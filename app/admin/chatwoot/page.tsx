@@ -1,10 +1,22 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, BrainCircuit } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock } from "lucide-react"
 import Link from "next/link"
+import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
+import { BotOnOffPanel } from "./bot-onoff-panel"
 
 export const dynamic = "force-dynamic"
 
-export default function ChatwootPage() {
+export default async function ChatwootPage() {
+    // El panel ON/OFF necesita las tablas de n8n-workflows/bot-onoff.sql. Si
+    // todavía no se corrieron, el resto de la pantalla tiene que seguir andando.
+    let panelBot: PanelBot | null = null
+    let errorBot: string | null = null
+    try {
+        panelBot = await obtenerPanelBot()
+    } catch (e) {
+        errorBot = e instanceof Error ? e.message : "No se pudo leer el estado del bot"
+    }
+
     const secciones = [
         {
             title: "Mensajes Mayoristas",
@@ -21,6 +33,13 @@ export default function ChatwootPage() {
             color: "border-l-4 border-l-amber-500"
         },
         {
+            title: "Respuestas en cola",
+            description: "Lo que el bot dejó listo mientras estuvo en pausa. Revisá, editá o descartá antes de que salga.",
+            icon: <Clock className="h-8 w-8 text-sky-600" />,
+            href: "/admin/chatwoot/cola",
+            color: "border-l-4 border-l-sky-500"
+        },
+        {
             title: "Prueba de Mensajes",
             description: "Simulá un mensaje entrante de WhatsApp y probá el workflow de n8n sin depender de un mensaje real.",
             icon: <Bot className="h-8 w-8 text-violet-600" />,
@@ -35,6 +54,8 @@ export default function ChatwootPage() {
                 <h1 className="text-3xl font-bold tracking-tight">Chatwoot</h1>
                 <p className="text-gray-500">Gestión de mensajería por WhatsApp y herramientas de prueba del workflow de n8n.</p>
             </div>
+
+            <BotOnOffPanel inicial={panelBot} error={errorBot} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {secciones.map((seccion, index) => (

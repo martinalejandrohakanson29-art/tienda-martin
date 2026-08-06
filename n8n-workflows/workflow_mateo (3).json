@@ -833,13 +833,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.app_url }}/api/chatwoot/enviar",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "api_access_token",
-              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.N8N_SECRET_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -849,8 +849,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ content: $json.message, message_type: 'outgoing' }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id, account_id: $('Webhook1').item.json.body.account.id, content: $json.message, origen: 'respuesta', contacto: ($('Webhook1').item.json.body.conversation?.meta?.sender?.name || $('Webhook1').item.json.body.sender?.name || '') }) }}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -2132,13 +2134,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.app_url }}/api/chatwoot/enviar",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "api_access_token",
-              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.N8N_SECRET_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -2148,8 +2150,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id, account_id: $('Webhook1').item.json.body.account.id, content: $json.content, origen: 'aprendizaje_tecnico', contacto: ($('Webhook1').item.json.body.conversation?.meta?.sender?.name || $('Webhook1').item.json.body.sender?.name || '') }) }}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -2189,13 +2193,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.app_url }}/api/chatwoot/enviar",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "api_access_token",
-              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.N8N_SECRET_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -2205,8 +2209,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id, account_id: $('Webhook1').item.json.body.account.id, content: $json.content, origen: 'aprendizaje_negocio', contacto: ($('Webhook1').item.json.body.conversation?.meta?.sender?.name || $('Webhook1').item.json.body.sender?.name || '') }) }}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -3152,13 +3158,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.app_url }}/api/chatwoot/enviar",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "api_access_token",
-              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.N8N_SECRET_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -3168,8 +3174,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id, account_id: $('Webhook1').item.json.body.account.id, content: $json.content, origen: 'aprendizaje_precio', contacto: ($('Webhook1').item.json.body.conversation?.meta?.sender?.name || $('Webhook1').item.json.body.sender?.name || '') }) }}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -4834,13 +4842,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.app_url }}/api/chatwoot/enviar",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "api_access_token",
-              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.N8N_SECRET_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -4850,8 +4858,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id, account_id: $('Webhook1').item.json.body.account.id, content: $json.content, origen: 'saludo_kit', contacto: ($('Webhook1').item.json.body.conversation?.meta?.sender?.name || $('Webhook1').item.json.body.sender?.name || '') }) }}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -4971,13 +4981,13 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $('Config Chatwoot').item.json.chatwoot_api }}/accounts/{{ $('Webhook1').item.json.body.account.id }}/conversations/{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}/messages",
+        "url": "={{ $('Config Chatwoot').item.json.app_url }}/api/chatwoot/enviar",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "api_access_token",
-              "value": "={{ $('Config Chatwoot').item.json.chatwoot_token }}"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.N8N_SECRET_TOKEN }}"
             },
             {
               "name": "Content-Type",
@@ -4987,8 +4997,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ content: $json.content, message_type: 'outgoing' }) }}",
-        "options": {}
+        "jsonBody": "={{ JSON.stringify({ conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id, account_id: $('Webhook1').item.json.body.account.id, content: $json.content, origen: 'pregunta_ambigua', contacto: ($('Webhook1').item.json.body.conversation?.meta?.sender?.name || $('Webhook1').item.json.body.sender?.name || '') }) }}",
+        "options": {
+          "timeout": 20000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -5423,6 +5435,12 @@
               "name": "chatwoot_bot_user_id",
               "value": 2,
               "type": "number"
+            },
+            {
+              "id": "gen-app-url",
+              "name": "app_url",
+              "value": "https://revolucionmotos.tech",
+              "type": "string"
             }
           ]
         },
@@ -5589,6 +5607,22 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "content": "## Los mensajes al cliente salen por la app\n\nLos nodos que le hablan al cliente ya no le pegan directo a Chatwoot: le pegan a **`{app_url}/api/chatwoot/enviar`**.\n\nLa app mira la tabla `bot_estado`:\n\n- **bot encendido** -> reenvia el mensaje a Chatwoot igual que antes\n- **bot apagado** -> lo guarda en `respuestas_pendientes` y sale escalonado cuando lo prenden desde `/admin/chatwoot`\n\nTodo lo de arriba (clasificar, buscar, generar con el LLM, guardar el turno en `conversaciones_historial`) corre igual con el bot apagado: lo unico que se difiere es el mensaje que ve el cliente.\n\nLos envios internos (**Escalar - Nota Privada** y **Escalar - Agregar Label**) siguen yendo directo a Chatwoot: el cliente no los ve y conviene tenerlos al abrir el local.\n\n### Requisitos\n\n1. Correr `n8n-workflows/bot-onoff.sql` en el Postgres del bot.\n2. Variable **N8N_SECRET_TOKEN** en n8n, con el mismo valor que en la app.\n3. En la app: **CHATWOOT_API_URL**, **CHATWOOT_API_TOKEN** y **CHATWOOT_BOT_USER_ID** (el mismo id 2 del campo `chatwoot_bot_user_id` de Config Chatwoot: si la cola sale con otro usuario, el propio workflow lo lee como 'contesto un humano' y se pausa 30 dias).",
+        "height": 620,
+        "width": 460,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        16960,
+        63600
+      ],
+      "id": "gen-nota-bot-onoff",
+      "name": "Nota - Boton ON/OFF"
     }
   ],
   "pinData": {

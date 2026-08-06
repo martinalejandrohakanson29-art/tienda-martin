@@ -1,7 +1,14 @@
-# Pendiente: pasar el bot de WhatsApp del simulador a Chatwoot real
+# Migración a Chatwoot real: hecha, falta probar con tráfico real
 
-Estado al 2026-08-05. El workflow (`workflow_mateo (3).json`) está **importado, activo y
-verificado** en n8n, pero apuntando al **simulador** de `/admin/chatwoot/prueba`, no a Chatwoot.
+Estado al 2026-08-05. El workflow (`workflow_mateo (3).json`) está **importado, activo, y
+apuntando a Chatwoot real** (no al simulador). Los 3 datos pendientes se resolvieron y se
+confirmaron por API contra la instancia real de n8n. Falta el primer mensaje real de un cliente
+para validar de punta a punta.
+
+**Historial de esta migración (2026-08-05, tarde):** apareció un workflow viejo (`chatwoot (1).json`,
+ya borrado del repo) que funcionó contra la instancia real. Tenía los 3 datos pendientes escritos
+en texto plano — se verificaron contra la API real (llamadas de solo lectura) y se borró el archivo
+del disco antes de que llegara a versionarse. Quedan los hallazgos, sin los valores:
 
 ## Ya está hecho y verificado
 
@@ -14,43 +21,42 @@ verificado** en n8n, pero apuntando al **simulador** de `/admin/chatwoot/prueba`
 - Las 7 tablas del bot vaciadas: arranca sin conocimiento previo, aprende de lo que responda
   el equipo.
 
-## Lo que falta (3 datos)
+## Los 3 datos pendientes — los tres cerrados
 
-### 1. Token de Chatwoot
+### 1. Token de Chatwoot — cargado
 
-- **De dónde**: entrar a Chatwoot **con el usuario del bot** (el token es por usuario; no está en
-  la lista de agentes). Foto de perfil → Profile Settings → Access Token.
-  Para entrar como el bot hace falta su contraseña, que llega por el mail de invitación. Si el mail
-  no existe, recrear el agente con uno real (sirve el truco `tumail+bot@gmail.com`).
-  Alternativa rápida: usar el token propio; solo cambia a nombre de quién figuran las respuestas.
-- **Dónde va**: Easypanel → servicio **n8n** → Environment → `CHATWOOT_API_TOKEN`
-  (hoy tiene `mock-token-prueba`). Reiniciar n8n.
-- **No olvidar**: el agente bot tiene que ser **miembro del inbox de WhatsApp**
-  (Settings → Inboxes → el inbox → Collaborators). Sin eso, Chatwoot no lo deja responder.
+- Se usa el token del administrador (`martinalejandrohakanson29@gmail.com`), verificado activo
+  con `GET /api/v1/profile` (200 OK). Las respuestas del bot figuran a su nombre; se puede migrar
+  después a un agente dedicado sin tocar el workflow (solo cambiando el env var).
+- Cargado en Easypanel → servicio **n8n** → Environment → `CHATWOOT_API_TOKEN`, y n8n reiniciado.
+  El valor no se escribe en este archivo porque se versiona en git.
 
-### 2. Dirección de la API
+### 2. Dirección de la API — cargada
 
-- **Qué es**: la URL con la que se entra a Chatwoot + `/api/v1`, **sin barra final**.
-  Ej: `https://chat.revolucionmotos.tech/api/v1`
-- **Dónde va**: n8n → workflow_mateo → nodo **`Config Chatwoot`** → campo `chatwoot_api`.
-  Es el **único** lugar del workflow donde está escrita la dirección; los 10 nodos HTTP leen de ahí.
+- `https://chat.revolucionmotos.tech/api/v1`, confirmada real y activa.
+- Confirmado por API de n8n (`get_workflow_details`) que el nodo **`Config Chatwoot`** de la
+  instancia real ya tiene este valor en el campo `chatwoot_api` (antes tenía la URL del
+  simulador, `.../api/chatwoot/mock`). El JSON del repo (`workflow_mateo (3).json`) también
+  quedó actualizado para que coincidan.
+- De paso quedó confirmado `account_id: 1`.
 
-### 3. Webhook en Chatwoot
+### 3. Webhook en Chatwoot — corregido
 
-- Chatwoot → Settings → Integrations → Webhooks → Add new webhook.
-- URL: `https://n8n.revolucionmotos.tech/webhook/chatwoot-mensaje?token=EL_TOKEN`
-  donde `EL_TOKEN` es el valor de la variable **`CHATWOOT_WEBHOOK_TOKEN`** de Easypanel
-  (está en n8n y en la app, con el mismo valor). No se escribe acá a propósito: este archivo
-  se versiona en git.
-- Eventos: solo **Message created**.
+- Ya existía un webhook (id 1, "N8N HOSTINGER") de cuando se probó el workflow viejo, apuntando
+  a `https://n8n.revolucionmotos.tech/webhook/chatwoot-mensaje` pero sin el token de auth y con
+  un evento de más (`conversation_created`).
+- Se corrigió por API (`PATCH /api/v1/accounts/1/webhooks/1`): ahora la URL lleva
+  `?token=...` (el valor de `CHATWOOT_WEBHOOK_TOKEN`) y las suscripciones quedaron solo en
+  `message_created`.
 
 ## Qué mirar el primer día
 
-1. **Punto más probable de falla**: el workflow arma las URLs con `sender.account.id` del payload.
-   El simulador lo manda; no está confirmado que el Chatwoot real lo haga igual. Si al primer
-   mensaje real el bot no responde, revisar esto primero — el arreglo es usar `body.account.id`
-   como alternativa. Se diagnostica rápido con el MCP de n8n (`execute_workflow` devuelve el json
-   de entrada y salida de cada nodo).
+1. **Punto que ya no preocupa tanto**: el workflow arma las URLs con `sender.account.id` del
+   payload. Se dudaba si el Chatwoot real lo mandaba igual que el simulador. El payload real
+   capturado por el workflow viejo confirma que sí viene (`body.sender.account.id: 1`, y también
+   `body.account.id: 1` como alternativa por si hiciera falta). Si aun así al primer mensaje real
+   el bot no responde, revisar esto primero. Se diagnostica rápido con el MCP de n8n
+   (`execute_workflow` devuelve el json de entrada y salida de cada nodo).
 2. **El bot puede pausarse solo**: cuando responde, Chatwoot le avisa de su propio mensaje y el
    workflow lo ignora por el chequeo de auto-eco (`bot_msg:{conversation_id}` en Redis). Si ese
    aviso llegara después del TTL de esa clave, lo tomaría como "contestó un humano" y se pausaría

@@ -1,5 +1,11 @@
 # Migración a Chatwoot real: hecha, falta probar con tráfico real
 
+> **ANTES de importar la versión actual del workflow: correr `conocimiento-libre.sql` en la base.**
+> Crea la tabla `conocimiento_libre` y las funciones `rm_tokens` / `rm_score` / `rm_modelo_ok`,
+> de las que ahora dependen las 6 búsquedas del bot. Si se importa el workflow sin correr el SQL,
+> toda consulta a la base de conocimiento falla. El orden inverso (SQL primero, workflow después)
+> es seguro: el workflow viejo no usa nada de eso.
+
 Estado al 2026-08-05. El workflow (`workflow_mateo (3).json`) está **importado, activo, y
 apuntando a Chatwoot real** (no al simulador). Los 3 datos pendientes se resolvieron y se
 confirmaron por API contra la instancia real de n8n. Falta el primer mensaje real de un cliente

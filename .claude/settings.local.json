@@ -116,7 +116,9 @@
       "Bash(echo \"started pid $!\")",
       "Bash(timeout 20 bash -c 'until curl -sf http://localhost:3000 >/dev/null 2>&1; do sleep 1; done')",
       "Bash(rm -f \"C:\\\\Users\\\\User\\\\Desktop\\\\claude\\\\tienda-martin\\\\__profile_verify.js\")",
-      "Bash(mkdir -p __TRACKED_VAR__/ppt)"
+      "Bash(mkdir -p __TRACKED_VAR__/ppt)",
+      "Skill(update-config)",
+      "Bash(python -c \"import json; json.load\\(open\\(r'C:\\\\Users\\\\User\\\\.claude\\\\settings.json'\\)\\)\")"
     ]
   }
 }

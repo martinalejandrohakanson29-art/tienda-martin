@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote, Users, Power, Trash2, Mic, Square } from "lucide-react"
+import { Bot, Send, Loader2, RefreshCw, Check, AlertCircle, Settings2, Smile, Paperclip, Copy, CheckCheck, Tag, StickyNote, Users, Power, Trash2, Mic, Square, BrainCircuit } from "lucide-react"
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import { Label } from "@/components/ui/label"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -48,6 +48,15 @@ export default function PruebaMensajesPage() {
     // de prueba guardadas en el mock, no solo la actual)
     const [confirmBorrarTodoOpen, setConfirmBorrarTodoOpen] = useState(false)
     const [borrandoTodo, setBorrandoTodo] = useState(false)
+
+    // ESTADOS PARA "REINICIAR CONOCIMIENTO" (borra en Postgres todo lo que el
+    // bot fue aprendiendo: compatibilidades, info de negocio, precios/stock,
+    // preguntas pendientes e historial de conversaciones). A diferencia de
+    // "Borrar todo el historial" de arriba, esto toca la MISMA base que usa el
+    // bot real, no solo el mock.
+    const [confirmResetConocimientoOpen, setConfirmResetConocimientoOpen] = useState(false)
+    const [reiniciandoConocimiento, setReiniciandoConocimiento] = useState(false)
+    const [resetConocimientoError, setResetConocimientoError] = useState<string | null>(null)
 
     const chatRef = useRef<HTMLDivElement>(null)
     const settingsRef = useRef<HTMLDivElement>(null)
@@ -321,6 +330,25 @@ export default function PruebaMensajesPage() {
         }
     }
 
+    // REINICIAR CONOCIMIENTO: borra en Postgres compatibilidades, info de
+    // negocio, precios/stock, las 3 tablas de preguntas pendientes y el
+    // historial de conversaciones, para volver a probar un caso desde cero sin
+    // que la segunda vez la respuesta salga de memoria en vez de escalar de nuevo.
+    const handleReiniciarConocimiento = async () => {
+        setReiniciandoConocimiento(true)
+        setResetConocimientoError(null)
+        try {
+            const res = await fetch("/api/chatwoot/prueba-reset-conocimiento", { method: "DELETE" })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(data?.error || "No se pudo reiniciar el conocimiento")
+            setConfirmResetConocimientoOpen(false)
+        } catch (error) {
+            setResetConocimientoError(error instanceof Error ? error.message : "Error de conexión con el servidor")
+        } finally {
+            setReiniciandoConocimiento(false)
+        }
+    }
+
     const copiarMockUrl = () => {
         navigator.clipboard.writeText(mockBaseUrl).then(() => {
             setMockUrlCopiada(true)
@@ -357,6 +385,37 @@ export default function PruebaMensajesPage() {
                         {mockUrlCopiada ? <CheckCheck size={16} className="text-green-600" /> : <Copy size={16} />}
                     </Button>
                 </div>
+            </div>
+
+            {/* ---------------- REINICIAR CONOCIMIENTO (toca la base real del bot) ---------------- */}
+            <div className="mx-auto w-full max-w-xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
+                <p className="font-semibold text-red-900 flex items-center gap-1.5">
+                    <BrainCircuit size={16} />
+                    Reiniciar conocimiento del bot
+                </p>
+                <p className="mt-1 text-red-800">
+                    Borra en la base real (no en el mock) las compatibilidades, info de negocio, precios/stock,
+                    las preguntas pendientes y el historial de conversaciones que el bot fue guardando. Sirve para
+                    repetir un mismo caso de prueba sin que la segunda vez la respuesta salga de memoria. Como
+                    todavía no hay forma de distinguir una fila de prueba de una real, esto borra <strong>todo</strong>,
+                    sin importar el origen.
+                </p>
+                <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="mt-2 gap-1.5"
+                    onClick={() => { setResetConocimientoError(null); setConfirmResetConocimientoOpen(true) }}
+                >
+                    <Trash2 size={14} />
+                    Borrar todo el conocimiento
+                </Button>
+                {resetConocimientoError && (
+                    <p className="mt-2 flex items-center gap-1 text-xs text-red-700">
+                        <AlertCircle size={13} />
+                        {resetConocimientoError}
+                    </p>
+                )}
             </div>
 
             {/* ---------------- MOCKUP ESTILO WHATSAPP ---------------- */}
@@ -634,6 +693,17 @@ export default function PruebaMensajesPage() {
                 variant="danger"
                 isLoading={borrandoTodo}
                 onConfirm={handleBorrarTodoHistorial}
+            />
+
+            <ConfirmDialog
+                open={confirmResetConocimientoOpen}
+                onOpenChange={setConfirmResetConocimientoOpen}
+                title="¿Borrar todo el conocimiento del bot?"
+                description="Esto borra en la base real compatibilidades, info de negocio, precios/stock, preguntas pendientes e historial de conversaciones — de TODAS las conversaciones, de prueba o reales, porque hoy no hay forma de distinguirlas. No se puede deshacer."
+                confirmLabel="Sí, borrar todo"
+                variant="danger"
+                isLoading={reiniciandoConocimiento}
+                onConfirm={handleReiniciarConocimiento}
             />
         </div>
     )

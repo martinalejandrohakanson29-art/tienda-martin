@@ -123,6 +123,19 @@ export default function MovimientosClient({
   const [appliedEndDate, setAppliedEndDate] = useState(today);
   const [sortBy, setSortBy] = useState<"fecha" | "fechaReal">("fecha");
 
+  // Ordenamiento de columnas en la tabla clásica Debe/Haber/Saldo (vista de un único proveedor)
+  type LedgerColumn = "fecha" | "movimiento" | "debe" | "haber" | "saldo";
+  const [ledgerSort, setLedgerSort] = useState<{ column: LedgerColumn; direction: "asc" | "desc" } | null>(null);
+
+  const toggleLedgerSort = (column: LedgerColumn) => {
+    setLedgerSort((prev) => {
+      if (prev && prev.column === column) {
+        return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
+      }
+      return { column, direction: "asc" };
+    });
+  };
+
   const handleSearch = () => {
     setAppliedStartDate(startDate);
     setAppliedEndDate(endDate);
@@ -225,6 +238,45 @@ export default function MovimientosClient({
   const saldoFinal = movimientosAsc.length > 0
     ? movimientosAsc[movimientosAsc.length - 1].saldo
     : saldoInicial;
+
+  // Filas a mostrar en la tabla clásica: por defecto orden cronológico, o el que elija el usuario por columna
+  const ledgerRows = useMemo(() => {
+    if (!ledgerSort) return movimientosAsc;
+
+    const getValue = (m: Movimiento) => {
+      switch (ledgerSort.column) {
+        case "fecha":
+          return new Date(m.fecha).getTime();
+        case "movimiento":
+          return (m.descripcion || m.tipo).toLowerCase();
+        case "debe":
+          return m.anulado ? 0 : m.tipo === "DEBE" ? Math.abs(m.monto) : 0;
+        case "haber":
+          return m.anulado ? 0 : m.tipo === "HABER" ? Math.abs(m.monto) : 0;
+        case "saldo":
+          return m.anulado ? 0 : m.saldo;
+      }
+    };
+
+    const sorted = [...movimientosAsc].sort((a, b) => {
+      const va = getValue(a);
+      const vb = getValue(b);
+      if (va < vb) return -1;
+      if (va > vb) return 1;
+      return 0;
+    });
+
+    return ledgerSort.direction === "asc" ? sorted : sorted.reverse();
+  }, [movimientosAsc, ledgerSort]);
+
+  const ledgerSortIcon = (column: LedgerColumn) => {
+    if (!ledgerSort || ledgerSort.column !== column) return null;
+    return (
+      <span className="material-symbols-outlined text-sm">
+        {ledgerSort.direction === "asc" ? "arrow_upward" : "arrow_downward"}
+      </span>
+    );
+  };
 
   const periodoTexto = useMemo(() => {
     const desde = appliedStartDate ? format(new Date(appliedStartDate + "T12:00:00"), "dd/MM/yyyy") : "—";
@@ -637,11 +689,36 @@ export default function MovimientosClient({
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Fecha y Hora</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Movimiento</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Debe</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Haber</th>
-                      <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Saldo</th>
+                      <th
+                        className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-300"
+                        onClick={() => toggleLedgerSort("fecha")}
+                      >
+                        <div className="flex items-center gap-1">Fecha y Hora {ledgerSortIcon("fecha")}</div>
+                      </th>
+                      <th
+                        className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-300"
+                        onClick={() => toggleLedgerSort("movimiento")}
+                      >
+                        <div className="flex items-center gap-1">Movimiento {ledgerSortIcon("movimiento")}</div>
+                      </th>
+                      <th
+                        className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-300"
+                        onClick={() => toggleLedgerSort("debe")}
+                      >
+                        <div className="flex items-center justify-end gap-1">Debe {ledgerSortIcon("debe")}</div>
+                      </th>
+                      <th
+                        className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-300"
+                        onClick={() => toggleLedgerSort("haber")}
+                      >
+                        <div className="flex items-center justify-end gap-1">Haber {ledgerSortIcon("haber")}</div>
+                      </th>
+                      <th
+                        className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right cursor-pointer select-none hover:text-slate-700 dark:hover:text-slate-300"
+                        onClick={() => toggleLedgerSort("saldo")}
+                      >
+                        <div className="flex items-center justify-end gap-1">Saldo {ledgerSortIcon("saldo")}</div>
+                      </th>
                       <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Acciones</th>
                     </tr>
                   </thead>
@@ -656,7 +733,7 @@ export default function MovimientosClient({
                       </td>
                       <td></td>
                     </tr>
-                    {movimientosAsc.map((m) => (
+                    {ledgerRows.map((m) => (
                       <tr key={m.id} className={`transition-colors ${m.anulado ? "bg-rose-50/40 dark:bg-rose-950/10" : "hover:bg-slate-50 dark:hover:bg-slate-800/30"}`}>
                         <td className="px-6 py-4 whitespace-nowrap text-xs text-slate-500">
                           <div className="flex flex-col">

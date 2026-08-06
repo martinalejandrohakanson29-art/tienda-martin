@@ -81,6 +81,13 @@ del disco antes de que llegara a versionarse. Quedan los hallazgos, sin los valo
    propósito, pero el equipo tiene que saberlo.
 4. **Todo lo que responda el equipo se vuelve conocimiento permanente.** Con las tablas vacías,
    las primeras respuestas pesan más que nunca.
+5. **Vaciar las tablas dejó los kits a medias** (detectado el 2026-08-06). Un kit vive en
+   `kits_publicidad` (el saludo) y en `precios_stock` (una fila por alias, `fuente =
+   'admin-kit-{id}'`, que es lo que miran las búsquedas). El vaciado borró `precios_stock` y dejó
+   `kits_publicidad`: el kit saludaba pero el bot no encontraba su precio ni su detalle y
+   escalaba, mientras en `/admin/chatwoot/conocimiento` se veía cargado y completo. Se
+   resincroniza guardando cada kit de nuevo. Chequeo rápido:
+   `SELECT count(*) FROM precios_stock WHERE fuente LIKE 'admin-kit-%'`.
 
 ## Después de migrar
 

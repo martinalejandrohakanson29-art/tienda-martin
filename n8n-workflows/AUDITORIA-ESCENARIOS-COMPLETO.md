@@ -353,6 +353,12 @@ Chatwoot.
 83. Uso correcto del historial: no repite el saludo si ya se saludaron antes
     en la conversación, no vuelve a preguntar un dato que el cliente ya dio.
 
+> **Estado (2026-08-07):** 80-82 ya evidenciados de sobra en el resto de
+> las pruebas (tono, particion limpia, respuesta vacia manejada). 83
+> confirmado con una prueba dedicada: dio el modelo una vez, tres mensajes
+> despues pidio un repuesto sin repetirlo y el bot lo uso bien, sin volver
+> a preguntar ni re-saludar.
+
 ## N. Resiliencia / timeouts / errores
 
 84. DeepSeek lento o directamente caído → con el timeout nuevo (25s, 2

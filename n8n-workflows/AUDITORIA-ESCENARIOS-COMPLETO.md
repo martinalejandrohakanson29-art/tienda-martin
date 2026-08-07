@@ -241,6 +241,20 @@ Chatwoot.
     consultando con el equipo, **sin** decir "no tengo esa información" ni
     pedir de nuevo un dato que ya quedó registrado.
 
+> **Estado (2026-08-07):** 59, 60, 61 y 62 confirmados (60 y 62 por
+> inspección directa del nodo/las conexiones, no hizo falta forzar un fallo
+> real). 63 quedó **inconcluso**: armé un mensaje con una parte técnica con
+> dato ya cargado y una de precio sin dato, pero `Extraer Datos Tecnicos
+> (Multi)` extrajo `modelo_moto: ""` a pesar de que el cliente lo decía
+> claro en el texto ("la Zanella J63Model") — la extracción Multi perdió el
+> modelo con dos preguntas juntas, cosa que la extracción de intención
+> única no hace en los mismos casos. Consecuencia: terminó escalando las
+> dos partes en vez de contestar la técnica y dejar pendiente la de precio.
+> No es una alucinación (no inventó nada, escaló en vez de inventar), pero
+> es menos útil de lo que podría ser. Vale la pena reintentarlo con otra
+> frase o marcarlo como debilidad conocida de `Extraer Datos Tecnicos
+> (Multi)` en mensajes con dos intenciones.
+
 ## K. Aprendizaje (cuando el equipo responde en Chatwoot)
 
 64. Equipo responde una pregunta **técnica** pendiente → guarda en

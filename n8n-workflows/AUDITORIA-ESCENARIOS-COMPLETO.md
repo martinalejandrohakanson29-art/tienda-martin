@@ -58,6 +58,15 @@ mensajes reales a mano.
 11. Imagen, sticker o ubicación → cae en la rama "Otro" del switch
     `Tipo de Mensaje`, etiqueta y avisa a un humano (no se pierde en silencio,
     era el bug original que motivó ese fix).
+
+> **Bug encontrado y arreglado el 2026-08-07:** el aviso al equipo salía
+> bien, pero la ejecución terminaba en error igual: `Guardar Turno Cliente
+> (Escalado)` siempre buscaba `$('datos_finales2')`, y esa rama es la única
+> que nunca pasa por ahí. Cada imagen/sticker/ubicación disparaba una
+> ejecución fallida (ruido para el workflow de errores). Arreglado dándole a
+> `Preparar Escalado - Contenido` su propio `key`/`texto`, con fallback a
+> `datos_finales2` solo si no vienen seteados. Verificado en producción real
+> + regresión contra la rama técnica normal.
 12. Verificar que `Wait3` (15s) y `Wait2` (2s) sigan resolviendo como segundos
     después del reimport de hoy (el `unit: seconds` explícito que se agregó).
 

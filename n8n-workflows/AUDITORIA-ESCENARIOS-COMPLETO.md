@@ -268,6 +268,29 @@ Chatwoot.
     llega el eco por webhook → no debe disparar por error todo este circuito
     de "aprendizaje" como si fuera una respuesta nueva del equipo.
 
+73. **(agregado 2026-08-07, cruce con sección M)** Después de que el equipo
+    resuelve una pendiente (técnica/negocio/precio), un mensaje genérico
+    posterior del cliente en la misma conversación ("gracias", "seguís
+    ahí?") → el agente genérico tiene que reflejar que ya está resuelto, no
+    volver a decir "lo estoy confirmando con el equipo".
+
+> **Bug encontrado y arreglado el 2026-08-07:** las 3 ramas de aprendizaje
+> nunca escribían en `conversaciones_historial` (la tabla que lee
+> `AI Agent2` para el contexto de la charla genérica). Resultado: el agente
+> genérico veía la pregunta original sin ninguna respuesta después, y
+> asumía que seguía pendiente — alucinando "el equipo lo está confirmando"
+> sobre algo ya resuelto. Arreglado agregando el guardado del turno
+> (pregunta + respuesta) en cada una de las 3 ramas, usando
+> `conversation.meta.sender.phone_number` como session key (no
+> `body.sender.phone_number`, que en un mensaje del equipo es el agente sin
+> teléfono). Verificado con 3 ciclos completos contra producción real.
+>
+> Este bug **no lo agarré probando K64** aunque la respuesta rara ya estaba
+> en el resultado que se mostró en ese momento — quedó anotado como "revisar
+> después" y no se investigó hasta que se preguntó puntualmente por ese
+> mensaje. Lección: si algo llama la atención durante una prueba, investigar
+> ahí mismo, no archivarlo para "más adelante".
+
 ## L. Anti-alucinación / anti-invención
 
 73. Preguntar por un producto o servicio que el negocio no tiene → no debe

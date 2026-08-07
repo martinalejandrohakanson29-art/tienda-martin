@@ -5461,8 +5461,8 @@
       "type": "n8n-nodes-base.stopAndError",
       "typeVersion": 1,
       "position": [
-        105468,
-        2600
+        105688,
+        209248
       ],
       "id": "gen-stop-fallo-envio-al-cliente",
       "name": "Fallo - Envio al Cliente"
@@ -5475,7 +5475,7 @@
       "typeVersion": 1,
       "position": [
         101068,
-        2800
+        209536
       ],
       "id": "gen-stop-fallo-label-de-escalado",
       "name": "Fallo - Label de Escalado"
@@ -5487,8 +5487,8 @@
       "type": "n8n-nodes-base.stopAndError",
       "typeVersion": 1,
       "position": [
-        101276,
-        3000
+        101496,
+        209536
       ],
       "id": "gen-stop-fallo-nota-privada",
       "name": "Fallo - Nota Privada"

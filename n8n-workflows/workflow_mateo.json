@@ -6206,6 +6206,22 @@
           "name": "Redis account 2"
         }
       }
+    },
+    {
+      "parameters": {
+        "content": "## FIX: extraccion no confiable cortaba la cadena\nAntes, si habia CUALQUIER pregunta pendiente (de cualquier categoria) y la respuesta del equipo no la contestaba con confianza, el flujo caia en Fin - Extraccion No Confiable, que no tenia salida. No revisaba las otras categorias pendientes y nunca llegaba a Marcar Bot Pausado: el bot seguia respondiendo solo como si nadie del equipo hubiera escrito nada.\n\nAhora cada ¿Extraccion Confiable...? en false sigue la cascada normal (Tecnica -> Negocio -> Precio -> Marcar Bot Pausado), igual que cuando no hay pregunta pendiente en esa categoria.",
+        "height": 300,
+        "width": 360,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        699072,
+        -1048600
+      ],
+      "id": "7e6a4c86-13cd-4b67-aed7-140b221ee72e",
+      "name": "Nota - Fix Extraccion No Confiable"
     }
   ],
   "pinData": {},
@@ -6807,7 +6823,7 @@
         ],
         [
           {
-            "node": "Fin - Extraccion No Confiable",
+            "node": "Buscar Pregunta Negocio Pendiente",
             "type": "main",
             "index": 0
           }
@@ -7104,7 +7120,7 @@
         ],
         [
           {
-            "node": "Fin - Extraccion No Confiable",
+            "node": "Buscar Pregunta Precio Pendiente",
             "type": "main",
             "index": 0
           }
@@ -7564,7 +7580,7 @@
         ],
         [
           {
-            "node": "Fin - Extraccion No Confiable",
+            "node": "Marcar Bot Pausado",
             "type": "main",
             "index": 0
           }

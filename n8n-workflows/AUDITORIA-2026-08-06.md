@@ -27,6 +27,31 @@ que además incluye los 7 nodos que solo existían en producción. Está en el h
 
 Para volver atrás: importar `workflow_mateo.produccion-2026-08-06.json`.
 
+> ### Ojo al exportar por la API
+>
+> **La API de n8n no devuelve las credenciales de los nodos.** Un workflow bajado con
+> `get_workflow_details` (o `GET /workflows/:id`) trae los 229 nodos pero con el campo
+> `credentials` vacío en los 68 que lo necesitan. Si se importa así, n8n marca error en
+> cada uno de esos nodos y **no deja activar el workflow**.
+>
+> Pasó exactamente eso al armar este archivo. Las credenciales se restauraron desde el
+> último export hecho **desde la UI** (`d18c2e0~1:n8n-workflows/workflow_mateo (3).json`),
+> cruzando por nombre de nodo. Son cuatro, una sola de cada clase:
+>
+> | clase | nombre | nodos |
+> |---|---|---|
+> | `postgres` | Postgres account | 44 |
+> | `redis` | Redis account 2 | 21 |
+> | `deepSeekApi` | DeepSeek account | 2 |
+> | `openAiApi` | OpenAi account 2 | 1 |
+>
+> `workflow_mateo.produccion-2026-08-06.json` (el rollback) viene de la API, así que
+> **tampoco tiene credenciales**: sirve para diffear y para recuperar la lógica, pero si
+> hay que importarlo hay que reasignarlas a mano.
+>
+> Para versionar el workflow de acá en más, conviene exportarlo desde la UI
+> (`...` → Download), que sí las incluye.
+
 ---
 
 ## Corregido

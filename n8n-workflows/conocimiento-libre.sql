@@ -78,17 +78,28 @@ $$;
 
 
 -- ----------------------------------------------------------------------------
--- 4) rm_modelo_ok: el modelo de moto matchea si alguno de los dos lados esta
---    vacio (comodin) o si se parecen en cualquiera de las dos direcciones.
+-- 4) rm_modelo_ok: el modelo de moto matchea si el dato GUARDADO no tiene
+--    modelo (comodin) o si los dos se parecen en cualquiera de las dos
+--    direcciones.
 --
 --    El comodin es clave: antes una fila guardada con modelo_moto = '' era
 --    inalcanzable, porque '' ILIKE '%Titan 150%' es siempre falso.
+--
+--    2026-08-06: se saco "OR rm_tokens(consulta) IS NULL". El comodin valia
+--    para los dos lados, y el lado de la CONSULTA abria un agujero: como
+--    "¿Datos Tecnicos Suficientes?" deja pasar consultas con solo el kit,
+--    un cliente que preguntaba "¿el kit 120 sirve?" sin decir la moto
+--    matcheaba CUALQUIER fila y se llevaba la compatibilidad de otra moto,
+--    presentada al agente como dato confirmado. Verificado contra los datos
+--    reales: rm_modelo_ok('wave nf', '') daba true.
+--
+--    El comodin del lado guardado (fila cargada sin modelo) se conserva: ahi
+--    si corresponde que matchee. Ver AUDITORIA-2026-08-06.md y fix-matching.sql.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION rm_modelo_ok(guardado text, consulta text)
 RETURNS boolean
 LANGUAGE sql IMMUTABLE AS $$
   SELECT rm_tokens(guardado) IS NULL
-      OR rm_tokens(consulta) IS NULL
       OR rm_score(guardado, consulta) >= 0.5
       OR rm_score(consulta, guardado) >= 0.5
 $$;
@@ -101,3 +112,4 @@ $$;
 -- SELECT rm_modelo_ok('', 'Titan 150');                                                  -- true
 -- SELECT rm_modelo_ok('titan 150', 'Titán 150');                                         -- true
 -- SELECT rm_score('kit de arrastre', 'espejos');                                         -- 0.000
+-- SELECT rm_modelo_ok('titan 150', '');                                                  -- false (era true antes del 2026-08-06)

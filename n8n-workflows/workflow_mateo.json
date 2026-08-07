@@ -10,10 +10,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        11216,
-        64560
+        99488,
+        209264
       ],
-      "id": "846ad139-14c8-4478-ba39-469086d65f9b",
+      "id": "a0b7855c-d3d6-4295-b90e-295f2a4ebd3f",
       "name": "Webhook1",
       "webhookId": "d3181880-243d-4a5f-8f54-04382cf104c5"
     },
@@ -45,10 +45,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11440,
-        64560
+        99712,
+        209264
       ],
-      "id": "672e4075-5a88-4b42-9740-a18d8073f2ac",
+      "id": "cc3185a6-a1f9-40b7-a50b-2ee5483005c4",
       "name": "Solo mensajes creados1"
     },
     {
@@ -79,10 +79,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11664,
-        64560
+        99936,
+        209264
       ],
-      "id": "022909aa-17df-4641-94ee-ef7e839fae5b",
+      "id": "ed24a203-e5b4-4d9a-8ebb-ceae610d9934",
       "name": "If"
     },
     {
@@ -113,10 +113,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11888,
-        64560
+        100160,
+        209264
       ],
-      "id": "95dce2ac-2e16-43a5-a1e5-495848aacaf3",
+      "id": "3a93e9ce-ae64-424e-98bd-8091118050fc",
       "name": "incoming?1"
     },
     {
@@ -129,10 +129,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        11888,
-        64832
+        100160,
+        209536
       ],
-      "id": "31afac73-6450-4158-8be6-c5004eaeec89",
+      "id": "09f05eaf-d5e8-4db5-9b19-94d228b84b1a",
       "name": "Nota - Fix Contenido"
     },
     {
@@ -198,10 +198,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        12112,
-        64560
+        100384,
+        209264
       ],
-      "id": "0c052b74-010a-4dd6-a7d1-00ad812451a7",
+      "id": "8b582fce-eafb-447e-b4d9-f71aaabd1b14",
       "name": "Tipo de Mensaje"
     },
     {
@@ -220,8 +220,7 @@
           "allowUnauthorizedCerts": true,
           "response": {
             "response": {
-              "responseFormat": "file",
-              "outputPropertyName": "data"
+              "responseFormat": "file"
             }
           }
         }
@@ -229,10 +228,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        12784,
-        64464
+        101056,
+        209168
       ],
-      "id": "0a328c15-6852-42db-96b7-f23bd86e18e3",
+      "id": "00cb0239-00cc-42c1-9050-5803dd0d5de1",
       "name": "HTTP Request2",
       "retryOnFail": true,
       "maxTries": 3,
@@ -287,7 +286,7 @@
             {
               "id": "a2e619d4-cb6d-49ed-8364-99446bbef49f",
               "name": "session_id",
-              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+              "value": "={{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)) }}",
               "type": "string"
             }
           ]
@@ -299,10 +298,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        13232,
-        64464
+        101504,
+        209168
       ],
-      "id": "cbab9d55-1550-4006-af8f-533ede91c88c",
+      "id": "eef9501d-8828-48c1-a74b-0475d7080753",
       "name": "datos_audio1",
       "alwaysOutputData": false
     },
@@ -355,7 +354,7 @@
             {
               "id": "8712a294-d9bd-4efd-a007-ed73efce695a",
               "name": "session_id",
-              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+              "value": "={{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)) }}",
               "type": "string"
             }
           ]
@@ -365,10 +364,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        13232,
-        64656
+        101504,
+        209360
       ],
-      "id": "afcb5a47-021f-492f-a82a-dedffc37a9d5",
+      "id": "e59a1b00-1c7f-4796-952d-9c142946100c",
       "name": "datos_txt1",
       "alwaysOutputData": false
     },
@@ -401,38 +400,35 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        13456,
-        64560
+        101728,
+        209264
       ],
-      "id": "4d66b0fa-963c-4e44-bc20-65e50c1212fd",
+      "id": "8e8cc072-c90c-4e0c-9c25-23ff6b2c6d36",
       "name": "datos_redis1"
     },
     {
       "parameters": {
         "operation": "push",
         "list": "={{ $json.session_id }}",
-        "messageData": "={{ JSON.stringify(\n{\n\"message\": $json.texto,\n\"session_id\": $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number,\n\"date_time\": $json.date_time\n}\n) }}"
+        "messageData": "={{ JSON.stringify(\n{\n\"message\": $json.texto,\n\"session_id\": ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)),\n\"date_time\": $json.date_time\n}\n) }}"
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        13712,
-        64736
+        101984,
+        209440
       ],
-      "id": "7521e492-4aeb-4d67-ba03-97c1602418e3",
+      "id": "1747b494-8732-404e-a247-e658db7170b1",
       "name": "buffer1",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
         "operation": "get",
         "propertyName": "message",
-        "key": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+        "key": "={{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)) }}",
         "options": {
           "dotNotation": true
         }
@@ -440,29 +436,27 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        14752,
-        64368
+        103024,
+        209072
       ],
-      "id": "bea02a08-3c20-4bab-96e5-b901ea345ba4",
+      "id": "6836ed12-79ad-4748-9dea-afcc0417fbeb",
       "name": "get_buffer_data1",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
-        "amount": 15
+        "amount": 15,
+        "unit": "seconds"
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        14240,
-        64736
+        102512,
+        209440
       ],
-      "id": "ee415028-0be2-43d1-819d-7d3dc8c63691",
+      "id": "4b073e8c-e91f-4c01-896b-177f048f26dc",
       "name": "Wait3",
       "webhookId": "a1db237a-cdf5-407e-a769-1040394cc101"
     },
@@ -474,29 +468,26 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        14912,
-        64368
+        103184,
+        209072
       ],
-      "id": "cbc91e96-0f14-4c37-b021-c5a60bfb1c2a",
+      "id": "416b7905-f1f4-4964-90b7-9253cc62946a",
       "name": "delete_buffer1",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
-        "jsCode": "const raw = $('get_buffer_data1').item.json.message || [];\n\nconst orderedText = raw\n  .slice()\n  .reverse()\n  .map(s => {\n    try {\n      const obj = typeof s === 'string' ? JSON.parse(s) : s;\n      return obj?.message || '';\n    } catch (e) {\n      return String(s);\n    }\n  })\n  .join('\\n');\n\nreturn [\n  {\n    ...$json,\n    ordered_text: orderedText,\n  },\n];\n"
+        "jsCode": "const raw = $('get_buffer_data1').item.json.message || [];\n\nconst orderedText = raw\n  .slice()\n  .reverse()\n  .map(s => {\n    try {\n      const obj = typeof s === 'string' ? JSON.parse(s) : s;\n      return obj?.message || '';\n    } catch (e) {\n      return String(s);\n    }\n  })\n  .join('\\n');\n\n// El texto del cliente se concatena en el mismo mensaje que los bloques\n// internos que lee el agente ([Dato interno...], [Nota interna...]). Si un\n// cliente los escribe a mano, el system prompt le ordena al agente tratarlos\n// como dato verificado. Rompemos el corchete de apertura para que no matcheen.\nconst sanitizado = orderedText.replace(/\\[\\s*(dato|nota)\\s+intern/gi, '($1 intern');\n\nreturn [\n  {\n    ...$json,\n    ordered_text: sanitizado,\n  },\n];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        15056,
-        64368
+        103328,
+        209072
       ],
-      "id": "bd2609a9-2e53-4f2f-a184-5c4d1e4393a7",
+      "id": "2f033855-1e46-4f9b-aaa7-bfa8049b4367",
       "name": "Code in JavaScript1"
     },
     {
@@ -506,7 +497,7 @@
             {
               "id": "d23f1b29-e922-4eca-b15a-995e597e58fe",
               "name": "key",
-              "value": "={{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+              "value": "={{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)) }}",
               "type": "string"
             },
             {
@@ -522,10 +513,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        15216,
-        64368
+        103488,
+        209072
       ],
-      "id": "6605da8e-4769-43f7-adc2-c6fdd2ca5962",
+      "id": "4cec70ff-5343-494f-bd44-4d984cf5dc9d",
       "name": "datos_finales2"
     },
     {
@@ -538,10 +529,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        15216,
-        64816
+        103488,
+        209520
       ],
-      "id": "e20a45e5-12f9-4ab9-81f0-855edd43c8e0",
+      "id": "9c1bd294-ea97-47a6-b0cb-a9666c07d041",
       "name": "Nota - Clasificador"
     },
     {
@@ -555,10 +546,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        15360,
-        64736
+        103632,
+        209440
       ],
-      "id": "067d3588-d0ed-4afd-90d9-43c4144f2abf",
+      "id": "06b44d44-4a68-4ffd-8b66-ba646a0ae767",
       "name": "Clasificador Intento",
       "retryOnFail": true,
       "maxTries": 3,
@@ -572,17 +563,11 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
       "typeVersion": 1,
       "position": [
-        15024,
-        64688
+        103296,
+        209392
       ],
-      "id": "2d041329-0fa5-4d2a-b67a-c621fad5e921",
-      "name": "DeepSeek Chat Model1",
-      "credentials": {
-        "deepSeekApi": {
-          "id": "6uiYD2nzluzyDXnZ",
-          "name": "DeepSeek account"
-        }
-      }
+      "id": "f483116f-3583-4ee9-b9c9-cc47a52fc018",
+      "name": "DeepSeek Chat Model1"
     },
     {
       "parameters": {
@@ -591,10 +576,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        15584,
-        64736
+        103856,
+        209440
       ],
-      "id": "c1276125-17b6-443e-9340-65c10e7b2379",
+      "id": "c5c984f5-2f0f-4300-92da-49d026f0b1de",
       "name": "Normalizar Categoria"
     },
     {
@@ -733,10 +718,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        15776,
-        64736
+        104048,
+        209440
       ],
-      "id": "aded2d85-2434-4161-ae04-55814be6084d",
+      "id": "17d8c40e-9dd3-4811-8ef4-ccc08af60a6f",
       "name": "Ruteo por Categoria"
     },
     {
@@ -749,10 +734,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        15952,
-        64272
+        104224,
+        208976
       ],
-      "id": "29bec136-8cb0-4669-93d2-dd1fa5d6c2c1",
+      "id": "7f88cb94-8fee-4e1e-b001-fc076694de04",
       "name": "Nota - TODO RAG"
     },
     {
@@ -766,10 +751,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        16016,
-        64368
+        104288,
+        209072
       ],
-      "id": "0cf024a9-6847-4cca-bbd5-764a05298d31",
+      "id": "43f450ce-b344-4fad-93fa-95fb297deb5f",
       "name": "AI Agent2",
       "retryOnFail": true,
       "maxTries": 3,
@@ -777,15 +762,15 @@
     },
     {
       "parameters": {
-        "jsCode": "// n8n Code node (JavaScript)\n// Espera: item.json.output (string)\n// Devuelve multiples items: cada uno con { text: \"...\" }\n// Si el modelo devuelve vacio, no tira [] (eso deja todo en silencio mas\n// adelante sin error ni aviso): manda un item con vacio:true para poder\n// escalar al equipo en vez de perder el mensaje.\nlet inputText = ($('AI Agent2').first().json.output ?? \"\").toString();\ninputText = inputText\n  .replace(/\\\\n|\\\\r/g, \" \")\n  .replace(/\\n|\\r/g, \" \")\n  .replace(/\\\\\"/g, \"\")\n  .replace(/¿/g, \"\")\n  .replace(/\\s+/g, \" \")\n  .trim();\nif (!inputText) return [{ json: { vacio: true, text: \"\" } }];\nconst DOT_TOKEN = \"__DOT__\";\nlet protectedText = inputText.replace(/(\\d)\\.(\\d)/g, `$1${DOT_TOKEN}$2`);\nconst rawParts = protectedText\n  .split(\".\")\n  .map(s => s.trim())\n  .filter(Boolean);\nconst parts = rawParts.map(s => {\n  let restored = s.replaceAll(DOT_TOKEN, \".\");\n  restored = restored.replace(/\\./g, \"\");\n  restored = restored.replace(/\\s+/g, \" \").trim();\n  return restored;\n}).filter(Boolean);\nif (parts.length === 0) return [{ json: { vacio: true, text: \"\" } }];\nreturn parts.map(p => ({\n  json: { vacio: false, text: p }\n}));\n"
+        "jsCode": "// n8n Code node (JavaScript)\n// Espera: item.json.output (string)\n// Devuelve multiples items: cada uno con { text: \"...\" }\n// Si el modelo devuelve vacio, no tira [] (eso deja todo en silencio mas\n// adelante sin error ni aviso): manda un item con vacio:true para poder\n// escalar al equipo en vez de perder el mensaje.\nlet inputText = ($('AI Agent2').first().json.output ?? \"\").toString();\ninputText = inputText\n  .replace(/\\\\n|\\\\r/g, \" \")\n  .replace(/\\n|\\r/g, \" \")\n  .replace(/\\\\\"/g, \"\")\n  .replace(/¿/g, \"\")\n  .replace(/\\s+/g, \" \")\n  .trim();\nif (!inputText) return [{ json: { vacio: true, text: \"\" } }];\nconst DOT_TOKEN = \"__DOT__\";\nlet protectedText = inputText.replace(/(\\d)\\.(\\d)/g, `$1${DOT_TOKEN}$2`);\n// Abreviaturas frecuentes: sin esto \"Av. 9 de Julio\" se parte en dos mensajes.\nprotectedText = protectedText.replace(\n  /\\b(av|avda|sr|sra|dr|dra|ing|lic|depto|dpto|tel|aprox|ej|etc|nro|hs|uds|km|cm|mm)\\.(?=\\s|$)/gi,\n  `$1${DOT_TOKEN}`\n);\nconst rawParts = protectedText\n  .split(\".\")\n  .map(s => s.trim())\n  .filter(Boolean);\nconst parts = rawParts.map(s => {\n  // Primero se sacan los puntos sueltos y RECIEN despues se restauran los\n  // protegidos: al reves se borraban tambien los decimales y las abreviaturas.\n  let restored = s.replace(/\\./g, \"\");\n  restored = restored.replaceAll(DOT_TOKEN, \".\");\n  restored = restored.replace(/\\s+/g, \" \").trim();\n  return restored;\n}).filter(Boolean);\nif (parts.length === 0) return [{ json: { vacio: true, text: \"\" } }];\nreturn parts.map(p => ({\n  json: { vacio: false, text: p }\n}));\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        16320,
-        64368
+        104592,
+        209072
       ],
-      "id": "16359701-140f-43a5-b651-3429e24febbd",
+      "id": "790447b4-b94e-480c-b2af-c83395f5f29f",
       "name": "devuelve outputs"
     },
     {
@@ -811,10 +796,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        16544,
-        64368
+        104816,
+        209072
       ],
-      "id": "8b9d1e47-46ab-4a18-96c7-b66cd6c05967",
+      "id": "6347e3fa-e7a0-4adf-bc38-e869d9144869",
       "name": "Edit Fields2"
     },
     {
@@ -824,10 +809,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        16752,
-        64368
+        105024,
+        209072
       ],
-      "id": "72cf2f83-05f5-4887-8898-06618e689154",
+      "id": "3f934e9f-40e2-4935-865d-2068fe6b5a82",
       "name": "Loop Over Items2"
     },
     {
@@ -857,38 +842,39 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        16976,
-        64304
+        105248,
+        209008
       ],
-      "id": "365be112-7d09-4d71-b92c-ff08a98d1807",
+      "id": "8c3d8c18-8b05-428e-8a01-8fb9fe8d7e9b",
       "name": "1ª Parte Respuesta1",
-      "onError": "continueErrorOutput",
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        17200,
-        64304
+        105472,
+        209008
       ],
-      "id": "7585939c-9b00-4bc9-81e8-b8c02f39f738",
+      "id": "953908c1-da7d-4806-9b94-f511737c95aa",
       "name": "Replace Me2"
     },
     {
       "parameters": {
-        "amount": 2
+        "amount": 2,
+        "unit": "seconds"
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        17424,
-        64368
+        105696,
+        209072
       ],
-      "id": "fd9aee42-3f9e-4517-b5a5-e04e302ef68b",
+      "id": "f1111eba-a962-4e6d-924a-9e90b4b118f0",
       "name": "Wait2",
       "webhookId": "834a70c9-c733-4ed2-8130-df0e50fb227c"
     },
@@ -902,10 +888,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        12256,
-        63984
+        100528,
+        208688
       ],
-      "id": "87ffabca-4ec2-42bf-8857-614eca455228",
+      "id": "54cc56e3-0dfa-4aba-97da-3a5c60484891",
       "name": "Nota - Escalado Humano"
     },
     {
@@ -943,10 +929,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        12352,
-        64192
+        100624,
+        208896
       ],
-      "id": "0aabb5c9-4032-4d61-9cb6-7892dec5b58b",
+      "id": "1e094b45-55f6-47ad-a5b1-ea1a9743ca79",
       "name": "Preparar Escalado - Contenido"
     },
     {
@@ -984,10 +970,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        15776,
-        64912
+        104048,
+        209616
       ],
-      "id": "f303bf92-7399-45b8-95e1-aa0ea9e779b8",
+      "id": "808d9d98-69cd-4676-9fcd-687d55279f9c",
       "name": "Preparar Escalado - Mayorista o Compra"
     },
     {
@@ -1015,15 +1001,15 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        12576,
-        64192
+        100848,
+        208896
       ],
-      "id": "28e12b62-b46e-4b7f-bb24-38155444df3c",
+      "id": "54b79700-c919-49eb-95ba-969f9dc31efb",
       "name": "Escalar - Agregar Label",
-      "onError": "continueErrorOutput",
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -1050,25 +1036,25 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        12784,
-        64192
+        101056,
+        208896
       ],
-      "id": "5d309381-19bc-492d-a942-c615f6441b5d",
+      "id": "c844b9a7-90e7-49fe-8c60-05b5bd2cfc14",
       "name": "Escalar - Nota Privada",
-      "onError": "continueErrorOutput",
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        13232,
-        64192
+        101504,
+        208896
       ],
-      "id": "67963dd1-418a-4732-8b4b-81a9e33ed63f",
+      "id": "e259f4c9-a303-4f94-8b3c-005c9f2ea354",
       "name": "Fin - Escalado a Humano"
     },
     {
@@ -1081,10 +1067,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        15952,
-        64992
+        104224,
+        209696
       ],
-      "id": "4413ff6f-f324-4670-b730-8d12afb08133",
+      "id": "42cf5c5b-4372-4234-bea5-306382ddc0b6",
       "name": "Nota - SQL Tablas"
     },
     {
@@ -1098,10 +1084,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        15984,
-        64736
+        104256,
+        209440
       ],
-      "id": "c13480f4-9c44-4db0-b050-52b082ba01e6",
+      "id": "78af612f-d034-46ab-95c3-97c83650b92d",
       "name": "Extraer Datos Tecnicos",
       "retryOnFail": true,
       "maxTries": 3,
@@ -1114,33 +1100,27 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        16192,
-        64736
+        104464,
+        209440
       ],
-      "id": "7dcbd3d0-92a9-4985-87e0-8f92d2a1f2e0",
+      "id": "e8b20899-043f-44e0-83a5-ef05422c4d91",
       "name": "Parsear Extraccion"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT compatible, detalle FROM (\n  SELECT c.compatible, c.detalle, c.creado_en, 1 AS prio,\n         rm_score(c.kit, '{{ $json.kit_sql }}') AS pts,\n         (rm_tokens(c.modelo_moto) IS NOT NULL AND rm_tokens('{{ $json.modelo_moto_sql }}') IS NOT NULL) AS con_modelo\n  FROM compatibilidades c\n  WHERE rm_score(c.kit, '{{ $json.kit_sql }}') >= 0.5\n    AND rm_modelo_ok(c.modelo_moto, '{{ $json.modelo_moto_sql }}')\n  UNION ALL\n  SELECT NULL::boolean, k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}'), false\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}') >= 0.6\n) r\nORDER BY prio, con_modelo DESC, pts DESC, creado_en DESC\nLIMIT 1;",
+        "query": "SELECT compatible, detalle FROM (\n  SELECT c.compatible, c.detalle, c.creado_en, 1 AS prio,\n         rm_score(c.kit, '{{ $json.kit_sql }}') AS pts,\n         (rm_tokens(c.modelo_moto) IS NOT NULL AND rm_tokens('{{ $json.modelo_moto_sql }}') IS NOT NULL) AS con_modelo\n  FROM compatibilidades c\n  WHERE rm_score(c.kit, '{{ $json.kit_sql }}') >= 0.5\n    AND rm_score('{{ $json.kit_sql }}', c.kit) >= 0.5\n    AND rm_modelo_ok(c.modelo_moto, '{{ $json.modelo_moto_sql }}')\n  UNION ALL\n  SELECT NULL::boolean, k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}'), false\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}') >= 0.75\n  UNION ALL\n  SELECT NULL::boolean,\n         'Producto: ' || p.producto\n           || coalesce(' | Precio: ' || p.precio, '')\n           || coalesce(' | Stock/envio: ' || p.stock, '')\n           || coalesce(' | ' || p.detalle, ''),\n         p.creado_en, 3,\n         rm_score(p.producto, '{{ $json.kit_sql }}'), false\n  FROM precios_stock p\n  WHERE rm_score(p.producto, '{{ $json.kit_sql }}') >= 0.5\n    AND rm_score('{{ $json.kit_sql }}', p.producto) >= 0.5\n) r\nORDER BY prio, con_modelo DESC, pts DESC, creado_en DESC\nLIMIT 1;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        16416,
-        64736
+        104688,
+        209440
       ],
-      "id": "7fab2017-2f2d-47c6-a4ef-db39d35a6466",
+      "id": "18c8f1e3-b8d3-48e6-a547-502c637b25dc",
       "name": "Buscar Compatibilidad",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1173,10 +1153,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16640,
-        64736
+        104912,
+        209440
       ],
-      "id": "6a546488-8507-4784-a3a1-f8e436689f56",
+      "id": "3728ea71-26c6-4a25-b976-e0dd5e8f5b94",
       "name": "¿Hay Dato?"
     },
     {
@@ -1186,7 +1166,7 @@
             {
               "id": "03d8bd88-f642-413b-8613-df7f3082b30d",
               "name": "dato_compatibilidad",
-              "value": "={{ $json.compatible === null ? ('Info que ya nos dio el equipo antes: ' + $json.detalle) : ('Modelo: ' + $('Parsear Extraccion').item.json.modelo_moto + ' | Kit: ' + $('Parsear Extraccion').item.json.kit + ' | Compatible: ' + ($json.compatible ? 'SI' : 'NO') + ' | Detalle: ' + ($json.detalle || 'sin detalle adicional')) }}",
+              "value": "={{ (() => { const p = $('Parsear Extraccion').item.json; if ($json.compatible === null) return 'Info que ya nos dio el equipo antes: ' + $json.detalle; const modelo = (p.modelo_moto || '').toString().trim(); const base = (modelo ? 'Modelo: ' + modelo + ' | ' : '') + 'Kit: ' + p.kit + ' | Compatible: ' + ($json.compatible ? 'SI' : 'NO') + ' | Detalle: ' + ($json.detalle || 'sin detalle adicional'); return modelo ? base : base + \" | ATENCION: este dato NO esta confirmado para el modelo de moto del cliente (el cliente no lo dijo). No afirmes compatibilidad con un modelo puntual: pedile el modelo de la moto antes de confirmar.\"; })() }}",
               "type": "string"
             }
           ]
@@ -1196,10 +1176,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        16864,
-        64672
+        105136,
+        209376
       ],
-      "id": "92aa0adf-050e-4483-b13b-d880dab278e1",
+      "id": "4b9d2206-7839-4154-b90c-8d0f0015c45f",
       "name": "Preparar Contexto Encontrado"
     },
     {
@@ -1211,17 +1191,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        16864,
-        64832
+        105136,
+        209536
       ],
-      "id": "9daf373b-1b2d-4cfb-ae90-2691e4b41a2b",
+      "id": "ea59f0a7-3b3c-46f1-903b-d4951f58088f",
       "name": "Registrar Pregunta Pendiente",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1261,10 +1235,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        17072,
-        64832
+        105344,
+        209536
       ],
-      "id": "c8a5188e-b096-4773-903c-b68bdc586ab8",
+      "id": "c01c1970-87c8-479e-9b23-8e131b1a92eb",
       "name": "Preparar Escalado - Consulta Tecnica"
     },
     {
@@ -1277,10 +1251,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        11664,
-        63984
+        99936,
+        208688
       ],
-      "id": "db4b7007-39de-4cb6-949b-1106fafe1db1",
+      "id": "22ec48e0-aa1d-4c5d-bbce-41c63eb5e53a",
       "name": "Nota - Aprendizaje"
     },
     {
@@ -1328,10 +1302,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11664,
-        64192
+        99936,
+        208896
       ],
-      "id": "81917270-1fb4-48f6-8435-bf40665414dc",
+      "id": "33aa0f2d-38ac-4088-bce2-566302547718",
       "name": "¿Es respuesta de mi equipo?"
     },
     {
@@ -1343,18 +1317,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        11888,
-        64192
+        100160,
+        208896
       ],
-      "id": "4929773e-053c-428d-b306-5c884f81b1f8",
+      "id": "cdd88d38-527a-4e2d-bd02-f6084080f223",
       "name": "Buscar Pregunta Pendiente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1387,10 +1355,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        12112,
-        64192
+        100384,
+        208896
       ],
-      "id": "9a7a5643-6996-43f2-ada8-a2a8ead3d115",
+      "id": "b6fb56d3-a06e-45e0-b115-c80b183ced3d",
       "name": "¿Hay Pregunta Pendiente?"
     },
     {
@@ -1404,10 +1372,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        12336,
-        64192
+        100608,
+        208896
       ],
-      "id": "09562a57-6c8c-4b30-8aa6-f73f460bfc92",
+      "id": "d6d3df1a-6fab-4b27-90fe-92adaff767d1",
       "name": "Extraer Respuesta Tecnica",
       "retryOnFail": true,
       "maxTries": 3,
@@ -1420,10 +1388,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12544,
-        64192
+        100816,
+        208896
       ],
-      "id": "aed57541-aa01-4bdf-839e-c5e6e37ca563",
+      "id": "160c2ef2-2430-49a9-b2ed-4c82dbd049ee",
       "name": "Parsear Respuesta"
     },
     {
@@ -1453,10 +1421,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        12768,
-        64192
+        101040,
+        208896
       ],
-      "id": "5b72ac5c-5980-4317-b9f3-61bc49a2357b",
+      "id": "11abab80-cc40-4362-ac50-d9a2a1765505",
       "name": "¿Extraccion Confiable?"
     },
     {
@@ -1487,10 +1455,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        12880,
-        64128
+        101152,
+        208832
       ],
-      "id": "gen-aplica-compat-node",
+      "id": "ebe53da0-d9f5-44b2-80d5-ed165100359e",
       "name": "¿Aplica Compatibilidad?"
     },
     {
@@ -1502,17 +1470,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        12992,
-        64128
+        101264,
+        208832
       ],
-      "id": "65e43ca4-839c-4a95-81f4-5aa985928cfc",
+      "id": "1e87bb21-4e32-4004-9a52-920ba256a002",
       "name": "Guardar en Compatibilidades",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1526,17 +1488,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        13216,
-        64128
+        101488,
+        208832
       ],
-      "id": "bcabefea-c151-4c54-87f1-9b1b7587bc65",
+      "id": "2f230df7-eb64-4136-948f-176006a4f433",
       "name": "Marcar Pregunta Respondida",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1546,10 +1502,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        13424,
-        64128
+        101696,
+        208832
       ],
-      "id": "f6973490-6a2f-415d-88f0-0d392bd9fe7a",
+      "id": "ab5befd9-4564-47ab-a4b8-4c08c221845a",
       "name": "Fin - Aprendizaje Guardado"
     },
     {
@@ -1557,10 +1513,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        12992,
-        64304
+        101264,
+        209008
       ],
-      "id": "24a6ac82-fe9a-45d5-bad0-91d83aa94ea0",
+      "id": "fcd81f9e-70f7-415f-835e-954b58ae0206",
       "name": "Fin - Extraccion No Confiable"
     },
     {
@@ -1568,10 +1524,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        12352,
-        64432
+        100624,
+        209136
       ],
-      "id": "f95ceb30-9bfe-48fe-80d5-73f5b575600a",
+      "id": "a741adce-da6c-4bec-8742-3b92b396f85a",
       "name": "Fin - Nada Pendiente"
     },
     {
@@ -1579,10 +1535,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        11664,
-        64352
+        99936,
+        209056
       ],
-      "id": "fc8e202b-9080-418e-ad09-19400975d3be",
+      "id": "918a4f92-e108-41e0-9f24-9b180febdc44",
       "name": "Fin - No es Respuesta de Equipo"
     },
     {
@@ -1593,18 +1549,12 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "id": "1c94e369-db63-4b0a-a955-32eab4b0d834",
+      "id": "cda05d35-9ad9-499b-a65f-045f2ba1fc38",
       "name": "Traer Historial (Generico)",
       "position": [
-        15936,
-        64144
+        104208,
+        208848
       ],
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1615,11 +1565,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "id": "ca4880bd-c12a-47b2-810e-5cd580f80035",
+      "id": "274e9a6b-2617-44bd-b9e2-2b71bf91c219",
       "name": "Formatear Historial (Generico)",
       "position": [
-        16096,
-        64144
+        104368,
+        208848
       ]
     },
     {
@@ -1630,18 +1580,12 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "id": "8d71208a-2e1b-4cd1-931f-173df228efdc",
+      "id": "b9ffd293-1484-496e-bedb-6f3960442b35",
       "name": "Traer Historial (Tecnica)",
       "position": [
-        16864,
-        64480
+        105136,
+        209184
       ],
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1652,11 +1596,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "id": "08b6c3fe-4163-4d26-9ec2-a9c4fadf8710",
+      "id": "59fbb241-d4bb-4bc2-b7e4-4ca45d30d65a",
       "name": "Formatear Historial (Tecnica)",
       "position": [
-        17024,
-        64480
+        105296,
+        209184
       ]
     },
     {
@@ -1667,18 +1611,12 @@
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
-      "id": "f038f3b4-df81-47e9-ad5a-5f5fb0b84d28",
+      "id": "aa72aa8d-6154-4c91-8bb4-7409ce56140a",
       "name": "Guardar Turno Conversacion",
       "position": [
-        16320,
-        64240
+        104592,
+        208944
       ],
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1689,11 +1627,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "id": "462a39e9-af3e-4eda-a26e-d08807a8118d",
+      "id": "79277b55-c190-48e9-88e0-b485928d63fa",
       "name": "Recuperar Motivo Escalado",
       "position": [
-        12688,
-        64192
+        100960,
+        208896
       ]
     },
     {
@@ -1701,22 +1639,20 @@
         "operation": "set",
         "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
         "value": "={{ $json.motivo }}",
-        "expire": true
+        "expire": true,
+        "ttl": 600
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        12800,
-        64192
+        101072,
+        208896
       ],
-      "id": "gen-marcar-autoeco-escalado",
+      "id": "8a1251b6-7214-469c-9fd1-24fc26dc93e3",
       "name": "Marcar Auto-Eco - Escalado",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -1729,10 +1665,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        15984,
-        65136
+        104256,
+        209840
       ],
-      "id": "8d61d30f-bb76-4dd9-9a9d-676ef00d6f68",
+      "id": "8ad89b4c-c207-4bfd-bb6b-f10223f08e95",
       "name": "Extraer Tema Negocio",
       "retryOnFail": true,
       "maxTries": 3,
@@ -1745,33 +1681,27 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        16192,
-        65136
+        104464,
+        209840
       ],
-      "id": "ea6c1367-32eb-4d67-892a-0b6182ca8663",
+      "id": "a8507fb9-4a2a-4306-bc51-9a758933d53f",
       "name": "Parsear Tema"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT respuesta FROM (\n  SELECT i.respuesta, i.creado_en, 1 AS prio,\n         rm_score(i.tema, '{{ $json.tema_sql }}') AS pts\n  FROM info_negocio i\n  WHERE rm_score(i.tema, '{{ $json.tema_sql }}') >= 0.5\n  UNION ALL\n  SELECT k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.tema_sql }}')\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.tema_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.tema_sql }}') >= 0.6\n) r\nORDER BY prio, pts DESC, creado_en DESC\nLIMIT 1;",
+        "query": "SELECT respuesta FROM (\n  SELECT i.respuesta, i.creado_en, 1 AS prio,\n         rm_score(i.tema, '{{ $json.tema_sql }}') AS pts\n  FROM info_negocio i\n  WHERE rm_score(i.tema, '{{ $json.tema_sql }}') >= 0.5\n    AND rm_score('{{ $json.tema_sql }}', i.tema) >= 0.5\n  UNION ALL\n  SELECT k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.tema_sql }}')\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.tema_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.tema_sql }}') >= 0.75\n) r\nORDER BY prio, pts DESC, creado_en DESC\nLIMIT 1;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        16416,
-        65136
+        104688,
+        209840
       ],
-      "id": "b98353bd-f6ff-43b3-84b4-d39a19f3600b",
+      "id": "e0f23c1d-ebc3-4417-81b0-39d662514b3d",
       "name": "Buscar Info Negocio",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1804,10 +1734,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16640,
-        65136
+        104912,
+        209840
       ],
-      "id": "67b373ae-8445-4cff-b336-21a73dd66ef3",
+      "id": "fe60f45a-eb0e-4401-b9ca-6b186ed97b99",
       "name": "¿Hay Info Negocio?"
     },
     {
@@ -1827,10 +1757,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        16864,
-        65072
+        105136,
+        209776
       ],
-      "id": "e82fe19b-a42d-435c-a3a0-6c1d697fedae",
+      "id": "55b9bcad-8fa7-44a8-a0b8-a0e888c15bab",
       "name": "Preparar Contexto Info Encontrada"
     },
     {
@@ -1842,17 +1772,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17056,
-        65072
+        105328,
+        209776
       ],
-      "id": "9cd24dfd-0211-46f8-8aff-cd5db041b197",
+      "id": "571345fe-6bc8-471e-97d6-a149510447fb",
       "name": "Traer Historial (Negocio)",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1864,10 +1788,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        17264,
-        65072
+        105536,
+        209776
       ],
-      "id": "ff5bf443-4ee1-49c8-a2b6-58a55643458f",
+      "id": "7dd507a4-577a-4fbd-8770-632bb78eb8ad",
       "name": "Formatear Historial (Negocio)"
     },
     {
@@ -1879,17 +1803,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        16864,
-        65232
+        105136,
+        209936
       ],
-      "id": "a53d9c72-f1e0-4b19-846b-212702cb4c76",
+      "id": "ad41020f-7727-444b-81d8-306d990024e2",
       "name": "Registrar Pregunta Negocio Pendiente",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1929,10 +1847,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        17072,
-        65232
+        105344,
+        209936
       ],
-      "id": "5b60632e-8f73-4209-a48f-0fca4e6ffd6b",
+      "id": "20d92427-3415-4c9e-8019-4bb1f067f043",
       "name": "Preparar Escalado - Consulta Negocio"
     },
     {
@@ -1944,18 +1862,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        11888,
-        64640
+        100160,
+        209344
       ],
-      "id": "190f5f15-94cf-418d-bbbf-18ff5fb8d5d0",
+      "id": "4e2ff929-ee34-4c1d-9542-b45ee556502c",
       "name": "Buscar Pregunta Negocio Pendiente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -1988,10 +1900,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        12112,
-        64640
+        100384,
+        209344
       ],
-      "id": "7ebd39ee-22ad-4c33-9455-21df2042bd10",
+      "id": "b761f1d8-74be-41ec-a1e1-d9cf0f0b09f3",
       "name": "¿Hay Pregunta Negocio Pendiente?"
     },
     {
@@ -2005,10 +1917,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        12336,
-        64640
+        100608,
+        209344
       ],
-      "id": "3cafa8b5-e68b-4c16-8392-b6bcc3d8c041",
+      "id": "8169fca3-47af-4528-bd42-f753e439d0e6",
       "name": "Extraer Respuesta Negocio",
       "retryOnFail": true,
       "maxTries": 3,
@@ -2021,10 +1933,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12544,
-        64640
+        100816,
+        209344
       ],
-      "id": "95f70aed-efc3-48c7-8f6e-9d529fde9063",
+      "id": "d579d18f-904a-4586-8cf4-d7a104f10b2b",
       "name": "Parsear Respuesta Negocio"
     },
     {
@@ -2054,10 +1966,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        12768,
-        64640
+        101040,
+        209344
       ],
-      "id": "1a62c7f7-806d-493e-8bd9-b9debfaadeaf",
+      "id": "c88af9ea-4eaf-42d7-9161-1613efbca9c1",
       "name": "¿Extraccion Confiable Negocio?"
     },
     {
@@ -2069,17 +1981,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        12992,
-        64576
+        101264,
+        209280
       ],
-      "id": "4aff13b1-b614-4b92-8cac-778e8be3329b",
+      "id": "71c9ad05-c077-4ba6-961f-792d3de5600d",
       "name": "Guardar en Info Negocio",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -2093,17 +1999,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        13216,
-        64576
+        101488,
+        209280
       ],
-      "id": "d5bc5ccb-630d-4e6b-825f-e54503847be6",
+      "id": "f09fcf13-396d-4c58-a432-72cf49a2346d",
       "name": "Marcar Pregunta Negocio Respondida",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -2125,10 +2025,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        13424,
-        64064
+        101696,
+        208768
       ],
-      "id": "72dfb873-1cd4-42ae-857b-e4b44d497ff4",
+      "id": "782a74a8-0c91-4acc-b25b-30ed78851271",
       "name": "Preparar Respuesta Cliente - Tecnica"
     },
     {
@@ -2158,10 +2058,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        13616,
-        64064
+        101888,
+        208768
       ],
-      "id": "02e2bf21-b29b-4ccd-9b99-4d48ad564b16",
+      "id": "78b0c908-60b1-480e-8761-adb61121e07d",
       "name": "Responder Cliente - Aprendizaje Tecnico",
       "retryOnFail": true,
       "maxTries": 3,
@@ -2184,10 +2084,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        13424,
-        64512
+        101696,
+        209216
       ],
-      "id": "46dd7511-ea20-4296-b3a1-a196831ebec6",
+      "id": "38c1af1d-05c5-4f28-89d3-657b175304f8",
       "name": "Preparar Respuesta Cliente - Negocio"
     },
     {
@@ -2217,10 +2117,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        13616,
-        64512
+        101888,
+        209216
       ],
-      "id": "00780f1d-ebcd-4dd6-80b7-226d66e4aeea",
+      "id": "a518576e-c8cb-4a95-9e04-dee332d17ea6",
       "name": "Responder Cliente - Aprendizaje Negocio",
       "retryOnFail": true,
       "maxTries": 3,
@@ -2236,18 +2136,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        17664,
-        63232
+        105936,
+        207936
       ],
-      "id": "695be66e-0d5b-44d3-bb10-404058fe6e11",
+      "id": "4b8c2826-0fb0-48e1-a31d-b76b118d436a",
       "name": "Chequear Bot Pausado",
       "alwaysOutputData": true,
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -2277,10 +2174,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17936,
-        63232
+        106208,
+        207936
       ],
-      "id": "fea5c636-d2b7-47aa-8790-95fe537df2f0",
+      "id": "39b3ad9a-69f9-4225-959f-602e07eae111",
       "name": "¿Bot Pausado?"
     },
     {
@@ -2288,10 +2185,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        18192,
-        63232
+        106464,
+        207936
       ],
-      "id": "5206486a-d190-4c40-b0da-652b184ee464",
+      "id": "fb668a34-935f-4e35-8949-f846fefee5f2",
       "name": "Fin - Bot Pausado"
     },
     {
@@ -2304,18 +2201,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        18448,
-        63232
+        106720,
+        207936
       ],
-      "id": "2116427e-6765-43fb-9a44-f47bec4c9ed7",
+      "id": "5e1cb06f-de66-4e98-9d81-492e9aa0a5fb",
       "name": "Chequear Auto-Eco",
       "alwaysOutputData": true,
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -2329,7 +2223,7 @@
           "conditions": [
             {
               "id": "gen-c86b46240836",
-              "leftValue": "={{ !!$json.eco && $json.eco.includes(($('Webhook1').item.json.body.content || '').trim()) && ($('Webhook1').item.json.body.content || '').trim() !== '' }}",
+              "leftValue": "={{ (() => { const norm = (s) => (s || '').toString().replace(/[\\u00bf?\\u00a1!.,;:]/g, ' ').replace(/\\s+/g, ' ').trim().toLowerCase(); const eco = norm($json.eco); const msg = norm($('Webhook1').item.json.body.content); return !!eco && msg.length >= 12 && eco.includes(msg); })() }}",
               "rightValue": true,
               "operator": {
                 "type": "boolean",
@@ -2345,10 +2239,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        18704,
-        63232
+        106976,
+        207936
       ],
-      "id": "2bbfaae0-ebe0-4fbc-95ab-5e2f6275664e",
+      "id": "71039477-2119-4b79-8127-43759eb8a9a4",
       "name": "¿Es Auto-Eco?"
     },
     {
@@ -2356,10 +2250,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        18976,
-        63232
+        107248,
+        207936
       ],
-      "id": "c5d5aa44-40ff-4672-a58e-33b85e4ea5b3",
+      "id": "765a2570-17f3-4120-be75-27e921e0a30f",
       "name": "Fin - Auto-Eco Ignorado"
     },
     {
@@ -2389,10 +2283,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17664,
-        63456
+        105936,
+        208160
       ],
-      "id": "8dfface6-f51a-476c-92ed-e4dbb99de71e",
+      "id": "410250b9-0d9a-43cc-b1c4-ac507f4a51a5",
       "name": "¿Es Comando Reactivar?"
     },
     {
@@ -2403,27 +2297,24 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        17936,
-        63456
+        106208,
+        208160
       ],
-      "id": "6930c736-54aa-411e-bdb2-e8e15ccf89dd",
+      "id": "e81c8935-4a8d-471b-bc64-81009d568619",
       "name": "Reactivar Bot",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {},
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        18192,
-        63456
+        106464,
+        208160
       ],
-      "id": "95041c6f-0240-4c26-8fe1-aeb1e112edbb",
+      "id": "d8c32963-6555-4467-9787-c08aab23f558",
       "name": "Fin - Bot Reactivado"
     },
     {
@@ -2437,106 +2328,94 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        18448,
-        63456
+        106720,
+        208160
       ],
-      "id": "6aed98a8-d697-4397-8139-d71ccf84e51a",
+      "id": "fef13e0c-ee42-42a1-ac59-0814b857477e",
       "name": "Marcar Bot Pausado",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
         "operation": "set",
         "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
         "value": "={{ $json.content }}",
-        "expire": true
+        "expire": true,
+        "ttl": 600
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        18704,
-        63456
+        106976,
+        208160
       ],
-      "id": "55694cdb-c3aa-4329-ab78-392c9d555a19",
+      "id": "9fb48a17-cbe9-4d34-aabf-9670411dfcfe",
       "name": "Marcar Auto-Eco - Aprendizaje Tecnico",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
         "operation": "set",
         "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
         "value": "={{ $json.content }}",
-        "expire": true
+        "expire": true,
+        "ttl": 600
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        18976,
-        63456
+        107248,
+        208160
       ],
-      "id": "8fac0f5a-4c4d-45bb-a4e9-bcdff20c7b5b",
+      "id": "f720ee13-a04c-41c0-97d9-c3bd67dfe4ba",
       "name": "Marcar Auto-Eco - Aprendizaje Negocio",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
         "operation": "set",
         "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
         "value": "={{ $json.output }}",
-        "expire": true
+        "expire": true,
+        "ttl": 600
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        17664,
-        63680
+        105936,
+        208384
       ],
-      "id": "6b5fd011-2abb-4035-a8ce-893fa2298e7e",
+      "id": "492ce3f3-fbab-4304-ac93-7365cdea5f75",
       "name": "Marcar Auto-Eco - Respuesta Principal",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
         "operation": "get",
         "propertyName": "cooldown",
-        "key": "=escalado_cooldown:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "key": "=escalado_cooldown:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}:{{ (() => { function tryGet(name) { try { return $(name).item.json; } catch (e) { return null; } } const origen = tryGet('Preparar Escalado - Contenido') || tryGet('Preparar Escalado - Mayorista o Compra') || tryGet('Preparar Escalado - Consulta Tecnica') || tryGet('Preparar Escalado - Consulta Negocio') || tryGet('Preparar Escalado - Consulta Precio') || tryGet('Preparar Escalado - Multi Intencion') || tryGet('Preparar Escalado - Respuesta Vacia') || {}; return origen.label || 'general'; })() }}",
         "options": {}
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        17936,
-        63680
+        106208,
+        208384
       ],
-      "id": "42b28fa3-1621-43f2-80bc-8db6ab55c9ee",
+      "id": "9c50fd54-5487-4e0b-b4e8-6825e7d3fc6a",
       "name": "Chequear Cooldown Escalado",
       "alwaysOutputData": true,
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -2566,10 +2445,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        18192,
-        63680
+        106464,
+        208384
       ],
-      "id": "556d967b-2ec9-4331-8510-85ea33a0e729",
+      "id": "0c1cb54a-fa91-4ee1-a7e4-4d17b7b72e3a",
       "name": "¿Escalado en Cooldown?"
     },
     {
@@ -2577,16 +2456,16 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        18448,
-        63680
+        106720,
+        208384
       ],
-      "id": "eb0f5894-1464-4008-bbe7-1b202f71714b",
+      "id": "45f09e6e-72e7-478f-90ad-39ded856d6e3",
       "name": "Fin - Escalado Omitido (cooldown)"
     },
     {
       "parameters": {
         "operation": "set",
-        "key": "=escalado_cooldown:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "key": "=escalado_cooldown:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}:{{ (() => { function tryGet(name) { try { return $(name).item.json; } catch (e) { return null; } } const origen = tryGet('Preparar Escalado - Contenido') || tryGet('Preparar Escalado - Mayorista o Compra') || tryGet('Preparar Escalado - Consulta Tecnica') || tryGet('Preparar Escalado - Consulta Negocio') || tryGet('Preparar Escalado - Consulta Precio') || tryGet('Preparar Escalado - Multi Intencion') || tryGet('Preparar Escalado - Respuesta Vacia') || {}; return origen.label || 'general'; })() }}",
         "value": "1",
         "expire": true,
         "ttl": 300
@@ -2594,17 +2473,14 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        18704,
-        63680
+        106976,
+        208384
       ],
-      "id": "60a48242-4e6a-42e0-9d91-3904bc63e641",
+      "id": "e9c1965c-bb1f-4fe7-821b-cbe22e83d757",
       "name": "Marcar Cooldown Escalado",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -2634,10 +2510,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17664,
-        65632
+        105936,
+        210336
       ],
-      "id": "83683356-b02f-485b-a62a-df89dcc9ec78",
+      "id": "b375d64a-c7d8-487c-96b7-c288aa41f6c8",
       "name": "¿Datos Tecnicos Suficientes?"
     },
     {
@@ -2668,10 +2544,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17936,
-        65632
+        106208,
+        210336
       ],
-      "id": "c64c9d1c-ac17-4a45-a901-eb2d2dd7490b",
+      "id": "3df109c8-cec1-4b6f-83e8-2685c947ea3e",
       "name": "¿Tema Negocio Valido?"
     },
     {
@@ -2685,10 +2561,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        17664,
-        66032
+        105936,
+        210736
       ],
-      "id": "b655add4-e2b9-4b7c-b80e-bba6a212135e",
+      "id": "c896c637-12ef-4120-85fa-effb75fbb19b",
       "name": "Extraer Producto",
       "retryOnFail": true,
       "maxTries": 3,
@@ -2701,10 +2577,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        17936,
-        66032
+        106208,
+        210736
       ],
-      "id": "0e9b4360-c040-417b-8e43-4fa8cea75ff1",
+      "id": "65ed8b5b-8752-495c-8bcf-260280d20786",
       "name": "Parsear Extraccion Precio"
     },
     {
@@ -2735,33 +2611,27 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        18192,
-        66032
+        106464,
+        210736
       ],
-      "id": "37b74485-1576-4eae-a07b-11d61100db57",
+      "id": "b4b6553e-83d9-4714-9f4b-3dc8d2216179",
       "name": "¿Datos Precio Suficientes?"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT precio, stock, detalle FROM (\n  SELECT p.precio, p.stock, p.detalle, p.creado_en, 1 AS prio,\n         rm_score(p.producto, '{{ $json.producto_sql }}') AS pts\n  FROM precios_stock p\n  WHERE rm_score(p.producto, '{{ $json.producto_sql }}') >= 0.5\n  UNION ALL\n  SELECT NULL::text, NULL::text, k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.producto_sql }}')\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.producto_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.producto_sql }}') >= 0.6\n) r\nORDER BY prio, pts DESC, creado_en DESC\nLIMIT 1;",
+        "query": "SELECT precio, stock, detalle FROM (\n  SELECT p.precio, p.stock, p.detalle, p.creado_en, 1 AS prio,\n         rm_score(p.producto, '{{ $json.producto_sql }}') AS pts\n  FROM precios_stock p\n  WHERE rm_score(p.producto, '{{ $json.producto_sql }}') >= 0.5\n    AND rm_score('{{ $json.producto_sql }}', p.producto) >= 0.5\n  UNION ALL\n  SELECT NULL::text, NULL::text, k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.producto_sql }}')\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.producto_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.producto_sql }}') >= 0.75\n) r\nORDER BY prio, pts DESC, creado_en DESC\nLIMIT 1;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        18448,
-        66032
+        106720,
+        210736
       ],
-      "id": "938f0ae7-bd5f-49ee-a458-736ba9e12932",
+      "id": "2b2e0a18-ed9d-4d4c-828c-2ec40182c0c2",
       "name": "Buscar Precio Stock",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -2794,10 +2664,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        18704,
-        66032
+        106976,
+        210736
       ],
-      "id": "0becafdd-92ae-423d-a8c7-7b803ecbc839",
+      "id": "9fbb35fb-ed9f-4145-8cd9-cad5986cd6b2",
       "name": "¿Hay Dato Precio?"
     },
     {
@@ -2817,10 +2687,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        18976,
-        66032
+        107248,
+        210736
       ],
-      "id": "bee2ca45-90d0-4a99-b277-df80da30905e",
+      "id": "a59b25f6-e61d-473e-8923-b0b20be2b844",
       "name": "Preparar Contexto Precio Encontrado"
     },
     {
@@ -2832,17 +2702,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17664,
-        66256
+        105936,
+        210960
       ],
-      "id": "74663d49-7ec8-4100-8ea0-e93de5b2a9e8",
+      "id": "f9e2991a-4d9b-4d4c-9251-899fef2e9b52",
       "name": "Traer Historial (Precio)",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -2854,10 +2718,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        17936,
-        66256
+        106208,
+        210960
       ],
-      "id": "668f4d8e-feb0-47fb-9189-ab2ab01c6634",
+      "id": "5b6b0242-47f0-4ef4-9e2d-81825514844c",
       "name": "Formatear Historial (Precio)"
     },
     {
@@ -2869,17 +2733,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        18192,
-        66256
+        106464,
+        210960
       ],
-      "id": "a6c22677-0dac-4c3b-b4be-021bdc9208c4",
+      "id": "f71ca9a3-d2ce-4c17-9aec-8decfda4ca66",
       "name": "Registrar Pregunta Precio Pendiente",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -2919,10 +2777,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        18448,
-        66256
+        106720,
+        210960
       ],
-      "id": "f70d17e6-100b-42f1-91dd-f85bd9f756a1",
+      "id": "2e864a6a-89a6-48a3-8952-18f452b4e962",
       "name": "Preparar Escalado - Consulta Precio"
     },
     {
@@ -2934,18 +2792,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        18704,
-        66256
+        106976,
+        210960
       ],
-      "id": "a4892a04-74b5-4372-85cf-ced254d12851",
+      "id": "6f5e6c40-95fa-4f9c-a26d-4038772a41c6",
       "name": "Buscar Pregunta Precio Pendiente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -2978,10 +2830,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        18976,
-        66256
+        107248,
+        210960
       ],
-      "id": "06ba4f8d-bfd6-47ee-b28d-72200023d728",
+      "id": "1680c255-b120-4020-921b-dd067d75ac49",
       "name": "¿Hay Pregunta Precio Pendiente?"
     },
     {
@@ -2995,10 +2847,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        17664,
-        66480
+        105936,
+        211184
       ],
-      "id": "2364ecda-c6a1-42c6-9acf-38c73827b5aa",
+      "id": "b754fd83-ca30-4f0e-837b-680c2958982c",
       "name": "Extraer Respuesta Precio",
       "retryOnFail": true,
       "maxTries": 3,
@@ -3011,10 +2863,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        17936,
-        66480
+        106208,
+        211184
       ],
-      "id": "e63d3ca8-4ada-4d3f-bab0-dd82e181c536",
+      "id": "fd59b120-5cac-4431-aea0-833da5d411d9",
       "name": "Parsear Respuesta Precio"
     },
     {
@@ -3044,10 +2896,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        18192,
-        66480
+        106464,
+        211184
       ],
-      "id": "9d8b0db2-903d-4b83-9d24-58ec5643d364",
+      "id": "320535df-37cb-4659-abef-cef118af240f",
       "name": "¿Extraccion Confiable Precio?"
     },
     {
@@ -3078,10 +2930,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        18320,
-        66480
+        106592,
+        211184
       ],
-      "id": "gen-aplica-precio-node",
+      "id": "f6e3760f-631b-49d4-a63a-eeae994dbf1a",
       "name": "¿Aplica Precio/Stock?"
     },
     {
@@ -3093,17 +2945,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        18448,
-        66480
+        106720,
+        211184
       ],
-      "id": "e49d2cda-39b0-4e62-b18c-014ff42ff3d0",
+      "id": "24bcaf71-47c8-4572-b141-db8d11ce673c",
       "name": "Guardar en Precios Stock",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3117,17 +2963,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        18704,
-        66480
+        106976,
+        211184
       ],
-      "id": "da7c727f-2a07-49b7-9110-ee63d94714e4",
+      "id": "2267bda8-5a03-4b30-8900-f1eae6325b3d",
       "name": "Marcar Pregunta Precio Respondida",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3149,10 +2989,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        18976,
-        66480
+        107248,
+        211184
       ],
-      "id": "7cfd3d95-bce0-4cfc-9a8b-836598848cb2",
+      "id": "c9638d8f-adab-4dcc-9a0a-cf2a7a1db885",
       "name": "Preparar Respuesta Cliente - Precio"
     },
     {
@@ -3182,10 +3022,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        17664,
-        66704
+        105936,
+        211408
       ],
-      "id": "066a69f8-5847-493b-80a8-0f84ffc6c1f8",
+      "id": "96a340e0-45df-4333-9c90-1caa93de20a5",
       "name": "Responder Cliente - Aprendizaje Precio",
       "retryOnFail": true,
       "maxTries": 3,
@@ -3196,22 +3036,20 @@
         "operation": "set",
         "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
         "value": "={{ $json.content }}",
-        "expire": true
+        "expire": true,
+        "ttl": 600
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        17936,
-        66704
+        106208,
+        211408
       ],
-      "id": "6b49ed3e-b52a-4f99-84c0-13312fcca838",
+      "id": "bf493d52-52b7-4888-b4ef-e1ef7dfa00b5",
       "name": "Marcar Auto-Eco - Aprendizaje Precio",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -3222,18 +3060,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        16768,
-        64896
+        105040,
+        209600
       ],
-      "id": "cd63d212-db50-4a26-b2ca-bf2a13e96a8b",
+      "id": "71a70305-50ca-4cc6-94ca-0da33d36a2b4",
       "name": "Buscar Pendiente Tecnica Existente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3266,10 +3098,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16768,
-        64976
+        105040,
+        209680
       ],
-      "id": "0ba9c8a8-2997-4368-92b4-fc213803e51d",
+      "id": "1bd01f55-a35f-46d9-8d25-f910179abd3b",
       "name": "¿Ya Existe Pendiente Tecnica?"
     },
     {
@@ -3281,18 +3113,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        16768,
-        65296
+        105040,
+        210000
       ],
-      "id": "8f26d0e0-79bd-4d95-8222-a5902ef6c359",
+      "id": "b5552031-0252-4f4e-a050-a1a028f13807",
       "name": "Buscar Pendiente Negocio Existente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3325,10 +3151,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16768,
-        65376
+        105040,
+        210080
       ],
-      "id": "c8399550-8e24-4e29-90ea-13ad71229ce5",
+      "id": "a07eefcc-4eb1-429b-ae72-faac7590fd0e",
       "name": "¿Ya Existe Pendiente Negocio?"
     },
     {
@@ -3340,18 +3166,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        16768,
-        66544
+        105040,
+        211248
       ],
-      "id": "5d336402-f74d-484e-b156-de9ce8ab9656",
+      "id": "7fea8620-8a30-4f82-9c33-2b24740b4533",
       "name": "Buscar Pendiente Precio Existente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3384,10 +3204,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16768,
-        66624
+        105040,
+        211328
       ],
-      "id": "65b1f9f6-3de3-4732-aea1-d480ebeef9bd",
+      "id": "025eb7d7-8b43-4ae7-b8c2-5f017647a7a8",
       "name": "¿Ya Existe Pendiente Precio?"
     },
     {
@@ -3397,10 +3217,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        15776,
-        65536
+        104048,
+        210240
       ],
-      "id": "2a6ab381-2880-4e16-b147-6d5eac7564a7",
+      "id": "abc3deb6-04c7-413e-9160-2ff665247cf6",
       "name": "Expandir Intenciones"
     },
     {
@@ -3410,10 +3230,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        16016,
-        65536
+        104288,
+        210240
       ],
-      "id": "75b29255-9077-4c31-80b2-8c3061fe2313",
+      "id": "4ae8bf27-afa4-4702-9650-bc690523fa0a",
       "name": "Loop Intenciones"
     },
     {
@@ -3499,10 +3319,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        16256,
-        65536
+        104528,
+        210240
       ],
-      "id": "22691588-6fee-45f2-81b8-a03b8e6246f6",
+      "id": "f63adc4e-a008-4c41-af0d-443fca86fac2",
       "name": "Ruteo Intencion (Multi)"
     },
     {
@@ -3512,10 +3332,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        17264,
-        65232
+        105536,
+        209936
       ],
-      "id": "041a1cab-9bd9-47dc-acb5-eeef8e1584a8",
+      "id": "8f0c5302-f308-4df6-a32e-fab1737d3a16",
       "name": "Etiquetar Encontrado (Multi)"
     },
     {
@@ -3525,10 +3345,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        17264,
-        65840
+        105536,
+        210544
       ],
-      "id": "c6f98cff-fcba-4770-94b7-47f2662f3feb",
+      "id": "393c59da-1241-4e82-bbb9-af367fadc98a",
       "name": "Etiquetar Pendiente (Multi)"
     },
     {
@@ -3542,10 +3362,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        16496,
-        65040
+        104768,
+        209744
       ],
-      "id": "7d8060f6-fa7d-420c-ac9f-47b10a662470",
+      "id": "0c940693-5388-4b99-8528-9680652b621a",
       "name": "Extraer Datos Tecnicos (Multi)",
       "retryOnFail": true,
       "maxTries": 3,
@@ -3558,10 +3378,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        16736,
-        65040
+        105008,
+        209744
       ],
-      "id": "d6745366-3c64-4175-a711-256849052ac7",
+      "id": "7c167106-843a-4c20-85e8-ca6a87f8eddb",
       "name": "Parsear Datos Tecnicos (Multi)"
     },
     {
@@ -3592,33 +3412,27 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16976,
-        65040
+        105248,
+        209744
       ],
-      "id": "ba0e28ee-86fd-4045-8101-0c372eaa327e",
+      "id": "1111217b-9378-4829-ba73-2267f84029cd",
       "name": "¿Datos Tecnicos Suficiente? (Multi)"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT compatible, detalle FROM (\n  SELECT c.compatible, c.detalle, c.creado_en, 1 AS prio,\n         rm_score(c.kit, '{{ $json.kit_sql }}') AS pts,\n         (rm_tokens(c.modelo_moto) IS NOT NULL AND rm_tokens('{{ $json.modelo_moto_sql }}') IS NOT NULL) AS con_modelo\n  FROM compatibilidades c\n  WHERE rm_score(c.kit, '{{ $json.kit_sql }}') >= 0.5\n    AND rm_modelo_ok(c.modelo_moto, '{{ $json.modelo_moto_sql }}')\n  UNION ALL\n  SELECT NULL::boolean, k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}'), false\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}') >= 0.6\n) r\nORDER BY prio, con_modelo DESC, pts DESC, creado_en DESC\nLIMIT 1;",
+        "query": "SELECT compatible, detalle FROM (\n  SELECT c.compatible, c.detalle, c.creado_en, 1 AS prio,\n         rm_score(c.kit, '{{ $json.kit_sql }}') AS pts,\n         (rm_tokens(c.modelo_moto) IS NOT NULL AND rm_tokens('{{ $json.modelo_moto_sql }}') IS NOT NULL) AS con_modelo\n  FROM compatibilidades c\n  WHERE rm_score(c.kit, '{{ $json.kit_sql }}') >= 0.5\n    AND rm_score('{{ $json.kit_sql }}', c.kit) >= 0.5\n    AND rm_modelo_ok(c.modelo_moto, '{{ $json.modelo_moto_sql }}')\n  UNION ALL\n  SELECT NULL::boolean, k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}'), false\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.modelo_moto_sql }} {{ $json.kit_sql }}') >= 0.75\n  UNION ALL\n  SELECT NULL::boolean,\n         'Producto: ' || p.producto\n           || coalesce(' | Precio: ' || p.precio, '')\n           || coalesce(' | Stock/envio: ' || p.stock, '')\n           || coalesce(' | ' || p.detalle, ''),\n         p.creado_en, 3,\n         rm_score(p.producto, '{{ $json.kit_sql }}'), false\n  FROM precios_stock p\n  WHERE rm_score(p.producto, '{{ $json.kit_sql }}') >= 0.5\n    AND rm_score('{{ $json.kit_sql }}', p.producto) >= 0.5\n) r\nORDER BY prio, con_modelo DESC, pts DESC, creado_en DESC\nLIMIT 1;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        65040
+        105488,
+        209744
       ],
-      "id": "9322cf93-d07c-490f-a097-c3a7df2753d5",
+      "id": "c0580f53-1911-4359-8847-6a80efa6f830",
       "name": "Buscar Datos Tecnicos (Multi)",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3651,10 +3465,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17216,
-        65200
+        105488,
+        209904
       ],
-      "id": "5d505690-5e88-48d6-9015-d1a5b834b3b2",
+      "id": "9cc666f4-95d3-4df2-a071-b3c18830977e",
       "name": "¿Hay Dato Datos Tecnicos? (Multi)"
     },
     {
@@ -3664,7 +3478,7 @@
             {
               "id": "b0a7ec10-b402-4df3-8dff-27c514512e3d",
               "name": "dato_compatibilidad",
-              "value": "={{ $json.compatible === null ? ('Info que ya nos dio el equipo antes: ' + $json.detalle) : ('Modelo: ' + $('Parsear Datos Tecnicos (Multi)').item.json.modelo_moto + ' | Kit: ' + $('Parsear Datos Tecnicos (Multi)').item.json.kit + ' | Compatible: ' + ($json.compatible ? 'SI' : 'NO') + ' | Detalle: ' + ($json.detalle || 'sin detalle adicional')) }}",
+              "value": "={{ (() => { const p = $('Parsear Datos Tecnicos (Multi)').item.json; if ($json.compatible === null) return 'Info que ya nos dio el equipo antes: ' + $json.detalle; const modelo = (p.modelo_moto || '').toString().trim(); const base = (modelo ? 'Modelo: ' + modelo + ' | ' : '') + 'Kit: ' + p.kit + ' | Compatible: ' + ($json.compatible ? 'SI' : 'NO') + ' | Detalle: ' + ($json.detalle || 'sin detalle adicional'); return modelo ? base : base + \" | ATENCION: este dato NO esta confirmado para el modelo de moto del cliente (el cliente no lo dijo). No afirmes compatibilidad con un modelo puntual: pedile el modelo de la moto antes de confirmar.\"; })() }}",
               "type": "string"
             }
           ]
@@ -3674,10 +3488,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        17216,
-        65360
+        105488,
+        210064
       ],
-      "id": "8660002a-fa34-494e-900c-e0d22ebc4372",
+      "id": "b786e5cc-e561-4eb4-ac2c-af113360350d",
       "name": "Preparar Contexto Datos Tecnicos (Multi)"
     },
     {
@@ -3689,18 +3503,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        65520
+        105488,
+        210224
       ],
-      "id": "0a5e7219-c83d-4861-a059-ad2028d0025a",
+      "id": "8079ce4e-37a2-4748-bf0d-26b9405d2a7e",
       "name": "Buscar Pendiente Datos Tecnicos (Multi) Existente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3733,10 +3541,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17216,
-        65600
+        105488,
+        210304
       ],
-      "id": "c9a6e37a-0ac3-47a3-b5b1-1a6e336a450e",
+      "id": "dc8d790a-e6d7-4a87-8a2c-4a39ff2a8e91",
       "name": "¿Ya Existe Pendiente Datos Tecnicos? (Multi)"
     },
     {
@@ -3748,17 +3556,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        65680
+        105488,
+        210384
       ],
-      "id": "00bdb802-af3a-4012-b02c-c289f946bc2b",
+      "id": "42d67a33-d271-40f6-831e-454d846f8a27",
       "name": "Registrar Pregunta Datos Tecnicos (Multi) Pendiente",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3786,10 +3588,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        17216,
-        65760
+        105488,
+        210464
       ],
-      "id": "0835380d-93d9-4de4-ada3-1b9164534aae",
+      "id": "6045d549-56e2-49e9-a187-731725850f9e",
       "name": "Preparar Escalado - Datos Tecnicos (Multi)"
     },
     {
@@ -3803,10 +3605,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        16496,
-        65440
+        104768,
+        210144
       ],
-      "id": "9bbb6a68-8c70-4608-b1f9-4e617a2a4f94",
+      "id": "42694e45-6665-4858-8029-be17f96fc2fd",
       "name": "Extraer Tema Negocio (Multi)",
       "retryOnFail": true,
       "maxTries": 3,
@@ -3819,10 +3621,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        16736,
-        65440
+        105008,
+        210144
       ],
-      "id": "55fa59bb-7ced-4234-bca7-71468295ea6b",
+      "id": "0d133b58-f804-40a3-87a1-5f3a6c188c48",
       "name": "Parsear Tema Negocio (Multi)"
     },
     {
@@ -3853,33 +3655,27 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16976,
-        65440
+        105248,
+        210144
       ],
-      "id": "259d8672-2813-488f-99a8-b2eff8ff5590",
+      "id": "b004d771-7f4c-4b5d-8730-f7f5508ac9d6",
       "name": "¿Tema Negocio Suficiente? (Multi)"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT respuesta FROM (\n  SELECT i.respuesta, i.creado_en, 1 AS prio,\n         rm_score(i.tema, '{{ $json.tema_sql }}') AS pts\n  FROM info_negocio i\n  WHERE rm_score(i.tema, '{{ $json.tema_sql }}') >= 0.5\n  UNION ALL\n  SELECT k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.tema_sql }}')\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.tema_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.tema_sql }}') >= 0.6\n) r\nORDER BY prio, pts DESC, creado_en DESC\nLIMIT 1;",
+        "query": "SELECT respuesta FROM (\n  SELECT i.respuesta, i.creado_en, 1 AS prio,\n         rm_score(i.tema, '{{ $json.tema_sql }}') AS pts\n  FROM info_negocio i\n  WHERE rm_score(i.tema, '{{ $json.tema_sql }}') >= 0.5\n    AND rm_score('{{ $json.tema_sql }}', i.tema) >= 0.5\n  UNION ALL\n  SELECT k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.tema_sql }}')\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.tema_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.tema_sql }}') >= 0.75\n) r\nORDER BY prio, pts DESC, creado_en DESC\nLIMIT 1;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        65440
+        105488,
+        210144
       ],
-      "id": "b997af29-80e4-42b9-83c4-5082df64ec53",
+      "id": "bf3e6a53-0ee3-4152-b752-612eb44d1dda",
       "name": "Buscar Tema Negocio (Multi)",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3912,10 +3708,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17216,
-        65600
+        105488,
+        210304
       ],
-      "id": "4e62fecc-af35-4dbc-be9d-8eae90fe3b92",
+      "id": "0ba79850-8e50-4fee-8f0d-ee59fd099ac2",
       "name": "¿Hay Dato Tema Negocio? (Multi)"
     },
     {
@@ -3935,10 +3731,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        17216,
-        65760
+        105488,
+        210464
       ],
-      "id": "4d96e4b0-97aa-4519-a4ac-9fdbd4afac94",
+      "id": "df1d411c-93b0-41cb-be0f-8ec9685c005a",
       "name": "Preparar Contexto Tema Negocio (Multi)"
     },
     {
@@ -3950,18 +3746,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        65920
+        105488,
+        210624
       ],
-      "id": "9eb2abce-84d8-4303-a516-db604415ea8b",
+      "id": "4c7a2dbb-a9d8-4217-8b50-a49c7d813e7e",
       "name": "Buscar Pendiente Tema Negocio (Multi) Existente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -3994,10 +3784,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17216,
-        66000
+        105488,
+        210704
       ],
-      "id": "7e5707aa-5373-4170-b841-d98e35b64192",
+      "id": "04f898a7-0634-4c2f-aa7b-0f185af8ca1a",
       "name": "¿Ya Existe Pendiente Tema Negocio? (Multi)"
     },
     {
@@ -4009,17 +3799,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        66080
+        105488,
+        210784
       ],
-      "id": "cc6a1eaa-9c8e-46d9-99b5-143f47bc2165",
+      "id": "f256c075-7b9f-41b5-845c-b6f5e477dfda",
       "name": "Registrar Pregunta Tema Negocio (Multi) Pendiente",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -4047,10 +3831,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        17216,
-        66160
+        105488,
+        210864
       ],
-      "id": "06011ee2-9768-42e2-b73d-5ad5c1484488",
+      "id": "9d9bad8e-2040-4846-8495-40805b6e9b01",
       "name": "Preparar Escalado - Tema Negocio (Multi)"
     },
     {
@@ -4064,10 +3848,10 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        16496,
-        65840
+        104768,
+        210544
       ],
-      "id": "de5f61f8-3530-46c5-b6b5-62b8a74331e5",
+      "id": "66f769c1-cdc6-487b-9406-6b58be3dac1e",
       "name": "Extraer Producto (Multi)",
       "retryOnFail": true,
       "maxTries": 3,
@@ -4080,10 +3864,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        16736,
-        65840
+        105008,
+        210544
       ],
-      "id": "8144ca76-e300-4cb4-9a9f-7c685569d81a",
+      "id": "303d7a2e-ef6c-4e40-b7b8-d852c740d889",
       "name": "Parsear Producto (Multi)"
     },
     {
@@ -4114,33 +3898,27 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        16976,
-        65840
+        105248,
+        210544
       ],
-      "id": "7ac143b3-4998-4ecd-b9da-3eb4a61e6824",
+      "id": "f44bdbe8-cfa4-46ce-b5e9-10a3a9c0d5cc",
       "name": "¿Producto Suficiente? (Multi)"
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT precio, stock, detalle FROM (\n  SELECT p.precio, p.stock, p.detalle, p.creado_en, 1 AS prio,\n         rm_score(p.producto, '{{ $json.producto_sql }}') AS pts\n  FROM precios_stock p\n  WHERE rm_score(p.producto, '{{ $json.producto_sql }}') >= 0.5\n  UNION ALL\n  SELECT NULL::text, NULL::text, k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.producto_sql }}')\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.producto_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.producto_sql }}') >= 0.6\n) r\nORDER BY prio, pts DESC, creado_en DESC\nLIMIT 1;",
+        "query": "SELECT precio, stock, detalle FROM (\n  SELECT p.precio, p.stock, p.detalle, p.creado_en, 1 AS prio,\n         rm_score(p.producto, '{{ $json.producto_sql }}') AS pts\n  FROM precios_stock p\n  WHERE rm_score(p.producto, '{{ $json.producto_sql }}') >= 0.5\n    AND rm_score('{{ $json.producto_sql }}', p.producto) >= 0.5\n  UNION ALL\n  SELECT NULL::text, NULL::text, k.respuesta, k.creado_en, 2,\n         rm_score(k.clave || ' ' || k.pregunta, '{{ $json.producto_sql }}')\n  FROM conocimiento_libre k\n  WHERE array_length(rm_tokens('{{ $json.producto_sql }}'), 1) >= 2\n    AND rm_score(k.clave || ' ' || k.pregunta, '{{ $json.producto_sql }}') >= 0.75\n) r\nORDER BY prio, pts DESC, creado_en DESC\nLIMIT 1;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        65840
+        105488,
+        210544
       ],
-      "id": "e221c653-3874-4663-98be-328e1ceadf98",
+      "id": "2a4f1759-cd26-498b-a1e0-6c017804c099",
       "name": "Buscar Producto (Multi)",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -4173,10 +3951,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17216,
-        66000
+        105488,
+        210704
       ],
-      "id": "07c6c9ae-e9af-48a5-9842-f8f7f40084bd",
+      "id": "a2d919d1-c7cb-401b-bc47-398b555df319",
       "name": "¿Hay Dato Producto? (Multi)"
     },
     {
@@ -4196,10 +3974,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        17216,
-        66160
+        105488,
+        210864
       ],
-      "id": "5ea9f0d2-641b-46e1-96f6-160fe2034503",
+      "id": "a396ce71-06cd-45cf-81ec-e88de7140427",
       "name": "Preparar Contexto Producto (Multi)"
     },
     {
@@ -4211,18 +3989,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        66320
+        105488,
+        211024
       ],
-      "id": "3053ef3b-089d-4626-b80b-b62cb10cc281",
+      "id": "d465c035-03b6-4f80-aabc-3a94aaf854b3",
       "name": "Buscar Pendiente Producto (Multi) Existente",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -4255,10 +4027,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17216,
-        66400
+        105488,
+        211104
       ],
-      "id": "a5d188b4-541d-449d-b26e-32a4ab7eba7f",
+      "id": "b485c694-0291-4f72-97e9-a393d198750f",
       "name": "¿Ya Existe Pendiente Producto? (Multi)"
     },
     {
@@ -4270,17 +4042,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17216,
-        66480
+        105488,
+        211184
       ],
-      "id": "32788881-9327-4fdb-af65-974ffd9d6440",
+      "id": "45a52daa-501a-4ee4-9605-7255dd5cc84a",
       "name": "Registrar Pregunta Producto (Multi) Pendiente",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -4308,10 +4074,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        17216,
-        66560
+        105488,
+        211264
       ],
-      "id": "6eedadf9-74c2-4b96-892a-f9b37af23b9f",
+      "id": "ddd02560-c902-450a-aea0-16760b745d33",
       "name": "Preparar Escalado - Producto (Multi)"
     },
     {
@@ -4321,10 +4087,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        17520,
-        65536
+        105792,
+        210240
       ],
-      "id": "24374cb3-656e-4863-ba35-1bdd50469774",
+      "id": "4eaf22a3-28f9-4181-b5f2-3c5d33c3fee7",
       "name": "Consolidar Resultados (Multi)"
     },
     {
@@ -4355,10 +4121,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17776,
-        65440
+        106048,
+        210144
       ],
-      "id": "2ab46cd3-8076-44b8-80a9-61ed270d8d9b",
+      "id": "702562c5-11dc-4b3c-81ae-753ba26e60d7",
       "name": "¿Hay Encontrados? (Multi)"
     },
     {
@@ -4389,10 +4155,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        17776,
-        65632
+        106048,
+        210336
       ],
-      "id": "51d5b53a-411a-4371-bd30-67f3cdecca49",
+      "id": "fb3e250a-e060-475e-af77-245bc6ce6f34",
       "name": "¿Hay Pendientes? (Multi)"
     },
     {
@@ -4404,17 +4170,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        18016,
-        65392
+        106288,
+        210096
       ],
-      "id": "b41375bc-3bcf-470a-90fe-77783997eda5",
+      "id": "07524d86-b2e7-4d51-a0b0-01cf14e90af9",
       "name": "Traer Historial (Multi)",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -4426,10 +4186,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        18256,
-        65392
+        106528,
+        210096
       ],
-      "id": "0eb33097-28bc-4adc-b370-7a84508dd142",
+      "id": "6a829a45-c0fa-4a73-b9e7-d51c4279037e",
       "name": "Formatear Historial (Multi)"
     },
     {
@@ -4467,10 +4227,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        18016,
-        65696
+        106288,
+        210400
       ],
-      "id": "767cde38-0f91-4b0a-88cd-21ddebaab17b",
+      "id": "0e3596c2-349e-41c1-ab15-4c378eb0aed3",
       "name": "Preparar Escalado - Multi Intencion"
     },
     {
@@ -4483,17 +4243,11 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatDeepSeek",
       "typeVersion": 1,
       "position": [
-        15024,
-        65536
+        103296,
+        210240
       ],
-      "id": "2ba73a88-f4b5-489b-9310-f1c2e4af600f",
-      "name": "DeepSeek Chat Model - Extraccion",
-      "credentials": {
-        "deepSeekApi": {
-          "id": "6uiYD2nzluzyDXnZ",
-          "name": "DeepSeek account"
-        }
-      }
+      "id": "52b2ff12-7eba-4f9b-843b-0dea8d19707d",
+      "name": "DeepSeek Chat Model - Extraccion"
     },
     {
       "parameters": {
@@ -4523,10 +4277,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        16320,
-        64528
+        104592,
+        209232
       ],
-      "id": "a07076d0-9592-4ca9-adab-5d643f846b80",
+      "id": "6b33cbbf-7453-4e54-a641-b16cf81cef1d",
       "name": "¿Respuesta Vacia?"
     },
     {
@@ -4564,10 +4318,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        16320,
-        64688
+        104592,
+        209392
       ],
-      "id": "d83483f8-d6e9-4a8a-beda-d905886f274d",
+      "id": "a63bef9f-42c0-4984-aede-7b91d2c72be5",
       "name": "Preparar Escalado - Respuesta Vacia"
     },
     {
@@ -4580,10 +4334,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        13536,
-        67408
+        101808,
+        212112
       ],
-      "id": "6f31a429-04a5-48bd-8bc6-fe9197348764",
+      "id": "ddea900c-8a80-4101-9775-7ad7dced367f",
       "name": "Nota - Kits Publicidad"
     },
     {
@@ -4595,18 +4349,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        13536,
-        67136
+        101808,
+        211840
       ],
-      "id": "0951f495-3019-4711-b5e2-4a3417cbf4c9",
+      "id": "3acf7bd1-0358-420a-aa14-041063604ada",
       "name": "Buscar Kits Activos",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -4639,10 +4387,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        13776,
-        67136
+        102048,
+        211840
       ],
-      "id": "15e6cda9-b096-449b-b7f1-635e56e84c6b",
+      "id": "ecc3c62a-6dcf-4979-8bf2-4a9bc02cd1cb",
       "name": "¿Hay Kits Activos?"
     },
     {
@@ -4652,10 +4400,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        14016,
-        67136
+        102288,
+        211840
       ],
-      "id": "45fbec6b-9f7d-4110-8190-1b42506748b2",
+      "id": "f8936d8b-198c-489c-b92c-8e6361e849b3",
       "name": "Formatear Kits Activos"
     },
     {
@@ -4663,16 +4411,16 @@
         "promptType": "define",
         "text": "=Kits activos en publicidad (puede haber mas de uno):\n{{ $('Formatear Kits Activos').item.json.kits_lista_texto }}\n\nHistorial reciente de esta conversacion (puede estar vacio, mas antiguo arriba):\n{{ $json.historial_texto || '(sin historial)' }}\n\nMensaje del cliente: {{ $('datos_finales2').item.json.texto }}",
         "options": {
-          "systemMessage": "Sos un clasificador que decide si el mensaje de un cliente de WhatsApp menciona explicita e inequivocamente uno de los kits/combos que estan actualmente en publicidad, listados arriba con su id, nombre y palabras clave asociadas.\n\nRespondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"estado\": \"EXACTO\" o \"AMBIGUO\" o \"NINGUNO\", \"kit_id\": <id del kit si estado es EXACTO, sino null>}\n\nReglas:\n- EXACTO: el mensaje incluye un dato puntual que identifica un solo kit sin dudas (un numero, un nombre propio, o una de sus palabras clave concretas) — por ejemplo \"kit 120\", \"cilindro 120\", \"el combo para la Wave\".\n- AMBIGUO: el mensaje menciona \"kit\", \"combo\", \"promo\" o similar de forma GENERICA, SIN ningun numero/nombre/palabra clave puntual que permita saber cual es. Esto aplica SIEMPRE que la mencion sea generica, incluso si en este momento hay un solo kit activo en la lista — el cliente no tiene por que saber cual es \"el\" kit, así que hay que preguntar igual, nunca asumir por descarte.\n- NINGUNO: el mensaje no menciona ningun kit/combo (aunque hable de otra cosa, o incluso si menciona un kit que no esta en la lista).\n\nNUNCA asumas cual kit es solo porque sea el unico activo. Ante la duda entre EXACTO y AMBIGUO, elegi AMBIGUO.\n\nIMPORTANTE — usá el historial para resolver el contexto: si tu ULTIMO mensaje (rol Asesor) en el historial fue una pregunta pidiendole al cliente que aclare a cual kit se referia (por ejemplo \"¿Sobre cuál kit te gustaría info?\" listando las opciones), y el mensaje actual del cliente es su respuesta a esa pregunta, interpretalo en ese contexto aunque no repita la palabra \"kit\"/\"combo\" ni use el mismo orden de palabras que el nombre del kit: si lo que dice coincide claramente con uno de los kits listados, es EXACTO para ese kit. Fuera de ese contexto (el ultimo mensaje tuyo no fue esa pregunta), seguí aplicando las reglas de arriba con normalidad."
+          "systemMessage": "Sos un clasificador que decide si el mensaje de un cliente de WhatsApp menciona explicita e inequivocamente uno de los kits/combos que estan actualmente en publicidad, listados arriba con su id, nombre y palabras clave asociadas.\n\nRespondé UNICAMENTE con un JSON valido, sin texto adicional, con este formato exacto:\n{\"estado\": \"EXACTO\" o \"AMBIGUO\" o \"NINGUNO\", \"kit_nombre\": <nombre del kit copiado EXACTAMENTE (texto por texto, tal cual aparece arriba) si estado es EXACTO, sino null>}\n\nIMPORTANTE sobre \"kit_nombre\": copiá el campo \"nombre\" del kit tal cual figura en la lista de arriba (entre comillas, despues de \"id X:\"). NO uses el id numerico de la lista, y NO inventes un nombre a partir de un numero que haya dicho el cliente — el nombre del kit puede contener numeros (ej: \"Kit 120 para 110\") que no coinciden con su id. Copiá el nombre completo y literal.\n\nReglas:\n- EXACTO: el mensaje incluye un dato puntual que identifica un solo kit sin dudas (un numero, un nombre propio, o una de sus palabras clave concretas) — por ejemplo \"kit 120\", \"cilindro 120\", \"el combo para la Wave\".\n- AMBIGUO: el mensaje menciona \"kit\", \"combo\", \"promo\" o similar de forma GENERICA, SIN ningun numero/nombre/palabra clave puntual que permita saber cual es. Esto aplica SIEMPRE que la mencion sea generica, incluso si en este momento hay un solo kit activo en la lista — el cliente no tiene por que saber cual es \"el\" kit, así que hay que preguntar igual, nunca asumir por descarte.\n- NINGUNO: el mensaje no menciona ningun kit/combo (aunque hable de otra cosa, o incluso si menciona un kit que no esta en la lista).\n\nNUNCA asumas cual kit es solo porque sea el unico activo. Ante la duda entre EXACTO y AMBIGUO, elegi AMBIGUO.\n\nIMPORTANTE — usá el historial para resolver el contexto: si tu ULTIMO mensaje (rol Asesor) en el historial fue una pregunta pidiendole al cliente que aclare a cual kit se referia (por ejemplo \"¿Sobre cuál kit te gustaría info?\" listando las opciones), y el mensaje actual del cliente es su respuesta a esa pregunta, interpretalo en ese contexto aunque no repita la palabra \"kit\"/\"combo\" ni use el mismo orden de palabras que el nombre del kit: si lo que dice coincide claramente con uno de los kits listados, es EXACTO para ese kit. Fuera de ese contexto (el ultimo mensaje tuyo no fue esa pregunta), seguí aplicando las reglas de arriba con normalidad."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        14256,
-        67136
+        102528,
+        211840
       ],
-      "id": "f705cbca-afdd-42bf-8f60-31a9271d3140",
+      "id": "d84556e9-24fd-47fb-9849-0d6508982c12",
       "name": "Detectar Mencion Kit",
       "retryOnFail": true,
       "maxTries": 3,
@@ -4680,15 +4428,15 @@
     },
     {
       "parameters": {
-        "jsCode": "let estado = 'NINGUNO';\nlet kitId = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  estado = (parsed.estado || 'NINGUNO').toString().toUpperCase();\n  kitId = parsed.kit_id !== undefined && parsed.kit_id !== null ? Number(parsed.kit_id) : null;\n} catch (e) {\n  estado = 'NINGUNO';\n}\n\nconst kits = $('Formatear Kits Activos').item.json.kits || [];\nconst match = kits.find(k => k.id === kitId) || null;\nif (estado === 'EXACTO' && !match) estado = 'NINGUNO';\n\nreturn [{\n  json: {\n    estado,\n    kit_id: match ? match.id : null,\n    nombre: match ? match.nombre : '',\n    mensaje_bienvenida: match ? match.mensaje_bienvenida : '',\n    kits_nombres_texto: $('Formatear Kits Activos').item.json.kits_nombres_texto,\n  },\n}];\n"
+        "jsCode": "let estado = 'NINGUNO';\nlet kitNombre = null;\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  estado = (parsed.estado || 'NINGUNO').toString().toUpperCase();\n  kitNombre = parsed.kit_nombre !== undefined && parsed.kit_nombre !== null ? parsed.kit_nombre.toString().trim() : null;\n} catch (e) {\n  estado = 'NINGUNO';\n}\n\nconst kits = $('Formatear Kits Activos').item.json.kits || [];\nconst kitNombreNorm = kitNombre ? kitNombre.toLowerCase() : null;\nconst match = kitNombreNorm ? (kits.find(k => (k.nombre || '').trim().toLowerCase() === kitNombreNorm) || null) : null;\nif (estado === 'EXACTO' && !match) estado = 'NINGUNO';\n\nreturn [{\n  json: {\n    estado,\n    kit_id: match ? match.id : null,\n    nombre: match ? match.nombre : '',\n    mensaje_bienvenida: match ? match.mensaje_bienvenida : '',\n    kits_nombres_texto: $('Formatear Kits Activos').item.json.kits_nombres_texto,\n  },\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        14496,
-        67136
+        102768,
+        211840
       ],
-      "id": "b5b6e42b-dc97-4062-8efc-f637f2972c7c",
+      "id": "ab889e43-ad51-47ac-bc0a-1243d60a1f58",
       "name": "Parsear Deteccion Kit"
     },
     {
@@ -4753,10 +4501,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        14736,
-        67136
+        103008,
+        211840
       ],
-      "id": "b5c57aa7-bd45-485f-959a-5f9214aa370e",
+      "id": "dd2408a6-818f-4d7f-9350-fe273f81f099",
       "name": "Ruteo Deteccion Kit"
     },
     {
@@ -4769,18 +4517,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        14976,
-        67008
+        103248,
+        211712
       ],
-      "id": "d06bb048-b81e-4583-a8ec-ba745cd84194",
+      "id": "0504304e-6030-41ff-8e18-0df057e340a2",
       "name": "Chequear Saludo Kit Enviado",
       "alwaysOutputData": true,
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -4810,10 +4555,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        15216,
-        67008
+        103488,
+        211712
       ],
-      "id": "233c8061-e840-4637-bdac-e372b79c9052",
+      "id": "201976a4-c987-4499-969c-b7e85b94e762",
       "name": "¿Ya Se Envio Saludo Kit?"
     },
     {
@@ -4833,10 +4578,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        15456,
-        66928
+        103728,
+        211632
       ],
-      "id": "451406a2-10da-40af-9689-61dff1ab6768",
+      "id": "5b7f02e0-52c1-4714-a292-266027562f3f",
       "name": "Preparar Envio Kit"
     },
     {
@@ -4866,10 +4611,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        15696,
-        66848
+        103968,
+        211552
       ],
-      "id": "e6e8233f-9c6b-4895-8a00-cc9d30319f7c",
+      "id": "abc4ae02-6c9b-4d7c-a48c-cc80de43afab",
       "name": "Enviar Saludo Kit",
       "retryOnFail": true,
       "maxTries": 3,
@@ -4880,22 +4625,20 @@
         "operation": "set",
         "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
         "value": "={{ $json.content }}",
-        "expire": true
+        "expire": true,
+        "ttl": 600
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        15696,
-        67008
+        103968,
+        211712
       ],
-      "id": "b433f2c5-1872-4b57-b69f-ba2853a34764",
+      "id": "ca5de6d5-16b2-48da-ab4e-c10c1bff9f52",
       "name": "Marcar Auto-Eco - Saludo Kit",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -4908,17 +4651,14 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        15936,
-        66848
+        104208,
+        211552
       ],
-      "id": "670104f0-1946-436b-9769-90358eb8cf90",
+      "id": "b0c74875-7fea-4cfc-b90d-917c5d2ab6e5",
       "name": "Marcar Saludo Kit Enviado",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -4929,17 +4669,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        16176,
-        66848
+        104448,
+        211552
       ],
-      "id": "2499dd85-a9da-4fb2-ab2b-22193265ab92",
+      "id": "71f2072f-3713-408f-8b38-f5016c05d131",
       "name": "Guardar Historial Saludo Kit",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -4949,10 +4683,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        16416,
-        66848
+        104688,
+        211552
       ],
-      "id": "0b6c08c3-e9a6-4b7d-bca9-ffbbb96b036e",
+      "id": "bbe54e8c-5392-4e60-904a-7ebc65a4f51f",
       "name": "Fin - Saludo Kit Enviado"
     },
     {
@@ -4972,10 +4706,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        14976,
-        67312
+        103248,
+        212016
       ],
-      "id": "bb73680d-aece-4aa0-8efa-f7cb2e34bc68",
+      "id": "ca3fef06-155c-4142-8568-ed42e001744b",
       "name": "Preparar Pregunta Ambigua"
     },
     {
@@ -5005,10 +4739,10 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        15216,
-        67232
+        103488,
+        211936
       ],
-      "id": "2021b7a1-6ff4-4f10-9a32-9fdb5e6d9ff5",
+      "id": "859c952e-725f-4467-acf3-40bfc64f7065",
       "name": "Enviar Pregunta Ambigua",
       "retryOnFail": true,
       "maxTries": 3,
@@ -5019,22 +4753,20 @@
         "operation": "set",
         "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
         "value": "={{ $json.content }}",
-        "expire": true
+        "expire": true,
+        "ttl": 600
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        15216,
-        67392
+        103488,
+        212096
       ],
-      "id": "5135d8c7-eeb7-4e94-8793-5c40710a6dd6",
+      "id": "0233384d-a616-403e-ab92-cf0fceaec515",
       "name": "Marcar Auto-Eco - Pregunta Ambigua",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -5045,17 +4777,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        15456,
-        67232
+        103728,
+        211936
       ],
-      "id": "c44d520f-d7d6-49e0-84a9-e4c15b80c1d0",
+      "id": "6f4153bd-2d1f-4325-95a5-b82107777411",
       "name": "Guardar Historial Pregunta Ambigua",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -5065,10 +4791,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        15696,
-        67232
+        103968,
+        211936
       ],
-      "id": "b98430f5-7e27-433c-9709-d89d06375be3",
+      "id": "0f54f72a-4946-40b6-9384-3399da551c3e",
       "name": "Fin - Pregunta Ambigua Enviada"
     },
     {
@@ -5080,18 +4806,12 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        15216,
-        66784
+        103488,
+        211488
       ],
-      "id": "d4d63503-5a49-4eed-829a-deaf1820c9a6",
+      "id": "a48b6fa0-9f17-42d1-ba68-4490ca1689d7",
       "name": "Chequear Conversacion Iniciada",
       "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -5105,17 +4825,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        15776,
-        64544
+        104048,
+        209248
       ],
-      "id": "650d3756-7d33-4b54-941b-25ea483e7065",
+      "id": "474bc40a-2b7a-4761-b1fc-1e4a55970fe4",
       "name": "Traer Historial (Pre-Tecnica)",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -5127,10 +4841,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        15920,
-        64544
+        104192,
+        209248
       ],
-      "id": "4b1df9c8-6277-4fb8-8a37-927ca88e7d51",
+      "id": "f6469d79-4952-4831-8d01-f3020d200173",
       "name": "Formatear Historial (Pre-Tecnica)"
     },
     {
@@ -5142,17 +4856,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        17424,
-        65840
+        105696,
+        210544
       ],
-      "id": "f8843002-ea60-49d8-88c2-bd2fe8c196cd",
+      "id": "28d13ded-5ea2-474f-bf3f-a9b635975900",
       "name": "Traer Historial (Pre-Precio)",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -5164,10 +4872,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        17568,
-        65840
+        105840,
+        210544
       ],
-      "id": "36d68f40-0db8-4414-ae89-c4f5f7d95d87",
+      "id": "444546ef-0f7f-4a93-91e2-83b16b6f916a",
       "name": "Formatear Historial (Pre-Precio)"
     },
     {
@@ -5179,17 +4887,11 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        14144,
-        67344
+        102416,
+        212048
       ],
-      "id": "e4e17d07-c20e-4b58-867c-974912555d01",
+      "id": "6af2783b-837d-4282-a6da-ea407fd736fe",
       "name": "Traer Historial (Pre-Kit)",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -5201,10 +4903,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        14256,
-        67344
+        102528,
+        212048
       ],
-      "id": "147176cd-d1ec-42e9-9a80-05a6b66b74ab",
+      "id": "744f3cf9-434a-4ea8-8d91-b1552948a349",
       "name": "Formatear Historial (Pre-Kit)"
     },
     {
@@ -5214,10 +4916,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        12944,
-        64464
+        101216,
+        209168
       ],
-      "id": "3f1c0a91-7b64-4f0d-9d2a-1c6f5b8e4a70",
+      "id": "fc18ab2e-388e-4e33-a3b4-d563f7ed2717",
       "name": "Normalizar Audio"
     },
     {
@@ -5256,17 +4958,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        13104,
-        64464
+        101376,
+        209168
       ],
-      "id": "b599b776-905f-4ce1-95bf-2a9e09132b7a",
+      "id": "31d3e490-bbd8-4c37-8d34-b2f17afc490b",
       "name": "Transcribe a recording1",
-      "credentials": {
-        "openAiApi": {
-          "id": "izKqPEK5NVsAu3IE",
-          "name": "OpenAi account 2"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
@@ -5281,33 +4977,30 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        12896,
-        64064
+        101168,
+        208768
       ],
-      "id": "8d5e2c40-91a7-4b3e-8f21-6c0d9a3b7e15",
+      "id": "e26156f8-e762-4e6b-87a4-198fc6acf9fb",
       "name": "Nota - Transcripcion Audio"
     },
     {
       "parameters": {
         "operation": "incr",
-        "key": "=seq:{{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+        "key": "=seq:{{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)) }}",
         "expire": true,
         "ttl": 300
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        13888,
-        64736
+        102160,
+        209440
       ],
-      "id": "5a2f7c10-4e93-4b81-9a6d-2f7c0b13e845",
+      "id": "73a55bb2-42e0-46b0-bcca-b53c8fda1329",
       "name": "Secuencia",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -5326,33 +5019,30 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        14064,
-        64736
+        102336,
+        209440
       ],
-      "id": "c7e309a2-58b4-4d17-8f60-e1b93a75d264",
+      "id": "ed4a9255-123f-47c4-8b5d-37b61f09524c",
       "name": "mi_turno"
     },
     {
       "parameters": {
         "operation": "get",
         "propertyName": "seq_actual",
-        "key": "=seq:{{ $('Webhook1').item.json.body.conversation.messages[0].sender.phone_number }}",
+        "key": "=seq:{{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        14416,
-        64736
+        102688,
+        209440
       ],
-      "id": "9b0c4f68-3a21-4d95-b7e2-08c5f6a1d370",
+      "id": "14f12fd7-bc50-4cba-8ed0-c3afbfa730f0",
       "name": "Leer Secuencia",
-      "credentials": {
-        "redis": {
-          "id": "ZUlkjSz8R2bmmO2f",
-          "name": "Redis account 2"
-        }
-      }
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
     },
     {
       "parameters": {
@@ -5381,10 +5071,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        14592,
-        64736
+        102864,
+        209440
       ],
-      "id": "1d8b5e40-7f62-49a3-8c05-b64e2079af31",
+      "id": "698c53d5-4166-4a41-b44d-a7584b205f02",
       "name": "Soy el ultimo?"
     },
     {
@@ -5392,10 +5082,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        14768,
-        64896
+        103040,
+        209600
       ],
-      "id": "4e91c072-6b38-4d5f-91ae-c803f7d5b168",
+      "id": "a3f88340-cbed-4ba6-aee4-0752441f54dd",
       "name": "Fin - Mensaje agrupado"
     },
     {
@@ -5408,10 +5098,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        13856,
-        64944
+        102128,
+        209648
       ],
-      "id": "2c6f8a15-0d74-4e39-b582-9a71e4c0d6f3",
+      "id": "f20fb7f2-fb47-4fde-8b1c-177a13c4783d",
       "name": "Nota - Agrupado de mensajes"
     },
     {
@@ -5450,10 +5140,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        11552,
-        64400
+        99824,
+        209104
       ],
-      "id": "7d3a91e4-4c85-42b7-9a30-5f8c1d6b0e94",
+      "id": "41c3452d-382a-46de-95f2-a7b4f8de96fc",
       "name": "Config Chatwoot"
     },
     {
@@ -5466,10 +5156,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        11408,
-        64048
+        99680,
+        208752
       ],
-      "id": "b2e7c491-6d80-4a53-8f12-9c40e7b3a5d6",
+      "id": "cc253c02-c97a-4a1e-a673-3d62cf694a06",
       "name": "Nota - Config Chatwoot"
     },
     {
@@ -5500,10 +5190,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        11328,
-        64560
+        99600,
+        209264
       ],
-      "id": "e5107b3c-9a42-4d68-b071-6f8e29c4a35d",
+      "id": "0b3690c0-a105-419b-beb9-09fb45f8abf4",
       "name": "Webhook autorizado?"
     },
     {
@@ -5511,10 +5201,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        11328,
-        64784
+        99600,
+        209488
       ],
-      "id": "3a8d62f1-704e-4b95-8c23-d150a9e6b47c",
+      "id": "32e9af32-2fba-4678-a9e5-d91a54610b3e",
       "name": "Fin - No autorizado"
     },
     {
@@ -5527,10 +5217,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        10848,
-        64336
+        99120,
+        209040
       ],
-      "id": "9c4b1e75-2836-4f09-a5d1-8b73e0c26f41",
+      "id": "403174de-51d3-465f-95db-82237a82949c",
       "name": "Nota - Auth Webhook"
     },
     {
@@ -5542,21 +5232,15 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        13312,
-        64240
+        101584,
+        208944
       ],
-      "id": "b3fd69bf-8cba-44ad-a7dc-7208efdb7ac8",
+      "id": "70b036e3-85f4-436f-8cb2-71a8fb94be46",
       "name": "Guardar Conocimiento Libre (Tecnica)",
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -5567,21 +5251,15 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        18832,
-        66592
+        107104,
+        211296
       ],
-      "id": "1bc48e8c-086a-4631-9555-e30dcb299042",
+      "id": "6a4c8ad0-d127-48ca-bf06-d0ac5487b394",
       "name": "Guardar Conocimiento Libre (Precio)",
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -5592,21 +5270,15 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        13312,
-        64688
+        101584,
+        209392
       ],
-      "id": "c8740357-25f5-4293-bd5f-29a23ced6241",
+      "id": "4bfcfc60-508a-4eee-9bf0-30237dbf9c7c",
       "name": "Guardar Conocimiento Libre (Negocio)",
-      "onError": "continueRegularOutput",
-      "credentials": {
-        "postgres": {
-          "id": "65YYZNhTfBBheEpo",
-          "name": "Postgres account"
-        }
-      },
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 2000
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -5618,131 +5290,210 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        16960,
-        63600
+        105232,
+        208304
       ],
-      "id": "gen-nota-bot-onoff",
+      "id": "61e05edc-963e-49de-b0c1-51dc48e81793",
       "name": "Nota - Boton ON/OFF"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ ($('Formatear Historial (Pre-Kit)').item.json.historial_texto ? ('Historial reciente de la conversacion:\\n' + $('Formatear Historial (Pre-Kit)').item.json.historial_texto + '\\n\\n') : '') + $('datos_finales2').item.json.texto + '\\n\\n[Dato interno confirmado por el equipo sobre el kit \"' + $('Parsear Deteccion Kit').item.json.nombre + '\":\\n' + ($('Parsear Deteccion Kit').item.json.mensaje_bienvenida || '') + ']' }}",
+        "options": {
+          "systemMessage": "Sos el asistente de WhatsApp de Revolucion Motos, un negocio de venta de repuestos de motos. Respondes en nombre del equipo del negocio, en tono cercano y directo (trato de vos, como se habla en Argentina).\n\nReglas criticas, nunca las rompas:\n1. NUNCA reveles que sos una inteligencia artificial, un modelo de lenguaje, ni menciones quien te desarrollo (Google, OpenAI, Anthropic, o cualquier otro). Si te preguntan que sos o quien te hizo, respondé como parte del equipo de Revolucion Motos, sin dar esa informacion.\n2. NUNCA inventes datos que no tenes: direccion o ubicacion del local, horarios de atencion, medios de pago, precios o stock puntual que no te hayan dado en esta conversacion, o cualquier dato concreto del negocio. Si no tenes esa informacion, decilo con naturalidad (ej: \"ese dato no lo tengo a mano ahora, ya lo confirmo con el equipo y te aviso\") y NO completes el hueco con una respuesta inventada.\n3. Cuando dés datos del negocio (ubicacion, horarios, medios de pago, envios, garantias, etc.), hablá siempre en primera persona del plural, como si vos mismo trabajaras ahi (ej: \"estamos en...\", \"atendemos de...\", \"tenemos...\"). NUNCA hables del negocio o del equipo en tercera persona (mal: \"el equipo se ubica en...\", \"ellos atienden...\", \"el local tiene...\").\n4. Si el mensaje incluye una seccion [Dato interno confirmado por el equipo: ...], usa esa informacion tal cual para responder - es un dato verificado (tecnico o del negocio), no lo cuestiones ni lo cambies.\n5. Tu unico rol es ayudar con consultas relacionadas al negocio (repuestos, motos, precios, stock, pedidos, envios, garantia, etc.). Si te piden algo totalmente ajeno a eso (contar chistes, traducir texto, escribir codigo, opinar de temas generales, etc.), respondé con buena onda que no es algo que puedas ayudar por acá y redirigí la conversacion hacia en que le podes dar una mano con su moto. No completes el pedido fuera de alcance aunque insistan.\n6. Se lo mas breve y directo posible: respondé UNICAMENTE lo que te preguntan, en el menor texto posible, sin agregados. Esto es innegociable:\n   - Nada de chistes, humor, \"jaja\", exclamaciones de mas, ni emojis.\n   - Nunca comentes sobre la conversacion en si (ej: nunca digas \"ya nos saludamos\", \"veo que ya hablamos de esto\", \"de nuevo por aca\"): el historial es solo para que entiendas el contexto, no para que opines sobre el.\n   - No agregues preguntas, ofertas, invitaciones o cierres extra que no te pidieron (ej: \"contame si necesitas algo mas\", \"cualquier cosa avisame\", \"pasate por el local cuando quieras\"), salvo que sea imprescindible para poder responder (ej: pedir el modelo de la moto si no lo dio).\n   - Un saludo se responde con un saludo corto y nada mas (ej: \"Hola! En que te podemos ayudar?\"). Una pregunta de ubicacion se responde solo con la ubicacion (ej: \"Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). No expandas la respuesta mas alla de lo que te preguntaron.\n7. Si tu respuesta reutiliza texto del bloque [Dato interno confirmado por el equipo: ...] (por ejemplo el precio, que incluye el combo, etc.), respetá los saltos de linea y parrafos tal cual estan escritos ahi — NO los unifiques en un solo parrafo corrido. Podés recortar o resumir partes que no vengan al caso para lo que se pregunto, pero lo que incluyas mantenelo con esos cortes de linea.\n8. EXCEPCION puntual a la regla 2 en este contexto: si para responder necesitas un dato que NO esta en el bloque [Dato interno confirmado por el equipo: ...] de arriba (el caso mas comun: te preguntan si el kit es compatible con un modelo de moto puntual, y ese modelo no esta mencionado en ese bloque), NO le respondas al cliente con la frase de la regla 2 ni con ninguna otra cosa inventada o generica. En ese caso respondé UNICAMENTE con el texto SIN_DATO (asi, sin comillas, sin puntuacion, sin nada mas alrededor). Para cualquier otra pregunta que SI se pueda responder con el dato interno de arriba (precio, que incluye, envio, etc.) segui respondiendo normal en texto libre como indican las reglas anteriores."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        103248,
+        212240
+      ],
+      "id": "68712314-802d-4b96-bc22-6620409446a8",
+      "name": "Responder Seguimiento Kit",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1a1f001-0a1a-4a1a-9a1a-e1a1f0010002",
+              "name": "content",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        103488,
+        212240
+      ],
+      "id": "1feef9ec-d2ef-4c4b-b299-04ecdef8f59d",
+      "name": "Preparar Respuesta Seguimiento Kit"
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "=bot_msg:{{ $('Webhook1').item.json.body.conversation.messages[0].conversation_id }}",
+        "value": "={{ $json.content }}",
+        "expire": true,
+        "ttl": 600
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        103728,
+        212240
+      ],
+      "id": "ff10c71f-b845-47e7-9141-11aa849d6775",
+      "name": "Marcar Auto-Eco - Seguimiento Kit",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Config Chatwoot').item.json.app_url }}/api/chatwoot/enviar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.N8N_SECRET_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ conversation_id: $('Webhook1').item.json.body.conversation.messages[0].conversation_id, account_id: $('Webhook1').item.json.body.account.id, content: $json.content, origen: 'seguimiento_kit', contacto: ($('Webhook1').item.json.body.conversation?.meta?.sender?.name || $('Webhook1').item.json.body.sender?.name || '') }) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        103968,
+        212240
+      ],
+      "id": "8e4d1ecc-ee20-4da5-8b73-cf0e0d616360",
+      "name": "Enviar Respuesta Seguimiento Kit"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversaciones_historial (session_key, role, content) VALUES ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'human', '{{ $('datos_finales2').item.json.texto.replace(/'/g, \"''\") }}'), ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'ai', '{{ $('Preparar Respuesta Seguimiento Kit').item.json.content.replace(/'/g, \"''\") }}');",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        104208,
+        212240
+      ],
+      "id": "f770cc47-0053-4693-850f-1f2bacaf75a5",
+      "name": "Guardar Historial Seguimiento Kit",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        104448,
+        212240
+      ],
+      "id": "0a79bd8b-7373-4df7-83b5-a46b3ed4c3c1",
+      "name": "Fin - Seguimiento Kit Respondido"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e1a1f001-0a1a-4a1a-9a1a-e1a1f0010008",
+              "leftValue": "={{ ($json.output || '').toString().trim() }}",
+              "rightValue": "SIN_DATO",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        103488,
+        212480
+      ],
+      "id": "48db1650-74e0-4b12-8d49-743947fbe10b",
+      "name": "¿Seguimiento Kit Tiene Dato?"
+    },
+    {
+      "parameters": {
+        "errorMessage": "No se pudo enviar la respuesta al cliente (POST /api/chatwoot/enviar). El cliente quedo sin respuesta."
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        105468,
+        2600
+      ],
+      "id": "gen-stop-fallo-envio-al-cliente",
+      "name": "Fallo - Envio al Cliente"
+    },
+    {
+      "parameters": {
+        "errorMessage": "No se pudo agregar la label de escalado en Chatwoot. La conversacion NO quedo marcada y no se creo la nota privada."
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        101068,
+        2800
+      ],
+      "id": "gen-stop-fallo-label-de-escalado",
+      "name": "Fallo - Label de Escalado"
+    },
+    {
+      "parameters": {
+        "errorMessage": "No se pudo crear la nota privada del escalado en Chatwoot. El equipo no ve el motivo."
+      },
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        101276,
+        3000
+      ],
+      "id": "gen-stop-fallo-nota-privada",
+      "name": "Fallo - Nota Privada"
     }
   ],
-  "pinData": {
-    "Webhook1": [
-      {
-        "json": {
-          "headers": {
-            "host": "n8n.revolucionmotos.tech",
-            "user-agent": "node",
-            "content-length": "1492",
-            "accept": "*/*",
-            "accept-encoding": "br, gzip, deflate",
-            "accept-language": "*",
-            "content-type": "application/json",
-            "sec-fetch-mode": "cors",
-            "x-forwarded-for": "10.0.1.1",
-            "x-forwarded-host": "n8n.revolucionmotos.tech",
-            "x-forwarded-port": "443",
-            "x-forwarded-proto": "https",
-            "x-forwarded-server": "50a9d52c5318",
-            "x-real-ip": "10.0.1.1"
-          },
-          "params": {},
-          "query": {},
-          "body": {
-            "account": {
-              "id": 1,
-              "name": "Revolucion"
-            },
-            "additional_attributes": {},
-            "content_attributes": {},
-            "content_type": "text",
-            "content": "donde estan ubicados?",
-            "conversation": {
-              "additional_attributes": {},
-              "can_reply": true,
-              "channel": "Channel::Whatsapp",
-              "contact_inbox": {
-                "id": 1,
-                "contact_id": 1,
-                "inbox_id": 1,
-                "source_id": "5493511234567",
-                "created_at": "2026-08-04T14:50:22.302Z",
-                "updated_at": "2026-08-04T14:50:22.302Z",
-                "hmac_verified": false
-              },
-              "id": 934193,
-              "inbox_id": 1,
-              "messages": [
-                {
-                  "id": 1785855022302,
-                  "content": "donde estan ubicados?",
-                  "account_id": 1,
-                  "inbox_id": 1,
-                  "conversation_id": 934193,
-                  "message_type": 0,
-                  "created_at": 1785855022,
-                  "updated_at": "2026-08-04T14:50:22.302Z",
-                  "private": false,
-                  "status": "sent",
-                  "content_type": "text",
-                  "content_attributes": {},
-                  "sender_type": "Contact",
-                  "sender_id": 1,
-                  "sender": {
-                    "additional_attributes": {},
-                    "custom_attributes": {},
-                    "email": null,
-                    "id": 1,
-                    "identifier": null,
-                    "name": "Cliente Prueba",
-                    "phone_number": "+5493511234567",
-                    "thumbnail": "",
-                    "blocked": false,
-                    "type": "contact"
-                  }
-                }
-              ],
-              "labels": [],
-              "status": "open",
-              "custom_attributes": {},
-              "unread_count": 1,
-              "last_activity_at": 1785855022,
-              "timestamp": 1785855022
-            },
-            "created_at": "2026-08-04T14:50:22.302Z",
-            "id": 1785855022302,
-            "inbox": {
-              "id": 1,
-              "name": "Prueba Manual"
-            },
-            "message_type": "incoming",
-            "private": false,
-            "sender": {
-              "account": {
-                "id": 1,
-                "name": "Revolucion"
-              },
-              "additional_attributes": {},
-              "avatar": "",
-              "custom_attributes": {},
-              "email": null,
-              "id": 1,
-              "identifier": null,
-              "name": "Cliente Prueba",
-              "phone_number": "+5493511234567",
-              "thumbnail": "",
-              "blocked": false
-            },
-            "event": "message_created"
-          },
-          "webhookUrl": "https://n8n.revolucionmotos.tech/webhook/chatwoot-mensaje",
-          "executionMode": "production"
-        },
-        "pairedItem": {
-          "item": 0
-        }
-      }
-    ]
-  },
   "connections": {
     "Webhook1": {
       "main": [
@@ -5763,8 +5514,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "If": {
@@ -6014,12 +5764,12 @@
       "main": [
         [
           {
-            "node": "Guardar Turno Conversacion",
+            "node": "Marcar Auto-Eco - Respuesta Principal",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Marcar Auto-Eco - Respuesta Principal",
+            "node": "Guardar Turno Conversacion",
             "type": "main",
             "index": 0
           }
@@ -6031,6 +5781,11 @@
         [
           {
             "node": "AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Responder Seguimiento Kit",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -6076,6 +5831,13 @@
         [
           {
             "node": "Replace Me2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallo - Envio al Cliente",
             "type": "main",
             "index": 0
           }
@@ -6134,6 +5896,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Fallo - Label de Escalado",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -6142,6 +5911,13 @@
         [
           {
             "node": "Fin - Escalado a Humano",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallo - Nota Privada",
             "type": "main",
             "index": 0
           }
@@ -7958,7 +7734,7 @@
       "main": [
         [
           {
-            "node": "Clasificador Intento",
+            "node": "Responder Seguimiento Kit",
             "type": "main",
             "index": 0
           }
@@ -7966,6 +7742,79 @@
         [
           {
             "node": "Chequear Conversacion Iniciada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Responder Seguimiento Kit": {
+      "main": [
+        [
+          {
+            "node": "¿Seguimiento Kit Tiene Dato?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Seguimiento Kit Tiene Dato?": {
+      "main": [
+        [
+          {
+            "node": "Clasificador Intento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Respuesta Seguimiento Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Respuesta Seguimiento Kit": {
+      "main": [
+        [
+          {
+            "node": "Marcar Auto-Eco - Seguimiento Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Auto-Eco - Seguimiento Kit": {
+      "main": [
+        [
+          {
+            "node": "Enviar Respuesta Seguimiento Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Respuesta Seguimiento Kit": {
+      "main": [
+        [
+          {
+            "node": "Guardar Historial Seguimiento Kit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Historial Seguimiento Kit": {
+      "main": [
+        [
+          {
+            "node": "Fin - Seguimiento Kit Respondido",
             "type": "main",
             "index": 0
           }
@@ -8273,7 +8122,6 @@
       ]
     }
   },
-  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
@@ -8284,13 +8132,7 @@
     "saveExecutionProgress": true,
     "saveManualExecutions": true,
     "callerPolicy": "workflowsFromSameOwner",
-    "executionTimeout": 300
+    "errorWorkflow": "oJguJLAW5QGQ5aMT"
   },
-  "versionId": "d2a5070e-02f1-4924-b550-6aeb4ab003c6",
-  "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
-  },
-  "id": "MAqIthTkpuAo7iKi",
-  "tags": []
+  "pinData": {}
 }

@@ -9,7 +9,12 @@
 > mensaje al cliente** (ver `BOTON-ONOFF.md`): sin esas tablas el bot queda mudo.
 > El orden inverso (SQL primero, workflow después) es seguro: el workflow viejo no usa nada de eso.
 
-Estado al 2026-08-05. El workflow (`workflow_mateo (3).json`) está **importado, activo, y
+> **2026-08-06 — leer también `AUDITORIA-2026-08-06.md`.** El archivo del workflow pasó a
+> llamarse `workflow_mateo.json` (el viejo `workflow_mateo (3).json` se borró: le faltaba el
+> bloque "Seguimiento Kit" que se había hecho en la UI y nunca se exportó). Trae 13 correcciones
+> sin importar todavía. El punto 2 de "Qué mirar el primer día" ya está resuelto.
+
+Estado al 2026-08-05. El workflow (entonces `workflow_mateo (3).json`) está **importado, activo, y
 apuntando a Chatwoot real** (no al simulador). Los 3 datos pendientes se resolvieron y se
 confirmaron por API contra la instancia real de n8n. Falta el primer mensaje real de un cliente
 para validar de punta a punta.
@@ -66,11 +71,12 @@ del disco antes de que llegara a versionarse. Quedan los hallazgos, sin los valo
    `body.account.id: 1` como alternativa por si hiciera falta). Si aun así al primer mensaje real
    el bot no responde, revisar esto primero. Se diagnostica rápido con el MCP de n8n
    (`execute_workflow` devuelve el json de entrada y salida de cada nodo).
-2. **El bot puede pausarse solo**: cuando responde, Chatwoot le avisa de su propio mensaje y el
-   workflow lo ignora por el chequeo de auto-eco (`bot_msg:{conversation_id}` en Redis). Si ese
-   aviso llegara después del TTL de esa clave, lo tomaría como "contestó un humano" y se pausaría
-   **30 días** en esa conversación. Se reactiva escribiendo `/bot on` en el chat. Si pasa seguido,
-   subir el TTL de los nodos `Marcar Auto-Eco - *`.
+2. ~~**El bot puede pausarse solo**~~ — **resuelto el 2026-08-06** (ver auditoría, puntos 2 a 4).
+   El chequeo de auto-eco comparaba el texto crudo del agente contra el ya transformado por
+   `devuelve outputs`, así que fallaba en cuanto la respuesta tenía un `¿`. Ahora compara
+   normalizado, se marca antes de enviar y el TTL es explícito (600s, era 60s implícito). El
+   filtro primario sigue siendo `sender.id !== chatwoot_bot_user_id`. Se reactiva igual que
+   antes, escribiendo `/bot on` en el chat — mejor como **nota privada**, si no lo ve el cliente.
 3. **Cuando un humano del equipo responde, el bot se calla 30 días** en esa conversación. Es a
    propósito, pero el equipo tiene que saberlo.
 4. **Todo lo que responda el equipo se vuelve conocimiento permanente.** Con las tablas vacías,

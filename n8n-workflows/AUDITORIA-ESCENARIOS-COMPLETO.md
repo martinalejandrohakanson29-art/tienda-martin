@@ -370,6 +370,21 @@ Chatwoot.
 
 ---
 
+> **Estado (2026-08-07):** 55 y 58 confirmados en verde. 54 no se pudo
+> probar limpio (esta conversación ya tenía el flag de saludo del kit
+> activo desde ayer, así que cualquier mensaje cae directo en seguimiento).
+> 57 no se pudo probar (solo hay 1 kit activo hoy, hace falta un segundo
+> para generar ambigüedad real). **56 encontró el problema real que ya
+> estaba documentado**: `precios_stock` tiene 0 filas con
+> `fuente LIKE 'admin-kit-%'` aunque hay un kit activo en
+> `kits_publicidad` — el desync ya está pasando en producción ahora mismo,
+> no hace falta esperar a un reset futuro. Por suerte `Detectar Mencion
+> Kit` sigue atrapando bien las menciones directas (probado), así que el
+> saludo y el seguimiento no se ven afectados; el problema aparecería si
+> algún día una consulta sobre este kit no es reconocida como tal y cae en
+> la búsqueda normal de precio/stock — ahí no va a encontrar nada. Recomendado:
+> volver a guardar el kit desde `/admin/chatwoot/kits` para resincronizar.
+
 ## Nota de método (aprendida ejecutando, 2026-08-07)
 
 Al limpiar datos de prueba de `conversaciones_historial` con `ILIKE` amplio

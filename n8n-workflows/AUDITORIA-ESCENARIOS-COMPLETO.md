@@ -381,6 +381,17 @@ Chatwoot.
 89. `/api/chatwoot/enviar` sin `N8N_ERROR_TOKEN` válido → rechaza el pedido
     (`validateN8nToken`), no manda nada a nombre de cualquiera.
 
+> **Estado (2026-08-07):** todo confirmado. 84 se vio disparar solo en
+> vivo durante el batch 2 (dos timeouts de 25s en una rafaga concurrente,
+> se recupero solo). 85: los unicos 2 nodos de modelo que existen en todo
+> el workflow (`DeepSeek Chat Model1` y `DeepSeek Chat Model - Extraccion`,
+> compartidos por las ~20 llamadas a LLM) tienen timeout+retries — cobertura
+> completa, no hay un tercero suelto. 86 confirmado por inspeccion de
+> codigo (retryOnFail en los nodos Postgres/Redis). 87: la regla
+> `N8N_WORKFLOW_ERROR` esta activa en la base. 88 = mismo mecanismo que A2.
+> 89 confirmado por codigo (`lib/webhook-guard.ts`, rechaza sin el Bearer
+> correcto).
+
 ## O. Concurrencia y carga
 
 90. Varios clientes distintos escribiendo al mismo tiempo → cada

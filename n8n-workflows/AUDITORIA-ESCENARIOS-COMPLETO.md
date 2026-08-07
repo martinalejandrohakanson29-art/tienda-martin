@@ -422,6 +422,15 @@ Chatwoot.
 > la búsqueda normal de precio/stock — ahí no va a encontrar nada. Recomendado:
 > volver a guardar el kit desde `/admin/chatwoot/kits` para resincronizar.
 
+> **Estado (2026-08-07):** 90 confirmado en el batch 2 (dos
+> conversaciones en paralelo sin mezclar). 91 confirmado a mayor escala:
+> rafaga de 8 mensajes seguidos, 7 terminaron rapido en
+> "Fin - Mensaje agrupado" y solo el ultimo proceso el lote completo en
+> una sola pasada (un solo llamado a cada LLM, una sola respuesta). 92
+> quedo cubierto en la practica por el harness (`send.js` / `wait_exec.js`)
+> armado durante esta auditoria, que reemplaza al script viejo apuntando
+> directo al webhook real.
+
 ## Nota de método (aprendida ejecutando, 2026-08-07)
 
 Al limpiar datos de prueba de `conversaciones_historial` con `ILIKE` amplio

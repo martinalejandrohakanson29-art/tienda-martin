@@ -370,6 +370,18 @@ Chatwoot.
 
 ---
 
+## Nota de método (aprendida ejecutando, 2026-08-07)
+
+Al limpiar datos de prueba de `conversaciones_historial` con `ILIKE` amplio
+después de cada batch, en un caso borré la respuesta del bot pero no la
+pregunta del cliente que quedó huérfana (no matcheaba el mismo patrón) — y
+esa huérfana generó exactamente el mismo síntoma que el bug real que se
+arregló en la sección K (el agente genérico ve una pregunta sin respuesta y
+asume que sigue sin resolver). No era un bug del sistema, era un efecto
+secundario de mi propia limpieza. Desde entonces, limpiar por `id` exacto
+(buscar primero, confirmar las dos puntas de cada intercambio, recién ahí
+borrar) en vez de por patrón de texto.
+
 ## Notas para cuando pasemos a ejecutar
 
 - Los puntos 15 y 64 (la regresión del bug de hoy) son los de mayor

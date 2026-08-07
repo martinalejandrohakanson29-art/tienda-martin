@@ -102,6 +102,16 @@ mensajes reales a mano.
 
 ## D. Cola global de la app (`bot_estado` + `respuestas_pendientes`) — "el encolado desde la app"
 
+> **Estado (2026-08-07):** 20, 27 y 29 probados y en verde contra producción
+> real (bot apagado → se encola sin salir; el eco de un mensaje ya
+> despachado no se confunde con "contestó un humano"; `contacto` largo se
+> trunca a 120 sin romper el insert). **21, 22, 23, 24, 26 y 28 quedan sin
+> correr**: todos dependen de que `despacharCola()` corra de verdad, y esa
+> función solo se dispara desde Server Actions de la app protegidas por
+> login de admin (`/admin/chatwoot/cola`) — no hay ruta de API para
+> invocarla desde afuera. 25 tampoco se probó (requiere tocar una env var
+> del servicio). Decisión: quedan pendientes, se retoman si hace falta.
+
 Esto es un mecanismo aparte del pausado por conversación: es el interruptor
 general en `/admin/chatwoot/cola`, y **todo** mensaje al cliente (no las notas
 ni labels internos) pasa por `/api/chatwoot/enviar` antes de llegar a

@@ -914,6 +914,18 @@
               "name": "account_id",
               "value": "={{ $('Webhook1').item.json.body.account.id }}",
               "type": "string"
+            },
+            {
+              "id": "c01b079f-196d-4405-922f-ab3fc4993fca",
+              "name": "key",
+              "value": "={{ $('Webhook1').item.json.body.sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.id) }}",
+              "type": "string"
+            },
+            {
+              "id": "149b3a46-0276-4c3d-bb4b-de299f95e198",
+              "name": "texto",
+              "value": "={{ '[Contenido no soportado: ' + ($('Webhook1').item.json.body.content_type || 'imagen/sticker/ubicacion') + ']' }}",
+              "type": "string"
             }
           ]
         },
@@ -6107,7 +6119,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO conversaciones_historial (session_key, role, content) VALUES ('{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}', 'human', '{{ $('datos_finales2').item.json.texto.replace(/'/g, \"''\") }}');",
+        "query": "INSERT INTO conversaciones_historial (session_key, role, content) VALUES ('{{ ($json.key || $('datos_finales2').item.json.key).replace(/'/g, \"''\") }}', 'human', '{{ ($json.texto || $('datos_finales2').item.json.texto).replace(/'/g, \"''\") }}');",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",

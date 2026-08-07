@@ -1406,7 +1406,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let aplica = false, compatible = false, detalle = '', mensajeCliente = '', confianza = 'baja', preguntaIdRaw = null;\nlet modeloLlm = '', kitLlm = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  aplica = !!parsed.aplica;\n  compatible = aplica ? !!parsed.compatible : false;\n  detalle = aplica ? (parsed.detalle || '').toString() : '';\n  mensajeCliente = (parsed.mensaje_cliente || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n  modeloLlm = (parsed.modelo_moto || '').toString().trim();\n  kitLlm = (parsed.kit || '').toString().trim();\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || !mensajeCliente) {\n  confianza = 'baja';\n}\n\n// El equipo suele aclarar datos que el cliente nunca dio (ej. la pendiente quedo\n// con modelo vacio y la respuesta dice \"son para las titan 150\"). Si el extractor\n// los completo, esos mandan sobre los que traia la pregunta pendiente.\nconst preferir = (a, b) => (a || '').toString().trim() || (b || '').toString().trim();\nconst modelo = preferir(modeloLlm, match ? match.modelo_moto : '');\nconst kit = preferir(kitLlm, match ? match.kit : '');\nconst preguntaOriginal = match ? (match.pregunta_original || '') : '';\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    aplica,\n    compatible,\n    detalle,\n    detalle_sql: escapar(detalle),\n    mensaje_cliente: mensajeCliente,\n    mensaje_cliente_sql: escapar(mensajeCliente),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    modelo_moto: modelo,\n    kit: kit,\n    modelo_moto_sql: escapar(modelo),\n    kit_sql: escapar(kit),\n    clave_sql: escapar((modelo + ' ' + kit).trim()),\n    pregunta_original_sql: escapar(preguntaOriginal)\n  }\n}];\n"
+        "jsCode": "let aplica = false, compatible = false, detalle = '', mensajeCliente = '', confianza = 'baja', preguntaIdRaw = null;\nlet modeloLlm = '', kitLlm = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  aplica = !!parsed.aplica;\n  compatible = aplica ? !!parsed.compatible : false;\n  detalle = aplica ? (parsed.detalle || '').toString() : '';\n  mensajeCliente = (parsed.mensaje_cliente || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n  modeloLlm = (parsed.modelo_moto || '').toString().trim();\n  kitLlm = (parsed.kit || '').toString().trim();\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || !mensajeCliente) {\n  confianza = 'baja';\n}\n\n// El equipo suele aclarar datos que el cliente nunca dio (ej. la pendiente quedo\n// con modelo vacio y la respuesta dice \"son para las titan 150\"). Si el extractor\n// los completo, esos mandan sobre los que traia la pregunta pendiente.\nconst preferir = (a, b) => (a || '').toString().trim() || (b || '').toString().trim();\nconst modelo = preferir(modeloLlm, match ? match.modelo_moto : '');\nconst kit = preferir(kitLlm, match ? match.kit : '');\nconst preguntaOriginal = match ? (match.pregunta_original || '') : '';\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    aplica,\n    compatible,\n    detalle,\n    detalle_sql: escapar(detalle),\n    mensaje_cliente: mensajeCliente,\n    mensaje_cliente_sql: escapar(mensajeCliente),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    modelo_moto: modelo,\n    kit: kit,\n    modelo_moto_sql: escapar(modelo),\n    kit_sql: escapar(kit),\n    clave_sql: escapar((modelo + ' ' + kit).trim()),\n    pregunta_original: preguntaOriginal,\n    pregunta_original_sql: escapar(preguntaOriginal)\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2000,7 +2000,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let respuesta = '', mensajeCliente = '', aplica = false, confianza = 'baja', preguntaIdRaw = null;\nlet temaLlm = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  aplica = !!parsed.aplica;\n  respuesta = aplica ? (parsed.respuesta || '').toString() : '';\n  mensajeCliente = (parsed.mensaje_cliente || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n  temaLlm = (parsed.tema || '').toString().trim().toLowerCase();\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Negocio Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || !mensajeCliente) {\n  confianza = 'baja';\n}\n\n// El equipo suele aclarar datos que el cliente nunca dio (ej. la pendiente quedo\n// con modelo vacio y la respuesta dice \"son para las titan 150\"). Si el extractor\n// los completo, esos mandan sobre los que traia la pregunta pendiente.\nconst preferir = (a, b) => (a || '').toString().trim() || (b || '').toString().trim();\nconst tema = preferir(temaLlm, match ? match.tema : '');\nconst preguntaOriginal = match ? (match.pregunta_original || '') : '';\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    aplica,\n    respuesta,\n    respuesta_sql: escapar(respuesta),\n    mensaje_cliente: mensajeCliente,\n    mensaje_cliente_sql: escapar(mensajeCliente),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    tema: tema,\n    tema_sql: escapar(tema),\n    clave_sql: escapar(tema),\n    pregunta_original_sql: escapar(preguntaOriginal)\n  }\n}];\n"
+        "jsCode": "let respuesta = '', mensajeCliente = '', aplica = false, confianza = 'baja', preguntaIdRaw = null;\nlet temaLlm = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  aplica = !!parsed.aplica;\n  respuesta = aplica ? (parsed.respuesta || '').toString() : '';\n  mensajeCliente = (parsed.mensaje_cliente || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n  temaLlm = (parsed.tema || '').toString().trim().toLowerCase();\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Negocio Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || !mensajeCliente) {\n  confianza = 'baja';\n}\n\n// El equipo suele aclarar datos que el cliente nunca dio (ej. la pendiente quedo\n// con modelo vacio y la respuesta dice \"son para las titan 150\"). Si el extractor\n// los completo, esos mandan sobre los que traia la pregunta pendiente.\nconst preferir = (a, b) => (a || '').toString().trim() || (b || '').toString().trim();\nconst tema = preferir(temaLlm, match ? match.tema : '');\nconst preguntaOriginal = match ? (match.pregunta_original || '') : '';\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    aplica,\n    respuesta,\n    respuesta_sql: escapar(respuesta),\n    mensaje_cliente: mensajeCliente,\n    mensaje_cliente_sql: escapar(mensajeCliente),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    tema: tema,\n    tema_sql: escapar(tema),\n    clave_sql: escapar(tema),\n    pregunta_original: preguntaOriginal,\n    pregunta_original_sql: escapar(preguntaOriginal)\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2101,6 +2101,18 @@
               "name": "content",
               "value": "={{ $('Parsear Respuesta').item.json.mensaje_cliente }}",
               "type": "string"
+            },
+            {
+              "id": "87a96011-6320-4869-acc5-3b894477249c",
+              "name": "key",
+              "value": "={{ $('Webhook1').item.json.body.conversation.meta.sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.id) }}",
+              "type": "string"
+            },
+            {
+              "id": "89a334b4-ab75-4b5a-9828-7ac536f3523b",
+              "name": "pregunta_original",
+              "value": "={{ $('Parsear Respuesta').item.json.pregunta_original }}",
+              "type": "string"
             }
           ]
         },
@@ -2159,6 +2171,18 @@
               "id": "1a457412-43aa-4a2a-b2d9-f83e20762630",
               "name": "content",
               "value": "={{ $('Parsear Respuesta Negocio').item.json.mensaje_cliente }}",
+              "type": "string"
+            },
+            {
+              "id": "d6d1b248-9174-4c20-8efa-51de84983004",
+              "name": "key",
+              "value": "={{ $('Webhook1').item.json.body.conversation.meta.sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.id) }}",
+              "type": "string"
+            },
+            {
+              "id": "afc70573-5778-4d91-9290-2309cc5f5a2a",
+              "name": "pregunta_original",
+              "value": "={{ $('Parsear Respuesta Negocio').item.json.pregunta_original }}",
               "type": "string"
             }
           ]
@@ -3020,7 +3044,7 @@
     },
     {
       "parameters": {
-        "jsCode": "let aplica = false, precio = '', stock = '', detalle = '', mensajeCliente = '', confianza = 'baja', preguntaIdRaw = null;\nlet productoLlm = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  aplica = !!parsed.aplica;\n  precio = aplica ? (parsed.precio || '').toString() : '';\n  stock = aplica ? (parsed.stock || '').toString() : '';\n  detalle = aplica ? (parsed.detalle || '').toString() : '';\n  mensajeCliente = (parsed.mensaje_cliente || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n  productoLlm = (parsed.producto || '').toString().trim();\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Precio Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || !mensajeCliente) {\n  confianza = 'baja';\n}\n\n// El equipo suele aclarar datos que el cliente nunca dio (ej. la pendiente quedo\n// con modelo vacio y la respuesta dice \"son para las titan 150\"). Si el extractor\n// los completo, esos mandan sobre los que traia la pregunta pendiente.\nconst preferir = (a, b) => (a || '').toString().trim() || (b || '').toString().trim();\nconst producto = preferir(productoLlm, match ? match.producto : '');\nconst preguntaOriginal = match ? (match.pregunta_original || '') : '';\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    aplica,\n    precio, stock, detalle,\n    precio_sql: escapar(precio), stock_sql: escapar(stock), detalle_sql: escapar(detalle),\n    mensaje_cliente: mensajeCliente,\n    mensaje_cliente_sql: escapar(mensajeCliente),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    producto: producto,\n    producto_sql: escapar(producto),\n    clave_sql: escapar(producto),\n    pregunta_original_sql: escapar(preguntaOriginal)\n  }\n}];\n"
+        "jsCode": "let aplica = false, precio = '', stock = '', detalle = '', mensajeCliente = '', confianza = 'baja', preguntaIdRaw = null;\nlet productoLlm = '';\ntry {\n  const raw = ($json.output || '{}').toString().trim();\n  const clean = raw.replace(/```json|```/g, '').trim();\n  const parsed = JSON.parse(clean);\n  aplica = !!parsed.aplica;\n  precio = aplica ? (parsed.precio || '').toString() : '';\n  stock = aplica ? (parsed.stock || '').toString() : '';\n  detalle = aplica ? (parsed.detalle || '').toString() : '';\n  mensajeCliente = (parsed.mensaje_cliente || '').toString();\n  confianza = (parsed.confianza || 'baja').toString().toLowerCase();\n  preguntaIdRaw = parsed.pregunta_id;\n  productoLlm = (parsed.producto || '').toString().trim();\n} catch (e) {\n  confianza = 'baja';\n}\n\nconst pendientes = $('Buscar Pregunta Precio Pendiente').item.json.pendientes || [];\nlet match = pendientes.find(p => p.id === preguntaIdRaw) || null;\nif (!match && pendientes.length > 0) {\n  match = pendientes[pendientes.length - 1];\n}\nif (!match || !mensajeCliente) {\n  confianza = 'baja';\n}\n\n// El equipo suele aclarar datos que el cliente nunca dio (ej. la pendiente quedo\n// con modelo vacio y la respuesta dice \"son para las titan 150\"). Si el extractor\n// los completo, esos mandan sobre los que traia la pregunta pendiente.\nconst preferir = (a, b) => (a || '').toString().trim() || (b || '').toString().trim();\nconst producto = preferir(productoLlm, match ? match.producto : '');\nconst preguntaOriginal = match ? (match.pregunta_original || '') : '';\n\nconst escapar = (s) => s.replace(/'/g, \"''\");\n\nreturn [{\n  json: {\n    aplica,\n    precio, stock, detalle,\n    precio_sql: escapar(precio), stock_sql: escapar(stock), detalle_sql: escapar(detalle),\n    mensaje_cliente: mensajeCliente,\n    mensaje_cliente_sql: escapar(mensajeCliente),\n    confianza,\n    pregunta_id: match ? match.id : null,\n    producto: producto,\n    producto_sql: escapar(producto),\n    clave_sql: escapar(producto),\n    pregunta_original: preguntaOriginal,\n    pregunta_original_sql: escapar(preguntaOriginal)\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -3154,6 +3178,18 @@
               "id": "gen-36a1d22ad636",
               "name": "content",
               "value": "={{ $('Parsear Respuesta Precio').item.json.mensaje_cliente }}",
+              "type": "string"
+            },
+            {
+              "id": "c9fedead-96e9-4fa8-ae5d-a76ef6c4c8c1",
+              "name": "key",
+              "value": "={{ $('Webhook1').item.json.body.conversation.meta.sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.id) }}",
+              "type": "string"
+            },
+            {
+              "id": "c138a68c-0dda-45a6-960a-2fbee04b4ece",
+              "name": "pregunta_original",
+              "value": "={{ $('Parsear Respuesta Precio').item.json.pregunta_original }}",
               "type": "string"
             }
           ]
@@ -6234,6 +6270,78 @@
       ],
       "id": "7e6a4c86-13cd-4b67-aed7-140b221ee72e",
       "name": "Nota - Fix Extraccion No Confiable"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversaciones_historial (session_key, role, content)\nSELECT '{{ $('Preparar Respuesta Cliente - Tecnica').item.json.key.replace(/'/g, \"''\") }}', 'human', '{{ $('Preparar Respuesta Cliente - Tecnica').item.json.pregunta_original.replace(/'/g, \"''\") }}'\nWHERE length(trim('{{ $('Preparar Respuesta Cliente - Tecnica').item.json.pregunta_original.replace(/'/g, \"''\") }}')) > 0 AND length(trim('{{ $('Preparar Respuesta Cliente - Tecnica').item.json.content.replace(/'/g, \"''\") }}')) > 0\nUNION ALL\nSELECT '{{ $('Preparar Respuesta Cliente - Tecnica').item.json.key.replace(/'/g, \"''\") }}', 'ai', '{{ $('Preparar Respuesta Cliente - Tecnica').item.json.content.replace(/'/g, \"''\") }}'\nWHERE length(trim('{{ $('Preparar Respuesta Cliente - Tecnica').item.json.pregunta_original.replace(/'/g, \"''\") }}')) > 0 AND length(trim('{{ $('Preparar Respuesta Cliente - Tecnica').item.json.content.replace(/'/g, \"''\") }}')) > 0;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        701024,
+        -1052000
+      ],
+      "id": "133058ff-4890-4887-aec7-549656b6318c",
+      "name": "Guardar Turno Conversacion (Aprendizaje Tecnica)",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversaciones_historial (session_key, role, content)\nSELECT '{{ $('Preparar Respuesta Cliente - Negocio').item.json.key.replace(/'/g, \"''\") }}', 'human', '{{ $('Preparar Respuesta Cliente - Negocio').item.json.pregunta_original.replace(/'/g, \"''\") }}'\nWHERE length(trim('{{ $('Preparar Respuesta Cliente - Negocio').item.json.pregunta_original.replace(/'/g, \"''\") }}')) > 0 AND length(trim('{{ $('Preparar Respuesta Cliente - Negocio').item.json.content.replace(/'/g, \"''\") }}')) > 0\nUNION ALL\nSELECT '{{ $('Preparar Respuesta Cliente - Negocio').item.json.key.replace(/'/g, \"''\") }}', 'ai', '{{ $('Preparar Respuesta Cliente - Negocio').item.json.content.replace(/'/g, \"''\") }}'\nWHERE length(trim('{{ $('Preparar Respuesta Cliente - Negocio').item.json.pregunta_original.replace(/'/g, \"''\") }}')) > 0 AND length(trim('{{ $('Preparar Respuesta Cliente - Negocio').item.json.content.replace(/'/g, \"''\") }}')) > 0;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        701024,
+        -1051500
+      ],
+      "id": "ca20ff5f-e1df-4b0e-8aae-ec87c3709e6f",
+      "name": "Guardar Turno Conversacion (Aprendizaje Negocio)",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO conversaciones_historial (session_key, role, content)\nSELECT '{{ $('Preparar Respuesta Cliente - Precio').item.json.key.replace(/'/g, \"''\") }}', 'human', '{{ $('Preparar Respuesta Cliente - Precio').item.json.pregunta_original.replace(/'/g, \"''\") }}'\nWHERE length(trim('{{ $('Preparar Respuesta Cliente - Precio').item.json.pregunta_original.replace(/'/g, \"''\") }}')) > 0 AND length(trim('{{ $('Preparar Respuesta Cliente - Precio').item.json.content.replace(/'/g, \"''\") }}')) > 0\nUNION ALL\nSELECT '{{ $('Preparar Respuesta Cliente - Precio').item.json.key.replace(/'/g, \"''\") }}', 'ai', '{{ $('Preparar Respuesta Cliente - Precio').item.json.content.replace(/'/g, \"''\") }}'\nWHERE length(trim('{{ $('Preparar Respuesta Cliente - Precio').item.json.pregunta_original.replace(/'/g, \"''\") }}')) > 0 AND length(trim('{{ $('Preparar Respuesta Cliente - Precio').item.json.content.replace(/'/g, \"''\") }}')) > 0;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        705072,
+        -1049500
+      ],
+      "id": "654a35c9-c29e-407c-bbee-e4c4d8da0730",
+      "name": "Guardar Turno Conversacion (Aprendizaje Precio)",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "postgres": {
+          "id": "65YYZNhTfBBheEpo",
+          "name": "Postgres account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -7187,7 +7295,7 @@
       "main": [
         [
           {
-            "node": "Fin - Aprendizaje Guardado",
+            "node": "Guardar Turno Conversacion (Aprendizaje Tecnica)",
             "type": "main",
             "index": 0
           }
@@ -7220,7 +7328,7 @@
       "main": [
         [
           {
-            "node": "Fin - Aprendizaje Guardado",
+            "node": "Guardar Turno Conversacion (Aprendizaje Negocio)",
             "type": "main",
             "index": 0
           }
@@ -7665,7 +7773,7 @@
       "main": [
         [
           {
-            "node": "Fin - Aprendizaje Guardado",
+            "node": "Guardar Turno Conversacion (Aprendizaje Precio)",
             "type": "main",
             "index": 0
           }
@@ -8968,7 +9076,7 @@
         ],
         [
           {
-            "node": "Fin - Aprendizaje Guardado",
+            "node": "Guardar Turno Conversacion (Aprendizaje Tecnica)",
             "type": "main",
             "index": 0
           }
@@ -8986,7 +9094,7 @@
         ],
         [
           {
-            "node": "Fin - Aprendizaje Guardado",
+            "node": "Guardar Turno Conversacion (Aprendizaje Negocio)",
             "type": "main",
             "index": 0
           }
@@ -9004,7 +9112,7 @@
         ],
         [
           {
-            "node": "Fin - Aprendizaje Guardado",
+            "node": "Guardar Turno Conversacion (Aprendizaje Precio)",
             "type": "main",
             "index": 0
           }
@@ -9046,6 +9154,39 @@
         [
           {
             "node": "Buscar Pregunta Pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Turno Conversacion (Aprendizaje Tecnica)": {
+      "main": [
+        [
+          {
+            "node": "Fin - Aprendizaje Guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Turno Conversacion (Aprendizaje Negocio)": {
+      "main": [
+        [
+          {
+            "node": "Fin - Aprendizaje Guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Turno Conversacion (Aprendizaje Precio)": {
+      "main": [
+        [
+          {
+            "node": "Fin - Aprendizaje Guardado",
             "type": "main",
             "index": 0
           }

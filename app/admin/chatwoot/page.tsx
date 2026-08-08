@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox } from "lucide-react"
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
@@ -38,6 +38,13 @@ export default async function ChatwootPage() {
             icon: <Clock className="h-8 w-8 text-sky-600" />,
             href: "/admin/chatwoot/cola",
             color: "border-l-4 border-l-sky-500"
+        },
+        {
+            title: "Consultas pendientes",
+            description: "Preguntas que el bot escaló al equipo por falta de un dato. Respondé acá mismo y el bot le contesta al cliente solo.",
+            icon: <Inbox className="h-8 w-8 text-rose-600" />,
+            href: "/admin/chatwoot/pendientes",
+            color: "border-l-4 border-l-rose-500"
         },
         {
             title: "Prueba de Mensajes",

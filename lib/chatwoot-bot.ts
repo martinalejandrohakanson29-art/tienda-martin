@@ -44,6 +44,25 @@ export function chatwootConfig() {
     return { api: api.replace(/\/$/, ""), token, botUserId }
 }
 
+/**
+ * Token de un agente humano (no el del bot) para que la app pueda responder
+ * las notas privadas de escalado en nombre del equipo. Tiene que ser una
+ * identidad de Chatwoot distinta al usuario Bot: el nodo "¿Es respuesta de mi
+ * equipo?" del workflow ignora a propósito cualquier mensaje cuyo sender.id
+ * coincida con CHATWOOT_BOT_USER_ID, para no confundir el eco del propio bot
+ * con una respuesta real. Si se reutilizara CHATWOOT_API_TOKEN acá, n8n
+ * descartaría la nota en silencio.
+ */
+function chatwootConfigEquipo() {
+    const { api } = chatwootConfig()
+    const token = process.env.CHATWOOT_ADMIN_API_TOKEN || ""
+    return { api, token }
+}
+
+export function tieneTokenEquipo() {
+    return Boolean(chatwootConfigEquipo().token)
+}
+
 export async function getEstadoBot(): Promise<EstadoBot> {
     const filas = await prisma.$queryRaw<{ encendido: boolean; actualizado_en: Date; actualizado_por: string | null }[]>`
         SELECT encendido, actualizado_en, actualizado_por FROM bot_estado WHERE id = 1
@@ -81,6 +100,37 @@ export async function enviarMensajeChatwoot(params: {
         method: "POST",
         headers: { api_access_token: token, "Content-Type": "application/json" },
         body: JSON.stringify({ content: params.content, message_type: "outgoing" }),
+    })
+
+    if (!res.ok) {
+        const detalle = await res.text().catch(() => "")
+        throw new Error(`Chatwoot respondió ${res.status}: ${detalle.slice(0, 300)}`)
+    }
+    return res.json().catch(() => ({}))
+}
+
+/**
+ * Manda una nota privada a Chatwoot como si la escribiera el equipo a mano,
+ * para resolver una pregunta pendiente que el bot escaló (ver
+ * "Escalar - Nota Privada" / "¿Es respuesta de mi equipo?" en el workflow).
+ * Usa CHATWOOT_ADMIN_API_TOKEN (identidad de un agente real), nunca el token
+ * del bot. El cliente no ve esta nota — la respuesta que sí le llega la arma
+ * y la manda el workflow una vez que extrae el dato de acá.
+ */
+export async function enviarNotaPrivadaChatwoot(params: {
+    accountId: number | bigint
+    conversationId: number | bigint
+    content: string
+}) {
+    const { api } = chatwootConfig()
+    const { token } = chatwootConfigEquipo()
+    if (!token) throw new Error("Falta CHATWOOT_ADMIN_API_TOKEN en el entorno de la app")
+
+    const url = `${api}/accounts/${params.accountId}/conversations/${params.conversationId}/messages`
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { api_access_token: token, "Content-Type": "application/json" },
+        body: JSON.stringify({ content: params.content, message_type: "outgoing", private: true }),
     })
 
     if (!res.ok) {

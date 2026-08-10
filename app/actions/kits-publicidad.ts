@@ -107,7 +107,7 @@ export async function guardarKit(data: KitInput) {
 
     await sincronizarPreciosStock(kitId!, nombre, data.keywords, data.precio, data.envio, data.detalle)
 
-    revalidatePath("/admin/chatwoot/kits")
+    revalidatePath("/admin/chatwoot/conocimiento")
     return { success: true, id: kitId }
 }
 
@@ -115,11 +115,11 @@ export async function eliminarKit(id: number) {
     await requireAdmin()
     await prisma.$executeRaw`DELETE FROM kits_publicidad WHERE id = ${id}`
     await prisma.$executeRaw`DELETE FROM precios_stock WHERE fuente = ${`admin-kit-${id}`}`
-    revalidatePath("/admin/chatwoot/kits")
+    revalidatePath("/admin/chatwoot/conocimiento")
 }
 
 export async function alternarActivo(id: number, activo: boolean) {
     await requireAdmin()
     await prisma.$executeRaw`UPDATE kits_publicidad SET activo = ${activo} WHERE id = ${id}`
-    revalidatePath("/admin/chatwoot/kits")
+    revalidatePath("/admin/chatwoot/conocimiento")
 }

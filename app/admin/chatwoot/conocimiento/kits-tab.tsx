@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Save, Loader2, Wand2, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
 
 import { guardarKit, eliminarKit, alternarActivo, type Kit, type KitInput } from "@/app/actions/kits-publicidad"
+import { generarMensajeKit } from "@/lib/kits-mensaje"
 
 const FORM_VACIO: KitInput = {
     nombre: "",
@@ -36,16 +37,7 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
     }
 
     const generarMensaje = () => {
-        const partes = [
-            "Hola amigo, ¿cómo va?",
-            form.detalle.trim() || "[completá el detalle del kit arriba]",
-            [
-                form.precio.trim() ? `El precio es ${form.precio.trim()}` : "[completá el precio arriba]",
-                form.envio.trim() ? `con ${form.envio.trim().toLowerCase()}` : null,
-            ].filter(Boolean).join(", ") + ".",
-            "¿Para qué moto lo estás buscando?",
-        ]
-        actualizarCampo("mensajeBienvenida", partes.join("\n\n"))
+        actualizarCampo("mensajeBienvenida", generarMensajeKit(form))
     }
 
     const editarKit = (kit: Kit) => {

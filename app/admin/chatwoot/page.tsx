@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
@@ -52,6 +52,13 @@ export default async function ChatwootPage() {
             icon: <Bot className="h-8 w-8 text-violet-600" />,
             href: "/admin/chatwoot/prueba",
             color: "border-l-4 border-l-violet-500"
+        },
+        {
+            title: "Cargar Kit (asistido)",
+            description: "Charlá con un asistente y él arma el kit con el formato correcto (palabras clave, qué incluye, compatibilidad) — vos revisás y confirmás antes de publicar.",
+            icon: <Sparkles className="h-8 w-8 text-fuchsia-600" />,
+            href: "/admin/chatwoot/cargar-kit",
+            color: "border-l-4 border-l-fuchsia-500"
         }
     ]
 

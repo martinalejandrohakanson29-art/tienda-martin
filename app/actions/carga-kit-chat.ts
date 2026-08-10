@@ -49,8 +49,14 @@ async function llamarWebhook(body: Record<string, unknown>): Promise<RespuestaCh
         )
     }
 
+    // El nodo de DeepSeek en n8n tiene timeout de 25s y el agente reintenta
+    // hasta 3 veces con 2s de espera entre intentos - en el peor caso puede
+    // demorar bastante más de 35s. Si la app corta antes que n8n, el turno
+    // igual queda guardado en la base (n8n no se entera de que el cliente se
+    // desconectó), pero el usuario nunca ve la respuesta - por eso el margen
+    // generoso acá.
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 35000)
+    const timeoutId = setTimeout(() => controller.abort(), 100000)
 
     let response: Response
     try {
@@ -65,7 +71,9 @@ async function llamarWebhook(body: Record<string, unknown>): Promise<RespuestaCh
         })
     } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
-            throw new Error("El asistente tardó demasiado en responder. Probá de nuevo.")
+            throw new Error(
+                "El asistente tardó demasiado en responder. Probablemente la respuesta se guardó igual - salí y volvé a entrar a este borrador para verla, en vez de reenviar el mensaje."
+            )
         }
         throw new Error("No se pudo conectar con el asistente de carga.")
     } finally {

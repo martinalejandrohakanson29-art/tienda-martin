@@ -58,6 +58,18 @@ export default function PruebaMensajesPage() {
     const [reiniciandoConocimiento, setReiniciandoConocimiento] = useState(false)
     const [resetConocimientoError, setResetConocimientoError] = useState<string | null>(null)
 
+    // ESTADOS PARA "BORRAR HISTORIAL DE UN NÚMERO" (a diferencia de "Reiniciar
+    // conocimiento" de arriba, esto solo toca lo atado a un teléfono puntual:
+    // busca el contacto en Chatwoot real para resolver su conversation_id y
+    // borra por ese id en las tablas de pendientes/cola, más el historial de
+    // conversación por teléfono. No toca compatibilidades/info_negocio/precios.
+    const NUMEROS_RAPIDOS = ["+5493513784909", "+5493512039656"]
+    const [numeroABorrar, setNumeroABorrar] = useState("")
+    const [confirmBorrarNumeroOpen, setConfirmBorrarNumeroOpen] = useState(false)
+    const [borrandoNumero, setBorrandoNumero] = useState(false)
+    const [borrarNumeroError, setBorrarNumeroError] = useState<string | null>(null)
+    const [borrarNumeroResultado, setBorrarNumeroResultado] = useState<string | null>(null)
+
     const chatRef = useRef<HTMLDivElement>(null)
     const settingsRef = useRef<HTMLDivElement>(null)
     const [settingsOpen, setSettingsOpen] = useState(false)
@@ -349,6 +361,34 @@ export default function PruebaMensajesPage() {
         }
     }
 
+    // BORRAR HISTORIAL DE UN NÚMERO: resuelve el conversation_id real vía la
+    // API de Chatwoot y borra por id exacto en Postgres (historial, lock,
+    // pendientes técnicas/negocio/precio y cola de respuestas).
+    const handleBorrarNumero = async () => {
+        if (!numeroABorrar || borrandoNumero) return
+        setBorrandoNumero(true)
+        setBorrarNumeroError(null)
+        setBorrarNumeroResultado(null)
+        try {
+            const res = await fetch("/api/chatwoot/prueba-borrar-numero", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ telefono: numeroABorrar }),
+            })
+            const data = await res.json().catch(() => ({}))
+            if (!res.ok) throw new Error(data?.error || "No se pudo borrar el historial de ese número")
+            const convs = (data.conversationIds || []).length
+                ? ` (conversación${data.conversationIds.length > 1 ? "es" : ""} #${data.conversationIds.join(", #")})`
+                : ""
+            setBorrarNumeroResultado(`Listo: ${data.filasBorradas} filas borradas${convs}.${data.avisoChatwoot ? ` Aviso: ${data.avisoChatwoot}` : ""}`)
+            setConfirmBorrarNumeroOpen(false)
+        } catch (error) {
+            setBorrarNumeroError(error instanceof Error ? error.message : "Error de conexión con el servidor")
+        } finally {
+            setBorrandoNumero(false)
+        }
+    }
+
     const copiarMockUrl = () => {
         navigator.clipboard.writeText(mockBaseUrl).then(() => {
             setMockUrlCopiada(true)
@@ -414,6 +454,64 @@ export default function PruebaMensajesPage() {
                     <p className="mt-2 flex items-center gap-1 text-xs text-red-700">
                         <AlertCircle size={13} />
                         {resetConocimientoError}
+                    </p>
+                )}
+            </div>
+
+            {/* ---------------- BORRAR HISTORIAL DE UN NÚMERO (toca la base real, pero solo ese número) ---------------- */}
+            <div className="mx-auto w-full max-w-xl rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm">
+                <p className="font-semibold text-red-900 flex items-center gap-1.5">
+                    <Trash2 size={16} />
+                    Borrar historial de un número puntual
+                </p>
+                <p className="mt-1 text-red-800">
+                    Busca el contacto en Chatwoot real para ese teléfono, resuelve su conversación y borra en la base
+                    real el historial de esa conversación, el lock, las preguntas pendientes (técnica/negocio/precio)
+                    y lo que tenga en la cola de respuestas. No toca compatibilidades, info de negocio ni
+                    precios/stock — solo lo atado a este número.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                    {NUMEROS_RAPIDOS.map((n) => (
+                        <button
+                            key={n}
+                            type="button"
+                            onClick={() => setNumeroABorrar(n)}
+                            className="rounded-full border border-red-300 bg-white px-2.5 py-1 text-xs text-red-800 hover:bg-red-100"
+                        >
+                            {n}
+                        </button>
+                    ))}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                    <Input
+                        value={numeroABorrar}
+                        onChange={(e) => { setNumeroABorrar(e.target.value); setBorrarNumeroResultado(null); setBorrarNumeroError(null) }}
+                        placeholder="+549..."
+                        className="bg-white"
+                        disabled={borrandoNumero}
+                    />
+                    <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="shrink-0 gap-1.5"
+                        disabled={!numeroABorrar || borrandoNumero}
+                        onClick={() => setConfirmBorrarNumeroOpen(true)}
+                    >
+                        <Trash2 size={14} />
+                        Borrar
+                    </Button>
+                </div>
+                {borrarNumeroError && (
+                    <p className="mt-2 flex items-center gap-1 text-xs text-red-700">
+                        <AlertCircle size={13} />
+                        {borrarNumeroError}
+                    </p>
+                )}
+                {borrarNumeroResultado && (
+                    <p className="mt-2 flex items-center gap-1 text-xs text-green-700">
+                        <Check size={13} />
+                        {borrarNumeroResultado}
                     </p>
                 )}
             </div>
@@ -693,6 +791,17 @@ export default function PruebaMensajesPage() {
                 variant="danger"
                 isLoading={borrandoTodo}
                 onConfirm={handleBorrarTodoHistorial}
+            />
+
+            <ConfirmDialog
+                open={confirmBorrarNumeroOpen}
+                onOpenChange={setConfirmBorrarNumeroOpen}
+                title={`¿Borrar todo el historial de ${numeroABorrar}?`}
+                description="Se busca la conversación real de ese número en Chatwoot y se borra en la base real su historial, lock, preguntas pendientes y cola de respuestas. No afecta a otros números ni al conocimiento general del bot. No se puede deshacer."
+                confirmLabel="Sí, borrar este número"
+                variant="danger"
+                isLoading={borrandoNumero}
+                onConfirm={handleBorrarNumero}
             />
 
             <ConfirmDialog

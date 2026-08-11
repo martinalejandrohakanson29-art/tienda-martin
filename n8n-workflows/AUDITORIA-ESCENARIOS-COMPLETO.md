@@ -405,6 +405,75 @@ Chatwoot.
     reescribe apuntando al webhook real con una conversación de prueba, o si
     se arma un mock nuevo dedicado a esto.
 
+## P. Comportamiento real / ruido del cliente (agregado 2026-08-11)
+
+> Enfocado en lo que un cliente real hace y que nadie prueba a propósito:
+> corregirse, cambiar de tema, repetirse, escribir mal, salirse del guión.
+> Es donde más aparecen bugs en producción porque las secciones A-O prueban
+> sobre todo mecánica (buffers, adjuntos) y contenido (clasificación,
+> anti-alucinación) con mensajes prolijos de un solo tema.
+
+**Corrección y cambio de tema en la charla**
+
+93. Cliente se corrige a mitad de conversación ("no, perdón, no es la Wave,
+    es la Titan") → el bot usa el dato corregido, no mezcla los dos modelos.
+94. Cliente cambia de tema abruptamente (pregunta por un kit, recibe
+    respuesta, después pregunta por un producto sin relación) → no debe
+    arrastrar el modelo/kit anterior a la pregunta nueva.
+95. Cliente repite la misma pregunta dos veces seguidas (impaciencia, no vio
+    la respuesta) → no debe sonar como si nunca hubiera contestado, ni
+    "regañar" al cliente por repetirse.
+96. Reenganche horas o días después en la misma conversación con un tema
+    nuevo → el contexto viejo (motos/kits mencionados antes) no debe
+    contaminar la respuesta nueva.
+
+**Ruido de mensajería real**
+
+97. Mensaje duplicado literal (doble tap / reenvío accidental del cliente) →
+    no debe generar dos respuestas idénticas ni procesarlo dos veces.
+98. Cliente **edita** o **borra** un mensaje de WhatsApp después de
+    enviarlo (Chatwoot manda esos eventos) → confirmar que el workflow los
+    ignora limpio y no los toma como `message_created` nuevo.
+99. Cliente **responde citando** (reply) un mensaje viejo de la charla en
+    vez de escribir directo → verificar que no rompa el armado del texto
+    agrupado.
+100. Nota de voz larga (1-2 min) con **varias preguntas mezcladas** en el
+     mismo audio, no una sola consulta simple.
+101. Cliente manda un **video** o un **PDF/documento** → hoy solo están
+     cubiertos imagen/sticker/ubicación en la rama "Otro" (punto 11); falta
+     confirmar que estos otros tipos caigan ahí también y no rompan nada.
+102. Mensaje en **MAYÚSCULAS SOSTENIDAS** o con muchos signos de exclamación
+     (lee como enojo aunque no lo sea) → el tono de respuesta no debe
+     volverse defensivo ni frío sin motivo real.
+103. Texto muy degradado: jerga argentina fuerte, abreviaturas agresivas
+     ("q ondaa tas la wave anda pa un 110 xfa"), sin puntuación → que la
+     extracción de modelo/kit siga funcionando igual.
+
+**Casos de negociación / fuera de guión**
+
+104. Cliente pide explícitamente **hablar con una persona** ("pásame con
+     alguien", "quiero un humano") → debería escalar aunque no encaje en
+     HOSTIL/RECLAMO ni LISTO_COMPRAR (hoy no hay categoría clara para esto,
+     vale la pena confirmar dónde cae).
+105. Cliente **negocia precio** ("¿me hacés descuento por efectivo?",
+     "¿cuánto me dejás si llevo dos?") → no debe inventar un descuento ni
+     cerrar un precio no autorizado.
+106. Pregunta de **envío a una localidad específica** no genérica ("¿mandan
+     a Villa Carlos Paz?") → escala en vez de asumir cobertura no cargada.
+107. Insulto o grosería real (no un reclamo educado) → confirmar que sigue
+     derivando a humano sin intentar "calmarlo" con una respuesta genérica
+     sospechosamente amable.
+
+**Condición de carrera**
+
+108. Cliente manda un mensaje **mientras el bot todavía está procesando** el
+     anterior (no es una ráfaga agrupada por buffer, es un mensaje nuevo
+     llegando a mitad del procesamiento) → confirmar que no se pisen dos
+     ejecuciones ni se responda dos veces desordenado.
+109. Cliente queda **en silencio después de un escalado** y nunca vuelve →
+     confirmar qué pasa con la pregunta pendiente (¿queda huérfana para
+     siempre?, ¿hay alguna limpieza o expiración?).
+
 ---
 
 > **Estado (2026-08-07):** 55 y 58 confirmados en verde. 54 no se pudo
@@ -456,3 +525,79 @@ borrar) en vez de por patrón de texto.
 - Conviene correr esta lista completa cada vez que se toque el workflow en
   la UI de n8n, no solo la primera vez — es justamente lo que faltó ayer y
   hoy antes de detectar el bug del pausado.
+- La sección P (93-109) es nueva (2026-08-11) y ninguno de sus puntos se
+  corrió todavía. Es la candidata natural para probar primero contra
+  `local-test/` (sin tocar producción) antes de decidir cuáles promover a
+  regresión fija.
+
+## Estado (2026-08-11) — corrida completa contra `local-test/` con DeepSeek real
+
+Se armó infraestructura nueva para correr **todos** los escenarios (los 92
+originales + los 17 de la sección P) sin tocar producción: Postgres, Redis,
+n8n y la app Next.js instalados y corriendo 100% locales en esta máquina,
+con el workflow importado pegándole a la **API real de DeepSeek** (mismo
+comportamiento que producción) y a un mock propio de Chatwoot. Detalle del
+harness en `local-test/arnes.mjs`, `local-test/escenarios.mjs` y
+`local-test/bateria-completa.mjs`.
+
+**Resultado: 60 en verde, 1 hallazgo real confirmado, 31 requieren ojo
+humano (subjetivos), 12 no se pudieron correr acá, 6 quedaron sin
+implementar en el harness.**
+
+- **Los puntos 15 y 64 (la regresión más crítica, equipo responde pendiente
+  sin pausar el bot) confirmados en verde** contra DeepSeek real. También
+  65, 66, 68, 69, 71 (todo el circuito de aprendizaje del equipo).
+- **Hallazgo real nuevo (punto 105, sección P):** un cliente que pide
+  explícitamente hablar con una persona ("quiero hablar con alguien, no con
+  el sistema automático") **no escala** — el clasificador no tiene una
+  categoría para esto y cae en OTRO, el agente genérico responde como si
+  nada. Reproducido 3 veces de forma consistente. Vale la pena sumar una
+  regla explícita de escalado para esto.
+- **Observación menor (punto 57):** cuando el mensaje del cliente es
+  *únicamente* la mención genérica de un kit ("vengo por el kit"), además
+  de la pregunta de desambiguación correcta, el "resto" (vacío) del mensaje
+  se reclasifica igual y puede disparar una escalada redundante de más
+  (comportamiento heredado del FIX 3 del 06/08, funciona como se diseñó
+  pero es mejorable para este caso límite).
+- Puntos 8, 9, 10, 101 (audio/Whisper) sin correr: falta una
+  `OPENAI_API_KEY` de prueba en el entorno local.
+- Puntos 23, 24, 26, 27, 28, 72 (casos finos de la cola bajo concurrencia)
+  sin implementar en el harness — quedan para una vuelta futura.
+- Puntos 21, 25, 59, 61, 62, 87, 88, 97 sin poder verificar 100% contra este
+  mock (requieren Chatwoot real, tumbar servicios a propósito, o tocar env
+  vars en caliente).
+- 28 puntos quedaron con evidencia capturada pero juicio subjetivo (tono,
+  formato de números, no repetir saludo, no mezclar datos entre motos,
+  etc.) — la lista completa con la respuesta real del bot en cada caso está
+  en el reporte de esa corrida, no repetida acá por espacio.
+
+### Segunda vuelta (mismo día) — se re-verificaron los 31 puntos "a criterio"
+
+Con el harness ya más sólido (arreglado el `message_type` de mensajes de
+equipo/bot, la clave real de Redis del pausado, y el orden secuencial de
+turnos en conversaciones de varios mensajes) se re-corrieron los 31 puntos
+que habían quedado sin evidencia limpia o con evidencia sospechosa.
+
+**Confirmados en verde con evidencia real (sin acción necesaria):** 7, 38
+(aceptable — el "sí" suelto no reactiva la rama técnica estructurada, pero
+`AI Agent2` sí usa el historial y responde con contexto coherente), 44, 48
+(escala en vez de asumir, no hay regresión), 49, 50, 55, 63, 73, 74, 79, 95,
+103, 104, 106, 110.
+
+**[REGRESION CONFIRMADA] Punto 58 — sigue rota, y es peor de lo que decía
+el hallazgo original.** Durante el seguimiento de un kit, si el cliente
+pregunta algo que no es sobre el kit ni sobre compatibilidad técnica (ej.
+horarios), `Responder Seguimiento Kit` no devuelve `SIN_DATO` como debería
+— improvisa una respuesta tipo "no tengo el horario a mano ahora" **sin
+escalar ni registrar nada**. Confirmado con Postgres real: la pregunta no
+queda en `preguntas_negocio_pendientes`. Causa raíz identificada: la regla
+de `SIN_DATO` en el system prompt de ese nodo solo cubre preguntas de
+**compatibilidad técnica** puntual, no cualquier pregunta fuera del alcance
+del kit. Antes (auditoría original) el bug era que iba a la rama técnica
+saltando negocio; ahora directamente no escala nada — regresión más grave
+que la original.
+
+**Observación a decidir (punto 41):** "solo modelo, sin kit" hoy escala
+directo a un humano en vez de preguntarle al cliente qué kit busca. No es
+un bug (no inventa nada), pero es una oportunidad perdida: el dato faltante
+lo tiene el cliente a mano, se le podría preguntar antes de escalar.

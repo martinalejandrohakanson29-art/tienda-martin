@@ -263,7 +263,8 @@ export default function ComprasClient({
       const prov = (c.proveedor || "").toLowerCase();
       const rs = ((c.proveedorRel as any)?.razonSocial || "").toLowerCase();
       const nf = ((c.proveedorRel as any)?.nombreFantasia || "").toLowerCase();
-      return prov.includes(q) || rs.includes(q) || nf.includes(q);
+      const comp = (c.comprobante || "").toLowerCase();
+      return prov.includes(q) || rs.includes(q) || nf.includes(q) || comp.includes(q);
     });
   }, [searchHistorial, comprasRealizadas]);
 
@@ -1064,13 +1065,13 @@ export default function ComprasClient({
             <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-4 flex-wrap">
               <Button variant="outline" size="icon" onClick={() => cargarCompras()} className="h-10 w-10"><RefreshCcw className="h-4 w-4" /></Button>
               <div className="space-y-1 w-full max-w-xs">
-                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar Proveedor</Label>
+                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar Proveedor / Comprobante</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
                     value={searchHistorial}
                     onChange={(e) => setSearchHistorial(e.target.value)}
-                    placeholder="Nombre o nombre de fantasía..."
+                    placeholder="Nombre, nombre de fantasía o N° comprobante..."
                     className="h-10 rounded-xl pl-9 pr-9"
                   />
                   {searchHistorial && (
@@ -1100,6 +1101,7 @@ export default function ComprasClient({
                   <TableHeader className="sticky top-0 bg-slate-50 z-10 shadow-sm">
                     <TableRow>
                       <TableHead className="w-24 text-[10px] font-bold uppercase py-3">N° Compra</TableHead>
+                      <TableHead className="text-[10px] font-bold uppercase py-3">Comprobante N°</TableHead>
                       <TableHead className="w-28 text-[10px] font-bold uppercase py-3">Fecha Ingreso</TableHead>
                       <TableHead className="w-28 text-[10px] font-bold uppercase py-3">Fecha Carga</TableHead>
                       <TableHead className="text-[10px] font-bold uppercase py-3">Proveedor</TableHead>
@@ -1114,7 +1116,7 @@ export default function ComprasClient({
                   </TableHeader>
                   <TableBody>
                     {comprasFiltradas.length === 0 ? (
-                      <TableRow><TableCell colSpan={11} className="py-20 text-center text-slate-400 italic">
+                      <TableRow><TableCell colSpan={12} className="py-20 text-center text-slate-400 italic">
                         {searchHistorial ? `Sin resultados para "${searchHistorial}"` : "No hay compras en el período seleccionado"}
                       </TableCell></TableRow>
                     ) : comprasFiltradas.map((c) => {
@@ -1126,6 +1128,13 @@ export default function ComprasClient({
                               <span className="text-xs font-mono text-slate-700 font-bold bg-slate-100 px-2 py-1 rounded border border-slate-200">
                                 #{c.numeroCompra}
                               </span>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              {c.comprobante ? (
+                                <span className="text-xs font-mono text-slate-600">{c.comprobante}</span>
+                              ) : (
+                                <span className="text-xs text-slate-300 italic">-</span>
+                              )}
                             </TableCell>
                             <TableCell className="py-4">
                               {c.fechaIngreso ? (
@@ -1207,7 +1216,7 @@ export default function ComprasClient({
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell colSpan={8} className="py-0">
+                              <TableCell colSpan={9} className="py-0">
                                 <div className="p-3 space-y-2 max-h-64 overflow-y-auto">
                                   {c.items?.length > 0 ? (
                                     c.items.map((item: any) => (

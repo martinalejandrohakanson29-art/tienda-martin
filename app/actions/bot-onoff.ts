@@ -6,12 +6,16 @@ import { requireAdmin } from "@/lib/auth-guard"
 import {
     contarPendientes,
     getEstadoBot,
+    getHorarios,
+    guardarHorarios,
     setEstadoBot,
+    setHorarioAutomatico,
     tieneTokenChatwoot,
     type EstadoRespuesta,
+    type HorarioDia,
     type RespuestaPendiente,
 } from "@/lib/chatwoot-bot"
-import { despachoEnCurso, despacharColaEnSegundoPlano } from "@/lib/chatwoot-cola"
+import { despachoEnCurso, despacharColaEnSegundoPlano, sincronizarEstadoBot } from "@/lib/chatwoot-cola"
 
 // Botón ON/OFF del bot de WhatsApp y manejo de la cola de respuestas que se
 // generaron con el local cerrado. Ver n8n-workflows/bot-onoff.sql.
@@ -34,6 +38,7 @@ export type PanelBot = {
     encendido: boolean
     actualizadoEn: string | null
     actualizadoPor: string | null
+    horarioAutomatico: boolean
     pendientes: number
     despachando: boolean
     /** false = falta CHATWOOT_API_TOKEN en el servicio de la web */
@@ -69,7 +74,10 @@ async function quienSoy() {
 export async function obtenerPanelBot(): Promise<PanelBot> {
     await requireAdmin()
     try {
-        const estado = await getEstadoBot()
+        // sincronizarEstadoBot (no getEstadoBot) para que cargar esta pantalla
+        // también dispare la reconciliación del horario automático, igual que
+        // cada mensaje entrante.
+        const estado = await sincronizarEstadoBot()
         const pendientes = await contarPendientes()
         // Lo ya enviado se muestra un rato para poder confirmar que salió; más
         // atrás no interesa (el historial real está en Chatwoot).
@@ -83,6 +91,7 @@ export async function obtenerPanelBot(): Promise<PanelBot> {
             encendido: estado.encendido,
             actualizadoEn: estado.actualizadoEn ? estado.actualizadoEn.toISOString() : null,
             actualizadoPor: estado.actualizadoPor,
+            horarioAutomatico: estado.horarioAutomatico,
             pendientes,
             despachando: despachoEnCurso(),
             tokenChatwoot: tieneTokenChatwoot(),
@@ -96,6 +105,12 @@ export async function obtenerPanelBot(): Promise<PanelBot> {
 
 export async function alternarBot(encendido: boolean) {
     const quien = await quienSoy()
+
+    const estadoActual = await getEstadoBot()
+    if (estadoActual.horarioAutomatico) {
+        throw new Error("El horario automático está activo — apagalo para tomar control manual del bot.")
+    }
+
     await setEstadoBot(encendido, quien)
 
     let pendientes = 0
@@ -191,4 +206,45 @@ export async function editarRespuesta(id: number, contenido: string) {
         WHERE id = ${id} AND estado IN ('pendiente', 'error')
     `
     revalidatePath("/admin/chatwoot/cola")
+}
+
+// Horario comercial automático. Ver n8n-workflows/bot-horario.sql.
+
+export type HorarioBot = {
+    automatico: boolean
+    dias: HorarioDia[]
+}
+
+export async function obtenerHorarioBot(): Promise<HorarioBot> {
+    await requireAdmin()
+    const estado = await getEstadoBot()
+    const dias = await getHorarios()
+    return { automatico: estado.horarioAutomatico, dias }
+}
+
+/**
+ * Prende o apaga el modo automático. Al prenderlo, reconcilia el estado del
+ * bot contra el horario ahí mismo (no hace falta esperar al próximo mensaje
+ * o a la próxima carga de pantalla para que el cambio se note).
+ */
+export async function alternarHorarioAutomatico(activo: boolean) {
+    const quien = await quienSoy()
+    await setHorarioAutomatico(activo, quien)
+    if (activo) await sincronizarEstadoBot()
+
+    revalidatePath("/admin/chatwoot")
+    revalidatePath("/admin/chatwoot/horario")
+    return { automatico: activo }
+}
+
+export async function guardarHorarioBot(dias: HorarioDia[]) {
+    await requireAdmin()
+    await guardarHorarios(dias)
+
+    // Si el automático ya estaba prendido, un cambio de horario puede abrir o
+    // cerrar el bot en el acto (ej. extender el cierre de hoy).
+    await sincronizarEstadoBot()
+
+    revalidatePath("/admin/chatwoot")
+    revalidatePath("/admin/chatwoot/horario")
 }

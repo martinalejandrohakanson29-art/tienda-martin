@@ -98,6 +98,23 @@ el bot y verificar que llegue el mensaje.
 desde Chatwoot, y después prender el bot: la respuesta pre-generada tiene que quedar
 **Descartada**, no salir.
 
+## Horario automático (agregado 2026-08-12)
+
+`/admin/chatwoot/horario` agrega un modo automático que prende y apaga el bot solo según un
+horario semanal (7 días, incluyendo sábado y domingo por separado). Schema en `bot-horario.sql`:
+`bot_estado.horario_automatico` (bandera) + tabla `bot_horario` (`dia_semana` 0=domingo..6=sábado,
+`activo`, `abre_minutos`/`cierra_minutos` en hora Argentina fija UTC-3).
+
+**Con el automático activo, el horario manda solo**: el botón manual de `/admin/chatwoot` queda
+deshabilitado y `alternarBot` tira error si se lo llama igual. Para tomar control manual hay que
+apagar el automático primero desde `/admin/chatwoot/horario`.
+
+**No hay cron aparte.** `sincronizarEstadoBot()` (`lib/chatwoot-cola.ts`) se llama desde los mismos
+dos puntos que ya leían `bot_estado` —cada mensaje entrante por `/api/chatwoot/enviar` y cada carga
+de `/admin/chatwoot`— y corrige `bot_estado.encendido` ahí mismo si el horario dice algo distinto,
+disparando el despacho de la cola si pasó a encendido. Sin mensajes ni nadie mirando la pantalla no
+se reconcilia solo, pero tampoco hay a quién atender hasta que llegue el primer evento real.
+
 ## Qué mirar el primer día
 
 - **Respuestas viejas con precio viejo.** Una respuesta generada a las 2 am sale a las 9 con el

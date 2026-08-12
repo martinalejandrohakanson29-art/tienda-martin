@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { validateN8nToken } from "@/lib/webhook-guard"
-import { encolarRespuesta, enviarImagenChatwoot, enviarMensajeChatwoot, getEstadoBot } from "@/lib/chatwoot-bot"
+import { encolarRespuesta, enviarImagenChatwoot, enviarMensajeChatwoot } from "@/lib/chatwoot-bot"
+import { sincronizarEstadoBot } from "@/lib/chatwoot-cola"
 
 // Único punto de salida de los mensajes que ve el cliente.
 //
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     }
 
     try {
-        const { encendido } = await getEstadoBot()
+        const { encendido } = await sincronizarEstadoBot()
 
         if (!encendido) {
             const id = await encolarRespuesta({

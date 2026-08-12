@@ -34,6 +34,14 @@ export type EstadoBot = {
     encendido: boolean
     actualizadoEn: Date | null
     actualizadoPor: string | null
+    horarioAutomatico: boolean
+}
+
+export type HorarioDia = {
+    diaSemana: number // 0=domingo ... 6=sábado, igual que Date.getUTCDay()
+    activo: boolean
+    abreMinutos: number // minutos desde medianoche, hora Argentina
+    cierraMinutos: number
 }
 
 export function chatwootConfig() {
@@ -65,16 +73,19 @@ export function tieneTokenEquipo() {
 }
 
 export async function getEstadoBot(): Promise<EstadoBot> {
-    const filas = await prisma.$queryRaw<{ encendido: boolean; actualizado_en: Date; actualizado_por: string | null }[]>`
-        SELECT encendido, actualizado_en, actualizado_por FROM bot_estado WHERE id = 1
+    const filas = await prisma.$queryRaw<
+        { encendido: boolean; actualizado_en: Date; actualizado_por: string | null; horario_automatico: boolean }[]
+    >`
+        SELECT encendido, actualizado_en, actualizado_por, horario_automatico FROM bot_estado WHERE id = 1
     `
     // Sin fila (base recién creada) el bot se considera encendido: es el
     // comportamiento que tenía antes de existir el botón.
-    if (filas.length === 0) return { encendido: true, actualizadoEn: null, actualizadoPor: null }
+    if (filas.length === 0) return { encendido: true, actualizadoEn: null, actualizadoPor: null, horarioAutomatico: false }
     return {
         encendido: filas[0].encendido,
         actualizadoEn: filas[0].actualizado_en,
         actualizadoPor: filas[0].actualizado_por,
+        horarioAutomatico: filas[0].horario_automatico,
     }
 }
 
@@ -85,6 +96,90 @@ export async function setEstadoBot(encendido: boolean, quien: string) {
         ON CONFLICT (id) DO UPDATE
         SET encendido = ${encendido}, actualizado_en = now(), actualizado_por = ${quien}
     `
+}
+
+/**
+ * Prende o apaga el modo horario automático. Con el automático activo, el
+ * horario cargado en bot_horario manda solo sobre bot_estado.encendido (ver
+ * sincronizarHorarioAutomatico) y el botón manual queda deshabilitado en la
+ * UI: evita la ambigüedad de "quién decidió el estado actual".
+ */
+export async function setHorarioAutomatico(activo: boolean, quien: string) {
+    await prisma.$executeRaw`
+        INSERT INTO bot_estado (id, encendido, actualizado_en, actualizado_por, horario_automatico)
+        VALUES (1, true, now(), ${quien}, ${activo})
+        ON CONFLICT (id) DO UPDATE
+        SET horario_automatico = ${activo}, actualizado_en = now(), actualizado_por = ${quien}
+    `
+}
+
+export async function getHorarios(): Promise<HorarioDia[]> {
+    const filas = await prisma.$queryRaw<
+        { dia_semana: number; activo: boolean; abre_minutos: number; cierra_minutos: number }[]
+    >`
+        SELECT dia_semana, activo, abre_minutos, cierra_minutos FROM bot_horario ORDER BY dia_semana
+    `
+    return filas.map((f) => ({
+        diaSemana: f.dia_semana,
+        activo: f.activo,
+        abreMinutos: f.abre_minutos,
+        cierraMinutos: f.cierra_minutos,
+    }))
+}
+
+export async function guardarHorarios(dias: HorarioDia[]) {
+    for (const dia of dias) {
+        if (dia.diaSemana < 0 || dia.diaSemana > 6) throw new Error(`día inválido: ${dia.diaSemana}`)
+        if (dia.activo && dia.cierraMinutos <= dia.abreMinutos) {
+            throw new Error("El horario de cierre tiene que ser posterior al de apertura")
+        }
+        await prisma.$executeRaw`
+            UPDATE bot_horario
+            SET activo = ${dia.activo}, abre_minutos = ${dia.abreMinutos}, cierra_minutos = ${dia.cierraMinutos}
+            WHERE dia_semana = ${dia.diaSemana}
+        `
+    }
+}
+
+/** Día de la semana (0=domingo..6=sábado) y minuto del día, en hora Argentina
+ * (UTC-3 fijo, sin horario de verano — mismo criterio que el resto del
+ * proyecto, ver getEtiquetasPreparadas en app/actions/envios.ts). Se calcula
+ * corriendo el reloj UTC 3 horas para atrás en vez de usar la zona horaria
+ * del proceso, así da igual dónde corra el servidor. */
+function ahoraEnArgentina() {
+    const desplazado = new Date(Date.now() - 3 * 60 * 60 * 1000)
+    return {
+        diaSemana: desplazado.getUTCDay(),
+        minutosDelDia: desplazado.getUTCHours() * 60 + desplazado.getUTCMinutes(),
+    }
+}
+
+export function calcularDebeEstarAbierto(
+    horarios: HorarioDia[],
+    ahora: { diaSemana: number; minutosDelDia: number }
+): boolean {
+    const dia = horarios.find((h) => h.diaSemana === ahora.diaSemana)
+    if (!dia || !dia.activo) return false
+    return ahora.minutosDelDia >= dia.abreMinutos && ahora.minutosDelDia < dia.cierraMinutos
+}
+
+/**
+ * Punto de entrada para que el horario automático se aplique solo: se llama
+ * desde cualquier lugar que ya iba a leer el estado del bot (cada mensaje que
+ * llega por /api/chatwoot/enviar, y cada carga de /admin/chatwoot). Si el
+ * automático está activo y el horario dice algo distinto de lo que hay
+ * guardado, corrige bot_estado ahí mismo — no depende de un cron aparte.
+ */
+export async function sincronizarHorarioAutomatico(): Promise<EstadoBot & { cambio: boolean }> {
+    const estado = await getEstadoBot()
+    if (!estado.horarioAutomatico) return { ...estado, cambio: false }
+
+    const horarios = await getHorarios()
+    const debeEstarAbierto = calcularDebeEstarAbierto(horarios, ahoraEnArgentina())
+    if (debeEstarAbierto === estado.encendido) return { ...estado, cambio: false }
+
+    await setEstadoBot(debeEstarAbierto, "horario automático")
+    return { ...estado, encendido: debeEstarAbierto, cambio: true }
 }
 
 /** Manda el mensaje al cliente por Chatwoot. Tira si Chatwoot no lo acepta. */

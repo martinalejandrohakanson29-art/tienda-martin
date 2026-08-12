@@ -4,6 +4,8 @@ import {
     enviarMensajeChatwoot,
     getEstadoBot,
     humanoRespondioDespues,
+    sincronizarHorarioAutomatico,
+    type EstadoBot,
     type RespuestaPendiente,
 } from "@/lib/chatwoot-bot"
 
@@ -159,4 +161,21 @@ export function despacharColaEnSegundoPlano(opciones: { forzar?: boolean } = {})
     void despacharCola(opciones).catch((error) => {
         console.error("Falló el despacho de la cola de respuestas:", error)
     })
+}
+
+/**
+ * Punto único que deberían usar /api/chatwoot/enviar y el panel de admin en
+ * vez de leer bot_estado directo: además de resolver si el horario
+ * automático cambió el estado, dispara la cola si ese cambio fue un pasaje a
+ * encendido (mismo criterio que alternarBot cuando lo prende una persona).
+ * No depende de un cron aparte — cada mensaje entrante o carga de la pantalla
+ * es la oportunidad en la que se reconcilia solo.
+ */
+export async function sincronizarEstadoBot(): Promise<EstadoBot> {
+    const resultado = await sincronizarHorarioAutomatico()
+    if (resultado.cambio && resultado.encendido) {
+        despacharColaEnSegundoPlano()
+    }
+    const { cambio, ...estado } = resultado
+    return estado
 }

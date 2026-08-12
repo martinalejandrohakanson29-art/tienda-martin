@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AlertTriangle, Clock, Loader2, Power, Send } from "lucide-react"
+import { AlertTriangle, CalendarClock, Clock, Loader2, Power, Send } from "lucide-react"
 import { alternarBot, obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 
 // Botón de "abrimos / cerramos". Apagado, el bot sigue procesando todo y deja
@@ -96,6 +96,21 @@ export function BotOnOffPanel({ inicial, error }: { inicial: PanelBot | null; er
                                 </span>
                             )}
                         </p>
+                        <Link
+                            href="/admin/chatwoot/horario"
+                            className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-sky-700 hover:underline"
+                        >
+                            <CalendarClock className="h-4 w-4" />
+                            {panel.horarioAutomatico
+                                ? "Horario automático activo · configurar"
+                                : "Configurar horario automático"}
+                        </Link>
+                        {panel.horarioAutomatico && (
+                            <p className="mt-2 flex items-start gap-1.5 text-sm text-sky-700">
+                                <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
+                                <span>El horario automático está prendiendo y apagando el bot solo.</span>
+                            </p>
+                        )}
                         {panel.pendientes > 0 && (
                             <Link
                                 href="/admin/chatwoot/cola"
@@ -126,7 +141,8 @@ export function BotOnOffPanel({ inicial, error }: { inicial: PanelBot | null; er
 
                 <Button
                     size="lg"
-                    disabled={pendiente}
+                    disabled={pendiente || panel.horarioAutomatico}
+                    title={panel.horarioAutomatico ? "Apagá el horario automático para tomar control manual" : undefined}
                     onClick={() => cambiar(!encendido)}
                     className={encendido ? "bg-slate-700 hover:bg-slate-800" : "bg-emerald-600 hover:bg-emerald-700"}
                 >

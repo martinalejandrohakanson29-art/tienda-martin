@@ -2,6 +2,21 @@
 -- produccion, necesarias para el workflow_mateo completo (deteccion de
 -- kits, matching de compatibilidad). Idempotente: DROP/CREATE.
 
+-- Agregada 2026-08-11 al adaptar workflow_mateo (5).json: lock por telefono
+-- para no procesar dos mensajes del mismo cliente en simultaneo (nodos
+-- "Reservar Conversacion" / "Liberar Lock - ...").
+CREATE TABLE IF NOT EXISTS bot_conversacion_lock (
+  telefono text PRIMARY KEY,
+  bloqueado_hasta timestamptz NOT NULL
+);
+
+-- Tambien hace falta correr n8n-workflows/bot-onoff.sql (bot_estado +
+-- respuestas_pendientes) antes de probar cualquier escenario donde el
+-- EQUIPO responde (categoria K de AUDITORIA-ESCENARIOS-COMPLETO.md): sin
+-- esas tablas, "Buscar Eco en Cola" tira "no existe la relacion
+-- respuestas_pendientes" y la ejecucion aborta apenas llega un mensaje con
+-- sender_type=team, antes de tocar ninguna logica de aprendizaje/pausado.
+
 CREATE TABLE IF NOT EXISTS kits_publicidad (
   id serial PRIMARY KEY,
   nombre text NOT NULL,

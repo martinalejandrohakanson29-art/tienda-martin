@@ -4,10 +4,13 @@
 // no se rompa al mandar mensajes/notas/labels, y para poder inspeccionar
 // despues que efectivamente contesto.
 const express = require('express');
+const path = require('path');
 
 const PORT = process.env.MOCK_CHATWOOT_PORT || 4000;
 const app = express();
 app.use(express.json());
+// Sirve los .wav sinteticos usados para probar la rama de audio (nota de voz).
+app.use('/audio-fixtures', express.static(path.join(__dirname, '..', 'audio-fixtures')));
 
 // conversationId -> { messages: [...], labels: [...] }
 const conversaciones = new Map();

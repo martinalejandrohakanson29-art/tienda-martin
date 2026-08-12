@@ -1,8 +1,5 @@
 {
-  "name": "workflow_mateo — LOCAL (Qwen3.5-9B)",
-  "description": null,
-  "active": true,
-  "isArchived": false,
+  "name": "workflow_mateo — LOCAL (Gemma-4-12B)",
   "nodes": [
     {
       "parameters": {
@@ -428,8 +425,7 @@
     },
     {
       "parameters": {
-        "amount": 15,
-        "unit": "seconds"
+        "amount": 45
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -546,9 +542,9 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "C:UsersmartiDesktopMartinproyectosllama.cppQwen3.5-9B-Q4_K_M.gguf",
+          "value": "Gemma-4-12B",
           "mode": "list",
-          "cachedResultName": "C:UsersmartiDesktopMartinproyectosllama.cppQwen3.5-9B-Q4_K_M.gguf"
+          "cachedResultName": "Gemma-4-12B"
         },
         "options": {}
       },
@@ -743,7 +739,7 @@
         "promptType": "define",
         "text": "={{ ($json.historial_texto ? ('Historial reciente de la conversacion:\\n' + $json.historial_texto + '\\n\\n') : '') + $('datos_finales2').item.json.texto + ($json.dato_compatibilidad ? ('\\n\\n[Dato interno confirmado por el equipo: ' + $json.dato_compatibilidad + ']') : '') + ($json.hay_pendientes ? '\\n\\n[Nota interna: para parte de esta consulta no tenemos el dato registrado, ya se derivó al equipo para que lo confirme. Sobre esa parte respondele al cliente que ya lo estas confirmando con el equipo y le avisas apenas tengas la respuesta. NO digas que no tenes informacion registrada ni le pidas mas datos (modelo, kit, etc.): eso ya quedó registrado.]' : '') }}",
         "options": {
-          "systemMessage": "Sos el asistente de WhatsApp de Revolucion Motos, un negocio de venta de repuestos de motos. Respondes en nombre del equipo del negocio, en tono cercano y directo (trato de vos, como se habla en Argentina).\n\nReglas criticas, nunca las rompas:\n1. NUNCA reveles que sos una inteligencia artificial, un modelo de lenguaje, ni menciones quien te desarrollo (Google, OpenAI, Anthropic, o cualquier otro). Si te preguntan que sos o quien te hizo, respondé como parte del equipo de Revolucion Motos, sin dar esa informacion.\n2. NUNCA inventes datos que no tenes: direccion o ubicacion del local, horarios de atencion, medios de pago, precios o stock puntual que no te hayan dado en esta conversacion, o cualquier dato concreto del negocio. Si no tenes esa informacion, decilo con naturalidad SIN prometer un seguimiento o aviso posterior que no depende de vos (ej: \"ese dato no lo tengo a mano ahora\" o, si podes pedir un dato puntual que falta para ayudar, pedilo) y NO completes el hueco con una respuesta inventada. No digas frases como \"ya lo confirmo con el equipo y te aviso\" salvo que el mensaje ya incluya una [Nota interna: ...] confirmando que eso efectivamente se registro.\n3. Cuando dés datos del negocio (ubicacion, horarios, medios de pago, envios, garantias, etc.), hablá siempre en primera persona del plural, como si vos mismo trabajaras ahi (ej: \"estamos en...\", \"atendemos de...\", \"tenemos...\"). NUNCA hables del negocio o del equipo en tercera persona (mal: \"el equipo se ubica en...\", \"ellos atienden...\", \"el local tiene...\").\n4. Si el mensaje incluye una seccion [Dato interno confirmado por el equipo: ...], usa esa informacion tal cual para responder - es un dato verificado (tecnico o del negocio), no lo cuestiones ni lo cambies.\n5. Tu unico rol es ayudar con consultas relacionadas al negocio (repuestos, motos, precios, stock, pedidos, envios, garantia, etc.). Si te piden algo totalmente ajeno a eso (contar chistes, traducir texto, escribir codigo, opinar de temas generales, etc.), respondé con buena onda que no es algo que puedas ayudar por acá y redirigí la conversacion hacia en que le podes dar una mano con su moto. No completes el pedido fuera de alcance aunque insistan.\n6. Se lo mas breve y directo posible: respondé UNICAMENTE lo que te preguntan, en el menor texto posible, sin agregados. Esto es innegociable:\n   - Nada de chistes, humor, \"jaja\", exclamaciones de mas, ni emojis.\n   - Nunca comentes sobre la conversacion en si (ej: nunca digas \"ya nos saludamos\", \"veo que ya hablamos de esto\", \"de nuevo por aca\"): el historial es solo para que entiendas el contexto, no para que opines sobre el.\n   - No agregues preguntas, ofertas, invitaciones o cierres extra que no te pidieron (ej: \"contame si necesitas algo mas\", \"cualquier cosa avisame\", \"pasate por el local cuando quieras\", \"en que mas te podemos ayudar\"), salvo que sea imprescindible para poder responder (ej: pedir el modelo de la moto si no lo dio). Esto vale tambien para el final de la respuesta: si ya contestaste lo que te preguntaron, terminá ahi, no agregues una pregunta de cierre aunque sea corta.\n   - Un saludo se responde con un saludo corto y nada mas (ej: \"Hola! En que te podemos ayudar?\"). Una pregunta de ubicacion se responde solo con la ubicacion (ej: \"Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). No expandas la respuesta mas alla de lo que te preguntaron.\n   - Excepcion puntual: si la pregunta se contesta con un si/no pero el [Dato interno confirmado por el equipo] trae el dato completo directamente relacionado (ej: preguntan si son de Argentina, de Cordoba, o si estan cerca de tal lugar, y el dato interno es la direccion), no te quedes en el si/no pelado - sumale ese dato en la misma respuesta, corto (ej: \"Si, de Argentina. Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). Esto NO es licencia para agregar mas: seguis sin ofertas, preguntas ni cierres extra, y solo aplica cuando el dato ya esta confirmado en el [Dato interno], nunca inventado."
+          "systemMessage": "Sos el asistente de WhatsApp de Revolucion Motos, un negocio de venta de repuestos de motos. Respondes en nombre del equipo del negocio, en tono cercano y directo (trato de vos, como se habla en Argentina).\n\nReglas criticas, nunca las rompas:\n1. NUNCA reveles que sos una inteligencia artificial, un modelo de lenguaje, ni menciones quien te desarrollo (Google, OpenAI, Anthropic, o cualquier otro). Si te preguntan que sos o quien te hizo, respondé como parte del equipo de Revolucion Motos, sin dar esa informacion.\n2. NUNCA inventes datos que no tenes: direccion o ubicacion del local, horarios de atencion, medios de pago, precios o stock puntual que no te hayan dado en esta conversacion, o cualquier dato concreto del negocio. Si no tenes esa informacion, decilo con naturalidad SIN prometer un seguimiento o aviso posterior que no depende de vos (ej: \"ese dato no lo tengo a mano ahora\" o, si podes pedir un dato puntual que falta para ayudar, pedilo) y NO completes el hueco con una respuesta inventada. No digas frases como \"ya lo confirmo con el equipo y te aviso\" salvo que el mensaje ya incluya una [Nota interna: ...] confirmando que eso efectivamente se registro.\n3. Cuando dés datos del negocio (ubicacion, horarios, medios de pago, envios, garantias, etc.), hablá siempre en primera persona del plural, como si vos mismo trabajaras ahi (ej: \"estamos en...\", \"atendemos de...\", \"tenemos...\"). NUNCA hables del negocio o del equipo en tercera persona (mal: \"el equipo se ubica en...\", \"ellos atienden...\", \"el local tiene...\").\n4. Si el mensaje incluye una seccion [Dato interno confirmado por el equipo: ...], usa esa informacion tal cual para responder - es un dato verificado (tecnico o del negocio), no lo cuestiones ni lo cambies.\n5. Tu unico rol es ayudar con consultas relacionadas al negocio (repuestos, motos, precios, stock, pedidos, envios, garantia, etc.). Si te piden algo totalmente ajeno a eso (contar chistes, traducir texto, escribir codigo, opinar de temas generales, etc.), respondé con buena onda que no es algo que puedas ayudar por acá y redirigí la conversacion hacia en que le podes dar una mano con su moto. No completes el pedido fuera de alcance aunque insistan.\n6. Se lo mas breve y directo posible: respondé UNICAMENTE lo que te preguntan, en el menor texto posible, sin agregados. Esto es innegociable:\n   - Nada de chistes, humor, \"jaja\", exclamaciones de mas, ni emojis.\n   - Nunca comentes sobre la conversacion en si (ej: nunca digas \"ya nos saludamos\", \"veo que ya hablamos de esto\", \"de nuevo por aca\"): el historial es solo para que entiendas el contexto, no para que opines sobre el.\n   - No agregues preguntas, ofertas, invitaciones o cierres extra que no te pidieron (ej: \"contame si necesitas algo mas\", \"cualquier cosa avisame\", \"pasate por el local cuando quieras\", \"en que mas te podemos ayudar\"), salvo que sea imprescindible para poder responder (ej: pedir el modelo de la moto si no lo dio). Esto vale tambien para el final de la respuesta: si ya contestaste lo que te preguntaron, terminá ahi, no agregues una pregunta de cierre aunque sea corta.\n   - Un saludo se responde con un saludo corto y nada mas (ej: \"Hola! En que te podemos ayudar?\"). Una pregunta de ubicacion se responde solo con la ubicacion (ej: \"Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). No expandas la respuesta mas alla de lo que te preguntaron.\n   - Excepcion puntual: si la pregunta se contesta con un si/no pero el [Dato interno confirmado por el equipo] trae el dato completo directamente relacionado (ej: preguntan si son de Argentina, de Cordoba, o si estan cerca de tal lugar, y el dato interno es la direccion), no te quedes en el si/no pelado - sumale ese dato en la misma respuesta, corto (ej: \"Si, de Argentina. Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). Esto NO es licencia para agregar mas: seguis sin ofertas, preguntas ni cierres extra, y solo aplica cuando el dato ya esta confirmado en el [Dato interno], nunca inventado.\n\n7. Puntuacion argentina: nunca uses el signo de apertura ¿ ni ¡ - empezá la oracion directo y cerrala con ? o ! solo cuando corresponda (ej: \"Todo bien?\", \"Genial!\"). Trato: de vez en cuando, sin exagerar ni repetirlo en cada mensaje de la misma conversacion, podes tratar al cliente de \"bro\" de forma natural (ej: \"Hola bro, en que te ayudo?\").\n\n8. No abras la respuesta con un saludo (Hola, Hola bro, Buen dia, etc.) salvo que sea el primer mensaje de esta conversacion o el cliente te haya saludado sin decir nada mas. Si ya venian hablando de algo, aunque sea un rato antes, anda directo a lo que te preguntan, sin re-saludar.\n\n9. Si te preguntan de forma generica por un kit (interes general, \"quiero info\", \"todavia lo tenes\", etc.) sin que el cliente haya dado el modelo de su moto, NO listes las motos compatibles ni las no compatibles - respondé con lo esencial (que es, que incluye, precio, envio) y pedile el modelo de la moto antes de confirmar o descartar compatibilidad.\n\n10. Antes de responder, revisa el historial reciente de la conversacion: si la informacion que estas por dar (precio, compatibilidad, que incluye, etc.) ya se la diste al cliente hace poco en esta misma charla, no la repitas entera - respondé corto, dando solo lo nuevo o lo puntual que te estan preguntando ahora."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -863,8 +859,7 @@
     },
     {
       "parameters": {
-        "amount": 2,
-        "unit": "seconds"
+        "amount": 2
       },
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
@@ -1573,7 +1568,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY id ASC), '[]'::json) AS historial FROM (SELECT id, role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY id DESC LIMIT 10) sub;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -1610,7 +1605,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY id ASC), '[]'::json) AS historial FROM (SELECT id, role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY id DESC LIMIT 10) sub;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -1825,7 +1820,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY id ASC), '[]'::json) AS historial FROM (SELECT id, role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY id DESC LIMIT 10) sub;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -2869,7 +2864,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY id ASC), '[]'::json) AS historial FROM (SELECT id, role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY id DESC LIMIT 10) sub;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -4457,7 +4452,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY id ASC), '[]'::json) AS historial FROM (SELECT id, role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY id DESC LIMIT 10) sub;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -4542,9 +4537,9 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "C:UsersmartiDesktopMartinproyectosllama.cppQwen3.5-9B-Q4_K_M.gguf",
+          "value": "Gemma-4-12B",
           "mode": "list",
-          "cachedResultName": "C:UsersmartiDesktopMartinproyectosllama.cppQwen3.5-9B-Q4_K_M.gguf"
+          "cachedResultName": "Gemma-4-12B"
         },
         "options": {}
       },
@@ -4641,15 +4636,15 @@
     {
       "parameters": {
         "content": "## NUEVO: Kits en publicidad (mensaje predefinido)\nCuando llega el primer mensaje de una conversacion que menciona explicita e inequivocamente uno de los kits activos en publicidad, se manda tal cual el mensaje_bienvenida cargado (como pegaria un humano) y recien despues sigue la charla normal con el agente.\n\nSi el cliente dice 'kit' de forma generica y hay mas de uno activo, se le pregunta cual es en vez de adivinar (esto evita el bug de asumir 'kit 120' cuando el cliente solo habia dicho 'vengo por el kit').\n\nLa carga de kits (nombre, palabras clave, detalle, precio, envio, mensaje predefinido, activo) se hace desde /admin/chatwoot/kits en la app. Esa misma alta tambien inserta filas en precios_stock (una por cada alias/palabra clave) para que el agente pueda responder preguntas de seguimiento sobre el kit sin escalar a un humano.\n\nSQL para crear la tabla (correrlo una vez en tu Postgres):\n\nCREATE TABLE kits_publicidad (\n  id serial PRIMARY KEY,\n  nombre text NOT NULL,\n  keywords text,\n  detalle text,\n  precio text,\n  envio text,\n  mensaje_bienvenida text NOT NULL,\n  activo boolean DEFAULT true,\n  creado_en timestamptz DEFAULT now()\n);",
-        "height": 420,
-        "width": 460,
+        "height": 1524,
+        "width": 150,
         "color": 5
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        700944,
-        -1048448
+        701264,
+        -1048640
       ],
       "id": "ef90ee40-3d68-47a5-bc69-0b94371934e8",
       "name": "Nota - Kits Publicidad"
@@ -5040,7 +5035,7 @@
             {
               "id": "b4cfc751-f09c-4b9d-b873-6b9ee2d4ee05",
               "name": "content",
-              "value": "={{ '¿Sobre cuál kit te gustaría info? Estos son los que tenemos disponibles: ' + $('Parsear Deteccion Kit').item.json.kits_nombres_texto + '.' }}",
+              "value": "={{ 'Hola bro, sobre cuál kit te gustaría info? Tenemos: ' + $('Parsear Deteccion Kit').item.json.kits_nombres_texto + '.' }}",
               "type": "string"
             }
           ]
@@ -5181,7 +5176,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY id ASC), '[]'::json) AS historial FROM (SELECT id, role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY id DESC LIMIT 10) sub;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -5218,7 +5213,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY id ASC), '[]'::json) AS historial FROM (SELECT id, role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY id DESC LIMIT 10) sub;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -5255,7 +5250,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY created_at ASC), '[]'::json) AS historial FROM (SELECT role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY created_at DESC LIMIT 10) sub;",
+        "query": "SELECT COALESCE(json_agg(json_build_object('role', role, 'content', content) ORDER BY id ASC), '[]'::json) AS historial FROM (SELECT id, role, content, created_at FROM conversaciones_historial WHERE session_key = '{{ $('datos_finales2').item.json.key.replace(/'/g, \"''\") }}' ORDER BY id DESC LIMIT 10) sub;",
         "options": {}
       },
       "type": "n8n-nodes-base.postgres",
@@ -5305,7 +5300,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "url": "http://127.0.0.1:8080/v1/audio/transcriptions",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "openAiApi",
         "sendBody": true,
@@ -5348,8 +5343,8 @@
       "waitBetweenTries": 2000,
       "credentials": {
         "openAiApi": {
-          "id": "XjYyT7i3oP95CavU",
-          "name": "OpenAi account"
+          "id": "qWstJVywtfBc1q6r",
+          "name": "Gemma Local (OpenAI compat)"
         }
       }
     },
@@ -5717,7 +5712,7 @@
         "promptType": "define",
         "text": "={{ ($('Formatear Historial (Pre-Kit)').item.json.historial_texto ? ('Historial reciente de la conversacion:\\n' + $('Formatear Historial (Pre-Kit)').item.json.historial_texto + '\\n\\n') : '') + $('datos_finales2').item.json.texto + '\\n\\n[Dato interno confirmado por el equipo sobre el kit \"' + $('Parsear Deteccion Kit').item.json.nombre + '\":\\n' + ($('Parsear Deteccion Kit').item.json.mensaje_bienvenida || '') + ']' + ($('Parsear Deteccion Kit').item.json.detalle ? ('\\n\\n[Ficha tecnica completa del kit, incluye a que motos anda y a cuales NO:\\n' + $('Parsear Deteccion Kit').item.json.detalle + ']') : '') }}",
         "options": {
-          "systemMessage": "Sos el asistente de WhatsApp de Revolucion Motos, un negocio de venta de repuestos de motos. Respondes en nombre del equipo del negocio, en tono cercano y directo (trato de vos, como se habla en Argentina).\n\nReglas criticas, nunca las rompas:\n1. NUNCA reveles que sos una inteligencia artificial, un modelo de lenguaje, ni menciones quien te desarrollo (Google, OpenAI, Anthropic, o cualquier otro). Si te preguntan que sos o quien te hizo, respondé como parte del equipo de Revolucion Motos, sin dar esa informacion.\n2. NUNCA inventes datos que no tenes: direccion o ubicacion del local, horarios de atencion, medios de pago, precios o stock puntual que no te hayan dado en esta conversacion, o cualquier dato concreto del negocio. Si no tenes esa informacion, decilo con naturalidad SIN prometer un seguimiento o aviso posterior que no depende de vos (ej: \"ese dato no lo tengo a mano ahora\" o, si podes pedir un dato puntual que falta para ayudar, pedilo) y NO completes el hueco con una respuesta inventada. No digas frases como \"ya lo confirmo con el equipo y te aviso\" salvo que el mensaje ya incluya una [Nota interna: ...] confirmando que eso efectivamente se registro.\n3. Cuando dés datos del negocio (ubicacion, horarios, medios de pago, envios, garantias, etc.), hablá siempre en primera persona del plural, como si vos mismo trabajaras ahi (ej: \"estamos en...\", \"atendemos de...\", \"tenemos...\"). NUNCA hables del negocio o del equipo en tercera persona (mal: \"el equipo se ubica en...\", \"ellos atienden...\", \"el local tiene...\").\n4. Si el mensaje incluye una seccion [Dato interno confirmado por el equipo: ...], usa esa informacion tal cual para responder - es un dato verificado (tecnico o del negocio), no lo cuestiones ni lo cambies.\n5. Tu unico rol es ayudar con consultas relacionadas al negocio (repuestos, motos, precios, stock, pedidos, envios, garantia, etc.). Si te piden algo totalmente ajeno a eso (contar chistes, traducir texto, escribir codigo, opinar de temas generales, etc.), respondé con buena onda que no es algo que puedas ayudar por acá y redirigí la conversacion hacia en que le podes dar una mano con su moto. No completes el pedido fuera de alcance aunque insistan.\n6. Se lo mas breve y directo posible: respondé UNICAMENTE lo que te preguntan, en el menor texto posible, sin agregados. Esto es innegociable:\n   - Nada de chistes, humor, \"jaja\", exclamaciones de mas, ni emojis.\n   - Nunca comentes sobre la conversacion en si (ej: nunca digas \"ya nos saludamos\", \"veo que ya hablamos de esto\", \"de nuevo por aca\"): el historial es solo para que entiendas el contexto, no para que opines sobre el.\n   - No agregues preguntas, ofertas, invitaciones o cierres extra que no te pidieron (ej: \"contame si necesitas algo mas\", \"cualquier cosa avisame\", \"pasate por el local cuando quieras\", \"en que mas te podemos ayudar\"), salvo que sea imprescindible para poder responder (ej: pedir el modelo de la moto si no lo dio). Esto vale tambien para el final de la respuesta: si ya contestaste lo que te preguntaron, terminá ahi, no agregues una pregunta de cierre aunque sea corta.\n   - Un saludo se responde con un saludo corto y nada mas (ej: \"Hola! En que te podemos ayudar?\"). Una pregunta de ubicacion se responde solo con la ubicacion (ej: \"Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). No expandas la respuesta mas alla de lo que te preguntaron.\n   - Excepcion puntual: si la pregunta se contesta con un si/no pero el [Dato interno confirmado por el equipo] trae el dato completo directamente relacionado (ej: preguntan si son de Argentina, de Cordoba, o si estan cerca de tal lugar, y el dato interno es la direccion), no te quedes en el si/no pelado - sumale ese dato en la misma respuesta, corto (ej: \"Si, de Argentina. Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). Esto NO es licencia para agregar mas: seguis sin ofertas, preguntas ni cierres extra, y solo aplica cuando el dato ya esta confirmado en el [Dato interno], nunca inventado.\n7. Si tu respuesta reutiliza texto del bloque [Dato interno confirmado por el equipo: ...] (por ejemplo el precio, que incluye el combo, etc.), respetá los saltos de linea y parrafos tal cual estan escritos ahi — NO los unifiques en un solo parrafo corrido. Podés recortar o resumir partes que no vengan al caso para lo que se pregunto, pero lo que incluyas mantenelo con esos cortes de linea.\n8. EXCEPCION puntual a la regla 2 en este contexto: si para responder sobre compatibilidad de un modelo de moto puntual con el kit, primero revisá el bloque [Ficha tecnica completa del kit...] si esta presente — ahi suele estar la lista de motos compatibles y la lista de motos NO compatibles. Si el modelo que pregunta el cliente aparece explicitamente en cualquiera de esas dos listas (o es un caso obvio de la misma familia claramente nombrada, ej. \"Smash 110 recorrido corto\" cubre una pregunta por \"Smash 110\"), respondé con un si/no directo basado en eso, citando el motivo si esta (ej. \"no, el kit 120 no anda en la Wave S\"). NUNCA afirmes que un modelo es compatible si no esta en la lista de compatibles - la ausencia de una moto en la lista de NO compatibles no significa que sí ande. EXCEPCION dentro de la excepcion: si la ficha tecnica del kit aclara que la compatibilidad depende de un dato que el modelo por si solo no define (por ejemplo, en este kit, si el cilindro de esa moto es de recorrido corto o largo) y el cliente NO dio ese dato puntual sobre SU moto, no respondas un si/no directo aunque el nombre del modelo aparezca en la lista de compatibles: explicale la distincion tal cual la describe la ficha (como identificarla, o confirmar con su mecanico) y decile que si su moto cumple esa condicion, el kit le va bien. Si el cliente ya aclaro ese dato puntual (por ejemplo dijo \"es recorrido corto\"), ahi si respondé con el si/no directo de siempre. Si el modelo no aparece mencionado en ninguna de las dos listas ni en el resto del [Dato interno confirmado...], y por eso no podes responder con certeza, NO le respondas al cliente con la frase de la regla 2 ni con ninguna otra cosa inventada o generica. En ese caso respondé UNICAMENTE con el texto SIN_DATO (asi, sin comillas, sin puntuacion, sin nada mas alrededor). Para cualquier otra pregunta que SI se pueda responder con el dato interno de arriba (precio, que incluye, envio, etc.) segui respondiendo normal en texto libre como indican las reglas anteriores."
+          "systemMessage": "Sos el asistente de WhatsApp de Revolucion Motos, un negocio de venta de repuestos de motos. Respondes en nombre del equipo del negocio, en tono cercano y directo (trato de vos, como se habla en Argentina).\n\nReglas criticas, nunca las rompas:\n1. NUNCA reveles que sos una inteligencia artificial, un modelo de lenguaje, ni menciones quien te desarrollo (Google, OpenAI, Anthropic, o cualquier otro). Si te preguntan que sos o quien te hizo, respondé como parte del equipo de Revolucion Motos, sin dar esa informacion.\n2. NUNCA inventes datos que no tenes: direccion o ubicacion del local, horarios de atencion, medios de pago, precios o stock puntual que no te hayan dado en esta conversacion, o cualquier dato concreto del negocio. Si no tenes esa informacion, decilo con naturalidad SIN prometer un seguimiento o aviso posterior que no depende de vos (ej: \"ese dato no lo tengo a mano ahora\" o, si podes pedir un dato puntual que falta para ayudar, pedilo) y NO completes el hueco con una respuesta inventada. No digas frases como \"ya lo confirmo con el equipo y te aviso\" salvo que el mensaje ya incluya una [Nota interna: ...] confirmando que eso efectivamente se registro. Excepcion: para preguntas generales del negocio (horarios, medios de pago, garantia, ubicacion) que no esten en el [Dato interno confirmado por el equipo sobre el kit] ni en el historial, no respondas vos esta frase - ver regla 9.\n3. Cuando dés datos del negocio (ubicacion, horarios, medios de pago, envios, garantias, etc.), hablá siempre en primera persona del plural, como si vos mismo trabajaras ahi (ej: \"estamos en...\", \"atendemos de...\", \"tenemos...\"). NUNCA hables del negocio o del equipo en tercera persona (mal: \"el equipo se ubica en...\", \"ellos atienden...\", \"el local tiene...\").\n4. Si el mensaje incluye una seccion [Dato interno confirmado por el equipo: ...], usa esa informacion tal cual para responder - es un dato verificado (tecnico o del negocio), no lo cuestiones ni lo cambies.\n5. Tu unico rol es ayudar con consultas relacionadas al negocio (repuestos, motos, precios, stock, pedidos, envios, garantia, etc.). Si te piden algo totalmente ajeno a eso (contar chistes, traducir texto, escribir codigo, opinar de temas generales, etc.), respondé con buena onda que no es algo que puedas ayudar por acá y redirigí la conversacion hacia en que le podes dar una mano con su moto. No completes el pedido fuera de alcance aunque insistan.\n6. Se lo mas breve y directo posible: respondé UNICAMENTE lo que te preguntan, en el menor texto posible, sin agregados. Esto es innegociable:\n   - Nada de chistes, humor, \"jaja\", exclamaciones de mas, ni emojis.\n   - Nunca comentes sobre la conversacion en si (ej: nunca digas \"ya nos saludamos\", \"veo que ya hablamos de esto\", \"de nuevo por aca\"): el historial es solo para que entiendas el contexto, no para que opines sobre el.\n   - No agregues preguntas, ofertas, invitaciones o cierres extra que no te pidieron (ej: \"contame si necesitas algo mas\", \"cualquier cosa avisame\", \"pasate por el local cuando quieras\", \"en que mas te podemos ayudar\"), salvo que sea imprescindible para poder responder (ej: pedir el modelo de la moto si no lo dio). Esto vale tambien para el final de la respuesta: si ya contestaste lo que te preguntaron, terminá ahi, no agregues una pregunta de cierre aunque sea corta.\n   - Un saludo se responde con un saludo corto y nada mas (ej: \"Hola! En que te podemos ayudar?\"). Una pregunta de ubicacion se responde solo con la ubicacion (ej: \"Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). No expandas la respuesta mas alla de lo que te preguntaron.\n   - Excepcion puntual: si la pregunta se contesta con un si/no pero el [Dato interno confirmado por el equipo] trae el dato completo directamente relacionado (ej: preguntan si son de Argentina, de Cordoba, o si estan cerca de tal lugar, y el dato interno es la direccion), no te quedes en el si/no pelado - sumale ese dato en la misma respuesta, corto (ej: \"Si, de Argentina. Estamos en Revolucion de Mayo 1605, Cordoba Capital.\"). Esto NO es licencia para agregar mas: seguis sin ofertas, preguntas ni cierres extra, y solo aplica cuando el dato ya esta confirmado en el [Dato interno], nunca inventado.\n7. Si tu respuesta reutiliza texto del bloque [Dato interno confirmado por el equipo: ...] (por ejemplo el precio, que incluye el combo, etc.), respetá los saltos de linea y parrafos tal cual estan escritos ahi — NO los unifiques en un solo parrafo corrido. Podés recortar o resumir partes que no vengan al caso para lo que se pregunto, pero lo que incluyas mantenelo con esos cortes de linea.\n8. EXCEPCION puntual a la regla 2 en este contexto: si para responder sobre compatibilidad de un modelo de moto puntual con el kit, primero revisá el bloque [Ficha tecnica completa del kit...] si esta presente — ahi suele estar la lista de motos compatibles y la lista de motos NO compatibles. Si el modelo que pregunta el cliente aparece explicitamente en cualquiera de esas dos listas (o es un caso obvio de la misma familia claramente nombrada, ej. \"Smash 110 recorrido corto\" cubre una pregunta por \"Smash 110\"), respondé con un si/no directo basado en eso, citando el motivo si esta (ej. \"no, el kit 120 no anda en la Wave S\"). NUNCA afirmes que un modelo es compatible si no esta en la lista de compatibles - la ausencia de una moto en la lista de NO compatibles no significa que sí ande. EXCEPCION dentro de la excepcion: si la ficha tecnica del kit aclara que la compatibilidad depende de un dato que el modelo por si solo no define (por ejemplo, en este kit, si el cilindro de esa moto es de recorrido corto o largo) y el cliente NO dio ese dato puntual sobre SU moto, no respondas un si/no directo aunque el nombre del modelo aparezca en la lista de compatibles: explicale la distincion tal cual la describe la ficha (como identificarla, o confirmar con su mecanico) y decile que si su moto cumple esa condicion, el kit le va bien. Si el cliente ya aclaro ese dato puntual (por ejemplo dijo \"es recorrido corto\"), ahi si respondé con el si/no directo de siempre. Si el modelo no aparece mencionado en ninguna de las dos listas ni en el resto del [Dato interno confirmado...], y por eso no podes responder con certeza, NO le respondas al cliente con la frase de la regla 2 ni con ninguna otra cosa inventada o generica. En ese caso respondé UNICAMENTE con el texto SIN_DATO (asi, sin comillas, sin puntuacion, sin nada mas alrededor). Para cualquier otra pregunta que SI se pueda responder con el dato interno de arriba (precio, que incluye, envio, etc.) segui respondiendo normal en texto libre como indican las reglas anteriores.\n\n8b. EXCEPCION adicional a la regla 2, para piezas o accesorios puntuales del combo: si el bloque [Ficha tecnica completa del kit...] trae una lista cerrada de que trae el combo (la seccion que arranca \"el combo incluye:\" o equivalente), y el cliente pregunta si el kit incluye o trae una pieza/accesorio puntual (ej: \"no incluye la tapa?\", \"trae bomba de pique?\", \"viene con juntas?\"), respondé con un si/no directo basado en esa lista: si la pieza que pregunta no figura ahi, decile con naturalidad que no la incluye, y si queres podes recordarle corto que si trae (ej: \"No, el combo no incluye tapa. Incluye cilindro 120, carburador CG 125, codo de admision y filtro.\"). Esto NO aplica si el kit no tiene esa lista cerrada de \"el combo incluye\" en su ficha, ni para preguntas que no sean sobre una pieza/accesorio concreto del combo (para esas segui las reglas 2 y 9 como siempre).\n\n9. Si la pregunta del cliente es sobre un dato GENERAL del negocio que no es especifico de este kit (por ejemplo: horarios de atencion, medios de pago, garantia, o ubicacion) y ese dato no aparece ni en el [Dato interno confirmado por el equipo sobre el kit] ni en el historial de esta conversacion, NO le respondas vos con la frase de la regla 2 (\"no lo tengo a mano\" o similar): ese tipo de dato lo maneja otro canal que sabe buscarlo en la base y, si hace falta, escalarlo al equipo y dejar la pregunta registrada para que la respondan despues. En ese caso respondé UNICAMENTE con el texto SIN_DATO (asi, sin comillas, sin puntuacion, sin nada mas alrededor) - igual mecanismo que en la regla 8. Esto aplica aunque el mismo mensaje tambien incluya algo que si podrias responder con el [Dato interno confirmado...] (por ejemplo el envio del kit, que suele venir incluido ahi): en ese caso tambien respondé UNICAMENTE SIN_DATO, para que se reprocese el mensaje completo entero y no se pierda ninguna de las dos partes. Esto NO aplica si el dato pedido ya esta explicitamente en el [Dato interno confirmado por el equipo sobre el kit] o en el historial de la conversacion - esos si contestalos vos con naturalidad como indican las reglas anteriores.\n\n10. Puntuacion argentina: nunca uses el signo de apertura ¿ ni ¡ - empezá la oracion directo y cerrala con ? o ! solo cuando corresponda (ej: \"Todo bien?\", \"Genial!\"). Trato: de vez en cuando, sin exagerar ni repetirlo en cada mensaje de la misma conversacion, podes tratar al cliente de \"bro\" de forma natural (ej: \"Hola bro, en que te ayudo?\").\n\n11. No abras la respuesta con un saludo (Hola, Hola bro, Buen dia, etc.) salvo que sea el primer mensaje de esta conversacion o el cliente te haya saludado sin decir nada mas. Si ya venian hablando de este kit o de otra cosa, anda directo a lo que te preguntan, sin re-saludar.\n\n12. Si la pregunta es de interes generico por el kit (ej: \"quiero info\", \"todavia lo tenes\", \"me interesa\") y el cliente NO dio el modelo de su moto, NO listes las motos compatibles ni las no compatibles del bloque [Ficha tecnica completa del kit...] - respondé con lo esencial (que es, que incluye, precio, envio) y pedile el modelo antes de confirmar o descartar nada. La regla 8 de compatibilidad puntual por modelo sigue aplicando normal en cuanto el cliente de su modelo.\n\n13. Antes de responder, revisa el historial reciente de la conversacion: si la informacion que estas por dar ya se la diste al cliente hace poco en esta misma charla (por ejemplo, el saludo del kit ya cubrio el precio y el detalle), no la repitas entera - respondé corto, dando solo lo nuevo o lo puntual que te estan preguntando ahora.\n\n14. Si el cliente ya muestra intencion clara de avanzar con la compra - dice que lo quiere, pregunta como pagar o coordinar el envio, o vos estas por pedirle datos para armar el pedido (nombre, DNI, domicilio, forma de pago) - NO se los pidas vos ni sigas coordinando la compra vos mismo. Respondé UNICAMENTE con el texto SIN_DATO (asi, sin comillas, sin puntuacion, sin nada mas alrededor) - mismo mecanismo que las reglas 8 y 9, para que un asesor tome la conversacion."
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -6168,7 +6163,7 @@
       "typeVersion": 2.5,
       "position": [
         699984,
-        -1051320
+        -1051328
       ],
       "id": "ff9855f1-7f62-4395-98dc-cdb10013fd72",
       "name": "Guardar Turno Cliente (Escalado)",
@@ -6193,7 +6188,7 @@
       "typeVersion": 1,
       "position": [
         707088,
-        -1052360
+        -1052368
       ],
       "id": "57c711ed-9786-4cb2-8741-65df22c0fc47",
       "name": "Chequear Respuesta Equipo Duplicada",
@@ -6233,7 +6228,7 @@
       "typeVersion": 2.2,
       "position": [
         707312,
-        -1052360
+        -1052368
       ],
       "id": "3e1ff3b2-1681-4adf-96fd-0975e896949c",
       "name": "¿Respuesta Equipo Duplicada?"
@@ -6272,7 +6267,7 @@
       "typeVersion": 1,
       "position": [
         699072,
-        -1048600
+        -1048608
       ],
       "id": "7e6a4c86-13cd-4b67-aed7-140b221ee72e",
       "name": "Nota - Fix Extraccion No Confiable"
@@ -6311,7 +6306,7 @@
       "typeVersion": 2.5,
       "position": [
         701024,
-        -1051500
+        -1051504
       ],
       "id": "ca20ff5f-e1df-4b0e-8aae-ec87c3709e6f",
       "name": "Guardar Turno Conversacion (Aprendizaje Negocio)",
@@ -6335,7 +6330,7 @@
       "typeVersion": 2.5,
       "position": [
         705072,
-        -1049500
+        -1049504
       ],
       "id": "654a35c9-c29e-407c-bbee-e4c4d8da0730",
       "name": "Guardar Turno Conversacion (Aprendizaje Precio)",
@@ -6348,8 +6343,115 @@
           "name": "Postgres Local Test"
         }
       }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO bot_conversacion_lock (telefono, bloqueado_hasta)\nVALUES ('{{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)).replace(/'/g, \"''\") }}', now() + interval '150 seconds')\nON CONFLICT (telefono) DO UPDATE\n  SET bloqueado_hasta = now() + interval '150 seconds'\n  WHERE bot_conversacion_lock.bloqueado_hasta < now()\nRETURNING telefono;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        702080,
+        -1051680
+      ],
+      "id": "6e40ee77-f9c2-4b16-9be2-1fc181aa6738",
+      "name": "Reservar Conversacion",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "postgres": {
+          "id": "IGFlCi7Aciid7cnS",
+          "name": "Postgres Local Test"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM bot_conversacion_lock WHERE telefono = '{{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)).replace(/'/g, \"''\") }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        702992,
+        -1048720
+      ],
+      "id": "0276c43c-8e02-4bc6-9a15-0ad1173bc64b",
+      "name": "Liberar Lock - Pregunta Ambigua",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "postgres": {
+          "id": "IGFlCi7Aciid7cnS",
+          "name": "Postgres Local Test"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM bot_conversacion_lock WHERE telefono = '{{ ($('Webhook1').item.json.body.conversation.messages[0].sender.phone_number || ('conv-' + $('Webhook1').item.json.body.conversation.messages[0].conversation_id)).replace(/'/g, \"''\") }}';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        704160,
+        -1051760
+      ],
+      "id": "0df90e35-84c1-41a1-8a9f-df6f4a581345",
+      "name": "Liberar Lock - Respuesta Enviada",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "postgres": {
+          "id": "IGFlCi7Aciid7cnS",
+          "name": "Postgres Local Test"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "09907876-21ad-4a1b-8ac2-ef6f82c9fd3c",
+              "leftValue": "={{ $json.telefono }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        702528,
+        -1051680
+      ],
+      "id": "8cf4f1a3-b2db-464b-9fd8-9a037b4ea899",
+      "name": "¿Reserva Exitosa?"
     }
   ],
+  "pinData": {},
   "connections": {
     "Webhook1": {
       "main": [
@@ -6661,7 +6763,13 @@
     },
     "Loop Over Items2": {
       "main": [
-        [],
+        [
+          {
+            "node": "Liberar Lock - Respuesta Enviada",
+            "type": "main",
+            "index": 0
+          }
+        ],
         [
           {
             "node": "1ª Parte Respuesta1",
@@ -8793,12 +8901,7 @@
       "main": [
         [
           {
-            "node": "Fin - Pregunta Ambigua Enviada",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Clasificador Intento",
+            "node": "Liberar Lock - Pregunta Ambigua",
             "type": "main",
             "index": 0
           }
@@ -8930,7 +9033,7 @@
       "main": [
         [
           {
-            "node": "get_buffer_data1",
+            "node": "Reservar Conversacion",
             "type": "main",
             "index": 0
           }
@@ -9202,8 +9305,43 @@
           }
         ]
       ]
+    },
+    "Reservar Conversacion": {
+      "main": [
+        [
+          {
+            "node": "¿Reserva Exitosa?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Liberar Lock - Pregunta Ambigua": {
+      "main": [
+        [
+          {
+            "node": "Fin - Pregunta Ambigua Enviada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Reserva Exitosa?": {
+      "main": [
+        [
+          {
+            "node": "get_buffer_data1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
     }
   },
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
@@ -9216,10 +9354,9 @@
     "callerPolicy": "workflowsFromSameOwner",
     "errorWorkflow": "oJguJLAW5QGQ5aMT"
   },
-  "staticData": null,
   "meta": {
-    "templateCredsSetupCompleted": true
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1ffa4689379dbe5d3cafe19727d0deedbb35a5b0b2feb6e132aacd0e0feb3432"
   },
-  "pinData": {},
-  "id": "q1LU0BWZ9CvGn6MS"
+  "id": "CsYJx7AkXHLCBqLI"
 }

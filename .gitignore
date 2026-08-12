@@ -25,6 +25,7 @@ node_modules/
 yarn-error.log
 npm-debug.log*
 lerna-debug.log*
+*.rdb
 
 # Editor directories and files
 .vscode/*

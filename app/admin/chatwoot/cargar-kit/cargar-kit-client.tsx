@@ -171,6 +171,7 @@ export function CargarKitClient({ borradoresIniciales, error }: { borradoresInic
                 envio: kit.envio,
                 mensajeBienvenida: kit.mensajeBienvenida,
                 fotoUrl: "",
+                plantillasBienvenida: "",
                 activo,
             }
             await guardarKit(input)

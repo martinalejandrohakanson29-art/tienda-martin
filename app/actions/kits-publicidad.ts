@@ -13,6 +13,7 @@ export type Kit = {
     envio: string | null
     mensaje_bienvenida: string
     foto_url: string | null
+    plantillas_bienvenida: string | null
     activo: boolean
     creado_en: Date
 }
@@ -26,6 +27,7 @@ export type KitInput = {
     envio: string
     mensajeBienvenida: string
     fotoUrl: string
+    plantillasBienvenida: string
     activo: boolean
 }
 
@@ -62,7 +64,7 @@ export async function getKits(): Promise<Kit[]> {
     await requireAdmin()
     try {
         return await prisma.$queryRaw<Kit[]>`
-            SELECT id, nombre, keywords, detalle, precio, envio, mensaje_bienvenida, foto_url, activo, creado_en
+            SELECT id, nombre, keywords, detalle, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, activo, creado_en
             FROM kits_publicidad
             ORDER BY creado_en DESC
         `
@@ -97,13 +99,14 @@ export async function guardarKit(data: KitInput) {
                 envio = ${data.envio},
                 mensaje_bienvenida = ${mensajeBienvenida},
                 foto_url = ${fotoUrl},
+                plantillas_bienvenida = ${data.plantillasBienvenida},
                 activo = ${data.activo}
             WHERE id = ${kitId}
         `
     } else {
         const inserted = await prisma.$queryRaw<{ id: number }[]>`
-            INSERT INTO kits_publicidad (nombre, keywords, detalle, precio, envio, mensaje_bienvenida, foto_url, activo)
-            VALUES (${nombre}, ${data.keywords}, ${data.detalle}, ${data.precio}, ${data.envio}, ${mensajeBienvenida}, ${fotoUrl}, ${data.activo})
+            INSERT INTO kits_publicidad (nombre, keywords, detalle, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, activo)
+            VALUES (${nombre}, ${data.keywords}, ${data.detalle}, ${data.precio}, ${data.envio}, ${mensajeBienvenida}, ${fotoUrl}, ${data.plantillasBienvenida}, ${data.activo})
             RETURNING id
         `
         kitId = inserted[0].id

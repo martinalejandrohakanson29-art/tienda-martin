@@ -22,6 +22,7 @@ const FORM_VACIO: KitInput = {
     envio: "",
     mensajeBienvenida: "",
     fotoUrl: "",
+    plantillasBienvenida: "",
     activo: true,
 }
 
@@ -55,6 +56,7 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
             envio: kit.envio || "",
             mensajeBienvenida: kit.mensaje_bienvenida,
             fotoUrl: kit.foto_url || "",
+            plantillasBienvenida: kit.plantillas_bienvenida || "",
             activo: kit.activo,
         })
         setFotoError(null)
@@ -119,6 +121,7 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
                 envio: form.envio,
                 mensaje_bienvenida: form.mensajeBienvenida.trim(),
                 foto_url: form.fotoUrl.trim() || null,
+                plantillas_bienvenida: form.plantillasBienvenida || null,
                 activo: form.activo,
                 creado_en: kits.find((k) => k.id === form.id)?.creado_en || new Date(),
             }
@@ -213,6 +216,24 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
                                     disabled={guardando}
                                 />
                             </div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="plantillasBienvenida">
+                                Plantillas exactas de Instagram/Meta Ads (una por línea)
+                            </Label>
+                            <Textarea
+                                id="plantillasBienvenida"
+                                placeholder={"Pegá acá el texto tal cual lo manda la plantilla del anuncio, una por línea, si hay más de una campaña para este kit.\n¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!"}
+                                value={form.plantillasBienvenida}
+                                onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
+                                disabled={guardando}
+                                rows={2}
+                            />
+                            <p className="text-xs text-gray-400">
+                                Si el mensaje del cliente coincide exactamente con una de estas líneas, el bot reconoce
+                                el kit de una sin tener que interpretarlo — pegá el texto literal de la plantilla, no un resumen.
+                            </p>
                         </div>
 
                         <div className="space-y-1">

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { validateN8nToken } from "@/lib/webhook-guard"
-import { encolarRespuesta, enviarMensajeChatwoot, getEstadoBot } from "@/lib/chatwoot-bot"
+import { encolarRespuesta, enviarImagenChatwoot, enviarMensajeChatwoot, getEstadoBot } from "@/lib/chatwoot-bot"
 
 // Único punto de salida de los mensajes que ve el cliente.
 //
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const contenido = typeof body?.content === "string" ? body.content.trim() : ""
     const origen = typeof body?.origen === "string" && body.origen ? body.origen : "respuesta"
     const contacto = typeof body?.contacto === "string" && body.contacto ? body.contacto.slice(0, 120) : null
+    const fotoUrl = typeof body?.foto_url === "string" && body.foto_url.trim() ? body.foto_url.trim() : null
 
     if (!Number.isFinite(conversationId) || conversationId <= 0) {
         return NextResponse.json({ error: "Falta conversation_id" }, { status: 400 })
@@ -47,12 +48,26 @@ export async function POST(request: Request) {
                 contacto,
                 contenido,
                 origen,
+                fotoUrl,
             })
             return NextResponse.json({ enviado: false, encolado: true, id })
         }
 
         const chatwoot = await enviarMensajeChatwoot({ accountId, conversationId, content: contenido })
-        return NextResponse.json({ enviado: true, encolado: false, chatwoot })
+
+        let fotoError: string | null = null
+        if (fotoUrl) {
+            try {
+                await enviarImagenChatwoot({ accountId, conversationId, fotoUrl })
+            } catch (error) {
+                // El texto ya salió: un fallo mandando la foto no debe reportarse
+                // como que la respuesta entera falló (n8n reintentaría todo el nodo).
+                fotoError = error instanceof Error ? error.message : String(error)
+                console.error("No se pudo mandar la foto del kit:", error)
+            }
+        }
+
+        return NextResponse.json({ enviado: true, encolado: false, chatwoot, fotoError })
     } catch (error) {
         // Devolvemos 500 a propósito: el nodo de n8n tiene reintentos y el
         // workflow de errores avisa por push si igual no sale.

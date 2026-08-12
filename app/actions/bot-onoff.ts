@@ -23,6 +23,7 @@ export type RespuestaEnCola = {
     contacto: string | null
     contenido: string
     origen: string
+    fotoUrl: string | null
     estado: EstadoRespuesta
     motivo: string | null
     creadoEn: string
@@ -52,6 +53,7 @@ function serializar(fila: RespuestaPendiente): RespuestaEnCola {
         contacto: fila.contacto,
         contenido: fila.contenido,
         origen: fila.origen,
+        fotoUrl: fila.foto_url,
         estado: fila.estado,
         motivo: fila.motivo,
         creadoEn: fila.creado_en.toISOString(),

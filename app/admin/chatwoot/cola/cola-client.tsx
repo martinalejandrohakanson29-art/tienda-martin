@@ -295,6 +295,14 @@ export function ColaClient({
                                             <p className="whitespace-pre-wrap text-sm text-gray-800">{fila.contenido}</p>
                                         )}
 
+                                        {fila.fotoUrl && (
+                                            <img
+                                                src={fila.fotoUrl}
+                                                alt="Foto a mandar junto con este mensaje"
+                                                className="mt-2 h-16 w-16 rounded-md border object-cover"
+                                            />
+                                        )}
+
                                         {fila.motivo && (
                                             <p className="mt-2 text-xs text-gray-500">{fila.motivo}</p>
                                         )}

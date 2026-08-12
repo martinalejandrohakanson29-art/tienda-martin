@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import {
+    enviarImagenChatwoot,
     enviarMensajeChatwoot,
     getEstadoBot,
     humanoRespondioDespues,
@@ -114,6 +115,21 @@ export async function despacharCola(opciones: { forzar?: boolean } = {}): Promis
                     conversationId: fila.conversation_id,
                     content: fila.contenido,
                 })
+
+                if (fila.foto_url) {
+                    // El texto ya salió: si la foto falla, no lo marcamos como error de
+                    // la fila (el cliente ya recibió lo importante), solo lo logueamos.
+                    try {
+                        await enviarImagenChatwoot({
+                            accountId: fila.account_id,
+                            conversationId: fila.conversation_id,
+                            fotoUrl: fila.foto_url,
+                        })
+                    } catch (errorFoto) {
+                        console.error(`No se pudo mandar la foto de la respuesta ${fila.id} de la cola:`, errorFoto)
+                    }
+                }
+
                 await prisma.$executeRaw`
                     UPDATE respuestas_pendientes
                     SET estado = 'enviado', enviado_en = now(), motivo = NULL

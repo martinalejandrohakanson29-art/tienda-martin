@@ -170,6 +170,7 @@ export function CargarKitClient({ borradoresIniciales, error }: { borradoresInic
                 precio: kit.precio,
                 envio: kit.envio,
                 mensajeBienvenida: kit.mensajeBienvenida,
+                fotoUrl: "",
                 activo,
             }
             await guardarKit(input)

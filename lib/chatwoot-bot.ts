@@ -23,6 +23,7 @@ export type RespuestaPendiente = {
     contacto: string | null
     contenido: string
     origen: string
+    foto_url: string | null
     estado: EstadoRespuesta
     motivo: string | null
     creado_en: Date
@@ -109,6 +110,72 @@ export async function enviarMensajeChatwoot(params: {
     return res.json().catch(() => ({}))
 }
 
+const FOTO_TAMANO_MAXIMO = 5 * 1024 * 1024 // 5MB, límite típico de imagen en WhatsApp/Chatwoot
+const FOTO_TIMEOUT_MS = 15000
+
+/**
+ * Manda una foto al cliente por Chatwoot como adjunto (sin caption, se manda
+ * siempre justo después de un mensaje de texto). A diferencia de
+ * enviarMensajeChatwoot, la API de creación de mensajes de Chatwoot no acepta
+ * una URL para el adjunto: hay que bajar los bytes de la imagen (sea una URL
+ * externa que pegó el admin, o la de nuestro propio proxy de S3) y mandarlos
+ * como multipart/form-data. Tira si no se puede bajar la imagen o Chatwoot no
+ * la acepta — el llamador decide si eso debe tumbar el resto de la respuesta
+ * (no debería: el texto ya se mandó antes).
+ */
+export async function enviarImagenChatwoot(params: {
+    accountId: number | bigint
+    conversationId: number | bigint
+    fotoUrl: string
+}) {
+    const { api, token } = chatwootConfig()
+    if (!token) throw new Error("Falta CHATWOOT_API_TOKEN en el entorno de la app")
+
+    let url: URL
+    try {
+        url = new URL(params.fotoUrl)
+    } catch {
+        throw new Error(`foto_url inválida: ${params.fotoUrl}`)
+    }
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+        throw new Error(`foto_url tiene que ser http(s): ${params.fotoUrl}`)
+    }
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), FOTO_TIMEOUT_MS)
+    let bytes: ArrayBuffer
+    let contentType: string
+    try {
+        const descarga = await fetch(url, { signal: controller.signal })
+        if (!descarga.ok) throw new Error(`No se pudo descargar la foto (${descarga.status})`)
+        contentType = descarga.headers.get("content-type") || "image/jpeg"
+        const contentLength = Number(descarga.headers.get("content-length") || 0)
+        if (contentLength > FOTO_TAMANO_MAXIMO) throw new Error("La foto del kit supera los 5MB")
+        bytes = await descarga.arrayBuffer()
+        if (bytes.byteLength > FOTO_TAMANO_MAXIMO) throw new Error("La foto del kit supera los 5MB")
+    } finally {
+        clearTimeout(timeoutId)
+    }
+
+    const extension = (contentType.split("/")[1] || "jpg").split(";")[0]
+    const form = new FormData()
+    form.append("message_type", "outgoing")
+    form.append("attachments[]", new Blob([bytes], { type: contentType }), `kit.${extension}`)
+
+    const chatwootUrl = `${api}/accounts/${params.accountId}/conversations/${params.conversationId}/messages`
+    const res = await fetch(chatwootUrl, {
+        method: "POST",
+        headers: { api_access_token: token },
+        body: form,
+    })
+
+    if (!res.ok) {
+        const detalle = await res.text().catch(() => "")
+        throw new Error(`Chatwoot respondió ${res.status} al mandar la foto: ${detalle.slice(0, 300)}`)
+    }
+    return res.json().catch(() => ({}))
+}
+
 /**
  * Manda una nota privada a Chatwoot como si la escribiera el equipo a mano,
  * para resolver una pregunta pendiente que el bot escaló (ver
@@ -190,10 +257,11 @@ export async function encolarRespuesta(params: {
     contacto: string | null
     contenido: string
     origen: string
+    fotoUrl?: string | null
 }) {
     const filas = await prisma.$queryRaw<{ id: number }[]>`
-        INSERT INTO respuestas_pendientes (conversation_id, account_id, contacto, contenido, origen)
-        VALUES (${params.conversationId}, ${params.accountId}, ${params.contacto}, ${params.contenido}, ${params.origen})
+        INSERT INTO respuestas_pendientes (conversation_id, account_id, contacto, contenido, origen, foto_url)
+        VALUES (${params.conversationId}, ${params.accountId}, ${params.contacto}, ${params.contenido}, ${params.origen}, ${params.fotoUrl ?? null})
         RETURNING id
     `
     return filas[0].id

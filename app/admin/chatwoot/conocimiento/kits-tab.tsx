@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Save, Loader2, Wand2, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
+import { Save, Loader2, Wand2, Pencil, Trash2, X, AlertTriangle, Upload } from "lucide-react"
 
 import { guardarKit, eliminarKit, alternarActivo, type Kit, type KitInput } from "@/app/actions/kits-publicidad"
 import { generarMensajeKit } from "@/lib/kits-mensaje"
@@ -21,6 +21,7 @@ const FORM_VACIO: KitInput = {
     precio: "",
     envio: "",
     mensajeBienvenida: "",
+    fotoUrl: "",
     activo: true,
 }
 
@@ -29,6 +30,10 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
     const [form, setForm] = useState<KitInput>(FORM_VACIO)
     const [guardando, setGuardando] = useState(false)
     const [error, setError] = useState<string | null>(errorInicial)
+    const [fotoDragging, setFotoDragging] = useState(false)
+    const [subiendoFoto, setSubiendoFoto] = useState(false)
+    const [fotoError, setFotoError] = useState<string | null>(null)
+    const fotoFileRef = useRef<HTMLInputElement>(null)
 
     const editando = form.id !== undefined
 
@@ -49,12 +54,55 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
             precio: kit.precio || "",
             envio: kit.envio || "",
             mensajeBienvenida: kit.mensaje_bienvenida,
+            fotoUrl: kit.foto_url || "",
             activo: kit.activo,
         })
+        setFotoError(null)
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
 
-    const cancelarEdicion = () => setForm(FORM_VACIO)
+    const cancelarEdicion = () => {
+        setForm(FORM_VACIO)
+        setFotoError(null)
+    }
+
+    const subirFoto = async (archivo: File) => {
+        setFotoError(null)
+        if (!archivo.type.startsWith("image/")) {
+            setFotoError("El archivo tiene que ser una imagen")
+            return
+        }
+        if (archivo.size > 5 * 1024 * 1024) {
+            setFotoError("La imagen no puede superar los 5MB")
+            return
+        }
+        setSubiendoFoto(true)
+        try {
+            const cuerpo = new FormData()
+            cuerpo.append("imagen", archivo)
+            const res = await fetch("/api/admin/kits/imagen", { method: "POST", body: cuerpo })
+            const data = await res.json()
+            if (!res.ok || !data.success) throw new Error(data.error || "No se pudo subir la imagen")
+            actualizarCampo("fotoUrl", data.fotoUrl)
+        } catch (err) {
+            setFotoError(err instanceof Error ? err.message : "Error al subir la imagen")
+        } finally {
+            setSubiendoFoto(false)
+        }
+    }
+
+    const onFotoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0]
+        if (f) subirFoto(f)
+        e.target.value = ""
+    }
+
+    const onFotoDrop = (e: React.DragEvent) => {
+        e.preventDefault()
+        setFotoDragging(false)
+        const f = e.dataTransfer.files?.[0]
+        if (f) subirFoto(f)
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -70,6 +118,7 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
                 precio: form.precio,
                 envio: form.envio,
                 mensaje_bienvenida: form.mensajeBienvenida.trim(),
+                foto_url: form.fotoUrl.trim() || null,
                 activo: form.activo,
                 creado_en: kits.find((k) => k.id === form.id)?.creado_en || new Date(),
             }
@@ -217,6 +266,57 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
                                 rows={6}
                                 required
                             />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label>Foto (opcional, se manda justo después del mensaje predefinido)</Label>
+                            <Input
+                                placeholder="Pegar una URL pública de imagen (https://...)"
+                                value={form.fotoUrl}
+                                onChange={(e) => actualizarCampo("fotoUrl", e.target.value)}
+                                disabled={guardando || subiendoFoto}
+                            />
+                            <div
+                                className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center gap-2 transition-all cursor-pointer
+                                    ${fotoDragging ? "border-violet-400 bg-violet-50" : "border-slate-200 bg-slate-50 hover:border-violet-300 hover:bg-violet-50/50"}`}
+                                onClick={() => fotoFileRef.current?.click()}
+                                onDragOver={(e) => { e.preventDefault(); setFotoDragging(true) }}
+                                onDragLeave={() => setFotoDragging(false)}
+                                onDrop={onFotoDrop}
+                            >
+                                {subiendoFoto ? (
+                                    <>
+                                        <Loader2 className="h-6 w-6 text-violet-500 animate-spin" />
+                                        <p className="text-sm text-slate-600">Subiendo imagen…</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Upload className="h-5 w-5 text-violet-500" />
+                                        <p className="text-sm text-slate-600 text-center">
+                                            {fotoDragging ? "Soltá la imagen aquí" : "O arrastrá una imagen aquí, o hacé clic para elegirla"}
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                            <input ref={fotoFileRef} type="file" accept="image/*" className="hidden" onChange={onFotoFileChange} />
+
+                            {fotoError && <p className="text-sm text-rose-600">{fotoError}</p>}
+
+                            {form.fotoUrl && (
+                                <div className="flex items-center gap-3 pt-1">
+                                    <img src={form.fotoUrl} alt="Foto del kit" className="h-20 w-20 object-cover rounded-lg border" />
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => actualizarCampo("fotoUrl", "")}
+                                        disabled={guardando || subiendoFoto}
+                                        className="gap-1 text-rose-600"
+                                    >
+                                        <X size={14} /> Quitar foto
+                                    </Button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2">

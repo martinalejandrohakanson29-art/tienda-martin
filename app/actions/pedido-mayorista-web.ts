@@ -126,6 +126,13 @@ export async function crearPedidoMayoristaWeb(data: {
 
         const totalFinal = itemsVenta.reduce((sum, i) => sum + i.subtotal, 0)
 
+        // Punto de venta "Mayorista": mismo mecanismo que registrarVentasML con "MercadoLibre",
+        // para que el pedido no quede sin punto de venta al confirmarse (confirmarPedidoVenta
+        // no lo asigna, solo cambia tipoVenta a "CONFIRMADA").
+        const puntoVentaMayorista = await prisma.puntoVenta.findFirst({
+            where: { nombre: { contains: "Mayorista", mode: "insensitive" } },
+        })
+
         const result = await prisma.$transaction(async (tx) => {
             const existente = await buscarProveedorPorDigitosCuit(tx, cuit)
 
@@ -147,6 +154,7 @@ export async function crearPedidoMayoristaWeb(data: {
                     tipoEnvio,
                     info: observaciones || null,
                     sujetoId: sujeto.id,
+                    puntoVentaId: puntoVentaMayorista?.id ?? null,
                     items: { create: itemsVenta },
                 },
             })

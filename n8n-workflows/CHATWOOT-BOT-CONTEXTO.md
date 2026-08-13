@@ -105,6 +105,61 @@ backups quedan en la misma carpeta (`workflow_backup_pre-faseN-*.json`) como pun
   en `conocimiento_libre` para que la próxima pregunta parecida ya no necesite escalar.
 - **Fase 8** (`app/actions/pendientes-equipo.ts`, `app/admin/chatwoot/pendientes/`): el panel de
   pendientes ahora tiene 4 categorías (técnica, precio, negocio, sin clasificar) en vez de 3.
+- **Fase 9** (2026-08-13, `apply-fase9-fix-pausa-falsa-y-aviso.mjs`), disparada por un caso real
+  (contacto +5493492569184, conv 1887: el cliente escribió "Me interesa" y el bot no hizo nada):
+  1. **Fix de pausa falsa.** `¿Es Respuesta de Mi Equipo?` hace fan-out en paralelo a dos
+     chequeos de pendientes — Fase 3 (`Buscar Preguntas Pendientes`, solo mira
+     `preguntas_tecnicas_pendientes`) y Fase 7 (`Buscar Pendiente Sin Match`, solo mira
+     `preguntas_sin_match_pendientes`). Si la nota privada del equipo respondía una pendiente
+     `sin_match` (precio/envío/negocio/otro), la rama técnica no encontraba nada en SU tabla y lo
+     interpretaba como "el equipo está chateando espontáneamente" → disparaba `Marcar Bot Pausado`
+     (30 días) aunque la otra rama sí la había resuelto. Se agregó `Chequear Sin Match Antes de
+     Pausar` + `¿Hay Sin Match Pendiente Tambien?` entre `¿Hay Pregunta Pendiente?` (rama FALSE) y
+     `Marcar Bot Pausado`: si hay algo pendiente en la tabla sin_match, no pausa. Verificado con la
+     conversación de prueba: contestar una pendiente sin_match ya no pausa, y el caso legítimo
+     (nota que no responde nada en ninguna tabla) sigue pausando igual que antes.
+  2. **Aviso de mensaje durante pausa.** Cuando la conversación SÍ está pausada (Redis
+     `bot_pausado:{conv}`, ver Fase 4) y el cliente escribe, antes no quedaba ningún rastro más
+     allá del mensaje sin leer en Chatwoot. Ahora, en la rama `Fin - Bot Pausado`, se agregaron
+     `Armar Nota Bot Pausado` + `Enviar Nota Bot Pausado`: dejan una nota privada citando el
+     mensaje del cliente y recordando el comando `/bot on`. El bot sigue sin responderle al
+     cliente — la pausa no cambia — solo avisa.
+  - Este bug es un caso concreto de la limitación ya anotada en Fase 7 ("duplica el camino de
+    'el equipo respondió' en vez de unificarlo") — quedó ahí como riesgo aceptado y terminó
+    generando pausas involuntarias en producción. Si en el futuro se agrega una tercera categoría
+    de pendientes con su propia tabla, revisar si necesita el mismo parche antes de asumir que no
+    pausa por error.
+- **Fase 10** (2026-08-13, `apply-fase10-continuidad-plantilla-con-resto.mjs`), disparada por el
+  caso real del contacto +5492954875916 (conv 1900): escribió la plantilla exacta del Kit 8
+  ("¡Hola! Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!") y 4 segundos
+  después "que valen" en un segundo mensaje. El matching comparaba la plantilla contra el
+  **texto completo agrupado de la ráfaga**, no contra el primer mensaje solo — al sumarle "que
+  valen" el texto agrupado ya no era idéntico a ninguna plantilla, así que el kit nunca se
+  reconoció y todo cayó en `sin_match` sin necesidad.
+  - `Unir Mensajes` ahora expone `primer_mensaje` y `resto_mensaje` además de `texto_completo`.
+    `Clasificar Mensaje (sin IA)` compara la plantilla exacta **solo contra el primer mensaje**.
+  - Si matchea y no hay resto: cero cambios de comportamiento (el 99% de los casos).
+  - Si matchea y SÍ hay resto: antes de confirmar el kit, un paso de IA acotada nuevo
+    (`Validar Continuidad de Tema`, mismo patrón que la Fase 6 — nunca redacta, solo clasifica)
+    mira el resto y decide si sigue siendo sobre el mismo kit (precio/envío/stock/forma de
+    pago/algo genérico) o si el cliente menciona un producto/tema distinto. **Ante la duda,
+    responde que es tema distinto** (el camino seguro que escala en vez de asumir — coherente con
+    [[feedback-bot-aliviador-mensajes]]).
+    - Mismo tema: se manda el saludo del kit y se pinea igual que siempre, y el resto ("que
+      valen") se resuelve en el mismo intercambio reutilizando el pipeline que ya existe para
+      "kit pineado + pregunta nueva" (se re-entra por `Leer Kit Pineado` justo después de pinear,
+      así que relee el pin recién escrito en Redis). No hace falta que el cliente vuelva a
+      preguntar.
+    - Tema distinto: no se manda el saludo de ese kit (aunque la primera frase haya matcheado
+      letra por letra) y no se pinea nada. Todo el mensaje se trata como si no hubiera matcheado
+      ninguna plantilla — mismo camino `sin_match` de siempre, sin mecanismo nuevo para este caso.
+  - `Dividir y Etiquetar Sub-preguntas` y `Extraer Pregunta Compatibilidad` (Fase 6) ahora
+    prefieren `resto_mensaje` sobre `texto_completo` cuando existe, para no reprocesar la frase de
+    la plantilla ya resuelta por el saludo.
+  - Validado con la conversación de prueba (conv 1): rafagas de dos mensajes plantilla+"que
+    valen" → saludo del kit + precio contestado en el mismo turno; plantilla+"en realidad vengo
+    por una cámara de aire" → sin saludo, sin pin, escalado en silencio como `otro` (ni siquiera
+    con un kit pineado de una prueba anterior en Redis se lo atribuyó mal).
 
 ## Filosofía de diseño (para cuando pidan algo nuevo)
 
@@ -179,9 +234,20 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que
   cualquier pregunta de garantía escala en vez de contestarse sola.
-- **Fase 8 sin commitear.** Los cambios de `app/actions/pendientes-equipo.ts` y
-  `app/admin/chatwoot/pendientes/pendientes-client.tsx` están en el working tree, typecheck
-  limpio, pero no se subieron todavía.
+- **Fases 9 y 10 aplicadas y validadas en producción, pero sin commitear todavía** (al
+  2026-08-13, fin de la sesión). Falta commitear: `n8n-workflows/CHATWOOT-BOT-CONTEXTO.md` (este
+  archivo, ya actualizado), `n8n-workflows/auditoria-harness/apply-fase9-fix-pausa-falsa-y-aviso.mjs`,
+  `apply-fase10-continuidad-plantilla-con-resto.mjs`, y los backups
+  `workflow_backup_pre-fase9-..._2026-08-13.json` / `workflow_backup_pre-fase10-..._2026-08-13.json`.
+  (Fase 8 -- `app/actions/pendientes-equipo.ts` y el panel de pendientes -- ya está commiteada,
+  la nota vieja acá estaba desactualizada.) Si se retoma desde otra PC, `git pull` no trae estos
+  archivos hasta que se commiteen desde esta máquina.
+- **Caso real sin resolver: contacto +5492954875916 (conv 1900 en Chatwoot), 2026-08-13.**
+  Escribió la plantilla exacta del Kit 8 + "que valen" ANTES de que se aplicara la Fase 10 (el fix
+  no reprocesa conversaciones viejas), así que quedó una nota privada sin contestar en esa
+  conversación (mensaje 12184, "El cliente preguntó algo que todavía no supimos ubicar..."). Hay
+  que entrar a Chatwoot y responderla a mano — el ciclo de aprendizaje de Fase 7 recién se activa
+  cuando alguien contesta esa nota.
 - **`preguntas_precio_pendientes` / `preguntas_negocio_pendientes` son harina de otro costal.**
   El panel las lee y las tiene desde antes, pero el workflow 2.0 nunca escribe ni escucha
   respuestas ahí — son remanentes de `workflow_mateo`. Hoy la Fase 6 ya cubre ese terreno de

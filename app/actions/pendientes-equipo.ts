@@ -13,7 +13,7 @@ import { enviarNotaPrivadaChatwoot, tieneTokenEquipo } from "@/lib/chatwoot-bot"
 // / preguntas_precio_pendientes / preguntas_negocio_pendientes y el nodo
 // "¿Es respuesta de mi equipo?" del workflow.
 
-export type TipoPendiente = "tecnica" | "precio" | "negocio"
+export type TipoPendiente = "tecnica" | "precio" | "negocio" | "sin_match"
 
 export type PendienteEquipo = {
     id: number
@@ -34,7 +34,7 @@ export type PanelPendientes = {
 export async function listarPendientesEquipo(): Promise<PanelPendientes> {
     await requireAdmin()
 
-    const [tecnicas, precios, negocio] = await Promise.all([
+    const [tecnicas, precios, negocio, sinMatch] = await Promise.all([
         prisma.$queryRaw<{ id: number; conversation_id: number; modelo_moto: string; kit: string; pregunta_original: string; creado_en: Date }[]>`
             SELECT id, conversation_id, modelo_moto, kit, pregunta_original, creado_en
             FROM preguntas_tecnicas_pendientes WHERE estado = 'pendiente' ORDER BY creado_en ASC
@@ -46,6 +46,10 @@ export async function listarPendientesEquipo(): Promise<PanelPendientes> {
         prisma.$queryRaw<{ id: number; conversation_id: number; tema: string; pregunta_original: string; creado_en: Date }[]>`
             SELECT id, conversation_id, tema, pregunta_original, creado_en
             FROM preguntas_negocio_pendientes WHERE estado = 'pendiente' ORDER BY creado_en ASC
+        `,
+        prisma.$queryRaw<{ id: number; conversation_id: number; pregunta_original: string; creado_en: Date }[]>`
+            SELECT id, conversation_id, pregunta_original, creado_en
+            FROM preguntas_sin_match_pendientes WHERE estado = 'pendiente' ORDER BY creado_en ASC
         `,
     ])
 
@@ -71,6 +75,16 @@ export async function listarPendientesEquipo(): Promise<PanelPendientes> {
             tipo: "negocio" as const,
             conversationId: Number(f.conversation_id),
             resumen: f.tema || "(sin tema identificado)",
+            preguntaOriginal: f.pregunta_original,
+            creadoEn: f.creado_en.toISOString(),
+        })),
+        ...sinMatch.map((f) => ({
+            id: f.id,
+            tipo: "sin_match" as const,
+            conversationId: Number(f.conversation_id),
+            // No hay tema/producto identificado -- es justo lo que significa
+            // "sin_match" -- así que el resumen es un recorte de la pregunta.
+            resumen: f.pregunta_original.length > 60 ? f.pregunta_original.slice(0, 60) + "…" : f.pregunta_original,
             preguntaOriginal: f.pregunta_original,
             creadoEn: f.creado_en.toISOString(),
         })),

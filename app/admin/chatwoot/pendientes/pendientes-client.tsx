@@ -20,6 +20,7 @@ const ETIQUETA_TIPO: Record<TipoPendiente, { texto: string; clase: string }> = {
     tecnica: { texto: "Técnica", clase: "bg-violet-100 text-violet-800 border-violet-200" },
     precio: { texto: "Precio / Stock", clase: "bg-emerald-100 text-emerald-800 border-emerald-200" },
     negocio: { texto: "Negocio", clase: "bg-sky-100 text-sky-800 border-sky-200" },
+    sin_match: { texto: "Sin clasificar", clase: "bg-amber-100 text-amber-800 border-amber-200" },
 }
 
 const fechaCorta = (iso: string) =>
@@ -66,7 +67,7 @@ export function PendientesClient({
     }
 
     const porTipo = useMemo(() => {
-        const mapa: Record<TipoPendiente, PendienteEquipo[]> = { tecnica: [], precio: [], negocio: [] }
+        const mapa: Record<TipoPendiente, PendienteEquipo[]> = { tecnica: [], precio: [], negocio: [], sin_match: [] }
         for (const item of panel?.pendientes ?? []) mapa[item.tipo].push(item)
         return mapa
     }, [panel])
@@ -186,6 +187,7 @@ export function PendientesClient({
                         <TabsTrigger value="tecnica">Técnica ({porTipo.tecnica.length})</TabsTrigger>
                         <TabsTrigger value="precio">Precio / Stock ({porTipo.precio.length})</TabsTrigger>
                         <TabsTrigger value="negocio">Negocio ({porTipo.negocio.length})</TabsTrigger>
+                        <TabsTrigger value="sin_match">Sin clasificar ({porTipo.sin_match.length})</TabsTrigger>
                     </TabsList>
                     <TabsContent value="todas" className="space-y-3">
                         {(panel?.pendientes ?? []).map(fila)}
@@ -198,6 +200,9 @@ export function PendientesClient({
                     </TabsContent>
                     <TabsContent value="negocio" className="space-y-3">
                         {porTipo.negocio.map(fila)}
+                    </TabsContent>
+                    <TabsContent value="sin_match" className="space-y-3">
+                        {porTipo.sin_match.map(fila)}
                     </TabsContent>
                 </Tabs>
             )}

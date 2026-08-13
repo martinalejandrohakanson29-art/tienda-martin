@@ -1,0 +1,34 @@
+[
+  {
+    "id": 1,
+    "nombre": "Kit 120 para 110",
+    "keywords": "kit 120, cilindro 54, potenciar 110",
+    "mensaje_bienvenida": "Hola amigo, ¿cómo va?\n\nEl combo incluye cilindro 120,\ncarburador CG 125, codo de admisión y filtro.\nEs ideal para mejorar la respuesta y el andar en uso diario.\n\nEl precio es $99.000, con envío gratis.\n\n¿Para qué moto lo estás buscando?",
+    "foto_url": "https://revolucionmotos.tech/api/admin/kits/imagen?key=kits-fotos%2Fkit-1786551230388-xzgs66.jpeg",
+    "plantillas_bienvenida": "¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!"
+  },
+  {
+    "id": 2,
+    "nombre": "Escape Dm Curvo para 110",
+    "keywords": "escape dm curvo, escape competicion 110",
+    "mensaje_bienvenida": "Hola bro!\n\nEl precio del escape Dm curvo es de $129.999 Envio gratis a todo el pais.\n\n¿Para qué moto lo estás buscando?",
+    "foto_url": null,
+    "plantillas_bienvenida": null
+  },
+  {
+    "id": 3,
+    "nombre": "KIT POTENCIADO 220cc",
+    "keywords": "kit 220, kit varillero 220, kit potenciacion varillero 220, kit daka 220, kit varillero 150, potenciar 150",
+    "mensaje_bienvenida": "Hola amigo como va!   \n🔥 KIT POTENCIADO 220cc (Para varilleros sin balnaceador) 🔥\n✅ Cilindro Dakar 200: Carrera larga (65.5mm).\n✅ Cigüeñal 200: Carrera larga (62mm).\n✅ Espárragos y varillas de válvulas (más largos).\n✅ Extras: Tuercas de espárragos y juego de juntas en súper medida.\n------------------------\n💳 Precio Efectivo/Transferencia: $199.000   \n🚚 ENVÍO ¡GRATIS A TODO EL PAÍS! No pagas ni un peso más por el despacho.",
+    "foto_url": "https://revolucionmotos.tech/api/admin/kits/imagen?key=kits-fotos%2Fkit-1786551275718-h2dybz.jpeg",
+    "plantillas_bienvenida": ""
+  },
+  {
+    "id": 7,
+    "nombre": "Combo Escape pwr + Leva 6.40",
+    "keywords": "leva 6.40, leva de calle, leva 110, leva mas escape para 110, escape pwr, escape de 110, combo de escape con leva, leva potenciada 110, escape de calle, leva para 110",
+    "mensaje_bienvenida": "¡Buenas! El Combo Escape PWR + Leva 6.40 incluye:\n- leva 6.40, resortes de válvulas\n- balancines y \n- escape PWR Paolucci. \n\nEs Compatible con todas las 110 chinas con leva larga (74mm) o leva corta (69mm)\n\n Cuesta $125.000 con envío gratis a todo el pais\n\nPara que moto estas buscando?",
+    "foto_url": "https://revolucionmotos.tech/api/admin/kits/imagen?key=kits-fotos%2Fkit-1786551204723-uti6d7.jpeg",
+    "plantillas_bienvenida": "¡Hola! Quiero más información sobre el escape de 110 + leva de calle de 6.40?"
+  }
+]

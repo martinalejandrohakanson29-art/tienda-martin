@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Save, Loader2, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
 
 import {
@@ -17,22 +18,32 @@ import {
     type Compatibilidad,
     type CompatibilidadInput,
 } from "@/app/actions/compatibilidades"
+import type { Kit } from "@/app/actions/kits-publicidad"
 
-const FORM_VACIO: CompatibilidadInput = { modeloMoto: "", kit: "", compatible: true, detalle: "" }
+const FORM_VACIO: CompatibilidadInput = { modeloMoto: "", kitId: 0, compatible: true, detalle: "" }
 
-export function CompatibilidadTab({ itemsIniciales, errorInicial }: { itemsIniciales: Compatibilidad[]; errorInicial: string | null }) {
+export function CompatibilidadTab({
+    itemsIniciales,
+    errorInicial,
+    kits,
+}: {
+    itemsIniciales: Compatibilidad[]
+    errorInicial: string | null
+    kits: Kit[]
+}) {
     const [items, setItems] = useState<Compatibilidad[]>(itemsIniciales)
     const [form, setForm] = useState<CompatibilidadInput>(FORM_VACIO)
     const [guardando, setGuardando] = useState(false)
     const [error, setError] = useState<string | null>(errorInicial)
 
     const editando = form.id !== undefined
+    const kitSeleccionado = kits.find((k) => k.id === form.kitId)
 
     const editar = (item: Compatibilidad) => {
         setForm({
             id: item.id,
             modeloMoto: item.modelo_moto,
-            kit: item.kit,
+            kitId: item.kit_id ?? 0,
             compatible: item.compatible,
             detalle: item.detalle || "",
         })
@@ -43,23 +54,25 @@ export function CompatibilidadTab({ itemsIniciales, errorInicial }: { itemsInici
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!form.modeloMoto.trim() || !form.kit.trim()) return
+        if (!form.modeloMoto.trim() || !form.kitId) return
         setGuardando(true)
         setError(null)
         try {
             await guardarCompatibilidad(form)
+            const nombreKit = kits.find((k) => k.id === form.kitId)?.nombre || ""
             setItems((prev) => {
                 if (form.id) {
                     return prev.map((i) =>
                         i.id === form.id
-                            ? { ...i, modelo_moto: form.modeloMoto.trim(), kit: form.kit.trim(), compatible: form.compatible, detalle: form.detalle, fuente: "admin" }
+                            ? { ...i, modelo_moto: form.modeloMoto.trim(), kit: nombreKit, kit_id: form.kitId, compatible: form.compatible, detalle: form.detalle, fuente: "admin" }
                             : i
                     )
                 }
                 const nuevo: Compatibilidad = {
                     id: Date.now(),
                     modelo_moto: form.modeloMoto.trim(),
-                    kit: form.kit.trim(),
+                    kit: nombreKit,
+                    kit_id: form.kitId,
                     compatible: form.compatible,
                     detalle: form.detalle,
                     fuente: "admin",
@@ -105,7 +118,7 @@ export function CompatibilidadTab({ itemsIniciales, errorInicial }: { itemsInici
             <Card className="border-t-4 border-t-violet-500 shadow-md">
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between text-xl">
-                        <span>{editando ? `Editar: ${form.modeloMoto} / ${form.kit}` : "Nueva Compatibilidad"}</span>
+                        <span>{editando ? `Editar: ${form.modeloMoto} / ${kitSeleccionado?.nombre || ""}` : "Nueva Compatibilidad"}</span>
                         {editando && (
                             <Button type="button" variant="ghost" size="sm" onClick={cancelarEdicion} className="gap-1">
                                 <X size={16} /> Cancelar edición
@@ -128,15 +141,21 @@ export function CompatibilidadTab({ itemsIniciales, errorInicial }: { itemsInici
                                 />
                             </div>
                             <div className="space-y-1">
-                                <Label htmlFor="kit">Kit / pieza</Label>
-                                <Input
-                                    id="kit"
-                                    placeholder="Ej: Kit 120"
-                                    value={form.kit}
-                                    onChange={(e) => setForm((prev) => ({ ...prev, kit: e.target.value }))}
+                                <Label htmlFor="kit">Kit</Label>
+                                <Select
+                                    value={form.kitId ? String(form.kitId) : ""}
+                                    onValueChange={(v) => setForm((prev) => ({ ...prev, kitId: Number(v) }))}
                                     disabled={guardando}
-                                    required
-                                />
+                                >
+                                    <SelectTrigger id="kit">
+                                        <SelectValue placeholder="Elegí un kit" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {kits.map((k) => (
+                                            <SelectItem key={k.id} value={String(k.id)}>{k.nombre}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
 
@@ -162,7 +181,7 @@ export function CompatibilidadTab({ itemsIniciales, errorInicial }: { itemsInici
                             />
                         </div>
 
-                        <Button type="submit" disabled={guardando || !form.modeloMoto.trim() || !form.kit.trim()} className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2">
+                        <Button type="submit" disabled={guardando || !form.modeloMoto.trim() || !form.kitId} className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2">
                             {guardando ? (
                                 <><Loader2 className="animate-spin h-4 w-4" /> Guardando...</>
                             ) : (
@@ -196,7 +215,14 @@ export function CompatibilidadTab({ itemsIniciales, errorInicial }: { itemsInici
                                     {items.map((item) => (
                                         <TableRow key={item.id}>
                                             <TableCell className="font-medium">{item.modelo_moto}</TableCell>
-                                            <TableCell>{item.kit}</TableCell>
+                                            <TableCell>
+                                                {item.kit}
+                                                {!item.kit_id && (
+                                                    <Badge variant="outline" className="ml-2 border-amber-500 text-amber-700 gap-1">
+                                                        <AlertTriangle size={12} /> sin enlazar
+                                                    </Badge>
+                                                )}
+                                            </TableCell>
                                             <TableCell>
                                                 <Badge className={item.compatible ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-500 hover:bg-red-600"}>
                                                     {item.compatible ? "Sí" : "No"}

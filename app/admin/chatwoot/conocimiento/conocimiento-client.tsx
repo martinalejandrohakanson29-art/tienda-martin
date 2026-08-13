@@ -66,7 +66,7 @@ export function ConocimientoClient({
                     <PreciosTab itemsIniciales={preciosIniciales} errorInicial={preciosError} />
                 </TabsContent>
                 <TabsContent value="tecnica">
-                    <CompatibilidadTab itemsIniciales={compatibilidadesIniciales} errorInicial={compatibilidadesError} />
+                    <CompatibilidadTab itemsIniciales={compatibilidadesIniciales} errorInicial={compatibilidadesError} kits={kitsIniciales} />
                 </TabsContent>
             </Tabs>
         </div>

@@ -23,7 +23,15 @@ type FilaHorario = {
     activo: boolean
     abre: string // "HH:MM"
     cierra: string // "HH:MM"
+    activoTarde: boolean
+    abreTarde: string
+    cierraTarde: string
 }
+
+// Valores por defecto para cuando se tilda "también a la tarde" sin tener
+// todavía un horario cargado (ej. un día que nació sin bloque de tarde).
+const TARDE_ABRE_DEFAULT = "16:00"
+const TARDE_CIERRA_DEFAULT = "19:00"
 
 function minutosATexto(minutos: number) {
     const h = Math.floor(minutos / 60)
@@ -46,6 +54,9 @@ function aFilas(horario: HorarioBot): FilaHorario[] {
             activo: d.activo,
             abre: minutosATexto(d.abreMinutos),
             cierra: minutosATexto(d.cierraMinutos),
+            activoTarde: d.activoTarde,
+            abreTarde: d.abreMinutosTarde !== null ? minutosATexto(d.abreMinutosTarde) : TARDE_ABRE_DEFAULT,
+            cierraTarde: d.cierraMinutosTarde !== null ? minutosATexto(d.cierraMinutosTarde) : TARDE_CIERRA_DEFAULT,
         }))
 }
 
@@ -92,8 +103,18 @@ export function HorarioClient({ inicial, error }: { inicial: HorarioBot | null; 
         setGuardadoOk(false)
         for (const fila of filas) {
             if (fila.activo && textoAMinutos(fila.cierra) <= textoAMinutos(fila.abre)) {
-                setFallo(`${NOMBRES_DIAS[fila.diaSemana]}: el cierre tiene que ser después de la apertura`)
+                setFallo(`${NOMBRES_DIAS[fila.diaSemana]}: el cierre de la mañana tiene que ser después de la apertura`)
                 return
+            }
+            if (fila.activo && fila.activoTarde) {
+                if (textoAMinutos(fila.cierraTarde) <= textoAMinutos(fila.abreTarde)) {
+                    setFallo(`${NOMBRES_DIAS[fila.diaSemana]}: el cierre de la tarde tiene que ser después de la apertura de la tarde`)
+                    return
+                }
+                if (textoAMinutos(fila.abreTarde) < textoAMinutos(fila.cierra)) {
+                    setFallo(`${NOMBRES_DIAS[fila.diaSemana]}: la tarde tiene que empezar después de que cierra la mañana`)
+                    return
+                }
             }
         }
         arrancarGuardado(async () => {
@@ -104,6 +125,9 @@ export function HorarioClient({ inicial, error }: { inicial: HorarioBot | null; 
                         activo: f.activo,
                         abreMinutos: textoAMinutos(f.abre),
                         cierraMinutos: textoAMinutos(f.cierra),
+                        activoTarde: f.activo && f.activoTarde,
+                        abreMinutosTarde: f.activo && f.activoTarde ? textoAMinutos(f.abreTarde) : null,
+                        cierraMinutosTarde: f.activo && f.activoTarde ? textoAMinutos(f.cierraTarde) : null,
                     }))
                 )
                 setGuardadoOk(true)
@@ -178,33 +202,62 @@ export function HorarioClient({ inicial, error }: { inicial: HorarioBot | null; 
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {filas.map((fila) => (
-                        <div
-                            key={fila.diaSemana}
-                            className="flex flex-col gap-3 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                            <label className="flex items-center gap-3">
-                                <Checkbox
-                                    checked={fila.activo}
-                                    onCheckedChange={(checked) => cambiarFila(fila.diaSemana, { activo: checked })}
-                                />
-                                <span className="w-24 font-medium">{NOMBRES_DIAS[fila.diaSemana]}</span>
-                            </label>
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    type="time"
-                                    className="w-32"
-                                    value={fila.abre}
-                                    disabled={!fila.activo}
-                                    onChange={(e) => cambiarFila(fila.diaSemana, { abre: e.target.value })}
-                                />
-                                <span className="text-gray-400">a</span>
-                                <Input
-                                    type="time"
-                                    className="w-32"
-                                    value={fila.cierra}
-                                    disabled={!fila.activo}
-                                    onChange={(e) => cambiarFila(fila.diaSemana, { cierra: e.target.value })}
-                                />
+                        <div key={fila.diaSemana} className="flex flex-col gap-3 rounded-md border p-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <label className="flex items-center gap-3">
+                                    <Checkbox
+                                        checked={fila.activo}
+                                        onCheckedChange={(checked) => cambiarFila(fila.diaSemana, { activo: checked })}
+                                    />
+                                    <span className="w-24 font-medium">{NOMBRES_DIAS[fila.diaSemana]}</span>
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-14 text-sm text-gray-500">Mañana</span>
+                                    <Input
+                                        type="time"
+                                        className="w-32"
+                                        value={fila.abre}
+                                        disabled={!fila.activo}
+                                        onChange={(e) => cambiarFila(fila.diaSemana, { abre: e.target.value })}
+                                    />
+                                    <span className="text-gray-400">a</span>
+                                    <Input
+                                        type="time"
+                                        className="w-32"
+                                        value={fila.cierra}
+                                        disabled={!fila.activo}
+                                        onChange={(e) => cambiarFila(fila.diaSemana, { cierra: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:pl-9">
+                                <label className="flex items-center gap-3">
+                                    <Checkbox
+                                        checked={fila.activoTarde}
+                                        disabled={!fila.activo}
+                                        onCheckedChange={(checked) => cambiarFila(fila.diaSemana, { activoTarde: checked })}
+                                    />
+                                    <span className="w-24 text-sm text-gray-600">También tarde</span>
+                                </label>
+                                <div className="flex items-center gap-2">
+                                    <span className="w-14 text-sm text-gray-500">Tarde</span>
+                                    <Input
+                                        type="time"
+                                        className="w-32"
+                                        value={fila.abreTarde}
+                                        disabled={!fila.activo || !fila.activoTarde}
+                                        onChange={(e) => cambiarFila(fila.diaSemana, { abreTarde: e.target.value })}
+                                    />
+                                    <span className="text-gray-400">a</span>
+                                    <Input
+                                        type="time"
+                                        className="w-32"
+                                        value={fila.cierraTarde}
+                                        disabled={!fila.activo || !fila.activoTarde}
+                                        onChange={(e) => cambiarFila(fila.diaSemana, { cierraTarde: e.target.value })}
+                                    />
+                                </div>
                             </div>
                         </div>
                     ))}

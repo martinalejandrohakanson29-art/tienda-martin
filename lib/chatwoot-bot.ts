@@ -40,8 +40,11 @@ export type EstadoBot = {
 export type HorarioDia = {
     diaSemana: number // 0=domingo ... 6=sábado, igual que Date.getUTCDay()
     activo: boolean
-    abreMinutos: number // minutos desde medianoche, hora Argentina
+    abreMinutos: number // minutos desde medianoche, hora Argentina (bloque mañana)
     cierraMinutos: number
+    activoTarde: boolean // segundo bloque del mismo día (ej. después del almuerzo)
+    abreMinutosTarde: number | null
+    cierraMinutosTarde: number | null
 }
 
 export function chatwootConfig() {
@@ -115,15 +118,27 @@ export async function setHorarioAutomatico(activo: boolean, quien: string) {
 
 export async function getHorarios(): Promise<HorarioDia[]> {
     const filas = await prisma.$queryRaw<
-        { dia_semana: number; activo: boolean; abre_minutos: number; cierra_minutos: number }[]
+        {
+            dia_semana: number
+            activo: boolean
+            abre_minutos: number
+            cierra_minutos: number
+            activo_tarde: boolean
+            abre_minutos_tarde: number | null
+            cierra_minutos_tarde: number | null
+        }[]
     >`
-        SELECT dia_semana, activo, abre_minutos, cierra_minutos FROM bot_horario ORDER BY dia_semana
+        SELECT dia_semana, activo, abre_minutos, cierra_minutos, activo_tarde, abre_minutos_tarde, cierra_minutos_tarde
+        FROM bot_horario ORDER BY dia_semana
     `
     return filas.map((f) => ({
         diaSemana: f.dia_semana,
         activo: f.activo,
         abreMinutos: f.abre_minutos,
         cierraMinutos: f.cierra_minutos,
+        activoTarde: f.activo_tarde,
+        abreMinutosTarde: f.abre_minutos_tarde,
+        cierraMinutosTarde: f.cierra_minutos_tarde,
     }))
 }
 
@@ -133,9 +148,19 @@ export async function guardarHorarios(dias: HorarioDia[]) {
         if (dia.activo && dia.cierraMinutos <= dia.abreMinutos) {
             throw new Error("El horario de cierre tiene que ser posterior al de apertura")
         }
+        if (dia.activoTarde) {
+            if (dia.abreMinutosTarde === null || dia.cierraMinutosTarde === null) {
+                throw new Error("Falta el horario de la tarde")
+            }
+            if (dia.cierraMinutosTarde <= dia.abreMinutosTarde) {
+                throw new Error("El cierre de la tarde tiene que ser posterior a la apertura de la tarde")
+            }
+        }
         await prisma.$executeRaw`
             UPDATE bot_horario
-            SET activo = ${dia.activo}, abre_minutos = ${dia.abreMinutos}, cierra_minutos = ${dia.cierraMinutos}
+            SET activo = ${dia.activo}, abre_minutos = ${dia.abreMinutos}, cierra_minutos = ${dia.cierraMinutos},
+                activo_tarde = ${dia.activoTarde}, abre_minutos_tarde = ${dia.abreMinutosTarde},
+                cierra_minutos_tarde = ${dia.cierraMinutosTarde}
             WHERE dia_semana = ${dia.diaSemana}
         `
     }
@@ -160,7 +185,16 @@ export function calcularDebeEstarAbierto(
 ): boolean {
     const dia = horarios.find((h) => h.diaSemana === ahora.diaSemana)
     if (!dia || !dia.activo) return false
-    return ahora.minutosDelDia >= dia.abreMinutos && ahora.minutosDelDia < dia.cierraMinutos
+
+    const enBloqueManana = ahora.minutosDelDia >= dia.abreMinutos && ahora.minutosDelDia < dia.cierraMinutos
+    const enBloqueTarde =
+        dia.activoTarde &&
+        dia.abreMinutosTarde !== null &&
+        dia.cierraMinutosTarde !== null &&
+        ahora.minutosDelDia >= dia.abreMinutosTarde &&
+        ahora.minutosDelDia < dia.cierraMinutosTarde
+
+    return enBloqueManana || enBloqueTarde
 }
 
 /**

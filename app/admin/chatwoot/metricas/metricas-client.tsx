@@ -1,0 +1,248 @@
+"use client"
+
+import { useState, useTransition } from "react"
+import Link from "next/link"
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+} from "recharts"
+import { Badge } from "@/components/ui/badge"
+import {
+    ArrowLeft, MessageCircle, Clock, Reply, AlertTriangle, Loader2, RefreshCw,
+} from "lucide-react"
+import { obtenerMetricasChatwoot } from "@/app/actions/chatwoot-metricas"
+import type { MetricasChatwoot } from "@/lib/chatwoot-metricas"
+
+const PERIODOS = [7, 30, 90]
+
+const fmtFechaCorta = (fecha: string) => {
+    const [, m, d] = fecha.split("-")
+    return `${d}/${m}`
+}
+
+const hace = (iso: string) => {
+    const minutos = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+    if (minutos < 1) return "recién"
+    if (minutos < 60) return `hace ${minutos} min`
+    return `hace ${Math.round(minutos / 60)} h`
+}
+
+function KpiCard({ icon: Icon, label, value, sub, color }: {
+    icon: any; label: string; value: string; sub?: string; color: string
+}) {
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-3">
+            <div className={`p-2.5 rounded-xl w-fit ${color}`}>
+                <Icon className="h-5 w-5" />
+            </div>
+            <div>
+                <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider">{label}</p>
+                <p className="text-2xl font-black text-slate-900 mt-0.5 leading-tight">{value}</p>
+                {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+            </div>
+        </div>
+    )
+}
+
+function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+    return (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-4">
+            <div>
+                <h3 className="font-bold text-slate-800 text-sm">{title}</h3>
+                {subtitle && <p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>}
+            </div>
+            {children}
+        </div>
+    )
+}
+
+export function MetricasChatwootClient({
+    periodoInicial, datosIniciales, deCacheInicial, errorInicial,
+}: {
+    periodoInicial: number
+    datosIniciales: MetricasChatwoot | null
+    deCacheInicial: boolean
+    errorInicial: string | null
+}) {
+    const [periodo, setPeriodo] = useState(periodoInicial)
+    const [datos, setDatos] = useState(datosIniciales)
+    const [deCache, setDeCache] = useState(deCacheInicial)
+    const [error, setError] = useState(errorInicial)
+    const [pendiente, arrancarTransicion] = useTransition()
+
+    const cargar = (nuevoPeriodo: number, forzar: boolean) => {
+        setError(null)
+        arrancarTransicion(async () => {
+            const resultado = await obtenerMetricasChatwoot(nuevoPeriodo, forzar)
+            if (resultado.success) {
+                setDatos(resultado.datos)
+                setDeCache(resultado.deCache)
+            } else {
+                setError(resultado.error)
+            }
+        })
+    }
+
+    const cambiarPeriodo = (nuevoPeriodo: number) => {
+        setPeriodo(nuevoPeriodo)
+        cargar(nuevoPeriodo, false)
+    }
+
+    const horaMax = datos ? Math.max(...datos.porHora.map((h) => h.cantidad), 0) : 0
+
+    return (
+        <div className="space-y-6">
+            <div>
+                <Link
+                    href="/admin/chatwoot"
+                    className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-1"
+                >
+                    <ArrowLeft className="h-4 w-4" />
+                    Volver a Chatwoot
+                </Link>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">Métricas del bot</h1>
+                        <p className="text-gray-500">
+                            Leído en vivo desde Chatwoot: mensajes entrantes, horario de más movimiento y cuántos clientes
+                            siguen escribiendo después de nuestra respuesta.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                            {PERIODOS.map((p) => (
+                                <button
+                                    key={p}
+                                    onClick={() => cambiarPeriodo(p)}
+                                    disabled={pendiente}
+                                    className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                                        periodo === p ? "bg-violet-600 text-white" : "bg-white text-slate-600 hover:bg-slate-50"
+                                    }`}
+                                >
+                                    {p}d
+                                </button>
+                            ))}
+                        </div>
+                        <button
+                            onClick={() => cargar(periodo, true)}
+                            disabled={pendiente}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                        >
+                            {pendiente ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                            Actualizar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {error && !datos && (
+                <div className="flex items-start gap-3 rounded-xl border-l-4 border-l-red-500 bg-white p-4 text-sm text-red-700 shadow-sm">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+                    <span>{error}</span>
+                </div>
+            )}
+
+            {datos && (
+                <>
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs text-slate-400">
+                            Últimos {datos.periodoDias} días · {datos.totalConversaciones} conversaciones · actualizado{" "}
+                            {hace(datos.actualizadoEn)}
+                            {deCache ? " (caché)" : ""}
+                        </p>
+                        {error && <Badge variant="destructive" className="text-[10px]">{error}</Badge>}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <KpiCard
+                            icon={MessageCircle}
+                            label="Mensajes entrantes"
+                            value={datos.totalMensajesEntrantes.toLocaleString("es-AR")}
+                            sub={`en ${datos.totalConversaciones} conversaciones`}
+                            color="bg-violet-100 text-violet-600"
+                        />
+                        <KpiCard
+                            icon={Clock}
+                            label="Hora pico"
+                            value={datos.horaPico ? `${datos.horaPico.hora}:00 hs` : "—"}
+                            sub={datos.horaPico ? `${datos.horaPico.cantidad} mensajes en esa hora` : "sin datos suficientes"}
+                            color="bg-sky-100 text-sky-600"
+                        />
+                        <KpiCard
+                            icon={Reply}
+                            label="Contestamos primero"
+                            value={datos.continuidad.conversacionesConRespuesta.toLocaleString("es-AR")}
+                            sub="conversaciones con al menos 1 respuesta"
+                            color="bg-emerald-100 text-emerald-600"
+                        />
+                        <KpiCard
+                            icon={MessageCircle}
+                            label="Siguió escribiendo"
+                            value={`${datos.continuidad.porcentaje}%`}
+                            sub={`${datos.continuidad.conversacionesConContinuacion} de ${datos.continuidad.conversacionesConRespuesta} clientes, después de nuestra primera respuesta`}
+                            color="bg-amber-100 text-amber-600"
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <ChartCard title="Distribución horaria" subtitle="Mensajes entrantes por hora del día (Argentina)">
+                            <ResponsiveContainer width="100%" height={220}>
+                                <BarChart data={datos.porHora} margin={{ top: 0, right: 5, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                    <XAxis dataKey="hora" tickFormatter={(h) => `${h}h`} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                                    <Tooltip
+                                        content={({ active, payload }) => {
+                                            if (!active || !payload?.length) return null
+                                            const d = payload[0].payload as { hora: number; cantidad: number }
+                                            return (
+                                                <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-2.5 text-sm">
+                                                    <p className="font-bold text-slate-700">{d.hora}:00 hs</p>
+                                                    <p className="text-slate-500">
+                                                        Mensajes: <span className="font-bold text-slate-800">{d.cantidad}</span>
+                                                    </p>
+                                                </div>
+                                            )
+                                        }}
+                                    />
+                                    <Bar dataKey="cantidad" name="Mensajes" radius={[4, 4, 0, 0]}>
+                                        {datos.porHora.map((h, i) => (
+                                            <Cell key={i} fill={h.cantidad === horaMax && horaMax > 0 ? "#7c3aed" : "#ddd6fe"} />
+                                        ))}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </ChartCard>
+
+                        <ChartCard title="Mensajes entrantes por día" subtitle={`Últimos ${datos.periodoDias} días`}>
+                            <ResponsiveContainer width="100%" height={220}>
+                                <BarChart
+                                    data={datos.porDia.map((d) => ({ ...d, fechaCorta: fmtFechaCorta(d.fecha) }))}
+                                    margin={{ top: 0, right: 5, left: 0, bottom: 0 }}
+                                >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                    <XAxis dataKey="fechaCorta" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                                    <Tooltip
+                                        content={({ active, payload }) => {
+                                            if (!active || !payload?.length) return null
+                                            const d = payload[0].payload as { fecha: string; cantidad: number }
+                                            return (
+                                                <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-2.5 text-sm">
+                                                    <p className="font-bold text-slate-700">{d.fecha}</p>
+                                                    <p className="text-slate-500">
+                                                        Mensajes: <span className="font-bold text-slate-800">{d.cantidad}</span>
+                                                    </p>
+                                                </div>
+                                            )
+                                        }}
+                                    />
+                                    <Bar dataKey="cantidad" name="Mensajes" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </ChartCard>
+                    </div>
+                </>
+            )}
+        </div>
+    )
+}

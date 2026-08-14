@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
@@ -18,6 +18,13 @@ export default async function ChatwootPage() {
     }
 
     const secciones = [
+        {
+            title: "Métricas",
+            description: "Mensajes entrantes, pico de horario y cuántos clientes siguen escribiendo después de nuestra primera respuesta — leído en vivo desde Chatwoot.",
+            icon: <BarChart3 className="h-8 w-8 text-indigo-600" />,
+            href: "/admin/chatwoot/metricas",
+            color: "border-l-4 border-l-indigo-500"
+        },
         {
             title: "Mensajes Mayoristas",
             description: "Administra el directorio de mayoristas y envía promociones masivas por WhatsApp.",

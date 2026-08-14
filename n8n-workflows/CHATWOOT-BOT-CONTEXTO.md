@@ -161,6 +161,342 @@ backups quedan en la misma carpeta (`workflow_backup_pre-faseN-*.json`) como pun
     por una cámara de aire" → sin saludo, sin pin, escalado en silencio como `otro` (ni siquiera
     con un kit pineado de una prueba anterior en Redis se lo atribuyó mal).
 
+- **Fix precio-sin-detalle** (2026-08-14, `apply-fix-precio-sin-detalle.mjs`), encontrado
+  revisando la charla real con +5493547624346 (contacto 1946, conv 1946): escribió la plantilla
+  exacta del Kit 8 y 5 segundos después "Buen di el precio". La respuesta de precio (Fase 6, rama
+  `precio` de `Consolidar Dato Resuelto`) le pegaba el campo `detalle` completo del kit atrás del
+  precio (`'Precio: ' + r.precio + '. Detalle: ' + r.detalle`), aunque el cliente solo pidió el
+  precio. `detalle` es la ficha técnica/compatibilidad, pensada para otro tipo de pregunta — no
+  para "cuánto sale". En el caso del Kit 8 el `detalle` además tenía escrito "indicá al cliente
+  que confirme si su 110 es de recorrido corto o largo", así que el redactor de IA (que solo puede
+  usar el texto que le pasan, nunca inventar) terminó preguntándole al cliente — rompiendo la
+  regla de "nunca re-preguntar, escalar en su lugar" ([[feedback-bot-aliviador-mensajes]]).
+  - Fix acotado: la rama `precio` ahora usa únicamente `r.precio`, igual que las otras tres ramas
+    (`envio`/`negocio`/`otro`), que ya tomaban un solo campo cada una y no tenían este problema.
+  - Validado contra la conversación de prueba (conv 1): plantilla del Kit 8 + "cuanto sale?" en
+    ráfagas separadas → saludo del kit, y la respuesta de precio salió corta ("¡Hola! El precio
+    depende del recorrido: el corto está $175.000 y el largo $189.000. Cualquier cosa me
+    avisás."), sin el párrafo técnico y sin pedirle al cliente que confirme nada.
+  - El Kit 8 sigue siendo el único de los 8 kits activos con dos precios en el mismo campo
+    `precio` ("recorrido corto $175.000 — recorrido largo $189.000"). Con el fix ya no arrastra la
+    instrucción de "preguntale al cliente", pero el precio en sí sigue siendo ambiguo — si en
+    algún momento se quiere resolver de raíz (separar en dos kits, o escalar cuando el precio
+    tiene más de un valor en vez de mandar los dos), es una decisión de datos/negocio pendiente,
+    no un bug de workflow — todavía no se charló con el usuario, queda para una próxima sesión si
+    se quiere retomar.
+
+- **Fix primera persona al redactar respuesta del equipo** (2026-08-14,
+  `apply-fix-primera-persona-equipo.mjs`), encontrado revisando la charla real con
+  +5493875911890 (contacto 1940, conv 1940): cuando el equipo contesta una pendiente en privado
+  (compatibilidad o sin_match) y el bot le traslada la respuesta al cliente, salía con frases como
+  *"Nos confirmaron que le beneficia mucho a la moto..."* — delata que hay un humano respondiendo
+  atrás, rompiendo la regla de que el bot siempre habla en primera persona como el dueño del
+  negocio (ver arriba, "Cómo hablar de esto con el usuario" y "El bot nunca debe demostrar que es
+  IA").
+  - Causa: los dos nodos que redactan esa respuesta (`Interpretar Respuesta Equipo`, rama
+    compatibilidad/Fase 3, e `Interpretar Respuesta Sin Match`, rama Fase 7) le pedían a la IA un
+    `mensaje_cliente` "contando lo que contestó el equipo" — literalmente en tercera persona. El
+    nodo `Redactar Respuesta desde Dato` (Fase 6, camino directo sin escalado) ya tenía la
+    instrucción correcta ("primera persona, nunca reveles que hay un equipo atrás") y nunca tuvo
+    este problema.
+  - Fix acotado: mismo texto de instrucción copiado a los otros dos prompts. Solo cambio de
+    prompt, no toca lógica ni conexiones del workflow.
+  - Validado con la conversación de prueba (conv 1): pregunta sin_match ("¿el motor viene con
+    precinto de fábrica?") escalada → equipo contesta en privado → el cliente recibe *"Sí, el
+    motor viene con precinto de fábrica original de la marca."* (sin mencionar al equipo). Mismo
+    resultado en el camino de compatibilidad: pregunta con un modelo inventado (Yamaha Fazer FZ16
+    2021) escalada → equipo contesta → el cliente recibe *"Sí, entra perfecto, solo hay que
+    cambiar el carburador."*
+
+- **Fix compatibilidad desde el `detalle` del kit** (2026-08-14,
+  `apply-fix-compatibilidad-detalle-kit.mjs`), segundo fix de la ronda disparada por la conv 1940
+  (+5493875911890): la rama de compatibilidad (`Buscar Compatibilidad del Kit`) solo miraba la
+  tabla `compatibilidades` (respuestas previas confirmadas por el equipo) y nunca el campo
+  `detalle` de `kits_publicidad`, que en varios kits ya trae la lista de modelos
+  compatibles/no compatibles escrita a mano. En el caso real, el Kit 8 ya tenía "Smash" listado en
+  su `detalle` y aun así escaló a un humano.
+  - Nodos nuevos, insertados en la rama `false` de `¿Hay Dato de Compatibilidad?` (antes iba
+    directo a escalar): `Buscar Detalle Kit Pineado` (postgres, trae el `detalle` del kit
+    pineado) → `Evaluar Compatibilidad desde Detalle` (IA acotada, DeepSeek — lee SOLO ese texto y
+    dice compatible/no compatible/no está claro, nunca inventa) → `Parsear Compatibilidad desde
+    Detalle` → `¿Detalle Resuelve Compatibilidad?`. Si resuelve (true/false), va a `Preparar
+    Respuesta Compatibilidad` (mismo nodo de siempre, deterministic) y contesta directo. Si no
+    resuelve (null), sigue al camino de escalado de siempre (`¿Ya Hay Pregunta Pendiente?`).
+  - Prioridad: `compatibilidades` (dato ya confirmado por una persona) sigue ganando si existe;
+    el `detalle` del kit es el segundo intento, antes de molestar al equipo.
+  - Validado con la conversación de prueba (conv 1, Kit 8 pineado):
+    - "¿anda en una Gilera Nevada?" (está listada en el `detalle` como compatible, recorrido
+      corto) → contestó directo, sin escalar: *"Sí, el combo de TAPA CDI + CILINDRO 120 + corona
+      de distribucion de regalo es compatible con tu Gilera Nevada. El kit es para 110 chinos de
+      recorrido corto e incluye a Gilera Nevada en esa categoría, por lo que es compatible; solo
+      confirmar si el recorrido es corto o largo."* Nada quedó en
+      `preguntas_tecnicas_pendientes` ni en `compatibilidades`.
+    - "¿anda en una Kawasaki Ninja 300 2019?" (moto de otro segmento, no cubierta por el
+      `detalle`) → siguió escalando a un humano como antes (`Registrar Pregunta Pendiente`,
+      `Enviar Nota Escalado`) — confirma que el camino de respaldo sigue intacto.
+
+- **Fix ráfaga con compatibilidad + otra pregunta mezclada** (2026-08-14,
+  `apply-fix-rafaga-compatibilidad-resto.mjs`), tercer y último fix de la ronda disparada por la
+  conv 1940 (+5493875911890): con un kit pineado, si la ráfaga tenía una pregunta de
+  compatibilidad Y algo más (precio/envío/negocio/otra pregunta), el bot resolvía/escalaba SOLO
+  la parte de compatibilidad — el resto quedaba enterrado en el texto crudo de la nota de
+  escalado, sin resolverse ni escalarse aparte. Caso real: "Le va. Ala Gilera smash / 2017 / Y
+  leva para calle no tiene??" — la pregunta "para calle" nunca se procesó.
+  - `Extraer Pregunta Compatibilidad` ahora también devuelve `resto_mensaje` (el mensaje del
+    cliente sin la frase de compatibilidad, palabra por palabra — vacío si no queda nada). Cuando
+    hay resto con contenido real (nodo nuevo `¿Hay Resto Adicional en la Rafaga?`), se reusa el
+    mismo partidor de sub-preguntas de la Fase 6 (`Dividir y Etiquetar Sub-preguntas` y todo su
+    pipeline de resolver/escalar) **en paralelo** a la resolución/escalado de la compatibilidad —
+    no se duplicó lógica nueva, se re-conectó el pipeline existente.
+  - `Preparar Contexto Sub-preguntas` (nodo compartido por los tres caminos que llegan al
+    partidor: sin kit pineado, kit pineado sin pregunta de compatibilidad, y este nuevo camino)
+    ahora decide qué texto pasarle al partidor: usa el `resto_mensaje` de la compatibilidad
+    cuando vino de ahí (con `try/catch` igual que ya hacía para `kit_id`, por si ese nodo no
+    corrió en la ejecución), o el texto completo de siempre en cualquier otro caso — así los
+    otros dos caminos quedan sin cambios de comportamiento.
+  - Validado con la conversación de prueba (conv 1, Kit 8 pineado):
+    - "¿Le va a la Gilera Nevada? Y hacen envíos a Chubut?" → dos mensajes separados: la
+      compatibilidad (resuelta por el fix del `detalle`) y el envío (resuelto por Fase 6) — antes
+      la pregunta de envío se hubiera perdido.
+    - "¿Le va a una Suzuki GSXR 750? Y hacen delivery en moto propia el mismo día?" →
+      compatibilidad desconocida escaló en privado (sin mensaje visible al cliente) mientras que
+      la pregunta de envío se resolvió y se mandó sola — confirma que ambos caminos funcionan
+      independientemente cuando uno escala y el otro no.
+    - Sin kit pineado (número de prueba distinto, sin pin en Redis), pregunta suelta de
+      garantía → siguió yendo directo al partidor de siempre, sin tocar el camino de
+      compatibilidad para nada — confirma que no se rompió el caso más común (sin kit pineado).
+
+- **Fix falso positivo de compatibilidad por palabra genérica compartida** (2026-08-14,
+  `n8n-workflows/fix-modelo-ok-overlap-minimo.sql`), encontrado revisando la charla real con
+  +5493856217036 (contacto 1910, conv 1910): con el Kit 8 pineado, preguntó *"A una hyamaja
+  criton 110 amo 2015"* (typeo de Yamaha Crypton 110, 2015). El bot contestó *"Sí, es
+  compatible... Para recorrido corto"* — pero nunca hubo una fila de compatibilidad para esa
+  moto. El texto "Para recorrido corto" es el `detalle` de una fila totalmente distinta, ya
+  confirmada por el equipo: **Zanella ZB 110**. Peor aún: el propio `detalle` del Kit 8 dice
+  explícitamente "No compatible con... Crypton" — la respuesta real correcta era que NO andaba.
+  - Causa: `Buscar Compatibilidad del Kit` usa `rm_modelo_ok(modelo_guardado, modelo_consulta)`,
+    que matchea por palabras compartidas en cualquier dirección con umbral 50%.
+    `rm_tokens('Zanella ZB 110')` da solo 2 palabras (`zanella`, `110` — "ZB" se descarta por
+    tener menos de 3 letras). La única palabra en común con "hyamaja criton 110 amo 2015" es
+    "110"; en la dirección inversa eso ya es 1 de 2 palabras = 50%, alcanzaba el umbral. Como el
+    negocio es específicamente de motos "110cc", casi cualquier consulta de un cliente contiene
+    "110" — cualquier fila guardada con nombre corto (2 palabras, una de ellas "110") podía
+    prestarle su compatibilidad a una moto completamente distinta.
+  - Fix acotado: además del 50%, `rm_modelo_ok` ahora exige un mínimo de 2 palabras en común
+    (función nueva `rm_match_count`). Una sola palabra genérica compartida ya no alcanza.
+    `rm_score()` no se toca — se usa en otros lados con su calibración propia
+    (`conocimiento_libre`, `link-compatibilidades-kit.sql`) y `rm_modelo_ok` solo se usa en
+    `Buscar Compatibilidad del Kit`, así que el fix queda contenido a esa rama.
+  - Validado con la conversación de prueba (conv 1, Kit 8 pineado):
+    - "Anda en una yamaha crypton 110 del 2015?" (repite el caso real, sin el typeo) → ya no
+      matchea contra Zanella ZB 110; cae al fallback del `detalle` del kit (fix anterior) que sí
+      tiene a Crypton listada como incompatible → contestó *"No, el combo... no es compatible
+      con tu yamaha crypton 110 del 2015. El detalle indica explícitamente que no es compatible
+      con Crypton."* — la respuesta correcta, en vez de la falsa confirmación de antes.
+    - "Le va a una zanella zb 110 del 2019?" (el modelo real que sí está confirmado) → siguió
+      matcheando directo contra `compatibilidades` sin pasar por el fallback: *"Sí, el combo...
+      es compatible con tu zanella zb 110 del 2019. Para recorrido corto"* — confirma que los
+      matches legítimos no se rompieron.
+  - **Pendiente:** el cliente real (+5493856217036, conv 1910) ya recibió la respuesta
+    incorrecta ("Sí, es compatible") el 2026-08-14 a las 12:17. Habría que entrar a Chatwoot y
+    corregirlo a mano — el kit no anda en su Crypton según el propio `detalle` del Kit 8.
+
+- **Fix respuesta de compatibilidad muy larga** (2026-08-14,
+  `apply-fix-simplificar-respuesta-compatibilidad.mjs` +
+  `apply-fix-puntuacion-respuesta-compatibilidad.mjs`), encontrado revisando la charla real con
+  +5493794779342 (contacto/conv 1957): preguntó si el kit andaba en su Guerrero Trip 110 y el bot
+  contestó *"Sí, el combo de TAPA CDI + CILINDRO 120 + corona de distribucion de regalo es
+  compatible con tu Guerrero trip 110 modelo 2021. El modelo Trip aparece en la lista de 110
+  chinos de recorrido corto compatibles."* — correcto, pero innecesariamente largo: usaba el
+  nombre técnico completo del kit y la IA justificaba el motivo en vez de solo confirmar.
+  - `Preparar Respuesta Compatibilidad` ya no arma el mensaje con el nombre completo del kit
+    (`kit_nombre`, ej. "combo de TAPA CDI + CILINDRO 120..."), ahora dice simplemente "el kit".
+  - El prompt de `Evaluar Compatibilidad desde Detalle` (el camino que lee el campo `detalle` del
+    kit cuando no hay fila confirmada en `compatibilidades`) ahora pide que su aclaración sea muy
+    corta y práctica (ej. "para recorrido corto") cuando haga falta, y prohíbe explícitamente
+    frases de justificación tipo "aparece en la lista de..." o "pertenece al grupo de...".
+  - Segunda pasada: la plantilla original dejaba doble puntuación cuando había aclaración
+    (`"...modelo 2021., confirmar..."`); se corrigió para que el punto final vaya una sola vez.
+  - Validado con la conversación de prueba (conv 1, Kit 8 pineado): "¿Anda en una Guerrero Trip
+    110 modelo 2021?" → *"Sí, el kit es compatible con tu Guerrero Trip 110 modelo 2021, para
+    recorrido corto."*; "¿Anda en una Honda Wave NF?" → *"No, el kit no es compatible con tu Honda
+    Wave NF."* (sin aclaración porque no hacía falta).
+
+- **Fix saludo a mitad de charla** (2026-08-14,
+  `apply-fix-saludo-mitad-charla.mjs`), encontrado revisando la charla real con +5492604824863
+  (2026-08-14): el cliente confirmó "SII si es recorrido corto" y el bot le contestó sobre envíos
+  arrancando con *"¡Hola! Sí, tenemos envío gratis..."*; más tarde escaló "Yo soy de san Rafael
+  Mendoza", el equipo contestó, y el bot le mandó al cliente *"¡Hola! Te contamos que realizamos
+  envíos a todo el país..."* — la info era correcta, pero saludar de nuevo en medio de una charla
+  ya arrancada suena robótico y rompe la regla de que el bot nunca debe demostrar que es IA (ver
+  arriba).
+  - Causa: tres nodos de IA que redactan respuestas — todos disparados siempre a mitad de
+    conversación, nunca en el primer mensaje — no tenían ninguna instrucción sobre saludar o no:
+    `Redactar Respuesta desde Dato` (Fase 6, camino directo), `Interpretar Respuesta Sin Match`
+    (Fase 7) e `Interpretar Respuesta Equipo` (Fase 3, compatibilidad). DeepSeek agregaba el
+    "¡Hola!" por costumbre propia del modelo, no porque el prompt se lo pidiera.
+  - Fix acotado: se agregó la misma instrucción a los tres `systemMessage` ("No saludes... esta
+    charla ya está en curso, arrancá directo con la respuesta"). Solo texto de prompt, no toca
+    lógica ni conexiones.
+  - Validado con la conversación de prueba (conv 1, Kit 8 pineado):
+    - "hacen envios a todo el pais?" (camino directo, Fase 6) → *"Sí, hacemos envíos a todo el
+      país. Envío gratis por Andreani..."*, sin saludo.
+    - Pregunta escalada como `sin_match`, equipo contesta "Si, tenemos stock disponible..." →
+      *"Sí, tenemos stock disponible de ese kit, con entrega inmediata."*, sin saludo.
+    - Pregunta de compatibilidad con moto inventada (Yamaha Fazer FZ16 2021) escalada, equipo
+      contesta "Si, entra perfecto, solo hay que cambiar el carburador" → *"Sí, entra perfecto,
+      solo hay que cambiar el carburador."*, sin saludo.
+
+- **Refuerzo fix primera persona (con ejemplo concreto)** (2026-08-14,
+  `apply-fix-ejemplo-primera-persona.mjs`), encontrado revisando otra vez la charla real con
+  +5493875911890 (contacto/conv 1940): el fix de primera persona (arriba) ya estaba aplicado y
+  activo en producción, pero la misma conversación volvió a filtrar la frase prohibida más tarde
+  el mismo día (ejecución 74880, 13:04) — el equipo contestó en privado "mejora mucho el
+  rendimiento, la potencia, el torque, la velocidad final" y la IA le mandó al cliente *"Nos
+  confirmaron que le beneficia mucho a la moto: mejora el rendimiento..."*. La prohibición sola
+  ("nunca digas nos confirmaron...") no le alcanzó a DeepSeek para evitar su propia frase
+  habitual, incluso con `temperature: 0`.
+  - Fix acotado: se agregó un ejemplo concreto (mal → bien, usando ese mismo caso real) a los
+    prompts de `Interpretar Respuesta Equipo` e `Interpretar Respuesta Sin Match`, además de la
+    prohibición que ya tenían. Solo texto de prompt. A pedido explícito de Martín, no se agregó
+    ninguna red de seguridad determinística aparte — si esto vuelve a pasar, ahí sí conviene
+    reconsiderarlo.
+  - Validado con la conversación de prueba (conv 1): mismo texto real del equipo ("mejora mucho
+    el rendimiento, la potencia, el torque, la velocidad final") → *"Sí, le mejora mucho el
+    rendimiento: potencia, torque y velocidad final."*, sin mencionar al equipo.
+
+- **Fix dato de ubicación con "Sí, somos de Argentina" de más** (2026-08-14, dato en BD, sin
+  script `.mjs` — no toca el workflow), encontrado revisando la charla real con +5493543615139
+  (contacto/conv 1959): preguntó "De donde son" y el bot contestó *"Sí, somos de Argentina.
+  Estamos en Revolución de Mayo 1605, barrio Crisol, Córdoba capital."* — no es un bug de lógica:
+  `Redactar Respuesta desde Dato` solo redacta el texto que ya está guardado
+  (`info_negocio.tema = 'ubicacion'`), y ese texto tenía literalmente el "Sí, somos de Argentina."
+  escrito adelante — de ahí el "Sí" sin pregunta de sí/no que lo justifique y la mención al país
+  de más (solo debería salir si preguntan puntualmente por el país).
+  - Fix: `UPDATE info_negocio SET respuesta = 'Estamos en Revolución de Mayo 1605, barrio Crisol,
+    Córdoba capital.' WHERE id = 7` (tema `ubicacion`). Dato editable en
+    `/admin/chatwoot/conocimiento`, no hace falta tocar el workflow para este tipo de ajuste.
+  - Validado con la conversación de prueba (conv 1): "de donde son" → *"Estamos en Revolución de
+    Mayo 1605, barrio Crisol, Córdoba capital."*, sin "Sí" y sin mención al país.
+
+- **Fix respuesta con solo el modelo de moto, sin forma de pregunta** (2026-08-14,
+  `apply-fix-respuesta-modelo-sin-pregunta.mjs`), encontrado revisando la charla real con
+  +5493815116333 (contacto/conv 1965): escribió la plantilla exacta del Kit 1, el bot mandó el
+  saludo (que termina preguntando "¿Para qué moto lo estás buscando?"), y el cliente contestó en
+  dos mensajes: "Tengo una Zanella due 110" y "2025". El bot no respondió nada, y no quedó ningún
+  rastro en ninguna tabla de pendientes — el mensaje se perdió por completo.
+  - Causa: `Extraer Pregunta Compatibilidad` solo marcaba `es_compatibilidad: true` cuando el
+    mensaje venía fraseado como pregunta explícita ("¿anda en...?"). Como el cliente respondió
+    afirmando el modelo sin signos de pregunta, salió `false` — pero el nodo ya extraía bien el
+    modelo (`modelo_moto: "Zanella due 110 2025"`) igual, el dato estaba ahí, solo la etiqueta
+    estaba mal. Al ser `false`, el mensaje caía en el partidor de sub-preguntas de la Fase 6
+    (`Dividir y Etiquetar Sub-preguntas`), que busca "preguntas o pedidos" — una simple afirmación
+    no es ninguna de las dos cosas, así que devolvía `partes: []`. Con la lista vacía, `Separar
+    Pedazos` no tiene nada que iterar, y **nada de lo que sigue corre** — ni la respuesta, ni el
+    escalado a `preguntas_sin_match_pendientes`. El mensaje desaparece sin dejar rastro.
+  - Como todos los mensajes de bienvenida de los kits terminan preguntando "¿para qué moto lo
+    estás buscando?", la respuesta más común y esperada del cliente NO viene en forma de pregunta
+    — es simplemente el modelo de la moto. No es un caso raro, es el camino principal.
+  - Fix acotado: se amplió la instrucción de `Extraer Pregunta Compatibilidad` para que
+    `es_compatibilidad` sea `true` también cuando el cliente simplemente menciona/afirma un
+    modelo de moto puntual como respuesta, sin necesidad de fraseo de pregunta. Solo texto de
+    prompt, no toca lógica ni conexiones — reutiliza el mismo camino que ya existe
+    (`compatibilidades` → `detalle` del kit → escalado silencioso a `preguntas_tecnicas_pendientes`
+    si no hay dato).
+  - Validado con la conversación de prueba (conv 1, Kit 1 pineado): "Tengo una Zanella due 110" +
+    "2025" en ráfaga → `es_compatibilidad: true`, `modelo_moto: "Zanella due 110"` → no hay dato
+    de compatibilidad para Kit 1 con esa moto → escaló en silencio a
+    `preguntas_tecnicas_pendientes` con nota privada al equipo, en vez de no hacer nada.
+  - **Pendiente:** el cliente real (+5493815116333, conv 1965) sigue sin respuesta desde
+    2026-08-14 15:47. Hay que entrar a Chatwoot y contestarle a mano si todavía no se hizo — el
+    fix no reprocesa conversaciones viejas.
+
+- **Fix preguntas técnicas sueltas ("otro") sin mirar el `detalle` del kit** (2026-08-14,
+  `apply-fix-otro-detalle-kit.mjs`), encontrado revisando la charla real con +5493491508217
+  (contacto/conv 1977): con el Kit 8 pineado, mandó una ráfaga con *"Y cuanto sale la tapa cdi
+  sola?" / "Que diámetro tiene el cilindro" / "Es recorrido corto?"*. Las tres cayeron en la
+  categoría **"otro"** del partidor de sub-preguntas (Fase 6), que solo busca en
+  `conocimiento_libre` (lo que el equipo ya enseñó antes) — nunca mira el campo `detalle` del kit
+  pineado. El `detalle` del Kit 8 ya decía textual "para 110 chinos de recorrido corto... si es de
+  recorrido largo existe la opción de cilindro largo", así que "¿Es recorrido corto?" se podría
+  haber contestado sola. Terminó escalando las tres juntas al equipo (que las contestó a mano
+  ~4 minutos después, así que el cliente real no quedó sin respuesta, pero la carga innecesaria en
+  el equipo sí pasó).
+  - Mismo patrón que el fix de compatibilidad-detalle-kit, aplicado ahora a la rama "otro": antes
+    de buscar en `conocimiento_libre`, un paso nuevo de IA acotada (`Responder Otro desde Detalle
+    Kit`, DeepSeek — lee SOLO el `detalle` del kit pineado, nunca inventa) dice si ese texto
+    contesta la pregunta puntual. Si resuelve, se usa ese dato; si no (detalle vacío, no
+    relacionado, o no alcanza), sigue el camino de siempre: `conocimiento_libre` y después
+    escalado silencioso si tampoco hay nada ahí.
+  - Nodos nuevos: `Buscar Detalle Kit Pineado (Sub-pregunta)` (postgres) → `Responder Otro desde
+    Detalle Kit` (agent) + `DeepSeek Chat Model - Detalle Otro` → `Parsear Respuesta Otro desde
+    Detalle` (code), insertados entre `Buscar Info Negocio (Negocio)` y `Buscar en Conocimiento
+    Libre (Sin Match)`. `Consolidar Dato Resuelto` ahora prioriza el dato del detalle sobre
+    `conocimiento_libre` en la rama "otro".
+  - **Gotcha repetido** (ya documentado abajo, pero se volvió a pisar armando este fix): el nodo
+    Code `Parsear Respuesta Otro desde Detalle` corre una vez por cada sub-pregunta de la ráfaga
+    (varios ítems de entrada), así que necesita `"mode": "runOnceForEachItem"` — sin eso solo
+    procesaba la primera sub-pregunta y perdía el resto. Además, en ese modo el `return` tiene que
+    ser un objeto `{ json: {...} }` suelto, no un array `[{ json: {...} }]` — con el array tiraba
+    error `"A 'json' property isn't an object"`. Los dos detalles ya quedaron corregidos en el
+    script antes de dejarlo commiteado.
+  - Validado con la conversación de prueba (conv 1, Kit 8 pineado), repitiendo la ráfaga real:
+    *"Y cuanto sale la tapa cdi sola?" / "Que diámetro tiene el cilindro" / "Es recorrido corto?"*
+    → dos mensajes al cliente ("La tapa sola cuesta $129.999." desde `conocimiento_libre`, y "Es
+    para 110 chinos de recorrido corto." desde el `detalle` del kit) + la pregunta del diámetro
+    (que el `detalle` no cubre) escaló sola al equipo, sin bloquear las otras dos.
+
+- **Fix precio duplicado y desordenado al confirmar kit** (2026-08-14,
+  `apply-fix-precio-redundante-y-orden.mjs` + fix directo del nodo `Marcar Kit Pineado` + dato en
+  BD), encontrado revisando la charla real con +5493812408182 (contacto/conv 1983): escribió la
+  plantilla exacta del Kit 8 y 0 segundos después "Que precio está ?" en la misma ráfaga. El bot
+  mandó DOS mensajes de precio — el saludo del kit (que en ese momento solo traía el precio corto,
+  $175.000) y una respuesta de precio aparte ("El recorrido corto está $175.000 y el largo
+  $189.000."). Además, por una carrera entre las dos ramas paralelas que se disparan al confirmar
+  el kit (mandar el saludo vs. resolver el resto de la ráfaga), la respuesta de precio —sin
+  mención de ningún kit— **llegó antes** que el saludo con el nombre del kit (confirmado con
+  timestamps en ms de esa ejecución real: el precio terminó de enviarse a los .522s, el saludo
+  recién arrancó a los .593s). Al cliente le llegó primero un precio suelto sin contexto, y recién
+  después el nombre del kit — leía como si el bot hubiera contestado sobre otra cosa.
+  - **Parte 1 (dato en BD, sin script):** se reescribió `mensaje_bienvenida` del Kit 8 —el único
+    de los 8 kits activos con precio ambiguo en dos partes— para que mencione los dos precios
+    ("recorrido corto $175.000 y recorrido largo $189.000"). Con esto, los 8 kits activos ya
+    tienen el precio completo adentro del saludo, así que la regla siguiente queda simple y sin
+    excepciones por kit.
+  - **Parte 2 (workflow, sin IA):** `Preparar Contexto Sub-preguntas` ahora expone
+    `kit_recien_confirmado` (detecta si `Marcar Kit Pineado` corrió en esta misma ejecución, mismo
+    patrón try/catch que ya se usaba para `kit_id`). `Parsear Sub-preguntas` descarta en silencio
+    cualquier parte categoría "precio" cuando el kit se acaba de confirmar en esta ráfaga — no se
+    manda nada aparte, no se escala, porque ya está contestado por el saludo que se manda en la
+    misma ráfaga. Si el kit ya estaba pineado de antes (pregunta de precio en un mensaje
+    posterior, no pegada a la plantilla), la respuesta de precio se sigue mandando normal.
+  - **Parte 3 (workflow, orden):** `Enviar Saludo Kit` pasó a ser un paso obligatorio *antes* de
+    que arranque `Marcar Kit Pineado` (y por lo tanto todo el pipeline de sub-preguntas que cuelga
+    de ahí), en vez de dispararse en paralelo — así cualquier otra respuesta que quede en la
+    ráfaga (envío/negocio/otro) siempre llega después de que el cliente sepa de qué kit se está
+    hablando.
+  - **Gotcha encontrado aplicando la parte 3** (para no repetirlo): insertar un nodo en el medio de
+    una cadena rompe cualquier nodo más adelante que use el atajo `$json` (sin especificar de qué
+    nodo) para leer datos de "más atrás" — `$json` siempre apunta al nodo inmediatamente anterior,
+    no al que tenía el dato antes de reordenar. Acá rompió a `Marcar Kit Pineado`: antes leía
+    `$json.kit_id`/`$json.kit_nombre` asumiendo que su entrada directa era la clasificación del
+    kit, pero al insertar `Enviar Saludo Kit` (HTTP Request) en el medio, `$json` pasó a ser la
+    respuesta de Chatwoot en vez de los datos del kit — pineaba un kit vacío (`{}`) sin tirar
+    ningún error visible, y recién se notaba río abajo cuando todo lo que dependía del kit pineado
+    empezaba a fallar en silencio. Se corrigió apuntando explícito al nodo de origen
+    (`$('Clasificar Mensaje (sin IA)').item.json.kit_id`) en vez del atajo `$json`. Antes de
+    reordenar nodos en el futuro, revisar todo lo que quede río abajo del nuevo punto de inserción
+    buscando usos de `$json` sin nombre de nodo.
+  - Validado con la conversación de prueba (conv 1), repitiendo el caso real y tres variantes:
+    - Plantilla Kit 8 + "Que precio está ?" en la misma ráfaga → un solo mensaje, el saludo con
+      los dos precios, sin respuesta de precio aparte.
+    - Plantilla Kit 1 sola, sin resto → sin cambios de comportamiento (un solo saludo).
+    - Plantilla Kit 8 + "Hacen envios a Chubut?" en la misma ráfaga → dos mensajes, en orden
+      correcto (saludo primero, respuesta de envío 11 segundos después, sin carrera).
+    - Kit ya pineado de antes + "Me confirmas el precio de nuevo?" en un mensaje posterior (sin
+      plantilla) → siguió respondiendo el precio normal, sin suprimir nada (`kit_recien_confirmado:
+      false`).
+
 ## Filosofía de diseño (para cuando pidan algo nuevo)
 
 - **Sin IA donde se pueda.** Todo lo que sea determinístico (plantilla exacta, búsqueda en base
@@ -229,25 +565,38 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
      `SELECT ... FROM (SELECT 1) seed LEFT JOIN <tabla_real> ON <condiciones>` (o
      `LEFT JOIN LATERAL` si hay `ORDER BY`/`LIMIT` de por medio) para garantizar siempre una fila
      de salida por ítem de entrada, con columnas en `NULL` cuando no matchea.
+   - **Insertar un nodo en el medio de una cadena rompe cualquier nodo más adelante que use el
+     atajo `$json` (sin nombre de nodo) para leer datos de "más atrás"** — `$json` siempre apunta
+     al nodo inmediatamente anterior en ESE momento, no al que tenía el dato antes de reordenar.
+     Encontrado en el fix precio-redundante-y-orden (ver abajo): al insertar `Enviar Saludo Kit`
+     entre `¿Es Mismo Tema?` y `Marcar Kit Pineado`, este último rompió en silencio (pineaba un
+     kit vacío `{}`, sin tirar error) porque leía `$json.kit_id` asumiendo que su entrada directa
+     era la clasificación del kit. Antes de reordenar nodos, revisar todo lo que quede río abajo
+     del nuevo punto de inserción buscando usos de `$json` sin nombre de nodo, y cambiarlos a
+     `$('Nodo De Origen').item.json...` explícito.
 
-## Qué falta / pendiente (al 2026-08-13, revisar si sigue vigente)
+## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que
   cualquier pregunta de garantía escala en vez de contestarse sola.
-- **Fases 9 y 10 aplicadas y validadas en producción, pero sin commitear todavía** (al
-  2026-08-13, fin de la sesión). Falta commitear: `n8n-workflows/CHATWOOT-BOT-CONTEXTO.md` (este
-  archivo, ya actualizado), `n8n-workflows/auditoria-harness/apply-fase9-fix-pausa-falsa-y-aviso.mjs`,
-  `apply-fase10-continuidad-plantilla-con-resto.mjs`, y los backups
-  `workflow_backup_pre-fase9-..._2026-08-13.json` / `workflow_backup_pre-fase10-..._2026-08-13.json`.
-  (Fase 8 -- `app/actions/pendientes-equipo.ts` y el panel de pendientes -- ya está commiteada,
-  la nota vieja acá estaba desactualizada.) Si se retoma desde otra PC, `git pull` no trae estos
-  archivos hasta que se commiteen desde esta máquina.
+- **Kit 8 (combo TAPA CDI + CILINDRO 120) sigue con precio ambiguo.** Su campo `precio` tiene dos
+  valores en el mismo texto ("recorrido corto $175.000 — recorrido largo $189.000"). El fix
+  precio-sin-detalle (arriba) sacó la instrucción de "preguntale al cliente" que arrastraba, pero
+  el precio en sí sigue siendo doble — no se charló todavía con el usuario si conviene separarlo
+  en dos kits, dejar un solo precio "desde", o escalar cuando el precio tiene más de un valor.
 - **Caso real sin resolver: contacto +5492954875916 (conv 1900 en Chatwoot), 2026-08-13.**
   Escribió la plantilla exacta del Kit 8 + "que valen" ANTES de que se aplicara la Fase 10 (el fix
   no reprocesa conversaciones viejas), así que quedó una nota privada sin contestar en esa
   conversación (mensaje 12184, "El cliente preguntó algo que todavía no supimos ubicar..."). Hay
   que entrar a Chatwoot y responderla a mano — el ciclo de aprendizaje de Fase 7 recién se activa
   cuando alguien contesta esa nota.
+- **Caso real sin responder: contacto +5493815116333 (conv 1965 en Chatwoot), 2026-08-14.**
+  Preguntó por el Kit 1 y contestó "Tengo una Zanella due 110" / "2025" a la pregunta del bot, y
+  se quedó sin respuesta (ver fix arriba). Hay que entrar a Chatwoot y contestarle a mano.
+- **Caso real sin corregir: contacto +5493856217036 (conv 1910 en Chatwoot), 2026-08-13/14.**
+  Por el bug de `rm_modelo_ok` (ver fix arriba), recibió "Sí, es compatible" para su Yamaha
+  Crypton 110 cuando en realidad el Kit 8 NO es compatible (el propio `detalle` del kit lo dice
+  explícito). Hay que entrar a Chatwoot y corregirlo a mano.
 - **`preguntas_precio_pendientes` / `preguntas_negocio_pendientes` son harina de otro costal.**
   El panel las lee y las tiene desde antes, pero el workflow 2.0 nunca escribe ni escucha
   respuestas ahí — son remanentes de `workflow_mateo`. Hoy la Fase 6 ya cubre ese terreno de

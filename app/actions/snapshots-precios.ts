@@ -33,6 +33,7 @@ export async function crearSnapshotPrecios(nombre: string) {
       prisma.productosMaestros.findMany({
         where: { estado: "active" },
         distinct: ["mla"],
+        orderBy: [{ mla: "asc" }, { variation_id: { sort: "asc", nulls: "first" } }],
         select: { mla: true, nombre_publicacion: true, precio_venta_ml: true },
       }),
       prisma.mLDescuentos.findMany({ where: { seller_percentage: { gt: 0 } } }),
@@ -109,7 +110,11 @@ export async function prepararRestauracionSnapshot(snapshotId: string): Promise<
     if (!snapshot) return { success: false, restaurables: [], excluidos: [] };
 
     const [productos, cargos, descuentosActuales, costosRaw] = await Promise.all([
-      prisma.productosMaestros.findMany({ where: { estado: "active" }, distinct: ["mla"] }),
+      prisma.productosMaestros.findMany({
+        where: { estado: "active" },
+        distinct: ["mla"],
+        orderBy: [{ mla: "asc" }, { variation_id: { sort: "asc", nulls: "first" } }],
+      }),
       prisma.mLFees.findMany(),
       prisma.mLDescuentos.findMany(),
       prisma.$queryRaw<any[]>`SELECT mla, variation_id, costo_total FROM vista_costos_productos`,

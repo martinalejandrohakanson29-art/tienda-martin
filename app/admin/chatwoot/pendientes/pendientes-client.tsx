@@ -7,13 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { AlertTriangle, ArrowLeft, Check, ExternalLink, Loader2, RefreshCw, Send } from "lucide-react"
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronUp, ExternalLink, Loader2, MessageSquare, RefreshCw, Send, ThumbsDown, ThumbsUp } from "lucide-react"
 import {
     listarPendientesEquipo,
     responderPendienteEquipo,
+    responderPendienteTecnica,
+    getMensajesPendiente,
     type PanelPendientes,
     type PendienteEquipo,
     type TipoPendiente,
+    type MensajeConversacion,
 } from "@/app/actions/pendientes-equipo"
 
 const ETIQUETA_TIPO: Record<TipoPendiente, { texto: string; clase: string }> = {
@@ -41,6 +44,13 @@ export function PendientesClient({
     const [respuestas, setRespuestas] = useState<Record<string, string>>({})
     const [enviadas, setEnviadas] = useState<Set<string>>(new Set())
 
+    // Solo para la pestaña "Técnica": respuesta estructurada (Sí/No + aclaración)
+    // en vez de texto libre, y charla real cargada bajo demanda.
+    const [formTecnica, setFormTecnica] = useState<Record<string, { compatible: boolean | null; detalle: string }>>({})
+    const [charlaAbierta, setCharlaAbierta] = useState<Set<string>>(new Set())
+    const [charlas, setCharlas] = useState<Record<string, MensajeConversacion[]>>({})
+    const [cargandoCharla, setCargandoCharla] = useState<Set<string>>(new Set())
+
     const refrescar = async () => {
         try {
             setPanel(await listarPendientesEquipo())
@@ -59,6 +69,51 @@ export function PendientesClient({
         arrancarTransicion(async () => {
             try {
                 await responderPendienteEquipo({ tipo, conversationId, respuesta })
+                setEnviadas((prev) => new Set(prev).add(clave))
+            } catch (e) {
+                setFallo(e instanceof Error ? e.message : "No se pudo enviar la respuesta")
+            }
+        })
+    }
+
+    const toggleCharla = (clave: string, conversationId: number) => {
+        setCharlaAbierta((prev) => {
+            const next = new Set(prev)
+            if (next.has(clave)) {
+                next.delete(clave)
+                return next
+            }
+            next.add(clave)
+            return next
+        })
+        if (!charlas[clave]) {
+            setCargandoCharla((prev) => new Set(prev).add(clave))
+            getMensajesPendiente(conversationId)
+                .then((mensajes) => setCharlas((prev) => ({ ...prev, [clave]: mensajes })))
+                .catch((e) => setFallo(e instanceof Error ? e.message : "No se pudo cargar la charla"))
+                .finally(() =>
+                    setCargandoCharla((prev) => {
+                        const next = new Set(prev)
+                        next.delete(clave)
+                        return next
+                    })
+                )
+        }
+    }
+
+    const enviarTecnica = (item: PendienteEquipo) => {
+        const clave = claveFila(item.tipo, item.id)
+        const forma = formTecnica[clave]
+        if (!forma || forma.compatible === null) return
+        setFallo(null)
+        arrancarTransicion(async () => {
+            try {
+                await responderPendienteTecnica({
+                    id: item.id,
+                    conversationId: item.conversationId,
+                    compatible: forma.compatible as boolean,
+                    detalle: forma.detalle,
+                })
                 setEnviadas((prev) => new Set(prev).add(clave))
             } catch (e) {
                 setFallo(e instanceof Error ? e.message : "No se pudo enviar la respuesta")
@@ -130,6 +185,135 @@ export function PendientesClient({
         )
     }
 
+    const filaTecnica = (item: PendienteEquipo) => {
+        const clave = claveFila(item.tipo, item.id)
+        const yaEnviada = enviadas.has(clave)
+        const forma = formTecnica[clave] || { compatible: null, detalle: "" }
+        const charlaVisible = charlaAbierta.has(clave)
+        const cargando = cargandoCharla.has(clave)
+        const mensajes = charlas[clave]
+
+        const setForma = (parcial: Partial<{ compatible: boolean | null; detalle: string }>) =>
+            setFormTecnica((prev) => ({ ...prev, [clave]: { ...forma, ...parcial } }))
+
+        return (
+            <Card key={clave}>
+                <CardContent className="space-y-3 pt-6">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="outline" className={ETIQUETA_TIPO.tecnica.clase}>
+                            {ETIQUETA_TIPO.tecnica.texto}
+                        </Badge>
+                        <span className="font-medium text-gray-700">{item.resumen}</span>
+                        <span className="text-gray-400">· escalado {fechaCorta(item.creadoEn)}</span>
+                        <a
+                            href={`${chatwootUrl}/app/accounts/1/conversations/${item.conversationId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-auto inline-flex items-center gap-1 text-gray-500 hover:text-gray-800"
+                        >
+                            Abrir en Chatwoot <ExternalLink className="h-3.5 w-3.5" />
+                        </a>
+                    </div>
+
+                    <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-800">
+                        &quot;{item.preguntaOriginal}&quot;
+                    </p>
+
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 text-gray-500 hover:text-gray-800"
+                        onClick={() => toggleCharla(clave, item.conversationId)}
+                    >
+                        <MessageSquare className="h-4 w-4" />
+                        {charlaVisible ? "Ocultar charla" : "Ver charla completa"}
+                        {charlaVisible ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    </Button>
+
+                    {charlaVisible && (
+                        <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border bg-white p-3">
+                            {cargando && (
+                                <p className="flex items-center gap-2 text-sm text-gray-400">
+                                    <Loader2 className="h-4 w-4 animate-spin" /> Cargando charla…
+                                </p>
+                            )}
+                            {!cargando && mensajes?.length === 0 && (
+                                <p className="text-sm text-gray-400">Sin mensajes.</p>
+                            )}
+                            {!cargando &&
+                                mensajes?.map((m) => (
+                                    <div key={m.id} className={`flex ${m.saliente ? "justify-end" : "justify-start"}`}>
+                                        <div
+                                            className={`max-w-[80%] rounded-lg px-3 py-1.5 text-sm ${
+                                                m.privado
+                                                    ? "border border-dashed border-amber-300 bg-amber-50 italic text-amber-800"
+                                                    : m.saliente
+                                                      ? "bg-violet-600 text-white"
+                                                      : "bg-gray-100 text-gray-800"
+                                            }`}
+                                        >
+                                            <p className="whitespace-pre-wrap break-words">{m.contenido}</p>
+                                            <p className={`mt-0.5 text-[10px] ${m.privado ? "text-amber-600" : m.saliente ? "text-violet-100" : "text-gray-400"}`}>
+                                                {m.remitente} · {fechaCorta(m.creadoEn)}
+                                                {m.privado ? " · nota privada" : ""}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+                    )}
+
+                    {yaEnviada ? (
+                        <p className="flex items-center gap-2 text-sm text-emerald-700">
+                            <Check className="h-4 w-4" /> Guardado — el bot le va a contestar al cliente solo apenas
+                            lo procese. Actualizá en unos segundos para verla salir de la lista.
+                        </p>
+                    ) : (
+                        <div className="space-y-2 rounded-md border bg-gray-50 p-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm text-gray-600">¿Es compatible?</span>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={forma.compatible === true ? "default" : "outline"}
+                                    className={forma.compatible === true ? "gap-1 bg-emerald-600 hover:bg-emerald-700" : "gap-1"}
+                                    onClick={() => setForma({ compatible: true })}
+                                >
+                                    <ThumbsUp className="h-3.5 w-3.5" /> Sí
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={forma.compatible === false ? "default" : "outline"}
+                                    className={forma.compatible === false ? "gap-1 bg-rose-600 hover:bg-rose-700" : "gap-1"}
+                                    onClick={() => setForma({ compatible: false })}
+                                >
+                                    <ThumbsDown className="h-3.5 w-3.5" /> No
+                                </Button>
+                            </div>
+                            <Textarea
+                                placeholder="Aclaración opcional (ej: para recorrido corto, hay que cambiar el carburador)…"
+                                value={forma.detalle}
+                                onChange={(e) => setForma({ detalle: e.target.value })}
+                                rows={2}
+                            />
+                            <Button
+                                size="sm"
+                                disabled={pendiente || forma.compatible === null}
+                                onClick={() => enviarTecnica(item)}
+                                className="gap-1"
+                            >
+                                {pendiente ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                Guardar respuesta
+                            </Button>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        )
+    }
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -190,10 +374,10 @@ export function PendientesClient({
                         <TabsTrigger value="sin_match">Sin clasificar ({porTipo.sin_match.length})</TabsTrigger>
                     </TabsList>
                     <TabsContent value="todas" className="space-y-3">
-                        {(panel?.pendientes ?? []).map(fila)}
+                        {(panel?.pendientes ?? []).map((item) => (item.tipo === "tecnica" ? filaTecnica(item) : fila(item)))}
                     </TabsContent>
                     <TabsContent value="tecnica" className="space-y-3">
-                        {porTipo.tecnica.map(fila)}
+                        {porTipo.tecnica.map(filaTecnica)}
                     </TabsContent>
                     <TabsContent value="precio" className="space-y-3">
                         {porTipo.precio.map(fila)}

@@ -3,7 +3,14 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
-import { enviarNotaPrivadaChatwoot, tieneTokenEquipo } from "@/lib/chatwoot-bot"
+import {
+    enviarNotaPrivadaChatwoot,
+    tieneTokenEquipo,
+    getMensajesConversacion,
+    type MensajeConversacion,
+} from "@/lib/chatwoot-bot"
+
+export type { MensajeConversacion }
 
 // Bandeja unificada de las preguntas que el bot escaló al equipo (nota privada
 // en Chatwoot) porque no tenía el dato a mano. Responder desde acá manda esa
@@ -88,7 +95,7 @@ export async function listarPendientesEquipo(): Promise<PanelPendientes> {
             preguntaOriginal: f.pregunta_original,
             creadoEn: f.creado_en.toISOString(),
         })),
-    ].sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))
+    ].sort((a, b) => b.creadoEn.localeCompare(a.creadoEn))
 
     return { tokenEquipo: tieneTokenEquipo(), pendientes }
 }
@@ -112,6 +119,44 @@ export async function responderPendienteEquipo(params: {
         accountId: ACCOUNT_ID,
         conversationId: params.conversationId,
         content: respuesta,
+    })
+
+    revalidatePath("/admin/chatwoot/pendientes")
+    return { success: true }
+}
+
+/** Hilo real de la conversación (de solo lectura), para dar contexto sin salir de la app. */
+export async function getMensajesPendiente(conversationId: number): Promise<MensajeConversacion[]> {
+    await requireAdmin()
+    return getMensajesConversacion(ACCOUNT_ID, conversationId)
+}
+
+/**
+ * Responde una pendiente TÉCNICA (compatibilidad) con datos estructurados en vez
+ * de texto libre. Sigue mandando una nota privada como siempre — así el
+ * workflow de n8n la procesa por el mismo camino de hoy (nada cambia en cómo
+ * le llega la respuesta al cliente) — pero la nota lleva una marca fija al
+ * principio ([[RM_TECNICA:id=...;compatible=...]]) que un paso nuevo, sin IA,
+ * del workflow reconoce y usa para guardar EXACTAMENTE compatible/detalle acá
+ * elegidos en `compatibilidades`, sin que un modelo redacte/repita cosas de más.
+ * Notas escritas a mano en Chatwoot (sin esta marca) siguen yendo por el
+ * camino viejo con IA, sin cambios.
+ */
+export async function responderPendienteTecnica(params: {
+    id: number
+    conversationId: number
+    compatible: boolean
+    detalle: string
+}) {
+    await requireAdmin()
+    const detalle = params.detalle.trim()
+    const marca = `[[RM_TECNICA:id=${params.id};compatible=${params.compatible}]]`
+    const contenido = detalle ? `${marca}\n${detalle}` : marca
+
+    await enviarNotaPrivadaChatwoot({
+        accountId: ACCOUNT_ID,
+        conversationId: params.conversationId,
+        content: contenido,
     })
 
     revalidatePath("/admin/chatwoot/pendientes")

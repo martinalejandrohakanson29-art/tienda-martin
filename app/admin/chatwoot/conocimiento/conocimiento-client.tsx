@@ -11,7 +11,6 @@ import type { Compatibilidad } from "@/app/actions/compatibilidades"
 import { KitsTab } from "./kits-tab"
 import { InfoNegocioTab } from "./info-negocio-tab"
 import { PreciosTab } from "./precios-tab"
-import { CompatibilidadTab } from "./compatibilidad-tab"
 
 type Props = {
     kitsIniciales: Kit[]
@@ -43,30 +42,36 @@ export function ConocimientoClient({
                 </h1>
                 <p className="text-gray-500">
                     Todo lo que cargues acá lo puede consultar el agente de WhatsApp sin escalar a un humano:
-                    kits/combos, info del negocio (horarios, medios de pago, envíos, etc.), precios/stock de
-                    productos sueltos y compatibilidad técnica por modelo de moto.
+                    kits/combos (con su compatibilidad técnica por modelo de moto adentro de cada uno), info del
+                    negocio (horarios, medios de pago, envíos, etc.) y precios/stock de productos sueltos.
                 </p>
             </div>
+
+            {compatibilidadesError && (
+                <p className="text-sm text-amber-700">
+                    No se pudo leer compatibilidad técnica: {compatibilidadesError}
+                </p>
+            )}
 
             <Tabs defaultValue="kits" className="space-y-4">
                 <TabsList className="flex-wrap h-auto">
                     <TabsTrigger value="kits">Kits y Combos</TabsTrigger>
                     <TabsTrigger value="negocio">Info del Negocio</TabsTrigger>
                     <TabsTrigger value="precios">Precios y Stock</TabsTrigger>
-                    <TabsTrigger value="tecnica">Compatibilidad Técnica</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="kits">
-                    <KitsTab kitsIniciales={kitsIniciales} errorInicial={kitsError} />
+                    <KitsTab
+                        kitsIniciales={kitsIniciales}
+                        errorInicial={kitsError}
+                        compatibilidadesIniciales={compatibilidadesIniciales}
+                    />
                 </TabsContent>
                 <TabsContent value="negocio">
                     <InfoNegocioTab itemsIniciales={infoNegocioIniciales} errorInicial={infoNegocioError} />
                 </TabsContent>
                 <TabsContent value="precios">
                     <PreciosTab itemsIniciales={preciosIniciales} errorInicial={preciosError} />
-                </TabsContent>
-                <TabsContent value="tecnica">
-                    <CompatibilidadTab itemsIniciales={compatibilidadesIniciales} errorInicial={compatibilidadesError} kits={kitsIniciales} />
                 </TabsContent>
             </Tabs>
         </div>

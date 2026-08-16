@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { requireAdmin } from "@/lib/auth-guard"
+import { parsearListaCompat } from "@/lib/compatibilidad-texto"
 
 export type Compatibilidad = {
     id: number
@@ -64,5 +65,57 @@ export async function guardarCompatibilidad(data: CompatibilidadInput) {
 export async function eliminarCompatibilidad(id: number) {
     await requireAdmin()
     await prisma.$executeRaw`DELETE FROM compatibilidades WHERE id = ${id}`
+    revalidatePath("/admin/chatwoot/conocimiento")
+}
+
+// Reemplaza todas las filas de compatibilidad de un kit por lo que dicen los dos
+// textareas (compatibles / no compatibles) del formulario del kit. Compara por
+// (compatible, modelo, detalle): lo que ya no está en el texto se borra de la
+// base real que usa el bot, lo nuevo se inserta, y lo que sigue igual no se toca.
+export async function sincronizarCompatibilidadesKit(
+    kitId: number,
+    compatiblesTexto: string,
+    incompatiblesTexto: string
+) {
+    await requireAdmin()
+
+    const [kit] = await prisma.$queryRaw<{ nombre: string }[]>`
+        SELECT nombre FROM kits_publicidad WHERE id = ${kitId}
+    `
+    if (!kit) throw new Error("El kit seleccionado no existe")
+
+    const deseados = [
+        ...parsearListaCompat(compatiblesTexto).map((it) => ({ ...it, compatible: true })),
+        ...parsearListaCompat(incompatiblesTexto).map((it) => ({ ...it, compatible: false })),
+    ]
+    const clave = (modelo: string, detalle: string, compatible: boolean) =>
+        `${compatible}::${modelo.trim().toLowerCase()}::${detalle.trim().toLowerCase()}`
+
+    const deseadosMap = new Map(deseados.map((it) => [clave(it.modelo, it.detalle, it.compatible), it]))
+
+    const existentes = await prisma.$queryRaw<
+        { id: number; modelo_moto: string; detalle: string | null; compatible: boolean }[]
+    >`SELECT id, modelo_moto, detalle, compatible FROM compatibilidades WHERE kit_id = ${kitId}`
+    const existentesMap = new Map(existentes.map((e) => [clave(e.modelo_moto, e.detalle || "", e.compatible), e]))
+
+    for (const e of existentes) {
+        const k = clave(e.modelo_moto, e.detalle || "", e.compatible)
+        if (!deseadosMap.has(k)) {
+            await prisma.$executeRaw`DELETE FROM compatibilidades WHERE id = ${e.id}`
+        }
+    }
+
+    for (const [k, it] of deseadosMap) {
+        const ex = existentesMap.get(k)
+        if (ex) {
+            await prisma.$executeRaw`UPDATE compatibilidades SET kit = ${kit.nombre} WHERE id = ${ex.id}`
+        } else {
+            await prisma.$executeRaw`
+                INSERT INTO compatibilidades (modelo_moto, kit, kit_id, compatible, detalle, fuente)
+                VALUES (${it.modelo}, ${kit.nombre}, ${kitId}, ${it.compatible}, ${it.detalle}, 'admin')
+            `
+        }
+    }
+
     revalidatePath("/admin/chatwoot/conocimiento")
 }

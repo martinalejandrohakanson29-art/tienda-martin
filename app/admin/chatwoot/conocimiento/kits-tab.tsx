@@ -12,7 +12,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Save, Loader2, Wand2, Pencil, Trash2, X, AlertTriangle, Upload } from "lucide-react"
 
 import { guardarKit, eliminarKit, alternarActivo, type Kit, type KitInput } from "@/app/actions/kits-publicidad"
+import {
+    getCompatibilidades,
+    sincronizarCompatibilidadesKit,
+    type Compatibilidad,
+} from "@/app/actions/compatibilidades"
 import { generarMensajeKit } from "@/lib/kits-mensaje"
+import { formatearListaCompat } from "@/lib/compatibilidad-texto"
 
 const FORM_VACIO: KitInput = {
     nombre: "",
@@ -26,7 +32,15 @@ const FORM_VACIO: KitInput = {
     activo: true,
 }
 
-export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[]; errorInicial: string | null }) {
+export function KitsTab({
+    kitsIniciales,
+    errorInicial,
+    compatibilidadesIniciales,
+}: {
+    kitsIniciales: Kit[]
+    errorInicial: string | null
+    compatibilidadesIniciales: Compatibilidad[]
+}) {
     const [kits, setKits] = useState<Kit[]>(kitsIniciales)
     const [form, setForm] = useState<KitInput>(FORM_VACIO)
     const [guardando, setGuardando] = useState(false)
@@ -35,6 +49,10 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
     const [subiendoFoto, setSubiendoFoto] = useState(false)
     const [fotoError, setFotoError] = useState<string | null>(null)
     const fotoFileRef = useRef<HTMLInputElement>(null)
+
+    const [compatList, setCompatList] = useState<Compatibilidad[]>(compatibilidadesIniciales)
+    const [compatibleTexto, setCompatibleTexto] = useState("")
+    const [incompatibleTexto, setIncompatibleTexto] = useState("")
 
     const editando = form.id !== undefined
 
@@ -59,12 +77,17 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
             plantillasBienvenida: kit.plantillas_bienvenida || "",
             activo: kit.activo,
         })
+        const propios = compatList.filter((c) => c.kit_id === kit.id)
+        setCompatibleTexto(formatearListaCompat(propios.filter((c) => c.compatible)))
+        setIncompatibleTexto(formatearListaCompat(propios.filter((c) => !c.compatible)))
         setFotoError(null)
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
 
     const cancelarEdicion = () => {
         setForm(FORM_VACIO)
+        setCompatibleTexto("")
+        setIncompatibleTexto("")
         setFotoError(null)
     }
 
@@ -112,8 +135,13 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
         setError(null)
         try {
             const resultado = await guardarKit(form)
+            const kitId = resultado.id!
+            await sincronizarCompatibilidadesKit(kitId, compatibleTexto, incompatibleTexto)
+            const compatActualizadas = await getCompatibilidades()
+            setCompatList(compatActualizadas)
+
             const actualizado: Kit = {
-                id: resultado.id!,
+                id: kitId,
                 nombre: form.nombre.trim(),
                 keywords: form.keywords,
                 detalle: form.detalle,
@@ -132,6 +160,8 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
                     : [actualizado, ...prev]
             })
             setForm(FORM_VACIO)
+            setCompatibleTexto("")
+            setIncompatibleTexto("")
         } catch (err) {
             setError(err instanceof Error ? err.message : "Error al guardar el kit")
         } finally {
@@ -140,10 +170,11 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
     }
 
     const handleEliminar = async (id: number) => {
-        if (!confirm("¿Eliminar este kit? También se borra su info de precios_stock.")) return
+        if (!confirm("¿Eliminar este kit? También se borra su info de precios_stock y de compatibilidad.")) return
         try {
             await eliminarKit(id)
             setKits((prev) => prev.filter((k) => k.id !== id))
+            setCompatList((prev) => prev.filter((c) => c.kit_id !== id))
             if (form.id === id) cancelarEdicion()
         } catch (err) {
             alert(err instanceof Error ? err.message : "Error al eliminar")
@@ -247,6 +278,36 @@ export function KitsTab({ kitsIniciales, errorInicial }: { kitsIniciales: Kit[];
                                 rows={3}
                             />
                         </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-1">
+                                <Label htmlFor="compatibleTexto">Compatible con (separado por comas)</Label>
+                                <Textarea
+                                    id="compatibleTexto"
+                                    placeholder="Ej: Zanella ZB 110 (recorrido corto), Honda Wave 110, Guerrero Trip 110"
+                                    value={compatibleTexto}
+                                    onChange={(e) => setCompatibleTexto(e.target.value)}
+                                    disabled={guardando}
+                                    rows={3}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="incompatibleTexto">No compatible con (separado por comas)</Label>
+                                <Textarea
+                                    id="incompatibleTexto"
+                                    placeholder="Ej: Honda Wave NF, Yamaha Crypton 110"
+                                    value={incompatibleTexto}
+                                    onChange={(e) => setIncompatibleTexto(e.target.value)}
+                                    disabled={guardando}
+                                    rows={3}
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-400 -mt-2">
+                            Esto es lo que el agente consulta para responder &quot;¿anda en tal moto?&quot; sin escalar a un
+                            humano — al guardar el kit se reemplaza la lista completa. Para agregar una aclaración a un
+                            modelo puntual, escribila entre paréntesis justo después: <em>Zanella ZB 110 (para recorrido corto)</em>.
+                        </p>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">

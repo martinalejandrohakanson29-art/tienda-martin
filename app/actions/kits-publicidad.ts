@@ -122,6 +122,7 @@ export async function eliminarKit(id: number) {
     await requireAdmin()
     await prisma.$executeRaw`DELETE FROM kits_publicidad WHERE id = ${id}`
     await prisma.$executeRaw`DELETE FROM precios_stock WHERE fuente = ${`admin-kit-${id}`}`
+    await prisma.$executeRaw`DELETE FROM compatibilidades WHERE kit_id = ${id}`
     revalidatePath("/admin/chatwoot/conocimiento")
 }
 

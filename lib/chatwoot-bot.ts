@@ -380,6 +380,54 @@ export async function humanoRespondioDespues(
     }
 }
 
+export type MensajeConversacion = {
+    id: number
+    contenido: string
+    privado: boolean
+    saliente: boolean
+    remitente: string
+    creadoEn: string
+}
+
+/**
+ * Trae los mensajes reales de una conversación de Chatwoot, de solo lectura —
+ * para mostrar el hilo completo en el panel de pendientes sin tener que abrir
+ * Chatwoot. Usa el mismo token/lectura que humanoRespondioDespues.
+ */
+export async function getMensajesConversacion(
+    accountId: number | bigint,
+    conversationId: number | bigint
+): Promise<MensajeConversacion[]> {
+    const { api, token } = chatwootConfig()
+    if (!token) throw new Error("Falta CHATWOOT_API_TOKEN en el entorno de la app")
+
+    const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
+        headers: { api_access_token: token },
+    })
+    if (!res.ok) {
+        const detalle = await res.text().catch(() => "")
+        throw new Error(`Chatwoot respondió ${res.status}: ${detalle.slice(0, 300)}`)
+    }
+    const data = await res.json()
+    const payload: any[] = Array.isArray(data?.payload) ? data.payload : []
+
+    return payload
+        .map((m) => {
+            const saliente = m?.message_type === 1 || m?.message_type === "outgoing"
+            const creado = typeof m?.created_at === "number" ? m.created_at * 1000 : Date.parse(m?.created_at ?? "")
+            return {
+                id: Number(m?.id),
+                contenido: (m?.content || "").toString(),
+                privado: Boolean(m?.private),
+                saliente,
+                remitente: m?.sender?.name || (saliente ? "Nosotros" : "Cliente"),
+                creadoEn: new Date(Number.isFinite(creado) ? creado : Date.now()).toISOString(),
+            }
+        })
+        .filter((m) => m.contenido.trim().length > 0)
+        .sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))
+}
+
 export async function encolarRespuesta(params: {
     accountId: number
     conversationId: number

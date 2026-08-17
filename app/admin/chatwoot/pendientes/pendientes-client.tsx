@@ -29,6 +29,40 @@ const ETIQUETA_TIPO: Record<TipoPendiente, { texto: string; clase: string }> = {
 const fechaCorta = (iso: string) =>
     new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
 
+// Hilo real de la conversación (solo lectura), compartido por todas las pestañas.
+function CharlaCompleta({ cargando, mensajes }: { cargando: boolean; mensajes: MensajeConversacion[] | undefined }) {
+    return (
+        <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border bg-white p-3">
+            {cargando && (
+                <p className="flex items-center gap-2 text-sm text-gray-400">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Cargando charla…
+                </p>
+            )}
+            {!cargando && mensajes?.length === 0 && <p className="text-sm text-gray-400">Sin mensajes.</p>}
+            {!cargando &&
+                mensajes?.map((m) => (
+                    <div key={m.id} className={`flex ${m.saliente ? "justify-end" : "justify-start"}`}>
+                        <div
+                            className={`max-w-[80%] rounded-lg px-3 py-1.5 text-sm ${
+                                m.privado
+                                    ? "border border-dashed border-amber-300 bg-amber-50 italic text-amber-800"
+                                    : m.saliente
+                                      ? "bg-violet-600 text-white"
+                                      : "bg-gray-100 text-gray-800"
+                            }`}
+                        >
+                            <p className="whitespace-pre-wrap break-words">{m.contenido}</p>
+                            <p className={`mt-0.5 text-[10px] ${m.privado ? "text-amber-600" : m.saliente ? "text-violet-100" : "text-gray-400"}`}>
+                                {m.remitente} · {fechaCorta(m.creadoEn)}
+                                {m.privado ? " · nota privada" : ""}
+                            </p>
+                        </div>
+                    </div>
+                ))}
+        </div>
+    )
+}
+
 export function PendientesClient({
     inicial,
     error,
@@ -133,6 +167,9 @@ export function PendientesClient({
         const clave = claveFila(item.tipo, item.id)
         const yaEnviada = enviadas.has(clave)
         const badge = ETIQUETA_TIPO[item.tipo]
+        const charlaVisible = charlaAbierta.has(clave)
+        const cargando = cargandoCharla.has(clave)
+        const mensajes = charlas[clave]
         return (
             <Card key={clave}>
                 <CardContent className="space-y-3 pt-6">
@@ -155,6 +192,20 @@ export function PendientesClient({
                     <p className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-800">
                         &quot;{item.preguntaOriginal}&quot;
                     </p>
+
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1 text-gray-500 hover:text-gray-800"
+                        onClick={() => toggleCharla(clave, item.conversationId)}
+                    >
+                        <MessageSquare className="h-4 w-4" />
+                        {charlaVisible ? "Ocultar charla" : "Ver charla completa"}
+                        {charlaVisible ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    </Button>
+
+                    {charlaVisible && <CharlaCompleta cargando={cargando} mensajes={mensajes} />}
 
                     {yaEnviada ? (
                         <p className="flex items-center gap-2 text-sm text-emerald-700">
@@ -231,38 +282,7 @@ export function PendientesClient({
                         {charlaVisible ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </Button>
 
-                    {charlaVisible && (
-                        <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border bg-white p-3">
-                            {cargando && (
-                                <p className="flex items-center gap-2 text-sm text-gray-400">
-                                    <Loader2 className="h-4 w-4 animate-spin" /> Cargando charla…
-                                </p>
-                            )}
-                            {!cargando && mensajes?.length === 0 && (
-                                <p className="text-sm text-gray-400">Sin mensajes.</p>
-                            )}
-                            {!cargando &&
-                                mensajes?.map((m) => (
-                                    <div key={m.id} className={`flex ${m.saliente ? "justify-end" : "justify-start"}`}>
-                                        <div
-                                            className={`max-w-[80%] rounded-lg px-3 py-1.5 text-sm ${
-                                                m.privado
-                                                    ? "border border-dashed border-amber-300 bg-amber-50 italic text-amber-800"
-                                                    : m.saliente
-                                                      ? "bg-violet-600 text-white"
-                                                      : "bg-gray-100 text-gray-800"
-                                            }`}
-                                        >
-                                            <p className="whitespace-pre-wrap break-words">{m.contenido}</p>
-                                            <p className={`mt-0.5 text-[10px] ${m.privado ? "text-amber-600" : m.saliente ? "text-violet-100" : "text-gray-400"}`}>
-                                                {m.remitente} · {fechaCorta(m.creadoEn)}
-                                                {m.privado ? " · nota privada" : ""}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
-                        </div>
-                    )}
+                    {charlaVisible && <CharlaCompleta cargando={cargando} mensajes={mensajes} />}
 
                     {yaEnviada ? (
                         <p className="flex items-center gap-2 text-sm text-emerald-700">

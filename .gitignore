@@ -74,3 +74,7 @@ Registracion/ticket_cache.json
 # --- Firebase Admin (secretos, NO commitear) ---
 android/*firebase-adminsdk*.json
 firebase-base64.txt
+
+# --- n8n: backups de base completa (dump de Postgres con credenciales +
+# historial real de conversaciones, NO commitear) ---
+n8n-workflows/backups/

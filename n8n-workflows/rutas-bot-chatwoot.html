@@ -1,0 +1,333 @@
+<title>Respuestas Chatwoot 2.0</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --surface-2: #e4e8ec;
+    --text: #1a2027;
+    --text-dim: #56606b;
+    --border: #d3d9df;
+    --accent: #9a680d;
+    --accent-soft: #f1e4c8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181d;
+      --surface: #1b2027;
+      --surface-2: #20262d;
+      --text: #e7ebef;
+      --text-dim: #98a3ad;
+      --border: #2c333b;
+      --accent: #d3a24a;
+      --accent-soft: #3a2f18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181d;
+    --surface: #1b2027;
+    --surface-2: #20262d;
+    --text: #e7ebef;
+    --text-dim: #98a3ad;
+    --border: #2c333b;
+    --accent: #d3a24a;
+    --accent-soft: #3a2f18;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  main {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 22px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  h1 {
+    font-size: clamp(28px, 4vw, 38px);
+    font-weight: 700;
+    margin: 0;
+    text-wrap: balance;
+    max-width: 20ch;
+  }
+
+  .intro {
+    max-width: 66ch;
+    color: var(--text-dim);
+    font-size: 16px;
+    margin: 0;
+  }
+  .intro strong { color: var(--text); font-weight: 600; }
+
+  .diagram-panel {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+  .diagram-panel .mermaid {
+    min-width: 720px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    font-size: 13.5px;
+    color: var(--text-dim);
+  }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .swatch {
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    flex: none;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+  .sw-gate { background: #30363d; }
+  .sw-ai { background: #2d2a55; }
+  .sw-pin { background: #0b3a45; }
+  .sw-ok { background: #0f3d2e; }
+  .sw-esc { background: #4a1620; }
+
+  .shape-note {
+    font-size: 13px;
+    color: var(--text-dim);
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  .findings {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .findings h2 {
+    margin: 0;
+    font-size: 13px;
+    font-family: "IBM Plex Mono", monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .findings ol {
+    margin: 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 14.5px;
+    color: var(--text);
+  }
+  .findings code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.92em;
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .findings code { background: rgba(255,255,255,0.08); }
+  }
+  :root[data-theme="dark"] .findings code { background: rgba(255,255,255,0.08); }
+
+  .maintenance {
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .maintenance .tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .maintenance p {
+    margin: 0;
+    font-size: 14.5px;
+    color: var(--text);
+  }
+
+  footer {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    font-family: "IBM Plex Mono", monospace;
+  }
+</style>
+
+<main>
+  <div class="eyebrow">n8n · Respuestas Chatwoot 2.0 · 151 nodos, workflow real, hoy activo</div>
+  <h1>Cómo clasifica el bot un mensaje entrante</h1>
+  <p class="intro">
+    Cada ráfaga de mensajes que llega por WhatsApp pasa por este mismo árbol de decisión —
+    no solo el primer mensaje de una conversación nueva, <strong>cualquier mensaje entrante</strong> lo
+    recorre de punta a punta. La única memoria que el bot tiene de una conversación es si hay o no un
+    <strong>kit pineado</strong> (guardado 96&nbsp;hs en Redis); todo lo demás se decide de cero en cada vuelta.
+  </p>
+
+  <div class="maintenance">
+    <span class="tag">Mantenimiento</span>
+    <p>
+      Este diagrama es la referencia viva de cómo funciona el bot HOY, no una foto de un momento
+      puntual. Cualquier cambio que se aplique al workflow real en producción (nodo nuevo, rewire,
+      nodo eliminado) tiene que quedar reflejado acá en el mismo commit — si este archivo y el
+      workflow real se desincronizan, dejó de servir para tomar decisiones.
+    </p>
+  </div>
+
+  <div class="diagram-panel">
+    <pre class="mermaid">
+flowchart TD
+  classDef gate fill:#30363d,stroke:#6e7681,color:#e6edf3,stroke-width:1px;
+  classDef ai fill:#2d2a55,stroke:#6f66d6,color:#e6e3ff,stroke-width:1px;
+  classDef pin fill:#0b3a45,stroke:#2aa9c9,color:#d8f6ff,stroke-width:1px;
+  classDef ok fill:#0f3d2e,stroke:#2fae72,color:#d9ffe9,stroke-width:1px;
+  classDef esc fill:#4a1620,stroke:#e05770,color:#ffd9df,stroke-width:1px;
+
+  entrada["Mensaje entra por WhatsApp<br/>creado + no es eco propio"]:::gate
+  pausado{"¿Conversación<br/>pausada?"}:::gate
+  texto{"¿Trae texto?"}:::gate
+  rafaga["Agrupa ráfaga de 45s<br/>(varios mensajes seguidos = uno solo)"]:::gate
+  clasif{"Clasifica el 1er mensaje<br/>de la ráfaga"}:::gate
+
+  entrada --> pausado
+  pausado -->|"sí"| finPausa["Fin — nota interna,<br/>no le contesta al cliente"]:::esc
+  pausado -->|"no"| texto
+  texto -->|"no, es audio o imagen"| finSinTexto["Fin — todavía<br/>sin manejar"]:::gate
+  texto -->|"sí"| rafaga
+  rafaga --> clasif
+
+  clasif -->|"coincide LETRA POR LETRA<br/>con la plantilla de un kit"| resto1{"¿Hay más mensajes<br/>después del primero?"}:::gate
+  clasif -->|"es saludo puro,<br/>sin pedido"| saludoGen["Envía saludo fijo:<br/>'Hola bro! En qué te podemos ayudar?'"]:::ok
+  clasif -->|"cualquier otra cosa"| leerPin["Lee kit pineado<br/>(Redis, por teléfono)"]:::pin
+
+  resto1 -->|"no"| pinKit["Envía saludo del kit<br/>+ PINEA el kit 96hs"]:::pin
+  resto1 -->|"sí"| mismoTema{{"IA — ¿el resto sigue<br/>siendo del mismo kit?"}}:::ai
+  mismoTema -->|"sí"| pinKit
+  mismoTema -->|"no"| comoNuevo["el resto se evalúa<br/>como mensaje nuevo"]:::gate
+  comoNuevo --> leerPin
+
+  leerPin --> hayPin{"¿Hay kit<br/>pineado?"}:::gate
+
+  hayPin -->|"sí"| refresca["Refresca el pin<br/>(otras 96hs)"]:::pin
+  refresca --> esCompat{{"IA — ¿pregunta de<br/>compatibilidad con una moto?"}}:::ai
+
+  hayPin -->|"no"| historial["Trae el historial real de<br/>la conversación (Chatwoot)"]:::pin
+  historial --> agenteNuevo{{"IA — Identificar Necesidad<br/>ve: mensaje actual + historial de la charla<br/>+ lista cerrada de kits activos"}}:::ai
+
+  agenteNuevo -->|"saludo / interés genérico,<br/>sin pedido puntual"| saludoGen
+  agenteNuevo -->|"identificó el kit<br/>con confianza"| pinNuevo["Pinea el kit<br/>+ confirma en lenguaje natural<br/>(sin repetir precio)"]:::pin
+  pinNuevo --> esCompat
+  agenteNuevo -->|"2-3 candidatos,<br/>no está seguro"| repregunta["Repregunta nombrando<br/>esas opciones"]:::ok
+  repregunta --> finRepregunta["Fin — espera la respuesta,<br/>todavía no pinea nada"]:::gate
+  agenteNuevo -->|"no es ninguno de<br/>los kits que vendemos"| subSinKit{{"IA — reparte en sub-preguntas<br/>busca precio/envío de kit: nada pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
+
+  subSinKit --> resSinKit{"¿Quedó algo<br/>sin resolver?"}:::gate
+  resSinKit -->|"no"| okGenerico["Responde con lo<br/>que encontró"]:::ok
+  resSinKit -->|"sí"| escSinMatch["Escala como<br/>'Sin clasificar'"]:::esc
+
+  esCompat -->|"sí"| buscaCompat["Busca compatibilidad<br/>ya guardada del kit"]:::gate
+  buscaCompat --> hayCompat{"¿está<br/>guardada?"}:::gate
+  hayCompat -->|"sí"| okCompat["Responde la<br/>compatibilidad"]:::ok
+  hayCompat -->|"no"| buscaDetalle["Busca el detalle<br/>técnico del kit"]:::gate
+  buscaDetalle --> detalleAlcanza{{"IA — ¿el detalle<br/>alcanza para responder?"}}:::ai
+  detalleAlcanza -->|"sí"| okCompat
+  detalleAlcanza -->|"no"| escTecnica["Escala como<br/>'Técnica'"]:::esc
+
+  esCompat -->|"no"| subConKit{{"IA — reparte en sub-preguntas<br/>busca precio/envío DEL KIT pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
+  subConKit --> resConKit{"¿Quedó algo<br/>sin resolver?"}:::gate
+  resConKit -->|"no"| okKit["Responde precio/envío<br/>del kit pineado"]:::ok
+  resConKit -->|"sí"| escSinMatch2["Escala como<br/>'Sin clasificar'"]:::esc
+    </pre>
+  </div>
+
+  <ul class="legend">
+    <li><span class="swatch sw-gate"></span> paso / filtro determinístico</li>
+    <li><span class="swatch sw-ai"></span> lo decide un modelo de IA</li>
+    <li><span class="swatch sw-pin"></span> lee o escribe el kit pineado</li>
+    <li><span class="swatch sw-ok"></span> el bot le contesta solo al cliente</li>
+    <li><span class="swatch sw-esc"></span> se escala a la cola del equipo</li>
+  </ul>
+  <p class="shape-note">rombo = decisión · hexágono = juicio de IA · rectángulo = acción o resultado</p>
+
+  <div class="findings">
+    <h2>Por qué se agregó "Identificar Necesidad"</h2>
+    <ol>
+      <li>
+        Hasta el 17/8, el pin de kit (celeste) solo se escribía en un único lugar del árbol: cuando el
+        <code>primer mensaje</code> de la ráfaga coincidía letra por letra con una plantilla de
+        Instagram/Meta Ads. Cualquier conversación que arrancaba distinto nunca pasaba por ahí, así que
+        <code>¿Hay kit pineado?</code> daba que no durante toda esa charla — de 33 pendientes reales en
+        <code>/admin/chatwoot/pendientes</code>, ~20 eran seguimientos de una charla donde el cliente ya
+        había nombrado el kit en lenguaje natural, pero nunca se había pineado nada.
+      </li>
+      <li>
+        Sin kit pineado, la rama de sub-preguntas no tenía de qué kit hablar aunque el cliente lo hubiera
+        nombrado en el propio texto — y lo que no se podía resolver caía directo en
+        <code>Escala como 'Sin clasificar'</code>.
+      </li>
+    </ol>
+  </div>
+
+  <div class="findings">
+    <h2>Qué resuelve</h2>
+    <ol>
+      <li>
+        <code>¿Hay kit pineado?</code> se decide antes, para cualquier mensaje sin match exacto — no
+        solo se pregunta si es genérico, primero se mira si ya sabíamos de qué kit se trataba.
+      </li>
+      <li>
+        Solo cuando de verdad no hay nada pineado entra <code>Identificar Necesidad</code>, que
+        reemplazó a "¿interés genérico?" y elige entre los kits activos reales (con historial real de
+        la charla) en vez de adivinar texto libre — mismo criterio que mató el matching por keywords
+        sueltas en su momento: nunca inventa un kit que no esté en la lista.
+      </li>
+      <li>
+        Si identifica el kit con confianza, lo pinea y reingresa al mismo camino de siempre
+        (<code>esCompat</code> en adelante, reusando <code>Parsear Kit Pineado</code> con una segunda
+        entrada) — no duplica lógica nueva río abajo. Si hay dos o tres candidatos, repregunta en vez de
+        escalar en silencio. Solo escala si el pedido es concreto pero de verdad no es ninguno de los
+        kits que vendemos.
+      </li>
+    </ol>
+  </div>
+
+  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 17/8 tras aplicar "Identificar Necesidad" en producción (validado con conv 1: kit_confiado, saludo y ninguno, sin errores) — ver <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code> para el detalle de cada cambio.</footer>
+</main>

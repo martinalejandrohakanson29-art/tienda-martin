@@ -5,6 +5,12 @@
 > desenterrar algo puntual, pero para entender el estado actual **alcanza con este archivo**.
 > Actualizalo cuando cambie algo importante — la idea es que una conversación nueva pueda
 > arrancar leyendo esto, sin tener que repetir toda la explicación de cero.
+>
+> Para una vista visual del árbol de decisión completo (qué pasa con cada mensaje entrante,
+> según lo que dice), ver `rutas-bot-chatwoot.html` en esta misma carpeta — se puede abrir tal
+> cual en el navegador. Igual que este `.md`, tiene que actualizarse en el mismo commit que
+> cualquier cambio real al workflow (nodo nuevo, rewire, nodo eliminado); si el diagrama y el
+> workflow real se desincronizan, dejó de servir.
 
 ## Cómo hablar de esto con el usuario (Martín)
 

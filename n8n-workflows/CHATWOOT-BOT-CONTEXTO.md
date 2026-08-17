@@ -575,6 +575,40 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
      del nuevo punto de inserción buscando usos de `$json` sin nombre de nodo, y cambiarlos a
      `$('Nodo De Origen').item.json...` explícito.
 
+- **Fix "interés genérico sin producto" perdido en sin_match** (2026-08-17,
+  `apply-fix-saludo-generico-enlace-ia.mjs`), encontrado revisando dos conversaciones reales:
+  1. Conv 2021 (+): el cliente entró por un anuncio que le agrega `"Enlace:\n\n\n"` adelante del
+     mensaje real (`"Enlace:\n\n\n¡Hola! Quiero más información"`) — metadata que mete
+     Meta/Instagram, no algo que el cliente haya escrito. `"enlace"` no estaba en `STOPWORDS` de
+     `Clasificar Mensaje (sin IA)`, así que contaba como palabra de contenido real y rompía la
+     detección de "saludo sin pedido específico" (exige CERO palabras de contenido). El mensaje
+     escaló una nota al equipo por algo que el bot ya sabe manejar solo (rama `Enviar Saludo
+     Generico`: manda "Hola bro! En qué te podemos ayudar?"). Fix: agregar `"enlace"` a
+     `STOPWORDS`. Un solo string, sin tocar lógica.
+  2. El problema de fondo no era solo `"enlace"` — cualquier variante de "quiero más información"
+     sin ninguna de las `GREETING_WORDS` literales ("hola", "buenas", etc.) tampoco entraba por la
+     rama saludo, porque esa detección es 100% por lista de palabras (ya había pasado algo
+     parecido en la Fase 9 con "Me interesa"). En vez de perseguir cada frase nueva a mano, se
+     agregó un paso de IA chico y acotado (mismo patrón que `Validar Continuidad de Tema`: nunca
+     redacta, solo clasifica, DeepSeek, `temperature: 0`, "ante la duda: false") insertado en la
+     salida "Sin Match" de `Ruteo Clasificacion`, ANTES de `Leer Kit Pineado`: `Detectar Interes
+     Generico` (agent) → `DeepSeek Chat Model - Interes Generico` → `Parsear Interes Generico`
+     (code) → `¿Es Interes Generico?` (if) — `true` va a `Enviar Saludo Generico` (nodo ya
+     existente, sin cambios), `false` sigue a `Leer Kit Pineado` (mismo camino de siempre).
+  - Validado con la conversación de prueba (conv 1): `"Enlace:\n\n\n¡Hola! Quiero más
+    información"` → clasificó directo como saludo sin pasar por IA (`Clasificar Mensaje (sin IA)`
+    → `Ruteo Clasificacion` → `Enviar Saludo Generico`); `"Quiero más información"` (sin "hola") →
+    cayó en Sin Match, pasó por `Detectar Interes Generico` (`generico: true`) → mismo saludo
+    automático; control con una pregunta real sin kit pineado relacionado (`"Che tenes el kit de
+    arrastre reforzado para una zanella rx 150?"`) → `Detectar Interes Generico` devolvió
+    `generico: false` y siguió el camino normal completo (compatibilidad → sin dato → escaló al
+    equipo), confirmando que el paso nuevo no traga preguntas reales.
+  - **Gotcha de esta sesión**: la API de ejecuciones de n8n (`/executions`) tardó varios minutos
+    (no segundos) en reflejar la primera ejecución disparada justo después de un `PUT` de
+    workflow — ver [[n8n_executions_listado_con_atraso]]. Reenviar el mismo mensaje de prueba con
+    un `msgId` nuevo destrabó la validación; no asumir que el fix no anda solo porque
+    `/executions` no muestra nada todavía.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

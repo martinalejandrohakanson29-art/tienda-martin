@@ -609,6 +609,53 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     un `msgId` nuevo destrabó la validación; no asumir que el fix no anda solo porque
     `/executions` no muestra nada todavía.
 
+- **Feat "Identificar Necesidad" — pin de kit desde lenguaje natural** (2026-08-17,
+  `apply-feat-identificar-necesidad-sin-match.mjs`). Diagnosticado revisando `/admin/chatwoot/pendientes`:
+  de 33 pendientes activas, ~20 eran seguimientos de una charla donde el cliente ya había nombrado
+  el kit en lenguaje natural ("Y precio", "Precio?", "Osea que me sale todo?") pero nunca se
+  pineaba nada, porque la ÚNICA forma de pinear un kit era el match letra por letra con una
+  plantilla de Instagram/Meta Ads (`Clasificar Mensaje (sin IA)` → `Marcar Kit Pineado`). Cualquier
+  conversación que arrancaba distinto (la gran mayoría fuera de clicks de anuncio) nunca pineaba
+  nada, y cada mensaje siguiente de esa charla se evaluaba de cero sin memoria.
+  - Cambio de wiring: la salida "Sin Match" de `Ruteo Clasificacion` pasa por `Leer Kit Pineado` /
+    `¿Hay Kit Pineado?` PRIMERO (antes de decidir si es genérico). Si hay pin, cero cambios (sigue
+    el camino de siempre). Si no hay pin, se eliminó `Detectar Interes Generico` (su única salida
+    pasó a ser un tipo más del agente nuevo) y entra `Identificar Necesidad` (agent, DeepSeek,
+    mismo patrón que los demás pasos de IA acotada del workflow): ve el mensaje actual +
+    últimos ~8 mensajes reales de la conversación (nodo nuevo `Traer Historial Conversacion`,
+    `GET /conversations/{id}/messages` de Chatwoot) + la lista CERRADA de kits activos (ya
+    disponible en `Buscar Kits Activos`, sin inventar productos). Responde un JSON con 4 tipos:
+    `saludo` (interés genérico → mismo camino de siempre), `kit_confiado` (pinea + manda una
+    confirmación corta redactada por el propio agente, SIN repetir precio para no pisar el filtro
+    `kit_recien_confirmado` de `Parsear Sub-preguntas`), `candidatos` (2-3 kits posibles → repregunta
+    nombrando las opciones, no pinea nada), `ninguno` (no es ninguno de los kits → mismo camino de
+    siempre, sin pin). El parser (`Parsear Identificar Necesidad`) revalida cualquier `kit_id`/
+    `candidatos` contra la lista real de kits activos — nunca confía un id que el modelo haya
+    podido inventar.
+  - El pin en sí NO usa un nodo Redis nuevo: `kit_confiado` arma un input sintético
+    (`{ kit_pineado_raw: JSON.stringify({kit_id, kit_nombre}) }`) y lo conecta como una SEGUNDA
+    entrada al nodo `Parsear Kit Pineado` ya existente (mismo patrón que ya usa `Enviar Saludo Kit`
+    con 2 orígenes) — así todo lo que hay río abajo (`Refrescar Kit Pineado` hace el SET real en
+    Redis, `Extraer Pregunta Compatibilidad`, `Preparar Contexto Sub-preguntas`, etc.) se reusa
+    sin duplicar lógica ni tocar ningún `$('Nodo').item` existente.
+  - Validado contra producción real (conv 1, `send.js` con distintos teléfonos sintéticos para
+    garantizar pin limpio por caso, ver `respuestas_pendientes` para el resultado en vez de
+    `/executions`): `"Cuanto vale el kit 220 varillero?"` → `kit_confiado` (Kit 3, KIT POTENCIADO
+    220cc) → `"Dale, el kit potenciado 220cc varillero, ¿no?"` + a los 17s el precio real
+    (`$199.000`) por el camino de siempre; `"Quiero potenciar mi 110, tenes algo?"` → también
+    `kit_confiado` (Kit 1, resolvió con confianza en vez de repreguntar — válido, el nombre del kit
+    coincide); `"Tenes cadena para una 200cc?"` → `ninguno`, siguió el camino normal de
+    sub-preguntas sin pin, no encontró dato en conocimiento libre, y no volvió a escalar porque la
+    conversación de prueba YA tenía una pendiente sin_match vieja sin resolver (comportamiento
+    de dedupe existente, no tocado por este fix); saludo puro sigue igual.
+  - **Gotcha nuevo de esta sesión**: además del atraso de `/executions` ya conocido, un `PUT` de
+    workflow durante horario NO comercial (`bot_estado.encendido = false`) hace que las respuestas
+    se encolen en `respuestas_pendientes` en vez de salir al instante — verificar SIEMPRE
+    `bot_estado`/`bot_horario` antes de asumir que un cambio rompió el envío. En esta sesión eso
+    generó una falsa alarma que llevó a un rollback innecesario (revertido y reaplicado sin
+    problema, ver backup + script) — antes de revertir por "no contesta", confirmar contra
+    `respuestas_pendientes`/`preguntas_sin_match_pendientes`, no solo contra Chatwoot en vivo.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

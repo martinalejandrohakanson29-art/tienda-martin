@@ -428,6 +428,16 @@ export async function getMensajesConversacion(
         .sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))
 }
 
+/**
+ * Encola una respuesta para mandar cuando prenda el bot. Si el cliente repite
+ * el mismo mensaje (típico: reenvía la plantilla exacta de un anuncio varias
+ * veces mientras el local está cerrado), sin este chequeo cada repetición
+ * arma su propia fila y el despachador termina mandando el mismo saludo
+ * varias veces seguidas apenas se abre — encontrado revisando la conv 2017
+ * (+5493873509571): 5 plantillas idénticas en 4 días, todas encoladas,
+ * todas disparadas juntas al prender el bot. Alcanza con no duplicar lo que
+ * ya está esperando salir; no hace falta mirar lo que ya se mandó.
+ */
 export async function encolarRespuesta(params: {
     accountId: number
     conversationId: number
@@ -436,6 +446,16 @@ export async function encolarRespuesta(params: {
     origen: string
     fotoUrl?: string | null
 }) {
+    const existente = await prisma.$queryRaw<{ id: number }[]>`
+        SELECT id FROM respuestas_pendientes
+        WHERE conversation_id = ${params.conversationId}
+          AND contenido = ${params.contenido}
+          AND estado IN ('pendiente', 'enviando')
+        ORDER BY id
+        LIMIT 1
+    `
+    if (existente.length > 0) return existente[0].id
+
     const filas = await prisma.$queryRaw<{ id: number }[]>`
         INSERT INTO respuestas_pendientes (conversation_id, account_id, contacto, contenido, origen, foto_url)
         VALUES (${params.conversationId}, ${params.accountId}, ${params.contacto}, ${params.contenido}, ${params.origen}, ${params.fotoUrl ?? null})

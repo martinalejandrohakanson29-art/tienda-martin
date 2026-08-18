@@ -758,6 +758,143 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     2108) → siguió clasificando `"otro"` y escalando como antes, confirmando que el límite de
     pago/reserva se respeta.
 
+- **Fix "confirmación antes de tiempo" en Identificar Necesidad** (2026-08-18,
+  `apply-fix-confirmacion-antes-de-tiempo.mjs`), encontrado auditando en vivo la conv 2119
+  (+5493813657644, contacto Mauricio Villa): primeros mensajes de la charla, sin kit pineado
+  todavía: *"Que kit me recomendas para ponerle a una honda stomr"* + *"Yo la tengo echa 150 pero
+  quiero agrandarla mas"*. `Identificar Necesidad` cruzó "150"+"agrandar" con el alias "potenciar
+  150" del Kit 3 (KIT POTENCIADO 220cc) y confió el kit -- pero el propio mensaje también nombraba
+  una moto puntual ("honda stomr") de la que no hay NINGÚN dato (ni compatible ni incompatible, ni
+  en `compatibilidades` ni en el `detalle` del kit). El cliente terminó recibiendo DOS mensajes
+  dando el kit por bueno mientras la única pregunta que de verdad importaba (¿anda en esa moto?)
+  escalaba en silencio y quedaba sin responder:
+  1. `Enviar Confirmacion Kit (Propuesta)`: *"Dale, para agrandar la 150 te conviene el kit
+     potenciado 220cc, ¿no?"* -- se manda apenas se identifica el kit, sin esperar a que corra el
+     chequeo de compatibilidad (rama paralela, sin conexión entre ambas).
+  2. La categoría "otro" del partidor de sub-preguntas (Fase 6) también contestó usando el
+     `detalle` del kit (*"Para agrandarla más... Ese es el que te sirve"*), en paralelo, sin saber
+     que la pregunta de compatibilidad de al lado seguía sin resolver.
+  - Regla acordada con Martín: cuando el mensaje nombra una moto puntual (no solo la cilindrada) Y
+    no hay NINGÚN dato de esa moto, el bot no debe asumir ningún kit -- se frena ahí (no manda ni
+    la confirmación, ni ninguna respuesta que asuma que el kit sirve; solo queda la escalada
+    privada, que ya funcionaba bien). En cualquier otro caso -- no nombra moto, o SÍ hay dato
+    (compatible o no) -- sigue exactamente igual que antes.
+  - **Cambio 1 (confirmación):** se sacó la conexión directa e inmediata `¿Qué Identificó?` →
+    `Enviar Confirmacion Kit (Propuesta)`. Nodo nuevo `Chequear Confirmacion Pendiente` (mismo
+    patrón try/catch que ya usa `kit_recien_confirmado`, para distinguir esta ejecución -- que
+    viene de "Identificar Necesidad" -- del camino viejo de "kit ya pineado de antes", que reusa
+    los mismos nodos de compatibilidad pero nunca tuvo este paso) conectado desde los 4 puntos de
+    salida del chequeo de compatibilidad donde SÍ corresponde confirmar (no es pregunta de
+    compatibilidad / cilindrada sola sin marca / ya hay dato confirmado / el `detalle` resuelve) →
+    `¿Debe Confirmar Kit?` (IF) → confirma o no. El quinto punto de salida (`¿Detalle Resuelve
+    Compatibilidad?` en `false`, osea `compatible: null`, sin dato) queda sin conectar a
+    propósito -- ese es exactamente el caso a frenar.
+  - **Cambio 2 (respuesta "otro"):** `Preparar Contexto Sub-preguntas` ahora expone
+    `compat_modelo_pendiente` (true si el mensaje nombra una moto puntual -- esto se sabe de
+    inmediato, sin esperar a que se resuelva, así que no hay condición de carrera). `Consolidar
+    Dato Resuelto` ya no usa el `detalle` del kit para la categoría "otro" cuando esa bandera está
+    prendida -- sigue probando `conocimiento_libre` como siempre, y si tampoco hay nada ahí escala
+    en silencio a `preguntas_sin_match_pendientes` (mismo camino de siempre, nada se pierde). Esto
+    aplica en cualquier caso con una moto puntual mencionada (se resuelva o no la compatibilidad),
+    no solo cuando el kit se acaba de identificar -- evita que la respuesta genérica compita con la
+    respuesta específica de compatibilidad en cualquier escenario, incluyendo el camino viejo de
+    "kit ya pineado de antes".
+  - Nada más se toca: sin moto puntual, o con dato (compatible o no), la confirmación sigue
+    mandándose igual que antes -- solo un poco más tarde (espera al chequeo de compatibilidad, que
+    de todos modos ya corría siempre en esa rama), sin cambio de contenido.
+  - **Pendiente relacionado, no resuelto en este fix:** cuando la compatibilidad se resuelve como
+    `false` (confirmado incompatible), la confirmación del kit igual se manda -- puede leerse
+    contradictorio ("te conviene X" seguido de "no, X no es compatible"). Ya pasaba antes de este
+    fix (la carrera lo tapaba a veces); no se tocó porque Martín pidió específicamente el caso "sin
+    dato", no el caso "incompatible confirmado" -- queda para charlar si también hace falta
+    ajustarlo.
+  - Validado contra producción real (conv 1, `send.js`, tres casos, limpiando después los IDs
+    sintéticos de `preguntas_tecnicas_pendientes`): repitiendo el caso real (moto puntual sin
+    dato, sin resto) → sin confirmación, sin respuesta "otro", escalada privada correcta, kit
+    sigue pineado para el resto de la charla; mismo caso + pregunta "otro" pegada en la misma
+    ráfaga (*"contame bien que trae el combo"*) → sin confirmación, la "otro" cayó a `SIN_DATO` en
+    vez de usar el `detalle` del kit y escaló en silencio a `preguntas_sin_match_pendientes` (nada
+    se perdió); control sin pregunta de compatibilidad (*"Cuanto vale el kit 220 varillero?"*) →
+    confirmación enviada normal, sin cambios (*"Dale, el kit potenciado 220cc varillero, ¿no?"*).
+
+- **Fix "no confirmar si se confirma incompatible"** (2026-08-18,
+  `apply-fix-no-confirmar-si-incompatible.mjs`), segunda parte del fix anterior, a pedido explícito
+  de Martín: el fix de arriba solo frenaba la confirmación cuando NO había ningún dato de la moto
+  (`compatible: null`). Pero cuando la compatibilidad se resuelve como NO compatible
+  (`compatible: false`), la confirmación ("te conviene el kit X, ¿no?") igual se mandaba -- quedaba
+  contradictoria con la respuesta real ("No, el kit no es compatible con tu [moto]") que sale por
+  el mismo camino.
+  - **Cambio 1:** nodo nuevo `¿Es Realmente Compatible?` (IF, `compatible === true`) insertado
+    entre los dos puntos que antes alimentaban `Chequear Confirmacion Pendiente` con solo "¿hay
+    dato?" (`¿Hay Dato de Compatibilidad?` y `¿Detalle Resuelve Compatibilidad?`, ambos en su salida
+    `true` -- que dispara con dato sea `true` o `false`) y el nodo de confirmación. Solo si el valor
+    real es `true` sigue a `Chequear Confirmacion Pendiente`; si es `false` (confirmado
+    incompatible) termina en `Fin - Incompatible, No Confirma Kit` sin confirmar nada.
+    `Preparar Respuesta Compatibilidad` no se toca -- sigue mandando la respuesta real por el mismo
+    camino de siempre en ambos casos.
+  - **Cambio 2 (texto):** `Preparar Respuesta Compatibilidad` cambió la rama "no compatible" de
+    *"No, el kit no es compatible con tu X"* a *"No, este kit no es compatible con tu X. Cualquier
+    otra consulta nos escribís."* -- a propósito dice "este kit" y no "no tenemos nada para tu
+    moto": el bot solo chequea el kit pineado, nunca compara contra el resto del catálogo, así que
+    no puede prometer que no hay ninguna opción sin arriesgarse a estar equivocado (podría haber
+    otro kit que sí ande). Decidido así con Martín tras comentarlo antes de aplicar.
+  - Validado contra producción real (conv 1, tres casos con el Kit 3 pineado, usando su propio
+    `detalle` que lista "brezza 150" como incompatible y "skua 150" como compatible): *"...mi moto
+    que es una brezza 150?"* → *"No, este kit no es compatible con tu brezza 150. Cualquier otra
+    consulta nos escribís."*, sin ninguna confirmación de kit; *"...mi moto que es una skua 150?"*
+    → *"Sí, el kit es compatible con tu skua 150."* + confirmación normal (*"Dale, el kit
+    potenciado 220cc..."*), sin cambios; el caso "sin dato ninguno" (fix anterior) sigue igual,
+    revalidado de paso.
+
+- **Fix "plantilla repetida manda el mismo saludo varias veces"** (2026-08-18,
+  `lib/chatwoot-bot.ts`, función `encolarRespuesta` — cambio de app, no de workflow),
+  encontrado revisando en vivo la conv 2017 (+5493873509571): el cliente mandó la plantilla
+  exacta del Kit 8 (o el saludo genérico) **5 veces en 4 días distintos**, siempre fuera de
+  horario. Cada vez que llega, el workflow manda la respuesta a `/api/chatwoot/enviar`, que con
+  el bot apagado la encola en `respuestas_pendientes` — pero `encolarRespuesta` insertaba una
+  fila nueva sin chequear si ya había una idéntica esperando. Quedaron 4-5 filas con el mismo
+  texto ("Hola como va! el combo de TAPA CDI...") pendientes en simultáneo. Al prender el bot,
+  el despachador (`despacharCola`, FIFO por toda la cola, no por conversación) las fue mandando
+  una por una — intercaladas con mensajes de otras conversaciones, así que llegaron separadas
+  por varios minutos en vez de todas juntas, pero el cliente terminó recibiendo el mismo saludo
+  4 veces seguidas entre las 12:22 y las 12:35.
+  - Causa: nada relacionado con el matching de plantillas ni con el pin de kit en Redis (que
+    sigue sin tocarse) — el bug vive enteramente en la cola de la app, no en el workflow de
+    n8n. Por eso el fix no toca `s7EpPTjNFy6iCclg`.
+  - Fix acotado: `encolarRespuesta` ahora busca primero si ya existe una fila `pendiente` o
+    `enviando` para la misma `conversation_id` con el mismo `contenido` exacto; si la hay,
+    devuelve ese `id` sin insertar una nueva. No mira lo que ya se mandó (`estado = 'enviado'`)
+    a propósito — alcanza con no duplicar lo que todavía está esperando salir, y así no hace
+    falta decidir una ventana de tiempo arbitraria para "ya lo saludé hace poco".
+  - Validado con un caso sintético contra la base real: fila de prueba `pendiente` con
+    `conversation_id`/`contenido` fijos, misma consulta de deduplicación repetida → encuentra el
+    `id` existente en vez de crear uno nuevo. Fila de prueba borrada después.
+
+- **Fix "recorrido" del motor confundido con "envío"** (2026-08-18,
+  `apply-fix-recorrido-no-es-envio.mjs`), encontrado auditando en vivo la conv 2120
+  (+5492302395815): justo después de decirle al cliente que el kit no es compatible con su
+  Yamaha Crypton Classic, escribió *"La verdad con el recorrido / Me mataste"* — un comentario
+  sin pedir nada concreto, probablemente sobre lo confuso del precio corto/largo. `Dividir y
+  Etiquetar Sub-preguntas` lo clasificó como categoría `"envio"` (asociación semántica con
+  "recorrido/ruta de entrega") y el bot le contestó la política de envíos — una respuesta
+  totalmente fuera de tema, justo después de la mala noticia de la compatibilidad.
+  - Fix acotado: el bullet de `"envio"` en el prompt ahora exige mención explícita a
+    entrega/mandar/llegar a algún lado, y aclara que "recorrido" en este negocio es casi
+    siempre el recorrido del pistón del motor (dato técnico del kit, corto/largo) — nunca
+    cuenta como pregunta de envío. Solo texto de prompt, no toca lógica ni conexiones.
+  - Esta conversación (2120) es del mismo día que los fixes "confirmación antes de tiempo" y
+    "no confirmar si incompatible" de más arriba, pero ocurrió *antes* de que esos dos se
+    publicaran (13:27-13:37 UTC vs. 15:25 y 16:02 UTC) — los otros dos problemas que se vieron
+    en esa charla (confirmar el kit sin saber si compatibiliza, y el texto viejo de "no
+    compatible" sin el cierre) ya estaban cubiertos por esos fixes y no hizo falta tocar nada
+    más para ellos.
+  - Validado contra producción real (conv 1, `send.js`): plantilla del Kit 8 (pin) + *"La
+    verdad con el recorrido, me mataste"* → antes de este fix hubiera salido `categoria:
+    "envio"`; con el fix salió `categoria: "otro"`, y como el `detalle` del Kit 8 ya menciona
+    el tema recorrido corto/largo, hasta encontró una respuesta relevante ("el kit es para 110
+    chinos de recorrido corto; si la moto es de recorrido largo, existe la opción de cilindro
+    largo...") en vez de la respuesta de envíos fuera de tema.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

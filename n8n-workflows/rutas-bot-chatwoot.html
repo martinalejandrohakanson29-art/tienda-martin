@@ -253,7 +253,7 @@ flowchart TD
   historial --> agenteNuevo{{"IA — Identificar Necesidad<br/>ve: mensaje actual + historial de la charla<br/>+ lista cerrada de kits activos"}}:::ai
 
   agenteNuevo -->|"saludo / interés genérico,<br/>sin pedido puntual"| saludoGen
-  agenteNuevo -->|"identificó el kit<br/>con confianza"| pinNuevo["Pinea el kit<br/>+ confirma en lenguaje natural<br/>(sin repetir precio)"]:::pin
+  agenteNuevo -->|"identificó el kit<br/>con confianza"| pinNuevo["Pinea el kit<br/>(todavía NO confirma —<br/>eso se decide más abajo)"]:::pin
   pinNuevo --> esCompat
   agenteNuevo -->|"2-3 candidatos,<br/>no está seguro"| repregunta["Repregunta nombrando<br/>esas opciones"]:::ok
   repregunta --> finRepregunta["Fin — espera la respuesta,<br/>todavía no pinea nada"]:::gate
@@ -265,13 +265,18 @@ flowchart TD
 
   esCompat -->|"sí"| buscaCompat["Busca compatibilidad<br/>ya guardada del kit"]:::gate
   buscaCompat --> hayCompat{"¿está<br/>guardada?"}:::gate
-  hayCompat -->|"sí"| okCompat["Responde la<br/>compatibilidad"]:::ok
+  hayCompat -->|"sí"| okCompat["Responde la compatibilidad<br/>('sí es compatible con tu X' o<br/>'no, ESTE kit no es compatible con<br/>tu X, cualquier otra consulta nos escribís')"]:::ok
   hayCompat -->|"no"| buscaDetalle["Busca el detalle<br/>técnico del kit"]:::gate
   buscaDetalle --> detalleAlcanza{{"IA — ¿el detalle<br/>alcanza para responder?"}}:::ai
   detalleAlcanza -->|"sí"| okCompat
-  detalleAlcanza -->|"no"| escTecnica["Escala como<br/>'Técnica'"]:::esc
+  detalleAlcanza -->|"no — ni dato ni detalle,<br/>no se sabe nada de esa moto"| escTecnica["Escala como 'Técnica'<br/>(no confirma NINGÚN kit ni<br/>contesta nada del kit — se frena ahí)"]:::esc
 
-  esCompat -->|"no"| subConKit{{"IA — reparte en sub-preguntas<br/>busca precio/envío DEL KIT pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
+  okCompat --> esRealCompat{"¿era realmente<br/>compatible (sí),<br/>no solo 'se pudo<br/>responder'?"}:::gate
+  esRealCompat -->|"sí"| confirmaB["¿Venía de Identificar Necesidad?<br/>si sí, confirma el kit ahora<br/>(recién acá, no antes)"]:::pin
+  esRealCompat -->|"no — confirmado<br/>incompatible"| finNoConfirma["Fin — no confirma<br/>ningún kit"]:::gate
+
+  esCompat -->|"no"| confirmaA["¿Venía de Identificar Necesidad?<br/>si sí, confirma el kit ahora"]:::pin
+  confirmaA --> subConKit{{"IA — reparte en sub-preguntas<br/>busca precio/envío DEL KIT pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
   subConKit --> resConKit{"¿Quedó algo<br/>sin resolver?"}:::gate
   resConKit -->|"no"| okKit["Responde precio/envío<br/>del kit pineado"]:::ok
   resConKit -->|"sí"| escSinMatch2["Escala como<br/>'Sin clasificar'"]:::esc
@@ -326,10 +331,30 @@ flowchart TD
         escalar en silencio. Solo escala si el pedido es concreto pero de verdad no es ninguno de los
         kits que vendemos.
       </li>
+      <li>
+        <strong>(18/8)</strong> El pin ya no confirma el kit al toque — antes <code>pinNuevo</code> mandaba
+        la confirmación de inmediato, sin esperar el chequeo de compatibilidad de al lado. Si el mismo
+        mensaje nombraba una moto puntual sin ningún dato guardado, el cliente terminaba con el kit "dado
+        por bueno" mientras la única pregunta real quedaba escalada y sin contestar. Ahora la confirmación
+        se decide recién después de saber si hay dato de esa moto — y si no hay ninguno (ni compatible ni
+        incompatible), no se confirma nada, se frena en <code>escTecnica</code>. Ver "Fix confirmación
+        antes de tiempo" en <code>CHATWOOT-BOT-CONTEXTO.md</code> para el detalle completo (incluye un
+        segundo ajuste, no dibujado acá por quedar dentro del recuadro de IA de <code>subConKit</code>, que
+        evita que la categoría "otro" del partidor conteste con la ficha del kit mientras esa misma
+        pregunta de compatibilidad sigue sin resolver).
+      </li>
+      <li>
+        <strong>(18/8, mismo día)</strong> Tampoco confirma el kit cuando la compatibilidad se resuelve
+        como NO compatible (<code>esRealCompat</code>) — antes esto solo se frenaba con "sin dato
+        ninguno"; a pedido de Martín se extendió al caso "sí hay dato, y el dato dice que no anda", que
+        antes mandaba la confirmación igual y quedaba contradictorio con la respuesta real. El mensaje de
+        "no compatible" también se reformuló para hablar de "este kit" en vez de insinuar que no hay
+        ninguna opción — el bot nunca revisa el resto del catálogo, así que no puede prometer eso.
+      </li>
     </ol>
   </div>
 
-  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 17/8 tras aplicar "Identificar Necesidad" en producción (validado con conv 1: kit_confiado, saludo y ninguno, sin errores) — ver <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code> para el detalle de cada cambio.</footer>
+  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo" y "no confirmar si incompatible" (validado con conv 1: moto sin dato, moto sin dato + pregunta "otro" pegada, moto confirmada incompatible, moto confirmada compatible, y control sin pregunta de compatibilidad — los cinco sin errores). Nota: el pinado de una sola cilindrada sin marca/modelo (repregunta "marca y modelo?", 18/8) y la categoría "cierre" del partidor (18/8) todavía no están dibujados en este árbol — quedan documentados solo en <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code>, que tiene el detalle completo de cada cambio.</footer>
 </main>
 
 <script type="module">

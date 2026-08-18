@@ -1013,6 +1013,65 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
       ningún cambio: sin bienvenida repetida, respuesta de compatibilidad directa desde
       `compatibilidades`.
 
+- **Fix "stock" mal interpretado como interés nuevo** (2026-08-18,
+  `apply-fix-stock-y-bienvenida-redundante.mjs`), encontrado auditando en vivo la conv 2074
+  (+5493834963190): escribió "Te queda" sobre el Kit 1, del que ya se había hablado el 17/8 (el pin
+  de Redis, por alguna razón no determinada, ya no estaba — no debería haber expirado, TTL 96hs y
+  pasaron solo ~44hs). Sin pin, entró a `Identificar Necesidad`, que tomó "Te queda" como interés
+  nuevo (`kit_confiado`) y disparó la bienvenida completa con foto (feat del mismo día) — un pitch de
+  venta entero como respuesta a una pregunta de disponibilidad de dos palabras. En paralelo, "Te
+  queda" cayó en la categoría "otro" del partidor de sub-preguntas, no encontró nada en el `detalle`
+  del kit, y escaló al equipo — que confirmó "sisi, hay en stock" y recién ahí el bot le mandó al
+  cliente la respuesta real, como segundo mensaje.
+  - Charlado con Martín: como todo lo que está publicitado con plantilla de Meta Ads está
+    efectivamente en stock (no se publicita algo sin stock), la pregunta de disponibilidad SIEMPRE se
+    puede contestar que sí — sin escalar nunca, y sin mandar la bienvenida de nuevo si ya se había
+    hablado de ese kit.
+  - **Cambio A — categoría "stock" nueva en el partidor de sub-preguntas** (mismo patrón que
+    "cierre", mismo día): `Dividir y Etiquetar Sub-preguntas` reconoce preguntas de disponibilidad
+    ("te queda", "hay stock", "tenés disponible", "queda alguno") sobre el kit ya identificado en la
+    charla (mismo condicional de `kit_id` que ya usa "precio" — sin kit identificado, cae en "otro").
+    `Parsear Sub-preguntas` suma "stock" a la whitelist con el mismo guard. `Consolidar Dato
+    Resuelto` contesta con texto fijo ("Sí, tenemos stock.") sin buscar nada — nunca escala, igual que
+    "cierre". `Armar Mensajes` la suma al mapa de prioridad (justo después de "precio"). Sin nodos
+    nuevos.
+  - **Cambio B — tipo "kit_stock" en `Identificar Necesidad`**, para no mandar la bienvenida cuando
+    el mensaje es SOLO una pregunta de disponibilidad sobre un kit ya identificable por el historial
+    (no un pedido de información nueva): prompt con la nueva definición, `Parsear Identificar
+    Necesidad` valida su `kit_id` igual que `kit_confiado`, y `¿Qué Identificó?` (switch) suma una
+    rama nueva "Kit Stock".
+  - **Cómo evita la bienvenida sin tocar los nodos que ya existían:** nodo nuevo `Preparar Pin desde
+    Identificacion (Stock)`, CLON idéntico de `Preparar Pin desde Identificacion` pero con nombre
+    distinto a propósito. `¿Es Kit Recien Identificado?` chequea específicamente si el nodo llamado
+    `Preparar Pin desde Identificacion` corrió en la ejecución para decidir si viene de Identificar
+    Necesidad (y por lo tanto si corresponde bienvenida) — al usar un nombre distinto para el clon, ese
+    chequeo da `false` para el camino de stock, y `¿Viene de Identificar Necesidad?` lo manda derecho a
+    `Extraer Pregunta Compatibilidad` sin bienvenida, exactamente el mismo camino que ya usa "kit ya
+    pineado de antes" (que nunca tuvo bienvenida). El pin en Redis se sigue refrescando igual (`Parsear
+    Kit Pineado` → `Refrescar Kit Pineado`, no le importa cuál de los dos nodos "Preparar Pin..."
+    disparó la ejecución) — mismo patrón de reuso que ya documentaba el gotcha de "$json sin nombre de
+    nodo" más arriba, pero usado a propósito acá para diferenciar el origen sin tocar los nodos
+    compartidos.
+  - Validado contra producción real (conv 1, reproduciendo el caso real con limpieza de pin entre
+    pasos vía el webhook "Utilidad - Limpiar Pin de Prueba"):
+    - Plantilla exacta Kit 1 (pinea normal) → limpiar pin → "Te queda" → `Preparar Pin desde
+      Identificacion (Stock)` corrió (no el original), sin `Enviar Saludo Kit (Identificar
+      Necesidad)` en el camino (sin bienvenida), `kit_recien_confirmado: false`, categoría "stock",
+      mensaje enviado: *"Sí, tenemos stock."*, sin escalar — reproduce y arregla el caso real exacto.
+    - Kit ya pineado (sin pasar por Identificar Necesidad) + "Hola, hay stock?" → misma respuesta fija,
+      mismo camino sin escalar — confirma que el Cambio A solo también alcanza.
+    - Control: kit distinto sin pin + interés nuevo genuino ("Cuanto vale el kit 220 varillero?") →
+      siguió disparando `kit_confiado` normal, `Preparar Pin desde Identificacion` (el original) +
+      `Enviar Saludo Kit (Identificar Necesidad)` corrieron, bienvenida completa enviada,
+      `kit_recien_confirmado: true`, precio suprimido como siempre — confirma que "kit_stock" no pisa
+      el camino existente de interés nuevo.
+  - **Pendiente relacionado, no investigado en este fix:** no se determinó por qué el pin de Redis del
+    Kit 1 (conv 2074) había desaparecido bien dentro de su TTL de 96hs (~44hs transcurridas). Puede
+    haber sido un caso aislado — si vuelve a aparecer un pin perdido dentro de TTL, revisar de nuevo.
+  - `n8n-workflows/rutas-bot-chatwoot.html` actualizado en el mismo cambio: rama nueva `pinStock`
+    colgando de `agenteNuevo`, categoría "stock" mencionada en `subConKit`/`subSinKit`, bullet nuevo en
+    "Qué resuelve".
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

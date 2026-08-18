@@ -255,9 +255,11 @@ flowchart TD
   agenteNuevo -->|"saludo / interés genérico,<br/>sin pedido puntual"| saludoGen
   agenteNuevo -->|"identificó el kit<br/>con confianza"| pinNuevo["Pinea el kit<br/>+ manda la bienvenida con foto<br/>(la misma que usan las plantillas exactas)"]:::pin
   pinNuevo --> esCompat
+  agenteNuevo -->|"SOLO pregunta si hay<br/>stock de un kit ya identificable<br/>por el historial (ej. 'te queda')"| pinStock["Pinea el kit,<br/>SIN mandar bienvenida<br/>(no es interés nuevo)"]:::pin
+  pinStock --> esCompat
   agenteNuevo -->|"2-3 candidatos,<br/>no está seguro"| repregunta["Repregunta nombrando<br/>esas opciones"]:::ok
   repregunta --> finRepregunta["Fin — espera la respuesta,<br/>todavía no pinea nada"]:::gate
-  agenteNuevo -->|"no es ninguno de<br/>los kits que vendemos"| subSinKit{{"IA — reparte en sub-preguntas<br/>busca precio/envío de kit: nada pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
+  agenteNuevo -->|"no es ninguno de<br/>los kits que vendemos"| subSinKit{{"IA — reparte en sub-preguntas<br/>busca precio/stock/envío de kit: nada pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
 
   subSinKit --> resSinKit{"¿Quedó algo<br/>sin resolver?"}:::gate
   resSinKit -->|"no"| okGenerico["Responde con lo<br/>que encontró"]:::ok
@@ -273,9 +275,9 @@ flowchart TD
 
   okCompat --> finCompatOk["Fin — ya se mandó la<br/>bienvenida (si correspondía,<br/>ver 'Pinea el kit' más arriba)<br/>y la respuesta de compatibilidad"]:::gate
 
-  esCompat -->|"no"| subConKit{{"IA — reparte en sub-preguntas<br/>busca precio/envío DEL KIT pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
+  esCompat -->|"no"| subConKit{{"IA — reparte en sub-preguntas<br/>busca precio/stock/envío DEL KIT pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
   subConKit --> resConKit{"¿Quedó algo<br/>sin resolver?"}:::gate
-  resConKit -->|"no"| okKit["Responde precio/envío<br/>del kit pineado"]:::ok
+  resConKit -->|"no"| okKit["Responde precio/stock/envío<br/>del kit pineado<br/>(stock: siempre 'sí', nunca escala)"]:::ok
   resConKit -->|"sí"| escSinMatch2["Escala como<br/>'Sin clasificar'"]:::esc
     </pre>
   </div>
@@ -359,10 +361,22 @@ flowchart TD
         compatible si el dato dice que no), simplemente ya no dispara ningún texto de confirmación
         aparte en ningún caso.
       </li>
+      <li>
+        <strong>(18/8, mismo día, un poco más tarde)</strong> Caso real: +5493834963190 escribió
+        "Te queda" sobre un kit del que ya se había hablado dos días antes (el pin de Redis ya no
+        estaba). <code>agenteNuevo</code> lo tomó como interés nuevo y disparó <code>pinNuevo</code> —
+        bienvenida completa como respuesta a una pregunta de disponibilidad de dos palabras, y encima
+        "Te queda" escalaba aparte porque el detalle del kit no dice nada de stock. Se agregó la rama
+        <code>pinStock</code>: cuando el mensaje SOLO pregunta disponibilidad de un kit identificable por
+        el historial, pinea igual (para que el resto de la charla tenga contexto) pero sin mandar la
+        bienvenida. Y en <code>subConKit</code>/<code>subSinKit</code> se agregó la categoría "stock" con
+        respuesta fija ("Sí, tenemos stock.") — a pedido de Martín, como todo lo que se publicita con
+        plantilla de Meta Ads está efectivamente en stock, nunca hace falta escalar esa pregunta.
+      </li>
     </ol>
   </div>
 
-  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo" y "no confirmar si incompatible", y de nuevo el mismo día tras la feat "bienvenida con foto en vez de confirmación" (validado con conv 1: rama directa, cilindrada sola, compatibilidad ya resuelta, y regresión con kit ya pineado de antes — los cuatro sin errores). Nota: el pinado de una sola cilindrada sin marca/modelo (repregunta "marca y modelo?", 18/8, ahora suprimida cuando la bienvenida se acaba de mandar) y la categoría "cierre" del partidor (18/8) todavía no están dibujados en este árbol — quedan documentados solo en <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code>, que tiene el detalle completo de cada cambio.</footer>
+  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo" y "no confirmar si incompatible", de nuevo el mismo día tras la feat "bienvenida con foto en vez de confirmación", y una vez más tras el fix "stock mal interpretado como interés nuevo" (validado con conv 1: "Te queda" sin pin → pinStock sin bienvenida + respuesta de stock directa; stock con kit ya pineado; y control de interés nuevo real, que sigue mandando la bienvenida normal — los tres sin errores). Nota: el pinado de una sola cilindrada sin marca/modelo (repregunta "marca y modelo?", 18/8, ahora suprimida cuando la bienvenida se acaba de mandar) y la categoría "cierre" del partidor (18/8) todavía no están dibujados en este árbol — quedan documentados solo en <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code>, que tiene el detalle completo de cada cambio.</footer>
 </main>
 
 <script type="module">

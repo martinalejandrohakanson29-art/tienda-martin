@@ -895,6 +895,46 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     chinos de recorrido corto; si la moto es de recorrido largo, existe la opción de cilindro
     largo...") en vez de la respuesta de envíos fuera de tema.
 
+- **Fix orden confirmación vs. respuesta directa** (2026-08-18,
+  `apply-fix-orden-confirmacion-directa.mjs`), encontrado auditando en vivo la conv 2129
+  (+5493549539614, contacto Agus Lb): escribió *"Hola bueno día amigo una pregunta que sale el
+  kit ese 120 con tapa cdi"* — nombra el kit y pregunta precio en el mismo mensaje, sin plantilla
+  exacta ni kit pineado de antes. `Identificar Necesidad` (feat del 17/8) lo resolvió como
+  `kit_confiado` (Kit 8) y armó su confirmación corta *"Dale, el combo de tapa CDI + cilindro 120
+  con la corona de regalo, ¿no?"* (a propósito sin precio, ver nota de la Feat original más
+  arriba). En paralelo, el partidor de sub-preguntas (Fase 6) categorizó la pregunta como
+  `"precio"` y redactó la respuesta real. Sin ningún orden garantizado entre las dos ramas
+  paralelas, el precio (sin mención de ningún kit) le llegó al cliente ANTES que la confirmación
+  del nombre del kit — mismo patrón de bug que "precio redundante y orden" (14/8), pero
+  `Identificar Necesidad` nunca heredó esa protección de orden.
+  - Por qué no se reusó directamente el tronco `Chequear Confirmacion Pendiente` → `¿Debe
+    Confirmar Kit?` → `Enviar Confirmacion Kit (Propuesta)`: ese tronco es compartido por otros
+    dos orígenes (`¿Compatibilidad Sin Marca/Modelo?` — cilindrada sola — y `¿Es Realmente
+    Compatible?` — compatibilidad ya resuelta). Encadenar `Preparar Contexto Sub-preguntas` a la
+    salida de ese tronco compartido lo habría disparado una segunda vez en el camino de `¿Es
+    Realmente Compatible?` (que ya lo dispara aparte, vía `¿Hay Resto Adicional en la Rafaga?`,
+    para el resto de la ráfaga) — duplicando la respuesta en ese caso.
+  - Fix: se clonaron los 3 nodos (`Chequear Confirmacion Antes de Sub-pregunta`, `¿Debe Confirmar
+    Antes de Sub-pregunta?`, `Enviar Confirmacion Antes de Sub-pregunta`) como tronco **privado**,
+    usado solo por la rama `¿Es Compatibilidad Con Modelo?` (false) — la única de las tres
+    involucrada en el caso real. Esa rama ahora pasa primero por el chequeo/envío de confirmación
+    y recién después sigue a `Preparar Contexto Sub-preguntas`, en las dos salidas (se confirmó o
+    no hacía falta). Las otras dos ramas (cilindrada sola, compatibilidad resuelta) siguen usando
+    el tronco original sin ningún cambio.
+  - Validado contra producción real (conv 1, teléfono sintético +5493500099901 para garantizar
+    pin limpio): repitiendo el caso real (*"...pregunta que sale el kit ese 120 con tapa cdi"*)
+    → confirmación (*"Dale, el combo de tapa CDI + cilindro 120, ¿no?"*, msg 13602) enviada 11
+    segundos antes que el precio (msg 13603) — orden correcto; caso de regresión con el mismo Kit
+    8 ya pineado y una pregunta sin compatibilidad (*"Y hacen envíos a Córdoba capital?"*) → pasó
+    por el chequeo privado, `debe_confirmar: false`, sin confirmación espuria, respuesta de envío
+    normal — confirma que el camino más común (kit ya pineado de antes) no cambió de
+    comportamiento.
+  - **Pendiente relacionado, no resuelto en este fix:** la rama `¿Compatibilidad Sin
+    Marca/Modelo?` (cilindrada sola, feature "Repreguntar Modelo" del 18/8) tiene la misma carrera
+    de 3 vías en paralelo — repregunta de modelo, resto de la ráfaga, y confirmación de kit — sin
+    reproducirse todavía en una conversación real. Si aparece un caso concreto, aplicar el mismo
+    patrón (tronco privado) ahí también.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

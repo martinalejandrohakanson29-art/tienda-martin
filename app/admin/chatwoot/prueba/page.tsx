@@ -380,7 +380,8 @@ export default function PruebaMensajesPage() {
             const convs = (data.conversationIds || []).length
                 ? ` (conversación${data.conversationIds.length > 1 ? "es" : ""} #${data.conversationIds.join(", #")})`
                 : ""
-            setBorrarNumeroResultado(`Listo: ${data.filasBorradas} filas borradas${convs}.${data.avisoChatwoot ? ` Aviso: ${data.avisoChatwoot}` : ""}`)
+            const redisTxt = typeof data.redisKeysBorradas === "number" ? ` + ${data.redisKeysBorradas} claves de Redis (pin de kit / pausa)` : ""
+            setBorrarNumeroResultado(`Listo: ${data.filasBorradas} filas borradas${redisTxt}${convs}.${data.avisoChatwoot ? ` Aviso: ${data.avisoChatwoot}` : ""}${data.avisoRedis ? ` Aviso Redis: ${data.avisoRedis}` : ""}`)
             setConfirmBorrarNumeroOpen(false)
         } catch (error) {
             setBorrarNumeroError(error instanceof Error ? error.message : "Error de conexión con el servidor")

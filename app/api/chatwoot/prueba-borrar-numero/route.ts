@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
 import { chatwootConfig } from "@/lib/chatwoot-bot";
+import { redis } from "@/lib/redis";
 
 // Botón "Borrar historial de un número" en /admin/chatwoot/prueba: a
 // diferencia de "Reiniciar conocimiento" (que borra TODO sin distinguir),
@@ -15,6 +16,14 @@ import { chatwootConfig } from "@/lib/chatwoot-bot";
 // real de Chatwoot (buscar el contacto por teléfono, listar sus
 // conversaciones) antes de poder borrar por conversation_id en
 // preguntas_*_pendientes / respuestas_pendientes.
+//
+// También borra en Redis el kit pineado (`kit_pineado:{telefono}`, TTL 96hs)
+// y la pausa del bot por conversación (`bot_pausado:{conversation_id}`, TTL
+// 30 días) -- hasta el 2026-08-18 este botón solo tocaba Postgres, así que un
+// pin viejo (o una pausa vieja) podía sobrevivir el "reset" y arrastrar el
+// bot por un camino distinto al esperado en la siguiente prueba (encontrado
+// auditando en vivo con Martín: +5493513784909 seguía con un kit pineado de
+// una prueba anterior después de "limpiar" la conversación).
 export async function DELETE(request: Request) {
     try {
         await requireAdmin();
@@ -77,12 +86,23 @@ export async function DELETE(request: Request) {
         const resultados = await prisma.$transaction(queries);
         const filasBorradas = resultados.reduce((a, b) => a + b, 0);
 
+        let redisKeysBorradas = 0;
+        let redisError: string | null = null;
+        try {
+            const claves = [`kit_pineado:${telefono}`, ...idsArray.map((id) => `bot_pausado:${id}`)];
+            redisKeysBorradas = claves.length ? await redis.del(...claves) : 0;
+        } catch (error) {
+            redisError = error instanceof Error ? error.message : "Error conectando a Redis";
+        }
+
         return NextResponse.json({
             success: true,
             telefono,
             conversationIds: idsArray,
             filasBorradas,
+            redisKeysBorradas,
             avisoChatwoot: chatwootError,
+            avisoRedis: redisError,
         });
     } catch (error) {
         const noAutorizado = error instanceof Error && error.message === "No autorizado";

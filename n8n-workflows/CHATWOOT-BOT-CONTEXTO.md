@@ -555,7 +555,16 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
      `buildNodes()`, reconectar, `PUT`.
 3. **Reglas de higiene** (aprendidas a los golpes, algunas el mismo 2026-08-13): marcar todo lo
    sintético con prefijo `[auditoria-XX]` en el contenido; limpiar por `id` exacto, no por patrón
-   de texto amplio; reusar la conversación de prueba en vez de inventar IDs.
+   de texto amplio; reusar la conversación de prueba en vez de inventar IDs. **Ojo con la
+   conversación de prueba (`+5493513784909`)**: hasta el 2026-08-18 "resetearla" desde
+   `/admin/chatwoot/prueba` NO limpiaba Redis (`kit_pineado:{telefono}`, TTL 96hs;
+   `bot_pausado:{conversation_id}`, TTL 30 días) — un pin viejo de una sesión anterior podía
+   arrastrar una prueba nueva por un camino distinto sin que se notara. Ya está resuelto (ver
+   [[project-redis-app-conectividad]] en memoria) — el botón "Borrar historial de un número" ahora
+   también llama a un workflow n8n nuevo, **"Utilidad - Limpiar Pin de Prueba"** (activo, separado
+   de "Respuestas chatwoot 2.0", webhook `POST /webhook/limpiar-pin-prueba`), que borra esas dos
+   claves. La app no puede hablar con ese Redis directo (firewall de IP, solo deja pasar al
+   servidor de n8n) — de ahí el workflow intermediario en vez de un cliente Redis en la app.
 4. **Gotchas de n8n descubiertos armando la Fase 6** (para no repetir el error):
    - Un `Switch`/`If` que separa ítems en ramas distintas **no las vuelve a juntar solas** en un
      nodo posterior aunque varias conexiones apunten al mismo nombre de nodo — cada conexión

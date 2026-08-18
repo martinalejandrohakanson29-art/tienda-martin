@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth-guard";
 import { chatwootConfig } from "@/lib/chatwoot-bot";
-import { redis } from "@/lib/redis";
+
+// La app no puede conectarse directo al Redis del bot (firewall/allowlist de IP que
+// solo deja pasar al servidor de n8n, confirmado el 2026-08-18). En vez de eso, un
+// workflow chico en n8n ("Utilidad - Limpiar Pin de Prueba", que sí tiene la
+// credencial "Redis account 2" funcionando) expone un webhook para hacer el borrado.
+const N8N_LIMPIAR_PIN_URL = "https://n8n.revolucionmotos.tech/webhook/limpiar-pin-prueba";
 
 // Botón "Borrar historial de un número" en /admin/chatwoot/prueba: a
 // diferencia de "Reiniciar conocimiento" (que borra TODO sin distinguir),
@@ -89,10 +94,18 @@ export async function DELETE(request: Request) {
         let redisKeysBorradas = 0;
         let redisError: string | null = null;
         try {
-            const claves = [`kit_pineado:${telefono}`, ...idsArray.map((id) => `bot_pausado:${id}`)];
-            redisKeysBorradas = claves.length ? await redis.del(...claves) : 0;
+            const webhookToken = process.env.CHATWOOT_WEBHOOK_TOKEN;
+            const url = webhookToken ? `${N8N_LIMPIAR_PIN_URL}?token=${encodeURIComponent(webhookToken)}` : N8N_LIMPIAR_PIN_URL;
+            const resRedis = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ telefono, conversationIds: idsArray }),
+            });
+            const dataRedis = await resRedis.json().catch(() => ({}));
+            if (!resRedis.ok) throw new Error(dataRedis?.error || `n8n respondió ${resRedis.status}`);
+            redisKeysBorradas = typeof dataRedis.clavesBorradas === "number" ? dataRedis.clavesBorradas : 0;
         } catch (error) {
-            redisError = error instanceof Error ? error.message : "Error conectando a Redis";
+            redisError = error instanceof Error ? error.message : "Error llamando al workflow de limpieza de Redis";
         }
 
         return NextResponse.json({

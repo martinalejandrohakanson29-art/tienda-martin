@@ -74,7 +74,7 @@ Orden real del procesamiento de un mensaje entrante:
    contra las plantillas exactas de `kits_publicidad` y detecta saludo puro. Si no matchea
    ninguna de las dos → `sin_match`.
 4. **Si matcheó un kit**: manda el saludo/foto del kit y lo "pinea" en Redis
-   (`kit_pineado:{teléfono}`, TTL 12hs) para que las siguientes preguntas de esa conversación
+   (`kit_pineado:{teléfono}`, TTL 96hs) para que las siguientes preguntas de esa conversación
    sepan de qué kit se está hablando.
 5. **Si hay un kit pineado y el mensaje no matcheó nada nuevo**: se chequea con IA acotada
    (DeepSeek) si es una pregunta de compatibilidad ("¿anda en tal moto?"). Si sí, busca la
@@ -661,6 +661,42 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     generó una falsa alarma que llevó a un rollback innecesario (revertido y reaplicado sin
     problema, ver backup + script) — antes de revertir por "no contesta", confirmar contra
     `respuestas_pendientes`/`preguntas_sin_match_pendientes`, no solo contra Chatwoot en vivo.
+
+- **Feat "Repreguntar Modelo" — no perder al cliente que contesta solo la cilindrada** (2026-08-18,
+  `apply-feat-repregunta-modelo.mjs`). Diagnosticado en la conversación real 2109 (+5493725464840):
+  el saludo de cualquier kit siempre termina preguntando "¿para qué moto lo estás buscando?", y muy
+  seguido el cliente contesta solo la cilindrada ("110", "125") sin marca ni modelo puntual.
+  `Extraer Pregunta Compatibilidad` ya detectaba bien esto (`es_compatibilidad: true`,
+  `modelo_moto: ""` a propósito, sin inventar), pero `¿Es Compatibilidad Con Modelo?` exige un
+  modelo real para entrar a la rama que sabe leer el `detalle` del kit — sin eso, el mensaje caía en
+  el balde genérico "otro" del partidor de sub-preguntas (Fase 6), que no supo qué hacer con una
+  respuesta de una sola palabra y terminaba escalando a un humano en vano.
+  - `Extraer Pregunta Compatibilidad` (agente existente) se amplió: ahora separa `cilindrada`
+    (genérico, ej. "110") de `modelo_moto` (marca + modelo puntual), y se simplificó la regla de
+    `resto_mensaje` — ya no deja pegado el mensaje completo cuando no hay modelo, siempre saca
+    únicamente la frase de compatibilidad/cilindrada (antes tenía una excepción para eso que
+    complicaba mezclar esta pregunta con otras en la misma ráfaga).
+  - Nodo nuevo `¿Compatibilidad Sin Marca/Modelo?` (IF, determinístico) intercepta ANTES del gate
+    existente: `es_compatibilidad=true` Y `modelo_moto` vacío. Si hay modelo, o si no es pregunta de
+    compatibilidad, sigue el camino de siempre sin ningún cambio.
+  - Si aplica, agente nuevo y chico `Redactar Repregunta Modelo` (DeepSeek, mismo patrón de "IA
+    acotada" del resto del workflow) arma UNA pregunta corta pidiendo marca+modelo (usa la
+    cilindrada si la hay, ej. "Para una 110, marca y modelo es?"), nunca confirma ni descarta
+    compatibilidad, nunca inventa una marca, no saluda. Estilo pedido por el usuario: signo de
+    cierre "?" únicamente, nunca el de apertura "¿" (ver [[feedback-bot-preguntas-sin-apertura]] en
+    memoria — pendiente aplicar este mismo estilo al resto de los prompts que redactan preguntas).
+  - El resto de la ráfaga (envío, ubicación, precio, lo que sea) se resuelve reusando
+    `¿Hay Resto Adicional en la Rafaga?` — el mismo nodo que ya cumple esa función en la rama de
+    compatibilidad normal, con una segunda entrada (mismo patrón que ya usan `Parsear Kit Pineado` o
+    `Enviar Saludo Kit`). No se duplicó lógica nueva para esto.
+  - Validado contra producción real (conv 1, `send.js`, tres casos): cilindrada sola ("110") → una
+    sola repregunta limpia, sin resto; modelo real ("Zanella ZB 110") → camino de compatibilidad de
+    siempre, sin cambios (escaló en silencio porque no hay dato, igual que antes); cilindrada +
+    pregunta pegada ("110, hacen envío a Chubut?") → repregunta de modelo enviada Y la pregunta de
+    envío resuelta aparte en paralelo, ninguna de las dos se pisó ni se perdió.
+  - Diagrama de esta rama puntual (para pensar el diseño antes de aplicar) en
+    `n8n-workflows/propuesta-repregunta-modelo.html` — queda como referencia histórica de la
+    propuesta, ya implementada.
 
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 

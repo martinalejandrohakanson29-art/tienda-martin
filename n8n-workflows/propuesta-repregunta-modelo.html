@@ -1,0 +1,325 @@
+<title>Propuesta: Repreguntar Modelo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --bg: #eef1f4;
+    --surface: #ffffff;
+    --surface-2: #e4e8ec;
+    --text: #1a2027;
+    --text-dim: #56606b;
+    --border: #d3d9df;
+    --accent: #9a680d;
+    --accent-soft: #f1e4c8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14181d;
+      --surface: #1b2027;
+      --surface-2: #20262d;
+      --text: #e7ebef;
+      --text-dim: #98a3ad;
+      --border: #2c333b;
+      --accent: #d3a24a;
+      --accent-soft: #3a2f18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14181d;
+    --surface: #1b2027;
+    --surface-2: #20262d;
+    --text: #e7ebef;
+    --text-dim: #98a3ad;
+    --border: #2c333b;
+    --accent: #d3a24a;
+    --accent-soft: #3a2f18;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.55;
+  }
+  main {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 56px 24px 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .eyebrow::before {
+    content: "";
+    width: 22px;
+    height: 1px;
+    background: var(--accent);
+  }
+
+  h1 {
+    font-size: clamp(28px, 4vw, 38px);
+    font-weight: 700;
+    margin: 0;
+    text-wrap: balance;
+    max-width: 24ch;
+  }
+
+  .intro {
+    max-width: 68ch;
+    color: var(--text-dim);
+    font-size: 16px;
+    margin: 0;
+  }
+  .intro strong { color: var(--text); font-weight: 600; }
+
+  .status {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .status::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .diagram-panel {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+  .diagram-panel .mermaid {
+    min-width: 620px;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 18px;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    font-size: 13.5px;
+    color: var(--text-dim);
+  }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .swatch {
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    flex: none;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+  .sw-existing { background: #30363d; }
+  .sw-ai-existing { background: #2d2a55; }
+  .sw-ai-new { background: #5a2a7a; }
+  .sw-new { background: #0b3a45; }
+  .sw-reuse { background: #5a4a12; }
+  .sw-ok { background: #0f3d2e; }
+
+  .findings {
+    border-left: 3px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .findings h2 {
+    margin: 0;
+    font-size: 13px;
+    font-family: "IBM Plex Mono", monospace;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+  .findings ol, .findings ul {
+    margin: 0;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 14.5px;
+    color: var(--text);
+  }
+  .findings code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.92em;
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .findings code { background: rgba(255,255,255,0.08); }
+  }
+  :root[data-theme="dark"] .findings code { background: rgba(255,255,255,0.08); }
+
+  .origen {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  .origen strong { color: var(--text); }
+
+  footer {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    font-family: "IBM Plex Mono", monospace;
+  }
+</style>
+
+<main>
+  <div class="eyebrow">n8n · Respuestas Chatwoot 2.0 · propuesta, no implementada todavía</div>
+  <span class="status">Solo para pensarla — no tocar producción con esto</span>
+  <h1>Repreguntar modelo cuando falta marca/modelo</h1>
+  <p class="intro">
+    Este diagrama muestra <strong>únicamente la rama nueva que se está evaluando</strong>, para no
+    perderse en el resto del workflow. Se engancha en un solo punto ya existente
+    (<code>Extraer Pregunta Compatibilidad</code>, con un kit ya pineado) y no cambia nada de lo que
+    hoy funciona: cuando SÍ hay marca/modelo, sigue exactamente el mismo camino de siempre.
+  </p>
+
+  <div class="diagram-panel">
+    <pre class="mermaid">
+flowchart TD
+  classDef existing fill:#30363d,stroke:#6e7681,color:#e6edf3,stroke-width:1px;
+  classDef aiExisting fill:#2d2a55,stroke:#6f66d6,color:#e6e3ff,stroke-width:1px;
+  classDef aiNew fill:#5a2a7a,stroke:#c060e0,color:#f6e3ff,stroke-width:2px;
+  classDef gateNew fill:#0b3a45,stroke:#2aa9c9,color:#d8f6ff,stroke-width:2px;
+  classDef reuse fill:#5a4a12,stroke:#e0b030,color:#fff3d0,stroke-width:2px;
+  classDef ok fill:#0f3d2e,stroke:#2fae72,color:#d9ffe9,stroke-width:1px;
+
+  pin["Kit ya pineado en la conversación
+(por cualquier camino: plantilla,
+Identificar Necesidad, etc.)"]:::existing
+
+  extraer["Extraer Pregunta Compatibilidad
+agente EXISTENTE — se amplía:
+ahora separa cilindrada / marca_modelo
+y limpia resto_mensaje sin duplicar
+la frase de compatibilidad"]:::aiExisting
+
+  gate["¿Compatibilidad sin
+marca/modelo?
+(es_compatibilidad=true Y
+marca_modelo vacío)"]:::gateNew
+
+  existente["¿Es Compatibilidad Con Modelo?
+sin cambios — sigue el camino
+de compatibilidad de siempre"]:::existing
+
+  redactar["Redactar Repregunta Modelo
+agente NUEVO, chico y acotado
+usa la cilindrada si la hay,
+nunca contesta otra cosa,
+nunca inventa marca/modelo"]:::aiNew
+
+  enviar["Enviar Repregunta Modelo
+(ej: 'Para una 110, ¿qué marca
+y modelo es?')"]:::gateNew
+
+  restoGate{"¿Hay Resto Adicional
+en la Ráfaga?
+NODO EXISTENTE, reusado"}:::reuse
+
+  subpreguntas["Preparar Contexto Sub-preguntas
+pipeline existente: precio /
+envío / negocio / otro"]:::existing
+
+  finRepregunta(["Fin - Repregunta Enviada"]):::ok
+  finResto(["Fin - Sub-preguntas
+respondidas (como siempre)"]):::ok
+
+  pin --> extraer --> gate
+  gate -- "no (hay marca/modelo,
+o no es compatibilidad)" --> existente
+  gate -- "sí" --> redactar
+  redactar --> enviar --> finRepregunta
+  redactar -. "resto_mensaje limpio
+(envío, ubicación, etc.)" .-> restoGate
+  existente -. "camino que YA
+existe hoy" .-> restoGate
+  restoGate -- "sí" --> subpreguntas --> finResto
+  restoGate -- "no" --> finRepregunta
+    </pre>
+  </div>
+
+  <ul class="legend">
+    <li><span class="swatch sw-existing"></span> nodo existente, sin cambios</li>
+    <li><span class="swatch sw-ai-existing"></span> agente existente, se amplía su prompt</li>
+    <li><span class="swatch sw-ai-new"></span> agente nuevo (chico, acotado)</li>
+    <li><span class="swatch sw-new"></span> nodo nuevo, determinístico</li>
+    <li><span class="swatch sw-reuse"></span> nodo existente, se reutiliza con una entrada más</li>
+    <li><span class="swatch sw-ok"></span> fin de camino</li>
+  </ul>
+
+  <div class="findings">
+    <h2>Qué cambia, puntualmente</h2>
+    <ol>
+      <li>
+        <code>Extraer Pregunta Compatibilidad</code> (agente que ya existe) gana un campo más en su
+        salida: <code>cilindrada</code> separado de <code>marca_modelo</code>. Hoy solo tiene
+        <code>modelo_moto</code> todo junto. Se corrige también la regla de <code>resto_mensaje</code>
+        para que nunca repita la frase de compatibilidad ya extraída.
+      </li>
+      <li>
+        Nodo nuevo <code>¿Compatibilidad sin marca/modelo?</code>: intercepta ANTES del
+        <code>¿Es Compatibilidad Con Modelo?</code> de siempre. Si hay marca/modelo, o si no es
+        pregunta de compatibilidad, sigue exactamente el camino actual sin tocarlo.
+      </li>
+      <li>
+        Agente nuevo <code>Redactar Repregunta Modelo</code>: su único trabajo es armar una pregunta
+        corta pidiendo marca y modelo (usando la cilindrada si ya se sabe). Nunca responde otra cosa,
+        nunca asume compatibilidad, nunca inventa una marca que el cliente no dijo.
+      </li>
+      <li>
+        El resto de la ráfaga (envío, ubicación, precio, lo que sea) se resuelve reutilizando
+        <code>¿Hay Resto Adicional en la Ráfaga?</code> — el mismo nodo que hoy ya cumple esa función
+        para el camino de compatibilidad normal. No se duplica lógica nueva para eso.
+      </li>
+    </ol>
+  </div>
+
+  <div class="origen">
+    <strong>Origen:</strong> caso real, conversación 2109 (contacto +5493725464840, 2026-08-18) — el
+    cliente contestó "110" a "¿para qué moto lo estás buscando?" y el bot no supo qué hacer con eso
+    (cayó en el balde genérico "otro" y terminó escalando). Detalle completo del diagnóstico en la
+    charla de esa fecha, no repetido acá para no perder el foco del diagrama.
+  </div>
+
+  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg). Este archivo es una PROPUESTA para revisar antes de tocar producción — no confundir con <code>n8n-workflows/rutas-bot-chatwoot.html</code>, que documenta el workflow real tal cual está hoy.</footer>
+</main>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, securityLevel: "loose" });
+</script>

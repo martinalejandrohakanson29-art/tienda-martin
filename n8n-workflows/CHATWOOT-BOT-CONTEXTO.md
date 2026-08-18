@@ -934,6 +934,75 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     de 3 vías en paralelo — repregunta de modelo, resto de la ráfaga, y confirmación de kit — sin
     reproducirse todavía en una conversación real. Si aparece un caso concreto, aplicar el mismo
     patrón (tronco privado) ahí también.
+  - **Superado el mismo día** por la feat "Bienvenida con foto en vez de confirmación" (más
+    abajo): los 3 nodos privados de este fix (`Chequear Confirmacion Antes de Sub-pregunta`, `¿Debe
+    Confirmar Antes de Sub-pregunta?`, `Enviar Confirmacion Antes de Sub-pregunta`) y el tronco
+    compartido original (`Chequear Confirmacion Pendiente`, `¿Debe Confirmar Kit?`, `Enviar
+    Confirmacion Kit (Propuesta)`) se borraron por completo — ya no hace falta "confirmar" con un
+    texto aparte, la bienvenida con foto que se manda ahora cumple ese rol. Se deja esta entrada
+    como historial de por qué se llegó al diseño nuevo, no como estado vigente.
+
+- **Feat "Bienvenida con foto en vez de confirmación" en Identificar Necesidad** (2026-08-18,
+  `apply-feat-bienvenida-identificar-necesidad.mjs`), pedido explícito de Martín charlado antes de
+  aplicar, a partir del mismo caso de la conv 2129: cuando `Identificar Necesidad` confirma un kit
+  detectado por lenguaje natural (sin plantilla exacta), en vez de un texto corto redactado por IA
+  (*"Dale, el combo de tapa CDI..., ¿no?"*) ahora manda la MISMA bienvenida con foto que ya usan
+  las plantillas exactas (`mensaje_bienvenida` + `foto_url` de `kits_publicidad`) — un solo mensaje
+  rico en vez de confirmación + respuesta aparte, para cualquier kit.
+  - **Alcance confirmado con Martín:** aplica a las 3 ramas donde `Identificar Necesidad` confirma
+    un kit — pregunta directa, cilindrada sola, y compatibilidad ya resuelta con una moto nombrada.
+  - **Precio:** como la bienvenida ya trae el precio completo, la categoría `"precio"` del partidor
+    de sub-preguntas (Fase 6) se suprime cuando la bienvenida se acaba de mandar en esta misma
+    ejecución — mismo criterio que ya usan las plantillas exactas (`kit_recien_confirmado`), ahora
+    extendido para reconocer también este nuevo origen.
+  - **Repregunta de modelo:** como la bienvenida ya termina preguntando "¿para qué moto lo estás
+    buscando?", la repregunta puntual de marca/modelo (feat del 18/8, "Repreguntar Modelo") se
+    suprime cuando la bienvenida se acaba de mandar en esta misma ejecución. Si el kit ya estaba
+    pineado de una conversación más vieja (sin bienvenida recién mandada), la repregunta sigue
+    funcionando igual que antes — ahí sí hace falta preguntar.
+  - **Por qué se clona `Enviar Saludo Kit` en vez de reusarlo directo:** ese nodo es compartido por
+    los 2 orígenes de plantilla exacta (sin resto / con resto del mismo tema) y sus salidas fijas
+    (`Fin - Saludo Kit Enviado`, `Marcar Kit Pineado`) asumen esos orígenes — agregarle una tercera
+    salida hacia `Extraer Pregunta Compatibilidad` habría roto el camino de plantilla exacta "sin
+    resto" (99% de los casos), que hoy termina justo después del saludo. Se creó un HTTP Request
+    clonado (`Enviar Saludo Kit (Identificar Necesidad)`) con salida propia, encadenado ANTES de
+    `Extraer Pregunta Compatibilidad` para garantizar orden determinista (mismo principio que la
+    Fase 10: "el saludo siempre sale antes que cualquier otra respuesta").
+  - **Nodos nuevos:** `¿Es Kit Recien Identificado?` (code, chequea si `Preparar Pin desde
+    Identificacion` corrió en esta ejecución) → `¿Viene de Identificar Necesidad?` (if) → si sí:
+    `Buscar Bienvenida Kit Identificado` (code, busca `mensaje_bienvenida`/`foto_url` del kit
+    identificado dentro de la lista que ya trajo `Buscar Kits Activos`, sin query nueva) → `Enviar
+    Saludo Kit (Identificar Necesidad)` → `Extraer Pregunta Compatibilidad` (mismo nodo de
+    siempre). Si no (kit ya pineado de antes): directo a `Extraer Pregunta Compatibilidad`, cero
+    cambios. Mismo patrón de chequeo (`¿Es Kit Recien Identificado (Modelo)?` → `¿Repregunta Modelo
+    Necesaria?`) insertado antes de `Redactar Repregunta Modelo` para la rama de cilindrada sola.
+  - **Gotcha aplicado de una:** `Extraer Pregunta Compatibilidad` leía `{{ $json.kit_nombre }}`
+    (atajo sin nombre de nodo) en su prompt, asumiendo que su entrada directa siempre traía ese
+    campo — cierto para el camino viejo (`Parsear Kit Pineado` directo), pero no para el nuevo
+    (`Enviar Saludo Kit (Identificar Necesidad)` devuelve la respuesta HTTP de Chatwoot, sin
+    `kit_nombre`). Se cambió a `{{ $('Parsear Kit Pineado').item.json.kit_nombre }}` explícito,
+    válido para cualquiera de los dos orígenes — mismo error ya documentado en el gotcha de
+    "precio redundante y orden" (14/8), atajado esta vez antes de publicar en vez de después.
+  - **Nodos borrados** (huérfanos tras este cambio, ya no hace falta "confirmar" aparte): `Chequear
+    Confirmacion Pendiente`, `¿Debe Confirmar Kit?`, `Enviar Confirmacion Kit (Propuesta)`, `Fin -
+    Sin Confirmar Kit`, `Fin - Confirmacion Kit Enviada`, y los 3 nodos privados del fix de orden
+    de más arriba.
+  - Validado contra producción real (conv 1, `send.js`, teléfonos sintéticos frescos por caso):
+    - Rama directa (repitiendo el caso real, *"...pregunta que sale el kit ese 120 con tapa
+      cdi"*) → un solo mensaje: bienvenida con foto y los dos precios, `kit_recien_confirmado:
+      true`, `partes: []` (precio suprimido, no se mandó nada aparte).
+    - Rama cilindrada sola (*"tenes el kit de tapa cdi 120? Es para una 110"*) → bienvenida con
+      foto, sin repregunta de modelo duplicada; el resto de la ráfaga (la mención al kit, ya
+      contestada por la bienvenida) escaló solo en silencio como `otro` sin dato — comportamiento
+      esperado, no relacionado con este fix.
+    - Rama compatibilidad ya resuelta (*"tenes el kit de tapa cdi 120? Ando en una Gilera
+      Nevada"*) → bienvenida con foto primero (msg 13623), respuesta de compatibilidad después
+      (msg 13625, *"Sí, el kit es compatible con tu Gilera Nevada, para recorrido corto."*) — orden
+      correcto, sin confirmación de por medio.
+    - Regresión (kit ya pineado de una conversación vieja + pregunta de compatibilidad con un
+      modelo confirmado, *"Y una Zanella zb 110 del 2019 le entra?"*) → camino de siempre sin
+      ningún cambio: sin bienvenida repetida, respuesta de compatibilidad directa desde
+      `compatibilidades`.
 
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 

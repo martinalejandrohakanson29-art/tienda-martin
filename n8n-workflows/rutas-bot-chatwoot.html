@@ -253,7 +253,7 @@ flowchart TD
   historial --> agenteNuevo{{"IA — Identificar Necesidad<br/>ve: mensaje actual + historial de la charla<br/>+ lista cerrada de kits activos"}}:::ai
 
   agenteNuevo -->|"saludo / interés genérico,<br/>sin pedido puntual"| saludoGen
-  agenteNuevo -->|"identificó el kit<br/>con confianza"| pinNuevo["Pinea el kit<br/>(todavía NO confirma —<br/>eso se decide más abajo)"]:::pin
+  agenteNuevo -->|"identificó el kit<br/>con confianza"| pinNuevo["Pinea el kit<br/>+ manda la bienvenida con foto<br/>(la misma que usan las plantillas exactas)"]:::pin
   pinNuevo --> esCompat
   agenteNuevo -->|"2-3 candidatos,<br/>no está seguro"| repregunta["Repregunta nombrando<br/>esas opciones"]:::ok
   repregunta --> finRepregunta["Fin — espera la respuesta,<br/>todavía no pinea nada"]:::gate
@@ -271,12 +271,9 @@ flowchart TD
   detalleAlcanza -->|"sí"| okCompat
   detalleAlcanza -->|"no — ni dato ni detalle,<br/>no se sabe nada de esa moto"| escTecnica["Escala como 'Técnica'<br/>(no confirma NINGÚN kit ni<br/>contesta nada del kit — se frena ahí)"]:::esc
 
-  okCompat --> esRealCompat{"¿era realmente<br/>compatible (sí),<br/>no solo 'se pudo<br/>responder'?"}:::gate
-  esRealCompat -->|"sí"| confirmaB["¿Venía de Identificar Necesidad?<br/>si sí, confirma el kit ahora<br/>(recién acá, no antes)"]:::pin
-  esRealCompat -->|"no — confirmado<br/>incompatible"| finNoConfirma["Fin — no confirma<br/>ningún kit"]:::gate
+  okCompat --> finCompatOk["Fin — ya se mandó la<br/>bienvenida (si correspondía,<br/>ver 'Pinea el kit' más arriba)<br/>y la respuesta de compatibilidad"]:::gate
 
-  esCompat -->|"no"| confirmaA["¿Venía de Identificar Necesidad?<br/>si sí, confirma el kit ahora"]:::pin
-  confirmaA --> subConKit{{"IA — reparte en sub-preguntas<br/>busca precio/envío DEL KIT pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
+  esCompat -->|"no"| subConKit{{"IA — reparte en sub-preguntas<br/>busca precio/envío DEL KIT pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
   subConKit --> resConKit{"¿Quedó algo<br/>sin resolver?"}:::gate
   resConKit -->|"no"| okKit["Responde precio/envío<br/>del kit pineado"]:::ok
   resConKit -->|"sí"| escSinMatch2["Escala como<br/>'Sin clasificar'"]:::esc
@@ -351,10 +348,21 @@ flowchart TD
         "no compatible" también se reformuló para hablar de "este kit" en vez de insinuar que no hay
         ninguna opción — el bot nunca revisa el resto del catálogo, así que no puede prometer eso.
       </li>
+      <li>
+        <strong>(18/8, más tarde el mismo día)</strong> Los puntos 4 y 5 de arriba resolvían CUÁNDO
+        confirmar con un texto aparte ("Dale, el kit X, ¿no?"), mandado después del chequeo de
+        compatibilidad. Ese texto se sacó por completo: ahora <code>pinNuevo</code> manda directo la
+        bienvenida con foto (la misma que usan las plantillas exactas, con precio incluido) apenas se
+        identifica el kit, sin esperar nada — la bienvenida CUMPLE el rol de confirmación, así que
+        "cuándo confirmar" dejó de ser una pregunta que hacía falta responder. El chequeo de
+        compatibilidad de al lado sigue funcionando igual (escala si no hay dato, dice que no es
+        compatible si el dato dice que no), simplemente ya no dispara ningún texto de confirmación
+        aparte en ningún caso.
+      </li>
     </ol>
   </div>
 
-  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo" y "no confirmar si incompatible" (validado con conv 1: moto sin dato, moto sin dato + pregunta "otro" pegada, moto confirmada incompatible, moto confirmada compatible, y control sin pregunta de compatibilidad — los cinco sin errores). Nota: el pinado de una sola cilindrada sin marca/modelo (repregunta "marca y modelo?", 18/8) y la categoría "cierre" del partidor (18/8) todavía no están dibujados en este árbol — quedan documentados solo en <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code>, que tiene el detalle completo de cada cambio.</footer>
+  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo" y "no confirmar si incompatible", y de nuevo el mismo día tras la feat "bienvenida con foto en vez de confirmación" (validado con conv 1: rama directa, cilindrada sola, compatibilidad ya resuelta, y regresión con kit ya pineado de antes — los cuatro sin errores). Nota: el pinado de una sola cilindrada sin marca/modelo (repregunta "marca y modelo?", 18/8, ahora suprimida cuando la bienvenida se acaba de mandar) y la categoría "cierre" del partidor (18/8) todavía no están dibujados en este árbol — quedan documentados solo en <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code>, que tiene el detalle completo de cada cambio.</footer>
 </main>
 
 <script type="module">

@@ -698,6 +698,66 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     `n8n-workflows/propuesta-repregunta-modelo.html` — queda como referencia histórica de la
     propuesta, ya implementada.
 
+- **Fix "saludo" repetido a mitad de charla en Identificar Necesidad** (2026-08-18,
+  `apply-fix-saludo-identificar-necesidad.mjs`), encontrado auditando en vivo dos conversaciones
+  reales (+5493513792356 conv 2104, +5493516222737 conv 2108) y reproduciendo variantes en la
+  conversación de prueba: `Identificar Necesidad` (Fase del 17/8) define `"saludo"` como "interés
+  genérico sin pedido concreto" sin distinguir si es el primer mensaje de la charla o no. Una
+  reacción corta del cliente a mitad de conversación (probado con "genial", después de que el bot
+  ya le había contestado una pregunta) también encaja en esa definición, y dispara `Enviar Saludo
+  Generico` — el cliente recibe de nuevo "Hola bro! En qué te podemos ayudar?" como si el bot se
+  hubiera olvidado de toda la charla. Rompe la regla ya arreglada el 2026-08-14 ("Fix saludo a
+  mitad de charla") en los otros 3 nodos de IA del workflow — `Identificar Necesidad` se creó
+  después y nunca la heredó.
+  - Fix acotado: se agregó al bullet `"saludo"` del prompt la aclaración de que solo aplica si es
+    el primer mensaje real de la charla (historial vacío o sin ningún "Nosotros:" todavía) — con
+    charla ya en curso, una reacción corta sin pedido nuevo pasa a `"ninguno"`. Solo texto de
+    prompt, no toca lógica ni conexiones.
+  - Validado contra producción real (conv 1, teléfono sintético +5493500011122, reproduciendo la
+    secuencia real: pregunta de cubierta contestada → "genial"): antes del fix, `Identificar
+    Necesidad` devolvía `tipo: "saludo"` y el bot reenviaba el saludo genérico al cliente; después
+    del fix, devuelve `tipo: "ninguno"`, entra al partidor de sub-preguntas (Fase 6) que devuelve
+    `partes: []` (no hay nada que resolver ni preguntar), y la ejecución termina ahí sin mandarle
+    nada al cliente ni generar ruido al equipo.
+  - El mismo par de conversaciones reales destapó un segundo bug, distinto y ya resuelto más abajo
+    ("Feat categoría cierre"): cuando SÍ hay contenido pero no es una pregunta (ej. "A la tarde me
+    llegó", "tengo que dejarte una seña"), el partidor de sub-preguntas escalaba con una nota
+    engañosa. Ver esa entrada para el detalle.
+
+- **Feat categoría "cierre" en el partidor de sub-preguntas** (2026-08-18,
+  `apply-feat-categoria-cierre.mjs` + `apply-fix-categoria-cierre-whitelist.mjs`), pedido explícito
+  de Martín sobre el bug de arriba: cuando el cliente escribe un comentario afirmativo que no pide
+  nada (ej. "A la tarde me llegó", "la semana que viene les aviso", "más tarde veo", "gracias",
+  "dale"), en vez de escalar al equipo con una nota engañosa (`"El cliente preguntó algo que
+  todavía no supimos ubicar..."` — pero no hubo ninguna pregunta), el bot contesta directo con un
+  cierre corto fijo y no molesta a nadie.
+  - Se agregó `"cierre"` como quinta categoría (junto a `precio`/`envio`/`negocio`/`otro`) en el
+    prompt de `Dividir y Etiquetar Sub-preguntas` (Fase 6), con una exclusión explícita a pedido de
+    Martín: cualquier cosa que suene a intención de pago/reserva/retiro (ej. "te dejo una seña",
+    "quiero reservarlo", "paso a buscarlo mañana") NO es `"cierre"` — sigue como `"otro"` y escala
+    normal, porque ahí sí puede hacer falta una acción nuestra. Límite confirmado con Martín antes
+    de aplicar.
+  - `Consolidar Dato Resuelto` (Code node que decide qué dato usar según la categoría) suma una
+    rama nueva: si `categoria === 'cierre'`, usa directo el texto fijo `"Dale, cualquier cosa nos
+    escribís."` sin buscar nada — sigue el mismo camino de redacción/envío de siempre (resuelto en
+    el momento, nunca escala). No se tocaron conexiones ni se agregaron nodos.
+  - **Gotcha encontrado validando** (para no repetirlo): el primer intento pareció no funcionar —
+    ni siquiera el ejemplo más obvio (`"Gracias!"`, mensaje aislado, sin nada más en la charla)
+    salía clasificado como `"cierre"`, siempre `"otro"`. La causa no era el prompt de IA (que
+    estaba bien) sino un nodo intermedio pasado por alto: `Parsear Sub-preguntas` (el Code node que
+    interpreta el JSON de la IA) tiene su **propia lista blanca hardcodeada** de categorías válidas
+    (`['precio', 'envio', 'negocio', 'otro']`) — cualquier categoría fuera de esa lista se pisa en
+    silencio a `'otro'` antes de llegar a `Consolidar Dato Resuelto`. Faltaba agregar `'cierre'`
+    ahí también. Lección: al sumar una categoría nueva a un prompt de clasificación de este
+    workflow, revisar también el/los Code node(s) que parsean esa salida por si tienen su propia
+    validación de valores permitidos — no alcanza con tocar solo el prompt.
+  - Validado contra producción real (conv 1, teléfonos sintéticos distintos por caso): `"Gracias!"`
+    aislado → `categoria: "cierre"` → `"Dale, cualquier cosa nos escribís."` enviado, sin escalar;
+    `"A la tarde me llego"` (repitiendo el caso real de la conv 2104) → mismo resultado; `"Bueno
+    hermano tengo que dejarte una sena para que melo guardes"` (repitiendo el caso real de la conv
+    2108) → siguió clasificando `"otro"` y escalando como antes, confirmando que el límite de
+    pago/reserva se respeta.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

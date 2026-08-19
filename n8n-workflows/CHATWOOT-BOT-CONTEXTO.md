@@ -1209,6 +1209,107 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     resuelto por el camino directo de Fase 6/negocio) → *"Estamos en Revolución de Mayo 1605,
     barrio Crisol, Córdoba capital."*, sin ningún eco de la pregunta.
 
+- **Fix "cierre" duplicado dentro del mismo mensaje** (2026-08-19,
+  `apply-fix-cierre-duplicado-mismo-mensaje.mjs`), encontrado revisando en vivo la conv 2160
+  (+5493644131890): un audio largo transcripto ("Si, si, meta, meta, dale, dale... cualquier cosa
+  te escribo, o sea, que se pueda hacer en dos cuotas...") se partió en 4 pedazos, y dos de ellos
+  ("Si, si, meta, meta, dale, dale." y "cualquier cosa te escribo") cayeron por separado en la
+  categoría `"cierre"` — que siempre resuelve al mismo texto fijo ("Dale, cualquier cosa nos
+  escribís."). Cada pedazo se resuelve por su lado y `Armar Mensajes` los concatenó sin
+  darse cuenta de que eran idénticos: el cliente recibió el mismo texto pegado dos veces en un
+  solo mensaje. (Un caso similar en +5492954878893 resultó ser otra cosa: ahí eran dos turnos de
+  charla distintos, cada uno con su propio "cierre" en un mensaje separado — comportamiento
+  esperado, no este bug.)
+  - Fix acotado: en `Armar Mensajes`, antes de juntar los pedazos resueltos en `mensaje1`/`mensaje2`
+    (ya ordenados por prioridad de categoría), se descartan los que tengan el mismo texto exacto
+    que uno anterior — se queda con la primera aparición. Solo el paso final de armado de
+    mensajes; no toca clasificación ni ningún prompt de IA.
+  - Validado contra producción real (conv 1, teléfono sintético fresco): repitiendo el caso real
+    (dos pedazos "cierre" + uno "otro" sin dato) → un solo mensaje ("Dale, cualquier cosa nos
+    escribís."), sin duplicar, y el pedazo sin dato escaló solo en silencio como antes (fila de
+    prueba en `preguntas_sin_match_pendientes` borrada después por id). Control con dos categorías
+    genuinamente distintas en la misma ráfaga (precio + envío) → siguió mandando los dos mensajes
+    normales, sin que el dedup tocara nada — confirma que solo actúa sobre texto idéntico.
+
+- **Migración de los 11 nodos de IA de DeepSeek a OpenAI GPT-5.6** (2026-08-19,
+  `apply-migrar-deepseek-a-openai-gpt56.mjs` + `apply-fix-responses-api-agent-v2.mjs` +
+  `apply-fix-temperature-gpt56-reasoning.mjs`). Los 11 nodos "DeepSeek Chat Model - *" pasaron de
+  `@n8n/n8n-nodes-langchain.lmChatDeepSeek` (`deepseek-v4-flash`) a
+  `@n8n/n8n-nodes-langchain.lmChatOpenAi`: los 7 de clasificación/extracción a `gpt-5.6-luna`, los 4
+  de mayor riesgo (compatibilidad, redacción cara al cliente, detalle) a `gpt-5.6-terra`. Reusa la
+  credencial OpenAI que ya usaba `Transcribir Audio` (Whisper), sin agregar credencial nueva. Los
+  nombres de nodo se dejaron igual a propósito (siguen empezando con "DeepSeek Chat Model -") para
+  no tener que re-cablear ninguna conexión.
+  - La migración rompió producción dos veces seguidas antes de estabilizar (ejecuciones reales
+    79097/79098/79101, mismo día): primero "This model is not supported in 2 version of the Agent
+    node" (los nodos migrados traen `responsesApiEnabled: true` por default, que el Agent node
+    v2 de esta instancia no soporta — fix: forzar `responsesApiEnabled: false`, Chat Completions
+    API clásica); después "Bad request - please check your parameters" (la familia `gpt-5.6-*` es
+    de razonamiento y no acepta `temperature` distinto del default — los 11 nodos habían heredado
+    `temperature: 0` de la config vieja de DeepSeek — fix: sacar `temperature` de
+    `parameters.options`, dejando timeout/maxRetries como estaban).
+  - Verificado contra la API real de n8n: los 11 nodos están migrados y sin `temperature` ni
+    `responsesApiEnabled` colgando (`responsesApiEnabled: false` explícito). Desde el último fix
+    (19:13 UTC) no hubo más ejecuciones con error.
+  - **Sin validar todavía con casos reales variados si la calidad de redacción de GPT-5.6 es
+    equivalente a DeepSeek** en los prompts de "IA acotada" — la migración se hizo por costo/
+    disponibilidad, no por un problema con DeepSeek. Si aparece algo raro en el tono o la
+    redacción de una respuesta a partir de esta fecha, revisar si es un caso nuevo de prompt o
+    una diferencia real de comportamiento del modelo.
+
+- **Fix "compatibilidad no reconocida por sigla corta"** (2026-08-19,
+  `n8n-workflows/fix-modelo-ok-sigla-corta.sql`), encontrado en la conv 2151 (+5492954878893): con
+  el Kit 1 pineado, el cliente escribió "Es para una Zanella zb" y el bot escaló a un humano aunque
+  `compatibilidades` ya tenía dos filas confirmadas para ese kit ("Zanella ZB 110" y "zanella zb").
+  Causa: `rm_tokens` descarta palabras de menos de 3 letras, así que "ZB" nunca contaba como
+  palabra — "Zanella ZB 110" se reducía a `{zanella, 110}` y "Zanella zb" a solo `{zanella}`, y el
+  mínimo de 2 palabras en común que exige `rm_modelo_ok` (fix del 14/8) nunca se alcanzaba. Mismo
+  patrón afecta a "wave nf"/"wave s" de Honda. Fix: tokenizador nuevo y exclusivo para esta función
+  (`rm_tokens_modelo`, mínimo 2 letras en vez de 3, con sus propias `rm_score_modelo`/
+  `rm_match_count_modelo`) — no reemplaza a `rm_tokens`/`rm_score` (siguen igual en
+  `conocimiento_libre` y demás). Solo usado en `Buscar Compatibilidad del Kit`, fix contenido ahí.
+
+- **Feat "árbol de artículos", capa 1 — tabla `kit_articulos` + formulario de admin**
+  (2026-08-19, `n8n-workflows/kit-articulos.sql`, `app/actions/kit-articulos.ts`,
+  `app/admin/chatwoot/conocimiento/kits-tab.tsx`), primer paso de la idea que estaba parada en
+  diseño (ver [[project-chatwoot-arbol-articulos-idea]] en memoria). Disparador nuevo: revisando en
+  vivo la conv 2133 (+5492664813251), con el Kit 1 pineado e incompatible con su Honda Wave NF, el
+  cliente preguntó *"Y leva de calle para la honda nf tiene?"* — "leva de calle" es literalmente
+  una keyword del Kit 7 ("Combo Escape pwr + Leva 6.40"), pero como el Kit 1 seguía pineado, el
+  mensaje nunca pasó por `Identificar Necesidad` (que solo corre sin pin) y `Extraer Pregunta
+  Compatibilidad` absorbió todo el mensaje como si siguiera preguntando por el Kit 1 — el bot
+  contestó *"No, este kit no es compatible..."* reciclando la respuesta anterior, sin que quedara
+  claro que el cliente hablaba de otro producto. Casualmente el resultado final no era falso (el
+  Kit 7 tampoco es compatible con Wave NF, según su propio `detalle`), pero por la razón
+  equivocada — si el segundo producto sí hubiera sido compatible, la respuesta habría sido
+  directamente errónea.
+  - Charlado con Martín: el problema de fondo no es solo "cruce entre kits", es que el bot
+    solo entiende **kits** (combos), nunca **artículos** (piezas sueltas dentro de un combo) — "leva
+    de calle" es un artículo del Kit 7, no el combo entero. Mismo agujero que ya había quedado
+    anotado sin resolver el mismo día en la conv 2164 (precio de piezas excluidas). Decisión:
+    retomar el árbol de artículos en serio, pero paso a paso, charlando cada decisión antes de
+    tocar el workflow — la prioridad es no romper la base operable actual.
+  - **Qué se hizo hoy (solo la base de datos + admin, el workflow de n8n NO se tocó todavía):**
+    tabla nueva `kit_articulos` (`kit_id`, `nombre`, `precio` opcional, `orden`) — cada componente
+    de un kit se carga como entidad propia, uno por uno, en vez de texto suelto separado por
+    comas. A propósito sin campo de keywords/alias todavía: el paso de matching (cómo reconocer
+    que un mensaje se refiere a un artículo puntual) queda para la próxima conversación de diseño.
+    Bloque nuevo "Artículos que incluye este kit" en el formulario de `/admin/chatwoot/conocimiento`
+    (pestaña Kits y Combos): input nombre + input precio opcional + botón "Agregar", mismo patrón
+    de guardado que ya usa la lista de compatibilidad (se sincroniza completa al guardar el kit).
+  - Migración de los 8 kits existentes: **no se migró nada automático** — a pedido de Martín, él
+    mismo va a recargar los componentes de cada kit con la UI nueva cuando tenga tiempo, para que
+    el dato nazca limpio en vez de que se lo adivine de la prosa de `detalle`.
+  - Validado en vivo contra la app real (sesión de Playwright con un JWT armado a partir de
+    `NEXTAUTH_SECRET` para un usuario admin existente, sin tocar credenciales): abrir el kit real
+    "combo de TAPA CDI + CILINDRO 120" en edición, agregar 2 artículos, quitar 1, guardar, recargar
+    la página entera y reabrir el mismo kit — el artículo que quedó persistió y el que se sacó no
+    volvió a aparecer. Fila de prueba borrada por `id` después de validar.
+  - **Pendiente, próxima conversación de diseño:** cómo matchear el mensaje del cliente contra
+    artículos sueltos sin abrir la puerta a los mismos falsos positivos que ya se resolvieron para
+    kits (ver fixes de "overlap mínimo"/"sigla corta" arriba) — Martín pidió explícitamente no
+    asumir que alcanza con "meter un modelo más inteligente" en ese paso.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

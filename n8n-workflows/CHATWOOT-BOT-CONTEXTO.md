@@ -1310,6 +1310,44 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     kits (ver fixes de "overlap mínimo"/"sigla corta" arriba) — Martín pidió explícitamente no
     asumir que alcanza con "meter un modelo más inteligente" en ese paso.
 
+- **Continuación capa 1 — campo `alias` + primeros datos reales cargados (Kit 8)** (2026-08-19,
+  mismo día, `n8n-workflows/kit-articulos-alias.sql`), decidido en charla de diseño (sin tocar el
+  workflow todavía, sigue siendo solo base de datos + admin):
+  - Cargando los 2 artículos reales del Kit 8 (combo TAPA CDI + CILINDRO 120) apareció el problema
+    anticipado: el `nombre` técnico completo de los dos artículos comparte la palabra "cilindro"
+    ("TAPA DE CILINDRO CDI 125 COMPLETA" vs. "CILINDRO 120 54MM PERNO 13"), así que matchear contra
+    `nombre` hubiera confundido ambos con solo decir "el cilindro" — mismo patrón de falso positivo
+    por palabra compartida que `rm_modelo_ok` (ver fixes "overlap mínimo"/"sigla corta"). Se agregó
+    columna `alias` (texto libre, formato de lista separada por comas — mismo criterio que
+    `kits_publicidad.keywords`) para que quien carga el artículo escriba a mano cómo lo nombra el
+    cliente en la práctica, separado del nombre técnico.
+  - **Decisión de diseño clave, para cuando se arme el matching:** el alias de un artículo puede
+    (y en la práctica va a) compartir palabra con las keywords del kit — eso no es un error a
+    evitar. Ejemplo real: las keywords del Kit 8 ya incluyen "tapa cdi" para nombrar el COMBO
+    entero; el artículo Tapa CDI usa "tapa sola"/"cdi sola" como alias. Lo que separa "el cliente
+    habla del kit" de "el cliente habla del artículo suelto" no es la palabra base (tapa/cilindro),
+    es una palabra de alcance al lado ("solo", "sola", "aparte", "por separado") — confirmado
+    contra casos reales ya vistos (conv 1977: *"Y cuanto sale la tapa cdi sola?"*). El matching
+    futuro necesita buscar la frase completa del alias (no solo la palabra suelta), no separar
+    "sustantivo" de "modificador de alcance" en dos chequeos.
+  - **Ambigüedad real descubierta cargando el dato, no un error de tipeo:** el Cilindro 120 de este
+    kit, en la calle, mucha gente lo conoce como "el 125" (aunque el negocio lo llame "120"). Eso
+    significa que "125 solo" es un alias legítimo tanto para la Tapa CDI (125 es su medida real)
+    como para el Cilindro (125 es como lo llaman los clientes) — la misma frase puede referirse a
+    dos artículos distintos del mismo kit, y no hay forma de resolverlo solo con el dato. Se decidió
+    dejar "125 solo"/"125 sola" en el alias de LOS DOS artículos (reflejar la ambigüedad real, no
+    forzar una asignación falsa a uno solo) y que el paso de matching trate "un alias matchea más
+    de un artículo del mismo kit pineado" igual que "no matchea ningún artículo" — cae al mismo
+    camino de escalado en silencio ya acordado para el caso ambiguo, sin inventar una regla nueva.
+  - **Estado real de datos al cierre de esta sesión** (Kit 8, único kit con artículos cargados):
+    - Cilindro 120 54MM PERNO 13 — alias: `cilindro solo, 125 solo, 120 solo` — precio $54.999
+    - Tapa de Cilindro CDI 125 Completa — alias: `tapa sola, cdi sola, 125 sola` — precio $129.999
+  - **Pendiente, sigue igual que la entrada anterior:** diseñar el paso de matching en el workflow
+    (dónde engancha, cómo resuelve el caso de "alias ambiguo entre 2+ artículos", validar contra la
+    conversación de prueba antes de tocar producción). Los otros 7 kits activos siguen sin ningún
+    artículo cargado — Martín los va agregando cuando tenga tiempo, sin apuro, sin efecto en el bot
+    mientras tanto.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

@@ -224,8 +224,8 @@ export function KitsTab({
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <form onSubmit={handleSubmit} className="space-y-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div className="space-y-1">
                                 <Label htmlFor="nombre">Nombre del kit</Label>
                                 <Input
@@ -237,79 +237,6 @@ export function KitsTab({
                                     required
                                 />
                             </div>
-                            <div className="space-y-1">
-                                <Label htmlFor="keywords">Palabras clave (separadas por coma)</Label>
-                                <Input
-                                    id="keywords"
-                                    placeholder="Ej: kit 120, cilindro 120, potenciar la 110"
-                                    value={form.keywords}
-                                    onChange={(e) => actualizarCampo("keywords", e.target.value)}
-                                    disabled={guardando}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="plantillasBienvenida">
-                                Plantillas exactas de Instagram/Meta Ads (una por línea)
-                            </Label>
-                            <Textarea
-                                id="plantillasBienvenida"
-                                placeholder={"Pegá acá el texto tal cual lo manda la plantilla del anuncio, una por línea, si hay más de una campaña para este kit.\n¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!"}
-                                value={form.plantillasBienvenida}
-                                onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
-                                disabled={guardando}
-                                rows={2}
-                            />
-                            <p className="text-xs text-gray-400">
-                                Si el mensaje del cliente coincide exactamente con una de estas líneas, el bot reconoce
-                                el kit de una sin tener que interpretarlo — pegá el texto literal de la plantilla, no un resumen.
-                            </p>
-                        </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="detalle">Detalle (qué incluye / para qué sirve)</Label>
-                            <Textarea
-                                id="detalle"
-                                placeholder="Ej: Cilindro 120, carburador CG 125, codo de admisión y filtro. Ideal para mejorar la respuesta y el andar en uso diario."
-                                value={form.detalle}
-                                onChange={(e) => actualizarCampo("detalle", e.target.value)}
-                                disabled={guardando}
-                                rows={3}
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <Label htmlFor="compatibleTexto">Compatible con (separado por comas)</Label>
-                                <Textarea
-                                    id="compatibleTexto"
-                                    placeholder="Ej: Zanella ZB 110 (recorrido corto), Honda Wave 110, Guerrero Trip 110"
-                                    value={compatibleTexto}
-                                    onChange={(e) => setCompatibleTexto(e.target.value)}
-                                    disabled={guardando}
-                                    rows={3}
-                                />
-                            </div>
-                            <div className="space-y-1">
-                                <Label htmlFor="incompatibleTexto">No compatible con (separado por comas)</Label>
-                                <Textarea
-                                    id="incompatibleTexto"
-                                    placeholder="Ej: Honda Wave NF, Yamaha Crypton 110"
-                                    value={incompatibleTexto}
-                                    onChange={(e) => setIncompatibleTexto(e.target.value)}
-                                    disabled={guardando}
-                                    rows={3}
-                                />
-                            </div>
-                        </div>
-                        <p className="text-xs text-gray-400 -mt-2">
-                            Esto es lo que el agente consulta para responder &quot;¿anda en tal moto?&quot; sin escalar a un
-                            humano — al guardar el kit se reemplaza la lista completa. Para agregar una aclaración a un
-                            modelo puntual, escribila entre paréntesis justo después: <em>Zanella ZB 110 (para recorrido corto)</em>.
-                        </p>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
                                 <Label htmlFor="precio">Precio</Label>
                                 <Input
@@ -330,9 +257,81 @@ export function KitsTab({
                                     disabled={guardando}
                                 />
                             </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="keywords">Palabras clave (separadas por coma)</Label>
+                                <Input
+                                    id="keywords"
+                                    placeholder="Ej: kit 120, cilindro 120, potenciar la 110"
+                                    value={form.keywords}
+                                    onChange={(e) => actualizarCampo("keywords", e.target.value)}
+                                    disabled={guardando}
+                                />
+                            </div>
                         </div>
 
-                        <div className="space-y-1">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-8 border-t border-slate-200">
+                            <div className="space-y-1">
+                                <Label htmlFor="plantillasBienvenida">
+                                    Plantillas exactas de Instagram/Meta Ads (una por línea)
+                                </Label>
+                                <Textarea
+                                    id="plantillasBienvenida"
+                                    placeholder={"Pegá acá el texto tal cual lo manda la plantilla del anuncio, una por línea, si hay más de una campaña para este kit.\n¡Hola! Quiero conocer mas sobre el combo 110 a 120 + Codo y carbu!!"}
+                                    value={form.plantillasBienvenida}
+                                    onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
+                                    disabled={guardando}
+                                    rows={6}
+                                />
+                                <p className="text-xs text-gray-400">
+                                    Si el mensaje del cliente coincide exactamente con una de estas líneas, el bot
+                                    reconoce el kit de una sin tener que interpretarlo — pegá el texto literal de la
+                                    plantilla, no un resumen.
+                                </p>
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="detalle">Detalle (qué incluye / para qué sirve)</Label>
+                                <Textarea
+                                    id="detalle"
+                                    placeholder="Ej: Cilindro 120, carburador CG 125, codo de admisión y filtro. Ideal para mejorar la respuesta y el andar en uso diario."
+                                    value={form.detalle}
+                                    onChange={(e) => actualizarCampo("detalle", e.target.value)}
+                                    disabled={guardando}
+                                    rows={6}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-8 border-t border-slate-200">
+                            <div className="space-y-1">
+                                <Label htmlFor="compatibleTexto">Compatible con (separado por comas)</Label>
+                                <Textarea
+                                    id="compatibleTexto"
+                                    placeholder="Ej: Zanella ZB 110 (recorrido corto), Honda Wave 110, Guerrero Trip 110"
+                                    value={compatibleTexto}
+                                    onChange={(e) => setCompatibleTexto(e.target.value)}
+                                    disabled={guardando}
+                                    rows={6}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="incompatibleTexto">No compatible con (separado por comas)</Label>
+                                <Textarea
+                                    id="incompatibleTexto"
+                                    placeholder="Ej: Honda Wave NF, Yamaha Crypton 110"
+                                    value={incompatibleTexto}
+                                    onChange={(e) => setIncompatibleTexto(e.target.value)}
+                                    disabled={guardando}
+                                    rows={6}
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-400 -mt-3">
+                            Esto es lo que el agente consulta para responder &quot;¿anda en tal moto?&quot; sin escalar a un
+                            humano — al guardar el kit se reemplaza la lista completa. Para agregar una aclaración a un
+                            modelo puntual, escribila entre paréntesis justo después: <em>Zanella ZB 110 (para recorrido corto)</em>.
+                        </p>
+
+                        <div className="space-y-1 pt-8 border-t border-slate-200">
                             <div className="flex items-center justify-between">
                                 <Label htmlFor="mensajeBienvenida">Mensaje predefinido (se manda tal cual, como lo pegaría un humano)</Label>
                                 <Button type="button" variant="outline" size="sm" onClick={generarMensaje} className="gap-1">
@@ -345,7 +344,7 @@ export function KitsTab({
                                 value={form.mensajeBienvenida}
                                 onChange={(e) => actualizarCampo("mensajeBienvenida", e.target.value)}
                                 disabled={guardando}
-                                rows={6}
+                                rows={9}
                                 required
                             />
                         </div>

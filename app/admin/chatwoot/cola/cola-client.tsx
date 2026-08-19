@@ -100,7 +100,10 @@ export function ColaClient({
         })
     }
 
-    // Una tarjeta por conversación, en orden de llegada.
+    // Una tarjeta por conversación, más reciente primero. Dentro de cada
+    // tarjeta las filas quedan en orden cronológico (así se lee de corrido si
+    // una respuesta se partió en varios mensajes), solo el orden entre
+    // tarjetas se invierte.
     const grupos = useMemo(() => {
         const mapa = new Map<number, RespuestaEnCola[]>()
         for (const fila of panel?.cola ?? []) {
@@ -108,7 +111,9 @@ export function ColaClient({
             lista.push(fila)
             mapa.set(fila.conversationId, lista)
         }
-        return [...mapa.entries()].map(([conversationId, filas]) => ({ conversationId, filas }))
+        return [...mapa.entries()]
+            .map(([conversationId, filas]) => ({ conversationId, filas }))
+            .sort((a, b) => b.filas[0].creadoEn.localeCompare(a.filas[0].creadoEn))
     }, [panel?.cola])
 
     const enCola = (panel?.cola ?? []).filter((f) => f.estado === "pendiente" || f.estado === "enviando").length

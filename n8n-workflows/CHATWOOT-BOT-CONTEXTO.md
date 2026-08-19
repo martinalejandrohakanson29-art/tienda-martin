@@ -1348,6 +1348,54 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     artículo cargado — Martín los va agregando cuando tenga tiempo, sin apuro, sin efecto en el bot
     mientras tanto.
 
+- **Fix "cierre repetido sin parar" + "envío ambiguo por typo"** (2026-08-19,
+  `apply-fix-cierre-repetido-y-envio-ambiguo.mjs`), encontrado revisando en vivo la conv 2191
+  (+5493541219301): dos bugs relacionados en la misma charla.
+  1. El cliente escribió "Sisi" (20:33) → *"Dale, cualquier cosa nos escribís."*, y 12 minutos
+     después "SiI" (20:45) → **el mismo texto de nuevo**. La categoría `cierre` (Fase del 18/8)
+     siempre resuelve al mismo texto fijo, sin memoria de que ya se lo dijo antes en la
+     conversación — sonaba repetitivo/robótico. Pedido explícito de Martín: "salvo que exista
+     alguna consulta nueva, no sigamos respondiendo más".
+  2. "Si lomas seguro es que me llege" (20:58, con typos por "Si lo mas seguro es que me
+     llegue") se clasificó como `envio` — el bullet solo exigía mencionar "llegar"/"envío", sin
+     pedir una pregunta concreta — y disparó la respuesta fija de Andreani, que no tenía nada que
+     ver. Mirando la charla completa (un humano tuvo que intervenir 3 minutos después con "dale,
+     llegate cuando quieras"), este mensaje es en realidad un comentario ambiguo de la misma
+     familia que el bug 1, no una pregunta real de envío. Charlado con Martín: unificar el
+     criterio en vez de mejorar el parseo puntual de ortografía.
+  - **Fix 1 (Redis, mismo patrón que `kit_pineado`/`bot_pausado`):** nodo nuevo `Buscar Cierre
+    Reciente (Sub-pregunta)` (GET `cierre_reciente:{telefono|conv}`) insertado justo antes de
+    `Consolidar Dato Resuelto` — el único punto seguro de esa cadena lineal, porque ese nodo ya
+    lee todo con `$('Nodo').item` explícito en vez de `$json` a secas (a diferencia de varios
+    otros puntos de la misma cadena, que si dependen del predecesor inmediato — revisado uno por
+    uno antes de decidir dónde insertar, ver gotcha de "$json sin nombre de nodo" más arriba). Si
+    la rama `cierre` encuentra el flag ya prendido, la pieza se marca `omitir` (resuelto=true,
+    mensaje vacío) en vez de `SIN_DATO` (que hubiera escalado) — `Marcar Resuelto o No Resuelto` y
+    `Armar Mensajes` ahora excluyen del todo las piezas `omitir`, de ambos lados (ni se manda, ni
+    cuenta como sin resolver). Cuando sí se manda un cierre nuevo, una rama paralela nueva
+    colgando de `Armar Mensajes` (no se insertó en la cadena existente, así no se rompe el
+    `$json.hayMensajes`/`$json.haySinResolver` que ya leían sus dos hijos originales) prende el
+    flag por 24hs vía `Marcar Cierre Enviado` (Redis SET).
+  - **Fix 2 (solo prompt):** el bullet `envio` de `Dividir y Etiquetar Sub-preguntas` ahora exige
+    una pregunta concreta, no solo la mención de la palabra "llegar"/"envío" — con el caso real
+    como ejemplo mal→bien (mismo patrón que otros fixes de este prompt). Con esto, un comentario
+    ambiguo como el del caso real ya no fuerza la categoría "envio".
+  - Validado contra producción real (tres teléfonos sintéticos frescos, Kit 8 pineado en cada
+    uno): "Sisi" → cierre normal, un mensaje, flag prendido; "SiI" inmediatamente después (mismo
+    teléfono) → `categoria: "cierre"` pero `hayMensajes: false, haySinResolver: false` — silencio
+    total, ni mensaje ni escalada; "Si lomas seguro es que me llege" en un teléfono limpio (sin
+    cierre previo) → ya no cae en `envio` — el modelo lo clasificó directo como `cierre` (lectura
+    razonable: comentario ambiguo sin pedido concreto) y contestó una sola vez el texto fijo,
+    marcando el flag — ya no manda la respuesta de Andreani fuera de tema. Control de regresión
+    con una pregunta real de envío ("Hacen envios a Chubut?") → siguió clasificando `envio` y
+    contestando normal, sin que el fix la tocara.
+  - **Nota de diseño:** el mensaje ambiguo del caso real terminó cayendo en `cierre` (silencio
+    tras la primera vez) y no en `otro` (que hubiera escalado al equipo, como pasó en la
+    realidad con la nota de un humano). Ambos desenlaces son mejores que el bug original (ya no
+    hay respuesta incorrecta), pero no son idénticos — si en el futuro se nota que mensajes
+    genuinamente ambiguos pero con algo real detrás quedan silenciados en vez de escalar, revisar
+    de nuevo el balance del bullet `cierre` vs `otro` en ese prompt.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

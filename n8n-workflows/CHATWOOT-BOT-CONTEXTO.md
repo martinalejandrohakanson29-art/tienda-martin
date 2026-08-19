@@ -1072,6 +1072,143 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     colgando de `agenteNuevo`, categoría "stock" mencionada en `subConKit`/`subSinKit`, bullet nuevo en
     "Qué resuelve".
 
+- **Fix "saludo con pregunta real" en Identificar Necesidad** (2026-08-19,
+  `apply-fix-saludo-con-pregunta-real.mjs`), encontrado revisando en vivo la conv 2151
+  (+5492954878893, contacto Lucca): primer mensaje de la charla, sin kit pineado, escribió "Hola de
+  donde son" + "?" en la misma ráfaga. `Identificar Necesidad` lo clasificó como `tipo: "saludo"`
+  (por arrancar con "Hola" y no mencionar ningún kit) y el bot contestó el saludo genérico fijo en
+  vez de responder de dónde son — dato que ya está cargado en `info_negocio` (tema `ubicacion`) y se
+  contesta solo por el camino de `"ninguno"` (Fase 6, categoría "negocio"). La respuesta genérica
+  encima quedó en cola y salió 82 minutos después; el cliente nunca recibió una respuesta real.
+  - Causa: el propio bullet de `"ninguno"` en el prompt ya cubre "pregunta general del negocio",
+    pero el modelo priorizaba "arranca con Hola y no menciona kit" por sobre "hay una pregunta
+    concreta adentro" — un error de clasificación de la IA, no una laguna del sistema (la pregunta
+    ya se podía resolver sola si hubiera caído en la rama correcta).
+  - Fix acotado: se agregó al bullet de `"saludo"` una aclaración explícita (mismo patrón que otros
+    fixes de este prompt — ejemplo concreto mal→bien funciona mejor con DeepSeek que solo la regla
+    abstracta): si el mensaje, aunque arranque con "Hola" y sea el primer mensaje, trae además una
+    pregunta concreta y respondible (negocio/precio/envío/compatibilidad, no hace falta que
+    mencione un kit), nunca es `"saludo"` — es `"ninguno"`. Ejemplo real incluido en el prompt:
+    "Hola de donde son" → `ninguno`. Solo texto de prompt, no toca lógica ni conexiones.
+  - **Gotcha de esta sesión**: la conversación de prueba (`conv 1`) ya tiene mucho historial
+    acumulado de sesiones anteriores, así que nunca cumple la condición "primer mensaje real de la
+    charla" — cualquier prueba de este bug específico ahí hubiera sido inválida (el bug solo se
+    manifiesta con historial vacío). Se creó una conversación nueva de verdad vía la API de
+    Chatwoot (`POST /accounts/1/conversations`, mismo `contact_id` que el número de prueba,
+    `source_id` numérico nuevo) para tener un historial genuinamente vacío, y se marcó `resolved`
+    al terminar en vez de borrarla (el token de la API no tiene permiso para `DELETE` conversations).
+    Si hace falta reproducir un caso que dependa de "primer mensaje", usar este mismo mecanismo en
+    vez de la conversación de prueba compartida.
+  - Validado contra producción real: conversación nueva vacía + "Hola de donde son" → `Identificar
+    Necesidad` devolvió `ninguno`, cayó en el partidor de Fase 6, categoría "negocio", respondió
+    *"Estamos en Revolución de Mayo 1605, barrio Crisol, Córdoba capital."* (antes del fix hubiera
+    sido el saludo genérico). Control en otra conversación nueva vacía, saludo puro sin pregunta
+    ("Hola, quiero mas informacion") → siguió yendo a `Enviar Saludo Generico` sin cambios.
+  - **Pendiente real, no técnico:** el contacto +5492954878893 (conv 2151) sigue sin una respuesta
+    real a "de dónde son" — solo recibió el saludo genérico. Hay que entrar a Chatwoot y
+    contestarle a mano (el fix no reprocesa conversaciones viejas).
+
+- **Fix "cruce entre pendiente de compatibilidad y sin_match"** (2026-08-19,
+  `apply-fix-cruce-compat-sinmatch.mjs`), encontrado revisando en vivo la conv 2141
+  (+5493535645945, contacto "aberturas pyp"): la conversación tenía DOS pendientes activas al
+  mismo tiempo — compatibilidad con una Guerrero Trip base mod 2011, y "Cigueñal tenes??" como
+  sin_match. El equipo contestó la de compatibilidad con una nota ("le va bien a la trip base mod
+  2011"). Esa nota, como cualquier nota del equipo, dispara en paralelo las dos ramas de
+  interpretación (Fase 3 y Fase 7, fan-out de `¿Es Respuesta de Mi Equipo?`, ver Fase 9 más
+  arriba) — la rama de compatibilidad la usó bien, pero la rama sin_match, al encontrar
+  "Cigueñal tenes??" todavía pendiente y sin nota propia, forzó a la IA a interpretar esa misma
+  nota ajena como si fuera la respuesta al cigüeñal. Con `confianza: "alta"`, mandó al cliente
+  *"Sí, tengo cigüeñal y le va bien a la Trip Base mod 2011."* — mezcla de los dos temas y,
+  encima, lo contrario de la realidad (no venden cigüeñales). Confirmado con el detalle de la
+  ejecución real (`Buscar Pendiente Sin Match` trajo la pendiente 104 del cigüeñal,
+  `Interpretar Respuesta Sin Match` recibió la nota de compatibilidad como si fuera la respuesta).
+  Este es exactamente el riesgo que había quedado anotado como "pendiente" en la Fase 9
+  ("Fase 7 duplica el camino del equipo... revisar si conviene unificar") — se terminó
+  materializando en un caso real.
+  - Fix acotado, **solo cambio de conexiones, sin nodos nuevos ni cambios de prompt**:
+    - Se sacó la conexión directa `¿Es Respuesta de Mi Equipo?` (true) → `Buscar Pendiente Sin
+      Match` (la que disparaba el fan-out incondicional).
+    - Se agregó esa misma conexión en dos salidas que representan "esta nota NO quedó consumida
+      por la rama de compatibilidad": `¿Hay Pregunta Pendiente?` (false — no había pendiente de
+      compatibilidad, sigue como siempre) y `Fin - Confianza Baja (no se actua)` (había pendiente
+      pero no se usó, la nota sigue disponible para intentar sin_match).
+    - Cuando la nota SÍ se usa para compatibilidad con confianza alta (termina en `Fin -
+      Aprendizaje Enviado` o `Fin - Equipo Ya Respondio Directo`), la rama sin_match ya no se
+      dispara para esa nota — se corta la ambigüedad en la raíz en vez de intentar arbitrar cuál
+      de las dos interpretaciones es la correcta.
+    - Al ser un cambio de dataflow (la rama sin_match ahora depende de que la rama de
+      compatibilidad haya terminado de decidir, en vez de correr en paralelo sin coordinación),
+      también elimina la carrera de fondo entre ejecuciones que hacía que un `SELECT ... WHERE
+      estado = 'pendiente'` pudiera leer el mismo pendiente dos veces antes de que el primer
+      `UPDATE` lo marcara resuelto.
+  - Validado contra producción real (conv 1, teléfono de prueba, limpiando pin de Redis antes de
+    arrancar): se reprodujo el caso completo — Kit 1 pineado, pregunta de compatibilidad con una
+    moto sin dato ("Beta Boxer 150 2016") y pregunta sin_match sin relación ("Vendes cadena de
+    tren para esa moto?") pendientes al mismo tiempo. Una nota contestando SOLO la compatibilidad
+    ("le anda bien a la beta boxer 150 2016") → el cliente recibió un único mensaje (*"Sí, le anda
+    bien a esa Beta Boxer 150 2016."*), la pendiente de la cadena de tren quedó intacta en estado
+    `pendiente`, sin ninguna respuesta inventada. Una segunda nota contestando esa pendiente por
+    separado ("no vendemos cadena de tren") → se resolvió normal (*"No, no vendemos cadena de tren
+    para esa moto."*), confirmando que el camino legítimo (una nota por pendiente) sigue
+    funcionando igual que antes. Filas sintéticas borradas por id después (`compatibilidades` 117,
+    `conocimiento_libre` 92, ambas pendientes de prueba).
+  - **Pendiente real, no técnico:** el contacto +5493535645945 (conv 2141) recibió la respuesta
+    mala del cigüeñal el 2026-08-19 antes de este fix (aunque la nota correcta llegó 27 segundos
+    después). También quedan sin resolver de esa misma conversación: el `/bot off` no frenó una
+    ráfaga que ya estaba en proceso (dos mensajes salieron ~80s después de pausar) y la pregunta
+    "La tapa cdi q precio esta cn ese combo" nunca se contestó (bot pausado, necesita respuesta
+    manual) — resuelto el mismo día, ver entrada siguiente.
+
+- **Fix "/bot off no frena una ráfaga que ya está en proceso"** (2026-08-19,
+  `apply-fix-pausa-post-rafaga.mjs` + corrección `apply-fix-vaciar-buffer-pausado.mjs`), segundo
+  problema real de la misma conv 2141 (+5493535645945): el chequeo `¿Bot Pausado?` solo corría al
+  arrancar el procesamiento de un mensaje entrante, ANTES de agruparlo en la ráfaga de 90s. Si la
+  pausa manual (`/bot off`) se activaba mientras un mensaje ya estaba esperando su turno, el
+  pipeline (varios pasos de IA en cadena) igual terminaba de correr y mandaba la respuesta,
+  ignorando la pausa. En el caso real, dos mensajes salieron ~80 segundos después de que el
+  equipo pusiera `/bot off`.
+  - Fix: se clonó el mismo chequeo que ya existe al arrancar (Redis GET de `bot_pausado:{conv}` +
+    IF) y se insertó justo después de `Soy el ultimo?` (true — "ya podés seguir procesando esta
+    ráfaga"), ANTES de `Traer Buffer`. Si está pausado, va a la MISMA rama de aviso que ya existe
+    (Fase 9: nota privada citando el mensaje, sin responderle al cliente) en vez de duplicar
+    lógica; si no, sigue exactamente igual que antes.
+  - **Regresión encontrada validando el fix mismo día** (para no repetirla): la primera versión
+    del fix cortaba directo a `Armar Nota Bot Pausado` sin pasar por `Vaciar Buffer` — el mensaje
+    agrupado en Redis (lista por teléfono) nunca se limpiaba. La próxima vez que llegaba un
+    mensaje de ese número (aunque fuera con el bot ya reactivado), `Traer Buffer` traía el
+    contenido viejo pegado al nuevo, y `Unir Mensajes` los procesaba juntos como si fueran una
+    sola ráfaga — reproduciendo la pregunta vieja (ya "silenciada" por la pausa) mezclada con la
+    nueva. Se reprodujo en la propia validación: una pregunta de envíos quedó pausada sin vaciar
+    el buffer, y la siguiente pregunta de envíos (con el bot ya prendido) salió **duplicada**, el
+    bot contestó dos veces lo mismo. Corrección: nodo nuevo `Vaciar Buffer (Post-Rafaga Pausado)`
+    (mismo Redis DELETE que el `Vaciar Buffer` de siempre, misma key) insertado entre el chequeo
+    nuevo y `Armar Nota Bot Pausado`, para que el buffer quede limpio también en el camino de
+    pausa.
+  - Lección: cualquier salida "temprana" que se inserte ANTES de un nodo que limpia estado
+    compartido (acá, el buffer de la ráfaga en Redis) tiene que limpiar ese estado por su cuenta
+    si no pasa por el nodo original — si no, el estado queda "sucio" para la próxima ejecución que
+    sí llegue hasta el final.
+  - Validado contra producción real (conv 1, teléfono de prueba), dos rondas: la primera detectó
+    la regresión del buffer (mensaje de envíos pausado + mensaje de envíos nuevo → salió
+    duplicado); repitiendo la secuencia completa después de la corrección — mensaje pausado a
+    mitad de ráfaga → solo nota privada, cero respuesta pública; reactivando el bot y mandando un
+    mensaje distinto y sin relación (kit potenciado 220cc) → respondió solo sobre ese kit, sin
+    ningún rastro del mensaje viejo. Control adicional sin pausa de por medio (pregunta de envíos
+    normal) → respuesta normal, un solo mensaje, sin cambios de comportamiento.
+
+- **Fix "eco de la pregunta del cliente en la respuesta redactada"** (2026-08-19,
+  `apply-fix-echo-pregunta-redaccion.mjs`), tercer hallazgo de la misma auditoría de la conv 2141:
+  la respuesta de dirección había salido como *"Pasame la dire: estamos en Revolución de Mayo
+  1605..."* — `Redactar Respuesta desde Dato` repitió literalmente la pregunta del cliente como
+  prefijo antes del dato. El prompt nunca le prohibía citar la pregunta, solo le decía que use
+  únicamente el "Dato aprobado".
+  - Fix acotado: una línea nueva en el `systemMessage` ("No repitas ni cites la pregunta del
+    cliente en tu respuesta... arrancá directo con el dato"). Solo texto de prompt, no toca lógica
+    ni conexiones.
+  - Validado contra producción real (conv 1, teléfono de prueba): "Pasame la dire" (mensaje suelto,
+    resuelto por el camino directo de Fase 6/negocio) → *"Estamos en Revolución de Mayo 1605,
+    barrio Crisol, Córdoba capital."*, sin ningún eco de la pregunta.
+
 ## Qué falta / pendiente (al 2026-08-14, revisar si sigue vigente)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

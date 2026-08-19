@@ -57,13 +57,15 @@ export function KitsTab({
 
     const [articulos, setArticulos] = useState<ArticuloInput[]>([])
     const [nombreArticulo, setNombreArticulo] = useState("")
+    const [aliasArticulo, setAliasArticulo] = useState("")
     const [precioArticulo, setPrecioArticulo] = useState("")
 
     const agregarArticulo = () => {
         const nombre = nombreArticulo.trim()
         if (!nombre) return
-        setArticulos((prev) => [...prev, { nombre, precio: precioArticulo.trim() }])
+        setArticulos((prev) => [...prev, { nombre, alias: aliasArticulo.trim(), precio: precioArticulo.trim() }])
         setNombreArticulo("")
+        setAliasArticulo("")
         setPrecioArticulo("")
     }
 
@@ -100,10 +102,11 @@ export function KitsTab({
         setFotoError(null)
         setArticulos([])
         setNombreArticulo("")
+        setAliasArticulo("")
         setPrecioArticulo("")
         window.scrollTo({ top: 0, behavior: "smooth" })
         const propiosArticulos = await getArticulos(kit.id)
-        setArticulos(propiosArticulos.map((a) => ({ nombre: a.nombre, precio: a.precio || "" })))
+        setArticulos(propiosArticulos.map((a) => ({ nombre: a.nombre, alias: a.alias || "", precio: a.precio || "" })))
     }
 
     const cancelarEdicion = () => {
@@ -113,6 +116,7 @@ export function KitsTab({
         setFotoError(null)
         setArticulos([])
         setNombreArticulo("")
+        setAliasArticulo("")
         setPrecioArticulo("")
     }
 
@@ -361,9 +365,11 @@ export function KitsTab({
                         <div className="space-y-2 pt-8 border-t border-slate-200">
                             <Label>Artículos que incluye este kit</Label>
                             <p className="text-xs text-gray-400">
-                                Cargá cada componente por separado (ej. &quot;Leva 6.40&quot;, &quot;Escape PWR Paolucci&quot;), con
-                                precio solo si se vende suelto. Todavía no lo usa el bot — es la base para que en el futuro
-                                pueda contestar preguntas sobre una pieza puntual del kit.
+                                Cargá cada componente por separado con su nombre técnico completo, y un alias corto de cómo
+                                lo nombra el cliente en la práctica (ej. nombre &quot;TAPA DE CILINDRO CDI 125 COMPLETA&quot;,
+                                alias &quot;tapa&quot;) — el alias es lo que se va a usar para reconocer la pregunta, porque dos
+                                artículos del mismo kit pueden compartir palabras en el nombre técnico. Precio solo si se
+                                vende suelto.
                             </p>
                             <div className="flex flex-col sm:flex-row gap-2">
                                 <Input
@@ -378,6 +384,19 @@ export function KitsTab({
                                     }}
                                     disabled={guardando}
                                     className="flex-1"
+                                />
+                                <Input
+                                    placeholder="Alias (ej: tapa)"
+                                    value={aliasArticulo}
+                                    onChange={(e) => setAliasArticulo(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault()
+                                            agregarArticulo()
+                                        }
+                                    }}
+                                    disabled={guardando}
+                                    className="sm:w-40"
                                 />
                                 <Input
                                     placeholder="Precio (opcional)"
@@ -402,6 +421,7 @@ export function KitsTab({
                                         <div key={i} className="flex items-center justify-between px-3 py-2 text-sm">
                                             <span>
                                                 {art.nombre}
+                                                {art.alias && <span className="text-violet-500"> (alias: {art.alias})</span>}
                                                 {art.precio && <span className="text-gray-400"> — {art.precio}</span>}
                                             </span>
                                             <Button

@@ -8,6 +8,7 @@ export type Articulo = {
     id: number
     kit_id: number
     nombre: string
+    alias: string | null
     precio: string | null
     orden: number
 }
@@ -15,7 +16,7 @@ export type Articulo = {
 export async function getArticulos(kitId: number): Promise<Articulo[]> {
     await requireAdmin()
     return prisma.$queryRaw<Articulo[]>`
-        SELECT id, kit_id, nombre, precio, orden
+        SELECT id, kit_id, nombre, alias, precio, orden
         FROM kit_articulos
         WHERE kit_id = ${kitId}
         ORDER BY orden ASC
@@ -24,6 +25,7 @@ export async function getArticulos(kitId: number): Promise<Articulo[]> {
 
 export type ArticuloInput = {
     nombre: string
+    alias: string
     precio: string
 }
 
@@ -39,10 +41,11 @@ export async function sincronizarArticulosKit(kitId: number, articulos: Articulo
     for (const art of articulos) {
         const nombre = art.nombre.trim()
         if (!nombre) continue
+        const alias = art.alias.trim() || null
         const precio = art.precio.trim() || null
         await prisma.$executeRaw`
-            INSERT INTO kit_articulos (kit_id, nombre, precio, orden)
-            VALUES (${kitId}, ${nombre}, ${precio}, ${orden})
+            INSERT INTO kit_articulos (kit_id, nombre, alias, precio, orden)
+            VALUES (${kitId}, ${nombre}, ${alias}, ${precio}, ${orden})
         `
         orden++
     }

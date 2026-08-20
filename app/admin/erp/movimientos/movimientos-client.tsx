@@ -428,7 +428,7 @@ export default function MovimientosClient({
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows as any,
-      foot: [["", "Totales", formatCurrency(totalDebe), formatCurrency(totalHaber), formatCurrency(saldoFinal)]],
+      foot: [["", "Totales", "", "", formatCurrency(saldoFinal)]],
       startY,
       theme: 'grid',
       headStyles: { fillColor: [43, 140, 238], textColor: [255, 255, 255], fontStyle: 'bold', lineWidth: 0.1 },

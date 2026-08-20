@@ -3,7 +3,9 @@
 import { Boxes } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-import type { ChatArticulo, ChatPack } from "@/app/actions/chat-catalogo"
+import type { ChatArticulo, ChatPack, ChatArticuloCompatibilidad } from "@/app/actions/chat-catalogo"
+import type { Kit } from "@/app/actions/kits-publicidad"
+import type { Compatibilidad } from "@/app/actions/compatibilidades"
 
 import { ArticulosTab } from "./articulos-tab"
 import { PacksTab } from "./packs-tab"
@@ -13,9 +15,20 @@ type Props = {
     articulosError: string | null
     packsIniciales: ChatPack[]
     packsError: string | null
+    compatibilidadesArticulosIniciales: ChatArticuloCompatibilidad[]
+    kitsParaCopiar: Kit[]
+    compatibilidadesKits: Compatibilidad[]
 }
 
-export function CatalogoClient({ articulosIniciales, articulosError, packsIniciales, packsError }: Props) {
+export function CatalogoClient({
+    articulosIniciales,
+    articulosError,
+    packsIniciales,
+    packsError,
+    compatibilidadesArticulosIniciales,
+    kitsParaCopiar,
+    compatibilidadesKits,
+}: Props) {
     return (
         <div className="space-y-6 pb-12">
             <div>
@@ -38,7 +51,13 @@ export function CatalogoClient({ articulosIniciales, articulosError, packsInicia
                 </TabsList>
 
                 <TabsContent value="articulos">
-                    <ArticulosTab articulosIniciales={articulosIniciales} errorInicial={articulosError} />
+                    <ArticulosTab
+                        articulosIniciales={articulosIniciales}
+                        errorInicial={articulosError}
+                        compatibilidadesIniciales={compatibilidadesArticulosIniciales}
+                        kitsParaCopiar={kitsParaCopiar}
+                        compatibilidadesKits={compatibilidadesKits}
+                    />
                 </TabsContent>
                 <TabsContent value="packs">
                     <PacksTab packsIniciales={packsIniciales} errorInicial={packsError} articulosDisponibles={articulosIniciales} />

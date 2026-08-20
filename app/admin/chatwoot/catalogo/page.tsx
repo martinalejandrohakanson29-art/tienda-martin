@@ -1,5 +1,7 @@
 import { CatalogoClient } from "./catalogo-client"
-import { getChatArticulos, getChatPacks } from "@/app/actions/chat-catalogo"
+import { getChatArticulos, getChatPacks, getChatArticuloCompatibilidades } from "@/app/actions/chat-catalogo"
+import { getKits } from "@/app/actions/kits-publicidad"
+import { getCompatibilidades } from "@/app/actions/compatibilidades"
 
 export const dynamic = "force-dynamic"
 
@@ -12,9 +14,12 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<{ data: T; er
 }
 
 export default async function CatalogoPage() {
-    const [articulos, packs] = await Promise.all([
+    const [articulos, packs, compatibilidadesArticulos, kits, compatibilidadesKits] = await Promise.all([
         safe(getChatArticulos, []),
         safe(getChatPacks, []),
+        safe(getChatArticuloCompatibilidades, []),
+        safe(getKits, []),
+        safe(getCompatibilidades, []),
     ])
 
     return (
@@ -23,6 +28,9 @@ export default async function CatalogoPage() {
             articulosError={articulos.error}
             packsIniciales={packs.data}
             packsError={packs.error}
+            compatibilidadesArticulosIniciales={compatibilidadesArticulos.data}
+            kitsParaCopiar={kits.data}
+            compatibilidadesKits={compatibilidadesKits.data}
         />
     )
 }

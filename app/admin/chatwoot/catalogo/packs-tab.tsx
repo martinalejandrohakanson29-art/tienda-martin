@@ -19,6 +19,7 @@ import {
     type ChatPackInput,
     type ChatArticulo,
 } from "@/app/actions/chat-catalogo"
+import { matchTodasPalabras } from "@/lib/busqueda-texto"
 
 const FORM_VACIO: ChatPackInput = {
     nombre: "",
@@ -57,19 +58,17 @@ export function PacksTab({
     const editando = form.id !== undefined
 
     const resultadosBusqueda = useMemo(() => {
-        const q = busqueda.trim().toLowerCase()
-        if (q.length < 2) return []
+        if (busqueda.trim().length < 2) return []
         const yaElegidos = new Set(componentes.map((c) => c.articuloId))
         return articulosDisponibles
-            .filter((a) => a.activo && !yaElegidos.has(a.id) && a.nombre.toLowerCase().includes(q))
+            .filter((a) => a.activo && !yaElegidos.has(a.id) && matchTodasPalabras(a.nombre, busqueda))
             .slice(0, 10)
     }, [busqueda, articulosDisponibles, componentes])
 
     const packsFiltrados = useMemo(() => {
-        const q = busquedaLista.trim().toLowerCase()
-        if (!q) return packs
-        return packs.filter(
-            (p) => p.nombre.toLowerCase().includes(q) || p.componentes.some((c) => c.nombre.toLowerCase().includes(q))
+        if (!busquedaLista.trim()) return packs
+        return packs.filter((p) =>
+            matchTodasPalabras(`${p.nombre} ${p.componentes.map((c) => c.nombre).join(" ")}`, busquedaLista)
         )
     }, [packs, busquedaLista])
 

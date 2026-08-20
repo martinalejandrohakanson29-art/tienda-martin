@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,18 +9,28 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Save, Loader2, Pencil, Trash2, X, AlertTriangle, Search } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Save, Loader2, Pencil, Trash2, X, AlertTriangle, Search, Copy } from "lucide-react"
 
 import {
     guardarChatArticulo,
     eliminarChatArticulo,
     alternarActivoChatArticulo,
+    buscarArticulosMostrador,
+    sincronizarCompatibilidadArticulo,
+    getChatArticuloCompatibilidades,
     type ChatArticulo,
     type ChatArticuloInput,
+    type ArticuloMostradorResultado,
+    type ChatArticuloCompatibilidad,
 } from "@/app/actions/chat-catalogo"
+import type { Kit } from "@/app/actions/kits-publicidad"
+import type { Compatibilidad } from "@/app/actions/compatibilidades"
+import { matchTodasPalabras } from "@/lib/busqueda-texto"
+import { formatearListaCompat } from "@/lib/compatibilidad-texto"
 
 const FORM_VACIO: ChatArticuloInput = {
-    nombre: "",
+    articuloMostradorId: "",
     alias: "",
     precio: "",
     detalle: "",
@@ -35,43 +45,103 @@ function formatearPrecio(precio: number | null): string {
 export function ArticulosTab({
     articulosIniciales,
     errorInicial,
+    compatibilidadesIniciales,
+    kitsParaCopiar,
+    compatibilidadesKits,
 }: {
     articulosIniciales: ChatArticulo[]
     errorInicial: string | null
+    compatibilidadesIniciales: ChatArticuloCompatibilidad[]
+    kitsParaCopiar: Kit[]
+    compatibilidadesKits: Compatibilidad[]
 }) {
     const [articulos, setArticulos] = useState<ChatArticulo[]>(articulosIniciales)
     const [form, setForm] = useState<ChatArticuloInput>(FORM_VACIO)
+    const [nombreSeleccionado, setNombreSeleccionado] = useState<string | null>(null)
     const [guardando, setGuardando] = useState(false)
     const [error, setError] = useState<string | null>(errorInicial)
     const [busqueda, setBusqueda] = useState("")
 
+    const [busquedaMostrador, setBusquedaMostrador] = useState("")
+    const [resultadosMostrador, setResultadosMostrador] = useState<ArticuloMostradorResultado[]>([])
+    const [buscandoMostrador, setBuscandoMostrador] = useState(false)
+
+    const [compatList, setCompatList] = useState<ChatArticuloCompatibilidad[]>(compatibilidadesIniciales)
+    const [compatibleTexto, setCompatibleTexto] = useState("")
+    const [incompatibleTexto, setIncompatibleTexto] = useState("")
+    const [kitParaCopiar, setKitParaCopiar] = useState("")
+
     const editando = form.id !== undefined
 
     const articulosFiltrados = useMemo(() => {
-        const q = busqueda.trim().toLowerCase()
-        if (!q) return articulos
-        return articulos.filter(
-            (a) => a.nombre.toLowerCase().includes(q) || (a.alias || "").toLowerCase().includes(q)
-        )
+        if (!busqueda.trim()) return articulos
+        return articulos.filter((a) => matchTodasPalabras(`${a.nombre} ${a.alias || ""}`, busqueda))
     }, [articulos, busqueda])
+
+    // Buscador contra el inventario real (articulos_mostrador), con debounce —
+    // no se carga la lista completa, solo lo que matchea a medida que se tipea.
+    useEffect(() => {
+        const q = busquedaMostrador.trim()
+        if (q.length < 2) {
+            setResultadosMostrador([])
+            return
+        }
+        setBuscandoMostrador(true)
+        const timeout = setTimeout(async () => {
+            try {
+                const res = await buscarArticulosMostrador(q)
+                const yaCargados = new Set(articulos.map((a) => a.articulo_mostrador_id))
+                setResultadosMostrador(res.filter((r) => !yaCargados.has(r.id)))
+            } finally {
+                setBuscandoMostrador(false)
+            }
+        }, 300)
+        return () => clearTimeout(timeout)
+    }, [busquedaMostrador, articulos])
 
     const actualizarCampo = <K extends keyof ChatArticuloInput>(campo: K, valor: ChatArticuloInput[K]) => {
         setForm((prev) => ({ ...prev, [campo]: valor }))
     }
 
+    const elegirArticuloMostrador = (resultado: ArticuloMostradorResultado) => {
+        setForm((prev) => ({ ...prev, articuloMostradorId: resultado.id, precio: String(resultado.precio) }))
+        setNombreSeleccionado(resultado.nombre)
+        setBusquedaMostrador("")
+        setResultadosMostrador([])
+    }
+
     const editarArticulo = (articulo: ChatArticulo) => {
         setForm({
             id: articulo.id,
-            nombre: articulo.nombre,
+            articuloMostradorId: articulo.articulo_mostrador_id,
             alias: articulo.alias || "",
             precio: articulo.precio !== null ? String(articulo.precio) : "",
             detalle: articulo.detalle || "",
             activo: articulo.activo,
         })
+        setNombreSeleccionado(articulo.nombre)
+        const propias = compatList.filter((c) => c.articulo_id === articulo.id)
+        setCompatibleTexto(formatearListaCompat(propias.filter((c) => c.compatible)))
+        setIncompatibleTexto(formatearListaCompat(propias.filter((c) => !c.compatible)))
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
 
-    const cancelarEdicion = () => setForm(FORM_VACIO)
+    const cancelarEdicion = () => {
+        setForm(FORM_VACIO)
+        setNombreSeleccionado(null)
+        setBusquedaMostrador("")
+        setCompatibleTexto("")
+        setIncompatibleTexto("")
+        setKitParaCopiar("")
+    }
+
+    const copiarCompatibilidadDeKit = () => {
+        if (!kitParaCopiar) return
+        const kitId = Number(kitParaCopiar)
+        const propias = compatibilidadesKits.filter((c) => c.kit_id === kitId)
+        setCompatibleTexto(formatearListaCompat(propias.filter((c) => c.compatible)))
+        setIncompatibleTexto(formatearListaCompat(propias.filter((c) => !c.compatible)))
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -80,9 +150,14 @@ export function ArticulosTab({
         try {
             const resultado = await guardarChatArticulo(form)
             const id = resultado.id!
+            await sincronizarCompatibilidadArticulo(id, compatibleTexto, incompatibleTexto)
+            const compatActualizada = await getChatArticuloCompatibilidades()
+            setCompatList(compatActualizada)
+
             const actualizado: ChatArticulo = {
                 id,
-                nombre: form.nombre.trim(),
+                articulo_mostrador_id: form.articuloMostradorId,
+                nombre: nombreSeleccionado || "",
                 alias: form.alias.trim() || null,
                 precio: form.precio.trim() ? Number(form.precio.trim().replace(/[^\d.,]/g, "").replace(",", ".")) : null,
                 detalle: form.detalle.trim() || null,
@@ -94,7 +169,7 @@ export function ArticulosTab({
                 const siguiente = existe ? prev.map((a) => (a.id === actualizado.id ? actualizado : a)) : [...prev, actualizado]
                 return siguiente.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
             })
-            setForm(FORM_VACIO)
+            cancelarEdicion()
         } catch (err) {
             setError(err instanceof Error ? err.message : "Error al guardar el artículo")
         } finally {
@@ -127,8 +202,8 @@ export function ArticulosTab({
     return (
         <div className="space-y-6">
             <p className="text-sm text-gray-500">
-                Piezas sueltas que después se enganchan a un pack en la pestaña &quot;Packs&quot;. Cargá cada una con su
-                nombre técnico, un alias de cómo la nombra el cliente, y precio solo si se vende por separado.
+                Un artículo acá no se tipea a mano: es un artículo real del inventario (buscalo y elegilo abajo). Después
+                le sumás un alias de cómo lo nombra el cliente y, si hace falta, un precio propio para WhatsApp.
             </p>
 
             {error && (
@@ -143,7 +218,7 @@ export function ArticulosTab({
             <Card className="border-t-4 border-t-emerald-500 shadow-md">
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between text-xl">
-                        <span>{editando ? `Editar: ${form.nombre}` : "Nuevo Artículo"}</span>
+                        <span>{editando ? `Editar: ${nombreSeleccionado}` : "Nuevo Artículo"}</span>
                         {editando && (
                             <Button type="button" variant="ghost" size="sm" onClick={cancelarEdicion} className="gap-1">
                                 <X size={16} /> Cancelar edición
@@ -157,18 +232,60 @@ export function ArticulosTab({
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        <div className="space-y-1">
+                            <Label>Artículo del inventario</Label>
+                            {nombreSeleccionado ? (
+                                <div className="flex items-center justify-between border rounded-md px-3 py-2 bg-emerald-50 border-emerald-200">
+                                    <span className="text-sm font-medium">{nombreSeleccionado}</span>
+                                    {!editando && (
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                                setNombreSeleccionado(null)
+                                                actualizarCampo("articuloMostradorId", "")
+                                            }}
+                                            disabled={guardando}
+                                        >
+                                            <X size={14} /> Cambiar
+                                        </Button>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    <Input
+                                        placeholder="Buscar un artículo real por nombre…"
+                                        value={busquedaMostrador}
+                                        onChange={(e) => setBusquedaMostrador(e.target.value)}
+                                        disabled={guardando}
+                                        className="pl-9"
+                                    />
+                                    {buscandoMostrador && (
+                                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 animate-spin" />
+                                    )}
+                                    {resultadosMostrador.length > 0 && (
+                                        <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg divide-y max-h-64 overflow-y-auto">
+                                            {resultadosMostrador.map((r) => (
+                                                <button
+                                                    type="button"
+                                                    key={r.id}
+                                                    onClick={() => elegirArticuloMostrador(r)}
+                                                    className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 flex justify-between gap-3"
+                                                >
+                                                    <span>{r.nombre}</span>
+                                                    <span className="text-gray-400 shrink-0">
+                                                        {r.precio.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 })}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                                <Label htmlFor="nombre">Nombre del artículo</Label>
-                                <Input
-                                    id="nombre"
-                                    placeholder="Ej: Cilindro 120 54mm perno 13"
-                                    value={form.nombre}
-                                    onChange={(e) => actualizarCampo("nombre", e.target.value)}
-                                    disabled={guardando}
-                                    required
-                                />
-                            </div>
                             <div className="space-y-1">
                                 <Label htmlFor="alias">Alias (separados por coma)</Label>
                                 <Input
@@ -180,7 +297,7 @@ export function ArticulosTab({
                                 />
                             </div>
                             <div className="space-y-1">
-                                <Label htmlFor="precio">Precio si se vende suelto (vacío = no se vende suelto)</Label>
+                                <Label htmlFor="precio">Precio para WhatsApp si se vende suelto (vacío = no se vende suelto)</Label>
                                 <Input
                                     id="precio"
                                     placeholder="Ej: 54999"
@@ -189,17 +306,15 @@ export function ArticulosTab({
                                     disabled={guardando}
                                 />
                             </div>
-                            <div className="flex items-end pb-1">
-                                <div className="flex items-center gap-2">
-                                    <Checkbox
-                                        id="activo"
-                                        checked={form.activo}
-                                        onCheckedChange={(checked) => actualizarCampo("activo", checked === true)}
-                                        disabled={guardando}
-                                    />
-                                    <Label htmlFor="activo" className="cursor-pointer">Activo</Label>
-                                </div>
-                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="activo"
+                                checked={form.activo}
+                                onCheckedChange={(checked) => actualizarCampo("activo", checked === true)}
+                                disabled={guardando}
+                            />
+                            <Label htmlFor="activo" className="cursor-pointer">Activo</Label>
                         </div>
                         <div className="space-y-1">
                             <Label htmlFor="detalle">Detalle (opcional)</Label>
@@ -212,7 +327,68 @@ export function ArticulosTab({
                                 rows={3}
                             />
                         </div>
-                        <Button type="submit" disabled={guardando || !form.nombre} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+
+                        <div className="space-y-3 pt-6 border-t border-slate-200">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                                <Label>Compatibilidad de este artículo</Label>
+                                {kitsParaCopiar.length > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <Select value={kitParaCopiar} onValueChange={setKitParaCopiar}>
+                                            <SelectTrigger className="h-8 w-48 text-xs">
+                                                <SelectValue placeholder="Copiar de un kit…" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {kitsParaCopiar.map((k) => (
+                                                    <SelectItem key={k.id} value={String(k.id)}>
+                                                        {k.nombre}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={copiarCompatibilidadDeKit}
+                                            disabled={!kitParaCopiar || guardando}
+                                            className="gap-1 h-8"
+                                        >
+                                            <Copy size={14} /> Copiar
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                            <p className="text-xs text-gray-400">
+                                Dato propio del artículo, no se hereda en vivo del kit — &quot;Copiar de un kit&quot; solo
+                                precarga estos dos campos una vez, después los podés editar libremente.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label htmlFor="compatibleTexto">Compatible con (separado por comas)</Label>
+                                    <Textarea
+                                        id="compatibleTexto"
+                                        placeholder="Ej: Zanella ZB 110 (recorrido corto), Honda Wave 110"
+                                        value={compatibleTexto}
+                                        onChange={(e) => setCompatibleTexto(e.target.value)}
+                                        disabled={guardando}
+                                        rows={4}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="incompatibleTexto">No compatible con (separado por comas)</Label>
+                                    <Textarea
+                                        id="incompatibleTexto"
+                                        placeholder="Ej: Honda Wave NF"
+                                        value={incompatibleTexto}
+                                        onChange={(e) => setIncompatibleTexto(e.target.value)}
+                                        disabled={guardando}
+                                        rows={4}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <Button type="submit" disabled={guardando || !form.articuloMostradorId} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
                             {guardando ? (
                                 <><Loader2 className="animate-spin h-4 w-4" /> Guardando...</>
                             ) : (

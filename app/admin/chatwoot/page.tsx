@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3 } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3, Boxes } from "lucide-react"
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
@@ -66,6 +66,13 @@ export default async function ChatwootPage() {
             icon: <Sparkles className="h-8 w-8 text-fuchsia-600" />,
             href: "/admin/chatwoot/cargar-kit",
             color: "border-l-4 border-l-fuchsia-500"
+        },
+        {
+            title: "Catálogo del Bot (nuevo)",
+            description: "Base aislada en construcción: artículos sueltos con su precio + packs armados a partir de ellos, para que el bot conteste preguntas sobre una pieza puntual de un combo. Todavía no está conectada al bot en producción.",
+            icon: <Boxes className="h-8 w-8 text-emerald-600" />,
+            href: "/admin/chatwoot/catalogo",
+            color: "border-l-4 border-l-emerald-500"
         }
     ]
 

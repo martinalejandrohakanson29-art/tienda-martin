@@ -293,6 +293,31 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   `responsesApiEnabled: true`, que el Agent node v2 de esta instancia no soporta — forzar
   `responsesApiEnabled: false` (Chat Completions clásica) explícito.
 
+## Catálogo nuevo, aislado (artículos sueltos + packs) — en construcción
+
+- **2026-08-20:** revisando ejecuciones en vivo se confirmó el patrón que faltaba resolver desde
+  el 19/08 (ver "Árbol de artículos" arriba): casi todo lo demás anda bien, pero preguntas libres
+  sobre un artículo suelto dentro de un kit siguen sin respuesta.
+- Se evaluó heredar el patrón real de `/admin/listas/articulos-mostrador` +
+  `/admin/listas/packs` (`ArticuloMostrador`/`PackMostradorItem`, ya maduro, en producción) pero
+  se descartó: de los 6 kits publicitados hoy, solo 2 tienen un pack equivalente en mostrador, y
+  esos 2 ya tienen el precio desincronizado entre las dos bases (Kit 120: $99.000 vs $99.900; Kit
+  220: $199.000 vs $189.000) — evidencia real de que duplicar el dato a mano no funciona.
+- **Decisión: sección nueva y totalmente aislada**, `/admin/chatwoot/catalogo` (tarjeta propia en
+  `/admin/chatwoot`), tablas `chat_articulos` / `chat_packs` / `chat_pack_articulos`
+  (`n8n-workflows/chat-catalogo.sql`, ya corridas en producción). No toca `kits_publicidad` /
+  `kit_articulos` ni `articulos_mostrador` / `pack_mostrador_items`. El workflow en producción
+  sigue leyendo lo viejo sin cambios hasta que esta base esté cargada y probada.
+- Precio de artículo es **numérico** (a diferencia del texto libre de `kits_publicidad.precio`):
+  de yapa resuelve estructuralmente el precio ambiguo de Kit 8 (corto/largo) — a futuro serían dos
+  artículos distintos en vez de dos números pegados en un mismo campo de texto.
+  `eliminarChatArticulo` bloquea el borrado si el artículo sigue enganchado a algún pack (no
+  cascadea en silencio). Sin stock por artículo ni precio por medio de pago — decisiones a
+  propósito, ver detalle y el porqué de cada campo en [[project-chat-catalogo-nuevo]].
+- **Todavía sin hacer:** cargar los packs reales (los 6 kits actuales necesitan sus artículos
+  componentes cargados acá) y el paso de matching en el workflow de n8n que use esta base — sigue
+  siendo el punto pendiente real, a charlar paso a paso.
+
 ## Qué falta / pendiente (al 2026-08-20)
 
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que

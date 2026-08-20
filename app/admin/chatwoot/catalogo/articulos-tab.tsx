@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Save, Loader2, Pencil, Trash2, X, AlertTriangle } from "lucide-react"
+import { Save, Loader2, Pencil, Trash2, X, AlertTriangle, Search } from "lucide-react"
 
 import {
     guardarChatArticulo,
@@ -43,8 +43,17 @@ export function ArticulosTab({
     const [form, setForm] = useState<ChatArticuloInput>(FORM_VACIO)
     const [guardando, setGuardando] = useState(false)
     const [error, setError] = useState<string | null>(errorInicial)
+    const [busqueda, setBusqueda] = useState("")
 
     const editando = form.id !== undefined
+
+    const articulosFiltrados = useMemo(() => {
+        const q = busqueda.trim().toLowerCase()
+        if (!q) return articulos
+        return articulos.filter(
+            (a) => a.nombre.toLowerCase().includes(q) || (a.alias || "").toLowerCase().includes(q)
+        )
+    }, [articulos, busqueda])
 
     const actualizarCampo = <K extends keyof ChatArticuloInput>(campo: K, valor: ChatArticuloInput[K]) => {
         setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -217,11 +226,28 @@ export function ArticulosTab({
             <Card className="border-t-4 border-t-blue-500 shadow-md">
                 <CardHeader>
                     <CardTitle className="text-xl">Artículos Cargados</CardTitle>
-                    <CardDescription>{articulos.length} artículo(s) en la base.</CardDescription>
+                    <CardDescription>
+                        {busqueda
+                            ? `${articulosFiltrados.length} de ${articulos.length} artículo(s).`
+                            : `${articulos.length} artículo(s) en la base.`}
+                    </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                    {articulos.length > 0 && (
+                        <div className="relative max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="Buscar por nombre o alias…"
+                                value={busqueda}
+                                onChange={(e) => setBusqueda(e.target.value)}
+                                className="pl-9"
+                            />
+                        </div>
+                    )}
                     {articulos.length === 0 ? (
                         <p className="text-center py-8 text-gray-500 italic">Todavía no cargaste ningún artículo.</p>
+                    ) : articulosFiltrados.length === 0 ? (
+                        <p className="text-center py-8 text-gray-500 italic">Ningún artículo coincide con la búsqueda.</p>
                     ) : (
                         <div className="border rounded-md overflow-hidden overflow-x-auto">
                             <Table>
@@ -235,7 +261,7 @@ export function ArticulosTab({
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {articulos.map((articulo) => (
+                                    {articulosFiltrados.map((articulo) => (
                                         <TableRow key={articulo.id}>
                                             <TableCell className="font-medium">{articulo.nombre}</TableCell>
                                             <TableCell className="text-sm text-gray-500 max-w-[240px] truncate">{articulo.alias || "—"}</TableCell>

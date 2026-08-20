@@ -52,6 +52,7 @@ export function PacksTab({
 
     const [componentes, setComponentes] = useState<ComponenteSeleccionado[]>([])
     const [busqueda, setBusqueda] = useState("")
+    const [busquedaLista, setBusquedaLista] = useState("")
 
     const editando = form.id !== undefined
 
@@ -63,6 +64,14 @@ export function PacksTab({
             .filter((a) => a.activo && !yaElegidos.has(a.id) && a.nombre.toLowerCase().includes(q))
             .slice(0, 10)
     }, [busqueda, articulosDisponibles, componentes])
+
+    const packsFiltrados = useMemo(() => {
+        const q = busquedaLista.trim().toLowerCase()
+        if (!q) return packs
+        return packs.filter(
+            (p) => p.nombre.toLowerCase().includes(q) || p.componentes.some((c) => c.nombre.toLowerCase().includes(q))
+        )
+    }, [packs, busquedaLista])
 
     const actualizarCampo = <K extends keyof ChatPackInput>(campo: K, valor: ChatPackInput[K]) => {
         setForm((prev) => ({ ...prev, [campo]: valor }))
@@ -341,11 +350,28 @@ export function PacksTab({
             <Card className="border-t-4 border-t-blue-500 shadow-md">
                 <CardHeader>
                     <CardTitle className="text-xl">Packs Cargados</CardTitle>
-                    <CardDescription>{packs.length} pack(s) en la base.</CardDescription>
+                    <CardDescription>
+                        {busquedaLista
+                            ? `${packsFiltrados.length} de ${packs.length} pack(s).`
+                            : `${packs.length} pack(s) en la base.`}
+                    </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                    {packs.length > 0 && (
+                        <div className="relative max-w-sm">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input
+                                placeholder="Buscar por nombre o componente…"
+                                value={busquedaLista}
+                                onChange={(e) => setBusquedaLista(e.target.value)}
+                                className="pl-9"
+                            />
+                        </div>
+                    )}
                     {packs.length === 0 ? (
                         <p className="text-center py-8 text-gray-500 italic">Todavía no cargaste ningún pack.</p>
+                    ) : packsFiltrados.length === 0 ? (
+                        <p className="text-center py-8 text-gray-500 italic">Ningún pack coincide con la búsqueda.</p>
                     ) : (
                         <div className="border rounded-md overflow-hidden overflow-x-auto">
                             <Table>
@@ -359,7 +385,7 @@ export function PacksTab({
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {packs.map((pack) => (
+                                    {packsFiltrados.map((pack) => (
                                         <TableRow key={pack.id}>
                                             <TableCell className="font-medium">{pack.nombre}</TableCell>
                                             <TableCell>{formatearPrecio(pack.precio)}</TableCell>

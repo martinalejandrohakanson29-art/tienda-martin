@@ -321,11 +321,14 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   el orden (`lib/busqueda-texto.ts`). Compatibilidad ahora vive por artículo
   (`chat_articulo_compatibilidad`, no se hereda en vivo del kit, con atajo "copiar de un kit").
   Detalle completo en [[project-chat-catalogo-nuevo]].
-- **Variantes de un mismo kit (schema listo, sin UI/matching todavía):** para casos tipo Kit 120
-  recorrido corto/largo (mismo anuncio, distinto artículo y precio real según cuál le toque al
-  cliente) — tabla `chat_pack_grupos` + `chat_packs.grupo_id`/`criterio_variante`
-  (`n8n-workflows/chat-catalogo-variantes.sql`). 100% aditivo. El paso de n8n que pregunta y
-  resuelve la variante se construye después, aparte.
+- **Variantes de un mismo kit (schema + UI listos, primer caso real ya cargado):** para casos tipo
+  Kit 120 recorrido corto/largo (mismo anuncio, distinto artículo y precio real según cuál le toque
+  al cliente) — tabla `chat_pack_grupos` + `chat_packs.grupo_id`/`criterio_variante`
+  (`n8n-workflows/chat-catalogo-variantes.sql`). En la pestaña Packs, al editar un pack hay un
+  selector para sumarlo a un grupo (nuevo o existente) + su etiqueta de variante; la plantilla
+  exacta pasa a vivir en el grupo cuando el pack está agrupado. Kit 120 ya tiene sus 2 packs
+  (recorrido corto/largo) enlazados al grupo "Kit 120 para 110". El paso de n8n que pregunta y
+  resuelve la variante todavía se construye después, aparte.
 - **Bug conocido, sin arreglar:** `parsearListaCompat` (compartido con los kits viejos) solo separa
   por comas — si se tipea una lista de compatibilidad con saltos de línea en vez de comas, todo
   queda pegado en un solo `modelo_moto` con el salto de línea adentro.

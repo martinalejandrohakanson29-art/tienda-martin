@@ -3,7 +3,7 @@
 import { Boxes } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-import type { ChatArticulo, ChatPack, ChatArticuloCompatibilidad } from "@/app/actions/chat-catalogo"
+import type { ChatArticulo, ChatPack, ChatArticuloCompatibilidad, ChatPackGrupo } from "@/app/actions/chat-catalogo"
 import type { Kit } from "@/app/actions/kits-publicidad"
 import type { Compatibilidad } from "@/app/actions/compatibilidades"
 
@@ -18,6 +18,7 @@ type Props = {
     compatibilidadesArticulosIniciales: ChatArticuloCompatibilidad[]
     kitsParaCopiar: Kit[]
     compatibilidadesKits: Compatibilidad[]
+    gruposIniciales: ChatPackGrupo[]
 }
 
 export function CatalogoClient({
@@ -28,6 +29,7 @@ export function CatalogoClient({
     compatibilidadesArticulosIniciales,
     kitsParaCopiar,
     compatibilidadesKits,
+    gruposIniciales,
 }: Props) {
     return (
         <div className="space-y-6 pb-12">
@@ -60,7 +62,12 @@ export function CatalogoClient({
                     />
                 </TabsContent>
                 <TabsContent value="packs">
-                    <PacksTab packsIniciales={packsIniciales} errorInicial={packsError} articulosDisponibles={articulosIniciales} />
+                    <PacksTab
+                        packsIniciales={packsIniciales}
+                        errorInicial={packsError}
+                        articulosDisponibles={articulosIniciales}
+                        gruposIniciales={gruposIniciales}
+                    />
                 </TabsContent>
             </Tabs>
         </div>

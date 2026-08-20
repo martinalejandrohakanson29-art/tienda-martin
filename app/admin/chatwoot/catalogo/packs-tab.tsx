@@ -9,17 +9,23 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Save, Loader2, Pencil, Trash2, X, AlertTriangle, Search, Upload } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Save, Loader2, Pencil, Trash2, X, AlertTriangle, Search, Upload, Layers } from "lucide-react"
 
 import {
     guardarChatPack,
     eliminarChatPack,
     alternarActivoChatPack,
+    crearChatPackGrupo,
     type ChatPack,
     type ChatPackInput,
     type ChatArticulo,
+    type ChatPackGrupo,
 } from "@/app/actions/chat-catalogo"
 import { matchTodasPalabras } from "@/lib/busqueda-texto"
+
+const SIN_GRUPO = "ninguno"
+const GRUPO_NUEVO = "__nuevo__"
 
 const FORM_VACIO: ChatPackInput = {
     nombre: "",
@@ -29,6 +35,8 @@ const FORM_VACIO: ChatPackInput = {
     fotoUrl: "",
     plantillasBienvenida: "",
     activo: true,
+    grupoId: null,
+    criterioVariante: "",
 }
 
 type ComponenteSeleccionado = { articuloId: number; nombre: string; precio: number | null; cantidad: number }
@@ -41,10 +49,12 @@ export function PacksTab({
     packsIniciales,
     errorInicial,
     articulosDisponibles,
+    gruposIniciales,
 }: {
     packsIniciales: ChatPack[]
     errorInicial: string | null
     articulosDisponibles: ChatArticulo[]
+    gruposIniciales: ChatPackGrupo[]
 }) {
     const [packs, setPacks] = useState<ChatPack[]>(packsIniciales)
     const [form, setForm] = useState<ChatPackInput>(FORM_VACIO)
@@ -54,6 +64,12 @@ export function PacksTab({
     const [componentes, setComponentes] = useState<ComponenteSeleccionado[]>([])
     const [busqueda, setBusqueda] = useState("")
     const [busquedaLista, setBusquedaLista] = useState("")
+
+    const [grupos, setGrupos] = useState<ChatPackGrupo[]>(gruposIniciales)
+    const [grupoSeleccionado, setGrupoSeleccionado] = useState(SIN_GRUPO)
+    const [nuevoGrupoNombre, setNuevoGrupoNombre] = useState("")
+    const [nuevoGrupoPlantilla, setNuevoGrupoPlantilla] = useState("")
+    const [nuevoGrupoPregunta, setNuevoGrupoPregunta] = useState("")
 
     const [fotoDragging, setFotoDragging] = useState(false)
     const [subiendoFoto, setSubiendoFoto] = useState(false)
@@ -104,10 +120,16 @@ export function PacksTab({
             fotoUrl: pack.foto_url || "",
             plantillasBienvenida: pack.plantillas_bienvenida || "",
             activo: pack.activo,
+            grupoId: pack.grupo_id,
+            criterioVariante: pack.criterio_variante || "",
         })
         setComponentes(
             pack.componentes.map((c) => ({ articuloId: c.articulo_id, nombre: c.nombre, precio: c.precio, cantidad: c.cantidad }))
         )
+        setGrupoSeleccionado(pack.grupo_id ? String(pack.grupo_id) : SIN_GRUPO)
+        setNuevoGrupoNombre("")
+        setNuevoGrupoPlantilla("")
+        setNuevoGrupoPregunta("")
         setFotoError(null)
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
@@ -117,6 +139,10 @@ export function PacksTab({
         setComponentes([])
         setBusqueda("")
         setFotoError(null)
+        setGrupoSeleccionado(SIN_GRUPO)
+        setNuevoGrupoNombre("")
+        setNuevoGrupoPlantilla("")
+        setNuevoGrupoPregunta("")
     }
 
     const subirFoto = async (archivo: File) => {
@@ -162,8 +188,40 @@ export function PacksTab({
         setGuardando(true)
         setError(null)
         try {
+            let grupoId: number | null = null
+            let gruposActualizados = grupos
+
+            if (grupoSeleccionado === GRUPO_NUEVO) {
+                if (!nuevoGrupoNombre.trim()) throw new Error("El nombre del grupo nuevo es obligatorio")
+                const nuevoGrupo = await crearChatPackGrupo({
+                    nombre: nuevoGrupoNombre,
+                    plantillasBienvenida: nuevoGrupoPlantilla,
+                    preguntaDesambiguacion: nuevoGrupoPregunta,
+                })
+                grupoId = nuevoGrupo.id
+                gruposActualizados = [
+                    ...grupos,
+                    {
+                        id: nuevoGrupo.id,
+                        nombre: nuevoGrupoNombre.trim(),
+                        plantillas_bienvenida: nuevoGrupoPlantilla.trim() || null,
+                        pregunta_desambiguacion: nuevoGrupoPregunta.trim() || null,
+                        activo: true,
+                    },
+                ].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+                setGrupos(gruposActualizados)
+            } else if (grupoSeleccionado !== SIN_GRUPO) {
+                grupoId = Number(grupoSeleccionado)
+            }
+
+            if (grupoId && !form.criterioVariante.trim()) {
+                throw new Error('Si el pack pertenece a un grupo, hace falta la etiqueta de variante (ej. "recorrido corto")')
+            }
+
+            const formConGrupo: ChatPackInput = { ...form, grupoId }
+
             const resultado = await guardarChatPack(
-                form,
+                formConGrupo,
                 componentes.map((c) => ({ articuloId: c.articuloId, cantidad: c.cantidad }))
             )
             const id = resultado.id!
@@ -177,6 +235,8 @@ export function PacksTab({
                 plantillas_bienvenida: form.plantillasBienvenida.trim() || null,
                 activo: form.activo,
                 creado_en: packs.find((p) => p.id === form.id)?.creado_en || new Date(),
+                grupo_id: grupoId,
+                criterio_variante: grupoId ? form.criterioVariante.trim() : null,
                 componentes: componentes.map((c, i) => ({
                     articulo_id: c.articuloId,
                     nombre: c.nombre,
@@ -294,17 +354,104 @@ export function PacksTab({
                             </div>
                         </div>
 
-                        <div className="space-y-1">
-                            <Label htmlFor="plantillasBienvenida">Plantillas exactas de Instagram/Meta Ads (una por línea)</Label>
-                            <Textarea
-                                id="plantillasBienvenida"
-                                placeholder={"Pegá acá el texto tal cual lo manda la plantilla del anuncio, una por línea."}
-                                value={form.plantillasBienvenida}
-                                onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
-                                disabled={guardando}
-                                rows={4}
-                            />
+                        <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                                <Layers size={16} className="text-slate-400" />
+                                <Label>Grupo de variantes (opcional)</Label>
+                            </div>
+                            <p className="text-xs text-gray-400">
+                                Para casos como un mismo anuncio que corresponde a 2+ packs reales distintos (ej. recorrido
+                                corto/largo, con distinto artículo y precio). Si el pack pertenece a un grupo, la plantilla
+                                exacta pasa a definirse ahí (compartida), no en cada pack.
+                            </p>
+                            <Select value={grupoSeleccionado} onValueChange={setGrupoSeleccionado}>
+                                <SelectTrigger className="w-full sm:w-80" disabled={guardando}>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={SIN_GRUPO}>Sin grupo (kit único)</SelectItem>
+                                    {grupos.map((g) => (
+                                        <SelectItem key={g.id} value={String(g.id)}>{g.nombre}</SelectItem>
+                                    ))}
+                                    <SelectItem value={GRUPO_NUEVO}>+ Crear grupo nuevo</SelectItem>
+                                </SelectContent>
+                            </Select>
+
+                            {grupoSeleccionado === GRUPO_NUEVO && (
+                                <div className="space-y-3 rounded-md border p-3 bg-slate-50">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="nuevoGrupoNombre">Nombre del grupo</Label>
+                                        <Input
+                                            id="nuevoGrupoNombre"
+                                            placeholder="Ej: Kit 120 para 110"
+                                            value={nuevoGrupoNombre}
+                                            onChange={(e) => setNuevoGrupoNombre(e.target.value)}
+                                            disabled={guardando}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="nuevoGrupoPlantilla">Plantilla exacta compartida</Label>
+                                        <Textarea
+                                            id="nuevoGrupoPlantilla"
+                                            placeholder="Pegá acá el texto tal cual lo manda la plantilla del anuncio."
+                                            value={nuevoGrupoPlantilla}
+                                            onChange={(e) => setNuevoGrupoPlantilla(e.target.value)}
+                                            disabled={guardando}
+                                            rows={3}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="nuevoGrupoPregunta">Pregunta para desambiguar</Label>
+                                        <Textarea
+                                            id="nuevoGrupoPregunta"
+                                            placeholder="Ej: ¿Tu moto es recorrido corto o largo? Si no estás seguro, fijate si el cilindro es negro (corto) o consultá con tu mecánico."
+                                            value={nuevoGrupoPregunta}
+                                            onChange={(e) => setNuevoGrupoPregunta(e.target.value)}
+                                            disabled={guardando}
+                                            rows={2}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {grupoSeleccionado !== SIN_GRUPO && grupoSeleccionado !== GRUPO_NUEVO && (() => {
+                                const g = grupos.find((x) => String(x.id) === grupoSeleccionado)
+                                if (!g) return null
+                                return (
+                                    <div className="text-xs text-gray-500 rounded-md border p-3 bg-slate-50 space-y-1">
+                                        <p><strong>Plantilla del grupo:</strong> {g.plantillas_bienvenida || "—"}</p>
+                                        <p><strong>Pregunta de desambiguación:</strong> {g.pregunta_desambiguacion || "—"}</p>
+                                    </div>
+                                )
+                            })()}
+
+                            {grupoSeleccionado !== SIN_GRUPO && (
+                                <div className="space-y-1">
+                                    <Label htmlFor="criterioVariante">Etiqueta de esta variante</Label>
+                                    <Input
+                                        id="criterioVariante"
+                                        placeholder='Ej: "recorrido corto"'
+                                        value={form.criterioVariante}
+                                        onChange={(e) => actualizarCampo("criterioVariante", e.target.value)}
+                                        disabled={guardando}
+                                    />
+                                </div>
+                            )}
                         </div>
+
+                        {grupoSeleccionado === SIN_GRUPO && (
+                            <div className="space-y-1">
+                                <Label htmlFor="plantillasBienvenida">Plantillas exactas de Instagram/Meta Ads (una por línea)</Label>
+                                <Textarea
+                                    id="plantillasBienvenida"
+                                    placeholder={"Pegá acá el texto tal cual lo manda la plantilla del anuncio, una por línea."}
+                                    value={form.plantillasBienvenida}
+                                    onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
+                                    disabled={guardando}
+                                    rows={4}
+                                />
+                            </div>
+                        )}
 
                         <div className="space-y-2 pt-6 border-t border-slate-200">
                             <Label>Artículos que incluye este pack</Label>
@@ -464,6 +611,7 @@ export function PacksTab({
                                         <TableHead>Nombre</TableHead>
                                         <TableHead>Precio</TableHead>
                                         <TableHead>Componentes</TableHead>
+                                        <TableHead>Grupo</TableHead>
                                         <TableHead>Estado</TableHead>
                                         <TableHead className="text-right">Acciones</TableHead>
                                     </TableRow>
@@ -477,6 +625,11 @@ export function PacksTab({
                                                 {pack.componentes.length > 0
                                                     ? pack.componentes.map((c) => `${c.cantidad}x ${c.nombre}`).join(", ")
                                                     : "—"}
+                                            </TableCell>
+                                            <TableCell className="text-sm text-gray-500">
+                                                {pack.criterio_variante ? (
+                                                    <Badge variant="outline" className="font-normal">{pack.criterio_variante}</Badge>
+                                                ) : "—"}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge

@@ -314,9 +314,25 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   `eliminarChatArticulo` bloquea el borrado si el artículo sigue enganchado a algún pack (no
   cascadea en silencio). Sin stock por artículo ni precio por medio de pago — decisiones a
   propósito, ver detalle y el porqué de cada campo en [[project-chat-catalogo-nuevo]].
-- **Todavía sin hacer:** cargar los packs reales (los 6 kits actuales necesitan sus artículos
-  componentes cargados acá) y el paso de matching en el workflow de n8n que use esta base — sigue
-  siendo el punto pendiente real, a charlar paso a paso.
+- **Corrección misma tarde:** un artículo ya no se tipea a mano — es una referencia elegida por
+  buscador a un artículo real de `articulos_mostrador` (nombre siempre en vivo, precio propio
+  editable — el de chat es "para redes" con envío contemplado, más alto que el de mostrador a
+  propósito, no es un bug). Los 4 buscadores de la sección matchean todas las palabras sin importar
+  el orden (`lib/busqueda-texto.ts`). Compatibilidad ahora vive por artículo
+  (`chat_articulo_compatibilidad`, no se hereda en vivo del kit, con atajo "copiar de un kit").
+  Detalle completo en [[project-chat-catalogo-nuevo]].
+- **Variantes de un mismo kit (schema listo, sin UI/matching todavía):** para casos tipo Kit 120
+  recorrido corto/largo (mismo anuncio, distinto artículo y precio real según cuál le toque al
+  cliente) — tabla `chat_pack_grupos` + `chat_packs.grupo_id`/`criterio_variante`
+  (`n8n-workflows/chat-catalogo-variantes.sql`). 100% aditivo. El paso de n8n que pregunta y
+  resuelve la variante se construye después, aparte.
+- **Bug conocido, sin arreglar:** `parsearListaCompat` (compartido con los kits viejos) solo separa
+  por comas — si se tipea una lista de compatibilidad con saltos de línea en vez de comas, todo
+  queda pegado en un solo `modelo_moto` con el salto de línea adentro.
+- **Todavía sin hacer:** terminar de cargar los packs reales que faltan (5 de 6), agregar al
+  `detalle` del artículo Cilindro (Kit 120) el párrafo sobre ambigüedad recorrido corto/largo que
+  tenía el kit viejo y no se migró, y el paso de matching en el workflow de n8n que use esta base —
+  sigue siendo el punto pendiente real, a charlar paso a paso.
 
 ## Qué falta / pendiente (al 2026-08-20)
 

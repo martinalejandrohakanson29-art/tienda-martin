@@ -9,6 +9,7 @@ import type { Compatibilidad } from "@/app/actions/compatibilidades"
 
 import { ArticulosTab } from "./articulos-tab"
 import { PacksTab } from "./packs-tab"
+import { GruposTab } from "./grupos-tab"
 
 type Props = {
     articulosIniciales: ChatArticulo[]
@@ -19,6 +20,7 @@ type Props = {
     kitsParaCopiar: Kit[]
     compatibilidadesKits: Compatibilidad[]
     gruposIniciales: ChatPackGrupo[]
+    gruposError: string | null
 }
 
 export function CatalogoClient({
@@ -30,6 +32,7 @@ export function CatalogoClient({
     kitsParaCopiar,
     compatibilidadesKits,
     gruposIniciales,
+    gruposError,
 }: Props) {
     return (
         <div className="space-y-6 pb-12">
@@ -50,6 +53,7 @@ export function CatalogoClient({
                 <TabsList className="flex-wrap h-auto">
                     <TabsTrigger value="articulos">Artículos</TabsTrigger>
                     <TabsTrigger value="packs">Packs</TabsTrigger>
+                    <TabsTrigger value="grupos">Grupos</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="articulos">
@@ -68,6 +72,9 @@ export function CatalogoClient({
                         articulosDisponibles={articulosIniciales}
                         gruposIniciales={gruposIniciales}
                     />
+                </TabsContent>
+                <TabsContent value="grupos">
+                    <GruposTab gruposIniciales={gruposIniciales} errorInicial={gruposError} packsIniciales={packsIniciales} />
                 </TabsContent>
             </Tabs>
         </div>

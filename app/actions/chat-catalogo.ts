@@ -213,45 +213,87 @@ export async function sincronizarCompatibilidadArticulo(
 // --- Grupos de variantes (mismo anuncio, distinto pack real) ---
 // Ej. Kit 120 recorrido corto/largo: mismo anuncio de Instagram, artículo y
 // precio real distintos según cuál le toque al cliente. El grupo es la puerta
-// de entrada compartida (plantilla + pregunta para desambiguar); cada pack
-// colgado del grupo lleva su propia etiqueta corta (criterio_variante). Solo
-// datos por ahora — el paso de n8n que usa esto se arma en otra conversación.
+// de entrada compartida: la plantilla exacta, y el mensaje de bienvenida
+// genérico (saludo + qué es el combo + la pregunta para desambiguar — se
+// manda como un solo mensaje de WhatsApp, sin precio porque ahí está la
+// ambigüedad). Cada pack colgado del grupo lleva su propia etiqueta corta
+// (criterio_variante). Solo datos por ahora — el paso de n8n que usa esto se
+// arma en otra conversación.
 
 export type ChatPackGrupo = {
     id: number
     nombre: string
     plantillas_bienvenida: string | null
-    pregunta_desambiguacion: string | null
+    mensaje_bienvenida: string | null
+    foto_url: string | null
     activo: boolean
 }
 
 export type ChatPackGrupoInput = {
+    id?: number
     nombre: string
     plantillasBienvenida: string
-    preguntaDesambiguacion: string
+    mensajeBienvenida: string
+    fotoUrl: string
 }
 
 export async function getChatPackGrupos(): Promise<ChatPackGrupo[]> {
     await requireAdmin()
     return prisma.$queryRaw<ChatPackGrupo[]>`
-        SELECT id, nombre, plantillas_bienvenida, pregunta_desambiguacion, activo
+        SELECT id, nombre, plantillas_bienvenida, mensaje_bienvenida, foto_url, activo
         FROM chat_pack_grupos
         ORDER BY nombre ASC
     `
 }
 
-export async function crearChatPackGrupo(data: ChatPackGrupoInput): Promise<{ id: number }> {
+export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ id: number }> {
     await requireAdmin()
     const nombre = data.nombre.trim()
     if (!nombre) throw new Error("El nombre del grupo es obligatorio")
 
+    const plantillasBienvenida = data.plantillasBienvenida.trim() || null
+    const mensajeBienvenida = data.mensajeBienvenida.trim() || null
+    const fotoUrl = data.fotoUrl.trim() || null
+
+    if (data.id) {
+        await prisma.$executeRaw`
+            UPDATE chat_pack_grupos
+            SET nombre = ${nombre}, plantillas_bienvenida = ${plantillasBienvenida},
+                mensaje_bienvenida = ${mensajeBienvenida}, foto_url = ${fotoUrl}
+            WHERE id = ${data.id}
+        `
+        revalidatePath(RUTA)
+        return { id: data.id }
+    }
+
     const inserted = await prisma.$queryRaw<{ id: number }[]>`
-        INSERT INTO chat_pack_grupos (nombre, plantillas_bienvenida, pregunta_desambiguacion)
-        VALUES (${nombre}, ${data.plantillasBienvenida.trim() || null}, ${data.preguntaDesambiguacion.trim() || null})
+        INSERT INTO chat_pack_grupos (nombre, plantillas_bienvenida, mensaje_bienvenida, foto_url)
+        VALUES (${nombre}, ${plantillasBienvenida}, ${mensajeBienvenida}, ${fotoUrl})
         RETURNING id
     `
     revalidatePath(RUTA)
     return { id: inserted[0].id }
+}
+
+export async function eliminarChatPackGrupo(id: number) {
+    await requireAdmin()
+
+    const enUso = await prisma.$queryRaw<{ nombre: string }[]>`
+        SELECT nombre FROM chat_packs WHERE grupo_id = ${id}
+    `
+    if (enUso.length > 0) {
+        const packs = enUso.map((r) => r.nombre).join(", ")
+        throw new Error(`Este grupo tiene packs enganchados: ${packs}. Sacalos del grupo antes de borrarlo.`)
+    }
+
+    await prisma.$executeRaw`DELETE FROM chat_pack_grupos WHERE id = ${id}`
+    revalidatePath(RUTA)
+}
+
+export async function alternarActivoChatPackGrupo(id: number, activo: boolean) {
+    await requireAdmin()
+    await prisma.$executeRaw`UPDATE chat_pack_grupos SET activo = ${activo} WHERE id = ${id}`
+    revalidatePath(RUTA)
 }
 
 // --- Packs ---

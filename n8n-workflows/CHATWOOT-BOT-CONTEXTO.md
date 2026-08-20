@@ -321,12 +321,14 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   el orden (`lib/busqueda-texto.ts`). Compatibilidad ahora vive por artículo
   (`chat_articulo_compatibilidad`, no se hereda en vivo del kit, con atajo "copiar de un kit").
   Detalle completo en [[project-chat-catalogo-nuevo]].
-- **Variantes de un mismo kit (schema + UI listos, primer caso real ya cargado):** para casos tipo
-  Kit 120 recorrido corto/largo (mismo anuncio, distinto artículo y precio real según cuál le toque
-  al cliente) — tabla `chat_pack_grupos` + `chat_packs.grupo_id`/`criterio_variante`
-  (`n8n-workflows/chat-catalogo-variantes.sql`). En la pestaña Packs, al editar un pack hay un
-  selector para sumarlo a un grupo (nuevo o existente) + su etiqueta de variante; la plantilla
-  exacta pasa a vivir en el grupo cuando el pack está agrupado. Kit 120 ya tiene sus 2 packs
+- **Variantes de un mismo kit (schema + UI listos, pestaña "Grupos" propia, primer caso real ya
+  cargado):** para casos tipo Kit 120 recorrido corto/largo (mismo anuncio, distinto artículo y
+  precio real según cuál le toque al cliente) — tabla `chat_pack_grupos` (con `mensaje_bienvenida`,
+  no una pregunta suelta: es el mensaje completo que se manda como un solo WhatsApp, sin precio) +
+  `chat_packs.grupo_id`/`criterio_variante` (`n8n-workflows/chat-catalogo-variantes.sql` +
+  `chat-catalogo-grupos-mensaje.sql`). En Packs hay un selector para sumar un pack a un grupo
+  (nuevo o existente) + su etiqueta de variante; la pestaña "Grupos" (nueva) tiene el CRUD completo
+  para crear/editar/borrar grupos y ver qué packs tiene enganchados cada uno. Kit 120 ya tiene sus 2 packs
   (recorrido corto/largo) enlazados al grupo "Kit 120 para 110". El paso de n8n que pregunta y
   resuelve la variante todavía se construye después, aparte.
 - **Bug conocido, sin arreglar:** `parsearListaCompat` (compartido con los kits viejos) solo separa

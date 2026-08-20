@@ -16,7 +16,7 @@ import {
     guardarChatPack,
     eliminarChatPack,
     alternarActivoChatPack,
-    crearChatPackGrupo,
+    guardarChatPackGrupo,
     type ChatPack,
     type ChatPackInput,
     type ChatArticulo,
@@ -69,7 +69,7 @@ export function PacksTab({
     const [grupoSeleccionado, setGrupoSeleccionado] = useState(SIN_GRUPO)
     const [nuevoGrupoNombre, setNuevoGrupoNombre] = useState("")
     const [nuevoGrupoPlantilla, setNuevoGrupoPlantilla] = useState("")
-    const [nuevoGrupoPregunta, setNuevoGrupoPregunta] = useState("")
+    const [nuevoGrupoMensaje, setNuevoGrupoMensaje] = useState("")
 
     const [fotoDragging, setFotoDragging] = useState(false)
     const [subiendoFoto, setSubiendoFoto] = useState(false)
@@ -129,7 +129,7 @@ export function PacksTab({
         setGrupoSeleccionado(pack.grupo_id ? String(pack.grupo_id) : SIN_GRUPO)
         setNuevoGrupoNombre("")
         setNuevoGrupoPlantilla("")
-        setNuevoGrupoPregunta("")
+        setNuevoGrupoMensaje("")
         setFotoError(null)
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
@@ -142,7 +142,7 @@ export function PacksTab({
         setGrupoSeleccionado(SIN_GRUPO)
         setNuevoGrupoNombre("")
         setNuevoGrupoPlantilla("")
-        setNuevoGrupoPregunta("")
+        setNuevoGrupoMensaje("")
     }
 
     const subirFoto = async (archivo: File) => {
@@ -193,10 +193,11 @@ export function PacksTab({
 
             if (grupoSeleccionado === GRUPO_NUEVO) {
                 if (!nuevoGrupoNombre.trim()) throw new Error("El nombre del grupo nuevo es obligatorio")
-                const nuevoGrupo = await crearChatPackGrupo({
+                const nuevoGrupo = await guardarChatPackGrupo({
                     nombre: nuevoGrupoNombre,
                     plantillasBienvenida: nuevoGrupoPlantilla,
-                    preguntaDesambiguacion: nuevoGrupoPregunta,
+                    mensajeBienvenida: nuevoGrupoMensaje,
+                    fotoUrl: "",
                 })
                 grupoId = nuevoGrupo.id
                 gruposActualizados = [
@@ -205,7 +206,8 @@ export function PacksTab({
                         id: nuevoGrupo.id,
                         nombre: nuevoGrupoNombre.trim(),
                         plantillas_bienvenida: nuevoGrupoPlantilla.trim() || null,
-                        pregunta_desambiguacion: nuevoGrupoPregunta.trim() || null,
+                        mensaje_bienvenida: nuevoGrupoMensaje.trim() || null,
+                        foto_url: null,
                         activo: true,
                     },
                 ].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
@@ -401,15 +403,19 @@ export function PacksTab({
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <Label htmlFor="nuevoGrupoPregunta">Pregunta para desambiguar</Label>
+                                        <Label htmlFor="nuevoGrupoMensaje">Mensaje de bienvenida genérico (con la pregunta de desambiguación)</Label>
                                         <Textarea
-                                            id="nuevoGrupoPregunta"
-                                            placeholder="Ej: ¿Tu moto es recorrido corto o largo? Si no estás seguro, fijate si el cilindro es negro (corto) o consultá con tu mecánico."
-                                            value={nuevoGrupoPregunta}
-                                            onChange={(e) => setNuevoGrupoPregunta(e.target.value)}
+                                            id="nuevoGrupoMensaje"
+                                            placeholder={"Hola amigo, ¿cómo va?\n\nTenemos el combo para potenciar tu 110...\n\n¿Tu moto es recorrido corto o largo? Si no estás seguro, fijate si el cilindro es negro (corto) o consultá con tu mecánico."}
+                                            value={nuevoGrupoMensaje}
+                                            onChange={(e) => setNuevoGrupoMensaje(e.target.value)}
                                             disabled={guardando}
-                                            rows={2}
+                                            rows={4}
                                         />
+                                        <p className="text-xs text-gray-400">
+                                            Se manda tal cual, sin mencionar precio (ahí está la ambigüedad) — recién cuando el
+                                            cliente contesta se pinea el pack definitivo y se manda su mensaje con precio real.
+                                        </p>
                                     </div>
                                 </div>
                             )}
@@ -420,7 +426,8 @@ export function PacksTab({
                                 return (
                                     <div className="text-xs text-gray-500 rounded-md border p-3 bg-slate-50 space-y-1">
                                         <p><strong>Plantilla del grupo:</strong> {g.plantillas_bienvenida || "—"}</p>
-                                        <p><strong>Pregunta de desambiguación:</strong> {g.pregunta_desambiguacion || "—"}</p>
+                                        <p><strong>Mensaje de bienvenida del grupo:</strong> {g.mensaje_bienvenida || "—"}</p>
+                                        <p className="text-violet-600">Para editar estos datos, andá a la pestaña &quot;Grupos&quot;.</p>
                                     </div>
                                 )
                             })()}

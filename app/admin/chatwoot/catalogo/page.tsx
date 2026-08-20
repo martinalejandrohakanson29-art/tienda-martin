@@ -33,6 +33,7 @@ export default async function CatalogoPage() {
             kitsParaCopiar={kits.data}
             compatibilidadesKits={compatibilidadesKits.data}
             gruposIniciales={grupos.data}
+            gruposError={grupos.error}
         />
     )
 }

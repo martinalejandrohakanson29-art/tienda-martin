@@ -193,7 +193,7 @@
 </style>
 
 <main>
-  <div class="eyebrow">n8n · Respuestas Chatwoot 2.0 · 151 nodos, workflow real, hoy activo</div>
+  <div class="eyebrow">n8n · Respuestas Chatwoot 2.0 · workflow real, hoy activo</div>
   <h1>Cómo clasifica el bot un mensaje entrante</h1>
   <p class="intro">
     Cada ráfaga de mensajes que llega por WhatsApp pasa por este mismo árbol de decisión —
@@ -224,7 +224,8 @@ flowchart TD
   entrada["Mensaje entra por WhatsApp<br/>creado + no es eco propio"]:::gate
   pausado{"¿Conversación<br/>pausada?"}:::gate
   texto{"¿Trae texto?"}:::gate
-  rafaga["Agrupa ráfaga de 45s<br/>(varios mensajes seguidos = uno solo)"]:::gate
+  rafaga["Agrupa ráfaga de 90s<br/>(varios mensajes seguidos = uno solo)"]:::gate
+  pausado2{"¿Se pausó mientras<br/>esperaba la ráfaga?"}:::gate
   clasif{"Clasifica el 1er mensaje<br/>de la ráfaga"}:::gate
 
   entrada --> pausado
@@ -232,7 +233,9 @@ flowchart TD
   pausado -->|"no"| texto
   texto -->|"no, es audio o imagen"| finSinTexto["Fin — todavía<br/>sin manejar"]:::gate
   texto -->|"sí"| rafaga
-  rafaga --> clasif
+  rafaga --> pausado2
+  pausado2 -->|"sí"| finPausa2["Fin — vacía el buffer +<br/>nota interna, no contesta<br/>(si no, el próximo mensaje<br/>arrastra este mezclado)"]:::esc
+  pausado2 -->|"no"| clasif
 
   clasif -->|"coincide LETRA POR LETRA<br/>con la plantilla de un kit"| resto1{"¿Hay más mensajes<br/>después del primero?"}:::gate
   clasif -->|"es saludo puro,<br/>sin pedido"| saludoGen["Envía saludo fijo:<br/>'Hola bro! En qué te podemos ayudar?'"]:::ok
@@ -259,13 +262,15 @@ flowchart TD
   pinStock --> esCompat
   agenteNuevo -->|"2-3 candidatos,<br/>no está seguro"| repregunta["Repregunta nombrando<br/>esas opciones"]:::ok
   repregunta --> finRepregunta["Fin — espera la respuesta,<br/>todavía no pinea nada"]:::gate
-  agenteNuevo -->|"no es ninguno de<br/>los kits que vendemos"| subSinKit{{"IA — reparte en sub-preguntas<br/>busca precio/stock/envío de kit: nada pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
+  agenteNuevo -->|"no es ninguno de<br/>los kits que vendemos"| subSinKit{{"IA — reparte en sub-preguntas<br/>categorías: precio/envío/negocio/cierre/stock/otro<br/>kit: nada pineado + info de negocio + conocimiento libre"}}:::ai
 
   subSinKit --> resSinKit{"¿Quedó algo<br/>sin resolver?"}:::gate
   resSinKit -->|"no"| okGenerico["Responde con lo<br/>que encontró"]:::ok
   resSinKit -->|"sí"| escSinMatch["Escala como<br/>'Sin clasificar'"]:::esc
 
-  esCompat -->|"sí"| buscaCompat["Busca compatibilidad<br/>ya guardada del kit"]:::gate
+  esCompat -->|"sí, con marca/modelo<br/>real, o ya hay dato"| buscaCompat["Busca compatibilidad<br/>ya guardada del kit"]:::gate
+  esCompat -->|"sí, pero SOLO<br/>cilindrada ('110'),<br/>sin marca ni modelo"| repregModelo["Repregunta corta pidiendo<br/>marca y modelo<br/>('Para una 110, marca<br/>y modelo es?')"]:::ok
+  repregModelo --> finRepregModelo["Fin — espera la respuesta,<br/>no confirma ni descarta nada<br/>(se omite si la bienvenida<br/>ya se mandó en esta vuelta)"]:::gate
   buscaCompat --> hayCompat{"¿está<br/>guardada?"}:::gate
   hayCompat -->|"sí"| okCompat["Responde la compatibilidad<br/>('sí es compatible con tu X' o<br/>'no, ESTE kit no es compatible con<br/>tu X, cualquier otra consulta nos escribís')"]:::ok
   hayCompat -->|"no"| buscaDetalle["Busca el detalle<br/>técnico del kit"]:::gate
@@ -275,7 +280,7 @@ flowchart TD
 
   okCompat --> finCompatOk["Fin — ya se mandó la<br/>bienvenida (si correspondía,<br/>ver 'Pinea el kit' más arriba)<br/>y la respuesta de compatibilidad"]:::gate
 
-  esCompat -->|"no"| subConKit{{"IA — reparte en sub-preguntas<br/>busca precio/stock/envío DEL KIT pineado<br/>+ info de negocio + conocimiento libre"}}:::ai
+  esCompat -->|"no"| subConKit{{"IA — reparte en sub-preguntas<br/>categorías: precio/envío/negocio/cierre/stock/otro<br/>DEL KIT pineado + info de negocio + conocimiento libre"}}:::ai
   subConKit --> resConKit{"¿Quedó algo<br/>sin resolver?"}:::gate
   resConKit -->|"no"| okKit["Responde precio/stock/envío<br/>del kit pineado<br/>(stock: siempre 'sí', nunca escala)"]:::ok
   resConKit -->|"sí"| escSinMatch2["Escala como<br/>'Sin clasificar'"]:::esc
@@ -373,10 +378,26 @@ flowchart TD
         respuesta fija ("Sí, tenemos stock.") — a pedido de Martín, como todo lo que se publicita con
         plantilla de Meta Ads está efectivamente en stock, nunca hace falta escalar esa pregunta.
       </li>
+      <li>
+        <strong>(19/8)</strong> El chequeo de "¿pausado?" ahora corre dos veces: al entrar el mensaje
+        (<code>pausado</code>, sin cambios) y de nuevo apenas termina de esperar los 90s de la ráfaga
+        (<code>pausado2</code>, nuevo). Antes, si alguien apagaba el bot mientras un mensaje ya estaba
+        esperando su turno, el pipeline igual terminaba de correr y le contestaba al cliente —
+        ignorando la pausa. El segundo chequeo también vacía el buffer de Redis al cortar (si no, el
+        mensaje pausado queda pegado al próximo y sale mezclado, duplicado, en la siguiente ejecución).
+      </li>
+      <li>
+        <strong>(18/8, dibujado recién en esta actualización del 20/8)</strong> Cuando el chequeo de
+        compatibilidad detecta que el cliente dio solo la cilindrada ("110") sin marca ni modelo, en vez
+        de caer en el balde genérico de <code>subConKit</code>, <code>repregModelo</code> pide marca y
+        modelo con una pregunta corta — nunca confirma ni descarta compatibilidad, nunca inventa una
+        marca. Se omite automáticamente si <code>pinNuevo</code> ya mandó la bienvenida con foto en esta
+        misma ejecución (esa bienvenida ya termina preguntando por la moto).
+      </li>
     </ol>
   </div>
 
-  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo" y "no confirmar si incompatible", de nuevo el mismo día tras la feat "bienvenida con foto en vez de confirmación", y una vez más tras el fix "stock mal interpretado como interés nuevo" (validado con conv 1: "Te queda" sin pin → pinStock sin bienvenida + respuesta de stock directa; stock con kit ya pineado; y control de interés nuevo real, que sigue mandando la bienvenida normal — los tres sin errores). Nota: el pinado de una sola cilindrada sin marca/modelo (repregunta "marca y modelo?", 18/8, ahora suprimida cuando la bienvenida se acaba de mandar) y la categoría "cierre" del partidor (18/8) todavía no están dibujados en este árbol — quedan documentados solo en <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code>, que tiene el detalle completo de cada cambio.</footer>
+  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo", "no confirmar si incompatible" y "bienvenida con foto en vez de confirmación", y actualizado de nuevo el 20/8 para reflejar los cambios del 19/8: el segundo chequeo de "¿pausado?" a la salida de la ráfaga (<code>pausado2</code>, fix "/bot off no frena una ráfaga en proceso"), la rama <code>repregModelo</code> (ya existía desde el 18/8, recién ahora dibujada), y la categoría "cierre" sumada a los recuadros de sub-preguntas junto con "stock". Los 11 nodos de IA del workflow pasaron de DeepSeek a la familia GPT-5.6 el 19/8 (mismo criterio de "IA acotada", sin cambios de forma en este árbol). Nota: el "árbol de artículos" (matching de piezas sueltas dentro de un kit) todavía NO toca el workflow — es solo base de datos + admin por ahora, así que a propósito no aparece en este diagrama; ver <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code> para el estado de esa idea y el resto del historial de cambios.</footer>
 </main>
 
 <script type="module">

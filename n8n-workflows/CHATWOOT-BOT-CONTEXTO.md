@@ -4,7 +4,11 @@
 > `workflow_mateo`, notas de migración, etc.). Están en el historial de git si hace falta
 > desenterrar algo puntual, pero para entender el estado actual **alcanza con este archivo**.
 > Actualizalo cuando cambie algo importante — la idea es que una conversación nueva pueda
-> arrancar leyendo esto, sin tener que repetir toda la explicación de cero.
+> arrancar leyendo esto, sin tener que repetir toda la explicación de cero. **Hacelo de forma
+> compacta**: 3-5 líneas por fix (qué se rompía / causa / fix / gotcha nuevo si lo hay), sin
+> transcribir la investigación paso a paso ni citar conversaciones reales textuales — ese nivel de
+> detalle infla el archivo con el tiempo (pasó una vez, ver la nota de poda de abajo) y una
+> conversación nueva no lo necesita para seguir trabajando.
 >
 > Para una vista visual del árbol de decisión completo (qué pasa con cada mensaje entrante,
 > según lo que dice), ver `rutas-bot-chatwoot.html` en esta misma carpeta — se puede abrir tal

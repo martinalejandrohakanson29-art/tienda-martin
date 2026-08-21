@@ -149,6 +149,18 @@ Orden real del procesamiento de un mensaje entrante:
   sigue como "otro" y escala normal. Redis (`cierre_reciente:{tel}`, TTL 24hs) evita repetir el
   mismo texto fijo dos veces en la misma charla (fix 19/08, ver
   [[fix-bot-cierre-repetido-envio-ambiguo]]).
+  - **Fix falso positivo "cierre" (2026-08-21):** encontrado por Martín como patrón recurrente en
+    varias conversaciones reales (ej. conv 1036, conv 2318) — frases que CONTESTAN algo que el bot
+    preguntó ("Recorrido corto es la mia") o dan contexto del mismo pedido activo ("Soy mecánico")
+    se etiquetaban "cierre" y disparaban "Dale, cualquier cosa nos escribís." sin sentido, a veces
+    justo al lado de algo que se estaba escalando en silencio en la misma ráfaga (señal
+    contradictoria para el cliente). Dos fixes juntos: (1) prompt de `Dividir y Etiquetar
+    Sub-preguntas` ahora excluye explícitamente esos dos casos, con los ejemplos reales; (2)
+    `Armar Mensajes` (Code, determinístico) ya no manda el "cierre" si en la misma ráfaga queda
+    algo sin resolver, sea cual sea la clasificación — red de seguridad además del prompt. Probado
+    en vivo replicando el caso real (mismo texto de conv 1036): las 3 partes del mensaje quedaron
+    "otro" (antes 2 de 3 caían "cierre"), escalaron juntas en una sola nota, cero "Dale, cualquier
+    cosa..." disparado.
 - **Categoría "stock"** (2026-08-18): como todo lo publicitado con plantilla de Meta Ads está en
   stock por definición, cualquier pregunta de disponibilidad se contesta "Sí, tenemos stock."
   directo, sin escalar nunca.
@@ -334,10 +346,61 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 - **Bug conocido, sin arreglar:** `parsearListaCompat` (compartido con los kits viejos) solo separa
   por comas — si se tipea una lista de compatibilidad con saltos de línea en vez de comas, todo
   queda pegado en un solo `modelo_moto` con el salto de línea adentro.
-- **Todavía sin hacer:** terminar de cargar los packs reales que faltan (5 de 6), agregar al
+- **Categoría (2026-08-21):** `chat_articulos.categoria` (tipo de pieza: escape, leva, cilindro
+  original/potenciado, etc. — lista fija en `lib/chat-catalogo-categorias.ts`, editable sin
+  migración) + `chat_packs.categoria`/`chat_pack_grupos.categoria` (categoría de combo, texto libre,
+  ej. "Potenciacion 110" — mismo patrón dueño/grupo que `mensaje_bienvenida`). Migración
+  `n8n-workflows/chat-catalogo-categorias.sql`. La de artículo es la que probó ser necesaria para el
+  matching de piezas sueltas (ver abajo) — sin ella, alias por sí solo no alcanzaba.
+- **Migración completa del workflow al catálogo nuevo (2026-08-21, hecha por Martín directo contra
+  la API, sin pasar por esta conversación):** `Clasificar Mensaje (sin IA)` e `Identificar
+  Necesidad` ya NO leen `kits_publicidad` para nada — arman la lista de kits activos 100% desde
+  `chat_packs`/`chat_pack_grupos`. Se sumó el flujo completo de grupos en producción (pin en estado
+  "esperando_moto"/"esperando_variante", resolución de variante, todo nuevo: `¿Es Grupo en
+  Resolución?`, `Resolver Variante`, etc.) y la compatibilidad ahora se consulta contra
+  `chat_articulo_compatibilidad` vía `chat_pack_articulos`. **Consecuencia aceptada:** los 3 kits
+  que todavía no se cargaron al catálogo nuevo (Escape Dm Curvo, KIT POTENCIADO 220cc, Kit 170) no
+  matchean más, ni por plantilla ni por lenguaje natural — Martín confirmó que reciben muy poco
+  tráfico y no le preocupa por ahora. **Importante para el pin:** `kit_id` en Redis (una vez resuelto
+  el pack final, forma `{kit_id, kit_nombre}`) ahora ES `chat_packs.id` directo, ya no
+  `kits_publicidad.id` — toda consulta río abajo (`Buscar Precio/Envio/Detalle Kit Pineado`,
+  `Buscar Compatibilidad del Kit`) ya apunta a `chat_packs`. Un pin viejo (anterior al cutover,
+  todavía vivo dentro de su TTL de 96hs) podía en teoría apuntar a un id de `chat_packs` que hoy es
+  un producto distinto — riesgo bajo y transitorio, se autolimpia solo hacia el 25/08. Dos columnas
+  nuevas (`chat_packs.detalle`, `chat_pack_grupos.pregunta_variante`) se agregaron directo en
+  producción sin archivo `.sql` propio — quedan sin documentar en un migration file, ver si hace
+  falta prolijizar esto más adelante.
+- **Matching de artículo suelto dentro de un kit pineado (2026-08-21) — primera versión, ya en
+  producción:** el disparador fue un caso real (conv 2331, +5493863690579): preguntaron "Precio del
+  escape pwr" con el combo Escape+Leva ya pineado, y el bot escaló en silencio pese a que el precio
+  ($95.000) ya estaba cargado en `chat_articulos`. En vez de armar una rama nueva, se extendió la
+  que ya existía para la categoría "otro" del partidor de sub-preguntas: `Buscar Detalle Kit Pineado
+  (Sub-pregunta)` ahora también trae la lista de artículos sueltos del pack pineado (id, nombre,
+  categoría, alias, precio) además del `detalle` de siempre; el prompt de `Responder Otro desde
+  Detalle Kit` decide si el cliente pide (no solo menciona) una pieza puntual de esa lista y devuelve
+  su `articulo_id` (nunca el precio, nunca inventado); `Parsear Respuesta Otro desde Detalle`
+  revalida ese id contra la lista real (un id no encontrado = no resuelto) y arma el texto final con
+  el precio de verdad. **Sin nodos nuevos, sin bridge a `kits_publicidad`** — se aprovechó que
+  `kit_id` ya es `chat_packs.id` desde la migración de arriba.
+  - **Riesgo real que motivó este diseño:** que el cliente NOMBRE una pieza sin pedir nada
+    ("ah porque yo tengo ya un pwr solo") dispare una respuesta de precio que nadie pidió — pasó
+    antes y Martín pidió específicamente evitarlo. El prompt tiene esa distinción explícita
+    (mención vs. pedido real, con ese ejemplo textual) como regla, no como ocurrencia.
+  - **Probado en vivo contra producción** (número de prueba +5493513784909, pack descartable
+    `[auditoria-articulo-suelto]` con 1 solo artículo, borrado al final): "Precio del escape pwr" →
+    resolvió sola, texto final "El escape Paolucci 110 Pwr suelto cuesta $95.000." (precio real,
+    tomado de la base, no inventado). "ah porque yo tengo ya un pwr solo" → el partidor de
+    sub-preguntas ya la clasifica como "cierre" (mención/comentario, no pedido) antes incluso de
+    llegar a este paso nuevo — cero respuesta automática, como debía ser.
+  - **Todavía sin cubrir:** el resto de un mensaje que llega en la MISMA ráfaga que la plantilla
+    exacta de un GRUPO (variante corto/largo sin resolver todavía) — ese resto no pasa por este
+    camino, solo por el de un kit ya con pack final pineado. Si aparece un caso real de esto, es la
+    próxima extensión natural, no un bug de esta versión.
+- **Todavía sin hacer:** terminar de cargar los packs reales que faltan (2 de 6 — Kit 170 y KIT
+  POTENCIADO 220cc, dado que ya no importa tanto priorizar Escape Dm Curvo según Martín), agregar al
   `detalle` del artículo Cilindro (Kit 120) el párrafo sobre ambigüedad recorrido corto/largo que
-  tenía el kit viejo y no se migró, y el paso de matching en el workflow de n8n que use esta base —
-  sigue siendo el punto pendiente real, a charlar paso a paso.
+  tenía el kit viejo y no se migró, y extender el matching de artículo suelto al caso de "resto en la
+  misma ráfaga que un grupo sin resolver" (ver arriba).
 
 ## Qué falta / pendiente (al 2026-08-20)
 

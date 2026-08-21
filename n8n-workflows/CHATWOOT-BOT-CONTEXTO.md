@@ -161,6 +161,12 @@ Orden real del procesamiento de un mensaje entrante:
     en vivo replicando el caso real (mismo texto de conv 1036): las 3 partes del mensaje quedaron
     "otro" (antes 2 de 3 caían "cierre"), escalaron juntas en una sola nota, cero "Dale, cualquier
     cosa..." disparado.
+  - **Tercer caso del mismo bug (2026-08-21, más tarde):** encontrado reprocesando pendientes
+    viejos (ver "Barrido de reprocesamiento" más abajo) — "Nevada era perdón" (el cliente corrige
+    el modelo de moto que había dicho antes, tras la repregunta "sos seguro que es la 110?")
+    también caía "cierre" en vez de "otro". Mismo prompt, mismo patrón: se sumó como tercer
+    ejemplo explícito junto a los otros dos. Confirmado en vivo contra la conversación de prueba:
+    el mismo texto que antes disparaba el cierre genérico ahora escala en silencio como "otro".
 - **Categoría "stock"** (2026-08-18): como todo lo publicitado con plantilla de Meta Ads está en
   stock por definición, cualquier pregunta de disponibilidad se contesta "Sí, tenemos stock."
   directo, sin escalar nunca.
@@ -304,6 +310,13 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   request - please check your parameters"). Además, por default estos nodos traen
   `responsesApiEnabled: true`, que el Agent node v2 de esta instancia no soporta — forzar
   `responsesApiEnabled: false` (Chat Completions clásica) explícito.
+- **Prender el bot con un `UPDATE bot_estado SET encendido = true` directo por SQL no despacha la
+  cola** (`respuestas_pendientes`) — `despacharColaEnSegundoPlano()` solo se dispara cuando
+  `sincronizarEstadoBot()` detecta un *cambio* de apagado a encendido (ver `lib/chatwoot-cola.ts`),
+  y un `UPDATE` directo no pasa por ahí. Encontrado el 2026-08-21: se prendió el bot por SQL para
+  un barrido y ~12 mensajes que ya estaban encolados de antes quedaron esperando igual. Para
+  prender el bot siempre usar el botón real del panel (`/admin/chatwoot`) o la action
+  `app/actions/bot-onoff.ts` — nunca el UPDATE crudo.
 
 ## Catálogo nuevo, aislado (artículos sueltos + packs) — en construcción
 
@@ -429,6 +442,29 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     exacta de un GRUPO (variante corto/largo sin resolver todavía) — ese resto no pasa por este
     camino, solo por el de un kit ya con pack final pineado. Si aparece un caso real de esto, es la
     próxima extensión natural, no un bug de esta versión.
+- **Bug real de la ventana de transición del corte (2026-08-21), encontrado por Martín en un caso
+  real (conv 2313, +5492994092837):** una conversación que arrancó ANTES del corte de las 14:08
+  (plantilla exacta matcheada contra el `kits_publicidad` viejo) quedó con un pin plano de Redis
+  (`kit_id: 8`, formato viejo, sin `es_grupo`). Después del corte, ese mismo `8` pasó a significar
+  `chat_packs.id = 8` (Tapa CDI, variante LARGA) — el cliente había elegido "recorrido corto", pero
+  el bot siguió respondiendo con el detalle del largo porque nunca entró al flujo de grupo (pensaba
+  que ya tenía un pack fijo pineado, no uno "en resolución"). El vaciado de pines viejos que se
+  corrió como parte del corte no alcanzó a este pin porque se creó DESPUÉS de ese vaciado y ANTES
+  del corte real — la ventana entre ambos momentos quedó sin cubrir. No es un bug del clasificador
+  actual (se revisó el código vigente y separa bien kit de grupo) — fue puntual de esa ventana de
+  transición, ya cerrada.
+- **Barrido de reprocesamiento (2026-08-21):** para recuperar preguntas de esa misma ventana que
+  quedaron mal resueltas o escaladas sin necesidad, se reprocesaron a mano las pendientes de los 3
+  grupos migrados de las últimas 48hs (17 conversaciones, filtrando primero las que ya tenían una
+  respuesta real de un humano después de la escalada): se limpió el pin de Redis de cada teléfono
+  (mismo mecanismo que "Limpiar Pin de Prueba", pero solo la clave `kit_pineado`, nunca
+  `bot_pausado`) y se reinyectó la pregunta original como mensaje nuevo contra el webhook real de
+  producción (`/api/chatwoot/prueba-mensaje` funciona con cualquier `conversationId`/teléfono real,
+  no solo el de prueba). Resultado: 3 resueltas limpio y contestadas de verdad, 2 resueltas a
+  medias (precio/stock sí, compatibilidad sigue pendiente — revisar si quedó nota duplicada en
+  conv 2226 y 2248), 1 reveló el bug de "cierre" de abajo, 11 siguieron sin resolver sin mandar
+  nada (correcto, dato real no cargado). Las 3 limpias se marcaron `respondida` a mano en
+  `preguntas_sin_match_pendientes` (ids 115, 117, 154) — el resto de la tabla no se tocó.
 - **Todavía sin hacer:** reescribir el `mensaje_bienvenida` propio de los packs 7 y 8 (Tapa CDI) —
   hoy es idéntico al del grupo (menciona los 2 precios y repregunta la moto) en vez de decir el
   precio único ya resuelto (no rompe nada, `/api/chatwoot/enviar` dedupa el contenido repetido, pero
@@ -445,11 +481,14 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   contenido repetido), pero el mensaje final que recibe el cliente no es tan preciso como podría
   ser. Se puede editar directo en `/admin/chatwoot/catalogo` (pestaña Packs). **Primer punto para
   retomar la próxima sesión.**
-- **Monitorear en tráfico real** los 3 grupos migrados (Kit 120, Escape pwr+Leva, Tapa CDI) —
-  la validación del 2026-08-21 fue con la conversación de prueba (mensajes sintéticos vía
-  `/api/chatwoot/prueba-mensaje` simulando el webhook de Chatwoot), nunca con un cliente real
-  todavía. Revisar `preguntas_tecnicas_pendientes` / `respuestas_pendientes` los próximos días
-  para confirmar que no aparece nada raro en casos reales que la prueba sintética no cubrió.
+- **Monitorear en tráfico real** los 3 grupos migrados (Kit 120, Escape pwr+Leva, Tapa CDI) — ya
+  confirmado con clientes reales (ver "Bug real de la ventana de transición" y "Barrido de
+  reprocesamiento" arriba), pero el barrido solo cubrió las últimas 48hs. Si aparece un pin raro
+  de una conversación de antes del 2026-08-19, es probable que sea la misma ventana de
+  transición — limpiar el pin de ese teléfono alcanza, no hace falta tocar el workflow de nuevo.
+- **Revisar si quedó nota duplicada** en conv 2226 y 2248 (Chatwoot) — el barrido de
+  reprocesamiento les contestó precio/stock pero la compatibilidad volvió a escalar; puede haber
+  quedado una nota de escalado vieja al lado de una nueva para la misma pregunta.
 - **Nodo huérfano `Parsear Estado Pineado`** (borrador previo al corte real, ya sin uso ni
   conexión al flujo) sigue en el canvas de n8n — limpieza cosmética, se puede borrar cuando se
   retome esto, no urge.

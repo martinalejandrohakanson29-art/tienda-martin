@@ -465,22 +465,38 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   conv 2226 y 2248), 1 reveló el bug de "cierre" de abajo, 11 siguieron sin resolver sin mandar
   nada (correcto, dato real no cargado). Las 3 limpias se marcaron `respondida` a mano en
   `preguntas_sin_match_pendientes` (ids 115, 117, 154) — el resto de la tabla no se tocó.
-- **Todavía sin hacer:** reescribir el `mensaje_bienvenida` propio de los packs 7 y 8 (Tapa CDI) —
-  hoy es idéntico al del grupo (menciona los 2 precios y repregunta la moto) en vez de decir el
-  precio único ya resuelto (no rompe nada, `/api/chatwoot/enviar` dedupa el contenido repetido, pero
-  el mensaje final no es tan preciso como podría ser); agregar al `detalle` del artículo Cilindro
-  (Kit 120) el párrafo sobre ambigüedad recorrido corto/largo que tenía el kit viejo y no se migró;
+- **Otro caso real de la ventana de transición (2026-08-21, conv 2336, +5493865610660):** mismo
+  mecanismo que el de arriba — pin viejo (`{kit_id:1, kit_nombre:"Kit 120 para 110"}`, sin
+  `es_grupo`) creado antes del corte de las 14:08, cliente respondió después con las motos y el
+  bot volvió a mandar la bienvenida completa preguntando la moto de nuevo, ignorando que ya se la
+  habían dado. Se limpió reinyectando el mensaje de la moto contra el webhook real
+  (`/api/chatwoot/prueba-mensaje`, mismo mecanismo del barrido) — el pin quedó sano y esta vez
+  entró bien al flujo de grupo, pero no encontró compatibilidad y escaló en silencio a
+  `preguntas_tecnicas_pendientes` (id 152, sin mandar nada al cliente).
+- **Gap nuevo encontrado ahí mismo, sin arreglar: dos motos en el mismo mensaje.** El cliente
+  escribió "Para una corven energy 2019 y para una motomel bliz 2016 las 2 son 110" — `Extraer
+  Modelo Grupo` no separa varias motos, las deja pegadas en un solo string
+  (`"corven energy 2019 y motomel bliz 2016"`), y contra ese texto pegado `rm_modelo_ok` no
+  matchea aunque cada moto por separado sí tendría dato cargado (`motomel blitz 110` está
+  compatible; el cliente escribió "bliz" sin la t, typo que tampoco tolera el matching). No rompe
+  nada — cae a escalado silencioso, comportamiento seguro — pero dos motos sueltas en un mensaje
+  nunca se resuelven solas. Mismo gap aplica al `Extraer Modelo` de compatibilidad simple (no
+  grupo), no revisado todavía.
+- **Todavía sin hacer:** ~~reescribir el `mensaje_bienvenida` propio de los packs~~ (hecho
+  2026-08-21, ver más abajo — terminó afectando a los 6 packs finales, no solo Tapa CDI); agregar
+  al `detalle` del artículo Cilindro (Kit 120) el párrafo sobre ambigüedad recorrido corto/largo
+  que tenía el kit viejo y no se migró;
   y extender el matching de artículo suelto al caso de "resto en la misma ráfaga que un grupo sin
   resolver" (ver arriba).
 
 ## Qué falta / pendiente (al 2026-08-21)
 
-- **Reescribir el `mensaje_bienvenida` propio de los packs 7 y 8** (Tapa CDI corto/largo) —
-  hoy es idéntico al mensaje del grupo (menciona los 2 precios y vuelve a preguntar la moto) en
-  vez de decir el precio único ya resuelto. No rompe nada (`/api/chatwoot/enviar` dedupa el
-  contenido repetido), pero el mensaje final que recibe el cliente no es tan preciso como podría
-  ser. Se puede editar directo en `/admin/chatwoot/catalogo` (pestaña Packs). **Primer punto para
-  retomar la próxima sesión.**
+- ~~Reescribir el `mensaje_bienvenida` propio de los packs~~ — hecho el 2026-08-21: encontrado
+  en vivo probando la conv 1 (Kit 120 corto devolvía el texto viejo de un solo precio y volvía a
+  preguntar la moto ya confirmada). Era más amplio de lo que se pensaba — afectaba a los 6 packs
+  finales de los 3 grupos (3,4,5,6,7,8), no solo a Tapa CDI. Reescritos los 6 con un mensaje de
+  confirmación (compatibilidad + variante + precio ya resueltos, invita a coordinar, sin sonar a
+  "cierre") — mismo molde en los 3 grupos, redactado con Martín.
 - **Monitorear en tráfico real** los 3 grupos migrados (Kit 120, Escape pwr+Leva, Tapa CDI) — ya
   confirmado con clientes reales (ver "Bug real de la ventana de transición" y "Barrido de
   reprocesamiento" arriba), pero el barrido solo cubrió las últimas 48hs. Si aparece un pin raro
@@ -489,6 +505,111 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 - **Revisar si quedó nota duplicada** en conv 2226 y 2248 (Chatwoot) — el barrido de
   reprocesamiento les contestó precio/stock pero la compatibilidad volvió a escalar; puede haber
   quedado una nota de escalado vieja al lado de una nueva para la misma pregunta.
+- **Extraer moto no separa varias motos en el mismo mensaje** (`Extraer Modelo Grupo` y probable
+  también `Extraer Modelo` de compatibilidad simple) — encontrado en conv 2336 (+5493865610660):
+  el cliente nombró 2 motos y quedaron pegadas en un solo string, así que ninguna matcheó pese a
+  tener datos cargados. Cae a escalado silencioso (seguro), pero nunca se resuelve solo. Si se
+  vuelve un patrón frecuente, separar por conectores ("y", ",") antes de buscar compatibilidad.
+- **Bug real en `rm_modelo_ok` (2026-08-21): las entradas de compatibilidad de
+  una sola palabra nunca matcheaban, ni siquiera contra sí mismas.** La función
+  exigía ≥2 palabras en común entre lo guardado y lo consultado — bien pensado
+  para evitar falsos positivos con frases largas, pero rompía cualquier entrada
+  cargada como una sola palabra ("motomel", "keller", "wave", "crypton", "biz",
+  "Mondial", "Trip", "110" — 12 filas en total, todas inutilizables). Encontrado
+  probando "a una motomel dlx" en la conversación de prueba (conv 1): quedó
+  escalada en silencio pese a que "motomel" ya estaba cargado como compatible.
+  **Fix aplicado** (`n8n-workflows/fix-rm-modelo-ok-un-token.sql`, ya corrido en
+  producción): el mínimo de coincidencias ahora es `LEAST(2, cantidad de
+  palabras de lo guardado)` — si lo guardado tiene una sola palabra, alcanza con
+  que esa palabra aparezca. Validado con 8 casos antes de aplicar (incluye que
+  los casos ya-rotos por otros motivos, como "corven energy y motomel bliz"
+  pegados o el typo "bliz"/"blitz", siguen sin matchear — este fix no los
+  toca) y confirmado en vivo: la conv 1 pasó de escalar en silencio a
+  reconocer "motomel dlx" como compatible y preguntar corto/largo.
+- **Dos bugs más en la extracción/comparación de modelo de moto (2026-08-21,
+  encontrados seguidos probando en vivo):**
+  1. **`rm_modelo_ok` ignoraba años, ahora sí.** El mismo problema del match_count
+     de arriba tenía una segunda cara: un año (2015, 2021, etc.) contaba como
+     palabra para el mínimo de coincidencias, así que el mismo modelo guardado y
+     consultado con años distintos (ej. "dlx 2015" vs "dlx 2021") no matcheaba —
+     la compatibilidad de un kit no depende del año de la moto. Fix en
+     `rm_tokens_modelo` (`n8n-workflows/fix-rm-tokens-modelo-ignora-anio.sql`):
+     cualquier token de 4 cifras que parezca año (19xx/20xx) se descarta al
+     tokenizar. No hace falta limpiar los datos ya cargados con año (5 filas
+     existentes) porque ahora matchean igual sin importar qué año tengan escrito.
+  2. **Los prompts de extracción de modelo no reconocían un modelo sin marca.**
+     Encontrado con "Para un trip" (grupo Kit 120): `Extraer Modelo Grupo`
+     devolvía `modelo_moto: ""` pese a que "Trip" es un modelo real de
+     Guerrero/Gilera ya cargado en la base — el prompt solo daba ejemplos con
+     marca+modelo ("Zanella ZB 110"), y el modelo de IA prefería no arriesgar.
+     Mismo prompt hermano `Extraer Pregunta Compatibilidad` (kit sin grupo) tenía
+     el mismo sesgo. Fix: se agregó una aclaración explícita en los dos prompts
+     de que un nombre propio sin marca también cuenta (con los mismos ejemplos
+     reales ya cargados: Trip, Mondial, Keller, Biz, Wave, Crypton). Aplicado
+     directo contra la API de n8n (`setNodeParameter` sobre `systemMessage`),
+     validado en producción: "Para un trip" ahora sí extrae `"trip"`.
+  - **Resultado real del caso que disparó todo esto:** con los 3 fixes de arriba
+    ya en producción, "Para un trip" contra el Kit 120 sigue sin contestarse
+    solo — pero ahora por el motivo correcto: la compatibilidad de "Trip" está
+    cargada para la Leva del combo Escape+Leva 6.40, NO para las piezas del Kit
+    120 (cilindro/carburador/codo/filtro). Es un dato real que falta cargar, no
+    un bug — quedó la pendiente (id 155) con el modelo correcto anotado para que
+    se cargue.
+- **Bug grande: las escaladas de compatibilidad de un GRUPO nunca avisaban al
+  equipo ni aprendían (2026-08-21).** Encontrado con Martín a partir del caso
+  de "Trip" de arriba: cuando el bot no encuentra compatibilidad para un KIT
+  SIMPLE (sin variantes), manda una nota privada a Chatwoot
+  (`Preparar Nota Escalado` → `Enviar Nota Escalado`) para que el equipo
+  conteste — pero esa conexión nunca se armó para la rama de GRUPO (Kit 120,
+  Escape+Leva, Tapa CDI): `Registrar Pregunta Pendiente (Grupo)` guardaba en
+  la base y ahí terminaba, en silencio total, sin nota ni forma de que el
+  equipo se entere. Y aunque el equipo la hubiera encontrado a mano en el
+  panel de pendientes y quisiera cargarla, el guardado de aprendizaje
+  (`Guardar en Compatibilidades`) asumía que `kit_id` siempre era un pack
+  puntual (`WHERE pack_id = kit_id`) — para las de grupo, `kit_id` guarda el
+  id del GRUPO, así que el INSERT no encontraba ningún pack con ese id y no
+  guardaba nada, en silencio también.
+  - **Fix completo (3 partes), aplicado directo contra la API de n8n:**
+    1. Columna nueva `es_grupo` en `preguntas_tecnicas_pendientes`
+       (`n8n-workflows/pendientes-tecnicas-es-grupo.sql`) para que el resto
+       del flujo sepa si el `kit_id` de esa fila es un grupo o un pack.
+       `Registrar Pregunta Pendiente` / `(Grupo)` ahora la escriben,
+       `Buscar Preguntas Pendientes` la trae, `Parsear Respuesta Equipo` la
+       pasa al resto del flujo.
+    2. Nodo nuevo `Preparar Nota Escalado (Grupo)` (mismo texto que el
+       original, con los datos del grupo) conectado desde
+       `Registrar Pregunta Pendiente (Grupo)` hacia el `Enviar Nota Escalado`
+       que ya existía — ahora sí avisa en Chatwoot.
+    3. Nodo nuevo `¿Es Grupo (Respuesta Equipo)?` (If) justo después de
+       `¿Confianza Alta?`, que separa hacia `Guardar en Compatibilidades`
+       (como siempre, para packs puntuales) o hacia el nodo nuevo
+       `Guardar en Compatibilidades (Grupo)`, que en vez de `WHERE pack_id =
+       kit_id` hace `WHERE p.grupo_id = kit_id` uniendo `chat_pack_articulos`
+       con `chat_packs` — inserta la compatibilidad para **todos los
+       artículos de todos los packs del grupo a la vez** (decisión de diseño
+       charlada con Martín: la compatibilidad de "¿le entra el combo a esta
+       moto?" es la misma sin importar la variante corto/largo que elija
+       después — las piezas que cambian entre variantes, ej. el cilindro, no
+       cambian si el motor/chasis acepta el kit).
+  - **Validado en vivo de punta a punta** con la conversación de prueba
+    (grupo Tapa CDI + "Bajaj Boxer 150", moto inventada para garantizar que
+    no hubiera dato previo): nota privada llegó bien
+    (`preguntas_tecnicas_pendientes` id 156, `es_grupo: true`), se simuló la
+    respuesta del equipo, y el flujo completo corrió solo — guardó 3 filas en
+    `chat_articulo_compatibilidad` (una por cada artículo del grupo: tapa,
+    cilindro corto, cilindro largo), marcó la pendiente `respondida`, y le
+    mandó al cliente "Sí, es compatible con la Bajaj Boxer 150 modelo 2020 y
+    entra sin modificar nada." con la voz del bot, sin revelar que hubo un
+    humano en el medio (mismo patrón ya establecido de Fase 7).
+  - **Nota:** las pendientes de grupo que ya existían ANTES de este fix
+    quedaron con `es_grupo = false` por default (la columna no existía). Se
+    corrigió a mano la de Yoel (id 155, "Trip") por ser la que motivó todo
+    esto; el resto de las viejas no se tocó — si alguna se contesta antes de
+    que se reprocese, va a guardar mal igual que antes. No es grave (dato real
+    faltante, no hay downside más allá de tener que cargarlo de nuevo), pero
+    si se quiere prolijo, revisar `preguntas_tecnicas_pendientes` con
+    `kit_id` que matchee un `chat_pack_grupos.id` y marcarlas `es_grupo=true`
+    a mano.
 - **Nodo huérfano `Parsear Estado Pineado`** (borrador previo al corte real, ya sin uso ni
   conexión al flujo) sigue en el canvas de n8n — limpieza cosmética, se puede borrar cuando se
   retome esto, no urge.

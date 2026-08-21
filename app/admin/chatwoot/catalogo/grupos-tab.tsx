@@ -25,6 +25,7 @@ const FORM_VACIO: ChatPackGrupoInput = {
     plantillasBienvenida: "",
     mensajeBienvenida: "",
     fotoUrl: "",
+    categoria: "",
 }
 
 export function GruposTab({
@@ -76,6 +77,7 @@ export function GruposTab({
             plantillasBienvenida: grupo.plantillas_bienvenida || "",
             mensajeBienvenida: grupo.mensaje_bienvenida || "",
             fotoUrl: grupo.foto_url || "",
+            categoria: grupo.categoria || "",
         })
         setFotoError(null)
         window.scrollTo({ top: 0, behavior: "smooth" })
@@ -137,6 +139,7 @@ export function GruposTab({
                 plantillas_bienvenida: form.plantillasBienvenida.trim() || null,
                 mensaje_bienvenida: form.mensajeBienvenida.trim() || null,
                 foto_url: form.fotoUrl.trim() || null,
+                categoria: form.categoria.trim() || null,
                 activo: grupos.find((g) => g.id === form.id)?.activo ?? true,
             }
             setGrupos((prev) => {
@@ -215,6 +218,21 @@ export function GruposTab({
                                 disabled={guardando}
                                 required
                             />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="categoria">Categoría del combo (opcional)</Label>
+                            <Input
+                                id="categoria"
+                                placeholder="Ej: potenciación 110"
+                                value={form.categoria}
+                                onChange={(e) => actualizarCampo("categoria", e.target.value)}
+                                disabled={guardando}
+                            />
+                            <p className="text-xs text-gray-400">
+                                Qué resuelve el combo en general — no identifica una pieza, es para cuando el bot sepa
+                                responder preguntas de exploración tipo &quot;qué tenés para potenciar mi 110&quot;.
+                            </p>
                         </div>
 
                         <div className="space-y-1">
@@ -341,6 +359,7 @@ export function GruposTab({
                                 <TableHeader className="bg-slate-50">
                                     <TableRow>
                                         <TableHead>Nombre</TableHead>
+                                        <TableHead>Categoría</TableHead>
                                         <TableHead>Packs enganchados</TableHead>
                                         <TableHead>Estado</TableHead>
                                         <TableHead className="text-right">Acciones</TableHead>
@@ -352,6 +371,7 @@ export function GruposTab({
                                         return (
                                             <TableRow key={grupo.id}>
                                                 <TableCell className="font-medium">{grupo.nombre}</TableCell>
+                                                <TableCell className="text-sm text-gray-500">{grupo.categoria || "—"}</TableCell>
                                                 <TableCell className="text-sm text-gray-500">
                                                     {packs.length === 0 ? (
                                                         "—"

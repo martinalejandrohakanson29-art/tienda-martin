@@ -24,16 +24,20 @@ import {
     type ArticuloMostradorResultado,
     type ChatArticuloCompatibilidad,
 } from "@/app/actions/chat-catalogo"
+import { CATEGORIAS_ARTICULO } from "@/lib/chat-catalogo-categorias"
 import type { Kit } from "@/app/actions/kits-publicidad"
 import type { Compatibilidad } from "@/app/actions/compatibilidades"
 import { matchTodasPalabras } from "@/lib/busqueda-texto"
 import { formatearListaCompat } from "@/lib/compatibilidad-texto"
+
+const SIN_CATEGORIA = "ninguna"
 
 const FORM_VACIO: ChatArticuloInput = {
     articuloMostradorId: "",
     alias: "",
     precio: "",
     detalle: "",
+    categoria: "",
     activo: true,
 }
 
@@ -117,6 +121,7 @@ export function ArticulosTab({
             alias: articulo.alias || "",
             precio: articulo.precio !== null ? String(articulo.precio) : "",
             detalle: articulo.detalle || "",
+            categoria: articulo.categoria || "",
             activo: articulo.activo,
         })
         setNombreSeleccionado(articulo.nombre)
@@ -161,6 +166,7 @@ export function ArticulosTab({
                 alias: form.alias.trim() || null,
                 precio: form.precio.trim() ? Number(form.precio.trim().replace(/[^\d.,]/g, "").replace(",", ".")) : null,
                 detalle: form.detalle.trim() || null,
+                categoria: form.categoria.trim() || null,
                 activo: form.activo,
                 creado_en: articulos.find((a) => a.id === form.id)?.creado_en || new Date(),
             }
@@ -306,6 +312,27 @@ export function ArticulosTab({
                                     disabled={guardando}
                                 />
                             </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="categoria">Categoría (tipo de pieza)</Label>
+                                <Select
+                                    value={form.categoria || SIN_CATEGORIA}
+                                    onValueChange={(v) => actualizarCampo("categoria", v === SIN_CATEGORIA ? "" : v)}
+                                >
+                                    <SelectTrigger id="categoria" disabled={guardando}>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={SIN_CATEGORIA}>Sin categoría</SelectItem>
+                                        {CATEGORIAS_ARTICULO.map((c) => (
+                                            <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-gray-400">
+                                    Para que el bot reconozca la pieza aunque el cliente no use el alias exacto (ej. "el
+                                    escape" cuando el kit pineado tiene un solo artículo de esa categoría).
+                                </p>
+                            </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <Checkbox
@@ -431,6 +458,7 @@ export function ArticulosTab({
                                     <TableRow>
                                         <TableHead>Nombre</TableHead>
                                         <TableHead>Alias</TableHead>
+                                        <TableHead>Categoría</TableHead>
                                         <TableHead>Precio</TableHead>
                                         <TableHead>Estado</TableHead>
                                         <TableHead className="text-right">Acciones</TableHead>
@@ -441,6 +469,11 @@ export function ArticulosTab({
                                         <TableRow key={articulo.id}>
                                             <TableCell className="font-medium">{articulo.nombre}</TableCell>
                                             <TableCell className="text-sm text-gray-500 max-w-[240px] truncate">{articulo.alias || "—"}</TableCell>
+                                            <TableCell className="text-sm text-gray-500 capitalize">
+                                                {articulo.categoria ? (
+                                                    <Badge variant="outline" className="font-normal capitalize">{articulo.categoria}</Badge>
+                                                ) : "—"}
+                                            </TableCell>
                                             <TableCell className="text-sm">{formatearPrecio(articulo.precio)}</TableCell>
                                             <TableCell>
                                                 <Badge

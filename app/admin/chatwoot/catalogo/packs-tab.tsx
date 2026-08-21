@@ -37,6 +37,7 @@ const FORM_VACIO: ChatPackInput = {
     activo: true,
     grupoId: null,
     criterioVariante: "",
+    categoria: "",
 }
 
 type ComponenteSeleccionado = { articuloId: number; nombre: string; precio: number | null; cantidad: number }
@@ -70,6 +71,7 @@ export function PacksTab({
     const [nuevoGrupoNombre, setNuevoGrupoNombre] = useState("")
     const [nuevoGrupoPlantilla, setNuevoGrupoPlantilla] = useState("")
     const [nuevoGrupoMensaje, setNuevoGrupoMensaje] = useState("")
+    const [nuevoGrupoCategoria, setNuevoGrupoCategoria] = useState("")
 
     const [fotoDragging, setFotoDragging] = useState(false)
     const [subiendoFoto, setSubiendoFoto] = useState(false)
@@ -122,6 +124,7 @@ export function PacksTab({
             activo: pack.activo,
             grupoId: pack.grupo_id,
             criterioVariante: pack.criterio_variante || "",
+            categoria: pack.categoria || "",
         })
         setComponentes(
             pack.componentes.map((c) => ({ articuloId: c.articulo_id, nombre: c.nombre, precio: c.precio, cantidad: c.cantidad }))
@@ -130,6 +133,7 @@ export function PacksTab({
         setNuevoGrupoNombre("")
         setNuevoGrupoPlantilla("")
         setNuevoGrupoMensaje("")
+        setNuevoGrupoCategoria("")
         setFotoError(null)
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
@@ -143,6 +147,7 @@ export function PacksTab({
         setNuevoGrupoNombre("")
         setNuevoGrupoPlantilla("")
         setNuevoGrupoMensaje("")
+        setNuevoGrupoCategoria("")
     }
 
     const subirFoto = async (archivo: File) => {
@@ -198,6 +203,7 @@ export function PacksTab({
                     plantillasBienvenida: nuevoGrupoPlantilla,
                     mensajeBienvenida: nuevoGrupoMensaje,
                     fotoUrl: "",
+                    categoria: nuevoGrupoCategoria,
                 })
                 grupoId = nuevoGrupo.id
                 gruposActualizados = [
@@ -208,6 +214,7 @@ export function PacksTab({
                         plantillas_bienvenida: nuevoGrupoPlantilla.trim() || null,
                         mensaje_bienvenida: nuevoGrupoMensaje.trim() || null,
                         foto_url: null,
+                        categoria: nuevoGrupoCategoria.trim() || null,
                         activo: true,
                     },
                 ].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
@@ -239,6 +246,7 @@ export function PacksTab({
                 creado_en: packs.find((p) => p.id === form.id)?.creado_en || new Date(),
                 grupo_id: grupoId,
                 criterio_variante: grupoId ? form.criterioVariante.trim() : null,
+                categoria: grupoId ? null : form.categoria.trim() || null,
                 componentes: componentes.map((c, i) => ({
                     articulo_id: c.articuloId,
                     nombre: c.nombre,
@@ -417,6 +425,16 @@ export function PacksTab({
                                             cliente contesta se pinea el pack definitivo y se manda su mensaje con precio real.
                                         </p>
                                     </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="nuevoGrupoCategoria">Categoría del combo (opcional)</Label>
+                                        <Input
+                                            id="nuevoGrupoCategoria"
+                                            placeholder="Ej: potenciación 110"
+                                            value={nuevoGrupoCategoria}
+                                            onChange={(e) => setNuevoGrupoCategoria(e.target.value)}
+                                            disabled={guardando}
+                                        />
+                                    </div>
                                 </div>
                             )}
 
@@ -427,6 +445,7 @@ export function PacksTab({
                                     <div className="text-xs text-gray-500 rounded-md border p-3 bg-slate-50 space-y-1">
                                         <p><strong>Plantilla del grupo:</strong> {g.plantillas_bienvenida || "—"}</p>
                                         <p><strong>Mensaje de bienvenida del grupo:</strong> {g.mensaje_bienvenida || "—"}</p>
+                                        <p><strong>Categoría del combo:</strong> {g.categoria || "—"}</p>
                                         <p className="text-violet-600">Para editar estos datos, andá a la pestaña &quot;Grupos&quot;.</p>
                                     </div>
                                 )
@@ -447,17 +466,33 @@ export function PacksTab({
                         </div>
 
                         {grupoSeleccionado === SIN_GRUPO && (
-                            <div className="space-y-1">
-                                <Label htmlFor="plantillasBienvenida">Plantillas exactas de Instagram/Meta Ads (una por línea)</Label>
-                                <Textarea
-                                    id="plantillasBienvenida"
-                                    placeholder={"Pegá acá el texto tal cual lo manda la plantilla del anuncio, una por línea."}
-                                    value={form.plantillasBienvenida}
-                                    onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
-                                    disabled={guardando}
-                                    rows={4}
-                                />
-                            </div>
+                            <>
+                                <div className="space-y-1">
+                                    <Label htmlFor="plantillasBienvenida">Plantillas exactas de Instagram/Meta Ads (una por línea)</Label>
+                                    <Textarea
+                                        id="plantillasBienvenida"
+                                        placeholder={"Pegá acá el texto tal cual lo manda la plantilla del anuncio, una por línea."}
+                                        value={form.plantillasBienvenida}
+                                        onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
+                                        disabled={guardando}
+                                        rows={4}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="categoria">Categoría del combo (opcional)</Label>
+                                    <Input
+                                        id="categoria"
+                                        placeholder="Ej: potenciación 110"
+                                        value={form.categoria}
+                                        onChange={(e) => actualizarCampo("categoria", e.target.value)}
+                                        disabled={guardando}
+                                    />
+                                    <p className="text-xs text-gray-400">
+                                        Qué resuelve el combo en general — no identifica una pieza, es para cuando el bot
+                                        sepa responder preguntas de exploración tipo &quot;qué tenés para potenciar mi 110&quot;.
+                                    </p>
+                                </div>
+                            </>
                         )}
 
                         <div className="space-y-2 pt-6 border-t border-slate-200">
@@ -619,6 +654,7 @@ export function PacksTab({
                                         <TableHead>Precio</TableHead>
                                         <TableHead>Componentes</TableHead>
                                         <TableHead>Grupo</TableHead>
+                                        <TableHead>Categoría</TableHead>
                                         <TableHead>Estado</TableHead>
                                         <TableHead className="text-right">Acciones</TableHead>
                                     </TableRow>
@@ -637,6 +673,9 @@ export function PacksTab({
                                                 {pack.criterio_variante ? (
                                                     <Badge variant="outline" className="font-normal">{pack.criterio_variante}</Badge>
                                                 ) : "—"}
+                                            </TableCell>
+                                            <TableCell className="text-sm text-gray-500">
+                                                {pack.categoria || grupos.find((g) => g.id === pack.grupo_id)?.categoria || "—"}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge

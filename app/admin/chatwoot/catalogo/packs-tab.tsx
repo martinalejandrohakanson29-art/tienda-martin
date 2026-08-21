@@ -34,6 +34,7 @@ const FORM_VACIO: ChatPackInput = {
     mensajeBienvenida: "",
     fotoUrl: "",
     plantillasBienvenida: "",
+    detalle: "",
     activo: true,
     grupoId: null,
     criterioVariante: "",
@@ -71,6 +72,7 @@ export function PacksTab({
     const [nuevoGrupoNombre, setNuevoGrupoNombre] = useState("")
     const [nuevoGrupoPlantilla, setNuevoGrupoPlantilla] = useState("")
     const [nuevoGrupoMensaje, setNuevoGrupoMensaje] = useState("")
+    const [nuevoGrupoPreguntaVariante, setNuevoGrupoPreguntaVariante] = useState("")
     const [nuevoGrupoCategoria, setNuevoGrupoCategoria] = useState("")
 
     const [fotoDragging, setFotoDragging] = useState(false)
@@ -121,6 +123,7 @@ export function PacksTab({
             mensajeBienvenida: pack.mensaje_bienvenida,
             fotoUrl: pack.foto_url || "",
             plantillasBienvenida: pack.plantillas_bienvenida || "",
+            detalle: pack.detalle || "",
             activo: pack.activo,
             grupoId: pack.grupo_id,
             criterioVariante: pack.criterio_variante || "",
@@ -133,6 +136,7 @@ export function PacksTab({
         setNuevoGrupoNombre("")
         setNuevoGrupoPlantilla("")
         setNuevoGrupoMensaje("")
+        setNuevoGrupoPreguntaVariante("")
         setNuevoGrupoCategoria("")
         setFotoError(null)
         window.scrollTo({ top: 0, behavior: "smooth" })
@@ -147,6 +151,7 @@ export function PacksTab({
         setNuevoGrupoNombre("")
         setNuevoGrupoPlantilla("")
         setNuevoGrupoMensaje("")
+        setNuevoGrupoPreguntaVariante("")
         setNuevoGrupoCategoria("")
     }
 
@@ -202,6 +207,7 @@ export function PacksTab({
                     nombre: nuevoGrupoNombre,
                     plantillasBienvenida: nuevoGrupoPlantilla,
                     mensajeBienvenida: nuevoGrupoMensaje,
+                    preguntaVariante: nuevoGrupoPreguntaVariante,
                     fotoUrl: "",
                     categoria: nuevoGrupoCategoria,
                 })
@@ -213,6 +219,7 @@ export function PacksTab({
                         nombre: nuevoGrupoNombre.trim(),
                         plantillas_bienvenida: nuevoGrupoPlantilla.trim() || null,
                         mensaje_bienvenida: nuevoGrupoMensaje.trim() || null,
+                        pregunta_variante: nuevoGrupoPreguntaVariante.trim() || null,
                         foto_url: null,
                         categoria: nuevoGrupoCategoria.trim() || null,
                         activo: true,
@@ -242,6 +249,7 @@ export function PacksTab({
                 mensaje_bienvenida: form.mensajeBienvenida.trim(),
                 foto_url: form.fotoUrl.trim() || null,
                 plantillas_bienvenida: form.plantillasBienvenida.trim() || null,
+                detalle: form.detalle.trim() || null,
                 activo: form.activo,
                 creado_en: packs.find((p) => p.id === form.id)?.creado_en || new Date(),
                 grupo_id: grupoId,
@@ -411,10 +419,10 @@ export function PacksTab({
                                         />
                                     </div>
                                     <div className="space-y-1">
-                                        <Label htmlFor="nuevoGrupoMensaje">Mensaje de bienvenida genérico (con la pregunta de desambiguación)</Label>
+                                        <Label htmlFor="nuevoGrupoMensaje">Mensaje de bienvenida genérico (pregunta la moto, para confirmar compatibilidad)</Label>
                                         <Textarea
                                             id="nuevoGrupoMensaje"
-                                            placeholder={"Hola amigo, ¿cómo va?\n\nTenemos el combo para potenciar tu 110...\n\n¿Tu moto es recorrido corto o largo? Si no estás seguro, fijate si el cilindro es negro (corto) o consultá con tu mecánico."}
+                                            placeholder={"Hola amigo, ¿cómo va?\n\nTenemos el combo para potenciar tu 110...\n\nA que moto se lo queres poner?"}
                                             value={nuevoGrupoMensaje}
                                             onChange={(e) => setNuevoGrupoMensaje(e.target.value)}
                                             disabled={guardando}
@@ -424,6 +432,17 @@ export function PacksTab({
                                             Se manda tal cual, sin mencionar precio (ahí está la ambigüedad) — recién cuando el
                                             cliente contesta se pinea el pack definitivo y se manda su mensaje con precio real.
                                         </p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="nuevoGrupoPreguntaVariante">Pregunta de variante (corto/largo, una vez confirmada la compatibilidad)</Label>
+                                        <Textarea
+                                            id="nuevoGrupoPreguntaVariante"
+                                            placeholder={"Genial, tu moto es compatible! Ahora decime: ¿es corto o largo? Fijate si el cilindro es negro (generalmente corto) o consultá con tu mecánico."}
+                                            value={nuevoGrupoPreguntaVariante}
+                                            onChange={(e) => setNuevoGrupoPreguntaVariante(e.target.value)}
+                                            disabled={guardando}
+                                            rows={3}
+                                        />
                                     </div>
                                     <div className="space-y-1">
                                         <Label htmlFor="nuevoGrupoCategoria">Categoría del combo (opcional)</Label>
@@ -445,6 +464,7 @@ export function PacksTab({
                                     <div className="text-xs text-gray-500 rounded-md border p-3 bg-slate-50 space-y-1">
                                         <p><strong>Plantilla del grupo:</strong> {g.plantillas_bienvenida || "—"}</p>
                                         <p><strong>Mensaje de bienvenida del grupo:</strong> {g.mensaje_bienvenida || "—"}</p>
+                                        <p><strong>Pregunta de variante:</strong> {g.pregunta_variante || "—"}</p>
                                         <p><strong>Categoría del combo:</strong> {g.categoria || "—"}</p>
                                         <p className="text-violet-600">Para editar estos datos, andá a la pestaña &quot;Grupos&quot;.</p>
                                     </div>
@@ -556,6 +576,22 @@ export function PacksTab({
                                 rows={6}
                                 required
                             />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="detalle">Detalle adicional (para preguntas sueltas que no son ni precio ni envío)</Label>
+                            <Textarea
+                                id="detalle"
+                                placeholder="Ej: viene listo para colocar, no hace falta modificar nada del motor."
+                                value={form.detalle}
+                                onChange={(e) => actualizarCampo("detalle", e.target.value)}
+                                disabled={guardando}
+                                rows={3}
+                            />
+                            <p className="text-xs text-gray-400">
+                                El bot lo usa cuando el cliente pregunta algo del pack que no es precio ni envío (ej.
+                                &quot;¿viene armado?&quot;, &quot;¿hay que tocar algo del motor?&quot;).
+                            </p>
                         </div>
 
                         <div className="space-y-1">

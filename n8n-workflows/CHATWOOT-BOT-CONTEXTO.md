@@ -352,24 +352,57 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   ej. "Potenciacion 110" — mismo patrón dueño/grupo que `mensaje_bienvenida`). Migración
   `n8n-workflows/chat-catalogo-categorias.sql`. La de artículo es la que probó ser necesaria para el
   matching de piezas sueltas (ver abajo) — sin ella, alias por sí solo no alcanzaba.
-- **Migración completa del workflow al catálogo nuevo (2026-08-21, hecha por Martín directo contra
-  la API, sin pasar por esta conversación):** `Clasificar Mensaje (sin IA)` e `Identificar
-  Necesidad` ya NO leen `kits_publicidad` para nada — arman la lista de kits activos 100% desde
-  `chat_packs`/`chat_pack_grupos`. Se sumó el flujo completo de grupos en producción (pin en estado
-  "esperando_moto"/"esperando_variante", resolución de variante, todo nuevo: `¿Es Grupo en
-  Resolución?`, `Resolver Variante`, etc.) y la compatibilidad ahora se consulta contra
-  `chat_articulo_compatibilidad` vía `chat_pack_articulos`. **Consecuencia aceptada:** los 3 kits
-  que todavía no se cargaron al catálogo nuevo (Escape Dm Curvo, KIT POTENCIADO 220cc, Kit 170) no
-  matchean más, ni por plantilla ni por lenguaje natural — Martín confirmó que reciben muy poco
-  tráfico y no le preocupa por ahora. **Importante para el pin:** `kit_id` en Redis (una vez resuelto
-  el pack final, forma `{kit_id, kit_nombre}`) ahora ES `chat_packs.id` directo, ya no
-  `kits_publicidad.id` — toda consulta río abajo (`Buscar Precio/Envio/Detalle Kit Pineado`,
-  `Buscar Compatibilidad del Kit`) ya apunta a `chat_packs`. Un pin viejo (anterior al cutover,
-  todavía vivo dentro de su TTL de 96hs) podía en teoría apuntar a un id de `chat_packs` que hoy es
-  un producto distinto — riesgo bajo y transitorio, se autolimpia solo hacia el 25/08. Dos columnas
-  nuevas (`chat_packs.detalle`, `chat_pack_grupos.pregunta_variante`) se agregaron directo en
-  producción sin archivo `.sql` propio — quedan sin documentar en un migration file, ver si hace
-  falta prolijizar esto más adelante.
+- **2026-08-21 — corte real hecho: el workflow ya lee del catálogo nuevo** (hecho por Martín
+  directo contra la API, en paralelo a esta conversación). `kits_publicidad` / `compatibilidades`
+  dejaron de leerse — `Buscar Kits Activos` ahora trae `chat_packs` (sin grupo) + `chat_pack_grupos`
+  con sus variantes; `Buscar Precio/Envio/Detalle Kit Pineado` y `Buscar Compatibilidad del Kit` (y
+  `Guardar en Compatibilidades` x2) apuntan a `chat_packs` / `chat_articulo_compatibilidad`. Los 3
+  combos con variantes (Kit 120, Escape pwr+Leva, Tapa CDI) tienen sus 2 packs reales cargados; los
+  otros 3 kits viejos (Escape Dm Curvo, KIT POTENCIADO 220cc, Kit 170) se decidió a propósito NO
+  migrarlos (poco tráfico) — caen a `sin_match` y escalan normal. `chat_packs.detalle` y
+  `chat_pack_grupos.pregunta_variante` son columnas nuevas
+  (`chat-catalogo-detalle-pregunta-variante.sql`), ya cargadas para los 6 packs/3 grupos activos.
+  Se confirmó con datos reales que la compatibilidad por modelo de moto es idéntica entre variante
+  corta y larga de cada grupo — el modelo nunca alcanza para resolver corto/largo, por eso la
+  resolución de variante quedó en **2 preguntas**: moto (gate de compatibilidad, nodo
+  `Extraer Modelo Grupo` → `Buscar Compatibilidad del Grupo`) y, recién si es compatible, corto/largo
+  (`Resolver Variante`) → recién ahí se pinea el pack final con el mismo shape `{kit_id, kit_nombre}`
+  de siempre — **`kit_id` ahora ES `chat_packs.id` directo, ya no `kits_publicidad.id`**.
+  `Parsear Kit Pineado` distingue esos 2 estados (`es_grupo`/`estado`) sin romper nada de lo que ya
+  leía `kit_id`/`kit_nombre` — el nodo `¿Es Grupo en Resolución?` es el que separa el camino nuevo
+  del de siempre. Nodo `Parsear Estado Pineado` (del borrador previo a este corte) quedó huérfano en
+  el canvas, sin uso — se puede borrar en una limpieza futura.
+  **Riesgo de la transición ya mitigado:** los IDs de `kits_publicidad` y `chat_packs` se pisan
+  (overlap real en 3, 7, 8) — cualquier pin viejo en Redis (`kit_pineado:*`, hasta 96hs) de antes
+  del corte podía devolver datos de un producto equivocado. Se armó un mini-flujo manual separado
+  (`Manual Trigger - Flush Pines` → `Listar Pines Kit` → `Separar Claves` → `Borrar Pin`, sin
+  conexión al `Webhook1` real) para vaciar todos los pines viejos de una — Martín ya lo corrió, sin
+  riesgo pendiente.
+  **Validado el mismo día con la conversación de prueba** (`conversation_id 1`,
+  `+5493513784909`, grupo Tapa CDI) los 3 casos: moto compatible (Zanella ZB 110) → pregunta
+  corto/largo → "corto" resuelve al pack id 7 (Recorrido corto) correcto; moto no compatible
+  (Honda Wave NF) → responde directo sin escalar; moto sin dato (Kawasaki Ninja 400) → escala
+  silenciosa a `preguntas_tecnicas_pendientes` con el nombre del grupo. La validación se hizo
+  con el bot apagado (fuera de horario) inspeccionando `respuestas_pendientes`/
+  `preguntas_tecnicas_pendientes` directo, no en Chatwoot en vivo (mismo criterio que el gotcha ya
+  documentado más abajo).
+  **3 bugs de n8n encontrados y corregidos durante esta validación** (producción, corregidos en
+  caliente, sin afectar el resto del workflow):
+  1. `Preparar Respuesta Compatibilidad (Grupo)` (Set) descarta cualquier campo que no sea el que
+     define — estaba conectado en serie antes de `¿Es Compatible (Grupo)?`, que entonces siempre
+     leía `compatible: undefined`. Fix: conectarlos en paralelo, ambos directo desde
+     `¿Hay Dato de Compatibilidad (Grupo)?` (mismo patrón que ya usaba el `¿Es Realmente
+     Compatible?` original — no fue casualidad que ese patrón exista).
+  2. Quedó una conexión del borrador inicial (`¿Pineado Esperando Moto?` → `¿Pineado Esperando
+     Variante?` en su rama falsa) que, sumada al cableado nuevo en paralelo desde `¿Es Grupo en
+     Resolución?`, hacía correr `¿Pineado Esperando Variante?` (y todo lo que cuelga de ahí) DOS
+     veces en la misma ejecución — mismo gotcha ya documentado de switches/ifs que no "vuelven a
+     juntar" ramas solas.
+  3. `Enviar Respuesta No Compatible (Grupo)` referenciaba `$('Preparar Respuesta...').item` —
+     como ahora son ramas hermanas (no en cadena), n8n no puede resolver el `pairedItem` ("No path
+     back to referenced node"). Fix: usar `.first()` en vez de `.item` cuando el nodo referenciado
+     no es un ancestro directo en el mismo camino.
+  Plan completo charlado con Martín, guardado en sesión de Claude Code de esa fecha.
 - **Matching de artículo suelto dentro de un kit pineado (2026-08-21) — primera versión, ya en
   producción:** el disparador fue un caso real (conv 2331, +5493863690579): preguntaron "Precio del
   escape pwr" con el combo Escape+Leva ya pineado, y el bot escaló en silencio pese a que el precio
@@ -396,26 +429,37 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     exacta de un GRUPO (variante corto/largo sin resolver todavía) — ese resto no pasa por este
     camino, solo por el de un kit ya con pack final pineado. Si aparece un caso real de esto, es la
     próxima extensión natural, no un bug de esta versión.
-- **Todavía sin hacer:** terminar de cargar los packs reales que faltan (2 de 6 — Kit 170 y KIT
-  POTENCIADO 220cc, dado que ya no importa tanto priorizar Escape Dm Curvo según Martín), agregar al
-  `detalle` del artículo Cilindro (Kit 120) el párrafo sobre ambigüedad recorrido corto/largo que
-  tenía el kit viejo y no se migró, y extender el matching de artículo suelto al caso de "resto en la
-  misma ráfaga que un grupo sin resolver" (ver arriba).
+- **Todavía sin hacer:** reescribir el `mensaje_bienvenida` propio de los packs 7 y 8 (Tapa CDI) —
+  hoy es idéntico al del grupo (menciona los 2 precios y repregunta la moto) en vez de decir el
+  precio único ya resuelto (no rompe nada, `/api/chatwoot/enviar` dedupa el contenido repetido, pero
+  el mensaje final no es tan preciso como podría ser); agregar al `detalle` del artículo Cilindro
+  (Kit 120) el párrafo sobre ambigüedad recorrido corto/largo que tenía el kit viejo y no se migró;
+  y extender el matching de artículo suelto al caso de "resto en la misma ráfaga que un grupo sin
+  resolver" (ver arriba).
 
-## Qué falta / pendiente (al 2026-08-20)
+## Qué falta / pendiente (al 2026-08-21)
 
+- **Reescribir el `mensaje_bienvenida` propio de los packs 7 y 8** (Tapa CDI corto/largo) —
+  hoy es idéntico al mensaje del grupo (menciona los 2 precios y vuelve a preguntar la moto) en
+  vez de decir el precio único ya resuelto. No rompe nada (`/api/chatwoot/enviar` dedupa el
+  contenido repetido), pero el mensaje final que recibe el cliente no es tan preciso como podría
+  ser. Se puede editar directo en `/admin/chatwoot/catalogo` (pestaña Packs). **Primer punto para
+  retomar la próxima sesión.**
+- **Monitorear en tráfico real** los 3 grupos migrados (Kit 120, Escape pwr+Leva, Tapa CDI) —
+  la validación del 2026-08-21 fue con la conversación de prueba (mensajes sintéticos vía
+  `/api/chatwoot/prueba-mensaje` simulando el webhook de Chatwoot), nunca con un cliente real
+  todavía. Revisar `preguntas_tecnicas_pendientes` / `respuestas_pendientes` los próximos días
+  para confirmar que no aparece nada raro en casos reales que la prueba sintética no cubrió.
+- **Nodo huérfano `Parsear Estado Pineado`** (borrador previo al corte real, ya sin uso ni
+  conexión al flujo) sigue en el canvas de n8n — limpieza cosmética, se puede borrar cuando se
+  retome esto, no urge.
 - **Cargar el tema `garantia`** en `/admin/chatwoot/conocimiento` — hoy no tiene datos, así que
   cualquier pregunta de garantía escala en vez de contestarse sola.
-- **Kit 8 (combo TAPA CDI + CILINDRO 120) sigue con precio ambiguo.** Su campo `precio` tiene dos
-  valores en el mismo texto (recorrido corto / largo). Los fixes ya sacaron la instrucción
-  indebida de re-preguntar y la respuesta duplicada, pero el precio en sí sigue siendo doble —
-  no se charló todavía si conviene separarlo en dos kits, dejar un precio "desde", o escalar
-  cuando el precio tiene más de un valor.
-- **Árbol de artículos: falta el paso de matching en el workflow.** Base de datos y admin ya
-  están (Kit 8 con 2 artículos cargados), pero el bot todavía no distingue "el cliente pide una
-  pieza suelta" de "el cliente pide el kit completo". Ver
-  [[project-chatwoot-arbol-articulos-idea]] para las decisiones de diseño ya tomadas antes de
-  retomar esto.
+- ~~Árbol de artículos: falta el paso de matching en el workflow~~ — superado: `kit_articulos`
+  (la tabla vieja, solo Kit 8) quedó sin uso real desde que `kits_publicidad` se retiró del
+  workflow (ver el corte del 2026-08-21 arriba). El matching de pieza suelta que reemplaza esta
+  idea ya está construido y en producción sobre el catálogo nuevo (`chat_articulos`) — ver
+  "Matching de artículo suelto dentro de un kit pineado" arriba.
 - **Migración a GPT-5.6 sin validar a fondo la calidad de redacción** todavía — hecha por costo/
   disponibilidad, no por un problema con DeepSeek. Si aparece algo raro en el tono de una
   respuesta desde el 19/08, revisar si es esto antes que un bug de prompt nuevo.

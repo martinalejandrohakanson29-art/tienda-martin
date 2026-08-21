@@ -228,6 +228,7 @@ export type ChatPackGrupo = {
     nombre: string
     plantillas_bienvenida: string | null
     mensaje_bienvenida: string | null
+    pregunta_variante: string | null
     foto_url: string | null
     categoria: string | null
     activo: boolean
@@ -238,6 +239,7 @@ export type ChatPackGrupoInput = {
     nombre: string
     plantillasBienvenida: string
     mensajeBienvenida: string
+    preguntaVariante: string
     fotoUrl: string
     categoria: string
 }
@@ -245,7 +247,7 @@ export type ChatPackGrupoInput = {
 export async function getChatPackGrupos(): Promise<ChatPackGrupo[]> {
     await requireAdmin()
     return prisma.$queryRaw<ChatPackGrupo[]>`
-        SELECT id, nombre, plantillas_bienvenida, mensaje_bienvenida, foto_url, categoria, activo
+        SELECT id, nombre, plantillas_bienvenida, mensaje_bienvenida, pregunta_variante, foto_url, categoria, activo
         FROM chat_pack_grupos
         ORDER BY nombre ASC
     `
@@ -258,6 +260,7 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
 
     const plantillasBienvenida = data.plantillasBienvenida.trim() || null
     const mensajeBienvenida = data.mensajeBienvenida.trim() || null
+    const preguntaVariante = data.preguntaVariante.trim() || null
     const fotoUrl = data.fotoUrl.trim() || null
     const categoria = data.categoria.trim() || null
 
@@ -265,7 +268,8 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
         await prisma.$executeRaw`
             UPDATE chat_pack_grupos
             SET nombre = ${nombre}, plantillas_bienvenida = ${plantillasBienvenida},
-                mensaje_bienvenida = ${mensajeBienvenida}, foto_url = ${fotoUrl}, categoria = ${categoria}
+                mensaje_bienvenida = ${mensajeBienvenida}, pregunta_variante = ${preguntaVariante},
+                foto_url = ${fotoUrl}, categoria = ${categoria}
             WHERE id = ${data.id}
         `
         revalidatePath(RUTA)
@@ -273,8 +277,8 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
     }
 
     const inserted = await prisma.$queryRaw<{ id: number }[]>`
-        INSERT INTO chat_pack_grupos (nombre, plantillas_bienvenida, mensaje_bienvenida, foto_url, categoria)
-        VALUES (${nombre}, ${plantillasBienvenida}, ${mensajeBienvenida}, ${fotoUrl}, ${categoria})
+        INSERT INTO chat_pack_grupos (nombre, plantillas_bienvenida, mensaje_bienvenida, pregunta_variante, foto_url, categoria)
+        VALUES (${nombre}, ${plantillasBienvenida}, ${mensajeBienvenida}, ${preguntaVariante}, ${fotoUrl}, ${categoria})
         RETURNING id
     `
     revalidatePath(RUTA)
@@ -321,6 +325,7 @@ export type ChatPack = {
     mensaje_bienvenida: string
     foto_url: string | null
     plantillas_bienvenida: string | null
+    detalle: string | null
     activo: boolean
     creado_en: Date
     grupo_id: number | null
@@ -337,6 +342,7 @@ export type ChatPackInput = {
     mensajeBienvenida: string
     fotoUrl: string
     plantillasBienvenida: string
+    detalle: string
     activo: boolean
     grupoId: number | null
     criterioVariante: string
@@ -352,7 +358,7 @@ export async function getChatPacks(): Promise<ChatPack[]> {
     await requireAdmin()
 
     const packs = await prisma.$queryRaw<Omit<ChatPack, "componentes">[]>`
-        SELECT id, nombre, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, activo, creado_en, grupo_id, criterio_variante, categoria
+        SELECT id, nombre, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, detalle, activo, creado_en, grupo_id, criterio_variante, categoria
         FROM chat_packs
         ORDER BY creado_en DESC
     `
@@ -384,6 +390,7 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
     const envio = data.envio.trim() || null
     const fotoUrl = data.fotoUrl.trim() || null
     const plantillasBienvenida = data.plantillasBienvenida.trim() || null
+    const detalle = data.detalle.trim() || null
     const criterioVariante = data.grupoId ? data.criterioVariante.trim() || null : null
     if (data.grupoId && !criterioVariante) {
         throw new Error("Si el pack pertenece a un grupo, hace falta la etiqueta de variante (ej. \"recorrido corto\")")
@@ -399,14 +406,14 @@ export async function guardarChatPack(data: ChatPackInput, componentes: ChatPack
             UPDATE chat_packs
             SET nombre = ${nombre}, precio = ${precio}, envio = ${envio},
                 mensaje_bienvenida = ${mensajeBienvenida}, foto_url = ${fotoUrl},
-                plantillas_bienvenida = ${plantillasBienvenida}, activo = ${data.activo},
+                plantillas_bienvenida = ${plantillasBienvenida}, detalle = ${detalle}, activo = ${data.activo},
                 grupo_id = ${data.grupoId}, criterio_variante = ${criterioVariante}, categoria = ${categoria}
             WHERE id = ${packId}
         `
     } else {
         const inserted = await prisma.$queryRaw<{ id: number }[]>`
-            INSERT INTO chat_packs (nombre, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, activo, grupo_id, criterio_variante, categoria)
-            VALUES (${nombre}, ${precio}, ${envio}, ${mensajeBienvenida}, ${fotoUrl}, ${plantillasBienvenida}, ${data.activo}, ${data.grupoId}, ${criterioVariante}, ${categoria})
+            INSERT INTO chat_packs (nombre, precio, envio, mensaje_bienvenida, foto_url, plantillas_bienvenida, detalle, activo, grupo_id, criterio_variante, categoria)
+            VALUES (${nombre}, ${precio}, ${envio}, ${mensajeBienvenida}, ${fotoUrl}, ${plantillasBienvenida}, ${detalle}, ${data.activo}, ${data.grupoId}, ${criterioVariante}, ${categoria})
             RETURNING id
         `
         packId = inserted[0].id

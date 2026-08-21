@@ -167,6 +167,30 @@ Orden real del procesamiento de un mensaje entrante:
     también caía "cierre" en vez de "otro". Mismo prompt, mismo patrón: se sumó como tercer
     ejemplo explícito junto a los otros dos. Confirmado en vivo contra la conversación de prueba:
     el mismo texto que antes disparaba el cierre genérico ahora escala en silencio como "otro".
+  - **Fix de fondo (2026-08-21, más tarde todavía) — el nodo ahora ve nuestra última pregunta,
+    ya no adivina a ciegas:** cuarto caso real (conv 2335, +5493447558519): el bot preguntó "¿Te
+    referís al Kit 120 para 110, a la Tapa cdi, o al combo de ambos?" y el cliente contestó
+    "Sisi" — cayó "cierre" de nuevo y mandó el "Dale, cualquier cosa nos escribís." a mitad de
+    una desambiguación sin resolver. Los 3 parches anteriores (sumar ejemplos al prompt) no
+    alcanzaban porque `Dividir y Etiquetar Sub-preguntas` nunca recibía el historial — el prompt
+    le pedía "detectar si el cliente está contestando algo que preguntamos antes" sin darle ese
+    dato, así que solo podía reconocer las frases ya vistas como ejemplo. Se agregaron 2 nodos
+    (`Traer Ultimo Mensaje Nuestro` HTTP + `Extraer Ultimo Mensaje Nuestro` Code, mismo patrón de
+    llamada que `Traer Historial Conversacion`) que traen el último mensaje saliente real de la
+    conversación y se lo pasan a `Preparar Contexto Sub-preguntas` → el prompt de `Dividir y
+    Etiquetar` ahora tiene una regla general (no una lista de ejemplos): si nuestro último mensaje
+    terminaba en pregunta y el cliente le responde de cualquier forma -- aunque sea ambigua, tipo
+    "sí" sin elegir opción -- nunca es "cierre". Cubre cualquier frase nueva, no solo las ya vistas.
+    **Gotcha nuevo de n8n encontrado acá** (ver sección de gotchas): la primera versión conectó
+    estos 2 nodos en paralelo desde `Unir Mensajes`, referenciados solo por `$('Nodo').first()` —
+    corrieron, pero AL FINAL de la ejecución (n8n no los priorizó por no tener nada wireado río
+    abajo), después de que `Preparar Contexto Sub-preguntas` ya los había consultado y encontrado
+    vacíos. Fix: sacar esa conexión en paralelo e insertar los 2 nodos EN SERIE en las 3 ramas que
+    ya alimentaban a `Preparar Contexto Sub-preguntas` (mismo patrón de convergencia de varias
+    ramas que ese nodo ya usaba) — así el orden queda garantizado sin importar cuál de las 3
+    dispare. Validado en vivo repitiendo el caso real (mismo mensaje de desambiguación + "Sisi" en
+    la conversación de prueba): primera versión mantuvo el bug (contexto vacío, "cierre"),
+    segunda versión clasificó "otro" y escaló en silencio, sin mandar nada al cliente.
 - **Categoría "stock"** (2026-08-18): como todo lo publicitado con plantilla de Meta Ads está en
   stock por definición, cualquier pregunta de disponibilidad se contesta "Sí, tenemos stock."
   directo, sin escalar nunca.
@@ -310,6 +334,16 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   request - please check your parameters"). Además, por default estos nodos traen
   `responsesApiEnabled: true`, que el Agent node v2 de esta instancia no soporta — forzar
   `responsesApiEnabled: false` (Chat Completions clásica) explícito.
+- **Un nodo conectado en paralelo y referenciado solo por `$('Nodo').first()`/`.item` desde otra
+  rama NO tiene garantizada su orden de ejecución** — si nada más lo consume por cable, n8n puede
+  dejarlo para el final de la ejecución en vez de correrlo antes que el nodo que lo referencia,
+  y la referencia devuelve datos vacíos/viejos en silencio (si está en un `try/catch`, ni siquiera
+  tira error). Encontrado con el fix de contexto de `Dividir y Etiquetar Sub-preguntas` (ver
+  arriba): el nodo que traía "nuestro último mensaje" corrió DESPUÉS del nodo que lo consultaba.
+  Si hace falta que el dato de un nodo esté listo antes de que otro lo lea vía `$()`, no alcanza
+  con que ambos cuelguen del mismo antecesor — hay que insertarlo EN SERIE en el camino real que
+  lleva hasta el nodo que lo consume (aunque eso signifique repetirlo en varias ramas que
+  convergen al mismo destino, mismo patrón ya usado para "varias ramas alimentan un nodo común").
 - **Prender el bot con un `UPDATE bot_estado SET encendido = true` directo por SQL no despacha la
   cola** (`respuestas_pendientes`) — `despacharColaEnSegundoPlano()` solo se dispara cuando
   `sincronizarEstadoBot()` detecta un *cambio* de apagado a encendido (ver `lib/chatwoot-cola.ts`),
@@ -491,6 +525,41 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 
 ## Qué falta / pendiente (al 2026-08-21)
 
+- **PRÓXIMO PASO, a mitad de investigación:** falta cubrir el otro caso de "cuando el cliente
+  contesta con un dato usable, seguir la charla" — la desambiguación de **3 opciones de kit**
+  (`Enviar Repregunta Candidatos (Propuesta)`, el "¿Te referís al Kit 120 para 110, a la Tapa cdi,
+  o al combo de ambos?"). A diferencia de corto/largo (ver abajo, ya confirmado que anda bien),
+  ESTA repregunta no tiene un nodo dedicado tipo `Resolver Variante` — depende de que
+  `Identificar Necesidad` vuelva a correr con el historial actualizado (ya lo hace, trae ~8
+  mensajes reales) y logre pinear el kit correcto cuando el cliente contesta algo claro (ej. "la
+  tapa cdi", o directamente el modelo de la moto). **Todavía no se probó en vivo si esto
+  efectivamente resuelve bien o si se queda escalando en silencio también en el caso claro** (con
+  el fix de hoy ya no manda un cierre falso, pero falta confirmar que además avanza cuando puede).
+  Caso real que lo disparó: conv 2335, +5493447558519 (Abimael) — ver detalle completo un poco
+  más abajo, en la sección de la conversación real que quedó sin resolver.
+  - Para retomar: reproducir en la conversación de prueba (limpiar pin, mandar plantilla
+    ambigua o forzar `candidatos` de alguna forma, contestar con un dato claro) e inspeccionar la
+    ejecución igual que se hizo para validar el fix de "cierre" y el de `Resolver Variante`.
+  - **Ya confirmado y DESCARTADO como problema (2026-08-21, en vivo):** el camino de corto/largo
+    (`¿Pineado Esperando Variante?` → `Resolver Variante`) sí funciona bien hoy — se probó de
+    punta a punta en la conversación de prueba (plantilla Tapa CDI → moto compatible Zanella ZB
+    110 → "Recorrido corto es la mia") y resolvió `pack_id 7` correcto, con precio real, sin
+    escalar. El ejemplo de "Recorrido corto es la mia" que aparece más arriba como caso de
+    "cierre" mal clasificado es de ANTES de la migración a grupos/variantes del mismo día — en
+    ese momento no existía `Resolver Variante` todavía, así que no es una regresión ni algo para
+    arreglar de nuevo.
+- **Conversación real sin resolver: conv 2335, +5493447558519 (Abimael Dasilva).** Preguntó por
+  el combo Tapa CDI, dio la moto (Corven 110 2015), el bot escaló compatibilidad dos veces por
+  caminos distintos sin que nadie conteste (`preguntas_tecnicas_pendientes` id 139, creada
+  12:15, `es_grupo: false` -- posiblemente mal, revisar; y `preguntas_sin_match_pendientes` id
+  180, creada 15:02, mismo tema duplicado) y después preguntó a cuál de 3 opciones se refería, el
+  cliente contestó "Sisi" (no elige ninguna) y el bot le mandó el cierre falso a las 20:37 (el
+  bug que motivó todo el fix de hoy). Sigue sin respuesta del cliente. Hace falta: (1) que el
+  equipo conteste la compatibilidad real (¿entra en una Corven 110 2015?) en el panel de
+  pendientes, y (2) mandarle a Abimael una aclaración manual de a qué producto se refería, porque
+  el bot no lo va a hacer solo (dedup de pendiente por conversación lo deja en silencio, ver
+  arriba). De paso: raro que haya dos pendientes distintas para la misma pregunta — capaz vale la
+  pena revisarlo junto con el mismo hallazgo ya anotado para conv 2226/2248 (ver abajo).
 - ~~Reescribir el `mensaje_bienvenida` propio de los packs~~ — hecho el 2026-08-21: encontrado
   en vivo probando la conv 1 (Kit 120 corto devolvía el texto viejo de un solo precio y volvía a
   preguntar la moto ya confirmada). Era más amplio de lo que se pensaba — afectaba a los 6 packs

@@ -24,6 +24,7 @@ const FORM_VACIO: ChatPackGrupoInput = {
     nombre: "",
     plantillasBienvenida: "",
     mensajeBienvenida: "",
+    preguntaVariante: "",
     fotoUrl: "",
 }
 
@@ -75,6 +76,7 @@ export function GruposTab({
             nombre: grupo.nombre,
             plantillasBienvenida: grupo.plantillas_bienvenida || "",
             mensajeBienvenida: grupo.mensaje_bienvenida || "",
+            preguntaVariante: grupo.pregunta_variante || "",
             fotoUrl: grupo.foto_url || "",
         })
         setFotoError(null)
@@ -136,6 +138,7 @@ export function GruposTab({
                 nombre: form.nombre.trim(),
                 plantillas_bienvenida: form.plantillasBienvenida.trim() || null,
                 mensaje_bienvenida: form.mensajeBienvenida.trim() || null,
+                pregunta_variante: form.preguntaVariante.trim() || null,
                 foto_url: form.fotoUrl.trim() || null,
                 activo: grupos.find((g) => g.id === form.id)?.activo ?? true,
             }
@@ -178,9 +181,10 @@ export function GruposTab({
         <div className="space-y-6">
             <p className="text-sm text-gray-500">
                 Un grupo junta 2+ packs que corresponden al mismo anuncio de Instagram pero son productos reales
-                distintos (ej. Kit 120 recorrido corto/largo). Acá se define la plantilla compartida y el mensaje
-                genérico que pregunta cuál variante le corresponde al cliente — los packs se enganchan a un grupo
-                desde la pestaña &quot;Packs&quot;.
+                distintos (ej. Kit 120 recorrido corto/largo). La resolución es en 2 pasos: el mensaje de bienvenida
+                pregunta primero la moto (para confirmar compatibilidad antes de ofrecer nada) y, recién si es
+                compatible, la pregunta de variante de abajo resuelve cuál pack corresponde. Los packs se enganchan
+                a un grupo desde la pestaña &quot;Packs&quot;.
             </p>
 
             {error && (
@@ -233,7 +237,7 @@ export function GruposTab({
                             <Label htmlFor="mensajeBienvenida">Mensaje de bienvenida genérico (con la pregunta de desambiguación)</Label>
                             <Textarea
                                 id="mensajeBienvenida"
-                                placeholder={"Hola amigo, ¿cómo va?\n\nTenemos el combo para potenciar tu 110...\n\n¿Tu moto es recorrido corto o largo? Si no estás seguro, fijate si el cilindro es negro (corto) o consultá con tu mecánico."}
+                                placeholder={"Hola amigo, ¿cómo va?\n\nTenemos el combo para potenciar tu 110...\n\nA que moto se lo queres poner?"}
                                 value={form.mensajeBienvenida}
                                 onChange={(e) => actualizarCampo("mensajeBienvenida", e.target.value)}
                                 disabled={guardando}
@@ -243,6 +247,22 @@ export function GruposTab({
                             <p className="text-xs text-gray-400">
                                 Se manda tal cual, sin mencionar precio (ahí está la ambigüedad) — recién cuando el cliente
                                 contesta se pinea el pack definitivo y se manda su mensaje con precio real.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="preguntaVariante">Pregunta de variante (corto/largo, una vez confirmada la compatibilidad)</Label>
+                            <Textarea
+                                id="preguntaVariante"
+                                placeholder={"Genial, tu moto es compatible! Ahora decime: ¿es corto o largo? Fijate si el cilindro es negro (generalmente corto) o consultá con tu mecánico."}
+                                value={form.preguntaVariante}
+                                onChange={(e) => actualizarCampo("preguntaVariante", e.target.value)}
+                                disabled={guardando}
+                                rows={3}
+                            />
+                            <p className="text-xs text-gray-400">
+                                El mensaje de bienvenida de arriba pregunta primero la moto (para confirmar compatibilidad);
+                                esta es la segunda pregunta, recién después de confirmar que es compatible.
                             </p>
                         </div>
 

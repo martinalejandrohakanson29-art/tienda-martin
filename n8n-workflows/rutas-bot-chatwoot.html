@@ -237,9 +237,12 @@ flowchart TD
   pausado2 -->|"sí"| finPausa2["Fin — vacía el buffer +<br/>nota interna, no contesta<br/>(si no, el próximo mensaje<br/>arrastra este mezclado)"]:::esc
   pausado2 -->|"no"| clasif
 
-  clasif -->|"coincide LETRA POR LETRA<br/>con la plantilla de un kit"| resto1{"¿Hay más mensajes<br/>después del primero?"}:::gate
+  clasif -->|"coincide LETRA POR LETRA<br/>con la plantilla de un kit SIN variantes"| resto1{"¿Hay más mensajes<br/>después del primero?"}:::gate
+  clasif -->|"coincide LETRA POR LETRA<br/>con la plantilla de un GRUPO<br/>(combo con variantes, ej. corto/largo)"| pinGrupo["Pinea el GRUPO,<br/>estado 'esperando_moto'<br/>+ pregunta a qué moto se lo pone"]:::pin
   clasif -->|"es saludo puro,<br/>sin pedido"| saludoGen["Envía saludo fijo:<br/>'Hola bro! En qué te podemos ayudar?'"]:::ok
-  clasif -->|"cualquier otra cosa"| leerPin["Lee kit pineado<br/>(Redis, por teléfono)"]:::pin
+  clasif -->|"cualquier otra cosa"| leerPin["Lee kit/grupo pineado<br/>(Redis, por teléfono)"]:::pin
+
+  pinGrupo --> finPinGrupo["Fin — espera la respuesta<br/>de la moto (sin chequeo de<br/>continuidad de ráfaga acá,<br/>a diferencia de un kit sin grupo)"]:::gate
 
   resto1 -->|"no"| pinKit["Envía saludo del kit<br/>+ PINEA el kit 96hs"]:::pin
   resto1 -->|"sí"| mismoTema{{"IA — ¿el resto sigue<br/>siendo del mismo kit?"}}:::ai
@@ -247,12 +250,26 @@ flowchart TD
   mismoTema -->|"no"| comoNuevo["el resto se evalúa<br/>como mensaje nuevo"]:::gate
   comoNuevo --> leerPin
 
-  leerPin --> hayPin{"¿Hay kit<br/>pineado?"}:::gate
+  leerPin --> hayPin{"¿Qué hay<br/>pineado?"}:::gate
 
-  hayPin -->|"sí"| refresca["Refresca el pin<br/>(otras 96hs)"]:::pin
+  hayPin -->|"un kit/pack final"| refresca["Refresca el pin<br/>(otras 96hs)"]:::pin
   refresca --> esCompat{{"IA — ¿pregunta de<br/>compatibilidad con una moto?"}}:::ai
 
-  hayPin -->|"no"| historial["Trae el historial real de<br/>la conversación (Chatwoot)"]:::pin
+  hayPin -->|"un GRUPO,<br/>esperando la MOTO"| extraeModelo{{"IA — extrae el modelo<br/>de moto del mensaje"}}:::ai
+  extraeModelo --> buscaCompatGrupo["Busca compatibilidad ya guardada<br/>(de CUALQUIER artículo de<br/>cualquier variante del grupo)"]:::gate
+  buscaCompatGrupo --> hayCompatGrupo{"¿está<br/>guardada?"}:::gate
+  hayCompatGrupo -->|"no"| escTecnicaGrupo["Escala como 'Técnica'<br/>(silencioso, sin confirmar nada)"]:::esc
+  hayCompatGrupo -->|"sí, compatible"| pineaVariante["Pinea el grupo,<br/>estado 'esperando_variante'<br/>+ pregunta corto/largo"]:::pin
+  hayCompatGrupo -->|"sí, NO compatible"| respNoCompatGrupo["Responde 'no es compatible<br/>con tu X' + borra el pin<br/>(sin escalar)"]:::ok
+  pineaVariante --> finPineaVariante["Fin — espera la respuesta<br/>de corto/largo"]:::gate
+
+  hayPin -->|"un GRUPO,<br/>esperando la VARIANTE"| resuelveVariante{{"IA — a cuál variante<br/>(pack) se refiere, contra la<br/>lista cerrada de ese grupo"}}:::ai
+  resuelveVariante --> varResuelta{"¿resolvió<br/>una variante?"}:::gate
+  varResuelta -->|"sí"| pineaPackFinal["Pinea el PACK final<br/>(mismo formato de siempre,<br/>kit_id + kit_nombre)<br/>+ manda su bienvenida"]:::pin
+  pineaPackFinal --> esCompat
+  varResuelta -->|"no quedó claro"| repreguntaVariante["Repregunta corto:<br/>'es corto o largo?'"]:::ok
+
+  hayPin -->|"nada pineado"| historial["Trae el historial real de<br/>la conversación (Chatwoot)"]:::pin
   historial --> agenteNuevo{{"IA — Identificar Necesidad<br/>ve: mensaje actual + historial de la charla<br/>+ lista cerrada de kits activos"}}:::ai
 
   agenteNuevo -->|"saludo / interés genérico,<br/>sin pedido puntual"| saludoGen
@@ -394,10 +411,25 @@ flowchart TD
         marca. Se omite automáticamente si <code>pinNuevo</code> ya mandó la bienvenida con foto en esta
         misma ejecución (esa bienvenida ya termina preguntando por la moto).
       </li>
+      <li>
+        <strong>(21/8)</strong> Migración al catálogo nuevo (<code>chat_packs</code> /
+        <code>chat_pack_grupos</code>, reemplaza a <code>kits_publicidad</code>): apareció el concepto de
+        <strong>grupo</strong> (un mismo anuncio que en realidad son 2 productos físicos distintos, ej.
+        corto/largo) — antes esto era un solo kit con el precio ambiguo pegado en un campo de texto y
+        nunca se resolvía. <code>pinGrupo</code> / <code>extraeModelo</code> / <code>pineaVariante</code>
+        / <code>resuelveVariante</code> son los nodos nuevos. Encontrado con datos reales: el modelo de
+        moto solo sirve para confirmar compatibilidad (es idéntica entre variante corta y larga) —
+        nunca alcanza para saber cuál variante hace falta, por eso son <strong>2 preguntas</strong>, no
+        una: primero la moto (gatea compatibilidad, nunca se salta), recién si es compatible se pregunta
+        corto/largo. Al resolver la variante, se pinea el pack final con el mismo formato de siempre
+        (<code>kit_id</code> + <code>kit_nombre</code>), así que todo lo que sigue a la derecha de
+        <code>esCompat</code> en este árbol no cambió. Detalle completo, 3 bugs de n8n encontrados
+        durante la validación y pendientes en <code>CHATWOOT-BOT-CONTEXTO.md</code>.
+      </li>
     </ol>
   </div>
 
-  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo", "no confirmar si incompatible" y "bienvenida con foto en vez de confirmación", y actualizado de nuevo el 20/8 para reflejar los cambios del 19/8: el segundo chequeo de "¿pausado?" a la salida de la ráfaga (<code>pausado2</code>, fix "/bot off no frena una ráfaga en proceso"), la rama <code>repregModelo</code> (ya existía desde el 18/8, recién ahora dibujada), y la categoría "cierre" sumada a los recuadros de sub-preguntas junto con "stock". Los 11 nodos de IA del workflow pasaron de DeepSeek a la familia GPT-5.6 el 19/8 (mismo criterio de "IA acotada", sin cambios de forma en este árbol). Nota: el "árbol de artículos" (matching de piezas sueltas dentro de un kit) todavía NO toca el workflow — es solo base de datos + admin por ahora, así que a propósito no aparece en este diagrama; ver <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code> para el estado de esa idea y el resto del historial de cambios.</footer>
+  <footer>fuente: workflow "Respuestas chatwoot 2.0" (id s7EpPTjNFy6iCclg), n8n.revolucionmotos.tech. Diagrama armado el 17/8, actualizado el 18/8 tras los fixes "confirmación antes de tiempo", "no confirmar si incompatible" y "bienvenida con foto en vez de confirmación", actualizado el 20/8 para reflejar los cambios del 19/8 (segundo chequeo de "¿pausado?" <code>pausado2</code>, rama <code>repregModelo</code>, categoría "cierre"), y actualizado de nuevo el 21/8 tras la migración del workflow del esquema viejo (<code>kits_publicidad</code>) al catálogo nuevo (<code>chat_packs</code>/<code>chat_pack_grupos</code>) — agregado el camino de <strong>grupo</strong> (<code>pinGrupo</code>, <code>extraeModelo</code>, <code>pineaVariante</code>, <code>resuelveVariante</code>) que resuelve combos con 2 variantes reales (corto/largo) en 2 preguntas en vez del precio ambiguo de antes. Los 11 nodos de IA del workflow pasaron de DeepSeek a la familia GPT-5.6 el 19/8 (mismo criterio de "IA acotada", sin cambios de forma en este árbol). Nota: el "árbol de artículos" (matching de piezas sueltas dentro de un kit) todavía NO toca el workflow — es solo base de datos + admin por ahora, así que a propósito no aparece en este diagrama; ver <code>n8n-workflows/CHATWOOT-BOT-CONTEXTO.md</code> para el estado de esa idea y el resto del historial de cambios.</footer>
 </main>
 
 <script type="module">

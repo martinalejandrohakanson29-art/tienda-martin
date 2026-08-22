@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server"
 import { validateN8nToken } from "@/lib/webhook-guard"
-import { encolarRespuesta, enviarImagenChatwoot, enviarMensajeChatwoot } from "@/lib/chatwoot-bot"
+import {
+    encolarRespuesta,
+    enviarImagenChatwoot,
+    enviarMensajeChatwoot,
+    numeroExceptuado,
+    telefonoDeConversacion,
+} from "@/lib/chatwoot-bot"
 import { sincronizarEstadoBot } from "@/lib/chatwoot-cola"
 
 // Único punto de salida de los mensajes que ve el cliente.
@@ -43,15 +49,23 @@ export async function POST(request: Request) {
         const { encendido } = await sincronizarEstadoBot()
 
         if (!encendido) {
-            const id = await encolarRespuesta({
-                accountId,
-                conversationId,
-                contacto,
-                contenido,
-                origen,
-                fotoUrl,
-            })
-            return NextResponse.json({ enviado: false, encolado: true, id })
+            // Excepción para números de prueba: aunque el bot esté apagado
+            // (manual u horario), estos siguen recibiendo la respuesta en
+            // vivo en vez de quedar en la cola. Ver bot-numeros-exceptuados.sql.
+            const telefono = await telefonoDeConversacion(accountId, conversationId)
+            const exceptuado = await numeroExceptuado(telefono)
+
+            if (!exceptuado) {
+                const id = await encolarRespuesta({
+                    accountId,
+                    conversationId,
+                    contacto,
+                    contenido,
+                    origen,
+                    fotoUrl,
+                })
+                return NextResponse.json({ enviado: false, encolado: true, id })
+            }
         }
 
         const chatwoot = await enviarMensajeChatwoot({ accountId, conversationId, content: contenido })

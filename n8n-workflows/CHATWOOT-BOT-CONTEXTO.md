@@ -245,6 +245,7 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 |---|---|---|
 | `bot_estado`, `bot_horario` | Botón ON/OFF + horario automático semanal | `bot-onoff.sql`, `bot-horario.sql` |
 | `respuestas_pendientes` | Cola de mensajes cuando el bot está apagado (o fuera de horario) | `bot-onoff.sql` |
+| `bot_numeros_exceptuados` | Teléfonos que siguen respondiéndose en vivo con el bot apagado (números de prueba) | `bot-numeros-exceptuados.sql` |
 | `bot_conversacion_lock` | Lock por teléfono, no procesar 2 mensajes en simultáneo | `lock-conversacion.sql` |
 | `kits_publicidad` | Kits publicitados: plantilla exacta, precio, envío, detalle | (histórico, sin `.sql` propio) |
 | `kit_articulos` | Artículos sueltos dentro de un kit (`alias` para matching futuro, sin usar todavía) | `kit-articulos.sql`, `kit-articulos-alias.sql` |
@@ -706,3 +707,26 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 - **Sin investigar:** un pin de Redis de un kit desapareció una vez bien dentro de su TTL de
   96hs (~44hs transcurridas, conv 2074, 18/08) sin causa determinada. Puede haber sido un caso
   aislado — si un pin desaparece antes de tiempo de nuevo, revisar.
+- **Bug real con cliente afectado: `rm_modelo_ok` daba falso positivo entre motos que comparten
+  nombre pero tienen cilindrada distinta (2026-08-21).** Conv 2110, +5493731635177 (Milton G.):
+  preguntó por el Combo Escape PWR + Leva 6.40 diciendo tener una "Motomel Blitz 125", y el bot
+  contestó "tu moto es compatible!" — no lo es, la única Blitz cargada compatible es la 110
+  (china genérica, motor distinto a la 125). Martín lo agarró en el momento y corrigió a mano en
+  el chat antes de este fix. Causa: `rm_modelo_ok` puntuaba por palabras en común sin pesar el
+  número de cilindrada — "motomel blitz 125" vs "motomel blitz 110" comparte 2 de 3 palabras
+  (score 0.667, arriba del umbral 0.5), y el número que sí decide (110≠125) contaba como una
+  palabra más, no como dato excluyente. **Fix aplicado**
+  (`n8n-workflows/fix-rm-modelo-ok-conflicto-cilindrada.sql`, ya corrido en producción): si tanto
+  el modelo guardado como el consultado tienen un número y no coinciden, no matchea sin importar
+  cuántas palabras compartan (función nueva `rm_numeros_conflictivos`). Validado contra las 251
+  filas reales comparadas consigo mismas (0 regresiones) y contra 17 consultas realistas de
+  motos/cilindradas antes de aplicar — solo cambió los 2 casos que debía cambiar (Blitz 110 vs
+  125, y el mismo bug latente en Zanella ZB 110 vs 125, que no había llegado a pasar en
+  producción todavía). **Ojo, el fix de función solo no alcanzaba:** la entrada genérica sin
+  número `"motomel"` (compatible=true, habilitada por `fix-rm-modelo-ok-un-token.sql`) seguía
+  matcheando "Motomel Blitz 125" igual, porque no tiene número con el cual entrar en conflicto —
+  hizo falta sumar además una fila negativa puntual (`compatible=false`) para "motomel blitz 125"
+  en los 3 artículos del combo, mismo patrón que ya existía para `biz 105/110/125`. **Pendiente
+  real:** cualquier otra marca con líneas de distinta cilindrada que comparta nombre y solo tenga
+  cargada una entrada genérica sin número corre el mismo riesgo silencioso — no hay forma
+  automática de detectarlo, solo aparece cuando un cliente real lo dispara.

@@ -472,6 +472,44 @@ export function tieneTokenChatwoot() {
     return Boolean(chatwootConfig().token)
 }
 
+/**
+ * Teléfono real del contacto de una conversación, tal cual lo devuelve
+ * Chatwoot (con "+" y código de país). null si Chatwoot no contesta o la
+ * conversación no tiene teléfono (ej. canal no-WhatsApp).
+ */
+export async function telefonoDeConversacion(
+    accountId: number | bigint,
+    conversationId: number | bigint
+): Promise<string | null> {
+    const { api, token } = chatwootConfig()
+    if (!token) return null
+
+    try {
+        const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}`, {
+            headers: { api_access_token: token },
+        })
+        if (!res.ok) return null
+        const data = await res.json()
+        return data?.meta?.sender?.phone_number ?? null
+    } catch (error) {
+        console.error("No se pudo consultar el teléfono de la conversación en Chatwoot:", error)
+        return null
+    }
+}
+
+/**
+ * ¿Este teléfono sigue recibiendo respuesta en vivo aunque el bot esté
+ * apagado? Ver n8n-workflows/bot-numeros-exceptuados.sql — pensado para poder
+ * seguir probando en Chatwoot real sin prender el bot para todo el mundo.
+ */
+export async function numeroExceptuado(telefono: string | null): Promise<boolean> {
+    if (!telefono) return false
+    const filas = await prisma.$queryRaw<{ telefono: string }[]>`
+        SELECT telefono FROM bot_numeros_exceptuados WHERE telefono = ${telefono}
+    `
+    return filas.length > 0
+}
+
 export async function contarPendientes(): Promise<number> {
     const filas = await prisma.$queryRaw<{ n: bigint }[]>`
         SELECT count(*)::bigint AS n FROM respuestas_pendientes WHERE estado IN ('pendiente', 'enviando', 'error')

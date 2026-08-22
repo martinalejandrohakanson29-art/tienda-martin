@@ -840,3 +840,68 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   el cliente da la moto Y pregunta algo más en el mismo mensaje (ej. "tengo una wave, cuánto la
   tapa sola?"), la parte extra se sigue perdiendo — mismo gap, sin resolver todavía, para ese caso
   específico.
+- **Continuación del mismo caso: stress test con mensajes reales de WhatsApp (sin signos de
+  pregunta, mal escritos, ambiguos) encontró un bug real de precio — y arreglarlo llevó dos
+  intentos fallidos antes de la solución que sí funciona (2026-08-22, sesión cortada a mitad,
+  retomar mañana).** Martín preguntó explícitamente si el mecanismo de artículo suelto de arriba
+  aguantaba lenguaje real (la gente que escribe no usa "?", se expresa mal). Se armó una batería de
+  6 mensajes reales contra `Responder Articulo Suelto (Grupo)`:
+  1. Mención sin pedido ("tengo la tapa así que con el cilindro nomás alcanza") → OK, no contestó.
+  2. Pregunta real sin "?" ("cuanto sale la tapa nomas") → OK, contestó $129.999.
+  3. **Ambiguo entre 2 artículos reales** ("cuanto el cilindro solo") → **MAL**: el grupo tiene
+     2 cilindros distintos (id 7 corto $54.999, id 12 largo $74.999), y encima **ambos alias
+     incluyen literalmente "cilindro solo"/"cilindro unicamente"** — la pregunta del cliente no
+     tiene forma de distinguir cuál sin que el cliente aclare. El bot igual contestó $54.999 sin
+     avisar que hay dos opciones — precio potencialmente equivocado si el cliente necesitaba el
+     largo.
+  4. Cambio de tema ("hacen envios a cordoba") → no lo confundió con ningún artículo (bien), pero
+     tampoco contestó el envío (gap ya conocido de mensaje mixto, no nuevo).
+  5. Muy informal/mal escrito ("q la tapa cuanto sale toda cascoteada no consigo plata") → OK,
+     $129.999.
+  6. Pregunta de stock, no precio explícito ("la tapa la venden suelta") → OK, contestó con el
+     precio (respuesta razonable: confirma que se vende suelta Y da el precio).
+  Osea, 5 de 6 bien y un bug de precio real (caso 3) — justo el tipo de "similitud de nombre"
+  delicada que ya había pasado con la compatibilidad de motos (ver
+  `fix-rm-modelo-ok-conflicto-cilindrada.sql` más arriba en este mismo documento).
+  - **Intento 1 (prompt-only, fallido):** se agregó un párrafo al `systemMessage` de
+    `Responder Articulo Suelto (Grupo)` pidiéndole explícitamente que tratara como ambiguo dos
+    artículos de la misma categoría con distinta `variante` (campo nuevo agregado a la query
+    `Buscar Detalle Grupo Pineado`: `p.criterio_variante AS variante`, igual patrón que
+    `Extraer Modelo Grupo`). Arregló el caso 3 en la primera prueba, pero **rompió el caso 6**
+    ("la tapa la venden suelta" dejó de contestar) — la tapa aparece 2 veces en la lista (una por
+    cada pack del grupo, porque es una pieza compartida entre corto/largo) con la MISMA id pero
+    DISTINTA `variante` en cada fila, y el párrafo nuevo no distinguía ese caso (pieza única
+    repartida en 2 filas) del caso realmente ambiguo (dos ids distintos). Regresión real, detectada
+    reproduciendo los 4 casos de nuevo antes de dar por bueno.
+  - **Intento 2 (prompt corregido, fallido — inconsistente):** se reescribió el párrafo agregando
+    "con ID DISTINTO" y una excepción explícita para el caso de la tapa repetida. Arregló el caso 6
+    de vuelta, pero **el caso 3 volvió a fallar** — y no por casualidad: corriéndolo 5 veces
+    seguidas contra el mismo prompt, dio **0 de 5 bien** (siempre contestó $54.999 sin avisar).
+    Lección: para esta clase de regla ("ante ambigüedad real entre datos concretos, no elijas al
+    azar"), redactarla mejor en prosa para el LLM no fue confiable — el modelo no la siguió de
+    forma consistente ni siquiera dentro de la misma versión del prompt.
+  - **Fix que sí funcionó: mover la decisión de código, no de prompt.** Se simplificó el
+    `systemMessage` (que la IA elija el artículo que le parezca más probable igual, sin pedirle que
+    se autorregule la ambigüedad) y se agregó una verificación determinística en
+    `Parsear Articulo Suelto (Grupo)` (Code, sin IA de por medio): si el artículo que la IA eligió
+    tiene otro artículo con **id distinto** en la misma `categoria` (un rival real), solo se acepta
+    la respuesta si el mensaje del cliente contiene alguna palabra de `alias`/`nombre`/`variante`
+    del artículo elegido que **no** esté también en las de su rival (ej. "largo"/"52.4"/"larga"
+    distinguen al cilindro largo del corto; "solo"/"cilindro"/"unicamente" no distinguen nada,
+    están en los dos). Si no encuentra ninguna palabra distintiva, fuerza `resuelto: false` sin
+    importar lo que haya dicho la IA. El caso de la tapa repartida en 2 filas con la misma id ya
+    ni siquiera entra en esta rama (el filtro es por id distinto, no por categoría sola), así que
+    dejó de hacer falta la excepción frágil en prosa. Validado: los 4 casos (3, 6, y las dos
+    regresiones) pasaron en la primera corrida, y **2 de 5 repeticiones del caso 3 confirmadas
+    limpias antes de cortar la sesión** (las otras 3 quedaron corriendo en background, sin
+    supervisar el resultado final — la lógica es determinística/no depende de sampling de IA para
+    la parte crítica, así que no se esperan sorpresas, pero falta la confirmación final).
+  - **PENDIENTE PARA MAÑANA:** 1) confirmar el resultado de las 5 repeticiones que quedaron
+    corriendo en background al cortar la sesión (deberían ser 5/5 bien, revisar igual). 2) Las
+    conversaciones de prueba usadas en toda esta investigación (ids 2412 en adelante, hasta
+    ~2445) fueron todas descartables — ya quedaron `resolved`, no son la conversación de prueba
+    principal (que sigue siendo `2411`, sin tocar durante todo este stress test). 3) Si aparece
+    otro caso de "dos artículos con alias que se pisan" en otro grupo, mismo mecanismo debería
+    cubrirlo solo (no hace falta cablear nada nuevo, es genérico por categoría/id). 4) Sigue
+    pendiente el gap de mensaje mixto (moto + pregunta en el mismo mensaje) mencionado en el punto
+    anterior — no se tocó en esta sesión.

@@ -753,3 +753,23 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   conversación de pruebas de meses). **Acción tomada:** se retiró `conversation_id 1` como
   conversación de prueba (sigue existiendo en Chatwoot, solo no se usa más) y se armó una nueva,
   `conversation_id 2405`, mismo contacto/teléfono — ver punto 2 de "Cómo se trabaja" arriba.
+- **Segundo hallazgo del mismo caso: la lista de kits que recibe `Identificar Necesidad` no
+  alcanza para desambiguar productos con nombres que se pisan (2026-08-22).** Ya con historial
+  limpio (conv 2405), el mismo mensaje "tapa cdi y cilindro 120" clasificó como `candidatos` entre
+  "Tapa cdi" y "Kit 120 para 110" — mejor que "ninguno", pero seguía sin ser lo más inteligente:
+  "Tapa cdi" es un nombre bastante exclusivo del combo id 3 (que ya incluye tapa cdi + cilindro
+  120 + corona), y "Kit 120 para 110" ni siquiera trae tapa cdi. Causa: `Formatear Historial`
+  (nodo Code) le pasaba a la IA la lista de kits activos con **solo el nombre**
+  (`` `- id ${k.id}: ${k.nombre}` ``) — sin nada del contenido real de cada combo, así que la
+  única señal que tenía para distinguir "Tapa cdi" de "Kit 120 para 110" era la palabra "120"
+  compartida, y la trataba como ambigua. **Fix aplicado** (directo contra la API de n8n,
+  `setNodeParameter` sobre el `jsCode` de `Formatear Historial`): se suma a cada línea el
+  `plantillas_bienvenida` del kit (el texto real del anuncio, que ya se traía en
+  `Buscar Kits Activos` pero no se usaba acá) — ej. `- id 3: Tapa cdi (anuncio del cliente: "¡Hola!
+  Quiero más información SOBRE EL COMBO TAPA CDI 125 + CILINDRO 120!")`. Con eso la IA ve las
+  mismas palabras clave que el cliente vio en el anuncio real, y puede reconocer que "tapa cdi y
+  cilindro 120" calca el anuncio de un combo puntual en vez de partir la diferencia entre dos.
+  Validado con 3 conversaciones nuevas y limpias antes de dar por bueno: el caso que fallaba ahora
+  identifica directo "Tapa cdi" (bienvenida + pregunta de moto, sin repreguntar), y dos casos que
+  ya andaban bien ("Quiero el kit 120 para mi moto", "Info del escape con leva 6.40") siguieron
+  clasificando igual de bien — sin sobrecorrección hacia Tapa cdi por compartir "120".

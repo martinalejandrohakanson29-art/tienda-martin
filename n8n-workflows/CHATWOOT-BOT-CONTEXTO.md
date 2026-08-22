@@ -269,13 +269,23 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
    `n8n-workflows/auditoria-harness/`, se eliminó el 2026-08-20 por no usarse más; sigue
    recuperable del historial de git si hace falta reconstruir algo puntual).
 2. Validar con una **conversación de prueba dedicada** antes de dar por bueno un cambio:
-   `conversation_id 2405`, teléfono `+5493513784909` (la `conversation_id 1` que se usaba antes
-   quedó retirada el 2026-08-22 — acumuló tanto historial mezclado de pruebas de kits distintos
-   que terminó confundiendo de verdad a `Identificar Necesidad` con un mensaje real: "tapa cdi y
-   cilindro 120" dio `tipo: "ninguno"` ahí, y con historial limpio en la 2405 el mismo mensaje dio
-   el resultado correcto, `candidatos`. Sigue existiendo en Chatwoot por si hace falta consultar
-   el historial viejo, simplemente no se usa más para probar). Reglas de higiene aprendidas a los
-   golpes:
+   `conversation_id 2411`, teléfono `+5493513784909`. Van dos conversaciones de prueba retiradas
+   antes que esta, mismo teléfono, ambas por el mismo motivo (historial de pruebas ensuciando el
+   contexto que recibe la IA) — **no reusar `1` ni `2405`** si aparecen mencionadas en código o
+   docs viejos:
+   - `conversation_id 1`: retirada el 2026-08-22 — acumuló tanto historial mezclado de pruebas de
+     kits distintos que terminó confundiendo de verdad a `Identificar Necesidad` con un mensaje
+     real ("tapa cdi y cilindro 120" dio `tipo: "ninguno"` ahí).
+   - `conversation_id 2405`: la reemplazó el mismo día, pero se retiró también poco después — al
+     usarla para validar el fix de contexto de abajo (candidatos vs. anuncio) quedó con las
+     mismas preguntas de prueba repetidas encima, y para no arrastrar ESE ruido a la próxima
+     tanda de pruebas se pasó a la 2411.
+   - Las dos anteriores siguen existiendo en Chatwoot (el token no tiene permiso `DELETE`, ver
+     más abajo) por si hace falta consultar su historial — simplemente no se usan más para
+     probar. Si `2411` también termina ensuciándose con el tiempo, repetir el mismo mecanismo:
+     conversación nueva, actualizar este punto.
+
+   Reglas de higiene aprendidas a los golpes:
    marcar todo lo sintético con prefijo tipo `[auditoria-XX]`; limpiar por `id` exacto, nunca por
    patrón de texto amplio (un `DELETE ... WHERE content ILIKE '%algo%'` puede dejar huérfana una
    punta del intercambio en `conversaciones_historial` y generar el mismo síntoma que un bug

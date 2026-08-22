@@ -783,3 +783,31 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   identifica directo "Tapa cdi" (bienvenida + pregunta de moto, sin repreguntar), y dos casos que
   ya andaban bien ("Quiero el kit 120 para mi moto", "Info del escape con leva 6.40") siguieron
   clasificando igual de bien — sin sobrecorrección hacia Tapa cdi por compartir "120".
+- **Bug real, caso frecuente: la rama de GRUPO escalaba con nota rota si el cliente contestaba
+  algo que no era una moto mientras el pin esperaba el modelo (2026-08-22).** Con el grupo "Tapa
+  cdi" pineado en estado `esperando_moto`, Martín preguntó "Cuánto la tapa sola?" (una pregunta de
+  precio, no un modelo de moto) y el bot mandó una nota privada de escalado rota: *"El cliente está
+  preguntando si el Tapa cdi es compatible con su **."* — con la moto vacía adentro de los
+  asteriscos, porque `Extraer Modelo Grupo` (correctamente) devolvió `modelo_moto: ""` y el flujo
+  igual siguió de largo hacia la búsqueda de compatibilidad y el escalado, en vez de frenar y
+  repreguntar. Causa: la rama de GRUPO (`Parsear Modelo Grupo` → `Buscar Compatibilidad del
+  Grupo`) nunca tuvo el chequeo de "modelo vacío" que sí existe hace rato en la rama de kit
+  SIMPLE (`¿Compatibilidad Sin Marca/Modelo?`, conectado solo desde `Parsear Pregunta
+  Compatibilidad`) — mismo patrón que el bug de escalado de grupo del 21/8 (funcionalidad que
+  existía para kits simples y nunca se replicó para grupos). **Fix aplicado** (nodos nuevos en la
+  API real de n8n, agregados desconectados y verificados con BFS antes de cablearlos, sin tocar
+  ni reusar los nodos de la rama simple para no arrastrar una referencia `$('NodoX').item` a un
+  nodo que no es ancestro ahí — ver gotcha de paired-item en [[n8n_chatwoot_bot]]): nodo IF nuevo
+  `¿Grupo Sin Modelo?` entre `Parsear Modelo Grupo` y `Buscar Compatibilidad del Grupo` — si
+  `modelo_moto` viene vacío, en vez de seguir hacia la búsqueda/escalado, manda una repregunta
+  directa ("Que marca y modelo es tu moto? Así te confirmo si el [nombre del grupo] te sirve.")
+  vía 3 nodos nuevos (`Preparar Repregunta Modelo (Grupo)` → `Enviar Repregunta Modelo (Grupo)` →
+  `Fin - Repregunta Modelo Grupo Enviada`); si `modelo_moto` sí vino, sigue exactamente igual que
+  antes hacia `Buscar Compatibilidad del Grupo`. El pin queda igual en `esperando_moto`, así que
+  el próximo mensaje reintenta la extracción sin que haga falta ningún estado nuevo. 221→225
+  nodos. Validado con 2 conversaciones nuevas antes de dar por bueno: el caso real (pregunta de
+  precio mientras espera moto) ahora repregunta en vez de escalar roto, y el flujo normal
+  (bienvenida → moto real → compatible → corto/largo) siguió andando igual, sin regresión. Se
+  borró además la fila de escalado rota que había quedado en `preguntas_tecnicas_pendientes`
+  (id 158, `modelo_moto` vacío) — era basura de la reproducción, no una pregunta real para
+  contestar.

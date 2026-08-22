@@ -269,7 +269,13 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
    `n8n-workflows/auditoria-harness/`, se eliminó el 2026-08-20 por no usarse más; sigue
    recuperable del historial de git si hace falta reconstruir algo puntual).
 2. Validar con una **conversación de prueba dedicada** antes de dar por bueno un cambio:
-   `conversation_id 1`, teléfono `+5493513784909`. Reglas de higiene aprendidas a los golpes:
+   `conversation_id 2405`, teléfono `+5493513784909` (la `conversation_id 1` que se usaba antes
+   quedó retirada el 2026-08-22 — acumuló tanto historial mezclado de pruebas de kits distintos
+   que terminó confundiendo de verdad a `Identificar Necesidad` con un mensaje real: "tapa cdi y
+   cilindro 120" dio `tipo: "ninguno"` ahí, y con historial limpio en la 2405 el mismo mensaje dio
+   el resultado correcto, `candidatos`. Sigue existiendo en Chatwoot por si hace falta consultar
+   el historial viejo, simplemente no se usa más para probar). Reglas de higiene aprendidas a los
+   golpes:
    marcar todo lo sintético con prefijo tipo `[auditoria-XX]`; limpiar por `id` exacto, nunca por
    patrón de texto amplio (un `DELETE ... WHERE content ILIKE '%algo%'` puede dejar huérfana una
    punta del intercambio en `conversaciones_historial` y generar el mismo síntoma que un bug
@@ -730,3 +736,20 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   real:** cualquier otra marca con líneas de distinta cilindrada que comparta nombre y solo tenga
   cargada una entrada genérica sin número corre el mismo riesgo silencioso — no hay forma
   automática de detectarlo, solo aparece cuando un cliente real lo dispara.
+- **`Identificar Necesidad` se pierde con historial largo y mezclado, encontrado con un mensaje
+  real en la propia conversación de prueba (2026-08-22).** Martín le escribió a `+5493513784909`
+  (conv 1) "Hola. Quiero saber sobre la tapa cdi y cilindro 120" — nombra "Tapa cdi" casi literal,
+  que está en la lista cerrada de kits activos — y el clasificador devolvió `tipo: "ninguno"` en
+  vez de reconocerlo. Sin ningún kit identificado, el flujo cayó al camino genérico de
+  sub-preguntas y respondió algo desconectado ("Sí, tenemos stock disponible... entrega
+  inmediata") en vez de la bienvenida del kit + la pregunta de la moto. **Causa confirmada, no
+  solo sospechada:** se repitió el mismo mensaje en una conversación nueva y limpia (sin el
+  historial de meses de pruebas mezcladas de conv 1 — Kit 120, Tapa CDI, compatibilidad Bajaj
+  Boxer, mensajes viejos con prefijo `[auditoria-fix-cierre]`, etc.) y ahí sí clasificó bien
+  (`candidatos`, repreguntando entre Tapa cdi y Kit 120 para 110). El ruido del historial, no un
+  bug de prompt nuevo, fue la causa. **No se tocó el prompt** — hacerlo más robusto contra
+  historiales largos queda pendiente si vuelve a pasar con un cliente real (con clientes reales
+  el historial nunca llega a ser tan largo ni tan mezclado de temas distintos como el de una
+  conversación de pruebas de meses). **Acción tomada:** se retiró `conversation_id 1` como
+  conversación de prueba (sigue existiendo en Chatwoot, solo no se usa más) y se armó una nueva,
+  `conversation_id 2405`, mismo contacto/teléfono — ver punto 2 de "Cómo se trabaja" arriba.

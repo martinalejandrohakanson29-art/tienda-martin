@@ -811,3 +811,32 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   borró además la fila de escalado rota que había quedado en `preguntas_tecnicas_pendientes`
   (id 158, `modelo_moto` vacío) — era basura de la reproducción, no una pregunta real para
   contestar.
+- **Mejora sobre el mismo caso: la rama de GRUPO ahora también contesta preguntas de artículo
+  suelto mientras espera la moto, en vez de ignorarlas (2026-08-22).** Motivación de Martín: el
+  catálogo nuevo se armó justamente en grupos con packs formados por artículos reales
+  (`chat_articulos`) para poder responder preguntas sobre una pieza suelta de un kit por el que
+  arrancó la charla, no solo sobre el combo entero — y ese dato ya estaba cargado (para el caso de
+  arriba, artículo id 16 "Tapa cdi 125", alias `tapa sola, tapa nomas, cdi sola, tapa cdi sola`,
+  $129.999) pero el flujo de grupo nunca lo consultaba. El mecanismo para esto **ya existía y
+  funcionaba** para kits simples (`Buscar Detalle Kit Pineado (Sub-pregunta)` →
+  `Responder Otro desde Detalle Kit`, un agente que matchea la pregunta contra los artículos
+  sueltos reales del kit pineado, con precio siempre revalidado contra la base — nunca confía en
+  un precio que redacte la IA); el gap era que la rama de grupo, al ser un camino sin salida hacia
+  el separador de sub-preguntas (ver hallazgo de arriba), nunca llegaba a ese mecanismo. **Fix
+  aplicado** (nodos nuevos y aislados, mismo criterio que el punto anterior — no se reusaron los
+  nodos de la rama simple, referencian ancestros propios de la rama de grupo): se intercaló, en el
+  mismo punto donde antes solo se mandaba la repregunta de moto (`modelo_moto` vacío), un chequeo
+  nuevo — `Buscar Detalle Grupo Pineado` (trae los artículos de TODOS los packs del grupo pineado,
+  deduplicados por `grupo_id` en vez de por un pack puntual, porque a esta altura todavía no se
+  resolvió la variante corto/largo) → `Responder Articulo Suelto (Grupo)` (mismo prompt que la
+  rama simple, agente + modelo de lenguaje dedicado) → `Parsear Articulo Suelto (Grupo)` (misma
+  revalidación de precio real) → `¿Resuelto Articulo Suelto (Grupo)?`: si resolvió, manda la
+  respuesta del artículo Y IGUAL sigue mandando la repregunta de moto de siempre (2 mensajes); si
+  no resolvió, cae exactamente al mismo camino de antes (1 solo mensaje, la repregunta). 225→232
+  nodos. Validado con 3 conversaciones nuevas: pregunta de artículo real (contesta precio + sigue
+  preguntando moto), moto real sin pregunta de artículo (sin cambios, sin mensaje de más), y
+  mensaje ambiguo sin moto ni artículo identificable (cae al fallback normal, sin falso positivo).
+  **Alcance a propósito, no cubre todo:** esto solo se dispara cuando `modelo_moto` vino vacío. Si
+  el cliente da la moto Y pregunta algo más en el mismo mensaje (ej. "tengo una wave, cuánto la
+  tapa sola?"), la parte extra se sigue perdiendo — mismo gap, sin resolver todavía, para ese caso
+  específico.

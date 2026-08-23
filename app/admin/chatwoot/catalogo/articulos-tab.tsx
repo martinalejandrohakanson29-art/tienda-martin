@@ -62,6 +62,7 @@ export function ArticulosTab({
     const [articulos, setArticulos] = useState<ChatArticulo[]>(articulosIniciales)
     const [form, setForm] = useState<ChatArticuloInput>(FORM_VACIO)
     const [nombreSeleccionado, setNombreSeleccionado] = useState<string | null>(null)
+    const [esPackSeleccionado, setEsPackSeleccionado] = useState(false)
     const [guardando, setGuardando] = useState(false)
     const [error, setError] = useState<string | null>(errorInicial)
     const [busqueda, setBusqueda] = useState("")
@@ -110,6 +111,7 @@ export function ArticulosTab({
     const elegirArticuloMostrador = (resultado: ArticuloMostradorResultado) => {
         setForm((prev) => ({ ...prev, articuloMostradorId: resultado.id, precio: String(resultado.precio) }))
         setNombreSeleccionado(resultado.nombre)
+        setEsPackSeleccionado(resultado.esPack)
         setBusquedaMostrador("")
         setResultadosMostrador([])
     }
@@ -125,6 +127,7 @@ export function ArticulosTab({
             activo: articulo.activo,
         })
         setNombreSeleccionado(articulo.nombre)
+        setEsPackSeleccionado(articulo.es_pack)
         const propias = compatList.filter((c) => c.articulo_id === articulo.id)
         setCompatibleTexto(formatearListaCompat(propias.filter((c) => c.compatible)))
         setIncompatibleTexto(formatearListaCompat(propias.filter((c) => !c.compatible)))
@@ -134,6 +137,7 @@ export function ArticulosTab({
     const cancelarEdicion = () => {
         setForm(FORM_VACIO)
         setNombreSeleccionado(null)
+        setEsPackSeleccionado(false)
         setBusquedaMostrador("")
         setCompatibleTexto("")
         setIncompatibleTexto("")
@@ -169,6 +173,7 @@ export function ArticulosTab({
                 categoria: form.categoria.trim() || null,
                 activo: form.activo,
                 creado_en: articulos.find((a) => a.id === form.id)?.creado_en || new Date(),
+                es_pack: esPackSeleccionado,
             }
             setArticulos((prev) => {
                 const existe = prev.some((a) => a.id === actualizado.id)
@@ -208,8 +213,9 @@ export function ArticulosTab({
     return (
         <div className="space-y-6">
             <p className="text-sm text-gray-500">
-                Un artículo acá no se tipea a mano: es un artículo real del inventario (buscalo y elegilo abajo). Después
-                le sumás un alias de cómo lo nombra el cliente y, si hace falta, un precio propio para WhatsApp.
+                Un artículo acá no se tipea a mano: es un artículo real del inventario (buscalo y elegilo abajo) — puede
+                ser una pieza suelta o un pack ya armado en &quot;Listas &gt; Packs&quot;. Después le sumás un alias de
+                cómo lo nombra el cliente y, si hace falta, un precio propio para WhatsApp.
             </p>
 
             {error && (
@@ -242,7 +248,12 @@ export function ArticulosTab({
                             <Label>Artículo del inventario</Label>
                             {nombreSeleccionado ? (
                                 <div className="flex items-center justify-between border rounded-md px-3 py-2 bg-emerald-50 border-emerald-200">
-                                    <span className="text-sm font-medium">{nombreSeleccionado}</span>
+                                    <span className="text-sm font-medium flex items-center gap-2">
+                                        {nombreSeleccionado}
+                                        {esPackSeleccionado && (
+                                            <Badge variant="outline" className="font-normal text-violet-700 border-violet-300 bg-violet-50">Pack</Badge>
+                                        )}
+                                    </span>
                                     {!editando && (
                                         <Button
                                             type="button"
@@ -250,6 +261,7 @@ export function ArticulosTab({
                                             size="sm"
                                             onClick={() => {
                                                 setNombreSeleccionado(null)
+                                                setEsPackSeleccionado(false)
                                                 actualizarCampo("articuloMostradorId", "")
                                             }}
                                             disabled={guardando}
@@ -280,7 +292,12 @@ export function ArticulosTab({
                                                     onClick={() => elegirArticuloMostrador(r)}
                                                     className="w-full text-left px-3 py-2 text-sm hover:bg-emerald-50 flex justify-between gap-3"
                                                 >
-                                                    <span>{r.nombre}</span>
+                                                    <span className="flex items-center gap-2">
+                                                        {r.nombre}
+                                                        {r.esPack && (
+                                                            <Badge variant="outline" className="font-normal text-violet-700 border-violet-300 bg-violet-50">Pack</Badge>
+                                                        )}
+                                                    </span>
                                                     <span className="text-gray-400 shrink-0">
                                                         {r.precio.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 })}
                                                     </span>
@@ -467,7 +484,14 @@ export function ArticulosTab({
                                 <TableBody>
                                     {articulosFiltrados.map((articulo) => (
                                         <TableRow key={articulo.id}>
-                                            <TableCell className="font-medium">{articulo.nombre}</TableCell>
+                                            <TableCell className="font-medium">
+                                                <span className="flex items-center gap-2">
+                                                    {articulo.nombre}
+                                                    {articulo.es_pack && (
+                                                        <Badge variant="outline" className="font-normal text-violet-700 border-violet-300 bg-violet-50">Pack</Badge>
+                                                    )}
+                                                </span>
+                                            </TableCell>
                                             <TableCell className="text-sm text-gray-500 max-w-[240px] truncate">{articulo.alias || "—"}</TableCell>
                                             <TableCell className="text-sm text-gray-500 capitalize">
                                                 {articulo.categoria ? (

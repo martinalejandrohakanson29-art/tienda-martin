@@ -31,6 +31,7 @@ export type ChatArticulo = {
     categoria: string | null
     activo: boolean
     creado_en: Date
+    es_pack: boolean
 }
 
 export type ChatArticuloInput = {
@@ -47,12 +48,15 @@ export type ArticuloMostradorResultado = {
     id: string
     nombre: string
     precio: number
+    esPack: boolean
 }
 
 // Buscador contra el inventario real (no se carga la lista completa a propósito
 // — solo lo que matchea la búsqueda, para elegir el real al crear un artículo
-// del catálogo de chat). Excluye packs y artículos ocultos: acá solo interesan
-// piezas sueltas reales.
+// del catálogo de chat). Incluye tanto piezas sueltas como packs armados en
+// /admin/listas/packs (mismo "articulos_mostrador", solo cambia esPack) — un
+// pack se referencia igual que una pieza suelta, un solo articulo_mostrador_id.
+// Excluye únicamente los artículos ocultos.
 export async function buscarArticulosMostrador(query: string): Promise<ArticuloMostradorResultado[]> {
     await requireAdmin()
     const palabras = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
@@ -66,9 +70,9 @@ export async function buscarArticulosMostrador(query: string): Promise<ArticuloM
     )
 
     return prisma.$queryRaw<ArticuloMostradorResultado[]>(Prisma.sql`
-        SELECT id, nombre, precio::float AS precio
+        SELECT id, nombre, precio::float AS precio, COALESCE("esPack", false) AS "esPack"
         FROM articulos_mostrador
-        WHERE "esPack" = false AND oculto = false AND (${condiciones})
+        WHERE oculto = false AND (${condiciones})
         ORDER BY nombre ASC
         LIMIT 15
     `)
@@ -77,7 +81,8 @@ export async function buscarArticulosMostrador(query: string): Promise<ArticuloM
 export async function getChatArticulos(): Promise<ChatArticulo[]> {
     await requireAdmin()
     return prisma.$queryRaw<ChatArticulo[]>`
-        SELECT ca.id, ca.articulo_mostrador_id, am.nombre, ca.alias, ca.precio, ca.detalle, ca.categoria, ca.activo, ca.creado_en
+        SELECT ca.id, ca.articulo_mostrador_id, am.nombre, ca.alias, ca.precio, ca.detalle, ca.categoria, ca.activo, ca.creado_en,
+               COALESCE(am."esPack", false) AS es_pack
         FROM chat_articulos ca
         JOIN articulos_mostrador am ON am.id = ca.articulo_mostrador_id
         ORDER BY am.nombre ASC

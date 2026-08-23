@@ -539,6 +539,34 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   que tenía el kit viejo y no se migró;
   y extender el matching de artículo suelto al caso de "resto en la misma ráfaga que un grupo sin
   resolver" (ver arriba).
+- **Compatibilidad a nivel de combo/kit completo + precheck antes de pinear (2026-08-23).** Causa
+  raíz: la compatibilidad se buscaba por pieza suelta más reciente, sin distinguir la pieza CENTRAL
+  (cilindro) de una periférica (filtro, codo) — un combo podía dar falso positivo si la fila más
+  reciente cargada era de una pieza periférica compatible con todo. Fix: tabla nueva
+  `chat_combo_compatibilidad` (compatibilidad del grupo/kit completo, con UI propia en
+  `/admin/chatwoot/catalogo`, sin SQL a mano), consultada con prioridad y fallback a piezas sueltas
+  en `Buscar Compatibilidad del Kit`/`del Grupo`. Además, cuando `Identificar Necesidad` pinea un
+  kit a partir de lenguaje natural y el cliente ya mencionó su moto en el mismo mensaje, el bot
+  ahora chequea esa compatibilidad ANTES de pinear/saludar, en las dos ramas de `¿Qué Identificó?`:
+  `candidatos` (repregunta reducida a los kits que sirven, o "no tenemos" directo si ninguno sirve)
+  y `kit_confiado` (mismo patrón, un solo kit: `Extraer Modelo (Kit Confiado)` →
+  `Resolver Kit Confiado (Compat)` → `Buscar/Procesar Compatibilidad Kit Confiado` →
+  `¿Es Compatible (Kit Confiado)?`, insertado en serie entre `¿Insiste Pese a Incompatibilidad?` y
+  `Preparar Pin desde Identificacion`). **Gotcha:** cuál rama toma `Identificar Necesidad` con el
+  mismo mensaje es variable (LLM), así que un gap en una sola rama se sigue disparando en
+  producción con el tiempo aunque parezca poco frecuente en las pruebas — hay que cubrir ambas.
+  280→291 nodos. Validado en prod con conversaciones nuevas para las 3 combinaciones de
+  `kit_confiado` (moto incompatible bloquea sin pinear, sin moto sigue igual que siempre, moto
+  compatible sigue igual que siempre) y para `reducir_candidatos` de la rama `candidatos` — detalle
+  completo en `[[n8n_compatibilidad_nivel_combo]]` (memoria del proyecto). `uno_compatible` sigue
+  sin validar con un caso real: no hay dato real con ese patrón (compatible en 1 solo grupo de 3) y
+  forzarlo con datos sintéticos 2 veces hizo que `Identificar Necesidad` clasificara `ninguno` en
+  vez de `candidatos` — código simétrico a las otras 2 ramas ya validadas, riesgo bajo pero abierto.
+  Motivo técnico de Escape+Leva (antes vacío) ya cargado: el escape no entra en el cárter y no hay
+  leva compatible, confirmado por Martín, aplicado a nivel combo y a nivel pieza (Escape Paolucci,
+  2 Levas Competición). **`rutas-bot-chatwoot.html` quedó
+  desactualizado con este cambio** (no refleja el precheck de compatibilidad en ninguna de las 2
+  ramas) — pendiente de actualizar el diagrama.
 
 ## Qué falta / pendiente (al 2026-08-21)
 

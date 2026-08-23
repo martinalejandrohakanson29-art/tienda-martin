@@ -1,5 +1,11 @@
 import { CatalogoClient } from "./catalogo-client"
-import { getChatArticulos, getChatPacks, getChatArticuloCompatibilidades, getChatPackGrupos } from "@/app/actions/chat-catalogo"
+import {
+    getChatArticulos,
+    getChatPacks,
+    getChatArticuloCompatibilidades,
+    getChatPackGrupos,
+    getChatComboCompatibilidades,
+} from "@/app/actions/chat-catalogo"
 import { getKits } from "@/app/actions/kits-publicidad"
 import { getCompatibilidades } from "@/app/actions/compatibilidades"
 
@@ -14,13 +20,14 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<{ data: T; er
 }
 
 export default async function CatalogoPage() {
-    const [articulos, packs, compatibilidadesArticulos, kits, compatibilidadesKits, grupos] = await Promise.all([
+    const [articulos, packs, compatibilidadesArticulos, kits, compatibilidadesKits, grupos, compatibilidadesCombo] = await Promise.all([
         safe(getChatArticulos, []),
         safe(getChatPacks, []),
         safe(getChatArticuloCompatibilidades, []),
         safe(getKits, []),
         safe(getCompatibilidades, []),
         safe(getChatPackGrupos, []),
+        safe(getChatComboCompatibilidades, []),
     ])
 
     return (
@@ -34,6 +41,7 @@ export default async function CatalogoPage() {
             compatibilidadesKits={compatibilidadesKits.data}
             gruposIniciales={grupos.data}
             gruposError={grupos.error}
+            compatibilidadesComboIniciales={compatibilidadesCombo.data}
         />
     )
 }

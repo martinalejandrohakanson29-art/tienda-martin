@@ -14,11 +14,15 @@ import {
     guardarChatPackGrupo,
     eliminarChatPackGrupo,
     alternarActivoChatPackGrupo,
+    sincronizarCompatibilidadGrupo,
+    getChatComboCompatibilidades,
     type ChatPackGrupo,
     type ChatPackGrupoInput,
     type ChatPack,
+    type ChatComboCompatibilidad,
 } from "@/app/actions/chat-catalogo"
 import { matchTodasPalabras } from "@/lib/busqueda-texto"
+import { formatearListaCompat } from "@/lib/compatibilidad-texto"
 
 const FORM_VACIO: ChatPackGrupoInput = {
     nombre: "",
@@ -33,16 +37,22 @@ export function GruposTab({
     gruposIniciales,
     errorInicial,
     packsIniciales,
+    compatibilidadesComboIniciales,
 }: {
     gruposIniciales: ChatPackGrupo[]
     errorInicial: string | null
     packsIniciales: ChatPack[]
+    compatibilidadesComboIniciales: ChatComboCompatibilidad[]
 }) {
     const [grupos, setGrupos] = useState<ChatPackGrupo[]>(gruposIniciales)
     const [form, setForm] = useState<ChatPackGrupoInput>(FORM_VACIO)
     const [guardando, setGuardando] = useState(false)
     const [error, setError] = useState<string | null>(errorInicial)
     const [busqueda, setBusqueda] = useState("")
+
+    const [compatCombo, setCompatCombo] = useState<ChatComboCompatibilidad[]>(compatibilidadesComboIniciales)
+    const [compatibleTexto, setCompatibleTexto] = useState("")
+    const [incompatibleTexto, setIncompatibleTexto] = useState("")
 
     const [fotoDragging, setFotoDragging] = useState(false)
     const [subiendoFoto, setSubiendoFoto] = useState(false)
@@ -82,12 +92,17 @@ export function GruposTab({
             categoria: grupo.categoria || "",
         })
         setFotoError(null)
+        const propias = compatCombo.filter((c) => c.grupo_id === grupo.id)
+        setCompatibleTexto(formatearListaCompat(propias.filter((c) => c.compatible)))
+        setIncompatibleTexto(formatearListaCompat(propias.filter((c) => !c.compatible)))
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
 
     const cancelarEdicion = () => {
         setForm(FORM_VACIO)
         setFotoError(null)
+        setCompatibleTexto("")
+        setIncompatibleTexto("")
     }
 
     const subirFoto = async (archivo: File) => {
@@ -135,6 +150,9 @@ export function GruposTab({
         try {
             const resultado = await guardarChatPackGrupo(form)
             const id = resultado.id
+            await sincronizarCompatibilidadGrupo(id, compatibleTexto, incompatibleTexto)
+            const compatActualizada = await getChatComboCompatibilidades()
+            setCompatCombo(compatActualizada)
             const actualizado: ChatPackGrupo = {
                 id,
                 nombre: form.nombre.trim(),
@@ -333,6 +351,40 @@ export function GruposTab({
                                     </Button>
                                 </div>
                             )}
+                        </div>
+
+                        <div className="space-y-3 pt-6 border-t border-slate-200">
+                            <Label>Compatibilidad de este combo</Label>
+                            <p className="text-xs text-gray-400">
+                                A nivel del combo COMPLETO (no de una pieza suelta) — evita que el bot diga
+                                &quot;compatible&quot; solo porque una pieza periférica (filtro de aire, codo de admisión) entra
+                                en la moto, cuando la pieza central (el cilindro) no. Aplica igual para el recorrido corto
+                                y el largo de este grupo.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                    <Label htmlFor="compatibleTextoGrupo">Compatible con (separado por comas)</Label>
+                                    <Textarea
+                                        id="compatibleTextoGrupo"
+                                        placeholder="Ej: Zanella ZB 110, Motomel Blitz 110"
+                                        value={compatibleTexto}
+                                        onChange={(e) => setCompatibleTexto(e.target.value)}
+                                        disabled={guardando}
+                                        rows={4}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="incompatibleTextoGrupo">No compatible con (separado por comas)</Label>
+                                    <Textarea
+                                        id="incompatibleTextoGrupo"
+                                        placeholder="Ej: Wave S (hay que alesar los cárteres)"
+                                        value={incompatibleTexto}
+                                        onChange={(e) => setIncompatibleTexto(e.target.value)}
+                                        disabled={guardando}
+                                        rows={4}
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         <Button type="submit" disabled={guardando || !form.nombre || !form.mensajeBienvenida} className="w-full bg-fuchsia-600 hover:bg-fuchsia-700 text-white gap-2">

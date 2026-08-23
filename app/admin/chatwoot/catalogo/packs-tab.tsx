@@ -17,12 +17,16 @@ import {
     eliminarChatPack,
     alternarActivoChatPack,
     guardarChatPackGrupo,
+    sincronizarCompatibilidadKit,
+    getChatComboCompatibilidades,
     type ChatPack,
     type ChatPackInput,
     type ChatArticulo,
     type ChatPackGrupo,
+    type ChatComboCompatibilidad,
 } from "@/app/actions/chat-catalogo"
 import { matchTodasPalabras } from "@/lib/busqueda-texto"
+import { formatearListaCompat } from "@/lib/compatibilidad-texto"
 
 const SIN_GRUPO = "ninguno"
 const GRUPO_NUEVO = "__nuevo__"
@@ -52,11 +56,13 @@ export function PacksTab({
     errorInicial,
     articulosDisponibles,
     gruposIniciales,
+    compatibilidadesComboIniciales,
 }: {
     packsIniciales: ChatPack[]
     errorInicial: string | null
     articulosDisponibles: ChatArticulo[]
     gruposIniciales: ChatPackGrupo[]
+    compatibilidadesComboIniciales: ChatComboCompatibilidad[]
 }) {
     const [packs, setPacks] = useState<ChatPack[]>(packsIniciales)
     const [form, setForm] = useState<ChatPackInput>(FORM_VACIO)
@@ -66,6 +72,10 @@ export function PacksTab({
     const [componentes, setComponentes] = useState<ComponenteSeleccionado[]>([])
     const [busqueda, setBusqueda] = useState("")
     const [busquedaLista, setBusquedaLista] = useState("")
+
+    const [compatCombo, setCompatCombo] = useState<ChatComboCompatibilidad[]>(compatibilidadesComboIniciales)
+    const [compatibleTexto, setCompatibleTexto] = useState("")
+    const [incompatibleTexto, setIncompatibleTexto] = useState("")
 
     const [grupos, setGrupos] = useState<ChatPackGrupo[]>(gruposIniciales)
     const [grupoSeleccionado, setGrupoSeleccionado] = useState(SIN_GRUPO)
@@ -139,6 +149,9 @@ export function PacksTab({
         setNuevoGrupoPreguntaVariante("")
         setNuevoGrupoCategoria("")
         setFotoError(null)
+        const propias = compatCombo.filter((c) => c.kit_id === pack.id)
+        setCompatibleTexto(formatearListaCompat(propias.filter((c) => c.compatible)))
+        setIncompatibleTexto(formatearListaCompat(propias.filter((c) => !c.compatible)))
         window.scrollTo({ top: 0, behavior: "smooth" })
     }
 
@@ -153,6 +166,8 @@ export function PacksTab({
         setNuevoGrupoMensaje("")
         setNuevoGrupoPreguntaVariante("")
         setNuevoGrupoCategoria("")
+        setCompatibleTexto("")
+        setIncompatibleTexto("")
     }
 
     const subirFoto = async (archivo: File) => {
@@ -241,6 +256,16 @@ export function PacksTab({
                 componentes.map((c) => ({ articuloId: c.articuloId, cantidad: c.cantidad }))
             )
             const id = resultado.id!
+
+            // La compatibilidad de combo solo aplica a nivel de KIT cuando el pack no
+            // pertenece a un grupo — si pertenece, esa compatibilidad vive en el grupo
+            // (se edita desde la pestaña "Grupos"), no se duplica acá.
+            if (!grupoId) {
+                await sincronizarCompatibilidadKit(id, compatibleTexto, incompatibleTexto)
+                const compatActualizada = await getChatComboCompatibilidades()
+                setCompatCombo(compatActualizada)
+            }
+
             const actualizado: ChatPack = {
                 id,
                 nombre: form.nombre.trim(),
@@ -644,6 +669,42 @@ export function PacksTab({
                                 </div>
                             )}
                         </div>
+
+                        {grupoSeleccionado === SIN_GRUPO && (
+                            <div className="space-y-3 pt-6 border-t border-slate-200">
+                                <Label>Compatibilidad de este kit</Label>
+                                <p className="text-xs text-gray-400">
+                                    A nivel del kit COMPLETO (no de una pieza suelta) — evita que el bot diga
+                                    &quot;compatible&quot; solo porque una pieza periférica entra en la moto, cuando la pieza
+                                    central no. Si este pack pertenece a un grupo, la compatibilidad se carga desde la
+                                    pestaña &quot;Grupos&quot; en su lugar (aplica igual para todas las variantes del grupo).
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <Label htmlFor="compatibleTextoKit">Compatible con (separado por comas)</Label>
+                                        <Textarea
+                                            id="compatibleTextoKit"
+                                            placeholder="Ej: Zanella ZB 110, Motomel Blitz 110"
+                                            value={compatibleTexto}
+                                            onChange={(e) => setCompatibleTexto(e.target.value)}
+                                            disabled={guardando}
+                                            rows={4}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="incompatibleTextoKit">No compatible con (separado por comas)</Label>
+                                        <Textarea
+                                            id="incompatibleTextoKit"
+                                            placeholder="Ej: Wave S (hay que alesar los cárteres)"
+                                            value={incompatibleTexto}
+                                            onChange={(e) => setIncompatibleTexto(e.target.value)}
+                                            disabled={guardando}
+                                            rows={4}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <Button type="submit" disabled={guardando || !form.nombre || !form.mensajeBienvenida} className="w-full bg-violet-600 hover:bg-violet-700 text-white gap-2">
                             {guardando ? (

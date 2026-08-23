@@ -213,6 +213,117 @@ export async function sincronizarCompatibilidadArticulo(
     revalidatePath(RUTA)
 }
 
+// --- Compatibilidad a nivel de combo completo (grupo o kit sin grupo) ---
+// Distinta de chat_articulo_compatibilidad (compatibilidad por pieza suelta):
+// una pieza periférica (filtro de aire, codo de admisión) puede entrar en una
+// moto aunque la pieza central del combo (el cilindro) no entre sin modificar
+// el motor -- esto carga el resultado real del combo completo, para que el
+// bot no confunda "alguna pieza entra" con "el combo que se anuncia sirve".
+// Nivel de match: GRUPO (no pack individual) porque la compatibilidad con una
+// moto es la misma para el recorrido corto y el largo de un mismo grupo; para
+// un kit sin variantes (sin grupo) el nivel es directamente el kit.
+
+export type ChatComboCompatibilidad = {
+    id: number
+    grupo_id: number | null
+    kit_id: number | null
+    modelo_moto: string
+    compatible: boolean
+    detalle: string | null
+}
+
+export async function getChatComboCompatibilidades(): Promise<ChatComboCompatibilidad[]> {
+    await requireAdmin()
+    return prisma.$queryRaw<ChatComboCompatibilidad[]>`
+        SELECT id, grupo_id, kit_id, modelo_moto, compatible, detalle
+        FROM chat_combo_compatibilidad
+        ORDER BY creado_en DESC
+    `
+}
+
+// Reemplaza todas las filas de compatibilidad de un GRUPO por lo que dicen los
+// dos textareas — mismo criterio que sincronizarCompatibilidadArticulo.
+export async function sincronizarCompatibilidadGrupo(
+    grupoId: number,
+    compatiblesTexto: string,
+    incompatiblesTexto: string
+) {
+    await requireAdmin()
+
+    const deseados = [
+        ...parsearListaCompat(compatiblesTexto).map((it) => ({ ...it, compatible: true })),
+        ...parsearListaCompat(incompatiblesTexto).map((it) => ({ ...it, compatible: false })),
+    ]
+    const clave = (modelo: string, detalle: string, compatible: boolean) =>
+        `${compatible}::${modelo.trim().toLowerCase()}::${detalle.trim().toLowerCase()}`
+
+    const deseadosMap = new Map(deseados.map((it) => [clave(it.modelo, it.detalle, it.compatible), it]))
+
+    const existentes = await prisma.$queryRaw<
+        { id: number; modelo_moto: string; detalle: string | null; compatible: boolean }[]
+    >`SELECT id, modelo_moto, detalle, compatible FROM chat_combo_compatibilidad WHERE grupo_id = ${grupoId}`
+    const existentesMap = new Map(existentes.map((e) => [clave(e.modelo_moto, e.detalle || "", e.compatible), e]))
+
+    for (const e of existentes) {
+        const k = clave(e.modelo_moto, e.detalle || "", e.compatible)
+        if (!deseadosMap.has(k)) {
+            await prisma.$executeRaw`DELETE FROM chat_combo_compatibilidad WHERE id = ${e.id}`
+        }
+    }
+
+    for (const [k, it] of deseadosMap) {
+        if (!existentesMap.has(k)) {
+            await prisma.$executeRaw`
+                INSERT INTO chat_combo_compatibilidad (grupo_id, modelo_moto, compatible, detalle)
+                VALUES (${grupoId}, ${it.modelo}, ${it.compatible}, ${it.detalle})
+            `
+        }
+    }
+
+    revalidatePath(RUTA)
+}
+
+// Mismo criterio, para un KIT sin grupo (pack suelto, sin variantes).
+export async function sincronizarCompatibilidadKit(
+    kitId: number,
+    compatiblesTexto: string,
+    incompatiblesTexto: string
+) {
+    await requireAdmin()
+
+    const deseados = [
+        ...parsearListaCompat(compatiblesTexto).map((it) => ({ ...it, compatible: true })),
+        ...parsearListaCompat(incompatiblesTexto).map((it) => ({ ...it, compatible: false })),
+    ]
+    const clave = (modelo: string, detalle: string, compatible: boolean) =>
+        `${compatible}::${modelo.trim().toLowerCase()}::${detalle.trim().toLowerCase()}`
+
+    const deseadosMap = new Map(deseados.map((it) => [clave(it.modelo, it.detalle, it.compatible), it]))
+
+    const existentes = await prisma.$queryRaw<
+        { id: number; modelo_moto: string; detalle: string | null; compatible: boolean }[]
+    >`SELECT id, modelo_moto, detalle, compatible FROM chat_combo_compatibilidad WHERE kit_id = ${kitId}`
+    const existentesMap = new Map(existentes.map((e) => [clave(e.modelo_moto, e.detalle || "", e.compatible), e]))
+
+    for (const e of existentes) {
+        const k = clave(e.modelo_moto, e.detalle || "", e.compatible)
+        if (!deseadosMap.has(k)) {
+            await prisma.$executeRaw`DELETE FROM chat_combo_compatibilidad WHERE id = ${e.id}`
+        }
+    }
+
+    for (const [k, it] of deseadosMap) {
+        if (!existentesMap.has(k)) {
+            await prisma.$executeRaw`
+                INSERT INTO chat_combo_compatibilidad (kit_id, modelo_moto, compatible, detalle)
+                VALUES (${kitId}, ${it.modelo}, ${it.compatible}, ${it.detalle})
+            `
+        }
+    }
+
+    revalidatePath(RUTA)
+}
+
 // --- Grupos de variantes (mismo anuncio, distinto pack real) ---
 // Ej. Kit 120 recorrido corto/largo: mismo anuncio de Instagram, artículo y
 // precio real distintos según cuál le toque al cliente. El grupo es la puerta

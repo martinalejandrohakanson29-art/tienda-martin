@@ -13,5 +13,6 @@ export const CATEGORIAS_ARTICULO = [
     "leva",
     "tapa de cilindros",
     "corona de distribución",
+    "cigüeñal",
     "otro",
 ] as const

@@ -2,12 +2,21 @@ import { prisma } from "@/lib/prisma"
 import {
     enviarImagenChatwoot,
     enviarMensajeChatwoot,
+    estadoConversacionDesde,
     getEstadoBot,
-    humanoRespondioDespues,
     sincronizarHorarioAutomatico,
     type EstadoBot,
+    type EstadoConversacionDesde,
     type RespuestaPendiente,
 } from "@/lib/chatwoot-bot"
+
+// Único origen que representa un saludo sin contenido propio ("Hola bro! En
+// qué te podemos ayudar?", sin datos de kit/precio) -- el único caso donde
+// tiene sentido descartar un pendiente solo porque el bot ya contestó algo
+// más nuevo en la misma conversación. Los demás orígenes (bienvenida de kit,
+// respuesta de compatibilidad, etc.) sí pueden ser distintos entre sí aunque
+// el bot ya haya hablado, así que no entran en este chequeo.
+const ORIGEN_SALUDO_GENERICO = "saludo_generico_2_0"
 
 // Despachador de la cola de respuestas: se dispara al prender el bot y desde el
 // botón "enviar pendientes" de /admin/chatwoot/cola.
@@ -66,7 +75,7 @@ export async function despacharCola(opciones: { forzar?: boolean } = {}): Promis
     despachando = true
     const resultado: ResultadoDespacho = { enviados: 0, descartados: 0, errores: 0 }
     // Una sola consulta a Chatwoot por conversación por corrida.
-    const humanoPorConversacion = new Map<string, boolean>()
+    const estadoPorConversacion = new Map<string, EstadoConversacionDesde>()
     let conversacionAnterior: string | null = null
 
     try {
@@ -91,14 +100,15 @@ export async function despacharCola(opciones: { forzar?: boolean } = {}): Promis
             }
             conversacionAnterior = clave
 
-            if (!humanoPorConversacion.has(clave)) {
-                humanoPorConversacion.set(
+            if (!estadoPorConversacion.has(clave)) {
+                estadoPorConversacion.set(
                     clave,
-                    await humanoRespondioDespues(fila.account_id, fila.conversation_id, fila.creado_en)
+                    await estadoConversacionDesde(fila.account_id, fila.conversation_id, fila.creado_en)
                 )
             }
+            const estado = estadoPorConversacion.get(clave)!
 
-            if (humanoPorConversacion.get(clave)) {
+            if (estado.humanoRespondio) {
                 // Alguien del equipo ya atendió esa charla a mano: mandar ahora
                 // la respuesta vieja del bot sería pisarlo.
                 const descartadas = await prisma.$executeRaw`
@@ -108,6 +118,21 @@ export async function despacharCola(opciones: { forzar?: boolean } = {}): Promis
                       AND estado IN ('pendiente', 'enviando')
                 `
                 resultado.descartados += Number(descartadas)
+                continue
+            }
+
+            if (fila.origen === ORIGEN_SALUDO_GENERICO && estado.botRespondio) {
+                // El bot ya mandó algo más nuevo en esta conversación (típico:
+                // un saludo quedó en cola fuera de horario y después, al
+                // prenderse, contestó en vivo otro saludo del mismo cliente) --
+                // mandar este saludo genérico también repetiría el mismo texto
+                // dos veces seguidas sin aportar nada.
+                const descartada = await prisma.$executeRaw`
+                    UPDATE respuestas_pendientes
+                    SET estado = 'descartado', motivo = 'Ya saludamos en esta conversación con un mensaje más nuevo'
+                    WHERE id = ${fila.id}
+                `
+                resultado.descartados += Number(descartada)
                 continue
             }
 

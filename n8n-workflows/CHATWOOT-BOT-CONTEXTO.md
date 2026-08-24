@@ -567,6 +567,230 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   2 Levas Competición). **`rutas-bot-chatwoot.html` quedó
   desactualizado con este cambio** (no refleja el precheck de compatibilidad en ninguna de las 2
   ramas) — pendiente de actualizar el diagrama.
+- **Fix real: "el kit + una pieza que no es del kit" en el mismo mensaje se contestaba con el
+  detalle genérico del kit, ignorando la pieza (2026-08-24).** Caso real: conv 2570
+  (+5493878682699) resolvió bien todo el Kit 120 (moto compatible, corto/largo), pero al preguntar
+  "Cuánto me sale todo, el kit un cigüeñal también" en la misma ráfaga que "Recorrido corto", el
+  bot contestó solo el detalle del kit y nunca dijo nada del cigüeñal — tampoco escaló. Causa
+  investigada contra la ejecución real (n8n exec 84128): el mecanismo de "resto de la ráfaga" tras
+  resolver la variante (`¿Hay Resto Para Resolver? (Variante)` → partidor de sub-preguntas) ya
+  estaba bien cableado de punta a punta — el partidor incluso separó bien las dos partes ("Cuánto
+  me sale todo" = precio, correctamente suprimido por venir recién confirmado el kit; "el kit un
+  cigüeñal también" = otro). El bug real estaba en el agente `Responder Otro desde Detalle Kit` (y
+  su gemelo de grupo, `Responder Articulo Suelto (Grupo)`): al no encontrar "cigüeñal" en la lista
+  de artículos reales del kit, el modelo igual devolvía `resuelto:true` recitando el detalle
+  general del kit como si eso contestara la pregunta. Fix: regla nueva y explícita en ambos
+  prompts — si el cliente nombra una pieza puntual que no está en la lista de artículos ni en el
+  detalle, `resuelto:false` sin importar que el mensaje también toque el kit en general. Sin
+  cambios de cableado, solo prompt. Validado en la conversación de prueba (2411) replicando el
+  caso exacto: ahora escala en silencio con nota privada ("El cliente preguntó algo que todavía no
+  supimos ubicar: 'un cigüeñal también'"), sin repetir el detalle del kit.
+- **Fix real, chico: saludo genérico duplicado cuando un mensaje fuera de horario quedaba en cola
+  (2026-08-24).** Caso real: conv 2575 (+5493521477426) escribió "Hola buenas noches" fuera de
+  horario (queda en `respuestas_pendientes`, `origen: 'saludo_generico_2_0'`, sin mandar todavía);
+  a la mañana escribió otro "Hola buen día" ya con el bot prendido, que se contestó en vivo al
+  toque — pero minutos después se despachó IGUAL el saludo viejo de la cola, duplicando el "Hola
+  bro! En qué te podemos ayudar?" sin que el cliente hubiera dicho nada nuevo en el medio. No es un
+  bug de n8n: la cola de despacho vive en la app (`lib/chatwoot-cola.ts`), que ya tenía un chequeo
+  de "¿contestó un humano en esta conversación después de que se armó este pendiente?" pero nunca
+  el equivalente para el propio bot. Fix acotado a propósito: `humanoRespondioDespues` (
+  `lib/chatwoot-bot.ts`) pasó a `estadoConversacionDesde`, que en la misma consulta a Chatwoot
+  devuelve también si el bot ya contestó algo más nuevo; `despacharCola` descarta el pendiente
+  SOLO si su `origen` es `saludo_generico_2_0` (el saludo sin datos, "Hola bro...") — el resto de
+  orígenes (bienvenida de kit, compatibilidad, sub-preguntas, etc.) no entra en este chequeo a
+  propósito, porque ahí sí puede haber contenido real distinto entre un pendiente viejo y lo que el
+  bot ya mandó. Validado insertando un pendiente sintético (`saludo_generico_2_0`, fecha vieja) en
+  la conversación de prueba y corriendo `despacharCola()` real (sin forzar, con el bot ya prendido
+  de verdad): lo descartó con motivo "Ya saludamos en esta conversación con un mensaje más nuevo",
+  0 enviados. Pendiente de deploy — ver si Martín quiere pushear ahora o revisar el diff primero.
+- **Nueva cobertura: preguntas de negocio (envío/horario/ubicación/medios de pago/garantía) mientras
+  el GRUPO espera la moto, antes se perdían sin dejar rastro (2026-08-24).** Caso real: conv 2505
+  (+5493718582745) escribió "Para 110 cadenita 84" (moto no identificable) + "Hacen envíos a todo
+  el país" en la misma ráfaga — el bot repreguntó la moto pero la parte de envío desapareció sin
+  contestar NI escalar (a diferencia del resto del workflow, donde lo no resuelto siempre queda
+  como pendiente para el equipo). Causa: el mecanismo agregado el 22/08 para "artículo suelto
+  mientras espera la moto" solo contempla preguntas sobre una pieza del kit — cualquier otra cosa
+  (como una pregunta de negocio) caía directo a la repregunta de moto sin pasar por ningún lado.
+  A pedido explícito de Martín ("la idea del bot es que responda lo que sabe, y lo que no, se
+  escala"), en vez de solo tapar el agujero con un escalado, se sumó resolución real: 10 nodos
+  nuevos, todos aislados de la rama simple (mismo criterio ya usado en los fixes anteriores de esta
+  rama — no se reusan nodos de otras ramas), insertados entre `¿Resuelto Articulo Suelto (Grupo)?`
+  (rama falsa) y `Preparar Repregunta Modelo (Grupo)`: `Extraer Tema Negocio (Grupo)` (agente,
+  detecta si hay una pregunta real de negocio en el mensaje y de qué tema, mismo prompt/lista de
+  temas que ya usa la rama simple del partidor) → `Parsear Tema Negocio (Grupo)` → `¿Es Negocio?
+  (Grupo)`: si no hay pregunta de negocio, sigue exactamente igual que antes; si la hay, `Buscar
+  Info Negocio (Grupo)` consulta `info_negocio` con `rm_score` (mismo mecanismo que la rama
+  simple) → `¿Hay Info Negocio? (Grupo)`: si hay dato, lo contesta (`Preparar/Enviar Respuesta
+  Negocio (Grupo)`) y sigue con la repregunta de moto (2 mensajes, mismo patrón que ya usa la
+  respuesta de artículo suelto); si no hay dato, escala en silencio (`Registrar Pendiente Negocio
+  (Grupo)` inserta en `preguntas_sin_match_pendientes`, `Preparar Nota Escalado Negocio (Grupo)`
+  reusa el `Enviar Nota Escalado` compartido) y TAMBIÉN sigue con la repregunta de moto — nunca se
+  pierde nada, siempre termina en una respuesta o en un pendiente visible. 291→301 nodos. Validado
+  en la conversación de prueba (2411) con los dos casos: "Hacen envíos a todo el país" (dato
+  cargado) contestó con el texto real de `info_negocio` y siguió preguntando la moto; "Tienen
+  garantía?" (tema sin cargar, ver pendiente de "garantia" más abajo) escaló en silencio con nota
+  privada y también siguió preguntando la moto — 0 casos sin respuesta ni rastro.
+  **`rutas-bot-chatwoot.html` sigue desactualizado** (ya lo estaba desde el precheck de
+  compatibilidad del 23/08, ver arriba; ahora además le falta toda la rama de artículo suelto +
+  negocio del grupo esperando moto) — pendiente de una pasada de actualización más grande, no solo
+  este cambio.
+- **Fix real: la variante (corto/largo) ya mencionada por el cliente se perdía cuando la
+  compatibilidad la confirmaba el EQUIPO a mano, no la base (2026-08-24).** Caso real: conv 2548
+  (+5493644820129) escribió en un solo mensaje "Se la quiero poner a un Corven recorrido corto" —
+  el bot extrajo bien "Corven" mismo, pero al no tener compatibilidad cargada para esa marca
+  escaló al equipo (correcto). El problema era lo que iba a pasar DESPUÉS: cuando el equipo
+  confirmara compatibilidad, el bot iba a volver a preguntar "¿es corto o largo?" ignorando que el
+  cliente ya lo había dicho. Causa: ya existe `Resolver Variante Anticipada` (agregado el 22/08
+  para el mismo problema, conv 1097 — "moto keeler110, recorrido corto" en un solo mensaje), pero
+  solo está conectado al camino donde la compatibilidad se resuelve SOLA contra la base
+  (`¿Es Compatible (Grupo)?`) — nunca se conectó al camino donde la confirma el equipo a mano vía
+  nota privada. Fix: 7 nodos nuevos, aislados (no se reusan los nodos de la rama automática porque
+  esta ejecución nace de un webhook distinto — la respuesta del equipo — sin `Unir Mensajes` ni
+  `Buscar Kits Activos` como ancestros; hace falta releer el mensaje original desde
+  `preguntas_tecnicas_pendientes.pregunta_original` y las variantes directo de `chat_packs`),
+  insertados entre `¿Es Compatible? (Actualizar Pin)` (rama true) y
+  `Actualizar Pin Esperando Variante (Respuesta Equipo)`: `Buscar Variantes del Grupo (Respuesta
+  Equipo)` → `Resolver Variante Anticipada (Respuesta Equipo)` (mismo prompt que el original,
+  adaptado a esta fuente de datos) → `Parsear Variante Anticipada (Respuesta Equipo)` →
+  `¿Variante Anticipada Resuelta? (Respuesta Equipo)`: si sí, pinea el pack final directo
+  (`Marcar Pack Final Pineado (Respuesta Equipo)`) y manda la confirmación con precio
+  (`Enviar Bienvenida Pack Final (Respuesta Equipo)`, origen `bienvenida_variante_anticipada_equipo`)
+  sin preguntar nada más; si no, sigue exactamente igual que antes (pin `esperando_variante`, se
+  pregunta cuando el cliente vuelva a escribir). 301→308 nodos. **Gotcha de esta sesión:** el nodo
+  Redis nuevo necesitaba la credencial `redis` explícita (`Redis account 2`, mismo id que ya usan
+  los demás nodos Redis del workflow) — el primer intento de `PUT` falló con "Missing required
+  credential: redis" hasta agregarla a mano. **Nota sobre orden de mensajes:** cuando la
+  compatibilidad la confirma el equipo vía nota privada (no en este test, que usó una respuesta NO
+  privada a propósito para no interferir), la confirmación genérica ("Sí, es compatible.") y esta
+  bienvenida con precio salen por dos ramas paralelas sin orden garantizado entre sí — no es grave
+  (los dos mensajes suman info, no se contradicen), pero puede llegar la del precio antes que la
+  de compatibilidad. Validado en la conversación de prueba (2411) con una moto sin dato cargado a
+  propósito ("Voskhod Minsk 350 recorrido corto"): escaló normal, y al simular la respuesta del
+  equipo (`/api/chatwoot/prueba-responder-equipo`) el bot mandó directo "Genial, entonces le va
+  perfecto el combo de Tapa CDI + Cilindro 120 recorrido corto — $175.000..." sin volver a
+  preguntar la variante — `preguntas_tecnicas_pendientes` quedó `respondida` y
+  `chat_articulo_compatibilidad` con las 3 filas esperadas (mismo aprendizaje de siempre, sin
+  cambios ahí). Datos sintéticos de la prueba borrados al terminar.
+- **Fix real: audio transcripto "bien" (sin error) pero con basura, hacía repetir la misma
+  repregunta en bucle sin escalar nunca (2026-08-24).** Caso real: conv 2593 (+5493537323297)
+  mandó 4 audios seguidos con el grupo Tapa CDI esperando la moto; el equipo tuvo que apagar el
+  bot a mano (`/bot off`) porque repitió "Que marca y modelo es tu moto?" 3 veces sin parar.
+  Investigado contra las ejecuciones reales de n8n (no solo hipótesis): `Transcribir Audio` (el
+  llamado a Whisper) **no tiró ningún error las 3 veces** — devolvió con éxito
+  `"Pa-pa-pa-pa-pa-pa-pa-pa..."`, una alucinación conocida de Whisper con audio poco claro o con
+  ruido (en vez de fallar, inventa la misma sílaba repetida). Como no fue un error, nunca entró al
+  camino de escalado que ya existía para audio fallido (`Registrar Pendiente Audio Fallido`, ese
+  camino solo se dispara si la llamada a la API falla) — el texto basura se metió en la ráfaga
+  como si el cliente hubiera dicho eso, `Extraer Modelo Grupo` no encontró ninguna moto (correcto,
+  no hay ninguna) y el flujo volvía a preguntar, sin darse cuenta de que algo venía fallando.
+  **Primer intento (insuficiente, corregido en la misma sesión):** un chequeo de "¿transcripción
+  vacía?" — no alcanzaba porque el texto real nunca vino vacío, siempre vino con esta basura.
+  **Fix que sí funciona:** nodo nuevo `Evaluar Transcripción` (Code) después de `Transcribir
+  Audio`, que marca el texto como no útil (mismo camino que un audio fallido) en dos casos: (1) el
+  texto está vacío, o (2) una sola palabra/sílaba domina ≥70% del texto Y hay ≥8 palabras en total
+  (el patrón real de la alucinación) — los dos umbrales juntos evitan falsos positivos con
+  repetición normal de una charla real (probado explícitamente: "no no no no no no" o "mira mira
+  mira necesito el precio" NO se marcan como basura, "Pa pa pa pa pa pa pa pa pa pa pa pa pa pa
+  pa" sí). También detecta frases fijas conocidas que Whisper alucina con silencio/ruido (ej.
+  "Subtítulos realizados por la comunidad de Amara.org", un artefacto real y reproducible de
+  Whisper con audio en silencio). El IF que sigue (renombrado `¿Transcripción Inútil?`, antes
+  `¿Transcripción Vacía?`) enruta a `Registrar Pendiente Audio Fallido` igual que un error real —
+  mismo mensaje de nota privada de siempre ("Llegó un audio que no pudimos transcribir
+  automáticamente..."). 308→310 nodos. Validado en producción con un audio de silencio real
+  (genera la alucinación de Amara.org de forma reproducible): ahora escala en silencio en el
+  primer audio en vez de repetir la repregunta. La lógica de repetición de palabras se probó
+  aparte contra los 3 textos reales de la conversación real (los 3 "Pa-pa-pa..." → marcados
+  correctamente como basura) y contra frases normales con repetición (correctamente NO marcadas).
+- **Gap grande: un kit SIMPLE (sin variantes) ya pineado nunca chequeaba compatibilidad si la moto
+  llegaba en un mensaje aparte de la bienvenida (2026-08-24).** Caso real: conv 2596
+  (+5493755383488), Kit 200 (`kit dakar 200 economico`, id 12 en `chat_packs`). La bienvenida
+  preguntó "a que moto se la queres poner?" y el cliente contestó "Es para una Zanella Rx 150" en
+  el siguiente mensaje — el bot escaló como "sin_match" genérico pese a que `chat_combo_compatibilidad`
+  YA tenía "rx 150" cargado como compatible para ese kit. Causa (confirmada contra la ejecución
+  real, no solo hipótesis): el chequeo de compatibilidad para kit simple (`Extraer Pregunta
+  Compatibilidad`, con su pipeline completo de `Buscar Compatibilidad del Kit` etc.) solo estaba
+  conectado al momento en que `Identificar Necesidad` pinea el kit por primera vez -- si la moto
+  llegaba en un mensaje POSTERIOR, `¿Es Kit Ya Resuelto?` mandaba directo al partidor genérico de
+  sub-preguntas (que no sabe nada de compatibilidad), sin pasar nunca por ese chequeo. Mismo tipo
+  de gap que el de negocio-en-grupo de más arriba, pero para kits simples. **Fix mínimo, sin nodos
+  nuevos:** se re-cableó `¿Es Kit Ya Resuelto?` (rama true) para que entre primero por `Extraer
+  Pregunta Compatibilidad` en vez de ir directo al partidor -- se reutiliza el pipeline entero que
+  ya existía y ya funcionaba bien (se verificaron los ~35 nodos río abajo uno por uno: todas sus
+  referencias `$()` apuntan a ancestros universales tipo `Webhook1`/`Unir Mensajes`/`Parsear Kit
+  Pineado`, o están protegidas con try/catch -- por eso alcanzó con reconectar, sin duplicar nada).
+  Si el mensaje no es sobre compatibilidad, el mismo pipeline cae solo al partidor genérico como
+  antes (no se perdió ningún camino existente). Validado con el Kit 200 real: "Es para una Zanella
+  Rx 150" ahora contesta "Sí, el kit es compatible con tu Zanella Rx 150." en vez de escalar.
+  **Bug de base de datos encontrado de yapa, validando el camino "sin dato" (2026-08-24):**
+  `preguntas_tecnicas_pendientes.kit_id` todavía tenía una foreign key vieja contra `kits_publicidad`
+  (la tabla retirada el 21/08) -- nunca se había notado porque este camino de escalada para kit
+  simple jamás se había ejecutado de verdad hasta este fix, y las pruebas de compatibilidad de
+  GRUPO habían tenido la suerte de usar ids que por casualidad seguían existiendo en la tabla
+  vieja. Sin el fix, cualquier kit/grupo nuevo sin ese id coincidente rompía la ejecución entera
+  con error (el cliente no recibía ni siquiera el escalado silencioso de siempre). Sacada la
+  restricción vieja (`pendientes-tecnicas-sin-fk-kits-publicidad.sql`, ya corrida en producción) --
+  validado repitiendo el mismo caso: ahora escala en silencio con nota privada, sin error.
+- **Fix chico de categorización: mencionar SOLO la ciudad/provincia (sin preguntar nada) caía como
+  "cierre" en vez de "envio" (2026-08-24).** Caso real: conv 2594 (+5493765060124), justo después
+  de confirmarle que su moto era compatible con el Kit 170, el cliente escribió "dale yo soy de
+  misiones Posadas" -- el bot contestó el cierre genérico ("Dale, cualquier cosa nos escribís.")
+  en vez de aprovechar que ya tiene cargada la info de envíos. Es un patrón real y frecuente: decir
+  la ciudad sin preguntar nada es la forma más común en la que la gente pregunta indirectamente si
+  el envío llega hasta ahí, sobre todo en ese momento de la charla -- pero el prompt de `Dividir y
+  Etiquetar Sub-preguntas` no tenía ninguna excepción para esto (a diferencia de otras excepciones
+  ya sumadas para el mismo tipo de falso positivo de "cierre"). Fix: nueva excepción explícita en
+  la definición de "envio" del prompt -- mencionar solo ciudad/provincia sin pedir nada más cuenta
+  como "envio", con el caso real como ejemplo. Validado en la conversación de prueba repitiendo el
+  caso exacto (Kit 170, "dale yo soy de misiones Posadas"): contestó "Tenemos envío gratis a
+  Posadas por Andreani a domicilio o vía cargo a sucursal. La demora es de 4 a 6 días hábiles." --
+  incluso personalizó la respuesta con el nombre de la ciudad al redactar, no solo evitó el cierre
+  genérico.
+- **Mensajes de mayoristas ahora se ignoran (2026-08-24), a pedido de Martín.** Antes el bot
+  respondía con el flujo normal de venta minorista a cualquier número, incluidos los ~47
+  mayoristas cargados en `"NumerosMayoristas"` (tabla ya existente, usada por otro workflow de
+  n8n aparte, id `pwB14GsNMDc4tA45`, "chatwoot" -- ahí ya había un chequeo `es mayorista?` con la
+  misma query). Fix: 3 nodos nuevos justo después de `Es mensaje entrante` (antes de cualquier
+  agrupado de ráfaga, LLM, o Redis) -- `Chequear Es Mayorista` (Postgres, mismo patrón `LEFT JOIN
+  LATERAL` para garantizar 1 fila siempre) → `¿Es Mayorista?` → si es mayorista, `Fin - Mayorista
+  Ignorado` (noOp, no manda nada, no seed en Redis, no gasta ninguna llamada de IA); si no,
+  sigue exactamente igual que antes. **Gotcha encontrado probando:** el número de prueba
+  (`+5493513784909`) ya está cargado en `"NumerosMayoristas"` como "REVOLUCION MAYORISTA" -- sin
+  excluirlo, el fix rompía silenciosamente toda prueba futura con la conversación de prueba
+  (dejaría de responder sin ningún error visible). Se agregó la misma exclusión que ya usaba el
+  otro workflow (`AND telefono != '5493513784909'`) -- mismo criterio, no es cosa nueva. Validado
+  con un número mayorista ficticio (`5490009998877`, insertado y borrado solo para la prueba): la
+  ejecución terminó limpia en 7 nodos sin ninguna llamada externa; y por separado se confirmó que
+  el número de prueba real sigue respondiendo normal (la exclusión funciona). 310→313 nodos.
+- **Fix real: una PREGUNTA insegura del cliente sobre corto/largo se confundía con una elección
+  real (2026-08-24).** Caso real: conv 2542 (+5493584392257), Tapa CDI. El cliente preguntó
+  "sería recorrido corto entonces?" (buscando que se lo confirmemos, no afirmando nada) y el bot
+  (`Resolver Variante`) lo tomó como si hubiera elegido "corto" y confirmó el combo con ese dato
+  mal. El cliente aclaró después "yo t pregunto porq no tengo nii idea sii es recorrido largo o
+  corto" y el bot, ya con el pack mal pineado, siguió respondiendo sobre el combo equivocado en
+  vez de darse cuenta del error -- terminó con el equipo apagando el bot a mano y un humano
+  resolviéndolo (recorrido largo, tras pedirle que revise la corona de distribución). Causa: el
+  prompt de `Resolver Variante` no distinguía entre el cliente AFIRMANDO una variante que ya sabe
+  ("es corto") y el cliente PREGUNTANDO o DUDANDO aunque mencione la palabra ("sería corto
+  entonces?", "no tengo idea") -- ambas casuísticas se trataban igual. Fix (dos partes, mismo
+  prompt sin nodos nuevos):
+  1. Nueva regla explícita en `Resolver Variante`: si el cliente pregunta/duda, aunque nombre una
+     de las opciones, `pack_id: null` -- nunca asumir la respuesta.
+  2. El mensaje de repregunta (`Enviar Repregunta Variante`, disparado cuando no se puede
+     resolver) dejó de ser un texto fijo genérico ("Perdón, no me quedó claro — me confirmás si es
+     corto o largo?") y ahora reutiliza el campo `pregunta_variante` del grupo pineado -- el mismo
+     campo ya editable en `/admin/chatwoot/catalogo` → pestaña Grupos que se usa para la primera
+     pregunta tras confirmar compatibilidad. Con esto, cargar una sola vez una pista concreta en
+     ese campo sirve para las dos situaciones (primera pregunta y cualquier reintento).
+  3. A pedido de Martín, se sumó al campo `pregunta_variante` de Tapa cdi (id 3) y Kit 120 (id 1
+     -- comparten el mismo cilindro, mismo criterio corto/largo) una pista más concreta que "el
+     color": la cantidad de dientes de la corona de distribución (28 = corto, 32 = largo),
+     confirmada por Martín antes de cargarla. El color se dejó como ayuda secundaria.
+  Validado en la conversación de prueba replicando el caso exacto (Tapa CDI, moto compatible,
+  luego "sería recorrido corto entonces?" y después "no tengo ni idea si es largo o corto"): en
+  los dos casos el bot NO confirmó ninguna variante -- repreguntó con el mensaje mejorado
+  (dientes de la corona), en vez de asumir mal como antes. **Sin cubrir a propósito:** el bot no
+  interpreta una respuesta tipo "tiene 28 dientes" como "corto" -- Martín pidió la pista para que
+  el cliente mismo lo resuelva y conteste con una palabra clara, no que el bot haga la cuenta.
 
 ## Qué falta / pendiente (al 2026-08-21)
 

@@ -336,47 +336,66 @@ export async function enviarNotaPrivadaChatwoot(params: {
     return res.json().catch(() => ({}))
 }
 
+export type EstadoConversacionDesde = {
+    /** ¿Contestó un humano del equipo (no el Bot) después de `desde`? */
+    humanoRespondio: boolean
+    /** ¿Mandó el Bot un mensaje después de `desde`? */
+    botRespondio: boolean
+}
+
 /**
- * ¿Contestó un humano en esta conversación después de `desde`?
+ * ¿Contestó un humano, o el propio Bot, en esta conversación después de
+ * `desde`? Una sola consulta a Chatwoot resuelve los dos chequeos.
  *
- * Reemplaza al chequeo de `bot_pausado` en Redis (que la app no lee) y de paso
- * es más confiable: pregunta por los mensajes reales de la conversación en vez
- * de por una marca que pudo no llegar a escribirse. Un mensaje saliente de un
- * agente que no sea el usuario "Bot" significa que alguien del equipo ya
- * atendió esa charla a mano: la respuesta pre-generada se descarta.
+ * El de humano reemplaza al chequeo de `bot_pausado` en Redis (que la app no
+ * lee) y de paso es más confiable: pregunta por los mensajes reales de la
+ * conversación en vez de por una marca que pudo no llegar a escribirse. Un
+ * mensaje saliente de un agente que no sea el usuario "Bot" significa que
+ * alguien del equipo ya atendió esa charla a mano: la respuesta pre-generada
+ * se descarta.
  *
- * Si Chatwoot no contesta, devuelve false (preferimos mandar la respuesta antes
- * que perderla por un error de red).
+ * El de bot sirve para no duplicar saludos genéricos: si un mensaje de saludo
+ * llegó fuera de horario y quedó en cola, pero después el cliente mandó OTRO
+ * saludo que el bot ya contestó en vivo al prenderse, despachar igual el
+ * saludo viejo de la cola repite el mismo texto dos veces seguidas sin
+ * sentido (ver caso real conv 2575, +5493521477426, 2026-08-24).
+ *
+ * Si Chatwoot no contesta, devuelve todo en false (preferimos mandar la
+ * respuesta antes que perderla por un error de red).
  */
-export async function humanoRespondioDespues(
+export async function estadoConversacionDesde(
     accountId: number | bigint,
     conversationId: number | bigint,
     desde: Date
-): Promise<boolean> {
+): Promise<EstadoConversacionDesde> {
     const { api, token, botUserId } = chatwootConfig()
-    if (!token) return false
+    if (!token) return { humanoRespondio: false, botRespondio: false }
 
     try {
         const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
             headers: { api_access_token: token },
         })
-        if (!res.ok) return false
+        if (!res.ok) return { humanoRespondio: false, botRespondio: false }
 
         const data = await res.json()
         const mensajes: any[] = Array.isArray(data?.payload) ? data.payload : []
 
-        return mensajes.some((m) => {
+        let humanoRespondio = false
+        let botRespondio = false
+        for (const m of mensajes) {
             // message_type: 0 = incoming, 1 = outgoing, 2 = activity.
             const esSaliente = m?.message_type === 1 || m?.message_type === "outgoing"
-            if (!esSaliente || m?.private) return false
-            if (m?.sender?.type !== "user") return false
-            if (Number(m?.sender?.id) === botUserId) return false
+            if (!esSaliente || m?.private) continue
+            if (m?.sender?.type !== "user") continue
             const creado = typeof m?.created_at === "number" ? m.created_at * 1000 : Date.parse(m?.created_at ?? "")
-            return Number.isFinite(creado) && creado > desde.getTime()
-        })
+            if (!Number.isFinite(creado) || creado <= desde.getTime()) continue
+            if (Number(m?.sender?.id) === botUserId) botRespondio = true
+            else humanoRespondio = true
+        }
+        return { humanoRespondio, botRespondio }
     } catch (error) {
         console.error("No se pudo consultar la conversación en Chatwoot:", error)
-        return false
+        return { humanoRespondio: false, botRespondio: false }
     }
 }
 
@@ -392,7 +411,7 @@ export type MensajeConversacion = {
 /**
  * Trae los mensajes reales de una conversación de Chatwoot, de solo lectura —
  * para mostrar el hilo completo en el panel de pendientes sin tener que abrir
- * Chatwoot. Usa el mismo token/lectura que humanoRespondioDespues.
+ * Chatwoot. Usa el mismo token/lectura que estadoConversacionDesde.
  */
 export async function getMensajesConversacion(
     accountId: number | bigint,

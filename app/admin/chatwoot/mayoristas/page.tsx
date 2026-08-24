@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon, FileText, Video } from "lucide-react"
+import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon, FileText, Video, Type, Play, Eye } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Importamos las acciones para guardar y leer la base de datos
@@ -37,7 +37,7 @@ export default function MayoristasPage() {
     })
 
     // 4. Tipo de archivo adjunto para la difusión
-    const [tipoAdjunto, setTipoAdjunto] = useState<"imagen" | "pdf" | "video">("imagen")
+    const [tipoAdjunto, setTipoAdjunto] = useState<"imagen" | "pdf" | "video" | "texto">("imagen")
 
     // Función que actualiza lo que escribes en los casilleros de la plantilla
     const handlePlantillaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,6 +45,38 @@ export default function MayoristasPage() {
             ...plantilla,
             [e.target.id]: e.target.value
         })
+    }
+
+    // -------------------------------------------------------------------------
+    // VISTA PREVIA: arma el mensaje EXACTO como lo arma n8n con cada plantilla
+    // de Meta (letra fija + variables), para saber cómo le va a llegar al cliente.
+    // -------------------------------------------------------------------------
+    const getVistaPrevia = (): { header: null | { tipo: "imagen"; url: string } | { tipo: "video" } | { tipo: "documento"; nombre: string }, cuerpo: string } => {
+        const titulo = plantilla.titulo || "..."
+
+        if (tipoAdjunto === "imagen") {
+            return {
+                header: { tipo: "imagen", url: plantilla.url_foto },
+                cuerpo: `🔥 ${titulo} 🔥\n${plantilla.descripcion1 || "..."}\n${plantilla.descripcion2 || "..."}\n💰 Precio: ${plantilla.precio || "..."}\nConsultanos disponibilidad para envío inmediato.`
+            }
+        }
+        if (tipoAdjunto === "pdf") {
+            return {
+                header: { tipo: "documento", nombre: "Lista_de_Precios.pdf" },
+                cuerpo: `Hola gente! \n\n${titulo}\n\nPara visualizarla correctamente lo ideal es abrirla en Computadora. Cualquier duda nos escriben al numero de siempre. Saludos!`
+            }
+        }
+        if (tipoAdjunto === "video") {
+            return {
+                header: { tipo: "video" },
+                cuerpo: `Mira el siguiente video\n\n${titulo}\n\nConsultanos`
+            }
+        }
+        // texto
+        return {
+            header: null,
+            cuerpo: `Gente querida! como va?\n\n${titulo}\n\nescribinos cualquier consulta`
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -104,6 +136,10 @@ export default function MayoristasPage() {
         }
         if (tipoAdjunto === "video" && (!plantilla.titulo || !plantilla.url_foto)) {
             alert("Por favor, completa el texto del mensaje y el link del video para enviar la difusión.")
+            return
+        }
+        if (tipoAdjunto === "texto" && !plantilla.titulo) {
+            alert("Por favor, completa el texto del mensaje para enviar la difusión.")
             return
         }
 
@@ -212,7 +248,7 @@ export default function MayoristasPage() {
                                 <Label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
                                     Tipo de Archivo Adjunto
                                 </Label>
-                                <Select value={tipoAdjunto} onValueChange={(v) => setTipoAdjunto(v as "imagen" | "pdf" | "video")} disabled={enviando}>
+                                <Select value={tipoAdjunto} onValueChange={(v) => setTipoAdjunto(v as "imagen" | "pdf" | "video" | "texto")} disabled={enviando}>
                                     <SelectTrigger className="w-full">
                                         <SelectValue />
                                     </SelectTrigger>
@@ -230,6 +266,11 @@ export default function MayoristasPage() {
                                         <SelectItem value="video">
                                             <span className="flex items-center gap-2">
                                                 <Video size={14} /> Video
+                                            </span>
+                                        </SelectItem>
+                                        <SelectItem value="texto">
+                                            <span className="flex items-center gap-2">
+                                                <Type size={14} /> Solo texto
                                             </span>
                                         </SelectItem>
                                     </SelectContent>
@@ -280,7 +321,7 @@ export default function MayoristasPage() {
                                         <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
                                     </div>
                                 </>
-                            ) : (
+                            ) : tipoAdjunto === "video" ? (
                                 <>
                                     {/* CAMPOS VIDEO: texto {{1}} ("Mira el siguiente video {{1}} Consultanos") + URL */}
                                     <div className="space-y-1 pt-2 border-t mt-2">
@@ -296,7 +337,62 @@ export default function MayoristasPage() {
                                         <Input id="url_foto" placeholder="https://drive.google.com/file/d/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
                                     </div>
                                 </>
+                            ) : (
+                                <>
+                                    {/* CAMPOS TEXTO: solo texto {{1}} ("Gente querida! como va? {{1}} escribinos cualquier consulta"), sin adjunto */}
+                                    <div className="space-y-1 pt-2 border-t mt-2">
+                                        <Label htmlFor="titulo" className="text-xs font-bold text-slate-500 uppercase">
+                                            Texto del mensaje <span className="text-emerald-600 normal-case font-mono">{"{{1}}"}</span>
+                                        </Label>
+                                        <Input id="titulo" placeholder="Ej: Este finde tenemos descuentos especiales en escapes" value={plantilla.titulo} onChange={handlePlantillaChange} disabled={enviando} />
+                                    </div>
+                                </>
                             )}
+                        </div>
+
+                        {/* ---------------- VISTA PREVIA: como le va a llegar EXACTO al cliente ---------------- */}
+                        <div className="space-y-1">
+                            <Label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                <Eye size={14} /> Vista previa (así le va a llegar al cliente)
+                            </Label>
+                            {(() => {
+                                const preview = getVistaPrevia()
+                                return (
+                                    <div className="bg-[#e5ddd5] rounded-md p-4 flex justify-end">
+                                        <div className="max-w-[85%] bg-[#dcf8c6] rounded-lg rounded-tr-none shadow-sm overflow-hidden">
+                                            {preview.header?.tipo === "imagen" && (
+                                                preview.header.url ? (
+                                                    <img
+                                                        src={preview.header.url}
+                                                        alt="Vista previa"
+                                                        className="w-full h-40 object-cover bg-slate-200"
+                                                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-40 bg-slate-300 flex flex-col items-center justify-center text-slate-500 gap-1">
+                                                        <ImageIcon size={28} />
+                                                        <span className="text-xs">Sin imagen cargada</span>
+                                                    </div>
+                                                )
+                                            )}
+                                            {preview.header?.tipo === "video" && (
+                                                <div className="w-full h-40 bg-slate-800 flex items-center justify-center">
+                                                    <div className="h-12 w-12 rounded-full bg-white/80 flex items-center justify-center">
+                                                        <Play size={22} className="text-slate-800 ml-1" fill="currentColor" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {preview.header?.tipo === "documento" && (
+                                                <div className="flex items-center gap-2 p-3 bg-white/60 border-b border-black/5">
+                                                    <FileText size={26} className="text-red-500 shrink-0" />
+                                                    <span className="text-sm font-medium text-slate-700">{preview.header.nombre}</span>
+                                                </div>
+                                            )}
+                                            <p className="px-3 py-2 text-sm text-slate-800 whitespace-pre-line">{preview.cuerpo}</p>
+                                        </div>
+                                    </div>
+                                )
+                            })()}
                         </div>
 
                         <div className="pt-2 text-center py-3 bg-emerald-50 border border-emerald-100 rounded-md">

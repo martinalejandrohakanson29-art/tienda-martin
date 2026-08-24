@@ -33,10 +33,26 @@ export async function createMayorista(data: { nombre: string; telefono: string }
             }
         })
         
-        revalidatePath('/admin/chatwoot') 
+        revalidatePath('/admin/chatwoot')
         return { success: true, mayorista: nuevoMayorista }
     } catch (error) {
         console.error("Error al guardar en numerosMayoristas:", error)
         throw new Error("No se pudo guardar el mayorista")
+    }
+}
+
+// 3. Función para eliminar un registro
+export async function deleteMayorista(id: string) {
+    await requireAdmin();
+    try {
+        await prisma.numerosMayoristas.delete({
+            where: { id }
+        })
+
+        revalidatePath('/admin/chatwoot')
+        return { success: true }
+    } catch (error) {
+        console.error("Error al eliminar en numerosMayoristas:", error)
+        throw new Error("No se pudo eliminar el mayorista")
     }
 }

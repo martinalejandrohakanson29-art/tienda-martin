@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon, FileText, Video, Type, Play, Eye } from "lucide-react"
+import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon, FileText, Video, Type, Play, Eye, Trash2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Importamos las acciones para guardar y leer la base de datos
-import { getMayoristas, createMayorista } from "@/app/actions/mayoristas"
+import { getMayoristas, createMayorista, deleteMayorista } from "@/app/actions/mayoristas"
 
 export default function MayoristasPage() {
     // -------------------------------------------------------------------------
@@ -26,6 +26,7 @@ export default function MayoristasPage() {
     const [dbMayoristas, setDbMayoristas] = useState<any[]>([])
     const [cargandoDb, setCargandoDb] = useState(true)
     const [enviando, setEnviando] = useState(false)
+    const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
     // 3. ESTADOS PARA LA PLANTILLA (Aquí están los campos exactos de tu n8n)
     const [plantilla, setPlantilla] = useState({
@@ -118,6 +119,23 @@ export default function MayoristasPage() {
             alert("Hubo un error al intentar guardar. Revisa que el número no esté duplicado.")
         } finally {
             setGuardando(false)
+        }
+    }
+
+    // Eliminar un mayorista de la base de datos
+    const handleEliminar = async (id: string, nombre: string) => {
+        const confirmado = window.confirm(`¿Seguro que querés eliminar a "${nombre || "este mayorista"}" de la base de datos? Esta acción no se puede deshacer.`)
+        if (!confirmado) return
+
+        setEliminandoId(id)
+        try {
+            await deleteMayorista(id)
+            setDbMayoristas((prev) => prev.filter((m) => m.id !== id))
+        } catch (error) {
+            console.error("Error al eliminar:", error)
+            alert("Hubo un error al intentar eliminar el mayorista.")
+        } finally {
+            setEliminandoId(null)
         }
     }
 
@@ -451,6 +469,7 @@ export default function MayoristasPage() {
                                         <TableHead>Nombre / Empresa</TableHead>
                                         <TableHead>WhatsApp</TableHead>
                                         <TableHead>Fecha de Registro</TableHead>
+                                        <TableHead className="text-right">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -460,6 +479,21 @@ export default function MayoristasPage() {
                                             <TableCell>{mayorista.telefono}</TableCell>
                                             <TableCell className="text-gray-500 text-sm">
                                                 {new Date(mayorista.createdAt).toLocaleDateString()}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                    disabled={eliminandoId === mayorista.id}
+                                                    onClick={() => handleEliminar(mayorista.id, mayorista.nombre)}
+                                                >
+                                                    {eliminandoId === mayorista.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <Trash2 className="h-4 w-4" />
+                                                    )}
+                                                </Button>
                                             </TableCell>
                                         </TableRow>
                                     ))}

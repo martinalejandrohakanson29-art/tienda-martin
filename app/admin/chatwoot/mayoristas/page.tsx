@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon, FileText } from "lucide-react"
+import { MessageCircle, Database, Send, Save, Loader2, Image as ImageIcon, FileText, Video } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Importamos las acciones para guardar y leer la base de datos
@@ -37,7 +37,7 @@ export default function MayoristasPage() {
     })
 
     // 4. Tipo de archivo adjunto para la difusión
-    const [tipoAdjunto, setTipoAdjunto] = useState<"imagen" | "pdf">("imagen")
+    const [tipoAdjunto, setTipoAdjunto] = useState<"imagen" | "pdf" | "video">("imagen")
 
     // Función que actualiza lo que escribes en los casilleros de la plantilla
     const handlePlantillaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,6 +100,10 @@ export default function MayoristasPage() {
         }
         if (tipoAdjunto === "pdf" && (!plantilla.titulo || !plantilla.url_foto)) {
             alert("Por favor, completa el texto del mensaje y el link del PDF para enviar la difusión.")
+            return
+        }
+        if (tipoAdjunto === "video" && (!plantilla.titulo || !plantilla.url_foto)) {
+            alert("Por favor, completa el texto del mensaje y el link del video para enviar la difusión.")
             return
         }
 
@@ -208,7 +212,7 @@ export default function MayoristasPage() {
                                 <Label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
                                     Tipo de Archivo Adjunto
                                 </Label>
-                                <Select value={tipoAdjunto} onValueChange={(v) => setTipoAdjunto(v as "imagen" | "pdf")} disabled={enviando}>
+                                <Select value={tipoAdjunto} onValueChange={(v) => setTipoAdjunto(v as "imagen" | "pdf" | "video")} disabled={enviando}>
                                     <SelectTrigger className="w-full">
                                         <SelectValue />
                                     </SelectTrigger>
@@ -221,6 +225,11 @@ export default function MayoristasPage() {
                                         <SelectItem value="pdf">
                                             <span className="flex items-center gap-2">
                                                 <FileText size={14} /> PDF
+                                            </span>
+                                        </SelectItem>
+                                        <SelectItem value="video">
+                                            <span className="flex items-center gap-2">
+                                                <Video size={14} /> Video
                                             </span>
                                         </SelectItem>
                                     </SelectContent>
@@ -255,7 +264,7 @@ export default function MayoristasPage() {
                                         <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
                                     </div>
                                 </>
-                            ) : (
+                            ) : tipoAdjunto === "pdf" ? (
                                 <>
                                     {/* CAMPOS PDF: texto {{1}} + URL */}
                                     <div className="space-y-1 pt-2 border-t mt-2">
@@ -269,6 +278,22 @@ export default function MayoristasPage() {
                                             <FileText size={14} /> Link del PDF (URL)
                                         </Label>
                                         <Input id="url_foto" placeholder="https://res.cloudinary.com/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* CAMPOS VIDEO: texto {{1}} ("Mira el siguiente video {{1}} Consultanos") + URL */}
+                                    <div className="space-y-1 pt-2 border-t mt-2">
+                                        <Label htmlFor="titulo" className="text-xs font-bold text-slate-500 uppercase">
+                                            Texto del mensaje <span className="text-emerald-600 normal-case font-mono">{"{{1}}"}</span>
+                                        </Label>
+                                        <Input id="titulo" placeholder="Ej: ESCAPE PAOLUCCI 110 STAGE 2" value={plantilla.titulo} onChange={handlePlantillaChange} disabled={enviando} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label htmlFor="url_foto" className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                            <Video size={14} /> Link del Video (URL)
+                                        </Label>
+                                        <Input id="url_foto" placeholder="https://drive.google.com/file/d/..." value={plantilla.url_foto} onChange={handlePlantillaChange} disabled={enviando} />
                                     </div>
                                 </>
                             )}

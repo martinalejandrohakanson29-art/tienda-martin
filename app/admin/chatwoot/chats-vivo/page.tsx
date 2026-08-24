@@ -1,8 +1,25 @@
+import { obtenerChatsVivo } from "@/app/actions/chats-vivo"
 import { ChatsVivoClient } from "./chats-vivo-client"
+import type { PanelChatsVivo } from "@/lib/chatwoot-chats-vivo"
 
-// Maqueta visual, sin datos reales todavía. Cuando conectemos Chatwoot esto
-// pasa a ser un server component que trae conversaciones filtradas por label.
+export const dynamic = "force-dynamic"
 
-export default function ChatsVivoPage() {
-    return <ChatsVivoClient />
+const PERIODO_INICIAL_DIAS = 3
+
+export default async function ChatsVivoPage() {
+    let panel: PanelChatsVivo | null = null
+    let error: string | null = null
+    try {
+        panel = await obtenerChatsVivo(PERIODO_INICIAL_DIAS)
+    } catch (e) {
+        error = e instanceof Error ? e.message : "No se pudieron leer las conversaciones de Chatwoot"
+    }
+
+    // Para el link "Ver en Chatwoot": la misma instancia que usa el bot, sin el /api/v1 del final.
+    const chatwootUrl = (process.env.CHATWOOT_API_URL || "https://chat.revolucionmotos.tech/api/v1").replace(
+        /\/api\/v1\/?$/,
+        ""
+    )
+
+    return <ChatsVivoClient inicial={panel} error={error} periodoInicialDias={PERIODO_INICIAL_DIAS} chatwootUrl={chatwootUrl} />
 }

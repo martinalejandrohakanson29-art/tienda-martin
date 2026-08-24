@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3, Boxes } from "lucide-react"
+import { MessageCircle, Bot, ArrowRight, BrainCircuit, Clock, Inbox, Sparkles, BarChart3, Boxes, MessagesSquare } from "lucide-react"
 import Link from "next/link"
 import { obtenerPanelBot, type PanelBot } from "@/app/actions/bot-onoff"
 import { BotOnOffPanel } from "./bot-onoff-panel"
@@ -66,6 +66,13 @@ export default async function ChatwootPage() {
             icon: <Sparkles className="h-8 w-8 text-fuchsia-600" />,
             href: "/admin/chatwoot/cargar-kit",
             color: "border-l-4 border-l-fuchsia-500"
+        },
+        {
+            title: "Chats en vivo (maqueta)",
+            description: "Vista tipo WhatsApp de las conversaciones, filtrada por categoría (técnica/negocio/precio). Todavía con datos de ejemplo, sin conectar a Chatwoot.",
+            icon: <MessagesSquare className="h-8 w-8 text-teal-600" />,
+            href: "/admin/chatwoot/chats-vivo",
+            color: "border-l-4 border-l-teal-600"
         },
         {
             title: "Catálogo del Bot (nuevo)",

@@ -1447,3 +1447,68 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   "Genial, es compatible / Tu moto es recorrido corto o largo?" en vez del saludo genérico;
   `sin_dato` ("Es una Kymco Xciting", moto sin ningún dato cargado, confirmado limpio antes de
   usarla) escaló con nota privada real y pendiente registrada, en vez del saludo genérico.
+- **3 fixes reales de la misma conversación: contradicción "Recorrido corto" + repregunta de
+  modelo repetida + pendiente huérfana (2026-08-25).** Caso real: conv 2703 (+5493329335105,
+  Tomy), Kit 120. Preguntó "Que recorrido llevará una guerrero trío 2006" (moto sin dato cargado) y
+  el bot le contestó "Recorrido corto." como un hecho **mientras, en paralelo, escalaba en
+  silencio la misma pregunta al equipo por no tener el dato** (contradicción real, no cosmética).
+  Después, un "Muchísimas gracias" de cierre (llegó justo al corte de mediodía, quedó en
+  `respuestas_pendientes`) reabrió 2h25m más tarde repitiendo "Que marca y modelo es tu moto?" —
+  ignorando que Tomy ya la había dado. Cuando por fin confirmó la moto de nuevo, el bot resolvió
+  compatible y volvió a preguntar corto/largo sin cerrar la pendiente técnica que había quedado
+  abierta de la primera vez. Un humano terminó apagando el bot a mano.
+  1. **Prompt (`Responder Articulo Suelto (Grupo)` / `(Con Modelo)` / `(Variante)`, las 3
+     idénticas):** la exclusión de "cuál es mi variante" (ya existía para frases tipo "cómo sé si
+     la mía es corta o larga") no cubría la frase real de Tomy, que pide directamente que le digan
+     cuál le corresponde. Se sumó ese ejemplo explícito + una regla nueva: si la compatibilidad
+     todavía no está confirmada, nunca afirmar una variante como si ya estuviera resuelta.
+  2. **Categoría nueva "cierre" en el grupo esperando moto** (antes solo existía "negocio"/"otro"/
+     "nada" acá — la del partidor de sub-preguntas del kit ya resuelto es una rama distinta, no
+     compartida). `Extraer Tema Negocio (Grupo)` y `Parsear Tema Negocio (Grupo)` ahora reconocen
+     un comentario de cierre/agradecimiento sin pedido real (mismos ejemplos que la categoría
+     "cierre" original, incluyendo variantes de pago futuro tipo "apenas tenga la plata les
+     mando"). A pedido explícito de Martín, acá **no se contesta nada** (a diferencia del texto
+     fijo "Dale, cualquier cosa nos escribís." que usa la rama del kit ya resuelto) — nodo IF nuevo
+     `¿Es Cierre? (Grupo)` + `Fin - Cierre Sin Respuesta (Grupo)` (NoOp), insertados entre `¿Es
+     Otro Sin Resolver? (Grupo)` y `Preparar Repregunta Modelo (Grupo)`.
+  3. **Cierre de pendiente huérfana:** nodo Postgres nuevo `Cerrar Pendiente Tecnica (Grupo)`
+     (`UPDATE preguntas_tecnicas_pendientes SET estado='respondida' WHERE conversation_id=... AND
+     kit_id=grupo_id AND es_grupo=true AND estado='pendiente'`), colgado en paralelo de
+     `Resolver Variante Anticipada` desde la salida true de `¿Es Compatible (Grupo)?` — si la
+     compatibilidad se termina confirmando por otro camino (el cliente vuelve a escribir la moto),
+     cualquier pendiente técnica vieja de la misma conversación/grupo se cierra sola en vez de
+     quedar huérfana en el panel.
+  384→387 nodos. Validado en la conversación de prueba (2411) replicando la secuencia real paso a
+  paso: (1) "Que recorrido llevará una Voskhod Minsk 350" (sin dato) con el grupo ya pineado →
+  `Responder Articulo Suelto (Grupo - Con Modelo)` devolvió `resuelto:false` (antes: `"Recorrido
+  corto."` inventado) y escaló limpio, deduplicado contra una pendiente ya abierta; (2)
+  "Buenisimo, muchas gracias" → clasificó `"cierre"` y no mandó nada (antes: repregunta de
+  modelo repetida); (3) "Es una Zanella ZB 110" (dato real cargado) → confirmó compatible, preguntó
+  corto/largo, y `Cerrar Pendiente Tecnica (Grupo)` marcó `respondida` la pendiente que había
+  quedado de la prueba (1) — confirmado contra la base, sin tocarla a mano.
+- **Fix real: el bot seguía pidiendo la moto aunque el cliente ya hubiera contestado el recorrido
+  (2026-08-25).** Caso real: conv 2720 (+5493435311660, emi🥷), Tapa CDI. Contestó "Recorrido corto"
+  directo, sin dar la moto -- el bot respondió "El cilindro que incluye este combo es la versión
+  corta." y volvió a preguntar "Que marca y modelo es tu moto?" de nuevo, ignorando que ya tenía el
+  único dato que hacía falta. Causa: el mecanismo que anticipa el recorrido cuando el cliente lo dice
+  antes de tiempo (`Resolver Variante Anticipada`) solo corre DESPUÉS de confirmar que la moto es
+  compatible -- no existía nada equivalente para cuando el cliente da el recorrido SOLO, sin moto.
+  Decisión de Martín: para Kit 120 y Tapa CDI la moto solo sirve para inferir el recorrido, no hay
+  incompatibilidad física real -- si el cliente ya dio el recorrido, alcanza. Escape+Leva (sí tiene
+  compatibilidad física real documentada) queda afuera. Fix: columna nueva
+  `chat_pack_grupos.compatibilidad_universal` (`chat-catalogo-compatibilidad-universal.sql`, default
+  `false`, prendida solo para Kit 120 e id 3 Tapa CDI) + 5 nodos nuevos aislados, insertados entre
+  `¿Grupo Sin Modelo?` (rama true) y `Buscar Detalle Grupo Pineado`: `¿Grupo Compatibilidad
+  Universal?` (If, chequea el flag del grupo) → si el grupo lo tiene, `Resolver Variante Sin Moto`
+  (Agent, mismo prompt que `Resolver Variante` -- mismo criterio ya probado de afirmación real vs.
+  pregunta/duda -- adaptado para correr sin que la compatibilidad esté confirmada) + su modelo
+  (`GPT Model - Variante Sin Moto`) → `Parsear Variante Sin Moto` → `¿Variante Sin Moto Resuelta?`:
+  si resolvió, reconecta directo al `Marcar Pack Final Pineado` ya existente (mismo punto de
+  convergencia que usan `Resolver Variante`/`Resolver Variante Anticipada`); si no resolvió, o el
+  grupo no tiene el flag, cae exactamente al camino de siempre (`Buscar Detalle Grupo Pineado`,
+  sigue pidiendo la moto). `Buscar Kits Activos` ahora expone `compatibilidad_universal` por grupo.
+  387→392 nodos. Validado en producción con la conversación de prueba (2411, +5493513784909)
+  replicando los 2 escenarios: plantilla Tapa CDI + "Recorrido corto" solo → resolvió directo
+  ("Genial, entonces le va perfecto el combo de Tapa CDI + Cilindro 120 recorrido corto — $175.000,
+  envío gratis a todo el país...") sin preguntar la moto; plantilla Escape+Leva (sin el flag) +
+  "Recorrido corto" solo → siguió pidiendo la moto exactamente igual que antes del fix, sin cambios.

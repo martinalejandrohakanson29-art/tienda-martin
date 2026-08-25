@@ -37,7 +37,8 @@ export default function AdminLayout({
     pathname.startsWith("/admin/listas") ||
     pathname.startsWith("/admin/mercadolibre") ||
     pathname.startsWith("/admin/todos") ||
-    pathname.startsWith("/admin/usuarios");
+    pathname.startsWith("/admin/usuarios") ||
+    pathname.startsWith("/admin/contrasenas");
 
   const showGlobalHeader = !isLoginPage && isFullscreenPage && !hasLocalHeader;
 

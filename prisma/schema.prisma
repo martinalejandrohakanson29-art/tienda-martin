@@ -22,6 +22,26 @@ model User {
   notifRulesAsTarget NotificationRule[] @relation("NotificationRuleTarget")
   notifRulesAsSource NotificationRule[] @relation("NotificationRuleSource")
   notifications      Notification[]
+  credencialesCreadas  Credencial[] @relation("CredencialCreadaPor")
+  credencialesEditadas Credencial[] @relation("CredencialEditadaPor")
+}
+
+model Credencial {
+  id              String    @id @default(cuid())
+  categoria       String
+  titulo          String
+  usuario         String?
+  passwordCifrada String
+  url             String?
+  notas           String?
+  creadoPorId     String?
+  editadoPorId    String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  creadoPor       User?     @relation("CredencialCreadaPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  editadoPor      User?     @relation("CredencialEditadaPor", fields: [editadoPorId], references: [id], onDelete: SetNull)
+
+  @@map("credenciales")
 }
 
 model Notification {

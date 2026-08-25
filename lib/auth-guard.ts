@@ -16,3 +16,15 @@ export async function requireSuperAdmin() {
     }
     return session;
 }
+
+// A diferencia de requireAdmin/requireSuperAdmin (que solo exigen sesión activa),
+// esta valida el rol real contra la sesión. Se usa para la bóveda de contraseñas,
+// donde el acceso debe estar restringido de verdad y no solo oculto en el menú.
+export async function requireVaultAccess() {
+    const session = await getServerSession(authOptions);
+    const role = (session?.user as any)?.role;
+    if (!session || (role !== "SUPER_ADMIN" && role !== "ADMIN")) {
+        throw new Error("No autorizado");
+    }
+    return session;
+}

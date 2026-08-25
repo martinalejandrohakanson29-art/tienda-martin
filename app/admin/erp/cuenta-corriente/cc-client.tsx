@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useMemo } from "react";
+import React, { useState, useTransition, useMemo, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { actualizarProveedor, eliminarProveedor } from "@/app/actions/listas";
@@ -70,6 +70,19 @@ export default function CuentaCorrienteClient({
   const [filterBy, setFilterBy] = useState<FilterType>("todos");
   const [sortBy, setSortBy] = useState<SortType>("nombre-asc");
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
+  const [isSaldosMenuOpen, setIsSaldosMenuOpen] = useState(false);
+  const saldosMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isSaldosMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (saldosMenuRef.current && !saldosMenuRef.current.contains(e.target as Node)) {
+        setIsSaldosMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isSaldosMenuOpen]);
 
   // States for Edit Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -224,12 +237,18 @@ export default function CuentaCorrienteClient({
     window.open(pdfOutput, "_blank");
   };
 
-  const handleReporteSaldosConsolidados = () => {
+  const getDeudasConsolidadas = () => {
     const deudas = proveedoresIniciales
       .filter((p) => p.total < -1)
       .sort((a, b) => a.total - b.total);
 
     const totalDeuda = deudas.reduce((acc, p) => acc + p.total, 0);
+
+    return { deudas, totalDeuda };
+  };
+
+  const handleReporteSaldosConsolidadosPDF = () => {
+    const { deudas, totalDeuda } = getDeudasConsolidadas();
 
     const doc = new jsPDF();
     const date = new Date().toLocaleDateString("es-AR");
@@ -262,6 +281,32 @@ export default function CuentaCorrienteClient({
 
     const pdfOutput = doc.output("bloburl");
     window.open(pdfOutput, "_blank");
+    setIsSaldosMenuOpen(false);
+  };
+
+  const handleReporteSaldosConsolidadosExcel = () => {
+    const { deudas, totalDeuda } = getDeudasConsolidadas();
+
+    const dataToExport = deudas.map((p) => ({
+      "Proveedor": p.razonSocial,
+      "CUIT": p.cuit || "---",
+      "Nombre Fantasía": p.nombreFantasia || "---",
+      "Alias / CBU": p.aliasCbu || "---",
+      "Saldo": p.total,
+    }));
+    dataToExport.push({
+      "Proveedor": "",
+      "CUIT": "",
+      "Nombre Fantasía": "",
+      "Alias / CBU": "TOTAL DEUDA",
+      "Saldo": totalDeuda,
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Saldos Consolidados");
+    XLSX.writeFile(workbook, `saldos_consolidados_${new Date().toISOString().split('T')[0]}.xlsx`);
+    setIsSaldosMenuOpen(false);
   };
 
   return (
@@ -370,14 +415,38 @@ export default function CuentaCorrienteClient({
               <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
               PDF
             </button>
-            <button
-              onClick={handleReporteSaldosConsolidados}
-              className="px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-700 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
-              title="Reporte de Saldos Consolidados"
-            >
-              <span className="material-symbols-outlined text-sm">summarize</span>
-              Saldos Consolidados
-            </button>
+            <div className="relative" ref={saldosMenuRef}>
+              <button
+                onClick={() => setIsSaldosMenuOpen((v) => !v)}
+                className="px-3 py-1.5 bg-violet-50 text-violet-700 hover:bg-violet-700 hover:text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
+                title="Reporte de Saldos Consolidados"
+              >
+                <span className="material-symbols-outlined text-sm">summarize</span>
+                Saldos Consolidados
+                <span className="material-symbols-outlined text-sm">
+                  {isSaldosMenuOpen ? "expand_less" : "expand_more"}
+                </span>
+              </button>
+
+              {isSaldosMenuOpen && (
+                <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg z-20 overflow-hidden">
+                  <button
+                    onClick={handleReporteSaldosConsolidadosPDF}
+                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                    PDF
+                  </button>
+                  <button
+                    onClick={handleReporteSaldosConsolidadosExcel}
+                    className="w-full px-4 py-2.5 flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-emerald-50 hover:text-emerald-600 dark:hover:bg-emerald-900/20 transition-all"
+                  >
+                    <span className="material-symbols-outlined text-sm">description</span>
+                    Excel
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="ml-auto text-xs font-medium text-slate-400">

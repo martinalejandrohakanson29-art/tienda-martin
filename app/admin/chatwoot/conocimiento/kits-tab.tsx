@@ -17,7 +17,6 @@ import {
     sincronizarCompatibilidadesKit,
     type Compatibilidad,
 } from "@/app/actions/compatibilidades"
-import { getArticulos, sincronizarArticulosKit, type ArticuloInput } from "@/app/actions/kit-articulos"
 import { generarMensajeKit } from "@/lib/kits-mensaje"
 import { formatearListaCompat } from "@/lib/compatibilidad-texto"
 
@@ -55,24 +54,6 @@ export function KitsTab({
     const [compatibleTexto, setCompatibleTexto] = useState("")
     const [incompatibleTexto, setIncompatibleTexto] = useState("")
 
-    const [articulos, setArticulos] = useState<ArticuloInput[]>([])
-    const [nombreArticulo, setNombreArticulo] = useState("")
-    const [aliasArticulo, setAliasArticulo] = useState("")
-    const [precioArticulo, setPrecioArticulo] = useState("")
-
-    const agregarArticulo = () => {
-        const nombre = nombreArticulo.trim()
-        if (!nombre) return
-        setArticulos((prev) => [...prev, { nombre, alias: aliasArticulo.trim(), precio: precioArticulo.trim() }])
-        setNombreArticulo("")
-        setAliasArticulo("")
-        setPrecioArticulo("")
-    }
-
-    const quitarArticulo = (index: number) => {
-        setArticulos((prev) => prev.filter((_, i) => i !== index))
-    }
-
     const editando = form.id !== undefined
 
     const actualizarCampo = <K extends keyof KitInput>(campo: K, valor: KitInput[K]) => {
@@ -100,13 +81,7 @@ export function KitsTab({
         setCompatibleTexto(formatearListaCompat(propios.filter((c) => c.compatible)))
         setIncompatibleTexto(formatearListaCompat(propios.filter((c) => !c.compatible)))
         setFotoError(null)
-        setArticulos([])
-        setNombreArticulo("")
-        setAliasArticulo("")
-        setPrecioArticulo("")
         window.scrollTo({ top: 0, behavior: "smooth" })
-        const propiosArticulos = await getArticulos(kit.id)
-        setArticulos(propiosArticulos.map((a) => ({ nombre: a.nombre, alias: a.alias || "", precio: a.precio || "" })))
     }
 
     const cancelarEdicion = () => {
@@ -114,10 +89,6 @@ export function KitsTab({
         setCompatibleTexto("")
         setIncompatibleTexto("")
         setFotoError(null)
-        setArticulos([])
-        setNombreArticulo("")
-        setAliasArticulo("")
-        setPrecioArticulo("")
     }
 
     const subirFoto = async (archivo: File) => {
@@ -168,7 +139,6 @@ export function KitsTab({
             await sincronizarCompatibilidadesKit(kitId, compatibleTexto, incompatibleTexto)
             const compatActualizadas = await getCompatibilidades()
             setCompatList(compatActualizadas)
-            await sincronizarArticulosKit(kitId, articulos)
 
             const actualizado: Kit = {
                 id: kitId,
@@ -192,7 +162,6 @@ export function KitsTab({
             setForm(FORM_VACIO)
             setCompatibleTexto("")
             setIncompatibleTexto("")
-            setArticulos([])
         } catch (err) {
             setError(err instanceof Error ? err.message : "Error al guardar el kit")
         } finally {
@@ -361,83 +330,6 @@ export function KitsTab({
                             humano — al guardar el kit se reemplaza la lista completa. Para agregar una aclaración a un
                             modelo puntual, escribila entre paréntesis justo después: <em>Zanella ZB 110 (para recorrido corto)</em>.
                         </p>
-
-                        <div className="space-y-2 pt-8 border-t border-slate-200">
-                            <Label>Artículos que incluye este kit</Label>
-                            <p className="text-xs text-gray-400">
-                                Cargá cada componente por separado con su nombre técnico completo, y un alias corto de cómo
-                                lo nombra el cliente en la práctica (ej. nombre &quot;TAPA DE CILINDRO CDI 125 COMPLETA&quot;,
-                                alias &quot;tapa&quot;) — el alias es lo que se va a usar para reconocer la pregunta, porque dos
-                                artículos del mismo kit pueden compartir palabras en el nombre técnico. Precio solo si se
-                                vende suelto.
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <Input
-                                    placeholder="Nombre del artículo"
-                                    value={nombreArticulo}
-                                    onChange={(e) => setNombreArticulo(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                            e.preventDefault()
-                                            agregarArticulo()
-                                        }
-                                    }}
-                                    disabled={guardando}
-                                    className="flex-1"
-                                />
-                                <Input
-                                    placeholder="Alias (ej: tapa)"
-                                    value={aliasArticulo}
-                                    onChange={(e) => setAliasArticulo(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                            e.preventDefault()
-                                            agregarArticulo()
-                                        }
-                                    }}
-                                    disabled={guardando}
-                                    className="sm:w-40"
-                                />
-                                <Input
-                                    placeholder="Precio (opcional)"
-                                    value={precioArticulo}
-                                    onChange={(e) => setPrecioArticulo(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter") {
-                                            e.preventDefault()
-                                            agregarArticulo()
-                                        }
-                                    }}
-                                    disabled={guardando}
-                                    className="sm:w-40"
-                                />
-                                <Button type="button" variant="outline" onClick={agregarArticulo} disabled={guardando || !nombreArticulo.trim()}>
-                                    Agregar
-                                </Button>
-                            </div>
-                            {articulos.length > 0 && (
-                                <div className="border rounded-md divide-y">
-                                    {articulos.map((art, i) => (
-                                        <div key={i} className="flex items-center justify-between px-3 py-2 text-sm">
-                                            <span>
-                                                {art.nombre}
-                                                {art.alias && <span className="text-violet-500"> (alias: {art.alias})</span>}
-                                                {art.precio && <span className="text-gray-400"> — {art.precio}</span>}
-                                            </span>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => quitarArticulo(i)}
-                                                disabled={guardando}
-                                            >
-                                                <X size={14} />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
 
                         <div className="space-y-1 pt-8 border-t border-slate-200">
                             <div className="flex items-center justify-between">

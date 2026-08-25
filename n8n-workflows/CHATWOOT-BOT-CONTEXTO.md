@@ -1368,3 +1368,82 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   ubicación con el dato de envío, y siguió preguntando la moto. Regresión chequeada con una
   pregunta real de piezas ("Que partes trae el kit") -- siguió contestando el detalle del kit
   como siempre, sin cambios.
+- **6 fixes reales de un mismo día en la rama de GRUPO, partiendo de una sola conversación real
+  (2026-08-25).** Arrancó revisando conv 2683 (+5493875476951, Matias): "Una gilera" + "La tapa
+  viene completa?" en la misma ráfaga generó una pendiente técnica de compatibilidad en vez de
+  contestar la pregunta de completitud del kit, que sí se podía responder sola. Causa: el fork
+  `¿Grupo Sin Modelo?` es binario y mutuamente excluyente -- en cuanto `Extraer Modelo Grupo` saca
+  el modelo, todo el turno se va por la rama "con modelo" y nunca pasa por
+  `Responder Articulo Suelto (Grupo)` (que vive solo del lado "sin modelo").
+  **Fix 1:** se agregó `resto_mensaje` a `Extraer Modelo Grupo`/`Parsear Modelo Grupo` (mismo
+  patrón que ya usaba `Parsear Pregunta Compatibilidad` en la rama simple) y 4 nodos clonados
+  `... (Con Modelo)` (`Buscar Detalle Grupo Pineado` → `Responder Articulo Suelto` →
+  `Parsear Articulo Suelto` → IF de resuelto) colgando en paralelo de `¿Grupo Sin Modelo?`. Clones,
+  no reconexión del original, porque su rama "no resuelto" repregunta la moto -- reusarla tal cual
+  acá le repreguntaría algo que ya se sabe.
+  **Fix 2, bug propio encontrado en el 1 durante la prueba en producción real:** el nodo de envío
+  seguía reusando el compartido `Enviar Respuesta Articulo Suelto (Grupo)`, que continúa a la
+  repregunta de moto sin guarda para "ya se sabe la moto" -- se le dio a la rama "Con Modelo" su
+  propio nodo de envío terminal, y el chequeo pasó de paralelo a secuencial (necesario para que
+  la guarda del fix 3 pueda leer el resultado del mismo turno sin condición de carrera). De paso
+  apareció y se corrigió una referencia implícita rota en `Buscar Compatibilidad del Grupo` (dejó
+  de recibir `grupo_id`/`modelo_moto_sql` al reordenar el flujo).
+  **Fix 3:** guarda `¿Ya Resuelto Como Articulo Suelto (Con Modelo)?` en la rama "Esperando
+  Variante", para no escalar una pendiente de negocio duplicada cuando la pregunta ya se contestó
+  como artículo suelto en el mismo turno.
+  **Fix 4:** la rama gemela de re-entrada (`Extraer Tema Negocio (Variante)`, cuando el cliente
+  contesta la variante en un turno NUEVO y separado, no el mismo del pin) tenía el mismo agujero
+  de fondo -- acá no hace falta guarda porque todos sus caminos convergen en repreguntar
+  corto/largo de todas formas (la variante genuinamente sigue sin resolver), así que el chequeo de
+  artículo suelto corre en paralelo sin insertarse en medio de nada.
+  **Fix 5 (gap de diseño, no bug):** conv 2691 (+5492804861651, Richi) pidió "piston 54mm perno 13
+  ...para tapa cdi" como primer mensaje, sin kit pineado -- ningún nodo busca en el catálogo
+  completo sin un kit ya identificado. Se agregó un 3er nivel de prioridad en la cadena de
+  sub-preguntas (`Buscar en Catálogo Completo de Articulos` → `Responder Articulo Suelto
+  (Catálogo General)` → parser), después de "kit pineado" y "conocimiento aprendido", exigiendo
+  alta confianza por la ambigüedad de tener 14+ artículos en vez de 2-3 de un kit puntual. De paso
+  se confirmó que `kit_articulos` (tabla vieja, pre-migración del 19-20/08, datos huérfanos y
+  peores que `chat_articulos`) no la usaba ningún nodo -- se dio de baja (tabla + la sección
+  "Artículos" de la pestaña Kits en `/admin/chatwoot/conocimiento`, que sí la usaba).
+  **Fix 6:** conv 2687 (+5491130795935, "el celoso") mostró dos bugs más. (a) `Extraer Tema
+  Negocio (Grupo)` solo devolvía UN tema de negocio -- "cómo pago y cuánto tarda el envío" en el
+  mismo mensaje perdía uno de los dos sin dejar rastro; pasó a devolver `temas: string[]` y la
+  query de Postgres solo contesta si TODOS los temas pedidos tienen dato (si falta uno, escala
+  completo como antes -- no se intentó "contesto lo que sé + escalo el resto" para no arriesgar el
+  mismo bug de mensaje duplicado del fix 2). Mismo problema confirmado, sin tocar, en las ramas
+  gemelas `(Sub-pregunta)`/`(Variante)`/`(Esperando Variante)`. (b) Regresión real del fix 1 de
+  hoy: "Como se si es carrera corta o larga" + "Es un smash cilindro fundición" en la misma
+  ráfaga hizo que `Responder Articulo Suelto (Grupo - Con Modelo)` tomara una mención entre
+  paréntesis del `detalle` del kit ("la leva (corta) incluye...") como si fuera la respuesta a
+  "cuál es la mía", contestando "La leva es corta." un segundo después de que el propio sistema
+  escalara diciendo que no tenía el dato. Se agregó al prompt compartido (idéntico en
+  `Responder Articulo Suelto (Grupo)`/`(Con Modelo)`/`(Variante)`) que "cómo determino cuál es MI
+  variante" es la misma categoría excluida que "es compatible con mi moto", y una advertencia
+  explícita contra tomar una mención parentética del detalle como respuesta.
+  Los 6 fixes se aplicaron y validaron uno por uno contra la API real de n8n y la conversación de
+  prueba (2411), con backup del workflow completo antes de cada cambio.
+- **Fix 7: saludo repetido al retomar conversación vieja con compatibilidad ya confirmada
+  (2026-08-25).** Conv 2269 (+5493584395611, Diego Funes): pin de hace 5 días expirado, el cliente
+  vuelve y contesta la moto ("Para un Keller") en el mismo mensaje. `Identificar Necesidad` →
+  `Extraer Modelo (Kit Confiado)` → `Procesar Compatibilidad Kit Confiado` hacen todo bien y
+  confirman `modo:"compatible"`, pero `¿Es Compatible (Kit Confiado)?` en realidad solo distingue
+  "incompatible" de "todo lo demás" (mezclaba `compatible` y `sin_dato`) y mandaba el saludo
+  genérico de cero, tirando el trabajo ya hecho -- un humano tuvo que apagar el bot a mano.
+  Fix: IF nuevo `¿Es Compatible o Sin Dato (Kit Confiado)?` que separa los dos casos. Para
+  `compatible`, 7 nodos clonados del tramo "resolver variante anticipada" que ya usa la rama de
+  pin activo (clonado, no reusado, porque el original referencia por nombre a nodos que no corren
+  en esta rama -- mismo patrón de los fixes de hoy): si la variante ya se puede resolver, cierra
+  con precio; si no, pregunta corto/largo. Para `sin_dato`, 5 nodos que reproducen el mismo
+  patrón de escalado que ya usa el resto del bot (pendiente en `preguntas_tecnicas_pendientes` +
+  nota privada, con dedup, reusando el nodo compartido `Enviar Nota Escalado` sin clonarlo). Los
+  dos casos pinean el kit en Redis (345600 TTL) para que la conversación quede enganchada al flujo
+  normal de ahí en más, en vez de perderse.
+  Bug propio encontrado y corregido en el camino: los 2 nodos Postgres nuevos de dedup no tenían
+  `alwaysOutputData:true` como el nodo original -- con 0 filas (caso normal, sin pendiente previa)
+  Postgres no emite ningún item y n8n corta la cadena en silencio, sin error. Detectado en la
+  primera prueba real (la nota de escalado no salía), parcheado.
+  Validado con trace real en la conversación de prueba (2411), los dos casos: `compatible`
+  ("Es una zanella zb 110", con compatibilidad de prueba insertada a propósito) contestó
+  "Genial, es compatible / Tu moto es recorrido corto o largo?" en vez del saludo genérico;
+  `sin_dato` ("Es una Kymco Xciting", moto sin ningún dato cargado, confirmado limpio antes de
+  usarla) escaló con nota privada real y pendiente registrada, en vez del saludo genérico.

@@ -794,6 +794,22 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 
 ## Qué falta / pendiente (al 2026-08-21)
 
+- **BUG GRAVE, diagnosticado pero sin arreglar todavía (2026-08-25): `/bot off` puede no pausar la
+  conversación.** Caso real: conv 2650 (+5492946509748). Martín escribió `/bot off` (nota privada)
+  tres veces en la misma charla y las tres veces el bot le siguió respondiendo minutos después,
+  pisando sus respuestas manuales al cliente (una vez incluso mandó "perdon, no era para vos" en
+  público sin querer). Causa raíz confirmada contra las ejecuciones reales de n8n (no es hipótesis):
+  **`/bot off` no es un comando especial que el workflow reconozca por su texto** — cualquier
+  mensaje del equipo en una conversación primero se intenta interpretar como la respuesta a una
+  pregunta pendiente de esa charla (`preguntas_sin_match_pendientes`/técnicas), y **recién si no hay
+  ninguna pendiente sigue el camino que realmente hace `SET bot_pausado`**. En este caso había una
+  pregunta técnica pendiente sin cerrar desde el día anterior — cada `/bot off` se interpretó como
+  intento de respuesta a ESA pregunta vieja, la IA dijo "confianza baja, no hago nada" y ahí terminó
+  la ejecución, sin llegar nunca al nodo de pausa. Se retroalimenta solo: mientras el bot siga
+  activo, cada mensaje nuevo del cliente genera otra pendiente, y cualquier `/bot off` futuro cae en
+  la misma trampa. **Diseño a decidir antes de arreglar:** lo más directo es que `/bot off` (y
+  probablemente `/bot on`) se detecten de forma explícita ANTES del intento de interpretación como
+  respuesta a una pendiente — charlarlo con Martín antes de tocar el workflow, no asumir el diseño.
 - **PRÓXIMO PASO, a mitad de investigación:** falta cubrir el otro caso de "cuando el cliente
   contesta con un dato usable, seguir la charla" — la desambiguación de **3 opciones de kit**
   (`Enviar Repregunta Candidatos (Propuesta)`, el "¿Te referís al Kit 120 para 110, a la Tapa cdi,

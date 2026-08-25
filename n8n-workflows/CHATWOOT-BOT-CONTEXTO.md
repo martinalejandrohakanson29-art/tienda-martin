@@ -1157,3 +1157,214 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     cubrirlo solo (no hace falta cablear nada nuevo, es genérico por categoría/id). 4) Sigue
     pendiente el gap de mensaje mixto (moto + pregunta en el mismo mensaje) mencionado en el punto
     anterior — no se tocó en esta sesión.
+- **Otro punto de transición del GRUPO que perdía una pregunta de negocio: moto ya confirmada
+  compatible, ANTES de preguntar corto/largo (2026-08-24).** Caso real: conv 2653
+  (+5493878319487), Kit 120 para 110. El cliente contestó "Keller 110" y, 5 segundos después,
+  "Soy de oran salta" (misma ráfaga). El bot confirmó bien la compatibilidad y preguntó corto/largo,
+  pero el dato de ubicación se perdió por completo — ni lo contestó ni escaló, a diferencia del
+  resto del workflow. Mismo síntoma de fondo que la cobertura de negocio agregada hoy mismo para
+  "grupo esperando moto" (ver más arriba), pero en el punto de transición siguiente: acá la moto YA
+  se dio y ya se confirmó compatible, y lo que se pierde es lo que venga pegado a ESE mensaje, antes
+  de mandar la pregunta de variante. Causa confirmada leyendo la ejecución real: `¿Variante
+  Anticipada Resuelta?` (agregado el 22/08 para detectar si el cliente adelanta corto/largo en el
+  mismo mensaje) en su rama `false` (no adelantó variante, el caso normal) iba directo a `Guardar
+  Estado Esperando Variante` → `Enviar Pregunta Variante`, un callejón sin salida — cualquier otra
+  cosa en el mismo mensaje (como la ubicación) nunca se evaluaba.
+  Fix: 10 nodos nuevos, aislados (mismo criterio de siempre — no se reusan los nodos de la rama
+  `(Variante)` ya existente, que resuelve el caso simétrico posterior, cliente respondiendo la
+  variante), conectados en paralelo a `Guardar Estado Esperando Variante` desde la rama `false` de
+  `¿Variante Anticipada Resuelta?`: `Extraer Tema Negocio (Esperando Variante)` (agente, mismo
+  prompt base que las otras instancias de "tema de negocio", con un agregado a propósito: contar
+  como tema "ubicacion" tanto una pregunta directa como el cliente mencionando su propia ciudad sin
+  preguntar nada — el caso real de Orán no es una pregunta, es un dato suelto) → `Parsear Tema
+  Negocio (Esperando Variante)` → `¿Es Negocio? (Esperando Variante)`: si no hay nada, no pasa
+  nada más (la pregunta de variante ya sale por la rama de siempre, sin duplicar); si hay tema,
+  `Buscar Info Negocio (Esperando Variante)` (mismo `rm_score` contra `info_negocio` de siempre) →
+  `¿Hay Info Negocio? (Esperando Variante)`: con dato, lo contesta (`Preparar/Enviar Respuesta
+  Negocio (Esperando Variante)`); sin dato, escala en silencio (`Registrar/Preparar Nota Escalado
+  Negocio (Esperando Variante)`, reusa el `Enviar Nota Escalado` compartido) — igual que el resto
+  del workflow, nunca se pierde nada. 343→353 nodos.
+  Validado en la conversación de prueba (2411), reproduciendo el caso real paso a paso (plantilla
+  del Kit 120 → "Keller 110" + "Soy de oran salta" en la misma ráfaga): el bot mandó los 2 mensajes
+  esperados, la pregunta de compatibilidad/variante de siempre Y el dato de ubicación con envío
+  (`info_negocio`, mismo texto que ya se completó el 22/08 con la aclaración de envío nacional —
+  ver más arriba). Regresión chequeada aparte con una moto sola, sin nada pegado: siguió mandando
+  un solo mensaje, sin cambios de comportamiento.
+  **`rutas-bot-chatwoot.html` sigue sin actualizar** (arrastra la deuda ya anotada más arriba desde
+  el 23/08) — pendiente la misma pasada grande de actualización del diagrama, no solo por este
+  cambio.
+- **Agujero de fondo detrás de los 2 fixes anteriores: preguntas reales que no son ni pieza del kit
+  ni tema de negocio se perdían sin escalar, en los dos puntos de transición del GRUPO
+  (2026-08-24/25).** Caso real: conv 2238 (+5493734465539), Kit 120 para 110. El cliente preguntó
+  "Quiero saber los mm del cilindro, interior y exterior" mientras el grupo esperaba la moto — ni
+  es una pieza con alias cargado, ni es un tema de negocio, así que los dos chequeos existentes
+  (artículo suelto del 22/08, negocio del 24/8) le daban `false` a los dos y el mensaje caía
+  directo a la repregunta de moto, **sin escalar** (a diferencia del resto del bot, donde lo no
+  resuelto siempre queda pendiente para el equipo). El cliente insistió después ("Trip recorrido
+  corto es... pero quiero saber las 2... recorrido largo y corto") y volvió a perderse igual, esta
+  vez en el punto "moto ya compatible, antes de preguntar variante" (el fix de la entrada anterior).
+  Causa de fondo: esos dos chequeos (`¿Es Negocio? (Grupo)` y `¿Es Negocio? (Esperando Variante)`)
+  eran estrictamente booleanos — si no matcheaba pieza ni negocio, no había ningún tercer camino,
+  a diferencia del partidor de sub-preguntas del kit ya resuelto (Fase 6), que siempre escala
+  cualquier "otro" sin resolver.
+  Fix: en vez de una tercera rama paralela más, se extendió el clasificador que ya existía en
+  ambos puntos (`Extraer Tema Negocio (Grupo)` y `Extraer Tema Negocio (Esperando Variante)`) para
+  que devuelva 3 categorías en vez de 2 (`{"clasificacion": "negocio"|"otro"|"nada", "tema": ...}`
+  en vez de `{"es_negocio": bool, "tema": ...}`) — mismo prompt base, un párrafo nuevo que define
+  "otro" como cualquier pedido real (medida técnica, dato no cargado, condición especial) que no
+  sea sobre la moto/variante ni de negocio. `Parsear Tema Negocio (X)` sigue devolviendo
+  `es_negocio` igual que antes (sin romper `¿Es Negocio? (X)`) y suma `es_otro`. Un IF nuevo en
+  cada punto (`¿Es Otro Sin Resolver? (Grupo)` / `(Esperando Variante)`), colgado de la rama
+  `false` de `¿Es Negocio? (X)`, enruta a los mismos nodos de escalado que ya existían para
+  "negocio sin dato" (`Registrar/Preparar Nota Escalado Negocio (X)`, reusados tal cual — ya
+  mandaban la nota privada Y seguían con la repregunta de moto/nada más, según la rama) — se les
+  sacó "sobre el negocio" del texto de la nota porque ahora cubre los dos casos. 353→355 nodos.
+  Validado en la conversación de prueba (2411), 4 casos: (1) "mm del cilindro" mientras espera
+  moto → escaló con nota privada Y siguió preguntando la moto, como el resto del bot; (2) moto
+  compatible + "quiero saber los mm para las 2 variantes" → escaló Y siguió preguntando
+  corto/largo; (3) regresión, moto sola sin nada pegado → siguió mandando un solo mensaje, sin
+  escalar de más; (4) regresión, moto + "soy de Orán, Salta" (el fix de la entrada anterior) →
+  siguió clasificando bien como "negocio" y contestando el dato de envío, el prompt nuevo no rompió
+  el camino viejo.
+- **Precio de las dos variantes de una pieza a la vez, cuando el cliente lo pide explícito
+  (2026-08-25).** A pedido de Martín, mismo hilo que las dos entradas anteriores: si el cliente
+  pregunta el precio de una pieza con variantes corto/largo (ej. el cilindro) y pide las DOS a la
+  vez ("cuánto sale el corto y el largo"), antes el mecanismo de artículo suelto solo podía elegir
+  UNA — devolvía un precio real y correcto, pero incompleto, sin avisar que hay otra opción. A
+  diferencia de los dos fixes anteriores, este no tenía ningún caso real todavía (Martín preguntó
+  "¿esto también necesita un cambio grande?" antes de que pasara) — se armó preventivo, alcance
+  acotado a propósito **solo para precio**, tal como pidió, para no arrastrar otros tipos de
+  pregunta a este mecanismo.
+  Fix, sin nodos nuevos, solo en `Responder Articulo Suelto (Grupo)` (prompt) y `Parsear Articulo
+  Suelto (Grupo)` (Code): el JSON que devuelve la IA pasó de `articulo_id` (un solo número o null)
+  a `articulo_ids` (arreglo, puede traer más de uno) — nueva regla explícita en el prompt: SOLO
+  cuando el cliente pide el precio de más de una variante de la MISMA pieza a la vez, devolver
+  todos los ids reales que pida; para cualquier otro caso (una sola pieza, ambigüedad real sin
+  aclarar, pregunta que no es de precio), sigue exactamente igual que antes. En el Code: con 1 solo
+  id sobrevive **la misma verificación de ambigüedad de siempre, sin tocar ni una línea de esa
+  lógica** (red de seguridad contra que la IA "resuelva" una pieza ambigua sin que el cliente haya
+  aclarado cuál) — con 2+ ids (el cliente ya aclaró que quiere ambas, no hay ambigüedad que
+  resolver) arma un renglón de precio por cada una y las junta en un solo mensaje.
+  Validado en la conversación de prueba (2411), 3 casos: "cuánto sale el cilindro, el corto y el
+  largo" → un solo mensaje con las 2 líneas de precio reales ($54.999 y $74.999); "cuánto sale el
+  cilindro corto solo" (una sola variante, clara) → un solo precio, sin cambios respecto de antes;
+  "cuánto sale el cilindro solo" (ambiguo, sin aclarar cuál) → sin respuesta de precio, igual que
+  antes del cambio — comportamiento sin tocar, no es una regresión nueva de hoy.
+  **Gap encontrado de paso, sin resolver, pre-existente (no lo generó este cambio):** ese último
+  caso ambiguo tampoco escala con nota privada pese al fix de "otro sin resolver" de la entrada
+  anterior — `Extraer Tema Negocio (Grupo)` clasifica ese mensaje como "nada" (con razón, desde su
+  perspectiva: la pregunta SÍ es sobre una pieza real del kit, no es un tema ajeno) sin saber que
+  el chequeo de artículo suelto ya lo intentó y no pudo por ambigüedad. Confirmado en la ejecución
+  real (`clasificacion: "nada"` pese a que `Responder Articulo Suelto` había devuelto
+  `resuelto:false` por ambigüedad un paso antes). Mismo comportamiento que tenía el bot antes de
+  cualquiera de los 3 fixes de hoy — no es nuevo, pero queda anotado como el próximo gap real si
+  aparece un caso así en tráfico real.
+- **Bug grave: un cliente que cambia de anuncio a mitad de charla terminaba atendido para el kit
+  VIEJO, no el nuevo que pidió (2026-08-25).** Caso real: conv 2660 (+5491135791522). Pidió info de
+  Tapa CDI (quedó pineado "esperando moto"), 14 minutos después clickeó el anuncio del Kit 120 para
+  110 (un producto distinto) y en la misma ráfaga agregó "Quiero ese de 99". El clasificador sin IA
+  reconoció bien la plantilla exacta nueva (`tipo:"grupo", deteccion:"plantilla_exacta",
+  grupo_id:1`) — pero como venía texto pegado, pasaba por `Validar Continuidad de Tema (Grupo)`
+  (IA, del fix de [[n8n_fix_resto_rafaga_grupo]] del 22/8) para decidir si el resto era del mismo
+  tema. Dio "tema distinto" (dudoso), y esa rama estaba diseñada para el caso "sin pin todavía" —
+  mandaba a `Leer Kit Pineado` sin pasar por `Enviar Saludo Grupo`, así que **nunca pineaba el kit
+  nuevo** y el pin viejo de Tapa CDI seguía vigente. El cliente terminó confirmando compatibilidad
+  y precio de Tapa CDI pensando que hablaba del Kit 120 — mala información real, no solo un
+  mensaje perdido.
+  Causa de fondo: la plantilla exacta es un dato determinístico (texto idéntico al anuncio, no una
+  interpretación de IA) — un match nuevo tiene que ganarle siempre a cualquier pin anterior, sea
+  cual sea el resto pegado. Eso ya pasa así cuando NO hay resto (rama `false` de `¿Hay Resto en la
+  Rafaga? (Grupo)`, va directo a `Enviar Saludo Grupo` sin chequear nada). El chequeo de "mismo
+  tema" nunca debió tener poder de decidir SI pinear, solo cómo tratar el resto después.
+  Fix, sin nodos nuevos ni borrados: se recableó `¿Hay Resto en la Rafaga? (Grupo)` para que sus
+  dos salidas (con resto y sin resto) vayan directo a `Enviar Saludo Grupo` — la plantilla exacta
+  siempre pinea y saluda el kit nuevo, punto. `Validar Continuidad de Tema (Grupo)` / `GPT Model -
+  Continuidad de Tema (Grupo)` / `Parsear Continuidad de Tema (Grupo)` / `¿Es Mismo Tema? (Grupo)`
+  quedaron huérfanos en el canvas (sin conexión, no borrados) — ya no aportan nada desde que existe
+  el fix de "otro sin resolver" de más arriba, que cubre en serio cualquier resto ajeno al kit
+  recién pineado (antes de hoy esa red de seguridad no existía, por eso en su momento tenía sentido
+  el diseño conservador de "ante la duda, no pinees nada"). Se verificó antes de recablear que
+  `Enviar Saludo Grupo` y `Marcar Grupo Pineado (Esperando Moto)` ya leen todo lo que necesitan
+  directo de `$('Clasificar Mensaje (sin IA)')` (nunca de `$json` ni del output de la rama de
+  continuidad), así que saltearla no rompe nada río abajo.
+  Validado en la conversación de prueba (2411), reproduciendo el caso real paso a paso (Tapa CDI
+  pineado → plantilla del Kit 120 + "Quiero ese de 99" como 2 mensajes separados, 8s de diferencia,
+  misma ráfaga): el bot saludó y pineó el Kit 120 correcto (no Tapa CDI), y encima contestó el
+  resto con el detalle real del kit nuevo — antes del fix esto quedaba pegado a Tapa CDI y escalaba
+  con nota privada.
+- **Segundo hallazgo de la misma conversación real: el bot no entendía cuando el cliente contestaba
+  corto/largo usando UNA PISTA que el mismo bot le había dado (color, dientes de la corona), en vez
+  del nombre literal de la variante (2026-08-25).** En la conv 2660, tras confirmarle compatibilidad,
+  el bot preguntó corto/largo dando 2 pistas alternativas ("28 dientes = corto, 32 = largo... color
+  del cilindro, generalmente negro = corto"). El cliente contestó "Es negro el cilindro" — dato
+  real, pensado explícitamente por el propio bot como forma válida de contestar — pero `Resolver
+  Variante` no lo reconoció (solo compara contra el nombre literal de la variante,
+  `criterio_variante`) y volvió a preguntar lo mismo.
+  Fix: sin nodos ni queries nuevas. El texto de pistas (`chat_pack_grupos.pregunta_variante` —
+  mismo campo que ya arma la pregunta original en `Enviar Pregunta Variante`, ya disponible en la
+  misma estructura `Buscar Kits Activos().grupos` que `Resolver Variante` ya consulta) se agregó al
+  prompt de `Resolver Variante` como contexto, con la instrucción de tratar una respuesta basada en
+  esa pista como afirmación real, no como pregunta. Genérico a propósito — no hardcodea "negro =
+  corto", usa el mismo texto de pistas que ya está cargado por grupo (algunos grupos usan medida de
+  leva en vez de corona/color, ver la tabla de `pregunta_variante` más arriba).
+  Validado en la conversación de prueba (2411): "Es negro el cilindro" (sin decir "corto") resolvió
+  directo al pack corto y mandó la bienvenida final con precio y foto, sin repreguntar. Regresión
+  chequeada aparte: una duda real ("no tengo idea cuál es, cómo me fijo?") siguió repreguntando
+  igual que antes, sin inventar una respuesta.
+- **Bug real de producción, no de interpretación: la repregunta de "candidatos" (cuando
+  `Identificar Necesidad` no está seguro entre 2+ kits y el cliente no mencionó su moto) fallaba
+  con error 400 y no mandaba nada (2026-08-25).** Encontrado a pedido de Martín en conv 2661
+  (+5491139305243, "Lele") — clickeó un Reel de Facebook sobre el kit 200 varillero y escribió
+  "Buenas ezta disponible"; `Identificar Necesidad` clasificó bien `tipo:"candidatos"` con un
+  `mensaje` armado ("¿Te referís al Kit 170 varillero + leva o al kit dakar 200 económico?"), pero
+  el bot no contestó nada — conversación muerta. Revisando las ejecuciones con error del workflow
+  (`/executions?status=error`) apareció un SEGUNDO cliente real con el mismo error desde el día
+  anterior: conv 2575 (+5493521477426, "Cristian"), "Kit de 110" (24/8 12:38), todavía sin
+  respuesta al momento de este fix.
+  Causa (gotcha ya documentado de este workflow, ver sección de gotchas): `Enviar Repregunta
+  Candidatos (Propuesta)` usaba el atajo `content: $json.mensaje` (sin nombre de nodo). En algún
+  momento (probablemente el fix de "compatibilidad a nivel de combo" del 23/8) se insertaron 3
+  nodos en el medio de esa cadena (`Extraer Modelo (Candidatos)` → `Parsear Modelo (Candidatos)` →
+  `¿Hay Modelo Mencionado (Candidatos)?`, para saltar la repregunta si el cliente ya dio la moto) —
+  desde entonces `$json` dejó de apuntar a `Parsear Identificar Necesidad` (que sí tiene el campo
+  `mensaje`) y pasó a apuntar a `Parsear Modelo (Candidatos)` (que NO lo tiene), así que el body
+  del POST a `/api/chatwoot/enviar` viajaba con `content: undefined` y la API respondía 400 "Falta
+  content". Rompía siempre que el cliente NO mencionara su moto en el mismo mensaje (el caso más
+  común) — nunca se había notado porque no genera ninguna nota ni pendiente, solo un error en el
+  log de ejecuciones de n8n que nadie estaba mirando.
+  Fix de una línea: `content: $json.mensaje` → `content: $('Parsear Identificar Necesidad').item.json.mensaje`
+  (mismo patrón de referencia explícita que ya usa el resto del workflow desde que se documentó
+  este gotcha). Sin nodos nuevos.
+  **Validación con una limitación honesta:** confirmé la causa exacta contra los datos reales de
+  las 2 ejecuciones fallidas (no es una hipótesis) y el campo `mensaje` está garantizado en la
+  salida de `Parsear Identificar Necesidad` para `tipo:"candidatos"` — pero **no logré re-disparar
+  en vivo el mismo camino exacto en la conversación de prueba** (probé 4 veces, con y sin el mismo
+  referral real de Lele, incluso en una conversación nueva sin historial) — `Identificar Necesidad`
+  es un clasificador de IA y en la conversación de prueba resolvió otra cosa cada vez
+  (`kit_confiado` dos veces, `sin_match` una vez) en lugar de `candidatos`. Confianza alta en el fix
+  igual, por tratarse de una referencia de datos corregida (no una regla de negocio nueva) y por
+  ser exactamente el mismo patrón ya probado en el resto del workflow — pero queda pendiente
+  confirmar con un caso real que sí caiga en `candidatos` la próxima vez que pase.
+  **Pendiente de decisión de Martín:** los 2 clientes reales afectados (Lele y Cristian) nunca
+  recibieron nada — no quedó ningún pendiente registrado en ningún lado (esta rama no escala,
+  solo repregunta) — así que si no se les contesta a mano, quedan perdidos sin que el equipo se
+  entere por ningún canal.
+- **Falso positivo real: "de qué parte(s) son" (mal escrito, preguntando UBICACIÓN) se interpretaba
+  como pregunta por las PIEZAS del kit (2026-08-25).** Caso real: conv 2663 (+5493755415438,
+  "Vilmar"), grupo Tapa CDI esperando moto. Escribió "De q parteson" (typo de "de qué parte son",
+  el mismo tipo de apertura ya documentado en [[n8n_ubicacion_incluye_envio]], "¡Hola! De dónde
+  son"). `Responder Articulo Suelto (Grupo)` la tomó al pie de la letra ("de qué partes son" =
+  pregunta por los componentes) y contestó el detalle del kit ("Incluye tapa completa con
+  válvulas..."), en vez de pasar a la ubicación — el chequeo de artículo suelto corre ANTES que el
+  de negocio, así que "ganó" con una lectura literal equivocada antes de que el chequeo correcto
+  llegara a evaluarla.
+  Fix: una frase agregada al prompt de `Responder Articulo Suelto (Grupo)`, mismo lugar donde ya
+  excluye explícitamente las preguntas de compatibilidad de moto -- "de qué parte(s) son"/"de
+  dónde son" (mal escrita o no) NUNCA es sobre una pieza del kit aunque contenga la palabra
+  "parte", es sobre la UBICACIÓN del negocio: `resuelto:false`, deja que caiga al chequeo de
+  negocio de siempre. Sin nodos nuevos, mismo criterio ya usado varias veces hoy para excepciones
+  de interpretación (ej. el fix de "envio" por mencionar solo la ciudad, más arriba).
+  Validado en la conversación de prueba (2411): "De q parteson" (caso real exacto) contestó la
+  ubicación con el dato de envío, y siguió preguntando la moto. Regresión chequeada con una
+  pregunta real de piezas ("Que partes trae el kit") -- siguió contestando el detalle del kit
+  como siempre, sin cambios.

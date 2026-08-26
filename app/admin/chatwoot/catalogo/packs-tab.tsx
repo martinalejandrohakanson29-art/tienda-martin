@@ -226,6 +226,7 @@ export function PacksTab({
                     plantillasReferral: "",
                     mensajeBienvenida: nuevoGrupoMensaje,
                     preguntaVariante: nuevoGrupoPreguntaVariante,
+                    preguntaVarianteReintento: "",
                     fotoUrl: "",
                     categoria: nuevoGrupoCategoria,
                 })
@@ -239,6 +240,7 @@ export function PacksTab({
                         plantillas_referral: null,
                         mensaje_bienvenida: nuevoGrupoMensaje.trim() || null,
                         pregunta_variante: nuevoGrupoPreguntaVariante.trim() || null,
+                        pregunta_variante_reintento: null,
                         foto_url: null,
                         categoria: nuevoGrupoCategoria.trim() || null,
                         activo: true,

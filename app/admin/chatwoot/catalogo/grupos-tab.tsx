@@ -30,6 +30,7 @@ const FORM_VACIO: ChatPackGrupoInput = {
     plantillasReferral: "",
     mensajeBienvenida: "",
     preguntaVariante: "",
+    preguntaVarianteReintento: "",
     fotoUrl: "",
     categoria: "",
 }
@@ -90,6 +91,7 @@ export function GruposTab({
             plantillasReferral: grupo.plantillas_referral || "",
             mensajeBienvenida: grupo.mensaje_bienvenida || "",
             preguntaVariante: grupo.pregunta_variante || "",
+            preguntaVarianteReintento: grupo.pregunta_variante_reintento || "",
             fotoUrl: grupo.foto_url || "",
             categoria: grupo.categoria || "",
         })
@@ -162,6 +164,7 @@ export function GruposTab({
                 plantillas_referral: form.plantillasReferral.trim() || null,
                 mensaje_bienvenida: form.mensajeBienvenida.trim() || null,
                 pregunta_variante: form.preguntaVariante.trim() || null,
+                pregunta_variante_reintento: form.preguntaVarianteReintento.trim() || null,
                 foto_url: form.fotoUrl.trim() || null,
                 categoria: form.categoria.trim() || null,
                 activo: grupos.find((g) => g.id === form.id)?.activo ?? true,
@@ -316,6 +319,23 @@ export function GruposTab({
                             <p className="text-xs text-gray-400">
                                 El mensaje de bienvenida de arriba pregunta primero la moto (para confirmar compatibilidad);
                                 esta es la segunda pregunta, recién después de confirmar que es compatible.
+                            </p>
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="preguntaVarianteReintento">Pregunta de reintento (opcional)</Label>
+                            <Textarea
+                                id="preguntaVarianteReintento"
+                                placeholder={"Fijate en la corona de distribución debajo del motor: contá los dientes, 28 es corto y 32 es largo — sacale una foto si no estás seguro."}
+                                value={form.preguntaVarianteReintento}
+                                onChange={(e) => actualizarCampo("preguntaVarianteReintento", e.target.value)}
+                                disabled={guardando}
+                                rows={3}
+                            />
+                            <p className="text-xs text-gray-400">
+                                Si el cliente no contesta claro y el bot tiene que volver a preguntar, parte de este texto
+                                en vez del de arriba (la IA lo sigue reformulando, no lo manda literal). Si lo dejás vacío,
+                                el reintento sigue usando la pregunta de arriba, como hasta ahora.
                             </p>
                         </div>
 

@@ -346,6 +346,7 @@ export type ChatPackGrupo = {
     plantillas_referral: string | null
     mensaje_bienvenida: string | null
     pregunta_variante: string | null
+    pregunta_variante_reintento: string | null
     foto_url: string | null
     categoria: string | null
     activo: boolean
@@ -358,6 +359,7 @@ export type ChatPackGrupoInput = {
     plantillasReferral: string
     mensajeBienvenida: string
     preguntaVariante: string
+    preguntaVarianteReintento: string
     fotoUrl: string
     categoria: string
 }
@@ -365,7 +367,7 @@ export type ChatPackGrupoInput = {
 export async function getChatPackGrupos(): Promise<ChatPackGrupo[]> {
     await requireAdmin()
     return prisma.$queryRaw<ChatPackGrupo[]>`
-        SELECT id, nombre, plantillas_bienvenida, plantillas_referral, mensaje_bienvenida, pregunta_variante, foto_url, categoria, activo
+        SELECT id, nombre, plantillas_bienvenida, plantillas_referral, mensaje_bienvenida, pregunta_variante, pregunta_variante_reintento, foto_url, categoria, activo
         FROM chat_pack_grupos
         ORDER BY nombre ASC
     `
@@ -380,6 +382,7 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
     const plantillasReferral = data.plantillasReferral.trim() || null
     const mensajeBienvenida = data.mensajeBienvenida.trim() || null
     const preguntaVariante = data.preguntaVariante.trim() || null
+    const preguntaVarianteReintento = data.preguntaVarianteReintento.trim() || null
     const fotoUrl = data.fotoUrl.trim() || null
     const categoria = data.categoria.trim() || null
 
@@ -389,6 +392,7 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
             SET nombre = ${nombre}, plantillas_bienvenida = ${plantillasBienvenida},
                 plantillas_referral = ${plantillasReferral},
                 mensaje_bienvenida = ${mensajeBienvenida}, pregunta_variante = ${preguntaVariante},
+                pregunta_variante_reintento = ${preguntaVarianteReintento},
                 foto_url = ${fotoUrl}, categoria = ${categoria}
             WHERE id = ${data.id}
         `
@@ -397,8 +401,8 @@ export async function guardarChatPackGrupo(data: ChatPackGrupoInput): Promise<{ 
     }
 
     const inserted = await prisma.$queryRaw<{ id: number }[]>`
-        INSERT INTO chat_pack_grupos (nombre, plantillas_bienvenida, plantillas_referral, mensaje_bienvenida, pregunta_variante, foto_url, categoria)
-        VALUES (${nombre}, ${plantillasBienvenida}, ${plantillasReferral}, ${mensajeBienvenida}, ${preguntaVariante}, ${fotoUrl}, ${categoria})
+        INSERT INTO chat_pack_grupos (nombre, plantillas_bienvenida, plantillas_referral, mensaje_bienvenida, pregunta_variante, pregunta_variante_reintento, foto_url, categoria)
+        VALUES (${nombre}, ${plantillasBienvenida}, ${plantillasReferral}, ${mensajeBienvenida}, ${preguntaVariante}, ${preguntaVarianteReintento}, ${fotoUrl}, ${categoria})
         RETURNING id
     `
     revalidatePath(RUTA)

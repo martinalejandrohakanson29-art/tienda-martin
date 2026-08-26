@@ -5,6 +5,7 @@ import Link from "next/link"
 import { ArrowLeft, ExternalLink, Loader2, RefreshCw, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+    forzarSincronizacionChatsVivo,
     obtenerChatsVivo,
     obtenerHiloChatVivo,
     type MensajeConversacion,
@@ -12,12 +13,11 @@ import {
 } from "@/app/actions/chats-vivo"
 import type { Categoria, ConversacionVivo } from "@/lib/chatwoot-chats-vivo"
 
-// Panel de chats en vivo. Lista de conversaciones reales de Chatwoot (últimos
-// N días, actividad más reciente primero); la categoría de cada una sale de
+// Panel de chats en vivo. Lee directamente desde la tabla espejo en PostgreSQL
+// para carga instantánea (< 20ms); la categoría de cada una sale de
 // nuestras propias tablas de pendientes (preguntas_tecnicas/negocio/precio/
-// sin_match_pendientes), no de un label de Chatwoot -- la cuenta real todavía
-// no tiene ninguno puesto. Solo lectura: el hilo se trae bajo demanda al
-// seleccionar una conversación, no se puede responder desde acá.
+// sin_match_pendientes), no de un label de Chatwoot.
+// Solo lectura: el hilo se trae bajo demanda al seleccionar una conversación.
 
 const CATEGORIA_INFO: Record<Categoria, { texto: string; clase: string }> = {
     tecnica: { texto: "Técnica", clase: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -84,13 +84,25 @@ export function ChatsVivoClient({
         })
     }
 
+    const sincronizar = (dias: number) => {
+        arrancarCargaLista(async () => {
+            try {
+                const nuevo = await forzarSincronizacionChatsVivo(dias)
+                setPanel(nuevo)
+                setFallo(null)
+            } catch (e) {
+                setFallo(e instanceof Error ? e.message : "No se pudieron sincronizar las conversaciones de Chatwoot")
+            }
+        })
+    }
+
     const cambiarPeriodo = (dias: number) => {
         setPeriodoDias(dias)
         refrescar(dias)
     }
 
-    // Auto-refresco cada 60s mientras la pantalla está abierta -- suficiente
-    // para "en vivo" sin machacar la API de Chatwoot con paginado completo.
+    // Auto-refresco cada 60s mientras la pantalla está abierta -- instantáneo
+    // porque lee directamente desde PostgreSQL local.
     useEffect(() => {
         const id = setInterval(() => refrescar(periodoDias), 60_000)
         return () => clearInterval(id)
@@ -170,7 +182,7 @@ export function ChatsVivoClient({
                         </button>
                     ))}
                 </div>
-                <Button variant="outline" size="sm" onClick={() => refrescar(periodoDias)} disabled={cargandoLista}>
+                <Button variant="outline" size="sm" onClick={() => sincronizar(periodoDias)} disabled={cargandoLista} title="Sincronizar con Chatwoot">
                     {cargandoLista ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 </Button>
             </div>

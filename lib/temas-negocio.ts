@@ -6,5 +6,6 @@ export const TEMAS_NEGOCIO = [
     { value: "medios_pago", label: "Medios de pago" },
     { value: "envios", label: "Formas de envío" },
     { value: "garantia", label: "Garantía" },
+    { value: "mayorista", label: "Venta por mayor / reventa" },
     { value: "otro", label: "Otro" },
 ] as const

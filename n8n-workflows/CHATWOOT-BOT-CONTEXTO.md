@@ -1573,3 +1573,47 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   para grupos) que reusa nodos que ya funcionan en producción. Pin roto de Ramiro y datos sintéticos
   de la prueba, limpiados. **Pendiente:** Ramiro se quedó sin ninguna respuesta desde las 21:31 del
   25/8 — hay que contestarle a mano.
+- **Tema "mayorista" — solo en la rama Grupo esperando moto (2026-08-26):** caso real (conv 2754,
+  +5492984583210, grupo Tapa CDI) — un lubricentro preguntó por venta al por mayor mientras el bot
+  esperaba que dijera su moto; escaló bien en silencio, pero SIGUIÓ preguntando "¿qué marca y modelo
+  es tu moto?" (comportamiento a propósito del 24/08, para no perder nada) — sin sentido para
+  alguien que no va a instalar nada, confundió al equipo (llegó a escribirse `/bot off` por error,
+  pensando que era otra conversación). Fix: se sumó "mayorista" a la lista cerrada de temas de
+  `Extraer Tema Negocio (Grupo)` / `Parsear Tema Negocio (Grupo)` (agregar `es_mayorista` al output)
+  + un gate nuevo `¿Fue Mayorista?` insertado justo donde ya convergían "negocio contestado" y
+  "negocio escalado" antes de seguir hacia `Preparar Repregunta Modelo (Grupo)`: si el tema fue
+  mayorista, en vez de preguntar la moto, borra el pin del grupo (`Borrar Pin Grupo (Mayorista)`,
+  mismo patrón `DEL kit_pineado:{telefono}` que ya usa `Borrar Pin Grupo (No Compatible)`) y termina
+  ahí (`Fin - Mayorista (Sin Repregunta)`). Si todavía no hay respuesta cargada para "mayorista" en
+  Conocimiento, escala en silencio igual que cualquier otro tema sin dato — decisión explícita de
+  Martín, no hace falta nada especial ahí. `lib/temas-negocio.ts` también suma la opción (label
+  "Venta por mayor / reventa") para poder cargar la respuesta real desde
+  `/admin/chatwoot/conocimiento`. 395→398 nodos. Validado en la conversación de prueba (2411)
+  reproduciendo el caso real paso a paso: bienvenida del grupo Tapa CDI → mensaje de mayorista →
+  escaló en silencio, nota privada, **sin** repregunta de moto; se confirmó contra la ejecución real
+  de n8n que `Preparar Repregunta Modelo (Grupo)` no corrió y que `Borrar Pin Grupo (Mayorista)`
+  corrió sin error.
+  **Pendiente:**
+  1. Cargar la respuesta real de "mayorista" en `/admin/chatwoot/conocimiento` — por ahora escala
+     siempre, no hay dato cargado.
+  2. Quedan 2 ramas más con el patrón "negocio mientras hay algo pineado, sigue preguntando
+     después" sin tocar (kit con variante pineado, grupo esperando variante corto/largo) — ver
+     entrada de abajo sobre por qué NO son 4 ramas como se pensó al principio.
+  3. `rutas-bot-chatwoot.html` sigue sin actualizar (arrastra desactualización de varias rondas
+     anteriores, ver entradas previas).
+- **Tema "mayorista" — sumado también a la rama compartida "sin nada pineado" / "kit ya resuelto"
+  (2026-08-26, mismo día):** al rastrear el cableado real para planear esta extensión se corrigió
+  algo mal asumido en la entrada de arriba: no son 4 ramas separadas del patrón negocio. Hay 3
+  clasificadores de tema realmente aislados (`Extraer Tema Negocio (Grupo)` ya con mayorista,
+  `(Variante)`, `(Esperando Variante)`, estas 2 últimas sin tocar) más un **único** nodo compartido
+  (`Extraer Tema Negocio (Sub-pregunta)` / `Parsear Tema Negocio`, corazón del partidor de
+  sub-preguntas de la Fase 6) al que convergen DOS situaciones distintas: sin ningún kit pineado
+  (`Identificar Necesidad` no pudo asociar nada) y kit pineado pero ya resuelto (no "esperando
+  moto"/"esperando variante"). Ninguna de las dos deja una repregunta pendiente después de resolver
+  negocio — a diferencia de la rama Grupo, acá no hace falta gate ni borrado de pin, solo sumar
+  "mayorista" a la lista cerrada del prompt (`Extraer Tema Negocio (Sub-pregunta)`) y del parser
+  (`Parsear Tema Negocio`). Validado en la conversación de prueba (2411, estado limpio, sin nada
+  pineado) con un mensaje de mayorista suelto ("¿Tienen ventas por mayor?..."): escaló en silencio
+  con nota privada, confirmado contra la ejecución real de n8n que clasificó `tema: "mayorista"`
+  correctamente y nunca generó ninguna pregunta de más. Mismo pendiente que arriba: cargar la
+  respuesta real en Conocimiento.

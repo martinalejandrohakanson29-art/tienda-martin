@@ -2433,67 +2433,116 @@ export default function VentasMostradorClient({
   );
 
   const bloqueAccionFinalFinalizar = (
-    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4 mb-2">
-      <Label className="text-xs font-bold text-slate-600 uppercase block mb-3 text-center">Acción Final</Label>
-      <div className="flex flex-col gap-5 max-w-md mx-auto">
-        {pedidoEnEdicionId ? (
+    <div className="bg-slate-100/70 p-4 sm:p-5 rounded-2xl border border-slate-200 mt-4 mb-2">
+      <div className="flex items-center justify-between mb-3 border-b border-slate-200/80 pb-2">
+        <Label className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+          <ShoppingCart className="h-4 w-4 text-slate-500" /> Confirmación y Acción Final
+        </Label>
+      </div>
+
+      {pedidoEnEdicionId ? (
+        <div className="bg-blue-50 border-2 border-blue-300 rounded-2xl p-4 sm:p-5 max-w-lg mx-auto text-center shadow-sm">
+          <div className="flex items-center justify-center gap-2 mb-4 text-blue-900 font-extrabold text-base">
+            <Edit className="h-5 w-5 text-blue-600" />
+            Guardando Pedido de Venta #{numeroPedidoEnEdicion}
+          </div>
           <Button
             onClick={() => handleFinalizarVenta()}
             disabled={isSubmitting}
-            className="bg-blue-600 hover:bg-blue-700 text-white h-12 rounded-xl font-bold w-full"
+            className="bg-blue-600 hover:bg-blue-700 text-white h-12 rounded-xl font-extrabold text-base w-full shadow-md transition-all active:scale-[0.99]"
           >
-            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Save className="h-5 w-5 mr-2" /> Guardar Cambios</>}
+            {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Save className="h-5 w-5 mr-2" /> Guardar Cambios del Pedido</>}
           </Button>
-        ) : (
-          <>
-            <div className="flex items-center justify-center gap-2">
-              <input
-                type="checkbox"
-                id="solicitarFactura"
-                checked={solicitarFactura}
-                onChange={(e) => setSolicitarFactura(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-              />
-              <Label htmlFor="solicitarFactura" className="text-xs font-bold text-blue-700 cursor-pointer flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5" /> Generar Factura AFIP
-              </Label>
-            </div>
-            {requiereFiscalizacionOpcional ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Button
-                  onClick={() => handleFinalizarVenta(false, false)}
-                  disabled={isSubmitting}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold w-full"
-                >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar sin fiscalizar</>}
-                </Button>
-                <Button
-                  onClick={() => handleFinalizarVenta(false, true)}
-                  disabled={isSubmitting}
-                  className="bg-emerald-800 hover:bg-emerald-900 text-white h-12 rounded-xl font-bold w-full"
-                >
-                  {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ShieldCheck className="h-5 w-5 mr-2" /> Registrar y fiscalizar</>}
-                </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* OPCION 1: PEDIDO DE VENTA */}
+          <div className="bg-amber-50/80 border-2 border-amber-400 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-500 text-slate-950 rounded-xl shadow-xs shrink-0">
+                    <Clock className="h-5 w-5 text-slate-950" />
+                  </div>
+                  <span className="text-sm font-black uppercase text-amber-950 tracking-wider">Pedido de Venta</span>
+                </div>
+                <Badge className="bg-amber-200/90 text-amber-950 border-amber-300 font-bold text-[10px] shrink-0">
+                  Pendiente
+                </Badge>
               </div>
-            ) : (
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-amber-200/60">
               <Button
-                onClick={() => handleFinalizarVenta(false)}
+                onClick={() => handleFinalizarVenta(true)}
                 disabled={isSubmitting}
-                className="bg-green-600 hover:bg-green-700 text-white h-12 rounded-xl font-bold w-full"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 hover:text-black font-extrabold text-sm sm:text-base h-12 rounded-xl border border-amber-400 shadow-md hover:shadow-lg transition-all active:scale-[0.99] w-full tracking-wide flex items-center justify-center gap-2 cursor-pointer"
               >
-                {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-5 w-5 mr-2" /> Registrar venta</>}
+                {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><Clock className="h-5 w-5 text-slate-950" /> CARGAR COMO PEDIDO DE VENTA</>}
               </Button>
-            )}
-            <Button
-              onClick={() => handleFinalizarVenta(true)}
-              disabled={isSubmitting}
-              className="bg-amber-500 hover:bg-amber-600 text-white h-10 rounded-xl font-bold w-full text-sm shadow-md"
-            >
-              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Clock className="h-4 w-4 mr-2" /> Pedido de venta</>}
-            </Button>
-          </>
-        )}
-      </div>
+            </div>
+          </div>
+
+          {/* OPCION 2: REGISTRAR VENTA */}
+          <div className="bg-emerald-50/80 border-2 border-emerald-400 rounded-2xl p-4 sm:p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-all">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-xs shrink-0">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <span className="text-sm font-black uppercase text-emerald-950 tracking-wider">Registrar Venta</span>
+                </div>
+                <Badge className="bg-emerald-200/90 text-emerald-950 border-emerald-300 font-bold text-[10px] shrink-0">
+                  Caja / Stock
+                </Badge>
+              </div>
+
+              <div className="flex items-center gap-2 my-2 p-2.5 bg-white/90 rounded-xl border border-emerald-200 shadow-2xs">
+                <input
+                  type="checkbox"
+                  id="solicitarFactura"
+                  checked={solicitarFactura}
+                  onChange={(e) => setSolicitarFactura(e.target.checked)}
+                  className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-600 cursor-pointer"
+                />
+                <Label htmlFor="solicitarFactura" className="text-xs font-bold text-emerald-900 cursor-pointer flex items-center gap-1.5 select-none">
+                  <FileText className="h-3.5 w-3.5 text-emerald-600" /> Generar Factura AFIP (ARCA)
+                </Label>
+              </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-emerald-200/60">
+              {requiereFiscalizacionOpcional ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Button
+                    onClick={() => handleFinalizarVenta(false, false)}
+                    disabled={isSubmitting}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-bold text-xs shadow-md transition-all active:scale-[0.99] w-full"
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><CheckCircle className="h-4 w-4 mr-1.5 shrink-0" /> Registrar sin fiscalizar</>}
+                  </Button>
+                  <Button
+                    onClick={() => handleFinalizarVenta(false, true)}
+                    disabled={isSubmitting}
+                    className="bg-teal-800 hover:bg-teal-900 text-white h-12 rounded-xl font-bold text-xs shadow-md transition-all active:scale-[0.99] w-full"
+                  >
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <><ShieldCheck className="h-4 w-4 mr-1.5 shrink-0" /> Registrar y fiscalizar</>}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => handleFinalizarVenta(false)}
+                  disabled={isSubmitting}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white h-12 rounded-xl font-extrabold text-sm sm:text-base shadow-md hover:shadow-lg transition-all active:scale-[0.99] w-full tracking-wide flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isSubmitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><CheckCircle2 className="h-5 w-5" /> REGISTRAR VENTA</>}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -4033,7 +4082,6 @@ export default function VentasMostradorClient({
                   </div>
 
                   {isPagoMixto && bloqueObservacionesFinalizar}
-                  {isPagoMixto && bloqueAccionFinalFinalizar}
                 </div>
                 <div className="space-y-4">
                   {/* SELECTOR DE PAGO MIXTO */}
@@ -4426,7 +4474,7 @@ export default function VentasMostradorClient({
                   {!isPagoMixto && bloqueObservacionesFinalizar}
                 </div>
               </div>
-              {!isPagoMixto && bloqueAccionFinalFinalizar}
+              {bloqueAccionFinalFinalizar}
               <DialogFooter className="mt-2">
                 <Button variant="ghost" onClick={() => setIsFinalizarModalOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
               </DialogFooter>

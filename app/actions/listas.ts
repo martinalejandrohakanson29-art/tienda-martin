@@ -303,8 +303,14 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
       if (idxCodigo >= 0) {
         headerRowIdx = i;
         colCodigo = idxCodigo;
-        // Excluimos las columnas de "precio final" para que no sean confundidas con el costo del distribuidor.
-        colPrecio = row.findIndex((c: any) => typeof c === "string" && /distribuidor|precio|costo|lista/i.test(c) && !/final/i.test(c));
+        // Buscamos la columna de costo por prioridad de nombre (no por posición): si hay una
+        // columna "costo" explícita, gana sobre "distribuidor" aunque esta aparezca antes
+        // (ej. planillas con DISTRIBUIDOR | COSTO | FINAL, donde DISTRIBUIDOR no es nuestro costo real).
+        // Siempre excluimos las columnas de "precio final" para que no sean confundidas con el costo.
+        for (const patron of [/costo/i, /distribuidor/i, /precio/i, /lista/i]) {
+          const idx = row.findIndex((c: any) => typeof c === "string" && patron.test(c) && !/final/i.test(c));
+          if (idx >= 0) { colPrecio = idx; break; }
+        }
         // Columna opcional con el precio final al público ya calculado por el proveedor
         // (ej. "precio final", "precio final + envío", "final con envío", "precio final mostrador").
         colPrecioFinal = row.findIndex((c: any) => typeof c === "string" && /final/i.test(c));

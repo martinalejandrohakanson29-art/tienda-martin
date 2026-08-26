@@ -794,22 +794,31 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
 
 ## Qué falta / pendiente (al 2026-08-21)
 
-- **BUG GRAVE, diagnosticado pero sin arreglar todavía (2026-08-25): `/bot off` puede no pausar la
-  conversación.** Caso real: conv 2650 (+5492946509748). Martín escribió `/bot off` (nota privada)
-  tres veces en la misma charla y las tres veces el bot le siguió respondiendo minutos después,
-  pisando sus respuestas manuales al cliente (una vez incluso mandó "perdon, no era para vos" en
-  público sin querer). Causa raíz confirmada contra las ejecuciones reales de n8n (no es hipótesis):
-  **`/bot off` no es un comando especial que el workflow reconozca por su texto** — cualquier
-  mensaje del equipo en una conversación primero se intenta interpretar como la respuesta a una
-  pregunta pendiente de esa charla (`preguntas_sin_match_pendientes`/técnicas), y **recién si no hay
-  ninguna pendiente sigue el camino que realmente hace `SET bot_pausado`**. En este caso había una
-  pregunta técnica pendiente sin cerrar desde el día anterior — cada `/bot off` se interpretó como
-  intento de respuesta a ESA pregunta vieja, la IA dijo "confianza baja, no hago nada" y ahí terminó
-  la ejecución, sin llegar nunca al nodo de pausa. Se retroalimenta solo: mientras el bot siga
-  activo, cada mensaje nuevo del cliente genera otra pendiente, y cualquier `/bot off` futuro cae en
-  la misma trampa. **Diseño a decidir antes de arreglar:** lo más directo es que `/bot off` (y
-  probablemente `/bot on`) se detecten de forma explícita ANTES del intento de interpretación como
-  respuesta a una pendiente — charlarlo con Martín antes de tocar el workflow, no asumir el diseño.
+- ~~BUG GRAVE: `/bot off` puede no pausar la conversación~~ — **arreglado 2026-08-26.** Caso real:
+  conv 2650 (+5492946509748). Martín escribió `/bot off` (nota privada) tres veces en la misma
+  charla y las tres veces el bot le siguió respondiendo minutos después, pisando sus respuestas
+  manuales al cliente (una vez incluso mandó "perdon, no era para vos" en público sin querer). Causa
+  raíz confirmada contra las ejecuciones reales de n8n: **`/bot off` no era un comando especial que
+  el workflow reconociera por su texto** — cualquier mensaje del equipo en una conversación primero
+  se intentaba interpretar como la respuesta a una pregunta pendiente de esa charla
+  (`preguntas_sin_match_pendientes`/técnicas), y recién si no había ninguna pendiente seguía el
+  camino que hace `SET bot_pausado`. Con una pregunta técnica pendiente sin cerrar, cada `/bot off`
+  se interpretaba como intento de respuesta a ESA pregunta vieja, la IA decía "confianza baja, no
+  hago nada" y ahí terminaba la ejecución, sin llegar nunca al nodo de pausa.
+  **Fix aplicado** (directo contra la API de n8n, nodo nuevo, sin tocar la lógica de interpretación
+  de pendientes): `¿Es Comando Pausar?` (If), espejo exacto del `¿Es Comando Reactivar?` que ya
+  existía para `/bot on` (mismo patrón: compara `content.trim().toLowerCase()` contra `/bot off`,
+  sin IA de por medio). Se insertó en el mismo punto de entrada donde ya corría el chequeo de
+  `/bot on` — la salida falsa de `¿Es Comando Reactivar?` (antes iba directo a
+  `¿Es Respuesta de Mi Equipo?`) ahora pasa primero por `¿Es Comando Pausar?`: si matchea, va directo
+  a `Marcar Bot Pausado` (el nodo Redis que ya existía, sin clonar); si no, sigue exactamente el
+  camino de siempre. 392→393 nodos.
+  Validado con ejecuciones reales contra la conversación de prueba (2411): se cargó a propósito una
+  pregunta técnica pendiente sintética (para reproducir la trampa) y se mandó `/bot off` simulando
+  una nota privada del equipo — la ejecución (id 86354) confirmó el camino
+  `¿Es Comando Reactivar?` → `¿Es Comando Pausar?` → `Marcar Bot Pausado`, saltando por completo la
+  interpretación de pendientes. Regresión chequeada con `/bot on` inmediatamente después (ejecución
+  86355): siguió corriendo `Reactivar Bot` sin cambios. Pendiente sintética borrada al terminar.
 - **PRÓXIMO PASO, a mitad de investigación:** falta cubrir el otro caso de "cuando el cliente
   contesta con un dato usable, seguir la charla" — la desambiguación de **3 opciones de kit**
   (`Enviar Repregunta Candidatos (Propuesta)`, el "¿Te referís al Kit 120 para 110, a la Tapa cdi,
@@ -1528,3 +1537,39 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   ("Genial, entonces le va perfecto el combo de Tapa CDI + Cilindro 120 recorrido corto — $175.000,
   envío gratis a todo el país...") sin preguntar la moto; plantilla Escape+Leva (sin el flag) +
   "Recorrido corto" solo → siguió pidiendo la moto exactamente igual que antes del fix, sin cambios.
+- **Regresión real del "Fix 7" (conv 2269) de más arriba: kits SIMPLES sin variantes (Kit 170,
+  Kit Dakar 200) se quedaban sin ninguna respuesta al confirmar compatibilidad — 2026-08-26,
+  encontrada revisando la conv real de un cliente afectado (Ramiro, +5493816568345, conv 2734).**
+  Escribió por Kit 170 varillero + leva ("Hola amigo te vi... kit de 170 para un barillero" + "Yo
+  tengo un skua" en la misma ráfaga), el bot confirmó bien que la Skua es compatible, y ahí la
+  ejecución murió con error HTTP 400 "Falta content" — cero respuesta, sin nota, sin quedar
+  registrado en ningún pendiente (mismo síntoma que el bug de `candidatos`/Lele-Cristian del 25/8).
+  Causa: el tramo de 7 nodos del Fix 7 (resolver variante anticipada / preguntar corto-largo) se
+  agregó pensando solo en combos con variantes (grupo) — nunca chequeaba `es_grupo` antes de
+  entrar. Para un kit simple, busca una "variante" que no existe (`grupos` no tiene esa id, está en
+  `packs`), la pregunta de variante sale con texto vacío, y Chatwoot rechaza el mensaje vacío. Antes
+  de romperse alcanzó a pinear en Redis un pin roto ("esperando variante" de un grupo inexistente) —
+  cualquier mensaje nuevo de Ramiro iba a repetir el mismo error hasta limpiarlo a mano.
+  **Fix aplicado** (nodo IF nuevo `¿Es Grupo (Kit Confiado)?` insertado entre `¿Es Compatible o Sin
+  Dato (Kit Confiado)?` y `Resolver Variante Anticipada (Kit Confiado)`): si `es_grupo`, sigue
+  exactamente el camino de siempre (sin tocar nada del Fix 7); si no, nodo nuevo
+  `Preparar Pack Simple Pineado (Kit Confiado)` arma `pack_id`/`pack_nombre`/`mensaje_bienvenida`/
+  `foto_url` directo desde `Buscar Kits Activos().packs` (sin pasar por la resolución de variante,
+  que no aplica) y converge en el `Marcar Pack Final Pineado (Kit Confiado)` que ya existía. A
+  pedido de Martín, para el mensaje se reusa la bienvenida original del kit (la misma que manda la
+  plantilla exacta) en vez de redactar un texto de confirmación nuevo — vuelve a preguntar la moto
+  aunque el cliente ya la haya dado, pero es dato correcto y no rompe nada; queda como mejora
+  cosmética futura si molesta en la práctica. 393→395 nodos.
+  **Validación con la misma limitación honesta que el fix de `candidatos` del 25/8:** confirmé la
+  causa exacta contra la ejecución real que falló (no es hipótesis) y probé en vivo, contra una
+  conversación de prueba nueva y limpia, que el mecanismo reusado (`Marcar Pack Final Pineado` /
+  `Enviar Bienvenida Pack Final`) funciona bien para un pack simple sin romperse — pero no logré
+  reproducir en vivo el camino EXACTO de Ramiro (mensaje+moto juntos en la misma ráfaga →
+  `Identificar Necesidad` → `kit_confiado` → compatible) por un problema de latencia del entorno de
+  pruebas esa noche (la API de ejecuciones de n8n y hasta la entrega de mensajes de Chatwoot
+  quedaron con varios minutos de lag para los webhooks disparados a mano, mientras el tráfico real
+  seguía procesando normal — no se llegó a entender la causa de ese lag puntual). Confianza alta en
+  el fix igual: es un cambio quirúrgico (agrega una rama, no toca la lógica ya validada del Fix 7
+  para grupos) que reusa nodos que ya funcionan en producción. Pin roto de Ramiro y datos sintéticos
+  de la prueba, limpiados. **Pendiente:** Ramiro se quedó sin ninguna respuesta desde las 21:31 del
+  25/8 — hay que contestarle a mano.

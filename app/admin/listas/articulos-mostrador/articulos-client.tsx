@@ -398,15 +398,17 @@ export default function ArticulosClient({
 
   const handleAplicarExcel = async () => {
     if (!excelPreview || excelPreview.items.length === 0) return;
+    // El % de marcación solo hace falta si queda algún artículo sin precio final propio en la planilla.
+    const faltaSinPrecioFinal = excelPreview.items.some(it => it.precioFinalExcel == null);
     const pct = Number(excelPorcentaje);
-    if (excelPorcentaje.trim() === "" || isNaN(pct) || pct < 0) {
+    if (faltaSinPrecioFinal && (excelPorcentaje.trim() === "" || isNaN(pct) || pct < 0)) {
       alert("Ingresá un % de marcación válido.");
       return;
     }
     setAplicandoExcel(true);
 
-    const updates = excelPreview.items.map(it => ({ id: it.id, costoNuevo: it.costoNuevo, costoUsdNuevo: it.costoUsdNuevo }));
-    const res = await aplicarActualizacionMasivaExcel(updates, pct, {
+    const updates = excelPreview.items.map(it => ({ id: it.id, costoNuevo: it.costoNuevo, costoUsdNuevo: it.costoUsdNuevo, precioFinalNuevo: it.precioFinalExcel }));
+    const res = await aplicarActualizacionMasivaExcel(updates, isNaN(pct) ? 0 : pct, {
       esDolar: excelPreview.esDolar,
       descuentoPct: excelPreview.descuentoPct,
       dolarVentaUsado: excelPreview.dolarVentaUsado
@@ -417,7 +419,12 @@ export default function ArticulosClient({
       setArticulos(prev => prev.map(a => {
         const it = updatesMap.get(a.id);
         if (!it) return a;
-        return { ...a, costo: it.costoNuevo, costoUsd: it.costoUsdNuevo, esCostoDolar: it.costoUsdNuevo != null, margenGanancia: pct, precio: calcularPrecio(it.costoNuevo, pct) };
+        const tienePrecioFinal = it.precioFinalExcel != null;
+        const precioNuevo = tienePrecioFinal ? it.precioFinalExcel! : calcularPrecio(it.costoNuevo, pct);
+        const margenAplicado = tienePrecioFinal
+          ? (it.costoNuevo > 0 ? Number((((precioNuevo / it.costoNuevo) - 1) * 100).toFixed(2)) : 0)
+          : pct;
+        return { ...a, costo: it.costoNuevo, costoUsd: it.costoUsdNuevo, esCostoDolar: it.costoUsdNuevo != null, margenGanancia: margenAplicado, precio: precioNuevo };
       }));
       setIsExcelModalOpen(false);
     } else {
@@ -1727,6 +1734,12 @@ export default function ArticulosClient({
                 </div>
               )}
 
+              {excelPreview.columnaPrecioFinalDetectada && excelPreview.conPrecioFinal > 0 && (
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-[11px] text-indigo-700 font-medium">
+                  Se detectó la columna "{excelPreview.columnaPrecioFinalDetectada}" con el precio final al público: {excelPreview.conPrecioFinal} artículo{excelPreview.conPrecioFinal !== 1 ? "s" : ""} van a usar ese valor tal cual, sin aplicarles el % de marcación.
+                </div>
+              )}
+
               {excelPreview.items.length > 0 && (
                 <div className="border border-slate-100 rounded-xl max-h-[220px] overflow-y-auto">
                   <table className="w-full text-xs">
@@ -1735,6 +1748,9 @@ export default function ArticulosClient({
                         <th className="text-left px-3 py-2 font-bold text-slate-500 uppercase text-[10px]">Artículo</th>
                         <th className="text-right px-3 py-2 font-bold text-slate-500 uppercase text-[10px]">Costo Actual</th>
                         <th className="text-right px-3 py-2 font-bold text-slate-500 uppercase text-[10px]">Costo Nuevo</th>
+                        {excelPreview.columnaPrecioFinalDetectada && (
+                          <th className="text-right px-3 py-2 font-bold text-slate-500 uppercase text-[10px]">Precio Final (Excel)</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -1745,6 +1761,11 @@ export default function ArticulosClient({
                           <td className={`px-3 py-1.5 text-right font-mono font-bold ${it.costoNuevo > it.costoActual ? 'text-red-600' : it.costoNuevo < it.costoActual ? 'text-emerald-600' : 'text-slate-500'}`}>
                             $ {it.costoNuevo.toLocaleString('es-AR')}
                           </td>
+                          {excelPreview.columnaPrecioFinalDetectada && (
+                            <td className="px-3 py-1.5 text-right font-mono font-bold text-indigo-600">
+                              {it.precioFinalExcel != null ? `$ ${it.precioFinalExcel.toLocaleString('es-AR')}` : "—"}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -1765,7 +1786,10 @@ export default function ArticulosClient({
                   <span className="text-2xl font-black text-emerald-700">%</span>
                 </div>
                 <p className="text-[10px] text-emerald-500 mt-2 font-medium italic">
-                  Se aplica sobre el costo nuevo a los {excelPreview.coincidencias} artículos coincidentes.
+                  {excelPreview.conPrecioFinal >= excelPreview.coincidencias
+                    ? "Todos los artículos coincidentes ya traen precio final en la planilla, así que este % no se va a usar."
+                    : `Se aplica sobre el costo nuevo a los ${excelPreview.coincidencias - excelPreview.conPrecioFinal} artículo${excelPreview.coincidencias - excelPreview.conPrecioFinal !== 1 ? "s" : ""} sin precio final en la planilla${excelPreview.conPrecioFinal > 0 ? ` (los otros ${excelPreview.conPrecioFinal} usan el precio final de la planilla)` : ""}.`
+                  }
                 </p>
               </div>
             </div>

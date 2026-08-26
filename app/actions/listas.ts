@@ -234,6 +234,7 @@ export type PreviewItemExcel = {
   costoActual: number;
   costoNuevo: number;
   costoUsdNuevo: number | null;
+  precioFinalExcel: number | null;
 };
 
 export type PreviewExcelResultado = {
@@ -248,6 +249,8 @@ export type PreviewExcelResultado = {
   esDolar: boolean;
   descuentoPct: number;
   dolarVentaUsado: number | null;
+  columnaPrecioFinalDetectada: string | null;
+  conPrecioFinal: number;
 };
 
 export type OpcionesExcelProveedor = {
@@ -292,13 +295,20 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
     let headerRowIdx = -1;
     let colCodigo = -1;
     let colPrecio = -1;
+    let colPrecioFinal = -1;
+    let nombreColPrecioFinal: string | null = null;
     for (let i = 0; i < Math.min(rows.length, 10); i++) {
       const row = rows[i] || [];
       const idxCodigo = row.findIndex((c: any) => typeof c === "string" && /c[oó]digo/i.test(c));
       if (idxCodigo >= 0) {
         headerRowIdx = i;
         colCodigo = idxCodigo;
-        colPrecio = row.findIndex((c: any) => typeof c === "string" && /distribuidor|precio|costo|lista/i.test(c));
+        // Excluimos las columnas de "precio final" para que no sean confundidas con el costo del distribuidor.
+        colPrecio = row.findIndex((c: any) => typeof c === "string" && /distribuidor|precio|costo|lista/i.test(c) && !/final/i.test(c));
+        // Columna opcional con el precio final al público ya calculado por el proveedor
+        // (ej. "precio final", "precio final + envío", "final con envío", "precio final mostrador").
+        colPrecioFinal = row.findIndex((c: any) => typeof c === "string" && /final/i.test(c));
+        if (colPrecioFinal >= 0) nombreColPrecioFinal = String(row[colPrecioFinal]).trim();
         break;
       }
     }
@@ -308,10 +318,11 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
     }
 
     // Si no hay una columna de precio identificable por nombre, tomamos la última
-    // columna numérica de la primera fila de datos como precio.
+    // columna numérica de la primera fila de datos como precio (nunca la de "precio final").
     if (colPrecio === -1) {
       const dataRow = rows[headerRowIdx + 1] || [];
       for (let c = dataRow.length - 1; c >= 0; c--) {
+        if (c === colPrecioFinal) continue;
         if (typeof dataRow[c] === "number") { colPrecio = c; break; }
       }
     }
@@ -325,11 +336,18 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
       .filter(r => r && r[colCodigo] !== undefined && String(r[colCodigo]).trim() !== "");
 
     const excelMap = new Map<string, number>();
+    const excelMapFinal = new Map<string, number>();
     for (const r of filasDatos) {
       const codigo = String(r[colCodigo]).trim().toUpperCase();
       const precio = Number(r[colPrecio]);
       if (codigo && !isNaN(precio) && precio > 0) {
         excelMap.set(codigo, precio);
+      }
+      if (codigo && colPrecioFinal !== -1) {
+        const precioFinal = Number(r[colPrecioFinal]);
+        if (!isNaN(precioFinal) && precioFinal > 0) {
+          excelMapFinal.set(codigo, precioFinal);
+        }
       }
     }
 
@@ -343,7 +361,7 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
     });
 
     const items: PreviewItemExcel[] = [];
-    let suben = 0, bajan = 0, iguales = 0;
+    let suben = 0, bajan = 0, iguales = 0, conPrecioFinal = 0;
 
     for (const art of articulos) {
       const codigo = (art.codigoProveedor || "").trim().toUpperCase();
@@ -355,7 +373,10 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
       if (costoNuevo > costoActual) suben++;
       else if (costoNuevo < costoActual) bajan++;
       else iguales++;
-      items.push({ id: art.id, nombre: art.nombre, codigoProveedor: art.codigoProveedor || "", costoActual, costoNuevo, costoUsdNuevo });
+      // El precio final se toma tal cual viene en la planilla, sin conversión de dólar ni descuento.
+      const precioFinalExcel = excelMapFinal.has(codigo) ? Number(excelMapFinal.get(codigo)!.toFixed(2)) : null;
+      if (precioFinalExcel != null) conPrecioFinal++;
+      items.push({ id: art.id, nombre: art.nombre, codigoProveedor: art.codigoProveedor || "", costoActual, costoNuevo, costoUsdNuevo, precioFinalExcel });
     }
 
     const data: PreviewExcelResultado = {
@@ -369,7 +390,9 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
       items,
       esDolar,
       descuentoPct,
-      dolarVentaUsado
+      dolarVentaUsado,
+      columnaPrecioFinalDetectada: nombreColPrecioFinal,
+      conPrecioFinal
     };
 
     return { success: true, data };
@@ -381,7 +404,7 @@ export async function previsualizarExcelProveedor(formData: FormData, proveedorI
 
 // Aplica los nuevos costos (según lo previsualizado) y recalcula el precio con el % de marcación indicado
 export async function aplicarActualizacionMasivaExcel(
-  updates: { id: string; costoNuevo: number; costoUsdNuevo: number | null }[],
+  updates: { id: string; costoNuevo: number; costoUsdNuevo: number | null; precioFinalNuevo?: number | null }[],
   porcentajeMarcacion: number,
   origen?: { esDolar: boolean; descuentoPct: number; dolarVentaUsado: number | null }
 ) {
@@ -416,14 +439,20 @@ export async function aplicarActualizacionMasivaExcel(
         const anterior = anterioresMap.get(u.id);
         if (!anterior) continue;
 
-        const precioNuevo = calcularPrecio(u.costoNuevo, porcentajeMarcacion);
+        // Si la planilla trae el precio final al público, se usa tal cual (no se recalcula con el % de marcación);
+        // la marcación guardada es la efectiva resultante, para que futuros recálculos (ej. dólar) sigan siendo consistentes.
+        const tienePrecioFinal = u.precioFinalNuevo != null;
+        const precioNuevo = tienePrecioFinal ? u.precioFinalNuevo! : calcularPrecio(u.costoNuevo, porcentajeMarcacion);
+        const margenAplicado = tienePrecioFinal
+          ? (u.costoNuevo > 0 ? Number((((precioNuevo / u.costoNuevo) - 1) * 100).toFixed(2)) : 0)
+          : porcentajeMarcacion;
         const esCostoDolar = u.costoUsdNuevo != null;
 
         await tx.articuloMostrador.update({
           where: { id: u.id },
           data: {
             costo: u.costoNuevo,
-            margenGanancia: porcentajeMarcacion,
+            margenGanancia: margenAplicado,
             precio: precioNuevo,
             costoUsd: u.costoUsdNuevo,
             esCostoDolar
@@ -436,7 +465,7 @@ export async function aplicarActualizacionMasivaExcel(
           articuloId: u.id,
           usuario,
           accion: "ACTUALIZACION_EXCEL_PROVEEDOR",
-          detalle: `Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${u.costoNuevo.toLocaleString('es-AR')}; Marcación ${porcentajeMarcacion}%; Precio: $${Number(anterior.precio).toLocaleString('es-AR')} → $${precioNuevo.toLocaleString('es-AR')} (importación desde Excel)${detalleOrigen}${esCostoDolar ? " — queda atado al dólar, se recalcula solo" : ""}`
+          detalle: `Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${u.costoNuevo.toLocaleString('es-AR')}; ${tienePrecioFinal ? `Precio final tomado directo de la planilla` : `Marcación ${porcentajeMarcacion}%`}; Precio: $${Number(anterior.precio).toLocaleString('es-AR')} → $${precioNuevo.toLocaleString('es-AR')} (importación desde Excel)${detalleOrigen}${esCostoDolar ? " — queda atado al dólar, se recalcula solo" : ""}`
         });
       }
 

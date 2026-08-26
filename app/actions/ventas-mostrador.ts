@@ -2456,3 +2456,59 @@ export async function buscarVentaGlobalPorMLId(mlId: string) {
     return { success: false, error: "Error al buscar" };
   }
 }
+
+export async function buscarVentaGlobalPorArticulo(termino: string) {
+  await requireAdmin();
+  try {
+    const rawWords = termino.trim().split(/\s+/).filter(w => w.length > 0);
+    if (rawWords.length === 0) return { success: false, error: "Ingresá al menos 2 caracteres" };
+
+    const andConditions = rawWords.map(word => ({
+      OR: [
+        {
+          items: {
+            some: {
+              OR: [
+                { nombre: { contains: word, mode: "insensitive" as const } },
+                { productoId: { contains: word, mode: "insensitive" as const } },
+                { id: { contains: word, mode: "insensitive" as const } },
+              ],
+            },
+          },
+        },
+        { mlMla: { contains: word, mode: "insensitive" as const } },
+      ],
+    }));
+
+    const ventas = await prisma.venta.findMany({
+      where: {
+        tipoVenta: { not: "PEDIDO" },
+        AND: andConditions,
+      },
+      include: { items: true, puntoVenta: true },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    return {
+      success: true,
+      data: ventas.map(v => ({
+        ...v,
+        puntoVenta: v.puntoVenta || null,
+        total: Number(v.total),
+        interes: Number(v.interes),
+        totalFinal: Number(v.totalFinal),
+        createdAt: v.createdAt.toISOString(),
+        items: v.items.map(i => ({
+          ...i,
+          precio_unit: Number(i.precio_unit),
+          subtotal: Number(i.subtotal),
+        })),
+      })),
+    };
+  } catch (error) {
+    console.error("Error en búsqueda global por artículo:", error);
+    return { success: false, error: "Error al buscar por artículo" };
+  }
+}
+

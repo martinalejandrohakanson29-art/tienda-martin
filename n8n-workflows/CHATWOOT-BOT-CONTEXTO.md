@@ -872,6 +872,30 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   envío tiró un error de HTTP ajeno al fix, por payload de prueba incompleto — no afecta la
   conclusión: el camino legítimo sigue andando). Pendientes sintéticas, filas de
   `chat_articulo_compatibilidad` de prueba y pin/pausa de Redis, todo borrado al terminar.
+- **BUG (tercero de la misma familia, mismo día): "confianza baja" tiraba a la basura una respuesta
+  del equipo aunque sí trajera un mensaje útil para el cliente** — arreglado 2026-08-26. Caso real:
+  conv 2791 (+5493513824227). El cliente preguntó, en el mismo mensaje, por una pieza no catalogada
+  (cubierta) mencionando su moto — el clasificador lo escaló mal como "¿el kit pineado es compatible
+  con esa moto?" (`preguntas_tecnicas_pendientes`). Martín contestó bien la pregunta real (precio de
+  la cubierta) por nota privada, pero como esa respuesta no confirma ni descarta compatibilidad,
+  `Interpretar Respuesta Equipo` la marca `confianza: "baja"` — y esa rama terminaba siempre en
+  `Fin - Confianza Baja (no se actua)` sin mandar nada, aunque el JSON ya traía un `mensaje_cliente`
+  armado y correcto (confirmado contra la ejecución real 87253: `compatible: null` pero
+  `mensaje_cliente` con el precio real, descartado igual).
+  **Fix aplicado** (1 nodo nuevo, sin tocar la IA ni la lógica de compatibilidad/pin):
+  `¿Hay Mensaje Para Cliente? (Confianza Baja)` (If, AND: `pregunta_id` no vacío Y `mensaje_cliente`
+  no vacío) insertado entre la salida falsa de `¿Confianza Alta?` y `Fin - Confianza Baja (no se
+  actua)`. Si da verdadero, reusa los nodos que ya existían `Marcar Pregunta Respondida` →
+  `¿Fue Nota Privada?` → `Enviar Respuesta al Cliente (Aprendizaje)` (mismo camino de Fase 7) — nunca
+  toca `Guardar en Compatibilidades`/`¿Es Compatible? (Actualizar Pin)`, así que un `compatible: null`
+  no puede escribir una fila falsa en `chat_articulo_compatibilidad` ni tocar mal el pin. 402→403
+  nodos.
+  Validado con 2 pendientes sintéticas en la conversación de prueba (2411): (1) nota privada que
+  responde algo real pero no de compatibilidad → llegó hasta `Enviar Respuesta al Cliente
+  (Aprendizaje)`, mensaje mandado de verdad (id Chatwoot 18093), pregunta marcada `respondida`, cero
+  filas nuevas en `chat_articulo_compatibilidad`; (2) nota privada ambigua sin dato usable ("dale, ok,
+  gracias") → siguió cayendo en `Fin - Confianza Baja` sin mandar nada, como antes. Filas sintéticas
+  borradas al terminar.
 - **PRÓXIMO PASO, a mitad de investigación:** falta cubrir el otro caso de "cuando el cliente
   contesta con un dato usable, seguir la charla" — la desambiguación de **3 opciones de kit**
   (`Enviar Repregunta Candidatos (Propuesta)`, el "¿Te referís al Kit 120 para 110, a la Tapa cdi,
@@ -1755,3 +1779,30 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     detectar automáticamente una campaña nueva sin registrar — sigue cayendo a saludo genérico
     hasta que alguien la cargue a mano (mismo arranque en frío que ya se aceptó al descartar
     `source_id`).
+- **Referral mandaba el saludo del kit a ciegas cuando el cliente pedía algo puntual y distinto en
+  el mismo primer mensaje (2026-08-26, mismo día que el fix de arriba).** Caso real: conv 2779
+  (+5493515913795), clickeó el anuncio "POTENCIA TU VARILLERO A 170CC!" (Kit 170) pero escribió
+  "Hola tendrás piston alta comprecion para Honda titan" — el bot mandó igual la bienvenida
+  completa del Kit 170, el cliente contestó "✅️" sin elegir nada, y el equipo tuvo que aclarar a
+  mano que no se vende ese pistón puntual.
+  Causa: a diferencia de la plantilla exacta (que por definición consume TODO el primer mensaje,
+  texto literal conocido — nada del cliente queda "suelto"), el referral matchea por metadata del
+  anuncio sin mirar el texto, así que el primer mensaje puede traer un pedido real y específico sin
+  que nada lo capture como "resto" (quedaba `resto_mensaje: ""` aunque el mensaje tuviera contenido
+  propio).
+  Fix, sin nodos nuevos: en `Clasificar Mensaje (sin IA)`, cuando matchea por referral y el mensaje
+  tiene contenido propio (no es puro saludo/relleno, mismo chequeo de tokens que ya usa la rama de
+  saludo), se manda el mensaje completo como `resto_mensaje` en vez de dejarlo vacío — así entra al
+  mismo camino de `Validar Continuidad de Tema` (Fase 10) que ya usa la plantilla exacta: si sigue
+  siendo del mismo kit, saluda igual que siempre; si es tema distinto, no manda el saludo y escala
+  en silencio. El caso de mensaje genérico ("Hola quiero info", sin contenido propio) sigue exacto
+  igual que antes — decisión ya tomada arriba de no tocarlo todavía. También se ajustó el prompt de
+  `Validar Continuidad de Tema` (antes decía "coincide EXACTO con la plantilla", que ya no es cierto
+  para el caso referral) para que sea agnóstico a cómo se identificó el kit.
+  **Validado en vivo** contra la conversación de prueba (2411): (1) reproduciendo el caso real
+  exacto (mismo `referral` de Kit 170 + la pregunta del pistón) — `mismo_tema: false`, no mandó el
+  saludo del kit, `Identificar Necesidad` no inventó ningún kit (`tipo: "ninguno"`), y quedó
+  escalado en silencio con nota privada, sin mandar nada al cliente; (2) caso límite pedido por
+  Martín antes de aprobar el fix — plantilla exacta + "cuanto el kit mas una leva" (el Kit 170 ya
+  incluye una leva) — `mismo_tema: true`, mandó el saludo normal sin duplicar el precio (ya
+  suprimido por la regla existente de "la bienvenida recién mandada ya lo cubre").

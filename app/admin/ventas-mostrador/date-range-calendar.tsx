@@ -16,7 +16,14 @@ export function DateRangeCalendar({
   fechaHasta,
   setFechaDesde,
   setFechaHasta,
+  onApply,
 }: DateRangeCalendarProps) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && onApply) {
+      onApply();
+    }
+  };
+
   return (
     <div className="flex items-center gap-3">
       <div className="flex items-center gap-2">
@@ -25,6 +32,7 @@ export function DateRangeCalendar({
           type="date"
           value={fechaDesde}
           onChange={(e) => setFechaDesde(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="h-10 w-[140px] border-slate-200 text-slate-700 rounded-xl"
         />
       </div>
@@ -35,6 +43,7 @@ export function DateRangeCalendar({
           type="date"
           value={fechaHasta}
           onChange={(e) => setFechaHasta(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="h-10 w-[140px] border-slate-200 text-slate-700 rounded-xl"
         />
       </div>

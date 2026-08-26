@@ -31,7 +31,7 @@ import {
   crearVentaMostrador, guardarComoPedidoVenta, obtenerVentasPorFecha, obtenerVentasPorRango, obtenerVentasMLPorRango, marcarVentaComoRegistrada,
   actualizarVentaMostrador, obtenerHistorialVenta, actualizarPrecioArticuloDB, sincronizarArticulosMostrador,
   eliminarVentaMostrador,
-  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, actualizarAlertaML, refacturarComoA,
+  generarFacturaARCA, cancelarVenta, buscarVentaGlobalPorMLId, buscarVentaGlobalPorArticulo, actualizarAlertaML, refacturarComoA,
   exportarVentasListadoParaExcel, revertirVentaAPedido, actualizarPedidoVenta, obtenerTodosLosArticulos,
 } from "@/app/actions/ventas-mostrador";
 import { obtenerProveedores, crearProveedor, crearArticuloMostrador, actualizarObservacionesProveedor, toggleOcultarArticulo } from "@/app/actions/listas";
@@ -60,6 +60,16 @@ const METODOS_PAGO = [
 // izquierdo sutil en el <select> cerrado (misma idea de color, sin fondos).
 function colorMetodoPago(value: string): string {
   return METODOS_PAGO.find((m) => m.value === value)?.color ?? "#cbd5e1";
+}
+
+function normalizeText(text?: string | number | null): string {
+  if (!text) return "";
+  return text
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function OpcionesMetodoPago({ incluirAConfirmar = true }: { incluirAConfirmar?: boolean }) {
@@ -418,7 +428,7 @@ export default function VentasMostradorClient({
   const puntoVentaRef = useRef<HTMLDivElement>(null);
   const puntoVentaGestionRef = useRef<HTMLDivElement>(null);
   const [filtroBusquedaTexto, setFiltroBusquedaTexto] = useState("");
-  const [tipoBusqueda, setTipoBusqueda] = useState<"venta" | "cliente" | "mla_venta" | "mla_envio">("venta");
+  const [tipoBusqueda, setTipoBusqueda] = useState<"venta" | "cliente" | "articulo" | "mla_venta" | "mla_envio">("venta");
   const [filtroMetodoPago, setFiltroMetodoPago] = useState("");
   const [ventasGlobales, setVentasGlobales] = useState<any[] | null>(null);
   const [isSearchingGlobal, setIsSearchingGlobal] = useState(false);
@@ -428,8 +438,8 @@ export default function VentasMostradorClient({
 
   // --- ESTADOS PARA EXPORTAR EXCEL ---
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [exportDesde, setExportDesde] = useState(fechaDesde);
-  const [exportHasta, setExportHasta] = useState(fechaHasta);
+  const [exportDesde, setExportDesde] = useState(new Date().toISOString().split('T')[0]);
+  const [exportHasta, setExportHasta] = useState(new Date().toISOString().split('T')[0]);
   const [exportPuntosSeleccionados, setExportPuntosSeleccionados] = useState<string[]>([]);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -549,9 +559,16 @@ export default function VentasMostradorClient({
     if (!filtroBusquedaTexto.trim()) return;
     setIsSearchingGlobal(true);
     try {
-      const res = await buscarVentaGlobalPorMLId(filtroBusquedaTexto.trim());
-      if (res.success) {
-        setVentasGlobales(res.data || []);
+      if (tipoBusqueda === "articulo") {
+        const res = await buscarVentaGlobalPorArticulo(filtroBusquedaTexto.trim());
+        if (res.success) {
+          setVentasGlobales(res.data || []);
+        }
+      } else {
+        const res = await buscarVentaGlobalPorMLId(filtroBusquedaTexto.trim());
+        if (res.success) {
+          setVentasGlobales(res.data || []);
+        }
       }
     } catch (error) {
       console.error("Error en búsqueda global:", error);
@@ -966,24 +983,46 @@ export default function VentasMostradorClient({
     // Filtro Punto de Venta
     const cumplePuntoVenta = filtroPuntoVenta.length > 0 ? filtroPuntoVenta.includes(v.puntoVentaId) : true;
 
-    // Filtro de Búsqueda (Venta, Cliente, MLA Venta, MLA Envío)
-    const cumpleBusqueda = filtroBusquedaTexto ? (() => {
-      const term = filtroBusquedaTexto.toLowerCase();
+    // Filtro de Búsqueda (Venta, Cliente, Artículo, MLA Venta, MLA Envío)
+    const cumpleBusqueda = filtroBusquedaTexto.trim() ? (() => {
+      const queryWords = normalizeText(filtroBusquedaTexto).split(/\s+/).filter(Boolean);
+      if (queryWords.length === 0) return true;
+
       if (tipoBusqueda === "venta") {
-        return v.numeroVenta?.toString().includes(filtroBusquedaTexto) ||
-          v.id.toLowerCase().includes(term) ||
-          v.dni?.toLowerCase().includes(term);
+        const ventaIdNorm = normalizeText(v.id);
+        const numVenta = v.numeroVenta?.toString() || "";
+        const dniNorm = normalizeText(v.dni);
+        return queryWords.every(w =>
+          ventaIdNorm.includes(w) || numVenta.includes(w) || dniNorm.includes(w)
+        );
       }
       if (tipoBusqueda === "cliente") {
-        return v.cliente?.toLowerCase().includes(term) ||
-          v.dni?.toLowerCase().includes(term);
+        const clienteNorm = normalizeText(v.cliente);
+        const dniNorm = normalizeText(v.dni);
+        const emailNorm = normalizeText(v.email);
+        const combined = `${clienteNorm} ${dniNorm} ${emailNorm}`;
+        return queryWords.every(w => combined.includes(w));
+      }
+      if (tipoBusqueda === "articulo") {
+        const tieneItemMatch = v.items?.some((i: any) => {
+          const itemText = normalizeText(`${i.nombre || ""} ${i.productoId || ""} ${i.id || ""}`);
+          return queryWords.every(w => itemText.includes(w));
+        });
+        if (tieneItemMatch) return true;
+
+        const saleAllItemsText = normalizeText(
+          (v.items || []).map((i: any) => `${i.nombre || ""} ${i.productoId || ""} ${i.id || ""}`).join(" ") + " " + (v.mlMla || "")
+        );
+        return queryWords.every(w => saleAllItemsText.includes(w));
       }
       if (tipoBusqueda === "mla_venta") {
-        return v.mlIdVenta?.toLowerCase().includes(term) ||
-          v.mlPackId?.toLowerCase().includes(term);
+        const mlIdNorm = normalizeText(v.mlIdVenta);
+        const mlPackNorm = normalizeText(v.mlPackId);
+        return queryWords.every(w => mlIdNorm.includes(w) || mlPackNorm.includes(w));
       }
       if (tipoBusqueda === "mla_envio") {
-        return v.mlIdEnvio?.toLowerCase().includes(term);
+        const mlEnvioNorm = normalizeText(v.mlIdEnvio);
+        return queryWords.every(w => mlEnvioNorm.includes(w));
       }
       return true;
     })() : true;
@@ -1001,6 +1040,7 @@ export default function VentasMostradorClient({
   const ventasActivasFiltradas = ventasFiltradas.filter(v => v.estadoPedido !== "CANCELADO");
 
   const esBusquedaML = tipoBusqueda === "mla_venta" || tipoBusqueda === "mla_envio";
+  const esBusquedaGlobal = esBusquedaML || tipoBusqueda === "articulo";
   const mostrandoGlobal = ventasFiltradas.length === 0 && ventasGlobales !== null && ventasGlobales.length > 0;
   const ventasParaTabla = mostrandoGlobal ? ventasGlobales! : ventasFiltradas;
 
@@ -2978,9 +3018,9 @@ export default function VentasMostradorClient({
                         <DateRangeCalendar
                           fechaDesde={fechaDesde}
                           fechaHasta={fechaHasta}
-                          setFechaDesde={(date) => { setFechaDesde(date); cargarVentas(date, fechaHasta); }}
-                          setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
-                          onApply={() => { }}
+                          setFechaDesde={setFechaDesde}
+                          setFechaHasta={setFechaHasta}
+                          onApply={handleCargar}
                         />
                         <Button variant="outline" size="icon" onClick={handleCargar} disabled={isLoadingVentas || isLoadingML} title="Recargar" className="rounded-xl border-slate-200 h-10 w-10 text-slate-400 hover:text-blue-600 transition-all">
                           <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
@@ -3060,13 +3100,14 @@ export default function VentasMostradorClient({
                         >
                           <option value="venta">Venta</option>
                           <option value="cliente">Cliente</option>
+                          <option value="articulo">Artículo</option>
                           <option value="mla_venta">Id Venta MLA</option>
                           <option value="mla_envio">Id Envío MLA</option>
                         </select>
                         <div className="relative flex-grow">
                           <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                           <Input
-                            placeholder={tipoBusqueda === "venta" ? "N° Venta o ID..." : tipoBusqueda === "cliente" ? "Nombre o DNI/CUIT..." : tipoBusqueda === "mla_venta" ? "ID Venta o Pack ML..." : "ID Envío ML..."}
+                            placeholder={tipoBusqueda === "venta" ? "N° Venta o ID..." : tipoBusqueda === "cliente" ? "Nombre o DNI/CUIT..." : tipoBusqueda === "articulo" ? "Nombre o ID de artículo..." : tipoBusqueda === "mla_venta" ? "ID Venta o Pack ML..." : "ID Envío ML..."}
                             value={filtroBusquedaTexto}
                             onChange={(e) => setFiltroBusquedaTexto(e.target.value)}
                             className="h-10 border-none focus-visible:ring-0 pl-9 text-xs bg-white w-48 shadow-none"
@@ -3113,9 +3154,9 @@ export default function VentasMostradorClient({
                       className="h-10 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-sm"
                     >
                       {(isLoadingVentas || isLoadingML) ? (
-                        <><Loader2 className="h-3.5 w-3.5 animate-spin" />Cargando...</>
+                        <><Loader2 className="h-3.5 w-3.5 animate-spin" />Buscando...</>
                       ) : (
-                        <><Search className="h-3.5 w-3.5" />Cargar</>
+                        <><Search className="h-3.5 w-3.5" />Buscar</>
                       )}
                     </Button>
                     <Button
@@ -3206,7 +3247,7 @@ export default function VentasMostradorClient({
                         </TableRow>
                       )}
                       {ventasParaTabla.length === 0 ? (
-                        esBusquedaML && filtroBusquedaTexto.length >= 4 ? (
+                        esBusquedaGlobal && filtroBusquedaTexto.length >= (tipoBusqueda === "articulo" ? 2 : 4) ? (
                           <TableRow>
                             <TableCell colSpan={10} className="py-16 text-center space-y-3">
                               <p className="text-slate-400 italic text-sm mb-3">No se encontraron ventas en el rango de fechas seleccionado.</p>
@@ -3219,10 +3260,10 @@ export default function VentasMostradorClient({
                               >
                                 {isSearchingGlobal
                                   ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Buscando en todo el historial...</>
-                                  : <>Buscar en todas las fechas</>}
+                                  : <>{tipoBusqueda === "articulo" ? "Buscar artículo en todo el historial" : "Buscar en todas las fechas"}</>}
                               </Button>
                               {ventasGlobales !== null && ventasGlobales.length === 0 && (
-                                <p className="text-xs text-red-500 mt-2">No se encontró esta venta en ningún registro del sistema.</p>
+                                <p className="text-xs text-red-500 mt-2">No se encontró ninguna venta con este {tipoBusqueda === "articulo" ? "artículo" : "registro"} en el sistema.</p>
                               )}
                             </TableCell>
                           </TableRow>
@@ -3552,9 +3593,9 @@ export default function VentasMostradorClient({
                         <DateRangeCalendar
                           fechaDesde={fechaDesde}
                           fechaHasta={fechaHasta}
-                          setFechaDesde={(date) => { setFechaDesde(date); cargarVentas(date, fechaHasta); }}
-                          setFechaHasta={(date) => { setFechaHasta(date); cargarVentas(fechaDesde, date); }}
-                          onApply={() => { }}
+                          setFechaDesde={setFechaDesde}
+                          setFechaHasta={setFechaHasta}
+                          onApply={handleCargar}
                         />
                         <Button variant="outline" size="icon" onClick={handleCargar} disabled={isLoadingVentas || isLoadingML} title="Recargar" className="rounded-xl border-amber-200 h-10 w-10 text-amber-500 hover:text-amber-700 hover:bg-white transition-all">
                           <RefreshCcw className={`h-4 w-4 ${isLoadingVentas ? 'animate-spin' : ''}`} />
@@ -3634,13 +3675,14 @@ export default function VentasMostradorClient({
                         >
                           <option value="venta">Venta</option>
                           <option value="cliente">Cliente</option>
+                          <option value="articulo">Artículo</option>
                           <option value="mla_venta">Id Venta MLA</option>
                           <option value="mla_envio">Id Envío MLA</option>
                         </select>
                         <div className="relative flex-grow">
                           <Search className="absolute left-3 top-3 h-4 w-4 text-amber-400" />
                           <Input
-                            placeholder={tipoBusqueda === "venta" ? "N° Venta o ID..." : tipoBusqueda === "cliente" ? "Nombre o DNI/CUIT..." : tipoBusqueda === "mla_venta" ? "ID Venta o Pack ML..." : "ID Envío ML..."}
+                            placeholder={tipoBusqueda === "venta" ? "N° Venta o ID..." : tipoBusqueda === "cliente" ? "Nombre o DNI/CUIT..." : tipoBusqueda === "articulo" ? "Nombre o ID de artículo..." : tipoBusqueda === "mla_venta" ? "ID Venta o Pack ML..." : "ID Envío ML..."}
                             value={filtroBusquedaTexto}
                             onChange={(e) => setFiltroBusquedaTexto(e.target.value)}
                             className="h-10 border-none focus-visible:ring-0 pl-9 text-xs bg-white w-48 shadow-none"

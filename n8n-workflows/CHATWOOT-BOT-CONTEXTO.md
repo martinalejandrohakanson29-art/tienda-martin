@@ -1806,3 +1806,36 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   Martín antes de aprobar el fix — plantilla exacta + "cuanto el kit mas una leva" (el Kit 170 ya
   incluye una leva) — `mismo_tema: true`, mandó el saludo normal sin duplicar el precio (ya
   suprimido por la regla existente de "la bienvenida recién mandada ya lo cubre").
+- **Referral repetía la bienvenida completa a mitad de una charla ya arrancada, ignorando que el
+  kit ya estaba pineado (2026-08-26, mismo día que los dos fixes de referral de arriba).** Caso real:
+  conv 2495 (+5492954686592), cliente ya venía charlando del Kit 170 (pineado desde el primer
+  mensaje) y mandó un audio preguntando horarios + confirmando el contenido del kit — el bot volvió
+  a mandar la bienvenida completa con foto ($99.990, "a que moto se lo queres poner?"), y lo mismo
+  pasó un rato después con un simple "Okey"/"Estamos en contacto". Martín terminó frenando el bot a
+  mano (`/bot off`) por la repetición.
+  Causa, confirmada contra la ejecución real (payload crudo que Chatwoot reenvía a n8n): Meta sigue
+  pegando el `content_attributes.referral` del anuncio original en mensajes **posteriores** de la
+  misma conversación, no solo en el que la abrió — el audio y el "Okey" de esta charla, mandados
+  días después del primer clic, traían el mismo `referral` del Kit 170. `Clasificar Mensaje (sin IA)`
+  nunca chequeaba si ya había un kit pineado para ese teléfono antes de intentar el match por
+  referral, así que cualquier mensaje con ese campo pegado disparaba `tipo: "kit", deteccion:
+  "referral"` de nuevo y, si `Validar Continuidad de Tema` decía `mismo_tema: true` (razonable, el
+  audio SÍ era del mismo kit), re-mandaba el saludo completo — no es un caso raro ni un fluke de
+  Meta, es comportamiento esperado que se va a repetir mientras la conversación siga viva.
+  Fix, sin nodos de IA nuevos: se agregó `Leer Kit Pineado (Pre-Referral)` (Redis `get`, mismo
+  patrón de key que `Leer Kit Pineado`, insertado en serie entre `Buscar Kits Activos` y
+  `Clasificar Mensaje (sin IA)`) y el paso 2 del clasificador (referral) ahora solo corre si
+  **todavía no hay nada pineado** para ese teléfono — si ya hay un kit pineado, el mensaje cae en
+  `sin_match` sin importar que traiga referral, y sigue el camino normal de "kit ya pineado" (el
+  mismo que ya resolvía bien horario/medios de pago/detalle en este caso real). No se tocó el
+  chequeo de plantilla exacta (paso 1) — ese es texto literal que el cliente tendría que volver a
+  escribir a propósito, no algo que Meta repite solo.
+  **Validado en vivo** contra la conversación de prueba (2411, +5493513784909, pin limpio):
+  mensaje 1 con el `referral` real de Kit 170 (`POTENCIA TU VARILLERO A 170CC!`) → pineó el kit y
+  mandó la bienvenida, como siempre; mensaje 2, mismo `referral`, con una pregunta de seguimiento
+  tipo la real ("hasta que dia trabajan... el piston, el cilindro y la leva, todo no es cierto?") →
+  confirmado contra la ejecución real que `Leer Kit Pineado (Pre-Referral)` encontró el kit ya
+  pineado, `Clasificar Mensaje (sin IA)` devolvió `tipo: "sin_match"` (sin pasar por `Enviar Saludo
+  Kit`), y el mensaje se resolvió por el camino normal de sub-preguntas (contestó el detalle del kit,
+  escaló en silencio la parte de horario) — cero reenvío de la bienvenida. Pin de prueba limpiado al
+  terminar.

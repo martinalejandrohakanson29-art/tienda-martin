@@ -819,6 +819,46 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   `¿Es Comando Reactivar?` → `¿Es Comando Pausar?` → `Marcar Bot Pausado`, saltando por completo la
   interpretación de pendientes. Regresión chequeada con `/bot on` inmediatamente después (ejecución
   86355): siguió corriendo `Reactivar Bot` sin cambios. Pendiente sintética borrada al terminar.
+- ~~BUG GRAVE (relacionado pero distinto al de arriba): la rama "el equipo confirmó compatibilidad"
+  ignora `bot_pausado` y el chequeo de nota privada~~ — **arreglado 2026-08-26.** Caso real: conv
+  2751 (+5493816563307). `/bot off` sí pausó bien (confirmado: los 3 mensajes del cliente después
+  generaron la nota de "pausa manual" como corresponde). El problema fue otro: con una pregunta de
+  compatibilidad escalada sin cerrar (`preguntas_tecnicas_pendientes`, "¿Tapa cdi anda con faro
+  cuadrado?"), Martín le fue contestando al cliente **en público** mientras el bot estaba pausado
+  ("tu modelo lleva leva corta o larga?", "no vendemos pistón...", "va sin modificaciones, resortes
+  originales."). La IA de `Interpretar Respuesta Equipo` leyó esa última respuesta pública como
+  "el equipo confirmó que es compatible" (confianza alta) y el bot mandó automáticamente el mensaje
+  final con precio al cliente 6 segundos después — pisando a Martín, que tuvo que aclarar "perdon,
+  es emensaje no era para vos".
+  **Causa raíz confirmada contra la ejecución real (id 86772):** el nodo `Guardar en
+  Compatibilidades (Grupo)` se ramifica en paralelo hacia dos caminos — uno sí chequea `¿Fue Nota
+  Privada?` antes de actuar (si fue pública, no hace nada, va a `Fin - Equipo Ya Respondio Directo`)
+  — pero el otro (`¿Es Compatible? (Actualizar Pin)` → `Buscar Variantes del Grupo (Respuesta
+  Equipo)` → ... → `Enviar Bienvenida Pack Final (Respuesta Equipo)`) **no pasaba por ese chequeo
+  ni por `bot_pausado` en ningún punto** — corría siempre que la IA interpretara "sí, compatible",
+  público o privado, pausado o no. El único chequeo de `bot_pausado` que existía en todo el workflow
+  (`Chequear Bot Pausado` / `¿Bot Pausado?`) está alimentado únicamente por `¿Es Mayorista?`, es
+  decir, solo protege la respuesta a un mensaje nuevo del cliente — nunca a esta rama.
+  **Fix aplicado** (directo contra la API de n8n, 2 nodos nuevos, sin tocar la lógica de
+  interpretación con IA): `Chequear Bot Pausado (Respuesta Equipo)` (Redis `get`, mismo patrón que
+  el nodo original) → `¿Puede Avisar al Cliente? (Respuesta Equipo)` (If, AND: `pausado` vacío Y
+  `private` true), insertados en el tramo `Guardar en Compatibilidades (Grupo)` →
+  `¿Es Compatible? (Actualizar Pin)` (la otra salida de `Guardar en Compatibilidades` hacia
+  `Marcar Pregunta Respondida` queda intacta). Si el gate da falso (pausado, o la respuesta del
+  equipo fue pública) cae en `Fin - Equipo Ya Respondio Directo` sin mandar nada al cliente — el
+  guardado de compatibilidad en `chat_articulo_compatibilidad` sigue ocurriendo siempre, solo se
+  frena el aviso automático. 398→400 nodos.
+  Validado con ejecuciones reales en la conversación de prueba (2411), pregunta pendiente sintética
+  de compatibilidad cargada a mano (mismo `kit_id` real, grupo Tapa CDI): (1) `/bot off` simulado
+  (ejecución 86788, confirmó `Marcar Bot Pausado` sin cambios — regresión del fix anterior intacta)
+  seguido de una respuesta **pública** confirmando compatibilidad (ejecución 86789) — confirmado
+  que llegó hasta `¿Puede Avisar al Cliente? (Respuesta Equipo)` y **no** alcanzó `Buscar Variantes
+  del Grupo (Respuesta Equipo)` ni `Enviar Bienvenida Pack Final (Respuesta Equipo)`. (2) `/bot on`
+  + nueva pendiente sintética + respuesta por **nota privada** (el uso legítimo original, ejecución
+  86793) — confirmado que sí llegó hasta `Enviar Respuesta al Cliente (Aprendizaje)` (el intento de
+  envío tiró un error de HTTP ajeno al fix, por payload de prueba incompleto — no afecta la
+  conclusión: el camino legítimo sigue andando). Pendientes sintéticas, filas de
+  `chat_articulo_compatibilidad` de prueba y pin/pausa de Redis, todo borrado al terminar.
 - **PRÓXIMO PASO, a mitad de investigación:** falta cubrir el otro caso de "cuando el cliente
   contesta con un dato usable, seguir la charla" — la desambiguación de **3 opciones de kit**
   (`Enviar Repregunta Candidatos (Propuesta)`, el "¿Te referís al Kit 120 para 110, a la Tapa cdi,

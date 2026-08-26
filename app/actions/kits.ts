@@ -80,6 +80,17 @@ export async function createProductWithRecipe(data: {
     }
 
     // 4. Crear/recetar componentes del kit
+    const keepIds = componentes.map(c => c.id_articulo?.trim()).filter(Boolean);
+    if (keepIds.length > 0) {
+      await prisma.composicionKits.deleteMany({
+        where: {
+          mla: cleanMla,
+          nombre_variante: cleanVarName || "0",
+          id_articulo: { notIn: keepIds }
+        }
+      });
+    }
+
     for (const comp of componentes) {
       const cleanIdArticulo = comp.id_articulo?.trim() || "";
       const cleanCantidad = Math.round(Number(comp.cantidad)) || 1;
@@ -118,7 +129,18 @@ export async function createProductWithRecipe(data: {
     revalidatePath("/admin/mercadolibre/composicion");
     revalidatePath("/admin/mercadolibre/costos");
 
-    return { success: true };
+    return {
+      success: true,
+      data: {
+        mla: cleanMla,
+        titulo: cleanTitle,
+        nombre_variante: cleanVarName,
+        variation_id: cleanVarId,
+        user_product_id: cleanUP,
+        family_id: cleanFamily,
+        es_nuevo: es_nuevo ?? false
+      }
+    };
   } catch (error: any) {
     console.error("Error al crear producto con receta:", error);
     if (error.code === 'P2002') {
@@ -149,7 +171,7 @@ export async function getComposicionKits() {
     // 3. Buscamos en el "Diccionario" (productos_maestros) esos MLAs específicos
     const maestros = await prisma.productosMaestros.findMany({
       where: { mla: { in: mlasUnicos } },
-      select: { mla: true, variation_id: true, user_product_id: true, family_id: true, estado: true, es_nuevo: true }
+      select: { mla: true, variation_id: true, nombre_publicacion: true, user_product_id: true, family_id: true, estado: true, es_nuevo: true }
     });
 
     // 3b. Traemos el costo de cada artículo usado en las recetas. Puede venir de
@@ -190,6 +212,7 @@ export async function getComposicionKits() {
 
       return {
         ...kit,
+        nombre_publicacion: maestro?.nombre_publicacion || null,
         user_product_id: maestro?.user_product_id || null,
         family_id: maestro?.family_id || null,
         estado: maestro?.estado || null,

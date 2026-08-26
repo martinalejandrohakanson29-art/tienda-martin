@@ -12,8 +12,8 @@ export default async function MetricasChatwootPage() {
         <MetricasChatwootClient
             periodoInicial={PERIODO_INICIAL}
             datosIniciales={resultado.success ? resultado.datos : null}
-            deCacheInicial={resultado.success ? resultado.deCache : false}
             errorInicial={resultado.success ? null : resultado.error}
         />
     )
 }
+

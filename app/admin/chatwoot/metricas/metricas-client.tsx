@@ -7,7 +7,7 @@ import {
 } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import {
-    ArrowLeft, MessageCircle, Clock, Reply, AlertTriangle, Loader2, RefreshCw,
+    ArrowLeft, MessageCircle, Clock, Reply, AlertTriangle, Loader2, RefreshCw, Moon,
 } from "lucide-react"
 import { obtenerMetricasChatwoot } from "@/app/actions/chatwoot-metricas"
 import type { MetricasChatwoot } from "@/lib/chatwoot-metricas"
@@ -56,16 +56,14 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
 }
 
 export function MetricasChatwootClient({
-    periodoInicial, datosIniciales, deCacheInicial, errorInicial,
+    periodoInicial, datosIniciales, errorInicial,
 }: {
     periodoInicial: number
     datosIniciales: MetricasChatwoot | null
-    deCacheInicial: boolean
     errorInicial: string | null
 }) {
     const [periodo, setPeriodo] = useState(periodoInicial)
     const [datos, setDatos] = useState(datosIniciales)
-    const [deCache, setDeCache] = useState(deCacheInicial)
     const [error, setError] = useState(errorInicial)
     const [pendiente, arrancarTransicion] = useTransition()
 
@@ -75,7 +73,6 @@ export function MetricasChatwootClient({
             const resultado = await obtenerMetricasChatwoot(nuevoPeriodo, forzar)
             if (resultado.success) {
                 setDatos(resultado.datos)
-                setDeCache(resultado.deCache)
             } else {
                 setError(resultado.error)
             }
@@ -101,10 +98,10 @@ export function MetricasChatwootClient({
                 </Link>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Métricas del bot</h1>
+                        <h1 className="text-3xl font-bold tracking-tight">Métricas de Clientes en Chatwoot</h1>
                         <p className="text-gray-500">
-                            Leído en vivo desde Chatwoot: mensajes entrantes, horario de más movimiento y cuántos clientes
-                            siguen escribiendo después de nuestra respuesta.
+                            Histórico consolidado en base de datos: volumen de mensajes entrantes, horario real de llegada,
+                            tráfico fuera de hora y continuidad de conversación tras la primera respuesta.
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -146,8 +143,7 @@ export function MetricasChatwootClient({
                     <div className="flex items-center justify-between">
                         <p className="text-xs text-slate-400">
                             Últimos {datos.periodoDias} días · {datos.totalConversaciones} conversaciones · actualizado{" "}
-                            {hace(datos.actualizadoEn)}
-                            {deCache ? " (caché)" : ""}
+                            {hace(datos.actualizadoEn)} (guardado en PostgreSQL)
                         </p>
                         {error && <Badge variant="destructive" className="text-[10px]">{error}</Badge>}
                     </div>
@@ -162,29 +158,32 @@ export function MetricasChatwootClient({
                         />
                         <KpiCard
                             icon={Clock}
-                            label="Hora pico"
+                            label="Hora pico de llegada"
                             value={datos.horaPico ? `${datos.horaPico.hora}:00 hs` : "—"}
-                            sub={datos.horaPico ? `${datos.horaPico.cantidad} mensajes en esa hora` : "sin datos suficientes"}
+                            sub={datos.horaPico ? `${datos.horaPico.cantidad} mensajes ingresados` : "sin datos suficientes"}
                             color="bg-sky-100 text-sky-600"
                         />
                         <KpiCard
-                            icon={Reply}
-                            label="Contestamos primero"
-                            value={datos.continuidad.conversacionesConRespuesta.toLocaleString("es-AR")}
-                            sub="conversaciones con al menos 1 respuesta"
-                            color="bg-emerald-100 text-emerald-600"
+                            icon={Moon}
+                            label="Fuera de horario (Cola)"
+                            value={datos.totalMensajesFueraHorario.toLocaleString("es-AR")}
+                            sub={`${datos.totalEncolados} respuestas generadas en cola con bot apagado`}
+                            color="bg-rose-100 text-rose-600"
                         />
                         <KpiCard
-                            icon={MessageCircle}
+                            icon={Reply}
                             label="Siguió escribiendo"
                             value={`${datos.continuidad.porcentaje}%`}
-                            sub={`${datos.continuidad.conversacionesConContinuacion} de ${datos.continuidad.conversacionesConRespuesta} clientes, después de nuestra primera respuesta`}
+                            sub={`${datos.continuidad.conversacionesConContinuacion} de ${datos.continuidad.conversacionesConRespuesta} clientes continuaron tras la respuesta`}
                             color="bg-amber-100 text-amber-600"
                         />
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                        <ChartCard title="Distribución horaria" subtitle="Mensajes entrantes por hora del día (Argentina)">
+                        <ChartCard
+                            title="Distribución horaria real de mensajes"
+                            subtitle="Horario exacto de llegada de todos los mensajes de clientes (0 a 23 hs Argentina UTC-3)"
+                        >
                             <ResponsiveContainer width="100%" height={220}>
                                 <BarChart data={datos.porHora} margin={{ top: 0, right: 5, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -198,7 +197,7 @@ export function MetricasChatwootClient({
                                                 <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-2.5 text-sm">
                                                     <p className="font-bold text-slate-700">{d.hora}:00 hs</p>
                                                     <p className="text-slate-500">
-                                                        Mensajes: <span className="font-bold text-slate-800">{d.cantidad}</span>
+                                                        Mensajes entrantes: <span className="font-bold text-slate-800">{d.cantidad}</span>
                                                     </p>
                                                 </div>
                                             )
@@ -213,7 +212,7 @@ export function MetricasChatwootClient({
                             </ResponsiveContainer>
                         </ChartCard>
 
-                        <ChartCard title="Mensajes entrantes por día" subtitle={`Últimos ${datos.periodoDias} días`}>
+                        <ChartCard title="Mensajes entrantes por día" subtitle={`Serie continua de los últimos ${datos.periodoDias} días`}>
                             <ResponsiveContainer width="100%" height={220}>
                                 <BarChart
                                     data={datos.porDia.map((d) => ({ ...d, fechaCorta: fmtFechaCorta(d.fecha) }))}
@@ -230,7 +229,7 @@ export function MetricasChatwootClient({
                                                 <div className="bg-white border border-slate-200 rounded-xl shadow-lg p-2.5 text-sm">
                                                     <p className="font-bold text-slate-700">{d.fecha}</p>
                                                     <p className="text-slate-500">
-                                                        Mensajes: <span className="font-bold text-slate-800">{d.cantidad}</span>
+                                                        Mensajes entrantes: <span className="font-bold text-slate-800">{d.cantidad}</span>
                                                     </p>
                                                 </div>
                                             )
@@ -246,3 +245,4 @@ export function MetricasChatwootClient({
         </div>
     )
 }
+

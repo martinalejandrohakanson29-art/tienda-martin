@@ -101,11 +101,45 @@ export function ChatsVivoClient({
         refrescar(dias)
     }
 
-    // Auto-refresco cada 60s mientras la pantalla está abierta -- instantáneo
-    // porque lee directamente desde PostgreSQL local.
+    // Escuchar eventos en tiempo real vía Server-Sent Events (SSE)
     useEffect(() => {
-        const id = setInterval(() => refrescar(periodoDias), 60_000)
-        return () => clearInterval(id)
+        let es: EventSource | null = null
+        try {
+            es = new EventSource("/api/chatwoot/stream")
+
+            es.onmessage = (event) => {
+                if (!event.data) return
+                try {
+                    const data = JSON.parse(event.data)
+                    const convId = Number(data.conversationId)
+                    if (!convId) return
+
+                    // Si llegó un mensaje nuevo y tenemos esa conversación en pantalla,
+                    // agregamos el globito al hilo de inmediato
+                    if (data.mensaje) {
+                        setHilos((prev) => {
+                            const actual = prev[convId] || []
+                            if (actual.some((m) => m.id === data.mensaje.id)) return prev
+                            return {
+                                ...prev,
+                                [convId]: [...actual, data.mensaje],
+                            }
+                        })
+                    }
+
+                    // Actualizar la lista de conversaciones desde PostgreSQL (< 20ms)
+                    refrescar(periodoDias)
+                } catch {
+                    // ignorar parse error
+                }
+            }
+        } catch (e) {
+            console.error("Error conectando a stream SSE de chatwoot:", e)
+        }
+
+        return () => {
+            if (es) es.close()
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [periodoDias])
 
@@ -160,7 +194,13 @@ export function ChatsVivoClient({
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
                 <div className="flex-1 min-w-0">
-                    <h1 className="text-sm font-semibold text-gray-800">Chats en vivo</h1>
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-sm font-semibold text-gray-800">Chats en vivo</h1>
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-50 text-emerald-700 font-medium px-2 py-0.5 rounded-full border border-emerald-200">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            En vivo
+                        </span>
+                    </div>
                     <p className="text-xs text-gray-500">
                         {fallo
                             ? fallo

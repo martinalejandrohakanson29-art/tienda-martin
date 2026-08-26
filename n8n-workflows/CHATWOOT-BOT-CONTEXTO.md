@@ -321,6 +321,19 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   `SELECT ... FROM (SELECT 1) seed LEFT JOIN <tabla_real> ON <condiciones>` (o
   `LEFT JOIN LATERAL` si hay `ORDER BY`/`LIMIT` de por medio) para garantizar siempre una fila
   de salida por ítem de entrada, con columnas en `NULL` cuando no matchea.
+- **El mismo problema existe en el nodo `Redis` (operación `get`) — no es exclusivo de Postgres.**
+  Encontrado el 2026-08-26 en `Buscar Cierre Reciente (Sub-pregunta)`: corría una vez por
+  sub-pregunta del partidor (Fase 6) con la MISMA clave (`cierre_reciente:{telefono}`) para las N
+  sub-preguntas de una ráfaga, y de un lote de 2 ítems de entrada devolvía 1 solo — el segundo
+  desaparecía en silencio, arrastrando con él cualquier dato ya resuelto más atrás en la cadena
+  (ver entrada fechada abajo). Como la clave no depende del contenido de cada sub-pregunta, la
+  solución de fondo no fue el patrón `LEFT JOIN` de arriba (no aplica a Redis) sino sacar la
+  consulta del loop por completo: correrla UNA vez por ráfaga, antes de separar en sub-preguntas
+  (`Separar Pedazos`), y llevar el resultado pegado a cada ítem ya separado (mismo mecanismo que
+  `kit_id`/`kit_nombre`, que ya viajaban así). Ante cualquier nodo que corra "una vez por
+  sub-pregunta" con un dato que en realidad es el mismo para toda la ráfaga, preferir resolverlo
+  una sola vez arriba y propagarlo, en vez de re-consultarlo por ítem — evita esta clase de bug de
+  raíz y de paso ahorra queries repetidas.
 - **Insertar un nodo en el medio de una cadena rompe cualquier nodo más adelante que use el
   atajo `$json` (sin nombre de nodo) para leer datos de "más atrás"** — `$json` siempre apunta
   al nodo inmediatamente anterior en ESE momento, no al que tenía el dato antes de reordenar.
@@ -1657,3 +1670,88 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   con nota privada, confirmado contra la ejecución real de n8n que clasificó `tema: "mayorista"`
   correctamente y nunca generó ninguna pregunta de más. Mismo pendiente que arriba: cargar la
   respuesta real en Conocimiento.
+- **Dos bugs reales encontrados en conv 2760 (+5493813326002), 2026-08-26 — uno arreglado, uno
+  documentado sin tocar todavía:**
+  1. **(Sin arreglar, a propósito) Mensajes de anuncio con texto genérico ("¡Hola! Quiero más
+     información") caen como saludo puro y pierden el kit.** Ese mensaje trae junto metadata real
+     de Meta Ads en `body.referral` (`headline`/`body` con el nombre y descripción exactos del
+     kit publicitado — confirmado en la ejecución real, el campo llega y queda expuesto en
+     `Unir Mensajes` pero ningún nodo lo usa). El clasificador (`Clasificar Mensaje (sin IA)`)
+     tiene "informacion"/"info"/"mas"/"quiero" en su lista de stopwords para separar saludo de
+     pedido real — así que a este mensaje, después de sacarle el saludo, no le queda ningún token
+     de contenido y cae `tipo: "saludo"` sin pasar por `Identificar Necesidad`. Esto es
+     **decisión de diseño original, no un bug nuevo** — "¡Hola! Quiero más información" está
+     citado a propósito como ejemplo de saludo puro en [[project-chatwoot-2-0-rediseno]]
+     (2026-08-12). Lo nuevo es la evidencia real de que ese mensaje llega con `referral` capaz de
+     identificar el kit sin ambigüedad. Discutido con Martín el 26/8, decidió arreglar primero el
+     bug 2 (abajo) y dejar este para después — no usar `referral` todavía sin su OK explícito.
+  2. **(Arreglado) Una sub-pregunta con dato YA encontrado se perdía en silencio si llegaba junto
+     a otra sin resolver en la misma ráfaga.** Caso real: "Quería saber el combo q publicaron" +
+     "De donde son" en un mismo mensaje agrupado — el partidor de sub-preguntas (Fase 6) separó
+     bien las dos partes y `Buscar Info Negocio (Negocio)` encontró la dirección real para la
+     segunda, pero nunca llegó a mandarse ni a quedar registrada en ningún pendiente: dos bugs de
+     ítems que desaparecen de un lote, uno atrás del otro, ambos silenciosos (ejecución completa
+     sin error).
+     - Causa 1: `Buscar Cierre Reciente (Sub-pregunta)` (Redis `get`, corría una vez por
+       sub-pregunta) devolvía 1 ítem de un lote de 2 — ver el gotcha nuevo de Redis más arriba.
+       Fix: sacar esa consulta del loop, correrla una sola vez por ráfaga
+       (`Buscar Cierre Reciente (Rafaga)`, insertado en serie entre `Extraer Ultimo Mensaje
+       Nuestro` y `Preparar Contexto Sub-preguntas`) y propagar el resultado a cada sub-pregunta
+       vía `Parsear Sub-preguntas` (mismo patrón que `kit_id`/`kit_nombre`). `Consolidar Dato
+       Resuelto` ahora lee `$('Separar Pedazos').item.json.cierre_reciente_raw` en vez de
+       consultar Redis de nuevo.
+     - Causa 2, encontrada recién al validar el fix de la causa 1 (antes quedaba tapada porque el
+       ítem ya venía perdido desde antes): `Parsear Articulo Suelto (Catálogo General)` (Code)
+       tenía el código escrito para `runOnceForEachItem` (`return { json: {...} }` suelto, sin
+       array) pero le faltaba el parámetro `"mode": "runOnceForEachItem"` — mismo gotcha ya
+       documentado arriba, instancia nueva. Fix: agregar el `mode` que faltaba.
+     - Validado en vivo contra la conversación de prueba (2411, +5493513784909, estado limpio):
+       mensaje sintético con la misma forma real (`[auditoria-bug2] Quería preguntar por un
+       repuesto raro que no tienen en la publicidad` + `De donde son ustedes`) — antes del fix la
+       parte de ubicación se perdía igual que en el caso real (confirmado contra la ejecución,
+       0 → 1 ítem en `Parsear Articulo Suelto`); después del fix las dos partes sobrevivieron
+       completas: la dirección se mandó sola al cliente y la otra quedó escalada en silencio,
+       sin mezclarse. Datos sintéticos de la prueba (fila de `preguntas_sin_match_pendientes`,
+       pin de Redis) limpiados al terminar.
+  **Pendiente:** el cliente real de conv 2760 se quedó sin respuesta de ubicación (nunca se le
+  mandó ni quedó registrada en ningún lado — el bug 2 corría en producción en ese momento) y con
+  la pregunta del combo todavía escalada sin contestar — hay que responderle a mano. El bug 1 de
+  arriba queda pendiente de decisión, no de implementación.
+- **Bug 1 de arriba, arreglado el mismo día (2026-08-26, charlado y decidido con Martín):**
+  identificar el kit por la metadata real de Meta Ads (`referral.headline`/`referral.body`) cuando
+  el botón del anuncio manda un texto genérico en vez de la plantilla fija. Decisión tomada con
+  Martín: matchear por **texto del anuncio** (no por `source_id`, que evita ambigüedad pero tiene
+  arranque en frío — el primer cliente de una campaña nueva no lo tendría cargado) y **sin IA**,
+  mismo patrón determinístico que la plantilla exacta (consistente con la decisión del 12/8 de
+  sacar toda ambigüedad de este paso, ver [[project-chatwoot-2-0-rediseno]]).
+  - **Campo nuevo:** `plantillas_referral` (text, una entrada por línea — headline o body, se
+    matchea contra cualquiera de los dos) en `chat_packs` y `chat_pack_grupos`
+    (`chat-catalogo-plantillas-referral.sql`), mismo patrón que `plantillas_bienvenida`. Editable
+    desde `/admin/chatwoot/catalogo` (pestañas Packs y Grupos) — nuevo campo "Textos de anuncio de
+    Meta Ads", visible donde ya vivía el campo de plantilla exacta (packs sin grupo / grupos).
+  - **Workflow:** `Buscar Kits Activos` ahora trae `plantillas_referral` de packs y grupos.
+    `Clasificar Mensaje (sin IA)` suma un paso nuevo (entre la plantilla exacta y la detección de
+    saludo): si `Unir Mensajes` trajo `referral` (ya se extraía desde el 22/8, sin usar hasta
+    ahora — ver su propio comentario en el código), compara `headline`/`body` normalizados contra
+    las líneas de `plantillas_referral` de cada pack/grupo; matchea con `deteccion: 'referral'`
+    (mismo shape de salida que `'plantilla_exacta'`, así que reusa sin tocar nada el ruteo por
+    `tipo` y la continuidad de tema de la Fase 10 — el ruteo nunca mira `deteccion`, confirmado
+    grepeando el resto del workflow). 400→400 nodos (no se agregó ningún nodo, todo el cambio es
+    en un query y un Code ya existentes).
+  - **Datos reales cargados de una** (las 3 campañas activas encontradas revisando ejecuciones del
+    mismo día, todas venían pegando contra el saludo genérico sin que nadie lo notara):
+    "KIT DE POTENCIACION PARA 110" → grupo 1 (Kit 120 para 110); "GANA MAS RENDIMIENTO EN TU 110!"
+    → grupo 3 (Tapa cdi); "PEDI EL TUYO!!" / "POTENCIA TU VARILLERO A 170CC!" → pack 11 (Kit 170
+    varillero + leva).
+  - **Validado en vivo** contra la conversación de prueba (2411, limpia) reproduciendo el mensaje
+    real exacto de conv 2760 (`"¡Hola! Quiero más información"` + el `referral` real capturado de
+    esa conversación, inyectado a mano en `content_attributes.referral` del payload — el mock de
+    `/api/chatwoot/prueba-mensaje` no arma ese campo, hubo que construir el POST directo al webhook
+    de n8n): confirmado contra la ejecución real que clasificó `tipo: "grupo", deteccion:
+    "referral", grupo_id: 1` y mandó la bienvenida completa del combo (precio, detalle, pregunta de
+    la moto) en vez del saludo genérico.
+  - **Pendiente:** cargar `plantillas_referral` para el resto de los packs/grupos activos a medida
+    que se detecten sus campañas reales (por ahora solo las 3 de arriba). Sin mecanismo para
+    detectar automáticamente una campaña nueva sin registrar — sigue cayendo a saludo genérico
+    hasta que alguien la cargue a mano (mismo arranque en frío que ya se aceptó al descartar
+    `source_id`).

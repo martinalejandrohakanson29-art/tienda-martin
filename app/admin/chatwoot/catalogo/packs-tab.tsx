@@ -38,6 +38,7 @@ const FORM_VACIO: ChatPackInput = {
     mensajeBienvenida: "",
     fotoUrl: "",
     plantillasBienvenida: "",
+    plantillasReferral: "",
     detalle: "",
     activo: true,
     grupoId: null,
@@ -133,6 +134,7 @@ export function PacksTab({
             mensajeBienvenida: pack.mensaje_bienvenida,
             fotoUrl: pack.foto_url || "",
             plantillasBienvenida: pack.plantillas_bienvenida || "",
+            plantillasReferral: pack.plantillas_referral || "",
             detalle: pack.detalle || "",
             activo: pack.activo,
             grupoId: pack.grupo_id,
@@ -221,6 +223,7 @@ export function PacksTab({
                 const nuevoGrupo = await guardarChatPackGrupo({
                     nombre: nuevoGrupoNombre,
                     plantillasBienvenida: nuevoGrupoPlantilla,
+                    plantillasReferral: "",
                     mensajeBienvenida: nuevoGrupoMensaje,
                     preguntaVariante: nuevoGrupoPreguntaVariante,
                     fotoUrl: "",
@@ -233,6 +236,7 @@ export function PacksTab({
                         id: nuevoGrupo.id,
                         nombre: nuevoGrupoNombre.trim(),
                         plantillas_bienvenida: nuevoGrupoPlantilla.trim() || null,
+                        plantillas_referral: null,
                         mensaje_bienvenida: nuevoGrupoMensaje.trim() || null,
                         pregunta_variante: nuevoGrupoPreguntaVariante.trim() || null,
                         foto_url: null,
@@ -274,6 +278,7 @@ export function PacksTab({
                 mensaje_bienvenida: form.mensajeBienvenida.trim(),
                 foto_url: form.fotoUrl.trim() || null,
                 plantillas_bienvenida: form.plantillasBienvenida.trim() || null,
+                plantillas_referral: form.plantillasReferral.trim() || null,
                 detalle: form.detalle.trim() || null,
                 activo: form.activo,
                 creado_en: packs.find((p) => p.id === form.id)?.creado_en || new Date(),
@@ -488,6 +493,7 @@ export function PacksTab({
                                 return (
                                     <div className="text-xs text-gray-500 rounded-md border p-3 bg-slate-50 space-y-1">
                                         <p><strong>Plantilla del grupo:</strong> {g.plantillas_bienvenida || "—"}</p>
+                                        <p><strong>Textos de anuncio del grupo:</strong> {g.plantillas_referral || "—"}</p>
                                         <p><strong>Mensaje de bienvenida del grupo:</strong> {g.mensaje_bienvenida || "—"}</p>
                                         <p><strong>Pregunta de variante:</strong> {g.pregunta_variante || "—"}</p>
                                         <p><strong>Categoría del combo:</strong> {g.categoria || "—"}</p>
@@ -521,6 +527,19 @@ export function PacksTab({
                                         onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
                                         disabled={guardando}
                                         rows={4}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="plantillasReferral">Textos de anuncio de Meta Ads (headline o body, uno por línea)</Label>
+                                    <Textarea
+                                        id="plantillasReferral"
+                                        placeholder={
+                                            "Para cuando el botón del anuncio manda un texto genérico (\"¡Hola! Quiero más información\") en vez de la plantilla fija -- ahí el bot identifica el kit por el título o la descripción del anuncio, que sí vienen fijos. Pegá cualquiera de los dos, uno por línea."
+                                        }
+                                        value={form.plantillasReferral}
+                                        onChange={(e) => actualizarCampo("plantillasReferral", e.target.value)}
+                                        disabled={guardando}
+                                        rows={3}
                                     />
                                 </div>
                                 <div className="space-y-1">

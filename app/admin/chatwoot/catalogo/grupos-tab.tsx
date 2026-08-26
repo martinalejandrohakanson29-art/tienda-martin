@@ -27,6 +27,7 @@ import { formatearListaCompat } from "@/lib/compatibilidad-texto"
 const FORM_VACIO: ChatPackGrupoInput = {
     nombre: "",
     plantillasBienvenida: "",
+    plantillasReferral: "",
     mensajeBienvenida: "",
     preguntaVariante: "",
     fotoUrl: "",
@@ -86,6 +87,7 @@ export function GruposTab({
             id: grupo.id,
             nombre: grupo.nombre,
             plantillasBienvenida: grupo.plantillas_bienvenida || "",
+            plantillasReferral: grupo.plantillas_referral || "",
             mensajeBienvenida: grupo.mensaje_bienvenida || "",
             preguntaVariante: grupo.pregunta_variante || "",
             fotoUrl: grupo.foto_url || "",
@@ -157,6 +159,7 @@ export function GruposTab({
                 id,
                 nombre: form.nombre.trim(),
                 plantillas_bienvenida: form.plantillasBienvenida.trim() || null,
+                plantillas_referral: form.plantillasReferral.trim() || null,
                 mensaje_bienvenida: form.mensajeBienvenida.trim() || null,
                 pregunta_variante: form.preguntaVariante.trim() || null,
                 foto_url: form.fotoUrl.trim() || null,
@@ -264,6 +267,20 @@ export function GruposTab({
                                 placeholder="Pegá acá el texto tal cual lo manda la plantilla del anuncio."
                                 value={form.plantillasBienvenida}
                                 onChange={(e) => actualizarCampo("plantillasBienvenida", e.target.value)}
+                                disabled={guardando}
+                                rows={3}
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="plantillasReferral">Textos de anuncio de Meta Ads (headline o body, uno por línea)</Label>
+                            <Textarea
+                                id="plantillasReferral"
+                                placeholder={
+                                    "Para cuando el botón del anuncio manda un texto genérico (\"¡Hola! Quiero más información\") en vez de la plantilla fija -- ahí el bot identifica el kit por el título o la descripción del anuncio, que sí vienen fijos. Pegá cualquiera de los dos, uno por línea."
+                                }
+                                value={form.plantillasReferral}
+                                onChange={(e) => actualizarCampo("plantillasReferral", e.target.value)}
                                 disabled={guardando}
                                 rows={3}
                             />

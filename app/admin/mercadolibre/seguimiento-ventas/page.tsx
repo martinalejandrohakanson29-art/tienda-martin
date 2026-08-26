@@ -6,21 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { 
-    BarChart3, 
-    AlertCircle, 
-    TrendingUp, 
-    TrendingDown, 
+import {
+    BarChart3,
+    AlertCircle,
+    TrendingUp,
+    TrendingDown,
     Minus,
     DollarSign,
     ShoppingCart,
-    Sparkles,
     Search,
     ChevronUp,
     ChevronDown,
     ArrowUpDown
 } from "lucide-react"
-import { guardarSeguimientoVentas, obtenerSeguimientoVentas } from "@/app/actions/seguimiento"
+import { compararVentasMLPorRango, obtenerSeguimientoVentas } from "@/app/actions/seguimiento"
 
 // --- FUNCIONES AUXILIARES ---
 const calculateGrowth = (current: number, previous: number) => {
@@ -39,7 +38,6 @@ const formatCurrency = (value: number) => {
 export default function SeguimientoVentasPage() {
     const [loading, setLoading] = useState(false)
     const [items, setItems] = useState<any[]>([])
-    const [analysis, setAnalysis] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
     
     // Estados para búsqueda y ordenamiento
@@ -62,59 +60,15 @@ export default function SeguimientoVentasPage() {
         loadInitialData()
     }, [])
 
-    const handleCompare = async (r1: any, r2: any) => {
+    const handleCompare = async (r1: { from: string, to: string }, r2: { from: string, to: string }) => {
         setLoading(true);
         setError(null);
-        setAnalysis(null);
-        
+
         try {
-            const N8N_WEBHOOK_URL = "https://n8n.revolucionmotos.tech/webhook/seguimiento-ventas";
-            const response = await fetch(N8N_WEBHOOK_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ r1, r2 }),
-            });
+            const result = await compararVentasMLPorRango(r1, r2);
+            if (!result.success) throw new Error(result.error || "Error al comparar los períodos");
 
-            if (!response.ok) throw new Error("Error en el servidor");
-            const data = await response.json();
-            const result = Array.isArray(data) ? data[0] : data;
-
-            // Procesamos la unificación de datos antes de guardar
-            const listActual = result.datosTabla?.r2 || result.r2 || []
-            const listAnterior = result.datosTabla?.r1 || result.r1 || []
-
-            const allMlas = new Set([
-                ...listActual.map((p: any) => p.MLA), 
-                ...listAnterior.map((p: any) => p.MLA)
-            ])
-
-            const processedItems = Array.from(allMlas).map(mla => {
-                const pActual = listActual.find((p: any) => p.MLA === mla)
-                const pAnterior = listAnterior.find((p: any) => p.MLA === mla)
-                const vActual = pActual?.Cantidad_Ventas || 0
-                const vAnterior = pAnterior?.Cantidad_Ventas || 0
-                const nActual = pActual?.Total_Neto || 0
-                const nAnterior = pAnterior?.Total_Neto || 0
-
-                return {
-                    mla,
-                    nombre: pActual?.Nombre || pAnterior?.Nombre || "Producto desconocido",
-                    ventasActual: vActual,
-                    ventasAnterior: vAnterior,
-                    diffVentas: vActual - vAnterior,
-                    netoActual: nActual,
-                    netoAnterior: nAnterior,
-                    growthNeto: calculateGrowth(nActual, nAnterior)
-                }
-            })
-
-            // 2. Reemplazamos la tabla en la Base de Datos
-            await guardarSeguimientoVentas(processedItems);
-            
-            // Actualizamos el estado local
-            setItems(processedItems);
-            setAnalysis(result.analisisIA || result.output || null);
-            
+            setItems(result.items || []);
         } catch (err) {
             console.error("Error:", err);
             setError("Error al procesar la consulta. Intenta nuevamente.");
@@ -193,25 +147,6 @@ export default function SeguimientoVentasPage() {
                     </div>
                 ) : (
                     <>
-                        {analysis && (
-                            <Card className="border-indigo-200 bg-indigo-50/40 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
-                                <CardHeader className="flex flex-row items-center gap-3 pb-2 border-b border-indigo-100 bg-white/50">
-                                    <div className="p-2 bg-indigo-600 rounded-lg">
-                                        <Sparkles className="h-5 w-5 text-white" />
-                                    </div>
-                                    <div>
-                                        <CardTitle className="text-lg font-bold text-indigo-900">Análisis Estratégico</CardTitle>
-                                        <p className="text-xs text-indigo-500 font-medium uppercase tracking-wider">Generado por IA</p>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="pt-4">
-                                    <div className="text-slate-700 whitespace-pre-wrap text-sm leading-relaxed font-medium">
-                                        {analysis}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <Card>
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">

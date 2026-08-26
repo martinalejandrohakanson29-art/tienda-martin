@@ -1,0 +1,1868 @@
+﻿{
+    "settings":  {
+                     "executionOrder":  "v1",
+                     "binaryMode":  "separate",
+                     "availableInMCP":  false,
+                     "timeSavedMode":  "fixed",
+                     "saveDataErrorExecution":  "all",
+                     "saveDataSuccessExecution":  "all",
+                     "saveExecutionProgress":  true,
+                     "saveManualExecutions":  true,
+                     "callerPolicy":  "workflowsFromSameOwner"
+                 },
+    "name":  "consulta_ventas",
+    "connections":  {
+                        "Call \u0027Read_token\u0027":  {
+                                                            "main":  [
+                                                                         [
+                                                                             {
+                                                                                 "node":  "Edit Fields5",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             },
+                                                                             {
+                                                                                 "node":  "Code in JavaScript",
+                                                                                 "type":  "main",
+                                                                                 "index":  0
+                                                                             }
+                                                                         ]
+                                                                     ]
+                                                        },
+                        "Webhook":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "Call \u0027Read_token\u0027",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "Edit Fields5":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Split Out1",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "HTTP Request8":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Code in JavaScript4",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               },
+                                                               {
+                                                                   "node":  "Edit Fields4",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "HTTP Request6":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Edit Fields7",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Code in JavaScript4":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Split Out3",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "If":  {
+                                   "main":  [
+                                                [
+                                                    {
+                                                        "node":  "Merge3",
+                                                        "type":  "main",
+                                                        "index":  0
+                                                    }
+                                                ],
+                                                [
+                                                    {
+                                                        "node":  "HTTP Request10",
+                                                        "type":  "main",
+                                                        "index":  0
+                                                    }
+                                                ]
+                                            ]
+                               },
+                        "HTTP Request10":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Split Out2",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Split Out2":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "Edit Fields2",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Edit Fields2":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "HTTP Request11",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "HTTP Request11":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Edit Fields3",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Merge3":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "Edit Fields1",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "Edit Fields3":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Merge3",
+                                                                  "type":  "main",
+                                                                  "index":  1
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Edit Fields1":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "HTTP Request8",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Split Out1":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "If1",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Edit Fields7":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Summarize",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              },
+                                                              {
+                                                                  "node":  "Merge4",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Split Out3":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "HTTP Request6",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Edit Fields4":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Merge",
+                                                                  "type":  "main",
+                                                                  "index":  1
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Merge":  {
+                                      "main":  [
+                                                   [
+                                                       {
+                                                           "node":  "HTTP Request5",
+                                                           "type":  "main",
+                                                           "index":  0
+                                                       }
+                                                   ]
+                                               ]
+                                  },
+                        "Summarize":  {
+                                          "main":  [
+                                                       [
+                                                           {
+                                                               "node":  "Merge4",
+                                                               "type":  "main",
+                                                               "index":  1
+                                                           }
+                                                       ]
+                                                   ]
+                                      },
+                        "Switch":  {
+                                       "main":  [
+                                                    [
+
+                                                    ],
+                                                    [
+
+                                                    ],
+                                                    [
+                                                        {
+                                                            "node":  "Edit Fields9",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "HTTP Request12":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Code in JavaScript5",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                },
+                                                                {
+                                                                    "node":  "Edit Fields8",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           },
+                        "Edit Fields9":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Merge1",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Edit Fields6":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Merge1",
+                                                                  "type":  "main",
+                                                                  "index":  1
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Merge1":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "HTTP Request12",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "Code in JavaScript2":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "HTTP Request1",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "HTTP Request":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Split Out",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Split Out":  {
+                                          "main":  [
+                                                       [
+                                                           {
+                                                               "node":  "Edit Fields6",
+                                                               "type":  "main",
+                                                               "index":  0
+                                                           },
+                                                           {
+                                                               "node":  "Code in JavaScript2",
+                                                               "type":  "main",
+                                                               "index":  0
+                                                           }
+                                                       ]
+                                                   ]
+                                      },
+                        "HTTP Request1":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Switch",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "obtener total":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Code in JavaScript1",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Code in JavaScript":  {
+                                                   "main":  [
+                                                                [
+                                                                    {
+                                                                        "node":  "obtener total",
+                                                                        "type":  "main",
+                                                                        "index":  0
+                                                                    }
+                                                                ]
+                                                            ]
+                                               },
+                        "Code in JavaScript1":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "HTTP Request",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Merge4":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "Merge",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "HTTP Request9":  {
+                                              "main":  [
+                                                           [
+                                                               {
+                                                                   "node":  "Edit Fields",
+                                                                   "type":  "main",
+                                                                   "index":  0
+                                                               }
+                                                           ]
+                                                       ]
+                                          },
+                        "Code in JavaScript5":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "Split Out4",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "Edit Fields":  {
+                                            "main":  [
+                                                         [
+                                                             {
+                                                                 "node":  "Summarize1",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             },
+                                                             {
+                                                                 "node":  "Merge5",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             }
+                                                         ]
+                                                     ]
+                                        },
+                        "Split Out4":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "HTTP Request9",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Edit Fields8":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Merge2",
+                                                                  "type":  "main",
+                                                                  "index":  1
+                                                              }
+                                                          ]
+                                                      ]
+                                         },
+                        "Merge2":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "HTTP Request7",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "Summarize1":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "Merge5",
+                                                                "type":  "main",
+                                                                "index":  1
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Merge5":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "Merge2",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   },
+                        "If1":  {
+                                    "main":  [
+                                                 [
+
+                                                 ],
+                                                 [
+                                                     {
+                                                         "node":  "If",
+                                                         "type":  "main",
+                                                         "index":  0
+                                                     }
+                                                 ]
+                                             ]
+                                }
+                    },
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "workflowId":  {
+                                                            "__rl":  true,
+                                                            "value":  "MUsInFnHGy2zWvn0",
+                                                            "mode":  "list",
+                                                            "cachedResultUrl":  "/workflow/MUsInFnHGy2zWvn0",
+                                                            "cachedResultName":  "Read_token"
+                                                        },
+                                         "workflowInputs":  {
+                                                                "mappingMode":  "defineBelow",
+                                                                "value":  {
+
+                                                                          },
+                                                                "matchingColumns":  [
+
+                                                                                    ],
+                                                                "schema":  [
+
+                                                                           ],
+                                                                "attemptToConvertTypes":  false,
+                                                                "convertFieldsToString":  true
+                                                            },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.executeWorkflow",
+                      "typeVersion":  1.3,
+                      "position":  [
+                                       -1664,
+                                       7120
+                                   ],
+                      "id":  "942cea28-ab4d-4f51-a1b3-36b3df7890ad",
+                      "name":  "Call \u0027Read_token\u0027"
+                  },
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "Registracion",
+                                         "responseMode":  "lastNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2.1,
+                      "position":  [
+                                       -1936,
+                                       7120
+                                   ],
+                      "id":  "214389c1-4271-4ea6-9f11-3c04c0f962b7",
+                      "name":  "Webhook",
+                      "webhookId":  "4338b9db-7161-4b23-bb8d-d9117beb95c7"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "1be84d36-d7e9-43cc-ba31-42fea124e8ac",
+                                                                                     "name":  "body.preparados",
+                                                                                     "value":  "={{ $(\u0027Webhook\u0027).item.json.body.preparados }}",
+                                                                                     "type":  "array"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       -1472,
+                                       7088
+                                   ],
+                      "id":  "8268bba4-4108-46e9-b9d5-c2170512abaa",
+                      "name":  "Edit Fields5"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://revolucionmotos.tech/api/webhooks/n8n/registracion",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer revolucion_motos_super_secreto_2026"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={\n    \"shippingId\": \"{{ $json.shipping.id }}\",\n    \"orderId\": \"{{ $json.orderId }}\",\n    \"mla\": \"{{ $json.Mla || $json.order_items[0].item.id }} \",\n    \"categoria\": \"{{ $json.categoria }}\",\n    \"bruto\":\"{{ $json.sum_Bruto }}\" ,\n    \"cantidad\":\"{{ $json.Cantidad }}\" ,\n    \"variation\": \"{{ $json.order_items[0].item.variation_id }}\",\n    \"fecha\": \"{{ $json.fecha }}\",\n    \"pack_id\": \"{{ $json.pack_id }}\",\n    \"nombre\": \"{{ $json.Nombre || $json.description }}\",\n    \"neto\": \"{{ $json.sum_Neto }}\"\n}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       3264,
+                                       6928
+                                   ],
+                      "id":  "ca79ff3f-cc8d-470a-8c09-18cf92fb0213",
+                      "name":  "HTTP Request5",
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "=https://api.mercadolibre.com/orders/{{ $json.orderId }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer {{ $(\u0027Call \\\u0027Read_token\\\u0027\u0027).first().json[\"Access Token\"] }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+                                                         "batching":  {
+                                                                          "batch":  {
+
+                                                                                    }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       864,
+                                       6768
+                                   ],
+                      "id":  "5ed71a60-d003-4418-a8d1-b6edbd88ad31",
+                      "name":  "HTTP Request8",
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "=https://api.mercadopago.com/v1/payments/{{ $json.id_pago_aprobado }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer APP_USR-3157774544079142-042416-7e81f8e30e6503dec20acde7ea4a305e-194083300"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+                                                         "batching":  {
+                                                                          "batch":  {
+
+                                                                                    }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       1904,
+                                       6768
+                                   ],
+                      "id":  "de3d0c08-b2a8-4111-aa86-c1c296277fa8",
+                      "name":  "HTTP Request6",
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const results = {};\nconst token = $(\"Call \u0027Read_token\u0027\").first().json[\"Access Token\"];\n\nfor (const item of $input.all()) {\n  const shipId = item.json.shipping?.id;\n  const orderId = item.json.id;\n  const packId = item.json.pack_id || null;\n  const orderItems = item.json.order_items || [];\n  \n  let bonusFlex = 0;\n  if (shipId \u0026\u0026 token) {\n    try {\n      const shipRes = await this.helpers.httpRequest({\n        method: \u0027GET\u0027,\n        url: `https://api.mercadolibre.com/shipments/${shipId}`,\n        headers: { Authorization: `Bearer ${token}` },\n        json: true\n      });\n      if (shipRes \u0026\u0026 shipRes.logistic_type === \u0027self_service\u0027) {\n        const costRes = await this.helpers.httpRequest({\n          method: \u0027GET\u0027,\n          url: `https://api.mercadolibre.com/shipments/${shipId}/costs`,\n          headers: { Authorization: `Bearer ${token}` },\n          json: true\n        });\n        bonusFlex = Number(costRes?.senders?.[0]?.save) || 0;\n      }\n    } catch (e) {\n      // En caso de error, bonusFlex permanece en 0\n    }\n  }\n\n  const pagos = item.json.payments || [];\n  const pagosAprobadosEnOrden = pagos\n    .filter(p =\u003e p.status === \u0027approved\u0027)\n    .map(p =\u003e p.id);\n\n  if (!results[shipId]) {\n    results[shipId] = {\n      order_ids: [orderId],\n      shipping_id: shipId,\n      pack_id: packId,\n      ids_pagos: pagosAprobadosEnOrden,\n      resumen_productos: \"\",\n      items_detalle: [],\n      bonus_flex: bonusFlex\n    };\n  } else {\n    if (!results[shipId].order_ids.includes(orderId)) {\n      results[shipId].order_ids.push(orderId);\n    }\n    pagosAprobadosEnOrden.forEach(id =\u003e {\n      if (!results[shipId].ids_pagos.includes(id)) {\n        results[shipId].ids_pagos.push(id);\n      }\n    });\n  }\n\n  for (const producto of orderItems) {\n    const productName = producto.item.title;\n    const quantity = producto.quantity;\n    const separador = results[shipId].resumen_productos === \"\" ? \"\" : \" + \";\n    results[shipId].resumen_productos += `${separador}${productName} (x${quantity})`;\n\n    results[shipId].items_detalle.push({\n      order_id_origen: orderId,\n      mla: producto.item.id,\n      nombre: productName,\n      variante: producto.item.variation_id || \u0027Sin variante\u0027,\n      cantidad: quantity\n    });\n  }\n}\n\nconst finalOutput = [];\nfor (const group of Object.values(results)) {\n  if (group.ids_pagos.length === 0) continue;\n  for (const paymentId of group.ids_pagos) {\n    finalOutput.push({\n      json: {\n        ...group,\n        id_pago_aprobado: paymentId,\n        order_id: group.order_ids.join(\u0027, \u0027)\n      }\n    });\n  }\n}\n\nreturn finalOutput;"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1200,
+                                       6768
+                                   ],
+                      "id":  "cb9285d7-73b2-40ea-b566-7beec98572a2",
+                      "name":  "Code in JavaScript4"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "=https://api.mercadolibre.com/packs/{{ $json.pack }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer {{ $(\u0027Call \\\u0027Read_token\\\u0027\u0027).first().json[\"Access Token\"] }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+                                                         "batching":  {
+                                                                          "batch":  {
+
+                                                                                    }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       -736,
+                                       6848
+                                   ],
+                      "id":  "26e7fc1d-392f-400a-bbc4-6f98c645cb1f",
+                      "name":  "HTTP Request10",
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "62a9136b-4fc3-4a4a-9544-15ad932cc005",
+                                                                                   "leftValue":  "={{ $json.pack }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "empty",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -960,
+                                       6720
+                                   ],
+                      "id":  "46a79475-fb43-403b-92d2-86d4180732d6",
+                      "name":  "If"
+                  },
+                  {
+                      "parameters":  {
+                                         "fieldToSplitOut":  "orders",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.splitOut",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -480,
+                                       6848
+                                   ],
+                      "id":  "5631c014-0927-4022-8179-2bf012d710d3",
+                      "name":  "Split Out2"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "3839bb54-b96c-417d-874c-9d59a2bc9d92",
+                                                                                     "name":  "id",
+                                                                                     "value":  "={{ $json.id }}",
+                                                                                     "type":  "number"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       -256,
+                                       6848
+                                   ],
+                      "id":  "86da8284-8f8b-4ffc-b22b-c1d6e6a2e910",
+                      "name":  "Edit Fields2"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "=https://api.mercadolibre.com/orders/{{ $json.id }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer {{ $(\u0027Call \\\u0027Read_token\\\u0027\u0027).first().json[\"Access Token\"] }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+                                                         "batching":  {
+                                                                          "batch":  {
+
+                                                                                    }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       -16,
+                                       6848
+                                   ],
+                      "id":  "f9a6d2ea-9442-4941-a004-c00e29b56512",
+                      "name":  "HTTP Request11",
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+
+                                     },
+                      "type":  "n8n-nodes-base.merge",
+                      "typeVersion":  3.2,
+                      "position":  [
+                                       400,
+                                       6752
+                                   ],
+                      "id":  "923b64c5-a91e-422b-9c4d-fc198dbfc70b",
+                      "name":  "Merge3"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "52d24155-f3f5-4ca0-afaf-55aef6154356",
+                                                                                     "name":  "orderId",
+                                                                                     "value":  "={{ $json.orderId }}",
+                                                                                     "type":  "string"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       608,
+                                       6752
+                                   ],
+                      "id":  "940b575b-15da-45b1-b1a2-0db67034ce3c",
+                      "name":  "Edit Fields1"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "33527c5a-faba-4df6-b92d-ea8ca5eb179a",
+                                                                                     "name":  "orderId",
+                                                                                     "value":  "={{ $json.id }}",
+                                                                                     "type":  "number"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       192,
+                                       6848
+                                   ],
+                      "id":  "ab6b9eb5-481d-468b-abb6-4c5ff4d60255",
+                      "name":  "Edit Fields3"
+                  },
+                  {
+                      "parameters":  {
+                                         "fieldToSplitOut":  "body.preparados",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.splitOut",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -1264,
+                                       7024
+                                   ],
+                      "id":  "3db9d6fd-3499-4195-8453-2e5b146b6f6a",
+                      "name":  "Split Out1"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "fcf34f9c-7c4f-4339-8ad2-7905c4a25227",
+                                                                                     "name":  "Neto",
+                                                                                     "value":  "={{ Number($json.transaction_details.net_received_amount) + Number($(\u0027Code in JavaScript4\u0027).item.json.bonus_flex || 0) }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "94261f45-5a99-4a79-afea-824faba33748",
+                                                                                     "name":  "Bruto",
+                                                                                     "value":  "={{ $json.transaction_amount }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "e8d7d0b4-79da-477a-b3f2-0791f1f15b6e",
+                                                                                     "name":  "Nombre",
+                                                                                     "value":  "={{ $json.additional_info.items[0].title }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "a7e76b3d-169f-47ac-b91b-c312483303f4",
+                                                                                     "name":  "orderId",
+                                                                                     "value":  "={{ $json.order.id.toString() }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "fcc59a63-4e9e-4a5d-830c-7e24f9f49ca9",
+                                                                                     "name":  "Mla",
+                                                                                     "value":  "={{ $json.additional_info.items[0].id }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "9317d22e-374a-4a47-b7ab-810455ce4a54",
+                                                                                     "name":  "categoria",
+                                                                                     "value":  "Colecta",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "a986bf77-7e0e-418c-b03b-c92414ddcb76",
+                                                                                     "name":  "fecha",
+                                                                                     "value":  "={{ $(\u0027Webhook\u0027).first().json.body.fecha }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "7224ca33-8068-441f-a293-5b168e22f2f0",
+                                                                                     "name":  "description",
+                                                                                     "value":  "={{ $json.description }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "37aa830b-0601-4bd0-9a39-6c7ab253f9ce",
+                                                                                     "name":  "pack_id",
+                                                                                     "value":  "={{ $(\u0027Code in JavaScript4\u0027).item.json.pack_id }}",
+                                                                                     "type":  "string"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       2160,
+                                       6768
+                                   ],
+                      "id":  "f3229e21-7184-4ada-a5f2-90d1d96ba79c",
+                      "name":  "Edit Fields7"
+                  },
+                  {
+                      "parameters":  {
+                                         "fieldToSplitOut":  "id_pago_aprobado",
+                                         "include":  "allOtherFields",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.splitOut",
+                      "typeVersion":  1,
+                      "position":  [
+                                       1664,
+                                       6768
+                                   ],
+                      "id":  "a31198d0-1267-4680-9f11-8b3b82d9e3ab",
+                      "name":  "Split Out3"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "d80c522a-f370-48bc-969e-88f8d2930734",
+                                                                                     "name":  "order_items[0].item.id",
+                                                                                     "value":  "={{ $json.order_items[0].item.id }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "6b472eda-0773-4fde-bbae-7cf76d5936cb",
+                                                                                     "name":  "order_items[0].item.title",
+                                                                                     "value":  "={{ $json.order_items[0].item.title }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "1a5bd726-05fa-4cd0-a0cd-59ff81b76d97",
+                                                                                     "name":  "orderId",
+                                                                                     "value":  "={{ $json.payments[0].order_id }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "1fab50c7-1896-4e0f-b68a-c2176e699859",
+                                                                                     "name":  "total_amount",
+                                                                                     "value":  "={{ $json.total_amount }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "34f7e168-a2e3-4fc6-a699-3d661070b40b",
+                                                                                     "name":  "shipping.id",
+                                                                                     "value":  "={{ $json.shipping.id }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "81c876b2-fc4a-44f9-ad9c-9e605e96bb5d",
+                                                                                     "name":  "order_items[0].item.variation_id",
+                                                                                     "value":  "={{ $json.order_items[0].item.variation_id }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "36059e8a-20ea-4fb6-87d9-1b067a28f29d",
+                                                                                     "name":  "Cantidad",
+                                                                                     "value":  "={{ $json.order_items[0].quantity }}",
+                                                                                     "type":  "number"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       2032,
+                                       7152
+                                   ],
+                      "id":  "a3c69a71-331c-4f29-b757-96d4efc78466",
+                      "name":  "Edit Fields4"
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "combine",
+                                         "fieldsToMatchString":  "orderId",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.merge",
+                      "typeVersion":  3.2,
+                      "position":  [
+                                       3072,
+                                       6928
+                                   ],
+                      "id":  "46f25cc7-5242-423d-8a9e-cf36dc2eabb0",
+                      "name":  "Merge"
+                  },
+                  {
+                      "parameters":  {
+                                         "fieldsToSummarize":  {
+                                                                   "values":  [
+                                                                                  {
+                                                                                      "aggregation":  "sum",
+                                                                                      "field":  "Bruto"
+                                                                                  },
+                                                                                  {
+                                                                                      "aggregation":  "sum",
+                                                                                      "field":  "Neto"
+                                                                                  }
+                                                                              ]
+                                                               },
+                                         "fieldsToSplitBy":  "orderId",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.summarize",
+                      "typeVersion":  1.1,
+                      "position":  [
+                                       2368,
+                                       6768
+                                   ],
+                      "id":  "76c8d03f-a54b-49f3-8773-d9dc1c22c9bf",
+                      "name":  "Summarize"
+                  },
+                  {
+                      "parameters":  {
+                                         "rules":  {
+                                                       "values":  [
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  3
+                                                                                                         },
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "leftValue":  "={{ $json.logistic.type }}",
+                                                                                                                    "rightValue":  "self_service",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "string",
+                                                                                                                                     "operation":  "equals"
+                                                                                                                                 },
+                                                                                                                    "id":  "32b3b100-f847-4948-9094-d3125aba849e"
+                                                                                                                }
+                                                                                                            ],
+                                                                                             "combinator":  "and"
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "Flex"
+                                                                      },
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  3
+                                                                                                         },
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "id":  "33c7d683-3179-4c9c-96e0-ecc4a2d7f2f8",
+                                                                                                                    "leftValue":  "={{ $json.logistic.type }}",
+                                                                                                                    "rightValue":  "cross_docking",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "string",
+                                                                                                                                     "operation":  "equals",
+                                                                                                                                     "name":  "filter.operator.equals"
+                                                                                                                                 }
+                                                                                                                }
+                                                                                                            ],
+                                                                                             "combinator":  "and"
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "Colecta"
+                                                                      },
+                                                                      {
+                                                                          "conditions":  {
+                                                                                             "options":  {
+                                                                                                             "caseSensitive":  true,
+                                                                                                             "leftValue":  "",
+                                                                                                             "typeValidation":  "strict",
+                                                                                                             "version":  3
+                                                                                                         },
+                                                                                             "conditions":  [
+                                                                                                                {
+                                                                                                                    "id":  "43d47988-3c81-4a85-90fb-7009f04df94a",
+                                                                                                                    "leftValue":  "={{ $json.logistic.type }}",
+                                                                                                                    "rightValue":  "fulfillment",
+                                                                                                                    "operator":  {
+                                                                                                                                     "type":  "string",
+                                                                                                                                     "operation":  "equals",
+                                                                                                                                     "name":  "filter.operator.equals"
+                                                                                                                                 }
+                                                                                                                }
+                                                                                                            ],
+                                                                                             "combinator":  "and"
+                                                                                         },
+                                                                          "renameOutput":  true,
+                                                                          "outputKey":  "Full"
+                                                                      }
+                                                                  ]
+                                                   },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.switch",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       32,
+                                       7344
+                                   ],
+                      "id":  "e62577f3-1760-4018-9b6d-c64086113629",
+                      "name":  "Switch"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "=https://api.mercadolibre.com/orders/{{ $json.payments[0].order_id }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer {{ $(\u0027Call \\\u0027Read_token\\\u0027\u0027).first().json[\"Access Token\"] }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+                                                         "batching":  {
+                                                                          "batch":  {
+
+                                                                                    }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       832,
+                                       7664
+                                   ],
+                      "id":  "e21b2358-84bd-4c50-a56b-5575a1cfdb7b",
+                      "name":  "HTTP Request12"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "384bf49a-4979-415f-b113-900294c7ff8b",
+                                                                                     "name":  "shipping.id",
+                                                                                     "value":  "={{ $json.id }}",
+                                                                                     "type":  "number"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       336,
+                                       7472
+                                   ],
+                      "id":  "f7a97921-2fcd-468a-aeb7-ef063fea364f",
+                      "name":  "Edit Fields9"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "08a60325-8c27-4306-bcce-da7220359947",
+                                                                                     "name":  "shipping.id",
+                                                                                     "value":  "={{ $json.shipping.id }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "3a5e8c8a-bdfc-48f2-955b-231b1894d3fb",
+                                                                                     "name":  "payments[0].order_id",
+                                                                                     "value":  "={{ $json.payments[0].order_id }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "16040e04-8a07-4aab-b0a1-d7f1ea51c7ad",
+                                                                                     "name":  "order_items[0].item.variation_id",
+                                                                                     "value":  "={{ $json.order_items[0].item.variation_id }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "331bd0c7-6069-4685-84f1-a690a0079139",
+                                                                                     "name":  "shipping.id",
+                                                                                     "value":  "={{ $json.shipping.id }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "9b6fb377-93db-4d8c-b13e-4266b2bda5d2",
+                                                                                     "name":  "order_items[0].item.title",
+                                                                                     "value":  "={{ $json.order_items[0].item.title }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "4fbce7dd-ca01-48fe-b0e1-b3dda38ba04f",
+                                                                                     "name":  "pack_id",
+                                                                                     "value":  "={{ $json.pack_id }}",
+                                                                                     "type":  "number"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       160,
+                                       7664
+                                   ],
+                      "id":  "53f0c53f-1474-4a63-8f8b-545bb17a926b",
+                      "name":  "Edit Fields6"
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "combine",
+                                         "fieldsToMatchString":  "shipping.id",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.merge",
+                      "typeVersion":  3.2,
+                      "position":  [
+                                       608,
+                                       7648
+                                   ],
+                      "id":  "7884a339-6e75-4c7c-be33-56e3961fa261",
+                      "name":  "Merge1"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const results = {};\n\nfor (const item of $input.all()) {\n  // Capturamos los datos principales\n  const shipId = item.json.shipping.id;\n  const orderId = item.json.id; // \u003c--- Aquí obtenemos el ID de la orden\n  const orderItem = item.json.order_items[0];\n  const productName = orderItem.item.title;\n  const quantity = orderItem.quantity;\n  const mlaId = orderItem.item.id;\n  const variationId = orderItem.item.variation_id || \u0027Sin variante\u0027;\n\n  // Si es la primera vez que vemos este envío, creamos el objeto\n  if (!results[shipId]) {\n    results[shipId] = {\n      order_id: orderId, // \u003c--- Lo agregamos al resultado\n      shipping_id: shipId,\n      pack_id: item.json.pack_id,\n      resumen_productos: `${productName} (x${quantity})`,\n      items_detalle: [{\n        mla: mlaId,\n        nombre: productName,\n        variante: variationId,\n        cantidad: quantity\n      }]\n    };\n  } else {\n    // Si el envío ya existe (porque hay más productos), solo acumulamos\n    results[shipId].resumen_productos += ` + ${productName} (x${quantity})`;\n    \n    // Agregamos el nuevo producto a la lista detallada\n    results[shipId].items_detalle.push({\n      mla: mlaId,\n      nombre: productName,\n      variante: variationId,\n      cantidad: quantity\n    });\n  }\n}\n\n// Convertimos el objeto agrupado en una lista simple para n8n\nreturn Object.values(results);"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -336,
+                                       7360
+                                   ],
+                      "id":  "42477341-5961-4ea7-be18-cd87a34bc833",
+                      "name":  "Code in JavaScript2"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "https://api.mercadolibre.com/orders/search",
+                                         "sendQuery":  true,
+                                         "queryParameters":  {
+                                                                 "parameters":  [
+                                                                                    {
+                                                                                        "name":  "seller",
+                                                                                        "value":  "194083300"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "order.date_closed.from",
+                                                                                        "value":  "={{ $(\u0027Code in JavaScript\u0027).item.json.from }}"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "sort",
+                                                                                        "value":  "date_desc"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "limit",
+                                                                                        "value":  "50"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "=offset",
+                                                                                        "value":  "={{ $json.offset }}"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "=order.date_closed.to",
+                                                                                        "value":  "={{ $(\u0027Code in JavaScript\u0027).item.json.to }}"
+                                                                                    }
+                                                                                ]
+                                                             },
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer {{ $(\u0027Call \\\u0027Read_token\\\u0027\u0027).item.json[\"Access Token\"] }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       -752,
+                                       7360
+                                   ],
+                      "id":  "ce567784-591a-466e-8948-5cb2bb4f6e2f",
+                      "name":  "HTTP Request"
+                  },
+                  {
+                      "parameters":  {
+                                         "fieldToSplitOut":  "results",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.splitOut",
+                      "typeVersion":  1,
+                      "position":  [
+                                       -528,
+                                       7360
+                                   ],
+                      "id":  "869c81fa-7885-44de-9a62-63953e2132aa",
+                      "name":  "Split Out"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "=https://api.mercadolibre.com/shipments/{{ $json.shipping_id }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer {{ $(\u0027Call \\\u0027Read_token\\\u0027\u0027).first().json[\"Access Token\"] }}"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "x-format-new",
+                                                                                         "value":  "true"
+                                                                                     },
+                                                                                     {
+                                                                                         "name":  "limit",
+                                                                                         "value":  "50"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+                                                         "batching":  {
+                                                                          "batch":  {
+
+                                                                                    }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       -144,
+                                       7360
+                                   ],
+                      "id":  "cac718bf-7f62-4fd3-8dea-9d4ce3a8daa2",
+                      "name":  "HTTP Request1"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "https://api.mercadolibre.com/orders/search",
+                                         "sendQuery":  true,
+                                         "queryParameters":  {
+                                                                 "parameters":  [
+                                                                                    {
+                                                                                        "name":  "seller",
+                                                                                        "value":  "194083300"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "order.date_closed.from",
+                                                                                        "value":  "={{ $json.from }}"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "order.date_closed.to",
+                                                                                        "value":  "={{ $json.to }}"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "sort",
+                                                                                        "value":  "date_desc"
+                                                                                    },
+                                                                                    {
+                                                                                        "name":  "limit",
+                                                                                        "value":  "50"
+                                                                                    }
+                                                                                ]
+                                                             },
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer {{ $(\u0027Call \\\u0027Read_token\\\u0027\u0027).item.json[\"Access Token\"] }}"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       -1152,
+                                       7360
+                                   ],
+                      "id":  "fa9f2f63-a521-4cd2-a786-86a833aa14e6",
+                      "name":  "obtener total"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// 1. Obtenemos la fecha del Webhook (ej: \"2026-04-21\")\nconst fechaRecibida = $(\u0027Webhook\u0027).item.json.body.fecha;\n\n// 2. Inicio: 00:01 AM Argentina (03:01 UTC)\nconst from = `${fechaRecibida}T03:01:00.000Z`;\n\n// 3. Calculamos el final de ESE MISMO día en Argentina (23:59:59).\n// En UTC, esto equivale a las 02:59:59 del día siguiente.\nconst fechaFin = new Date(fechaRecibida + \u0027T03:00:00Z\u0027);\nfechaFin.setUTCDate(fechaFin.getUTCDate() + 1);\nfechaFin.setUTCSeconds(fechaFin.getUTCSeconds() - 1);\nconst finDelDiaUTC = fechaFin.toISOString();\n\n// 4. Obtenemos el \"ahora\" real\nconst ahora = new Date().toISOString();\n\n// 5. El límite \u0027to\u0027 será el final del día elegido, \n// a menos que sea hoy, en cuyo caso usamos el \u0027ahora\u0027.\nconst to = (ahora \u003c finDelDiaUTC) ? ahora : finDelDiaUTC;\n\nreturn {\n  from,\n  to\n};"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -1312,
+                                       7360
+                                   ],
+                      "id":  "b94c4019-459e-46a9-b10c-720d1ca6c7ca",
+                      "name":  "Code in JavaScript"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "// 1. Obtenemos el total de ventas que encontró el nodo \"obtener total\"\n// Usamos || 0 por si la API devuelve el campo vacío\nconst total = $(\"obtener total\").item.json.paging.total || 0;\nconst limit = 50;\nconst offsets = [];\n\n// 2. Si no hay ventas en esa fecha, devolvemos una lista vacía.\n// Esto hará que el flujo se detenga aquí de forma limpia.\nif (total === 0) {\n  return [];\n}\n\n// 3. Creamos las \"páginas\" (offsets). \n// Si hay 10 ventas, generará 1 página (offset 0). \n// Si hay 60, generará 2 (offset 0 y offset 50).\nfor (let i = 0; i \u003c total; i += limit) {\n  offsets.push({ offset: i });\n}\n\nreturn offsets;"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -976,
+                                       7360
+                                   ],
+                      "id":  "ff9eb794-2aac-434b-9c52-acf1da5f6b97",
+                      "name":  "Code in JavaScript1"
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "combine",
+                                         "fieldsToMatchString":  "orderId",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.merge",
+                      "typeVersion":  3.2,
+                      "position":  [
+                                       2624,
+                                       6672
+                                   ],
+                      "id":  "d6d1ce25-4658-4ccf-993c-8d59e1e8d262",
+                      "name":  "Merge4"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "=https://revolucionmotos.tech/api/webhooks/n8n/registracion",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer revolucion_motos_super_secreto_2026"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "sendBody":  true,
+                                         "specifyBody":  "json",
+                                         "jsonBody":  "={\n    \"shippingId\": \"{{ $json.shipping.id }}\",\n    \"orderId\": \"{{ $json.orderId }}\",\n    \"mla\": \"{{ $json.Mla || $json.order_items[0].item.id }} \",\n    \"categoria\": \"{{ $json.categoria }}\",\n    \"bruto\":\"{{ $json.sum_Bruto }}\" ,\n    \"variation\": \"{{ $json.order_items[0].item.variation_id }}\",\n    \"fecha\": \"{{ $json.fecha }}\",\n    \"pack_id\": \"{{ $json.pack_id }}\",\n    \"nombre\": \"{{ $json.Nombre || $json.description }}\",\n    \"neto\": \"{{ $json.sum_Neto }}\"\n}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.3,
+                      "position":  [
+                                       3184,
+                                       7824
+                                   ],
+                      "id":  "5bd67599-2679-4236-8168-64faf7717039",
+                      "name":  "HTTP Request7",
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "url":  "=https://api.mercadopago.com/v1/payments/{{ $json.id_pago_aprobado }}",
+                                         "sendHeaders":  true,
+                                         "headerParameters":  {
+                                                                  "parameters":  [
+                                                                                     {
+                                                                                         "name":  "Authorization",
+                                                                                         "value":  "=Bearer APP_USR-3157774544079142-042416-7e81f8e30e6503dec20acde7ea4a305e-194083300"
+                                                                                     }
+                                                                                 ]
+                                                              },
+                                         "options":  {
+                                                         "batching":  {
+                                                                          "batch":  {
+
+                                                                                    }
+                                                                      }
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.4,
+                      "position":  [
+                                       1824,
+                                       7664
+                                   ],
+                      "id":  "c4b43c2b-bca0-4b6d-874b-a7565885bed6",
+                      "name":  "HTTP Request9",
+                      "onError":  "continueRegularOutput"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const results = {};\n\nfor (const item of $input.all()) {\n  const shipId = item.json.shipping.id;\n  const orderId = item.json.id;\n  const packId = item.json.pack_id || null;\n  const orderItems = item.json.order_items;\n  \n  // --- LÓGICA PARA EL PAGO ---\n  const pagos = item.json.payments || [];\n  const pagosAprobadosEnOrden = pagos\n    .filter(p =\u003e p.status === \u0027approved\u0027)\n    .map(p =\u003e p.id);\n  // ---------------------------------\n\n  if (!results[shipId]) {\n    results[shipId] = {\n      order_ids: [orderId],\n      shipping_id: shipId,\n      pack_id: packId,\n      ids_pagos: pagosAprobadosEnOrden,\n      resumen_productos: \"\",\n      items_detalle: []\n    };\n  } else {\n    if (!results[shipId].order_ids.includes(orderId)) {\n      results[shipId].order_ids.push(orderId);\n    }\n    pagosAprobadosEnOrden.forEach(id =\u003e {\n      if (!results[shipId].ids_pagos.includes(id)) {\n        results[shipId].ids_pagos.push(id);\n      }\n    });\n  }\n\n  for (const producto of orderItems) {\n    const productName = producto.item.title;\n    const quantity = producto.quantity;\n    const separador = results[shipId].resumen_productos === \"\" ? \"\" : \" + \";\n    results[shipId].resumen_productos += `${separador}${productName} (x${quantity})`;\n\n    results[shipId].items_detalle.push({\n      order_id_origen: orderId,\n      mla: producto.item.id,\n      nombre: productName,\n      variante: producto.item.variation_id || \u0027Sin variante\u0027,\n      cantidad: quantity\n    });\n  }\n}\n\n// --- NUEVA LÓGICA DE SALIDA DESAGRUPADA ---\nconst finalOutput = [];\n\nfor (const group of Object.values(results)) {\n  // Si el grupo no tiene pagos aprobados, se ignora (así evitamos errores 404 en MP)\n  if (group.ids_pagos.length === 0) continue;\n\n  for (const paymentId of group.ids_pagos) {\n    finalOutput.push({\n      json: {\n        ...group,\n        id_pago_aprobado: paymentId, // Un único ID por ítem de salida\n        order_id: group.order_ids.join(\u0027, \u0027) // Mantenemos la referencia de las órdenes para tu API\n      }\n    });\n  }\n}\n\nreturn finalOutput;"
+                                     },
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1120,
+                                       7664
+                                   ],
+                      "id":  "6ad154d4-bb82-4f3d-a93d-2b1bc28812fb",
+                      "name":  "Code in JavaScript5"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "fcf34f9c-7c4f-4339-8ad2-7905c4a25227",
+                                                                                     "name":  "Neto",
+                                                                                     "value":  "={{ $json.transaction_details.net_received_amount }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "94261f45-5a99-4a79-afea-824faba33748",
+                                                                                     "name":  "Bruto",
+                                                                                     "value":  "={{ $json.transaction_amount }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "e8d7d0b4-79da-477a-b3f2-0791f1f15b6e",
+                                                                                     "name":  "Nombre",
+                                                                                     "value":  "={{ $json.additional_info.items[0].title }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "a7e76b3d-169f-47ac-b91b-c312483303f4",
+                                                                                     "name":  "orderId",
+                                                                                     "value":  "={{ $json.order.id.toString() }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "fcc59a63-4e9e-4a5d-830c-7e24f9f49ca9",
+                                                                                     "name":  "Mla",
+                                                                                     "value":  "={{ $json.additional_info.items[0].id }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "9317d22e-374a-4a47-b7ab-810455ce4a54",
+                                                                                     "name":  "categoria",
+                                                                                     "value":  "Full",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "a986bf77-7e0e-418c-b03b-c92414ddcb76",
+                                                                                     "name":  "fecha",
+                                                                                     "value":  "={{ $(\u0027Webhook\u0027).first().json.body.fecha }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "7224ca33-8068-441f-a293-5b168e22f2f0",
+                                                                                     "name":  "description",
+                                                                                     "value":  "={{ $json.description }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "37aa830b-0601-4bd0-9a39-6c7ab253f9ce",
+                                                                                     "name":  "pack_id",
+                                                                                     "value":  "={{ $(\u0027Code in JavaScript5\u0027).item.json.pack_id }}",
+                                                                                     "type":  "string"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       2080,
+                                       7664
+                                   ],
+                      "id":  "84f5ce91-8851-4253-926c-8db846946dde",
+                      "name":  "Edit Fields"
+                  },
+                  {
+                      "parameters":  {
+                                         "fieldToSplitOut":  "id_pago_aprobado",
+                                         "include":  "allOtherFields",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.splitOut",
+                      "typeVersion":  1,
+                      "position":  [
+                                       1584,
+                                       7664
+                                   ],
+                      "id":  "13904a07-73af-49d8-8820-4f042b04bcfa",
+                      "name":  "Split Out4"
+                  },
+                  {
+                      "parameters":  {
+                                         "assignments":  {
+                                                             "assignments":  [
+                                                                                 {
+                                                                                     "id":  "d80c522a-f370-48bc-969e-88f8d2930734",
+                                                                                     "name":  "order_items[0].item.id",
+                                                                                     "value":  "={{ $json.order_items[0].item.id }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "6b472eda-0773-4fde-bbae-7cf76d5936cb",
+                                                                                     "name":  "order_items[0].item.title",
+                                                                                     "value":  "={{ $json.order_items[0].item.title }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "1a5bd726-05fa-4cd0-a0cd-59ff81b76d97",
+                                                                                     "name":  "orderId",
+                                                                                     "value":  "={{ $json.payments[0].order_id }}",
+                                                                                     "type":  "string"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "1fab50c7-1896-4e0f-b68a-c2176e699859",
+                                                                                     "name":  "total_amount",
+                                                                                     "value":  "={{ $json.total_amount }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "34f7e168-a2e3-4fc6-a699-3d661070b40b",
+                                                                                     "name":  "shipping.id",
+                                                                                     "value":  "={{ $json.shipping.id }}",
+                                                                                     "type":  "number"
+                                                                                 },
+                                                                                 {
+                                                                                     "id":  "81c876b2-fc4a-44f9-ad9c-9e605e96bb5d",
+                                                                                     "name":  "order_items[0].item.variation_id",
+                                                                                     "value":  "={{ $json.order_items[0].item.variation_id }}",
+                                                                                     "type":  "string"
+                                                                                 }
+                                                                             ]
+                                                         },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.set",
+                      "typeVersion":  3.4,
+                      "position":  [
+                                       1952,
+                                       8048
+                                   ],
+                      "id":  "962835ef-f394-4339-8974-9dc461f0afcc",
+                      "name":  "Edit Fields8"
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "combine",
+                                         "fieldsToMatchString":  "orderId",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.merge",
+                      "typeVersion":  3.2,
+                      "position":  [
+                                       2992,
+                                       7824
+                                   ],
+                      "id":  "84ad6522-2f56-4615-acf5-2b5513f3b283",
+                      "name":  "Merge2"
+                  },
+                  {
+                      "parameters":  {
+                                         "fieldsToSummarize":  {
+                                                                   "values":  [
+                                                                                  {
+                                                                                      "aggregation":  "sum",
+                                                                                      "field":  "Bruto"
+                                                                                  },
+                                                                                  {
+                                                                                      "aggregation":  "sum",
+                                                                                      "field":  "Neto"
+                                                                                  }
+                                                                              ]
+                                                               },
+                                         "fieldsToSplitBy":  "orderId",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.summarize",
+                      "typeVersion":  1.1,
+                      "position":  [
+                                       2288,
+                                       7664
+                                   ],
+                      "id":  "502ed73f-071b-429c-b99d-0b618fadf5b9",
+                      "name":  "Summarize1"
+                  },
+                  {
+                      "parameters":  {
+                                         "mode":  "combine",
+                                         "fieldsToMatchString":  "orderId",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.merge",
+                      "typeVersion":  3.2,
+                      "position":  [
+                                       2544,
+                                       7568
+                                   ],
+                      "id":  "a142ce84-e83e-4931-a970-ff5756cb3094",
+                      "name":  "Merge5"
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  3
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "bd433090-02ee-4b6b-8dce-66bc675eff87",
+                                                                                   "leftValue":  "={{ $json.orderId }}",
+                                                                                   "rightValue":  "2000001234567",
+                                                                                   "operator":  {
+                                                                                                    "type":  "string",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       -1072,
+                                       7024
+                                   ],
+                      "id":  "6d678ad8-cd71-4c62-b4df-64b6c16a7362",
+                      "name":  "If1"
+                  }
+              ]
+}

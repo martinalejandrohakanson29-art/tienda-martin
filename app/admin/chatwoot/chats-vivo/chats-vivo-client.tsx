@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, Camera, ExternalLink, FileText, Film, Loader2, Mic, RefreshCw, Search, Send, Smile } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, Camera, ExternalLink, FileText, Film, Loader2, Lock, Mic, RefreshCw, Search, Send, Smile } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
     enviarMensajeChatVivo,
+    enviarNotaInternaChatVivo,
     forzarSincronizacionChatsVivo,
     marcarConversacionComoLeida,
     obtenerChatsVivo,
@@ -210,6 +211,8 @@ export function ChatsVivoClient({
     const [lightboxImg, setLightboxImg] = useState<{ url: string; nombre?: string | null } | null>(null)
 
     const [textoMensaje, setTextoMensaje] = useState("")
+    // false = mensaje público al cliente · true = nota interna para el bot (cliente no la ve)
+    const [modoNota, setModoNota] = useState(false)
     const [enviandoMensaje, setEnviandoMensaje] = useState(false)
     const [mostrarEmojis, setMostrarEmojis] = useState(false)
     const mensajesEndRef = useRef<HTMLDivElement>(null)
@@ -509,6 +512,7 @@ export function ChatsVivoClient({
 
     const seleccionarConversacion = (id: number) => {
         setSeleccionadaId(id)
+        setModoNota(false)
         marcarLeido(id)
     }
 
@@ -610,13 +614,14 @@ export function ChatsVivoClient({
         if (!contenido || enviandoMensaje) return
 
         const convId = seleccionada.id
+        const esNota = modoNota
         setTextoMensaje("")
 
         const tempId = Date.now()
         const mensajeOptimista: MensajeConversacion = {
             id: tempId,
             contenido,
-            privado: false,
+            privado: esNota,
             saliente: true,
             remitente: "Nosotros",
             creadoEn: new Date().toISOString(),
@@ -632,29 +637,34 @@ export function ChatsVivoClient({
             }
         })
 
-        // 2. Actualizar lista de conversaciones (último mensaje y bot pausado)
-        setPanel((prev) => {
-            if (!prev) return prev
-            return {
-                ...prev,
-                conversaciones: prev.conversaciones.map((c) =>
-                    c.id === convId
-                        ? {
-                              ...c,
-                              ultimoMensaje: contenido,
-                              ultimoMensajePropio: true,
-                              botPausado: true,
-                          }
-                        : c
-                ),
-            }
-        })
+        // 2. Un mensaje público al cliente pausa el bot y pasa a ser el "último
+        // mensaje". Una nota interna NO: es justamente para que el bot responda.
+        if (!esNota) {
+            setPanel((prev) => {
+                if (!prev) return prev
+                return {
+                    ...prev,
+                    conversaciones: prev.conversaciones.map((c) =>
+                        c.id === convId
+                            ? {
+                                  ...c,
+                                  ultimoMensaje: contenido,
+                                  ultimoMensajePropio: true,
+                                  botPausado: true,
+                              }
+                            : c
+                    ),
+                }
+            })
+        }
 
         setEnviandoMensaje(true)
         try {
-            const res = await enviarMensajeChatVivo(convId, contenido)
+            const res = esNota
+                ? await enviarNotaInternaChatVivo(convId, contenido)
+                : await enviarMensajeChatVivo(convId, contenido)
             if (!res.success) {
-                throw new Error("No se pudo enviar el mensaje")
+                throw new Error(esNota ? "No se pudo enviar la nota" : "No se pudo enviar el mensaje")
             }
             if (res.mensaje) {
                 setHilos((prev) => {
@@ -667,7 +677,10 @@ export function ChatsVivoClient({
             }
         } catch (err) {
             console.error("Error enviando mensaje:", err)
-            alert("Error al enviar mensaje: " + (err instanceof Error ? err.message : "Error desconocido"))
+            alert(
+                (esNota ? "Error al enviar la nota: " : "Error al enviar mensaje: ") +
+                    (err instanceof Error ? err.message : "Error desconocido")
+            )
         } finally {
             setEnviandoMensaje(false)
         }
@@ -1010,14 +1023,54 @@ export function ChatsVivoClient({
                                     </div>
                                 )}
 
+                                {/* Selector: mensaje al cliente vs nota interna para el bot */}
+                                <div className="flex items-center gap-1 mb-2 bg-white rounded-lg p-0.5 border border-gray-200 w-fit shadow-sm">
+                                    <button
+                                        type="button"
+                                        onClick={() => setModoNota(false)}
+                                        className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors ${
+                                            !modoNota ? "bg-[#00a884] text-white" : "text-gray-500 hover:text-gray-700"
+                                        }`}
+                                    >
+                                        <Send className="h-3 w-3" />
+                                        Mensaje al cliente
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setModoNota(true)}
+                                        className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md transition-colors ${
+                                            modoNota ? "bg-amber-500 text-white" : "text-gray-500 hover:text-gray-700"
+                                        }`}
+                                    >
+                                        <Lock className="h-3 w-3" />
+                                        Nota para el bot
+                                    </button>
+                                </div>
+
+                                {modoNota && (
+                                    <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2 leading-snug">
+                                        El cliente no ve esta nota. El bot la lee, saca el dato técnico que falta y responde solo.
+                                    </p>
+                                )}
+
                                 <form onSubmit={handleEnviarMensaje} className="flex items-end gap-2">
-                                    <div className="flex-1 bg-white rounded-xl px-3.5 py-2 border border-gray-200 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884] shadow-sm transition-all">
+                                    <div
+                                        className={`flex-1 bg-white rounded-xl px-3.5 py-2 border shadow-sm transition-all ${
+                                            modoNota
+                                                ? "border-amber-300 bg-amber-50/40 focus-within:border-amber-400 focus-within:ring-1 focus-within:ring-amber-400"
+                                                : "border-gray-200 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884]"
+                                        }`}
+                                    >
                                         <textarea
                                             ref={textareaRef}
                                             value={textoMensaje}
                                             onChange={(e) => setTextoMensaje(e.target.value)}
                                             onKeyDown={handleKeyDown}
-                                            placeholder="Escribe un mensaje para responder al cliente... (Enter para enviar, Shift+Enter para nueva línea)"
+                                            placeholder={
+                                                modoNota
+                                                    ? "Escribí el dato técnico para el bot (ej: 'sí es compatible con la Rouser 200 NS')... (Enter para enviar)"
+                                                    : "Escribe un mensaje para responder al cliente... (Enter para enviar, Shift+Enter para nueva línea)"
+                                            }
                                             rows={4}
                                             className="w-full resize-none bg-transparent outline-none text-xs md:text-sm text-[#111b25] placeholder:text-[#8696a0] min-h-[76px] max-h-44 block leading-relaxed"
                                         />
@@ -1037,11 +1090,17 @@ export function ChatsVivoClient({
                                         <Button
                                             type="submit"
                                             disabled={!textoMensaje.trim() || enviandoMensaje}
-                                            className="h-9 w-9 p-0 rounded-xl bg-[#00a884] hover:bg-[#008f6f] text-white disabled:opacity-40 transition-colors shadow-sm"
-                                            title="Enviar mensaje (Enter)"
+                                            className={`h-9 w-9 p-0 rounded-xl text-white disabled:opacity-40 transition-colors shadow-sm ${
+                                                modoNota
+                                                    ? "bg-amber-500 hover:bg-amber-600"
+                                                    : "bg-[#00a884] hover:bg-[#008f6f]"
+                                            }`}
+                                            title={modoNota ? "Enviar nota interna (Enter)" : "Enviar mensaje (Enter)"}
                                         >
                                             {enviandoMensaje ? (
                                                 <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : modoNota ? (
+                                                <Lock className="h-4 w-4" />
                                             ) : (
                                                 <Send className="h-4 w-4" />
                                             )}

@@ -123,6 +123,40 @@ export async function enviarMensajeChatVivo(
     return { success: true, mensaje }
 }
 
+/**
+ * Manda una nota interna (privada) a la conversación real de Chatwoot. El cliente
+ * NO la ve. La usa el equipo para pasarle al bot el dato técnico que falta: el
+ * workflow "¿Es respuesta de mi equipo?" la levanta y redacta la respuesta al
+ * cliente. A diferencia de un mensaje manual, NO pausa el bot ni cambia el
+ * "último mensaje" de la lista.
+ */
+export async function enviarNotaInternaChatVivo(
+    conversationId: number,
+    contenido: string
+): Promise<{ success: boolean; mensaje: MensajeConversacion }> {
+    await requireAdmin()
+    const texto = contenido.trim()
+    if (!texto) throw new Error("La nota no puede estar vacía")
+
+    await enviarNotaPrivadaChatwoot({
+        accountId: ACCOUNT_ID,
+        conversationId,
+        content: texto,
+    })
+
+    const mensaje: MensajeConversacion = {
+        id: Date.now(),
+        contenido: texto,
+        privado: true,
+        saliente: true,
+        remitente: "Nosotros",
+        creadoEn: new Date().toISOString(),
+    }
+
+    revalidatePath("/admin/chatwoot/chats-vivo")
+    return { success: true, mensaje }
+}
+
 /** Marca una conversación como leída en Chatwoot y en la base local (espejo). */
 export async function marcarConversacionComoLeida(conversationId: number): Promise<{ success: boolean }> {
     await requireAdmin()

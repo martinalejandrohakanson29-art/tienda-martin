@@ -272,24 +272,6 @@ export function ChatsVivoClient({
             }
         })
 
-        // Nota optimista en el hilo de mensajes
-        const notaTexto = nuevoEncendido ? "/bot on" : "/bot off"
-        setHilos((prev) => {
-            const actual = prev[conversationId] || []
-            const notaOptimista: MensajeConversacion = {
-                id: Date.now(),
-                contenido: notaTexto,
-                privado: true,
-                saliente: true,
-                remitente: "Nosotros",
-                creadoEn: new Date().toISOString(),
-            }
-            return {
-                ...prev,
-                [conversationId]: [...actual, notaOptimista],
-            }
-        })
-
         setTogglingBot(conversationId)
         try {
             const res = await cambiarEstadoBotChatVivo(conversationId, nuevoEncendido)
@@ -618,31 +600,36 @@ export function ChatsVivoClient({
                                 {hiloActual?.length === 0 && (
                                     <p className="text-xs text-[#667781] text-center mt-6">Sin mensajes de texto en esta conversación</p>
                                 )}
-                                {hiloActual?.map((m) =>
-                                    m.privado ? (
-                                        <div key={m.id} className="flex justify-center py-0.5">
-                                            <div className="max-w-[75%] rounded-md px-2.5 py-1 bg-[#fff3cd] text-[#664d03] text-xs shadow-sm">
-                                                <p className="whitespace-pre-wrap">{m.contenido}</p>
-                                                <span className="block text-right text-[9px] opacity-70 mt-0.5">
-                                                    Nota interna · {horaMensaje(m.creadoEn)}
-                                                </span>
+                                {hiloActual
+                                    ?.filter((m) => {
+                                        const txt = m.contenido.trim().toLowerCase()
+                                        return !(m.privado && (txt === "/bot on" || txt === "/bot off"))
+                                    })
+                                    .map((m) =>
+                                        m.privado ? (
+                                            <div key={m.id} className="flex justify-center py-0.5">
+                                                <div className="max-w-[75%] rounded-md px-2.5 py-1 bg-[#fff3cd] text-[#664d03] text-xs shadow-sm">
+                                                    <p className="whitespace-pre-wrap">{m.contenido}</p>
+                                                    <span className="block text-right text-[9px] opacity-70 mt-0.5">
+                                                        Nota interna · {horaMensaje(m.creadoEn)}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div key={m.id} className={`flex ${m.saliente ? "justify-end" : "justify-start"}`}>
-                                            <div
-                                                className={`max-w-[65%] rounded-lg px-3 py-1 shadow-sm text-xs md:text-sm text-[#111b25] ${
-                                                    m.saliente ? "bg-[#d9fdd3] rounded-tr-none" : "bg-white rounded-tl-none"
-                                                }`}
-                                            >
-                                                <p className="whitespace-pre-wrap">{m.contenido}</p>
-                                                <span className="block text-right text-[10px] text-[#667781] mt-0.5">
-                                                    {horaMensaje(m.creadoEn)}
-                                                </span>
+                                        ) : (
+                                            <div key={m.id} className={`flex ${m.saliente ? "justify-end" : "justify-start"}`}>
+                                                <div
+                                                    className={`max-w-[65%] rounded-lg px-3 py-1 shadow-sm text-xs md:text-sm text-[#111b25] ${
+                                                        m.saliente ? "bg-[#d9fdd3] rounded-tr-none" : "bg-white rounded-tl-none"
+                                                    }`}
+                                                >
+                                                    <p className="whitespace-pre-wrap">{m.contenido}</p>
+                                                    <span className="block text-right text-[10px] text-[#667781] mt-0.5">
+                                                        {horaMensaje(m.creadoEn)}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )
-                                )}
+                                        )
+                                    )}
                                 <div ref={mensajesEndRef} />
                             </div>
 

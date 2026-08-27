@@ -252,10 +252,16 @@ flowchart TD
 
   leerPin --> hayPin{"¿Qué hay<br/>pineado?"}:::gate
 
-  hayPin -->|"un kit/pack final"| refresca["Refresca el pin<br/>(otras 96hs)"]:::pin
+  hayPin -->|"nada pineado"| historial["Trae el historial real de<br/>la conversación (Chatwoot)"]:::pin
+
+  hayPin -->|"un kit o un grupo<br/>(cualquiera de los dos)"| interesCompra{"¿el mensaje muestra<br/>intención de compra?<br/>('lo quiero', 'como lo pago',<br/>'me interesa'... sin IA,<br/>lista fija de frases)"}:::gate
+  interesCompra -->|"sí"| pausaVenta["Nota privada + etiqueta<br/>'posible venta' en Chatwoot<br/>+ PAUSA PERMANENTE (sin<br/>vencimiento — solo /bot on<br/>la levanta, nunca sola)"]:::esc
+  interesCompra -->|"no, sigue normal"| queHayPineado{"¿kit/pack final<br/>o grupo?"}:::gate
+
+  queHayPineado -->|"un kit/pack final"| refresca["Refresca el pin<br/>(otras 96hs)"]:::pin
   refresca --> esCompat{{"IA — ¿pregunta de<br/>compatibilidad con una moto?"}}:::ai
 
-  hayPin -->|"un GRUPO,<br/>esperando la MOTO"| extraeModelo{{"IA — extrae el modelo<br/>de moto del mensaje"}}:::ai
+  queHayPineado -->|"un GRUPO,<br/>esperando la MOTO"| extraeModelo{{"IA — extrae el modelo<br/>de moto del mensaje"}}:::ai
   extraeModelo --> buscaCompatGrupo["Busca compatibilidad ya guardada<br/>(de CUALQUIER artículo de<br/>cualquier variante del grupo)"]:::gate
   buscaCompatGrupo --> hayCompatGrupo{"¿está<br/>guardada?"}:::gate
   hayCompatGrupo -->|"no"| escTecnicaGrupo["Escala como 'Técnica'<br/>(silencioso, sin confirmar nada)"]:::esc
@@ -263,13 +269,12 @@ flowchart TD
   hayCompatGrupo -->|"sí, NO compatible"| respNoCompatGrupo["Responde 'no es compatible<br/>con tu X' + borra el pin<br/>(sin escalar)"]:::ok
   pineaVariante --> finPineaVariante["Fin — espera la respuesta<br/>de corto/largo"]:::gate
 
-  hayPin -->|"un GRUPO,<br/>esperando la VARIANTE"| resuelveVariante{{"IA — a cuál variante<br/>(pack) se refiere, contra la<br/>lista cerrada de ese grupo"}}:::ai
+  queHayPineado -->|"un GRUPO,<br/>esperando la VARIANTE"| resuelveVariante{{"IA — a cuál variante<br/>(pack) se refiere, contra la<br/>lista cerrada de ese grupo"}}:::ai
   resuelveVariante --> varResuelta{"¿resolvió<br/>una variante?"}:::gate
   varResuelta -->|"sí"| pineaPackFinal["Pinea el PACK final<br/>(mismo formato de siempre,<br/>kit_id + kit_nombre)<br/>+ manda su bienvenida"]:::pin
   pineaPackFinal --> esCompat
   varResuelta -->|"no quedó claro"| repreguntaVariante["Repregunta corto:<br/>'es corto o largo?'"]:::ok
 
-  hayPin -->|"nada pineado"| historial["Trae el historial real de<br/>la conversación (Chatwoot)"]:::pin
   historial --> agenteNuevo{{"IA — Identificar Necesidad<br/>ve: mensaje actual + historial de la charla<br/>+ lista cerrada de kits activos"}}:::ai
 
   agenteNuevo -->|"saludo / interés genérico,<br/>sin pedido puntual"| saludoGen

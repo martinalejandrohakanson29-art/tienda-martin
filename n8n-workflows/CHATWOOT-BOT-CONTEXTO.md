@@ -1839,3 +1839,34 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   Kit`), y el mensaje se resolvió por el camino normal de sub-preguntas (contestó el detalle del kit,
   escaló en silencio la parte de horario) — cero reenvío de la bienvenida. Pin de prueba limpiado al
   terminar.
+- **Aviso de "posible venta" + pausa permanente cuando el cliente muestra intención de compra
+  (2026-08-26/27).** A pedido de Martín: con un kit ya pineado (bienvenida/precio ya mandados), si el
+  cliente escribe algo tipo "lo quiero", "como lo pago", "me interesa" (lista fija de ~25 frases, sin
+  IA — coincidencia de texto normalizado sin acentos/mayúsculas), el bot deja de responder esa
+  conversación **para siempre** (mismo mecanismo `bot_pausado:{conv}` de siempre, pero sin TTL — antes
+  solo se seteaba con 30 días), le pone la etiqueta "posible venta" en Chatwoot y deja una nota privada
+  avisando qué frase disparó la pausa. Solo se levanta con `/bot on` manual — no hizo falta tocar ese
+  comando, ya borra la clave sin importar si tenía TTL o no.
+  Nodos nuevos, sin tocar nada existente, insertados entre `Parsear Kit Pineado` y `¿Es Grupo en
+  Resolución?` (corre igual para kit final y para grupo en resolución de variante): `Detectar Interes
+  de Compra` (Code) → `¿Detecto Interes de Compra?` (If) → si true: `Armar Nota Interes Compra` →
+  `Enviar Nota Interes Compra` → `Obtener Etiquetas Actuales` → `Armar Etiquetas Posible Venta` (Code,
+  suma "posible venta" sin pisar etiquetas existentes) → `Agregar Etiqueta Posible Venta` → `Marcar Bot
+  Pausado (Posible Venta)` (Redis `set` sin `expire`) → `Fin - Posible Venta Pausado`. 404→413 nodos.
+  **Gotcha de Chatwoot encontrado:** el endpoint de etiquetas de conversación (`POST .../labels`)
+  acepta cualquier texto como etiqueta nueva sin que exista antes en Ajustes > Etiquetas — pero así
+  queda sin color y no aparece en la barra lateral, a diferencia de "intervencion"/"ventas" que sí
+  están registradas ahí. El token de la API no tiene permiso para crear etiquetas de cuenta (401 en
+  `POST /accounts/{id}/labels`) — **pendiente que Martín cree la etiqueta "posible venta" a mano en
+  Chatwoot** (Ajustes > Etiquetas, mismo texto exacto) para que tenga color y aparezca en la barra
+  lateral igual que las otras dos.
+  **Riesgo conocido, aceptado a propósito:** "me interesa" es una frase amplia (ej. "me interesa saber
+  si tienen envío" también matchea) — como el costo de un falso positivo es una pausa silenciosa
+  reversible con `/bot on` (no una respuesta mala al cliente), se dejó así en vez de complicar la
+  detección.
+  **Validado en vivo** contra la conversación de prueba (2411, +5493513784909, pin limpio): kit pineado
+  por plantilla exacta ("kit dakar 200 economico") → "Dale, lo quiero! como lo pago?" corrió el camino
+  nuevo completo (confirmado nodo por nodo en la ejecución real), dejó la nota privada, la etiqueta
+  "posible venta" quedó puesta (confirmado contra la API real de Chatwoot), y un tercer mensaje
+  ("hola siguen ahi?") confirmó que el bot quedó en silencio (mismo camino de `¿Bot Pausado?` que ya
+  usa `/bot off`). Pin y etiqueta de prueba limpiados al terminar.

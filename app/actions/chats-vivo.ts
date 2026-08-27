@@ -26,6 +26,13 @@ export async function obtenerChatsVivo(periodoDias: number): Promise<PanelChatsV
     return listarChatsVivo(periodoDias)
 }
 
+/** Sincronización ligera en segundo plano (página 1 de Chatwoot) que actualiza PostgreSQL y retorna el panel */
+export async function sincronizarChatsVivoLigero(periodoDias: number): Promise<PanelChatsVivo> {
+    await requireAdmin()
+    await sincronizarEspejoChatwoot(1).catch(() => {})
+    return listarChatsVivo(periodoDias)
+}
+
 /** Fuerza una sincronización rápida desde Chatwoot y retorna el listado actualizado. */
 export async function forzarSincronizacionChatsVivo(periodoDias: number): Promise<PanelChatsVivo> {
     await requireAdmin()

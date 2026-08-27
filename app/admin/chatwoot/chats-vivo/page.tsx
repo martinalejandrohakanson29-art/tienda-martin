@@ -1,6 +1,6 @@
 import { obtenerChatsVivo } from "@/app/actions/chats-vivo"
 import { ChatsVivoClient } from "./chats-vivo-client"
-import type { PanelChatsVivo } from "@/lib/chatwoot-chats-vivo"
+import { sincronizarEspejoChatwoot, type PanelChatsVivo } from "@/lib/chatwoot-chats-vivo"
 
 export const dynamic = "force-dynamic"
 
@@ -10,6 +10,8 @@ export default async function ChatsVivoPage() {
     let panel: PanelChatsVivo | null = null
     let error: string | null = null
     try {
+        // Sincronizar en segundo plano la página 1 de Chatwoot para traer mensajes recientes al abrir o recargar
+        await sincronizarEspejoChatwoot(1).catch(() => {})
         panel = await obtenerChatsVivo(PERIODO_INICIAL_DIAS)
     } catch (e) {
         error = e instanceof Error ? e.message : "No se pudieron leer las conversaciones de Chatwoot"

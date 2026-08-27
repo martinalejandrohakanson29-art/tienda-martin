@@ -10,6 +10,7 @@ import {
     forzarSincronizacionChatsVivo,
     obtenerChatsVivo,
     obtenerHiloChatVivo,
+    sincronizarChatsVivoLigero,
     type MensajeConversacion,
     type PanelChatsVivo,
 } from "@/app/actions/chats-vivo"
@@ -206,6 +207,51 @@ export function ChatsVivoClient({
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [periodoDias])
+
+    // Sincronización automática silenciosa en segundo plano (cada 12s y al retomar el foco)
+    useEffect(() => {
+        let cancelado = false
+
+        const sincronizarSilencioso = async () => {
+            if (typeof document !== "undefined" && document.hidden) return
+            try {
+                const nuevo = await sincronizarChatsVivoLigero(periodoDias)
+                if (!cancelado) {
+                    setPanel(nuevo)
+                    setFallo(null)
+                }
+                if (seleccionadaId && !cancelado) {
+                    const mensajesNuevos = await obtenerHiloChatVivo(seleccionadaId)
+                    if (!cancelado && mensajesNuevos) {
+                        setHilos((prev) => ({
+                            ...prev,
+                            [seleccionadaId]: mensajesNuevos,
+                        }))
+                    }
+                }
+            } catch {
+                // Silencioso en segundo plano
+            }
+        }
+
+        const interval = setInterval(sincronizarSilencioso, 12000)
+
+        const onFocus = () => {
+            if (typeof document !== "undefined" && !document.hidden) {
+                sincronizarSilencioso()
+            }
+        }
+
+        window.addEventListener("focus", onFocus)
+        document.addEventListener("visibilitychange", onFocus)
+
+        return () => {
+            cancelado = true
+            clearInterval(interval)
+            window.removeEventListener("focus", onFocus)
+            document.removeEventListener("visibilitychange", onFocus)
+        }
+    }, [periodoDias, seleccionadaId])
 
     const conversacionesFiltradas = useMemo(() => {
         const q = busqueda.trim().toLowerCase()
@@ -607,11 +653,14 @@ export function ChatsVivoClient({
                                     })
                                     .map((m) =>
                                         m.privado ? (
-                                            <div key={m.id} className="flex justify-center py-0.5">
-                                                <div className="max-w-[75%] rounded-md px-2.5 py-1 bg-[#fff3cd] text-[#664d03] text-xs shadow-sm">
+                                            <div key={m.id} className="flex justify-center py-1">
+                                                <div className="max-w-[80%] rounded-md px-3 py-1.5 bg-[#fff3cd] text-[#664d03] text-xs border border-amber-200/90 shadow-sm">
+                                                    <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-800/80 mb-0.5">
+                                                        <span>🔒 Nota interna{m.remitente && m.remitente !== "Nosotros" ? ` (${m.remitente})` : ""}</span>
+                                                    </div>
                                                     <p className="whitespace-pre-wrap">{m.contenido}</p>
-                                                    <span className="block text-right text-[9px] opacity-70 mt-0.5">
-                                                        Nota interna · {horaMensaje(m.creadoEn)}
+                                                    <span className="block text-right text-[9px] opacity-70 mt-1">
+                                                        {horaMensaje(m.creadoEn)}
                                                     </span>
                                                 </div>
                                             </div>

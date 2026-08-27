@@ -2354,55 +2354,113 @@ export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: strin
     const ticketPromedio = totalVentas > 0 ? montoNeto / totalVentas : 0;
     const facturadas = ventas.filter((v) => v.cae).length;
 
-    const byDay: Record<string, { fecha: string; cantidad: number; bruto: number; neto: number; intereses: number }> = {};
-    for (const v of ventas) {
-      const fecha = v.createdAt.toISOString().split("T")[0];
-      if (!byDay[fecha]) byDay[fecha] = { fecha, cantidad: 0, bruto: 0, neto: 0, intereses: 0 };
-      byDay[fecha].cantidad++;
-      byDay[fecha].neto += netoVenta(v);
-      byDay[fecha].bruto += esML(v) ? brutoMLVenta(v) : netoVenta(v);
-      byDay[fecha].intereses += esML(v) ? 0 : Number(v.interes);
+    const byMetodoPago: Record<string, { metodo: string; cantidad: number; monto: number }> = {};
+    const byPuntoVenta: Record<string, { id: string | null; nombre: string; cantidad: number; monto: number; color: string }> = {};
+    const byProducto: Record<string, { nombre: string; cantidad: number; monto: number }> = {};
+    const byHora: Record<number, { hora: number; cantidad: number; monto: number }> = {};
+    for (let h = 0; h < 24; h++) byHora[h] = { hora: h, cantidad: 0, monto: 0 };
+
+    // Generar secuencia continua de fechas en el rango (zona horaria Argentina)
+    const byDay: Record<string, {
+      fecha: string;
+      cantidad: number;
+      bruto: number;
+      neto: number;
+      intereses: number;
+      porPuntoVenta: Record<string, { id: string | null; nombre: string; cantidad: number; neto: number; bruto: number; color: string }>;
+    }> = {};
+
+    const [dY, dM, dD] = fechaDesde.split("-").map(Number);
+    const [hY, hM, hD] = fechaHasta.split("-").map(Number);
+    const cursor = new Date(dY, dM - 1, dD, 12, 0, 0);
+    const cursorEnd = new Date(hY, hM - 1, hD, 12, 0, 0);
+
+    while (cursor <= cursorEnd) {
+      const y = cursor.getFullYear();
+      const m = String(cursor.getMonth() + 1).padStart(2, "0");
+      const d = String(cursor.getDate()).padStart(2, "0");
+      const fKey = `${y}-${m}-${d}`;
+      byDay[fKey] = {
+        fecha: fKey,
+        cantidad: 0,
+        bruto: 0,
+        neto: 0,
+        intereses: 0,
+        porPuntoVenta: {},
+      };
+      cursor.setDate(cursor.getDate() + 1);
     }
 
-    const byMetodoPago: Record<string, { metodo: string; cantidad: number; monto: number }> = {};
     for (const v of ventas) {
+      const fecha = new Date(v.createdAt).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+      const pvId = v.puntoVenta?.id || null;
+      const pvNombre = v.puntoVenta?.nombre || "Sin punto de venta";
+      const pvColor = v.puntoVenta?.color && v.puntoVenta.color !== "#000000" ? v.puntoVenta.color : "#94a3b8";
+
+      const neto = netoVenta(v);
+      const bruto = esML(v) ? brutoMLVenta(v) : neto;
+      const interes = esML(v) ? 0 : Number(v.interes || 0);
+
+      if (!byDay[fecha]) {
+        byDay[fecha] = {
+          fecha,
+          cantidad: 0,
+          bruto: 0,
+          neto: 0,
+          intereses: 0,
+          porPuntoVenta: {},
+        };
+      }
+
+      // 1 venta con múltiples artículos = 1 sola venta (transacción)
+      byDay[fecha].cantidad++;
+      byDay[fecha].neto += neto;
+      byDay[fecha].bruto += bruto;
+      byDay[fecha].intereses += interes;
+
+      if (!byDay[fecha].porPuntoVenta[pvNombre]) {
+        byDay[fecha].porPuntoVenta[pvNombre] = {
+          id: pvId,
+          nombre: pvNombre,
+          cantidad: 0,
+          neto: 0,
+          bruto: 0,
+          color: pvColor,
+        };
+      }
+      byDay[fecha].porPuntoVenta[pvNombre].cantidad++;
+      byDay[fecha].porPuntoVenta[pvNombre].neto += neto;
+      byDay[fecha].porPuntoVenta[pvNombre].bruto += bruto;
+
+      // Métodos de pago
       const metodo = v.metodo_pago || "Otro";
       if (!byMetodoPago[metodo]) byMetodoPago[metodo] = { metodo, cantidad: 0, monto: 0 };
       byMetodoPago[metodo].cantidad++;
-      byMetodoPago[metodo].monto += netoVenta(v);
-    }
+      byMetodoPago[metodo].monto += neto;
 
-    const byPuntoVenta: Record<string, { nombre: string; cantidad: number; monto: number; color: string }> = {};
-    for (const v of ventas) {
-      const nombre = v.puntoVenta?.nombre || "Sin punto de venta";
-      const color = v.puntoVenta?.color || "#94a3b8";
-      if (!byPuntoVenta[nombre]) byPuntoVenta[nombre] = { nombre, cantidad: 0, monto: 0, color };
-      byPuntoVenta[nombre].cantidad++;
-      byPuntoVenta[nombre].monto += netoVenta(v);
-    }
+      // Puntos de venta globales
+      if (!byPuntoVenta[pvNombre]) byPuntoVenta[pvNombre] = { id: pvId, nombre: pvNombre, cantidad: 0, monto: 0, color: pvColor };
+      byPuntoVenta[pvNombre].cantidad++;
+      byPuntoVenta[pvNombre].monto += neto;
 
-    const byProducto: Record<string, { nombre: string; cantidad: number; monto: number }> = {};
-    for (const v of ventas) {
+      // Productos
       for (const item of v.items) {
         if (!byProducto[item.nombre]) byProducto[item.nombre] = { nombre: item.nombre, cantidad: 0, monto: 0 };
         byProducto[item.nombre].cantidad += item.cantidad;
         byProducto[item.nombre].monto += Number(item.subtotal);
       }
-    }
 
-    const byHora: Record<number, { hora: number; cantidad: number; monto: number }> = {};
-    for (let h = 0; h < 24; h++) byHora[h] = { hora: h, cantidad: 0, monto: 0 };
-    for (const v of ventas) {
+      // Distribución horaria
       const hora = new Date(v.createdAt).getHours();
       byHora[hora].cantidad++;
-      byHora[hora].monto += netoVenta(v);
+      byHora[hora].monto += neto;
     }
 
     return {
       success: true,
       data: {
         kpis: { totalVentas, montoNeto, montoBrutoML, montoNetoML, ticketPromedio, facturadas, noFacturadas: totalVentas - facturadas },
-        porDia: Object.values(byDay),
+        porDia: Object.values(byDay).sort((a, b) => a.fecha.localeCompare(b.fecha)),
         porMetodoPago: Object.values(byMetodoPago).sort((a, b) => b.monto - a.monto),
         porPuntoVenta: Object.values(byPuntoVenta).sort((a, b) => b.monto - a.monto),
         topProductos: Object.values(byProducto).sort((a, b) => b.cantidad - a.cantidad).slice(0, 15),

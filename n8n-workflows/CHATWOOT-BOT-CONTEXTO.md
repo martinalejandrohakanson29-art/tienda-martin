@@ -1918,3 +1918,17 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
     Grupo` directo, pinea y resuelve compatibilidad, sin pasar por continuidad — intacto.
   **Pendiente:** contestarle a mano a Tobías (conv 2818) — vino por el Combo Escape PWR + Leva 6.40 — y limpiarle
   el pin. `rutas-bot-chatwoot.html` sigue desactualizado.
+
+- **Mención de producto o publicación se clasificaba erróneamente como `cierre` (2026-08-27).** Caso real:
+  conv 2809 (+5493704514103, Edgardo Short). El cliente escribió: "Hola.. vi una publicación de una leva de 110" + "Hacen envíos?".
+  `Dividir y Etiquetar Sub-preguntas` etiquetó "Hacen envíos?" como `envio` y "vi una publicación de una leva de 110" como `cierre`
+  porque la definición de cierre incluía "algo que ya pasó". `Armar Mensajes` mandó la info de envíos y pegó "Dale, cualquier cosa nos escribís.",
+  cerrando la charla en falso sin escalar la leva de 110 ni responder nada sobre el producto.
+  Fix integral aplicado:
+  1. **Prompt de `Dividir y Etiquetar Sub-preguntas`:** Prohibición estricta de `cierre` cuando se menciona cualquier repuesto
+     (leva, cilindro, tapa, carburador, escape, filtro, pistón, biela, cigüeñal, etc.), kit, combo, moto, cilindrada, o frases de contexto
+     ("vi una publicación", "me contaron de", "un amigo me recomendó", "escuché que tienen", "busco"). Todo eso es interés comercial / producto y va como `otro`.
+  2. **Código de `Armar Mensajes`:** Si en la misma ráfaga hay alguna respuesta informativa resuelta (`precio`, `stock`, `envio`, `negocio`, `otro`)
+     o si hay piezas sin resolver (`haySinResolverReal`), cualquier mensaje de `cierre` se descarta automáticamente.
+  3. **Escalado:** Al catalogarse como `otro`, la leva de 110 ambigua genera una nota privada en silencio para el equipo, sin despedidas prematuras.
+  **Validado:** Caso del hallazgo, caso alternativo ("me contaron de..."), cotización de artículo suelto sin regresión, y cierre puro.

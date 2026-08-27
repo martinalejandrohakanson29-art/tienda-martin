@@ -75,14 +75,14 @@ function fusionarMensajeEnHilo(
         return mensajes
     }
 
-    // 2. Si coincide en contenido, privacidad y dirección con un mensaje reciente (< 30s),
+    // 2. Si coincide en contenido, privacidad y dirección con un mensaje reciente (< 60s),
     // es la confirmación oficial del mensaje optimista: reemplazamos el optimista por el definitivo.
     const nuevoEpoch = new Date(nuevo.creadoEn).getTime() || Date.now()
     const idxOptimista = mensajes.findIndex((m) => {
         if (m.privado !== nuevo.privado || m.saliente !== nuevo.saliente) return false
         if (m.contenido.trim().toLowerCase() !== nuevo.contenido.trim().toLowerCase()) return false
         const mEpoch = new Date(m.creadoEn).getTime() || Date.now()
-        return Math.abs(nuevoEpoch - mEpoch) < 30000
+        return Math.abs(nuevoEpoch - mEpoch) < 60000
     })
 
     if (idxOptimista >= 0) {
@@ -92,6 +92,99 @@ function fusionarMensajeEnHilo(
     }
 
     return [...mensajes, nuevo]
+}
+
+/**
+ * Fusiona dos listas de mensajes (actual local y nueva del servidor) preservando
+ * mensajes optimistas en progreso y actualizaciones de status en tiempo real sin
+ * que desaparezcan mensajes que acaban de entrar.
+ */
+function fusionarHilosMensajes(
+    actuales: MensajeConversacion[] = [],
+    nuevos: MensajeConversacion[] = []
+): MensajeConversacion[] {
+    if (!actuales || actuales.length === 0) return nuevos
+    if (!nuevos || nuevos.length === 0) return actuales
+
+    const mapa = new Map<number, MensajeConversacion>()
+
+    // 1. Cargar mensajes actuales (incluye optimistas o mensajes SSE)
+    for (const m of actuales) {
+        mapa.set(m.id, m)
+    }
+
+    // 2. Incorporar mensajes nuevos del servidor
+    for (const n of nuevos) {
+        const nEpoch = new Date(n.creadoEn).getTime() || Date.now()
+        for (const [id, m] of mapa.entries()) {
+            if (m.privado === n.privado && m.saliente === n.saliente) {
+                if (m.contenido.trim().toLowerCase() === n.contenido.trim().toLowerCase()) {
+                    const mEpoch = new Date(m.creadoEn).getTime() || Date.now()
+                    if (Math.abs(nEpoch - mEpoch) < 60000 && id !== n.id) {
+                        mapa.delete(id)
+                    }
+                }
+            }
+        }
+        mapa.set(n.id, n)
+    }
+
+    // 3. Eliminar optimistas viejos (> 90s)
+    const ahora = Date.now()
+    for (const [id, m] of mapa.entries()) {
+        if (m.status === "progress") {
+            const mEpoch = new Date(m.creadoEn).getTime() || 0
+            if (ahora - mEpoch > 90000) {
+                mapa.delete(id)
+            }
+        }
+    }
+
+    return Array.from(mapa.values()).sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))
+}
+
+/**
+ * Fusiona listas de conversaciones preservando la actividad en tiempo real
+ * más reciente para que ninguna conversación baje o desaparezca por lecturas
+ * asíncronas de la base de datos.
+ */
+function fusionarListaConversaciones(
+    actuales: ConversacionVivo[] = [],
+    nuevas: ConversacionVivo[] = []
+): ConversacionVivo[] {
+    if (!actuales || actuales.length === 0) return nuevas
+    if (!nuevas || nuevas.length === 0) return actuales
+
+    const mapa = new Map<number, ConversacionVivo>()
+
+    for (const n of nuevas) {
+        mapa.set(n.id, n)
+    }
+
+    for (const act of actuales) {
+        const delServidor = mapa.get(act.id)
+        if (!delServidor) {
+            mapa.set(act.id, act)
+        } else {
+            const epochAct = new Date(act.ultimaActividad).getTime() || 0
+            const epochSrv = new Date(delServidor.ultimaActividad).getTime() || 0
+            if (epochAct >= epochSrv) {
+                mapa.set(act.id, {
+                    ...delServidor,
+                    ultimoMensaje: act.ultimoMensaje,
+                    ultimoMensajePropio: act.ultimoMensajePropio,
+                    ultimaActividad: act.ultimaActividad,
+                    horaEtiqueta: act.horaEtiqueta,
+                    noLeidos: act.noLeidos,
+                    botPausado: act.botPausado,
+                })
+            }
+        }
+    }
+
+    return Array.from(mapa.values()).sort(
+        (a, b) => new Date(b.ultimaActividad).getTime() - new Date(a.ultimaActividad).getTime()
+    )
 }
 
 export function ChatsVivoClient({
@@ -169,7 +262,13 @@ export function ChatsVivoClient({
         arrancarCargaLista(async () => {
             try {
                 const nuevo = await obtenerChatsVivo(dias)
-                setPanel(nuevo)
+                setPanel((prev) => {
+                    if (!prev) return nuevo
+                    return {
+                        ...nuevo,
+                        conversaciones: fusionarListaConversaciones(prev.conversaciones, nuevo.conversaciones),
+                    }
+                })
                 setFallo(null)
             } catch (e) {
                 setFallo(e instanceof Error ? e.message : "No se pudieron leer las conversaciones de Chatwoot")
@@ -181,7 +280,13 @@ export function ChatsVivoClient({
         arrancarCargaLista(async () => {
             try {
                 const nuevo = await forzarSincronizacionChatsVivo(dias)
-                setPanel(nuevo)
+                setPanel((prev) => {
+                    if (!prev) return nuevo
+                    return {
+                        ...nuevo,
+                        conversaciones: fusionarListaConversaciones(prev.conversaciones, nuevo.conversaciones),
+                    }
+                })
                 setFallo(null)
             } catch (e) {
                 setFallo(e instanceof Error ? e.message : "No se pudieron sincronizar las conversaciones de Chatwoot")
@@ -222,7 +327,7 @@ export function ChatsVivoClient({
                     const convId = Number(data.conversationId)
                     if (!convId) return
 
-                    // 1. Si llegó un mensaje nuevo, agregarlo o actualizar su status en el hilo
+                    // 1. Si llegó un mensaje nuevo, agregarlo o actualizar su status en el hilo sin borrar existentes
                     if (data.mensaje) {
                         setHilos((prev) => {
                             const actual = prev[convId] || []
@@ -287,9 +392,6 @@ export function ChatsVivoClient({
                             conversaciones: lista,
                         }
                     })
-
-                    // Sincronizar espejo en segundo plano
-                    refrescar(periodoDias)
                 } catch {
                     // ignorar parse error
                 }
@@ -317,27 +419,25 @@ export function ChatsVivoClient({
             try {
                 const nuevo = await sincronizarChatsVivoLigero(periodoDias)
                 if (!cancelado && nuevo) {
-                    setPanel(nuevo)
+                    setPanel((prev) => {
+                        if (!prev) return nuevo
+                        return {
+                            ...nuevo,
+                            conversaciones: fusionarListaConversaciones(prev.conversaciones, nuevo.conversaciones),
+                        }
+                    })
                     setFallo(null)
                 }
                 if (seleccionadaId && !cancelado) {
                     const mensajesNuevos = await obtenerHiloChatVivo(seleccionadaId)
                     if (!cancelado && mensajesNuevos) {
                         setHilos((prev) => {
-                            const actual = prev[seleccionadaId]
-                            if (!actual) return { ...prev, [seleccionadaId]: mensajesNuevos }
-                            if (actual.length !== mensajesNuevos.length) {
-                                return { ...prev, [seleccionadaId]: mensajesNuevos }
+                            const actual = prev[seleccionadaId] || []
+                            const fusionados = fusionarHilosMensajes(actual, mensajesNuevos)
+                            return {
+                                ...prev,
+                                [seleccionadaId]: fusionados,
                             }
-                            let cambio = false
-                            for (let i = 0; i < actual.length; i++) {
-                                if (actual[i].id !== mensajesNuevos[i].id || actual[i].status !== mensajesNuevos[i].status) {
-                                    cambio = true
-                                    break
-                                }
-                            }
-                            if (!cambio) return prev
-                            return { ...prev, [seleccionadaId]: mensajesNuevos }
                         })
                     }
                 }
@@ -408,7 +508,8 @@ export function ChatsVivoClient({
     }, [conversacionesFiltradas, seleccionadaId])
 
     const seleccionada: ConversacionVivo | undefined =
-        conversaciones.find((c) => c.id === seleccionadaId) ?? conversacionesFiltradas[0]
+        conversaciones.find((c) => c.id === seleccionadaId) ??
+        (seleccionadaId === null ? conversacionesFiltradas[0] : undefined)
 
     useEffect(() => {
         if (seleccionadaId) {

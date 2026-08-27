@@ -6,6 +6,7 @@ import {
     actualizarBotPausadoEnEspejo,
     listarChatsVivo,
     registrarMensajeSalienteEnEspejo,
+    resetearNoLeidosEnEspejo,
     sincronizarEspejoChatwoot,
     type PanelChatsVivo,
 } from "@/lib/chatwoot-chats-vivo"
@@ -13,11 +14,14 @@ import {
     enviarMensajeManualChatwoot,
     enviarNotaPrivadaChatwoot,
     getMensajesConversacion,
+    marcarConversacionLeidaEnChatwoot,
+    type AdjuntoConversacion,
+    type EstadoMensaje,
     type MensajeConversacion,
 } from "@/lib/chatwoot-bot"
 import { emitirEventoChatwoot } from "@/lib/chatwoot-events"
 
-export type { PanelChatsVivo, MensajeConversacion }
+export type { PanelChatsVivo, MensajeConversacion, AdjuntoConversacion, EstadoMensaje }
 
 const ACCOUNT_ID = 1
 
@@ -115,5 +119,17 @@ export async function enviarMensajeChatVivo(
 
     revalidatePath("/admin/chatwoot/chats-vivo")
     return { success: true, mensaje }
+}
+
+/** Marca una conversación como leída en Chatwoot y en la base local (espejo). */
+export async function marcarConversacionComoLeida(conversationId: number): Promise<{ success: boolean }> {
+    await requireAdmin()
+    await marcarConversacionLeidaEnChatwoot(ACCOUNT_ID, conversationId)
+    await resetearNoLeidosEnEspejo(conversationId)
+    emitirEventoChatwoot({
+        tipo: "conversation_read",
+        conversationId,
+    })
+    return { success: true }
 }
 

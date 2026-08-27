@@ -1,4 +1,5 @@
 import { EventEmitter } from "events"
+import type { MensajeConversacion } from "@/lib/chatwoot-bot"
 
 export type EventoChatwootEnVivo = {
     tipo:
@@ -13,14 +14,7 @@ export type EventoChatwootEnVivo = {
     conversationId: number
     account_id?: number
     botPausado?: boolean
-    mensaje?: {
-        id: number
-        contenido: string
-        privado: boolean
-        saliente: boolean
-        remitente: string
-        creadoEn: string
-    }
+    mensaje?: MensajeConversacion
     conversacion?: {
         id: number
         nombre: string

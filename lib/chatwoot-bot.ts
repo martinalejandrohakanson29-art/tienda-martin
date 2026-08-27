@@ -428,6 +428,19 @@ export async function estadoConversacionDesde(
     }
 }
 
+export type AdjuntoConversacion = {
+    id: number | string
+    tipo: "image" | "audio" | "video" | "file" | string
+    url: string
+    thumbUrl?: string | null
+    nombre?: string | null
+    tamano?: number | null
+    contentType?: string | null
+    transcripcion?: string | null
+}
+
+export type EstadoMensaje = "sent" | "delivered" | "read" | "failed" | "progress" | string
+
 export type MensajeConversacion = {
     id: number
     contenido: string
@@ -435,6 +448,8 @@ export type MensajeConversacion = {
     saliente: boolean
     remitente: string
     creadoEn: string
+    status?: EstadoMensaje
+    adjuntos?: AdjuntoConversacion[]
 }
 
 /**
@@ -459,10 +474,37 @@ export async function getMensajesConversacion(
     const data = await res.json()
     const payload: any[] = Array.isArray(data?.payload) ? data.payload : []
 
+    const hostBase = api.replace(/\/api\/v1\/?$/, "")
+
     return payload
         .map((m) => {
             const saliente = m?.message_type === 1 || m?.message_type === "outgoing"
             const creado = typeof m?.created_at === "number" ? m.created_at * 1000 : Date.parse(m?.created_at ?? "")
+
+            const rawAttachments: any[] = Array.isArray(m?.attachments) ? m.attachments : []
+            const adjuntos: AdjuntoConversacion[] = rawAttachments
+                .map((att) => {
+                    let url = (att?.data_url || att?.url || "").toString()
+                    if (url && url.startsWith("/")) {
+                        url = `${hostBase}${url}`
+                    }
+                    let thumbUrl = (att?.thumb_url || "").toString()
+                    if (thumbUrl && thumbUrl.startsWith("/")) {
+                        thumbUrl = `${hostBase}${thumbUrl}`
+                    }
+                    return {
+                        id: att?.id || Math.random().toString(),
+                        tipo: (att?.file_type || "file").toString(),
+                        url,
+                        thumbUrl: thumbUrl || null,
+                        nombre: att?.file_name || null,
+                        tamano: typeof att?.file_size === "number" ? att.file_size : null,
+                        contentType: att?.content_type || null,
+                        transcripcion: (att?.transcribed_text || "").toString() || null,
+                    }
+                })
+                .filter((att) => Boolean(att.url))
+
             return {
                 id: Number(m?.id),
                 contenido: (m?.content || "").toString(),
@@ -470,10 +512,32 @@ export async function getMensajesConversacion(
                 saliente,
                 remitente: m?.sender?.name || (saliente ? "Nosotros" : "Cliente"),
                 creadoEn: new Date(Number.isFinite(creado) ? creado : Date.now()).toISOString(),
+                status: (m?.status || (saliente ? "sent" : undefined)) as EstadoMensaje,
+                adjuntos: adjuntos.length > 0 ? adjuntos : undefined,
             }
         })
-        .filter((m) => m.contenido.trim().length > 0)
+        .filter((m) => m.contenido.trim().length > 0 || (m.adjuntos && m.adjuntos.length > 0))
         .sort((a, b) => a.creadoEn.localeCompare(b.creadoEn))
+}
+
+/**
+ * Marca una conversación como leída en Chatwoot (actualiza last_seen del agente).
+ */
+export async function marcarConversacionLeidaEnChatwoot(
+    accountId: number | bigint,
+    conversationId: number | bigint
+) {
+    const { api, token } = chatwootConfig()
+    if (!token) return
+    try {
+        await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/update_last_seen`, {
+            method: "POST",
+            headers: { api_access_token: token, "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+        })
+    } catch (e) {
+        console.error(`Error marcando conversación ${conversationId} como leída en Chatwoot:`, e)
+    }
 }
 
 /**

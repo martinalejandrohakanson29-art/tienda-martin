@@ -18,6 +18,7 @@ import {
     type TipoPendiente,
     type MensajeConversacion,
 } from "@/app/actions/pendientes-equipo"
+import { ImageLightboxModal, MensajeAdjuntos } from "@/components/chatwoot/chat-media-viewer"
 
 const ETIQUETA_TIPO: Record<TipoPendiente, { texto: string; clase: string }> = {
     tecnica: { texto: "Técnica", clase: "bg-violet-100 text-violet-800 border-violet-200" },
@@ -30,9 +31,17 @@ const fechaCorta = (iso: string) =>
     new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
 
 // Hilo real de la conversación (solo lectura), compartido por todas las pestañas.
-function CharlaCompleta({ cargando, mensajes }: { cargando: boolean; mensajes: MensajeConversacion[] | undefined }) {
+function CharlaCompleta({
+    cargando,
+    mensajes,
+    onOpenLightbox,
+}: {
+    cargando: boolean
+    mensajes: MensajeConversacion[] | undefined
+    onOpenLightbox: (url: string, nombre?: string | null) => void
+}) {
     return (
-        <div className="max-h-64 space-y-2 overflow-y-auto rounded-md border bg-white p-3">
+        <div className="max-h-80 space-y-2 overflow-y-auto rounded-md border bg-[#efeae2]/40 p-3">
             {cargando && (
                 <p className="flex items-center gap-2 text-sm text-gray-400">
                     <Loader2 className="h-4 w-4 animate-spin" /> Cargando charla…
@@ -43,16 +52,21 @@ function CharlaCompleta({ cargando, mensajes }: { cargando: boolean; mensajes: M
                 mensajes?.map((m) => (
                     <div key={m.id} className={`flex ${m.saliente ? "justify-end" : "justify-start"}`}>
                         <div
-                            className={`max-w-[80%] rounded-lg px-3 py-1.5 text-sm ${
+                            className={`max-w-[85%] rounded-lg px-3 py-1.5 text-sm ${
                                 m.privado
                                     ? "border border-dashed border-amber-300 bg-amber-50 italic text-amber-800"
                                     : m.saliente
                                       ? "bg-violet-600 text-white"
-                                      : "bg-gray-100 text-gray-800"
+                                      : "bg-white text-gray-800 border border-gray-200 shadow-sm"
                             }`}
                         >
-                            <p className="whitespace-pre-wrap break-words">{m.contenido}</p>
-                            <p className={`mt-0.5 text-[10px] ${m.privado ? "text-amber-600" : m.saliente ? "text-violet-100" : "text-gray-400"}`}>
+                            <MensajeAdjuntos
+                                adjuntos={m.adjuntos}
+                                saliente={m.saliente && !m.privado}
+                                onOpenLightbox={onOpenLightbox}
+                            />
+                            {m.contenido && <p className="whitespace-pre-wrap break-words">{m.contenido}</p>}
+                            <p className={`mt-0.5 text-[10px] ${m.privado ? "text-amber-600" : m.saliente ? "text-violet-200" : "text-gray-400"}`}>
                                 {m.remitente} · {fechaCorta(m.creadoEn)}
                                 {m.privado ? " · nota privada" : ""}
                             </p>
@@ -77,6 +91,7 @@ export function PendientesClient({
     const [pendiente, arrancarTransicion] = useTransition()
     const [respuestas, setRespuestas] = useState<Record<string, string>>({})
     const [enviadas, setEnviadas] = useState<Set<string>>(new Set())
+    const [lightboxImg, setLightboxImg] = useState<{ url: string; nombre?: string | null } | null>(null)
 
     // Solo para la pestaña "Técnica": respuesta estructurada (Sí/No + aclaración)
     // en vez de texto libre, y charla real cargada bajo demanda.
@@ -205,7 +220,13 @@ export function PendientesClient({
                         {charlaVisible ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </Button>
 
-                    {charlaVisible && <CharlaCompleta cargando={cargando} mensajes={mensajes} />}
+                    {charlaVisible && (
+                        <CharlaCompleta
+                            cargando={cargando}
+                            mensajes={mensajes}
+                            onOpenLightbox={(url, nombre) => setLightboxImg({ url, nombre })}
+                        />
+                    )}
 
                     {yaEnviada ? (
                         <p className="flex items-center gap-2 text-sm text-emerald-700">
@@ -282,7 +303,13 @@ export function PendientesClient({
                         {charlaVisible ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </Button>
 
-                    {charlaVisible && <CharlaCompleta cargando={cargando} mensajes={mensajes} />}
+                    {charlaVisible && (
+                        <CharlaCompleta
+                            cargando={cargando}
+                            mensajes={mensajes}
+                            onOpenLightbox={(url, nombre) => setLightboxImg({ url, nombre })}
+                        />
+                    )}
 
                     {yaEnviada ? (
                         <p className="flex items-center gap-2 text-sm text-emerald-700">
@@ -410,6 +437,14 @@ export function PendientesClient({
                     </TabsContent>
                 </Tabs>
             )}
+
+            {/* Modal Lightbox para fotos */}
+            <ImageLightboxModal
+                isOpen={Boolean(lightboxImg)}
+                imageUrl={lightboxImg?.url || null}
+                imageName={lightboxImg?.nombre}
+                onClose={() => setLightboxImg(null)}
+            />
         </div>
     )
 }

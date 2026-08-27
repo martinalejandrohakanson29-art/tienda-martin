@@ -154,9 +154,20 @@ export async function guardarConversacionesEnEspejo(items: any[]) {
             const sender = c?.meta?.sender
             const nombre = (sender?.name || sender?.phone_number || `Conversación ${c.id}`).toString().slice(0, 200)
             const telefono = (sender?.phone_number || "").toString().slice(0, 50)
-            const status = (c.status || "open").toString().slice(0, 50)
             const ultimo = c?.last_non_activity_message || c?.messages?.[c.messages?.length - 1]
-            const ultimoMensaje = ((ultimo?.content || "").toString().trim() || "(sin texto)").slice(0, 1000)
+            let ultimoMensaje = ((ultimo?.content || "").toString().trim()).slice(0, 1000)
+            if (!ultimoMensaje) {
+                const att = ultimo?.attachments?.[0]
+                if (att) {
+                    const tipo = (att.file_type || "").toString().toLowerCase()
+                    if (tipo === "image") ultimoMensaje = "📷 Foto"
+                    else if (tipo === "audio") ultimoMensaje = "🎤 Audio"
+                    else if (tipo === "video") ultimoMensaje = "🎥 Video"
+                    else ultimoMensaje = "📎 Archivo"
+                } else {
+                    ultimoMensaje = "(sin texto)"
+                }
+            }
             const ultimoMensajePropio = ultimo?.message_type === 1 || ultimo?.message_type === "outgoing"
             const noLeidos = Number(c?.unread_count || 0)
             const epochActividad = Number(c?.last_activity_at ?? c?.timestamp ?? 0)
@@ -335,6 +346,16 @@ export async function registrarMensajeSalienteEnEspejo(conversationId: number, c
             bot_pausado = true,
             ultima_actividad = NOW(),
             actualizado_en = NOW()
+        WHERE id = ${BigInt(conversationId)}
+    `
+}
+
+/** Pone en 0 el contador de mensajes no leídos para una conversación en la tabla espejo. */
+export async function resetearNoLeidosEnEspejo(conversationId: number) {
+    await asegurarTablaEspejo()
+    await prisma.$executeRaw`
+        UPDATE chatwoot_conversaciones_espejo
+        SET no_leidos = 0, actualizado_en = NOW()
         WHERE id = ${BigInt(conversationId)}
     `
 }

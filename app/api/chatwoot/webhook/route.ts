@@ -44,12 +44,36 @@ export async function POST(req: Request) {
         let mensajeEmitido: EventoChatwootEnVivo["mensaje"] | undefined
         let cambioBotPausado: boolean | undefined
 
-        if (body.content || body.messages?.[0]) {
+        if (body.content || body.messages?.[0] || body.attachments?.[0]) {
             const m = body.messages?.[0] || body
             const saliente = m.message_type === 1 || m.message_type === "outgoing"
             const creado = typeof m.created_at === "number" ? m.created_at * 1000 : Date.parse(m.created_at ?? "")
             const contenido = (m.content || "").toString()
             const txt = contenido.trim().toLowerCase()
+
+            const rawAttachments: any[] = Array.isArray(m.attachments) ? m.attachments : (Array.isArray(body.attachments) ? body.attachments : [])
+            const hostBase = (process.env.CHATWOOT_API_URL || "https://chat.revolucionmotos.tech/api/v1").replace(/\/api\/v1\/?$/, "")
+
+            const adjuntos = rawAttachments.map((att: any) => {
+                let url = (att?.data_url || att?.url || "").toString()
+                if (url && url.startsWith("/")) {
+                    url = `${hostBase}${url}`
+                }
+                let thumbUrl = (att?.thumb_url || "").toString()
+                if (thumbUrl && thumbUrl.startsWith("/")) {
+                    thumbUrl = `${hostBase}${thumbUrl}`
+                }
+                return {
+                    id: att?.id || Math.random().toString(),
+                    tipo: (att?.file_type || "file").toString(),
+                    url,
+                    thumbUrl: thumbUrl || null,
+                    nombre: att?.file_name || null,
+                    tamano: typeof att?.file_size === "number" ? att.file_size : null,
+                    contentType: att?.content_type || null,
+                    transcripcion: (att?.transcribed_text || "").toString() || null,
+                }
+            }).filter((att) => Boolean(att.url))
 
             const senderId = Number(m.sender?.id || m.sender_id || 0)
             const senderName = (m.sender?.name || "").toString().trim().toLowerCase()
@@ -62,6 +86,7 @@ export async function POST(req: Request) {
                 saliente,
                 remitente: m.sender?.name || (saliente ? (esBot ? "Bot" : "Nosotros") : "Cliente"),
                 creadoEn: new Date(Number.isFinite(creado) ? creado : Date.now()).toISOString(),
+                adjuntos: adjuntos.length > 0 ? adjuntos : undefined,
             }
 
             if (txt === "/bot off") {

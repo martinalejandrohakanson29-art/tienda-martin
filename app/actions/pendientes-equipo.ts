@@ -7,10 +7,11 @@ import {
     enviarNotaPrivadaChatwoot,
     tieneTokenEquipo,
     getMensajesConversacion,
+    type AdjuntoConversacion,
     type MensajeConversacion,
 } from "@/lib/chatwoot-bot"
 
-export type { MensajeConversacion }
+export type { MensajeConversacion, AdjuntoConversacion }
 
 // Bandeja unificada de las preguntas que el bot escaló al equipo (nota privada
 // en Chatwoot) porque no tenía el dato a mano. Responder desde acá manda esa

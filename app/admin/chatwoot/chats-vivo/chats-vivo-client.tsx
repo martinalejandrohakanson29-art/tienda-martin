@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, ExternalLink, Loader2, RefreshCw, Search, Send, Smile } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, Camera, ExternalLink, FileText, Film, Loader2, Mic, RefreshCw, Search, Send, Smile } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
     enviarMensajeChatVivo,
     forzarSincronizacionChatsVivo,
+    marcarConversacionComoLeida,
     obtenerChatsVivo,
     obtenerHiloChatVivo,
     sincronizarChatsVivoLigero,
@@ -15,6 +16,7 @@ import {
     type PanelChatsVivo,
 } from "@/app/actions/chats-vivo"
 import type { Categoria, ConversacionVivo } from "@/lib/chatwoot-chats-vivo"
+import { CheckEstadoMensaje, ImageLightboxModal, MensajeAdjuntos } from "@/components/chatwoot/chat-media-viewer"
 
 // Panel de chats en vivo. Lee directamente desde la tabla espejo en PostgreSQL
 // para carga instantánea (< 20ms); la categoría de cada una sale de
@@ -55,14 +57,21 @@ const horaMensaje = (iso: string) =>
     })
 
 /**
- * Agrega un mensaje recibido evitando duplicaciones con mensajes existentes o mensajes optimistas recientes.
+ * Agrega un mensaje recibido evitando duplicaciones con mensajes existentes o mensajes optimistas recientes,
+ * actualizando el estado de entrega/lectura en tiempo real si cambió.
  */
 function fusionarMensajeEnHilo(
     mensajes: MensajeConversacion[],
     nuevo: MensajeConversacion
 ): MensajeConversacion[] {
-    // 1. Si ya existe un mensaje con el mismo id exacto, ignorar
-    if (mensajes.some((m) => m.id === nuevo.id)) {
+    // 1. Si ya existe un mensaje con el mismo id exacto, actualizar su status si cambió (ej: sent -> delivered -> read)
+    const idxExistente = mensajes.findIndex((m) => m.id === nuevo.id)
+    if (idxExistente >= 0) {
+        if (mensajes[idxExistente].status !== nuevo.status) {
+            const copia = [...mensajes]
+            copia[idxExistente] = { ...copia[idxExistente], status: nuevo.status }
+            return copia
+        }
         return mensajes
     }
 
@@ -110,6 +119,8 @@ export function ChatsVivoClient({
     const [falloHilo, setFalloHilo] = useState<string | null>(null)
 
     const [togglingBot, setTogglingBot] = useState<number | null>(null)
+
+    const [lightboxImg, setLightboxImg] = useState<{ url: string; nombre?: string | null } | null>(null)
 
     const [textoMensaje, setTextoMensaje] = useState("")
     const [enviandoMensaje, setEnviandoMensaje] = useState(false)
@@ -310,14 +321,49 @@ export function ChatsVivoClient({
         })
     }, [conversaciones, filtro, busqueda])
 
+    const marcarLeido = (id: number) => {
+        // 1. Limpiar optimísticamente en el listado local
+        setPanel((prev) => {
+            if (!prev) return prev
+            const conv = prev.conversaciones.find((c) => c.id === id)
+            if (!conv || conv.noLeidos === 0) return prev
+            return {
+                ...prev,
+                conversaciones: prev.conversaciones.map((c) =>
+                    c.id === id ? { ...c, noLeidos: 0 } : c
+                ),
+            }
+        })
+        // 2. Persistir en Chatwoot y tabla espejo en segundo plano
+        marcarConversacionComoLeida(id).catch((err) => {
+            console.error("Error marcando conversación como leída:", err)
+        })
+    }
+
+    const seleccionarConversacion = (id: number) => {
+        setSeleccionadaId(id)
+        marcarLeido(id)
+    }
+
     useEffect(() => {
         if (seleccionadaId === null && conversacionesFiltradas.length > 0) {
-            setSeleccionadaId(conversacionesFiltradas[0].id)
+            const primerId = conversacionesFiltradas[0].id
+            setSeleccionadaId(primerId)
+            marcarLeido(primerId)
         }
     }, [conversacionesFiltradas, seleccionadaId])
 
     const seleccionada: ConversacionVivo | undefined =
         conversaciones.find((c) => c.id === seleccionadaId) ?? conversacionesFiltradas[0]
+
+    useEffect(() => {
+        if (seleccionadaId) {
+            const conv = conversaciones.find((c) => c.id === seleccionadaId)
+            if (conv && conv.noLeidos > 0) {
+                marcarLeido(seleccionadaId)
+            }
+        }
+    }, [seleccionadaId, conversaciones])
 
     useEffect(() => {
         if (!seleccionada || hilos[seleccionada.id]) return
@@ -406,6 +452,7 @@ export function ChatsVivoClient({
             saliente: true,
             remitente: "Nosotros",
             creadoEn: new Date().toISOString(),
+            status: "progress",
         }
 
         // 1. Agregar de inmediato al hilo (optimista)
@@ -556,7 +603,7 @@ export function ChatsVivoClient({
                             return (
                                 <button
                                     key={c.id}
-                                    onClick={() => setSeleccionadaId(c.id)}
+                                    onClick={() => seleccionarConversacion(c.id)}
                                     className={`w-full flex items-start gap-3 px-3.5 py-2.5 border-b border-gray-100 text-left transition-colors ${
                                         activa ? "bg-[#f0f2f5]" : "bg-white hover:bg-[#f5f6f6]"
                                     }`}
@@ -573,9 +620,31 @@ export function ChatsVivoClient({
                                             <span className="text-[11px] text-[#667781] shrink-0">{c.horaEtiqueta}</span>
                                         </div>
                                         <div className="flex items-center justify-between gap-1 mt-0.5">
-                                            <span className="text-xs text-[#667781] truncate">
+                                            <span className="text-xs text-[#667781] truncate flex items-center gap-1">
                                                 {c.ultimoMensajePropio ? "Vos: " : ""}
-                                                {c.ultimoMensaje}
+                                                {c.ultimoMensaje.startsWith("📷") ? (
+                                                    <>
+                                                        <Camera className="h-3 w-3 inline text-emerald-600 shrink-0" />
+                                                        <span>Foto</span>
+                                                    </>
+                                                ) : c.ultimoMensaje.startsWith("🎤") || c.ultimoMensaje.startsWith("🎵") ? (
+                                                    <>
+                                                        <Mic className="h-3 w-3 inline text-emerald-600 shrink-0" />
+                                                        <span>Audio</span>
+                                                    </>
+                                                ) : c.ultimoMensaje.startsWith("🎥") ? (
+                                                    <>
+                                                        <Film className="h-3 w-3 inline text-emerald-600 shrink-0" />
+                                                        <span>Video</span>
+                                                    </>
+                                                ) : c.ultimoMensaje.startsWith("📎") ? (
+                                                    <>
+                                                        <FileText className="h-3 w-3 inline text-emerald-600 shrink-0" />
+                                                        <span>Archivo</span>
+                                                    </>
+                                                ) : (
+                                                    c.ultimoMensaje
+                                                )}
                                             </span>
                                             {c.noLeidos > 0 && (
                                                 <span className="bg-[#25d366] text-white text-[10px] font-semibold rounded-full h-4 min-w-4 px-1 flex items-center justify-center shrink-0">
@@ -691,7 +760,7 @@ export function ChatsVivoClient({
                                     <p className="text-xs text-red-500 text-center mt-6">{falloHilo}</p>
                                 )}
                                 {hiloActual?.length === 0 && (
-                                    <p className="text-xs text-[#667781] text-center mt-6">Sin mensajes de texto en esta conversación</p>
+                                    <p className="text-xs text-[#667781] text-center mt-6">Sin mensajes en esta conversación</p>
                                 )}
                                 {hiloActual
                                     ?.filter((m) => {
@@ -701,11 +770,16 @@ export function ChatsVivoClient({
                                     .map((m) =>
                                         m.privado ? (
                                             <div key={m.id} className="flex justify-center py-1">
-                                                <div className="max-w-[80%] rounded-md px-3 py-1.5 bg-[#fff3cd] text-[#664d03] text-xs border border-amber-200/90 shadow-sm">
+                                                <div className="max-w-[85%] rounded-md px-3 py-1.5 bg-[#fff3cd] text-[#664d03] text-xs border border-amber-200/90 shadow-sm">
                                                     <div className="flex items-center gap-1 text-[10px] font-semibold text-amber-800/80 mb-0.5">
                                                         <span>🔒 Nota interna{m.remitente && m.remitente !== "Nosotros" ? ` (${m.remitente})` : ""}</span>
                                                     </div>
-                                                    <p className="whitespace-pre-wrap">{m.contenido}</p>
+                                                    <MensajeAdjuntos
+                                                        adjuntos={m.adjuntos}
+                                                        saliente={false}
+                                                        onOpenLightbox={(url, nombre) => setLightboxImg({ url, nombre })}
+                                                    />
+                                                    {m.contenido && <p className="whitespace-pre-wrap">{m.contenido}</p>}
                                                     <span className="block text-right text-[9px] opacity-70 mt-1">
                                                         {horaMensaje(m.creadoEn)}
                                                     </span>
@@ -714,14 +788,24 @@ export function ChatsVivoClient({
                                         ) : (
                                             <div key={m.id} className={`flex ${m.saliente ? "justify-end" : "justify-start"}`}>
                                                 <div
-                                                    className={`max-w-[65%] rounded-lg px-3 py-1 shadow-sm text-xs md:text-sm text-[#111b25] ${
+                                                    className={`max-w-[75%] sm:max-w-[65%] rounded-lg px-3 py-1.5 shadow-sm text-xs md:text-sm text-[#111b25] ${
                                                         m.saliente ? "bg-[#d9fdd3] rounded-tr-none" : "bg-white rounded-tl-none"
                                                     }`}
                                                 >
-                                                    <p className="whitespace-pre-wrap">{m.contenido}</p>
-                                                    <span className="block text-right text-[10px] text-[#667781] mt-0.5">
-                                                        {horaMensaje(m.creadoEn)}
-                                                    </span>
+                                                    <MensajeAdjuntos
+                                                        adjuntos={m.adjuntos}
+                                                        saliente={m.saliente}
+                                                        onOpenLightbox={(url, nombre) => setLightboxImg({ url, nombre })}
+                                                    />
+                                                    {m.contenido && <p className="whitespace-pre-wrap">{m.contenido}</p>}
+                                                    <div className="flex items-center justify-end gap-1 mt-0.5 select-none">
+                                                        <span className="text-[10px] text-[#667781] leading-none">
+                                                            {horaMensaje(m.creadoEn)}
+                                                        </span>
+                                                        {m.saliente && (
+                                                            <CheckEstadoMensaje status={m.status || "sent"} />
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         )
@@ -805,6 +889,14 @@ export function ChatsVivoClient({
                     )}
                 </div>
             </div>
+
+            {/* Modal Lightbox para visualización de fotos en pantalla completa */}
+            <ImageLightboxModal
+                isOpen={Boolean(lightboxImg)}
+                imageUrl={lightboxImg?.url || null}
+                imageName={lightboxImg?.nombre}
+                onClose={() => setLightboxImg(null)}
+            />
         </div>
     )
 }

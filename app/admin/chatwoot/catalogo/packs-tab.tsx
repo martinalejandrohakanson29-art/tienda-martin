@@ -532,11 +532,11 @@ export function PacksTab({
                                     />
                                 </div>
                                 <div className="space-y-1">
-                                    <Label htmlFor="plantillasReferral">Textos de anuncio de Meta Ads (headline o body, uno por línea)</Label>
+                                    <Label htmlFor="plantillasReferral">Descripción del anuncio de Meta Ads (el &quot;body&quot;, una por línea)</Label>
                                     <Textarea
                                         id="plantillasReferral"
                                         placeholder={
-                                            "Para cuando el botón del anuncio manda un texto genérico (\"¡Hola! Quiero más información\") en vez de la plantilla fija -- ahí el bot identifica el kit por el título o la descripción del anuncio, que sí vienen fijos. Pegá cualquiera de los dos, uno por línea."
+                                            "Para cuando el botón del anuncio manda un texto genérico (\"¡Hola! Quiero más información\") en vez de la plantilla fija -- ahí el bot identifica el kit por la DESCRIPCIÓN del anuncio (el texto largo debajo del título). Pegá la descripción exacta, una por línea. NO pegues el título: Meta reusa el mismo título entre anuncios distintos y confunde un producto con otro."
                                         }
                                         value={form.plantillasReferral}
                                         onChange={(e) => actualizarCampo("plantillasReferral", e.target.value)}

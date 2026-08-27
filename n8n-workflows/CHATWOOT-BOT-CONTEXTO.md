@@ -1878,3 +1878,43 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   Fix: se ajustó el prompt de `Extraer Pregunta Compatibilidad` para que especificaciones/adjetivos de motor (varillero/cadenero/etc.)
   formen parte de `modelo_moto` y no de `resto_mensaje`, y se reforzó en `Responder Articulo Suelto` (Catálogo General, Grupo, y Detalle)
   la prohibición explícita de matchear repuestos sueltos a partir de adjetivos o tipos de motor sin pedido explícito de la pieza.
+
+- **Referral de Meta Ads pineaba el GRUPO equivocado por un título de anuncio compartido, y sin chequeo de
+  continuidad de tema (2026-08-27).** Caso real: conv 2818 (+5492227678179, Tobías). El cliente vino por el
+  anuncio del Combo Escape PWR + Leva (`referral.body = "Combo Escape Paolucci PWR 110 + Leva de calle de 6.40..."`,
+  `referral.headline = "GANA MAS RENDIMIENTO EN TU 110!"`) y el bot le mandó la bienvenida de **Tapa CDI** y lo
+  pineó ahí — después "Escape" (aclaración del cliente) se leyó como modelo de moto y escaló una nota absurda
+  ("¿el Tapa cdi es compatible con su Escape?"). **No fue una regresión** de los fixes de referral del 26/8 sino
+  la composición de dos decisiones previas: (a) el 26/8 se eligió matchear el referral por **texto del anuncio**
+  (no `source_id`) comparando `headline` **o** `body` contra `plantillas_referral`, y se cargó como clave de
+  Tapa CDI el título `"GANA MAS RENDIMIENTO EN TU 110!"`, que Meta reusa TAL CUAL en el anuncio del Escape; (b) el
+  25/8 se recableó `¿Hay Resto en la Rafaga? (Grupo)` para que SIEMPRE saludara/pineara (dejando huérfano
+  `Validar Continuidad de Tema (Grupo)`), razonamiento válido para la plantilla exacta pero no para el referral,
+  donde el primer mensaje es texto libre del cliente. El fix #2 del 26/8 (referral con contenido propio →
+  `resto_mensaje` → continuidad) solo se cableó en la rama de kit suelto, nunca en la de grupo (se probó con
+  Kit 170, un pack).
+  **Fix (3 partes):**
+  1. **`Clasificar Mensaje (sin IA)`: el referral matchea SOLO por `body`, nunca por `headline`.** Los títulos
+     son slogans que Meta repite entre campañas; la descripción es específica. Confirmado en ejecuciones reales
+     que Escape y Tapa CDI comparten el mismo `headline`.
+  2. **Nodo nuevo `¿Identificado por Referral? (Grupo)`** (If `deteccion == 'referral'`) entre la salida "hay
+     resto" de `¿Hay Resto en la Rafaga? (Grupo)` y `Enviar Saludo Grupo`: si el grupo se identificó por
+     referral (no plantilla exacta) y el cliente escribió texto propio, pasa por `Validar Continuidad de Tema
+     (Grupo)` → `¿Es Mismo Tema? (Grupo)` (los nodos huérfanos del 25/8, ahora reconectados) — si es tema
+     distinto NO saluda ni pinea, cae a `Leer Kit Pineado` → `Identificar Necesidad`. La plantilla exacta sigue
+     yendo directo a `Enviar Saludo Grupo` (rama falsa del nodo nuevo), sin tocar el fix del 25/8. 413→414 nodos.
+  3. **Datos:** `plantillas_referral` de los 3 grupos + 2 packs activos recargado con solo la línea de
+     descripción real (sacado el título de los que lo tenían); cargado el `body` del Combo Escape + Leva (grupo 2,
+     antes `null`) y del Kit Dakar 200 (pack 12, antes `null` — venía cayendo a `sin_match`). Label/placeholder
+     del campo en `/admin/chatwoot/catalogo` (Packs y Grupos) actualizado: "solo la descripción, no el título".
+  **Validado:** (A) 14 casos deterministas del clasificador (body-only, sin colisión de título, guarda de kit
+  ya pineado, fallbacks a saludo/sin_match). (B) 3 e2e reales contra la conv de prueba 2411:
+  - referral Escape + "info sobre el escape de 110" → matchea **grupo 2 (Escape+Leva)**, correcto (el bug de
+    Tapa CDI desapareció); la continuidad dio "tema distinto" (conservadora) pero `Identificar Necesidad` volvió
+    a pinear grupo 2 y mandó su bienvenida — resultado final correcto, un hop de IA de más.
+  - referral Tapa CDI + "tenés cubierta trasera para una gilera smash?" → continuidad "tema distinto" → NO manda
+    bienvenida, NO pinea, escala en silencio (nota privada) — el caso negativo que motivó todo.
+  - plantilla exacta Tapa CDI + "para una wave" (regresión fix 25/8) → rama falsa del nodo nuevo → `Enviar Saludo
+    Grupo` directo, pinea y resuelve compatibilidad, sin pasar por continuidad — intacto.
+  **Pendiente:** contestarle a mano a Tobías (conv 2818) — vino por el Combo Escape PWR + Leva 6.40 — y limpiarle
+  el pin. `rutas-bot-chatwoot.html` sigue desactualizado.

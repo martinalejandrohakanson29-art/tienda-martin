@@ -38,7 +38,8 @@ export default function AdminLayout({
     pathname.startsWith("/admin/mercadolibre") ||
     pathname.startsWith("/admin/todos") ||
     pathname.startsWith("/admin/usuarios") ||
-    pathname.startsWith("/admin/contrasenas");
+    pathname.startsWith("/admin/contrasenas") ||
+    pathname.startsWith("/admin/chatwoot/chats-vivo");
 
   const showGlobalHeader = !isLoginPage && isFullscreenPage && !hasLocalHeader;
 

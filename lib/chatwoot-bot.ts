@@ -239,6 +239,35 @@ export async function enviarMensajeChatwoot(params: {
     return res.json().catch(() => ({}))
 }
 
+/**
+ * Manda un mensaje saliente manual al cliente por Chatwoot.
+ * Usa CHATWOOT_ADMIN_API_TOKEN para que el remitente figure como agente humano del equipo,
+ * cayendo en CHATWOOT_API_TOKEN de respaldo si no está configurado.
+ */
+export async function enviarMensajeManualChatwoot(params: {
+    accountId: number | bigint
+    conversationId: number | bigint
+    content: string
+}) {
+    const { api } = chatwootConfig()
+    const { token: adminToken } = chatwootConfigEquipo()
+    const token = adminToken || chatwootConfig().token
+    if (!token) throw new Error("Falta token de Chatwoot en el entorno de la app")
+
+    const url = `${api}/accounts/${params.accountId}/conversations/${params.conversationId}/messages`
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { api_access_token: token, "Content-Type": "application/json" },
+        body: JSON.stringify({ content: params.content, message_type: "outgoing", private: false }),
+    })
+
+    if (!res.ok) {
+        const detalle = await res.text().catch(() => "")
+        throw new Error(`Chatwoot respondió ${res.status}: ${detalle.slice(0, 300)}`)
+    }
+    return res.json().catch(() => ({}))
+}
+
 const FOTO_TAMANO_MAXIMO = 5 * 1024 * 1024 // 5MB, límite típico de imagen en WhatsApp/Chatwoot
 const FOTO_TIMEOUT_MS = 15000
 

@@ -324,3 +324,17 @@ export async function actualizarBotPausadoEnEspejo(conversationId: number, botPa
         WHERE id = ${BigInt(conversationId)}
     `
 }
+
+/** Actualiza el último mensaje y pausa del bot al enviar un mensaje saliente manual. */
+export async function registrarMensajeSalienteEnEspejo(conversationId: number, contenido: string) {
+    await asegurarTablaEspejo()
+    await prisma.$executeRaw`
+        UPDATE chatwoot_conversaciones_espejo
+        SET ultimo_mensaje = ${contenido.slice(0, 1000)},
+            ultimo_mensaje_propio = true,
+            bot_pausado = true,
+            ultima_actividad = NOW(),
+            actualizado_en = NOW()
+        WHERE id = ${BigInt(conversationId)}
+    `
+}

@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, ExternalLink, Loader2, RefreshCw, Search } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, ExternalLink, Loader2, RefreshCw, Search, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
+    enviarMensajeChatVivo,
     forzarSincronizacionChatsVivo,
     obtenerChatsVivo,
     obtenerHiloChatVivo,
@@ -18,7 +19,8 @@ import type { Categoria, ConversacionVivo } from "@/lib/chatwoot-chats-vivo"
 // para carga instantánea (< 20ms); la categoría de cada una sale de
 // nuestras propias tablas de pendientes (preguntas_tecnicas/negocio/precio/
 // sin_match_pendientes), no de un label de Chatwoot.
-// Permite pausar/reactivar el bot por conversación (/bot off y /bot on) con un switch.
+// Permite pausar/reactivar el bot por conversación (/bot off y /bot on) con un switch
+// y responder mensajes manualmente en texto hacia WhatsApp a través de Chatwoot.
 
 const CATEGORIA_INFO: Record<Categoria, { texto: string; clase: string }> = {
     tecnica: { texto: "Técnica", clase: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -73,6 +75,10 @@ export function ChatsVivoClient({
 
     const [togglingBot, setTogglingBot] = useState<number | null>(null)
 
+    const [textoMensaje, setTextoMensaje] = useState("")
+    const [enviandoMensaje, setEnviandoMensaje] = useState(false)
+    const mensajesEndRef = useRef<HTMLDivElement>(null)
+
     const conversaciones = panel?.conversaciones ?? []
 
     const refrescar = (dias: number) => {
@@ -103,6 +109,15 @@ export function ChatsVivoClient({
         setPeriodoDias(dias)
         refrescar(dias)
     }
+
+    // Auto-scroll al final del chat cuando se selecciona una conversación o llegan mensajes
+    const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+        mensajesEndRef.current?.scrollIntoView({ behavior })
+    }
+
+    useEffect(() => {
+        scrollToBottom("auto")
+    }, [seleccionadaId])
 
     // Escuchar eventos en tiempo real vía Server-Sent Events (SSE)
     useEffect(() => {
@@ -203,6 +218,12 @@ export function ChatsVivoClient({
 
     const hiloActual = seleccionada ? hilos[seleccionada.id] : undefined
 
+    useEffect(() => {
+        if (hiloActual && hiloActual.length > 0) {
+            scrollToBottom("smooth")
+        }
+    }, [hiloActual?.length])
+
     const handleToggleBot = async (conversationId: number, currentBotPausado: boolean) => {
         const nuevoEncendido = currentBotPausado // si estaba pausado (true), lo prendemos (true); si no, lo apagamos (false)
         const nuevoPausado = !nuevoEncendido
@@ -260,11 +281,78 @@ export function ChatsVivoClient({
         }
     }
 
+    const handleEnviarMensaje = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault()
+        if (!seleccionada) return
+        const contenido = textoMensaje.trim()
+        if (!contenido || enviandoMensaje) return
+
+        const convId = seleccionada.id
+        setTextoMensaje("")
+
+        const tempId = Date.now()
+        const mensajeOptimista: MensajeConversacion = {
+            id: tempId,
+            contenido,
+            privado: false,
+            saliente: true,
+            remitente: "Nosotros",
+            creadoEn: new Date().toISOString(),
+        }
+
+        // 1. Agregar de inmediato al hilo (optimista)
+        setHilos((prev) => {
+            const actual = prev[convId] || []
+            return {
+                ...prev,
+                [convId]: [...actual, mensajeOptimista],
+            }
+        })
+
+        // 2. Actualizar lista de conversaciones (último mensaje y bot pausado)
+        setPanel((prev) => {
+            if (!prev) return prev
+            return {
+                ...prev,
+                conversaciones: prev.conversaciones.map((c) =>
+                    c.id === convId
+                        ? {
+                              ...c,
+                              ultimoMensaje: contenido,
+                              ultimoMensajePropio: true,
+                              botPausado: true,
+                          }
+                        : c
+                ),
+            }
+        })
+
+        setEnviandoMensaje(true)
+        try {
+            const res = await enviarMensajeChatVivo(convId, contenido)
+            if (!res.success) {
+                throw new Error("No se pudo enviar el mensaje")
+            }
+        } catch (err) {
+            console.error("Error enviando mensaje:", err)
+            alert("Error al enviar mensaje: " + (err instanceof Error ? err.message : "Error desconocido"))
+        } finally {
+            setEnviandoMensaje(false)
+        }
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault()
+            handleEnviarMensaje()
+        }
+    }
+
     return (
         <div className="h-screen w-full overflow-hidden flex flex-col bg-[#f0f2f5]">
-            <div className="flex items-center gap-3 px-4 py-2 border-b bg-white shrink-0">
+            <div className="flex items-center gap-3 px-4 py-2 border-b bg-white shrink-0 h-12">
                 <Link href="/admin/chatwoot" className="text-gray-500 hover:text-gray-800">
-                    <ArrowLeft className="h-5 w-5" />
+                    <ArrowLeft className="h-4 w-4" />
                 </Link>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -274,11 +362,11 @@ export function ChatsVivoClient({
                             En vivo
                         </span>
                     </div>
-                    <p className="text-xs text-gray-500" suppressHydrationWarning>
+                    <p className="text-[11px] text-gray-500" suppressHydrationWarning>
                         {fallo
                             ? fallo
                             : panel
-                              ? `${conversaciones.length} conversaciones · actualizado ${new Date(panel.actualizadoEn).toLocaleTimeString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit" })}`
+                              ? `${conversaciones.length} conversaciones · act. ${new Date(panel.actualizadoEn).toLocaleTimeString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", hour: "2-digit", minute: "2-digit" })}`
                               : "Cargando…"}
                     </p>
                 </div>
@@ -287,7 +375,7 @@ export function ChatsVivoClient({
                         <button
                             key={p.valor}
                             onClick={() => cambiarPeriodo(p.valor)}
-                            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${
+                            className={`text-xs px-2.5 py-0.5 rounded-md transition-colors ${
                                 periodoDias === p.valor ? "bg-white shadow-sm text-gray-800 font-medium" : "text-gray-500 hover:text-gray-700"
                             }`}
                         >
@@ -295,39 +383,40 @@ export function ChatsVivoClient({
                         </button>
                     ))}
                 </div>
-                <Button variant="outline" size="sm" onClick={() => sincronizar(periodoDias)} disabled={cargandoLista} title="Sincronizar con Chatwoot">
-                    {cargandoLista ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => sincronizar(periodoDias)} disabled={cargandoLista} title="Sincronizar con Chatwoot">
+                    {cargandoLista ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                 </Button>
             </div>
 
             <div className="flex flex-1 min-h-0">
                 {/* Columna izquierda: lista de conversaciones */}
-                <div className="w-[440px] shrink-0 border-r bg-white flex flex-col min-h-0">
-                    <div className="px-4 py-3 bg-[#f0f2f5] shrink-0">
-                        <span className="font-semibold text-[#111b25] text-base">Conversaciones</span>
+                <div className="w-[360px] lg:w-[390px] shrink-0 border-r bg-white flex flex-col min-h-0">
+                    <div className="px-3.5 py-2 bg-[#f0f2f5] shrink-0 flex items-center justify-between">
+                        <span className="font-semibold text-[#111b25] text-sm">Conversaciones</span>
+                        <span className="text-xs text-gray-500">{conversacionesFiltradas.length}</span>
                     </div>
 
-                    <div className="px-3 py-2 shrink-0">
-                        <div className="flex items-center gap-2 bg-[#f0f2f5] rounded-lg px-3 py-1.5">
-                            <Search className="h-4 w-4 text-[#54656f]" />
+                    <div className="px-3 py-1.5 shrink-0">
+                        <div className="flex items-center gap-2 bg-[#f0f2f5] rounded-lg px-2.5 py-1">
+                            <Search className="h-3.5 w-3.5 text-[#54656f]" />
                             <input
                                 value={busqueda}
                                 onChange={(e) => setBusqueda(e.target.value)}
-                                placeholder="Buscar por nombre o teléfono"
-                                className="bg-transparent outline-none text-sm w-full text-[#111b25] placeholder:text-[#667781]"
+                                placeholder="Buscar nombre o teléfono"
+                                className="bg-transparent outline-none text-xs w-full text-[#111b25] placeholder:text-[#667781]"
                             />
                         </div>
                     </div>
 
-                    <div className="flex gap-2 px-3 pb-2 overflow-x-auto shrink-0">
+                    <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto shrink-0 scrollbar-none">
                         {chips.map((chip) => (
                             <button
                                 key={chip.valor}
                                 onClick={() => setFiltro(chip.valor)}
-                                className={`text-xs px-3 py-1 rounded-full border whitespace-nowrap transition-colors ${
+                                className={`text-[11px] px-2.5 py-0.5 rounded-full border whitespace-nowrap transition-colors ${
                                     filtro === chip.valor
                                         ? "bg-[#00a884] text-white border-[#00a884]"
-                                        : "bg-white text-[#54656f] border-gray-300 hover:bg-gray-50"
+                                        : "bg-white text-[#54656f] border-gray-200 hover:bg-gray-50"
                                 }`}
                             >
                                 {chip.texto}
@@ -337,10 +426,10 @@ export function ChatsVivoClient({
 
                     <div className="flex-1 overflow-y-auto">
                         {fallo && conversaciones.length === 0 && (
-                            <p className="text-sm text-red-500 text-center mt-8 px-4">{fallo}</p>
+                            <p className="text-xs text-red-500 text-center mt-6 px-4">{fallo}</p>
                         )}
                         {!fallo && conversacionesFiltradas.length === 0 && (
-                            <p className="text-sm text-gray-400 text-center mt-8">
+                            <p className="text-xs text-gray-400 text-center mt-6">
                                 {cargandoLista ? "Cargando conversaciones…" : "Ninguna conversación con este filtro"}
                             </p>
                         )}
@@ -351,44 +440,44 @@ export function ChatsVivoClient({
                                 <button
                                     key={c.id}
                                     onClick={() => setSeleccionadaId(c.id)}
-                                    className={`w-full flex items-start gap-4 px-4 py-4 border-b border-gray-100 text-left transition-colors ${
+                                    className={`w-full flex items-start gap-3 px-3.5 py-2.5 border-b border-gray-100 text-left transition-colors ${
                                         activa ? "bg-[#f0f2f5]" : "bg-white hover:bg-[#f5f6f6]"
                                     }`}
                                 >
                                     <div
-                                        className={`h-16 w-16 rounded-full ${c.colorAvatar} text-white flex items-center justify-center font-semibold text-lg shrink-0`}
+                                        className={`h-11 w-11 rounded-full ${c.colorAvatar} text-white flex items-center justify-center font-semibold text-sm shrink-0`}
                                         suppressHydrationWarning
                                     >
                                         {c.iniciales}
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span className="font-medium text-[#111b25] text-base truncate">{c.nombre}</span>
-                                            <span className="text-xs text-[#667781] shrink-0">{c.horaEtiqueta}</span>
+                                        <div className="flex items-center justify-between gap-1">
+                                            <span className="font-medium text-[#111b25] text-sm truncate">{c.nombre}</span>
+                                            <span className="text-[11px] text-[#667781] shrink-0">{c.horaEtiqueta}</span>
                                         </div>
-                                        <div className="flex items-center justify-between gap-2 mt-1">
-                                            <span className="text-sm text-[#667781] truncate">
+                                        <div className="flex items-center justify-between gap-1 mt-0.5">
+                                            <span className="text-xs text-[#667781] truncate">
                                                 {c.ultimoMensajePropio ? "Vos: " : ""}
                                                 {c.ultimoMensaje}
                                             </span>
                                             {c.noLeidos > 0 && (
-                                                <span className="bg-[#25d366] text-white text-xs font-semibold rounded-full h-6 min-w-6 px-1.5 flex items-center justify-center shrink-0">
+                                                <span className="bg-[#25d366] text-white text-[10px] font-semibold rounded-full h-4 min-w-4 px-1 flex items-center justify-center shrink-0">
                                                     {c.noLeidos}
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                                            <span className={`inline-block text-xs px-2 py-0.5 rounded-full border ${cat.clase}`}>
+                                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                            <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded-full border ${cat.clase}`}>
                                                 {cat.texto}
                                             </span>
                                             {c.botPausado ? (
-                                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
-                                                    <BotOff className="h-3 w-3" />
+                                                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                                                    <BotOff className="h-2.5 w-2.5" />
                                                     Bot OFF
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
-                                                    <Bot className="h-3 w-3 text-emerald-600" />
+                                                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                                                    <Bot className="h-2.5 w-2.5 text-emerald-600" />
                                                     Bot ON
                                                 </span>
                                             )}
@@ -404,33 +493,33 @@ export function ChatsVivoClient({
                 <div className="flex-1 flex flex-col min-h-0">
                     {seleccionada ? (
                         <>
-                            <div className="flex items-center justify-between px-4 py-2.5 bg-[#f0f2f5] border-b shrink-0 gap-3">
-                                <div className="flex items-center gap-3 min-w-0">
+                            <div className="flex items-center justify-between px-4 py-2 bg-[#f0f2f5] border-b shrink-0 gap-3 min-h-[52px]">
+                                <div className="flex items-center gap-2.5 min-w-0">
                                     <div
-                                        className={`h-10 w-10 rounded-full ${seleccionada.colorAvatar} text-white flex items-center justify-center font-semibold text-sm shrink-0`}
+                                        className={`h-9 w-9 rounded-full ${seleccionada.colorAvatar} text-white flex items-center justify-center font-semibold text-xs shrink-0`}
                                         suppressHydrationWarning
                                     >
                                         {seleccionada.iniciales}
                                     </div>
                                     <div className="min-w-0">
                                         <p className="font-medium text-[#111b25] text-sm truncate">{seleccionada.nombre}</p>
-                                        <p className="text-xs text-[#667781] truncate">{seleccionada.telefono}</p>
+                                        <p className="text-[11px] text-[#667781] truncate">{seleccionada.telefono}</p>
                                     </div>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
                                         {CATEGORIA_INFO[seleccionada.categoria].texto}
                                     </span>
                                 </div>
 
-                                <div className="flex items-center gap-3 shrink-0">
+                                <div className="flex items-center gap-2.5 shrink-0">
                                     {/* Switch ON/OFF del Bot para esta conversación */}
-                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border shadow-sm">
+                                    <div className="flex items-center gap-2 bg-white px-2.5 py-1 rounded-lg border shadow-sm">
                                         <button
                                             type="button"
                                             role="switch"
                                             aria-checked={!seleccionada.botPausado}
                                             disabled={togglingBot === seleccionada.id}
                                             onClick={() => handleToggleBot(seleccionada.id, seleccionada.botPausado)}
-                                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 ${
+                                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-1 ${
                                                 !seleccionada.botPausado ? "bg-[#00a884]" : "bg-gray-300"
                                             } ${togglingBot === seleccionada.id ? "opacity-60 cursor-wait" : ""}`}
                                             title={
@@ -441,21 +530,21 @@ export function ChatsVivoClient({
                                         >
                                             <span
                                                 aria-hidden="true"
-                                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                                                    !seleccionada.botPausado ? "translate-x-5" : "translate-x-0"
+                                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                                    !seleccionada.botPausado ? "translate-x-4" : "translate-x-0"
                                                 }`}
                                             />
                                         </button>
-                                        <div className="flex items-center gap-1.5 min-w-[80px]">
+                                        <div className="flex items-center gap-1 min-w-[70px]">
                                             {togglingBot === seleccionada.id ? (
-                                                <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-500" />
+                                                <Loader2 className="h-3 w-3 animate-spin text-gray-500" />
                                             ) : !seleccionada.botPausado ? (
-                                                <Bot className="h-3.5 w-3.5 text-[#00a884]" />
+                                                <Bot className="h-3 w-3 text-[#00a884]" />
                                             ) : (
-                                                <BotOff className="h-3.5 w-3.5 text-gray-500" />
+                                                <BotOff className="h-3 w-3 text-gray-500" />
                                             )}
                                             <span
-                                                className={`text-xs font-semibold ${
+                                                className={`text-[11px] font-semibold ${
                                                     !seleccionada.botPausado ? "text-[#00a884]" : "text-gray-500"
                                                 }`}
                                             >
@@ -470,29 +559,29 @@ export function ChatsVivoClient({
                                         rel="noopener noreferrer"
                                         className="flex items-center gap-1 text-xs text-[#00a884] font-medium hover:underline"
                                     >
-                                        Ver en Chatwoot <ExternalLink className="h-3.5 w-3.5" />
+                                        Chatwoot <ExternalLink className="h-3 w-3" />
                                     </a>
                                 </div>
                             </div>
 
-                            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-1" style={fondoChat}>
+                            <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5" style={fondoChat}>
                                 {cargandoHilo && !hiloActual && (
-                                    <div className="flex items-center justify-center h-full text-[#667781] text-sm gap-2">
-                                        <Loader2 className="h-4 w-4 animate-spin" /> Cargando conversación…
+                                    <div className="flex items-center justify-center h-full text-[#667781] text-xs gap-2">
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando conversación…
                                     </div>
                                 )}
                                 {falloHilo && !hiloActual && (
-                                    <p className="text-sm text-red-500 text-center mt-8">{falloHilo}</p>
+                                    <p className="text-xs text-red-500 text-center mt-6">{falloHilo}</p>
                                 )}
                                 {hiloActual?.length === 0 && (
-                                    <p className="text-sm text-[#667781] text-center mt-8">Sin mensajes de texto en esta conversación</p>
+                                    <p className="text-xs text-[#667781] text-center mt-6">Sin mensajes de texto en esta conversación</p>
                                 )}
                                 {hiloActual?.map((m) =>
                                     m.privado ? (
-                                        <div key={m.id} className="flex justify-center py-1">
-                                            <div className="max-w-[75%] rounded-md px-3 py-1.5 bg-[#fff3cd] text-[#664d03] text-xs shadow-sm">
+                                        <div key={m.id} className="flex justify-center py-0.5">
+                                            <div className="max-w-[75%] rounded-md px-2.5 py-1 bg-[#fff3cd] text-[#664d03] text-xs shadow-sm">
                                                 <p className="whitespace-pre-wrap">{m.contenido}</p>
-                                                <span className="block text-right text-[10px] opacity-70 mt-0.5">
+                                                <span className="block text-right text-[9px] opacity-70 mt-0.5">
                                                     Nota interna · {horaMensaje(m.creadoEn)}
                                                 </span>
                                             </div>
@@ -500,7 +589,7 @@ export function ChatsVivoClient({
                                     ) : (
                                         <div key={m.id} className={`flex ${m.saliente ? "justify-end" : "justify-start"}`}>
                                             <div
-                                                className={`max-w-[65%] rounded-lg px-3 py-1.5 shadow-sm text-sm text-[#111b25] ${
+                                                className={`max-w-[65%] rounded-lg px-3 py-1 shadow-sm text-xs md:text-sm text-[#111b25] ${
                                                     m.saliente ? "bg-[#d9fdd3] rounded-tr-none" : "bg-white rounded-tl-none"
                                                 }`}
                                             >
@@ -512,16 +601,39 @@ export function ChatsVivoClient({
                                         </div>
                                     )
                                 )}
+                                <div ref={mensajesEndRef} />
                             </div>
 
-                            <div className="px-4 py-3 bg-[#f0f2f5] border-t shrink-0">
-                                <p className="text-xs text-[#667781] text-center">
-                                    Podés activar o pausar el bot para este chat con el switch de arriba, o consultar el hilo en vivo.
-                                </p>
+                            {/* Barra para escribir y responder manualmente */}
+                            <div className="px-3.5 py-2 bg-[#f0f2f5] border-t shrink-0">
+                                <form onSubmit={handleEnviarMensaje} className="flex items-end gap-2">
+                                    <div className="flex-1 bg-white rounded-lg px-3 py-1.5 border border-gray-200 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884] shadow-sm transition-all">
+                                        <textarea
+                                            value={textoMensaje}
+                                            onChange={(e) => setTextoMensaje(e.target.value)}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="Escribe un mensaje para responder al cliente... (Enter para enviar)"
+                                            rows={1}
+                                            className="w-full resize-none bg-transparent outline-none text-xs md:text-sm text-[#111b25] placeholder:text-[#8696a0] max-h-32 min-h-[22px] block leading-relaxed"
+                                        />
+                                    </div>
+                                    <Button
+                                        type="submit"
+                                        disabled={!textoMensaje.trim() || enviandoMensaje}
+                                        className="h-8 w-8 p-0 rounded-lg bg-[#00a884] hover:bg-[#008f6f] text-white shrink-0 disabled:opacity-40 transition-colors shadow-sm"
+                                        title="Enviar mensaje (Enter)"
+                                    >
+                                        {enviandoMensaje ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                            <Send className="h-3.5 w-3.5" />
+                                        )}
+                                    </Button>
+                                </form>
                             </div>
                         </>
                     ) : (
-                        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+                        <div className="flex-1 flex items-center justify-center text-gray-400 text-xs">
                             {fallo ? fallo : "Seleccioná una conversación"}
                         </div>
                     )}

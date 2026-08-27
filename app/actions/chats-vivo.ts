@@ -5,10 +5,12 @@ import { requireAdmin } from "@/lib/auth-guard"
 import {
     actualizarBotPausadoEnEspejo,
     listarChatsVivo,
+    registrarMensajeSalienteEnEspejo,
     sincronizarEspejoChatwoot,
     type PanelChatsVivo,
 } from "@/lib/chatwoot-chats-vivo"
 import {
+    enviarMensajeManualChatwoot,
     enviarNotaPrivadaChatwoot,
     getMensajesConversacion,
     type MensajeConversacion,
@@ -90,5 +92,53 @@ export async function cambiarEstadoBotChatVivo(
 
     revalidatePath("/admin/chatwoot/chats-vivo")
     return { success: true, botPausado }
+}
+
+/** Envía un mensaje de texto manual al cliente por WhatsApp a través de Chatwoot. */
+export async function enviarMensajeChatVivo(
+    conversationId: number,
+    contenido: string
+): Promise<{ success: boolean; mensaje: MensajeConversacion }> {
+    await requireAdmin()
+    const texto = contenido.trim()
+    if (!texto) throw new Error("El mensaje no puede estar vacío")
+
+    const res = await enviarMensajeManualChatwoot({
+        accountId: ACCOUNT_ID,
+        conversationId,
+        content: texto,
+    })
+
+    await registrarMensajeSalienteEnEspejo(conversationId, texto)
+
+    const mensaje: MensajeConversacion = {
+        id: Number(res?.id || Date.now()),
+        contenido: texto,
+        privado: false,
+        saliente: true,
+        remitente: "Nosotros",
+        creadoEn: new Date().toISOString(),
+    }
+
+    emitirEventoChatwoot({
+        tipo: "message_created",
+        conversationId,
+        botPausado: true,
+        mensaje,
+        conversacion: {
+            id: conversationId,
+            nombre: "",
+            telefono: "",
+            status: "open",
+            ultimoMensaje: texto,
+            ultimoMensajePropio: true,
+            noLeidos: 0,
+            ultimaActividad: new Date().toISOString(),
+            botPausado: true,
+        },
+    })
+
+    revalidatePath("/admin/chatwoot/chats-vivo")
+    return { success: true, mensaje }
 }
 

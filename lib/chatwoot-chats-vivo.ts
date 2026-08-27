@@ -27,6 +27,7 @@ export type ConversacionVivo = {
     horaEtiqueta: string
     ultimaActividad: string // ISO
     noLeidos: number
+    botPausado: boolean
 }
 
 export type PanelChatsVivo = {
@@ -51,10 +52,22 @@ function colorAvatar(id: number) {
 }
 
 function iniciales(nombre: string) {
-    const partes = nombre.trim().split(/\s+/).filter(Boolean)
-    if (partes.length === 0) return "?"
-    if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase()
-    return (partes[0][0] + partes[1][0]).toUpperCase()
+    if (!nombre) return "?"
+    // Extraer solo letras y números para las iniciales principales
+    const limpio = nombre.replace(/[^\p{L}\p{N}\s]/gu, " ").trim()
+    const partes = limpio.split(/\s+/).filter(Boolean)
+    if (partes.length === 0) {
+        // Si no hay letras (ej: nombre compuesto solo de emojis o símbolos), tomar el primer grafema seguro
+        const caracteres = Array.from(nombre.trim())
+        return (caracteres[0] || "?").toUpperCase()
+    }
+    if (partes.length === 1) {
+        const chars = Array.from(partes[0])
+        return chars.slice(0, 2).join("").toUpperCase()
+    }
+    const c1 = Array.from(partes[0])[0] || ""
+    const c2 = Array.from(partes[1])[0] || ""
+    return (c1 + c2).toUpperCase()
 }
 
 const TZ_ARGENTINA = "America/Argentina/Buenos_Aires"
@@ -102,10 +115,15 @@ export async function asegurarTablaEspejo() {
                 ultimo_mensaje      text NOT NULL DEFAULT '',
                 ultimo_mensaje_propio boolean NOT NULL DEFAULT false,
                 no_leidos           integer NOT NULL DEFAULT 0,
+                bot_pausado         boolean NOT NULL DEFAULT false,
                 ultima_actividad    timestamptz NOT NULL DEFAULT now(),
                 creado_en           timestamptz NOT NULL DEFAULT now(),
                 actualizado_en      timestamptz NOT NULL DEFAULT now()
             )
+        `)
+        await prisma.$executeRawUnsafe(`
+            ALTER TABLE chatwoot_conversaciones_espejo
+            ADD COLUMN IF NOT EXISTS bot_pausado boolean NOT NULL DEFAULT false
         `)
         await prisma.$executeRawUnsafe(`
             CREATE INDEX IF NOT EXISTS idx_chatwoot_espejo_actividad
@@ -262,9 +280,10 @@ export async function listarChatsVivo(periodoDias: number): Promise<PanelChatsVi
         ultimo_mensaje: string
         ultimo_mensaje_propio: boolean
         no_leidos: number
+        bot_pausado: boolean
         ultima_actividad: Date
     }[]>`
-        SELECT id, nombre, telefono, status, ultimo_mensaje, ultimo_mensaje_propio, no_leidos, ultima_actividad
+        SELECT id, nombre, telefono, status, ultimo_mensaje, ultimo_mensaje_propio, no_leidos, bot_pausado, ultima_actividad
         FROM chatwoot_conversaciones_espejo
         WHERE ultima_actividad >= ${cutoffDate}
         ORDER BY ultima_actividad DESC
@@ -289,8 +308,19 @@ export async function listarChatsVivo(periodoDias: number): Promise<PanelChatsVi
             horaEtiqueta: etiquetaHora(epochSeg),
             ultimaActividad: f.ultima_actividad.toISOString(),
             noLeidos: f.no_leidos,
+            botPausado: Boolean(f.bot_pausado),
         }
     })
 
     return { conversaciones, periodoDias, actualizadoEn: new Date().toISOString() }
+}
+
+/** Actualiza el estado bot_pausado de una conversación en la tabla espejo. */
+export async function actualizarBotPausadoEnEspejo(conversationId: number, botPausado: boolean) {
+    await asegurarTablaEspejo()
+    await prisma.$executeRaw`
+        UPDATE chatwoot_conversaciones_espejo
+        SET bot_pausado = ${botPausado}, actualizado_en = NOW()
+        WHERE id = ${BigInt(conversationId)}
+    `
 }

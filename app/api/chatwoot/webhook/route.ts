@@ -42,17 +42,36 @@ export async function POST(req: Request) {
 
         // Si vino un mensaje en el webhook, armar el objeto para emitir en vivo al cliente
         let mensajeEmitido: EventoChatwootEnVivo["mensaje"] | undefined
+        let cambioBotPausado: boolean | undefined
+
         if (body.content || body.messages?.[0]) {
             const m = body.messages?.[0] || body
             const saliente = m.message_type === 1 || m.message_type === "outgoing"
             const creado = typeof m.created_at === "number" ? m.created_at * 1000 : Date.parse(m.created_at ?? "")
+            const contenido = (m.content || "").toString()
+            const txt = contenido.trim().toLowerCase()
+
             mensajeEmitido = {
                 id: Number(m.id || Date.now()),
-                contenido: (m.content || "").toString(),
+                contenido,
                 privado: Boolean(m.private),
                 saliente,
                 remitente: m.sender?.name || (saliente ? "Nosotros" : "Cliente"),
                 creadoEn: new Date(Number.isFinite(creado) ? creado : Date.now()).toISOString(),
+            }
+
+            if (txt === "/bot off") {
+                cambioBotPausado = true
+            } else if (txt === "/bot on") {
+                cambioBotPausado = false
+            } else if (saliente && !m.private && m.sender?.type === "user") {
+                // Humano respondiendo en público -> el workflow de n8n pausa el bot
+                cambioBotPausado = true
+            }
+
+            if (conversationId > 0 && cambioBotPausado !== undefined) {
+                const { actualizarBotPausadoEnEspejo } = await import("@/lib/chatwoot-chats-vivo")
+                await actualizarBotPausadoEnEspejo(conversationId, cambioBotPausado).catch(() => {})
             }
         }
 
@@ -60,6 +79,7 @@ export async function POST(req: Request) {
             emitirEventoChatwoot({
                 tipo: (eventoNombre as any) || "conversation_updated",
                 conversationId,
+                botPausado: cambioBotPausado,
                 mensaje: mensajeEmitido,
                 conversacion: conversacion
                     ? {
@@ -71,6 +91,7 @@ export async function POST(req: Request) {
                           ultimoMensajePropio: mensajeEmitido ? mensajeEmitido.saliente : false,
                           noLeidos: Number(conversacion.unread_count || 0),
                           ultimaActividad: new Date().toISOString(),
+                          botPausado: cambioBotPausado,
                       }
                     : undefined,
             })

@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, ExternalLink, Loader2, RefreshCw, Search } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, ExternalLink, Loader2, RefreshCw, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
+    cambiarEstadoBotChatVivo,
     forzarSincronizacionChatsVivo,
     obtenerChatsVivo,
     obtenerHiloChatVivo,
@@ -17,7 +18,7 @@ import type { Categoria, ConversacionVivo } from "@/lib/chatwoot-chats-vivo"
 // para carga instantánea (< 20ms); la categoría de cada una sale de
 // nuestras propias tablas de pendientes (preguntas_tecnicas/negocio/precio/
 // sin_match_pendientes), no de un label de Chatwoot.
-// Solo lectura: el hilo se trae bajo demanda al seleccionar una conversación.
+// Permite pausar/reactivar el bot por conversación (/bot off y /bot on) con un switch.
 
 const CATEGORIA_INFO: Record<Categoria, { texto: string; clase: string }> = {
     tecnica: { texto: "Técnica", clase: "bg-blue-100 text-blue-800 border-blue-200" },
@@ -69,6 +70,8 @@ export function ChatsVivoClient({
     const [hilos, setHilos] = useState<Record<number, MensajeConversacion[]>>({})
     const [cargandoHilo, arrancarCargaHilo] = useTransition()
     const [falloHilo, setFalloHilo] = useState<string | null>(null)
+
+    const [togglingBot, setTogglingBot] = useState<number | null>(null)
 
     const conversaciones = panel?.conversaciones ?? []
 
@@ -123,6 +126,19 @@ export function ChatsVivoClient({
                             return {
                                 ...prev,
                                 [convId]: [...actual, data.mensaje],
+                            }
+                        })
+                    }
+
+                    // Si vino actualización de botPausado, reflejarla en la lista
+                    if (typeof data.botPausado === "boolean") {
+                        setPanel((prev) => {
+                            if (!prev) return prev
+                            return {
+                                ...prev,
+                                conversaciones: prev.conversaciones.map((c) =>
+                                    c.id === convId ? { ...c, botPausado: data.botPausado } : c
+                                ),
                             }
                         })
                     }
@@ -187,6 +203,63 @@ export function ChatsVivoClient({
 
     const hiloActual = seleccionada ? hilos[seleccionada.id] : undefined
 
+    const handleToggleBot = async (conversationId: number, currentBotPausado: boolean) => {
+        const nuevoEncendido = currentBotPausado // si estaba pausado (true), lo prendemos (true); si no, lo apagamos (false)
+        const nuevoPausado = !nuevoEncendido
+
+        // Actualización optimista del estado local en panel.conversaciones
+        setPanel((prev) => {
+            if (!prev) return prev
+            return {
+                ...prev,
+                conversaciones: prev.conversaciones.map((c) =>
+                    c.id === conversationId ? { ...c, botPausado: nuevoPausado } : c
+                ),
+            }
+        })
+
+        // Nota optimista en el hilo de mensajes
+        const notaTexto = nuevoEncendido ? "/bot on" : "/bot off"
+        setHilos((prev) => {
+            const actual = prev[conversationId] || []
+            const notaOptimista: MensajeConversacion = {
+                id: Date.now(),
+                contenido: notaTexto,
+                privado: true,
+                saliente: true,
+                remitente: "Nosotros",
+                creadoEn: new Date().toISOString(),
+            }
+            return {
+                ...prev,
+                [conversationId]: [...actual, notaOptimista],
+            }
+        })
+
+        setTogglingBot(conversationId)
+        try {
+            const res = await cambiarEstadoBotChatVivo(conversationId, nuevoEncendido)
+            if (!res.success) {
+                throw new Error("No se pudo cambiar el estado del bot")
+            }
+        } catch (err) {
+            console.error("Error cambiando estado del bot:", err)
+            // Revertir estado optimista en caso de falla
+            setPanel((prev) => {
+                if (!prev) return prev
+                return {
+                    ...prev,
+                    conversaciones: prev.conversaciones.map((c) =>
+                        c.id === conversationId ? { ...c, botPausado: currentBotPausado } : c
+                    ),
+                }
+            })
+            alert("Error al cambiar estado del bot: " + (err instanceof Error ? err.message : "Error desconocido"))
+        } finally {
+            setTogglingBot(null)
+        }
+    }
+
     return (
         <div className="h-screen w-full overflow-hidden flex flex-col bg-[#f0f2f5]">
             <div className="flex items-center gap-3 px-4 py-2 border-b bg-white shrink-0">
@@ -201,7 +274,7 @@ export function ChatsVivoClient({
                             En vivo
                         </span>
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500" suppressHydrationWarning>
                         {fallo
                             ? fallo
                             : panel
@@ -284,6 +357,7 @@ export function ChatsVivoClient({
                                 >
                                     <div
                                         className={`h-16 w-16 rounded-full ${c.colorAvatar} text-white flex items-center justify-center font-semibold text-lg shrink-0`}
+                                        suppressHydrationWarning
                                     >
                                         {c.iniciales}
                                     </div>
@@ -303,9 +377,22 @@ export function ChatsVivoClient({
                                                 </span>
                                             )}
                                         </div>
-                                        <span className={`inline-block mt-2 text-xs px-2 py-0.5 rounded-full border ${cat.clase}`}>
-                                            {cat.texto}
-                                        </span>
+                                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                                            <span className={`inline-block text-xs px-2 py-0.5 rounded-full border ${cat.clase}`}>
+                                                {cat.texto}
+                                            </span>
+                                            {c.botPausado ? (
+                                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
+                                                    <BotOff className="h-3 w-3" />
+                                                    Bot OFF
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                                                    <Bot className="h-3 w-3 text-emerald-600" />
+                                                    Bot ON
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 </button>
                             )
@@ -317,29 +404,75 @@ export function ChatsVivoClient({
                 <div className="flex-1 flex flex-col min-h-0">
                     {seleccionada ? (
                         <>
-                            <div className="flex items-center justify-between px-4 py-2.5 bg-[#f0f2f5] border-b shrink-0">
-                                <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-between px-4 py-2.5 bg-[#f0f2f5] border-b shrink-0 gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
                                     <div
-                                        className={`h-10 w-10 rounded-full ${seleccionada.colorAvatar} text-white flex items-center justify-center font-semibold text-sm`}
+                                        className={`h-10 w-10 rounded-full ${seleccionada.colorAvatar} text-white flex items-center justify-center font-semibold text-sm shrink-0`}
+                                        suppressHydrationWarning
                                     >
                                         {seleccionada.iniciales}
                                     </div>
-                                    <div>
-                                        <p className="font-medium text-[#111b25] text-sm">{seleccionada.nombre}</p>
-                                        <p className="text-xs text-[#667781]">{seleccionada.telefono}</p>
+                                    <div className="min-w-0">
+                                        <p className="font-medium text-[#111b25] text-sm truncate">{seleccionada.nombre}</p>
+                                        <p className="text-xs text-[#667781] truncate">{seleccionada.telefono}</p>
                                     </div>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
                                         {CATEGORIA_INFO[seleccionada.categoria].texto}
                                     </span>
                                 </div>
-                                <a
-                                    href={`${chatwootUrl}/app/accounts/1/conversations/${seleccionada.id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex items-center gap-1 text-xs text-[#00a884] font-medium hover:underline"
-                                >
-                                    Ver en Chatwoot <ExternalLink className="h-3.5 w-3.5" />
-                                </a>
+
+                                <div className="flex items-center gap-3 shrink-0">
+                                    {/* Switch ON/OFF del Bot para esta conversación */}
+                                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border shadow-sm">
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={!seleccionada.botPausado}
+                                            disabled={togglingBot === seleccionada.id}
+                                            onClick={() => handleToggleBot(seleccionada.id, seleccionada.botPausado)}
+                                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#00a884] focus-visible:ring-offset-2 ${
+                                                !seleccionada.botPausado ? "bg-[#00a884]" : "bg-gray-300"
+                                            } ${togglingBot === seleccionada.id ? "opacity-60 cursor-wait" : ""}`}
+                                            title={
+                                                !seleccionada.botPausado
+                                                    ? "Hacé clic para pausar el Bot (/bot off)"
+                                                    : "Hacé clic para reactivar el Bot (/bot on)"
+                                            }
+                                        >
+                                            <span
+                                                aria-hidden="true"
+                                                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                                    !seleccionada.botPausado ? "translate-x-5" : "translate-x-0"
+                                                }`}
+                                            />
+                                        </button>
+                                        <div className="flex items-center gap-1.5 min-w-[80px]">
+                                            {togglingBot === seleccionada.id ? (
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-500" />
+                                            ) : !seleccionada.botPausado ? (
+                                                <Bot className="h-3.5 w-3.5 text-[#00a884]" />
+                                            ) : (
+                                                <BotOff className="h-3.5 w-3.5 text-gray-500" />
+                                            )}
+                                            <span
+                                                className={`text-xs font-semibold ${
+                                                    !seleccionada.botPausado ? "text-[#00a884]" : "text-gray-500"
+                                                }`}
+                                            >
+                                                {!seleccionada.botPausado ? "Bot ON" : "Bot OFF"}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <a
+                                        href={`${chatwootUrl}/app/accounts/1/conversations/${seleccionada.id}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1 text-xs text-[#00a884] font-medium hover:underline"
+                                    >
+                                        Ver en Chatwoot <ExternalLink className="h-3.5 w-3.5" />
+                                    </a>
+                                </div>
                             </div>
 
                             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-1" style={fondoChat}>
@@ -383,7 +516,7 @@ export function ChatsVivoClient({
 
                             <div className="px-4 py-3 bg-[#f0f2f5] border-t shrink-0">
                                 <p className="text-xs text-[#667781] text-center">
-                                    Solo lectura por ahora — esto es un panel para mirar la cola filtrada, no para responder desde acá.
+                                    Podés activar o pausar el bot para este chat con el switch de arriba, o consultar el hilo en vivo.
                                 </p>
                             </div>
                         </>
@@ -397,3 +530,4 @@ export function ChatsVivoClient({
         </div>
     )
 }
+

@@ -1,9 +1,18 @@
 import { EventEmitter } from "events"
 
 export type EventoChatwootEnVivo = {
-    tipo: "message_created" | "message_updated" | "conversation_created" | "conversation_updated" | "conversation_status_changed" | "conversation_read" | "sync"
+    tipo:
+        | "message_created"
+        | "message_updated"
+        | "conversation_created"
+        | "conversation_updated"
+        | "conversation_status_changed"
+        | "conversation_read"
+        | "bot_pausado_updated"
+        | "sync"
     conversationId: number
     account_id?: number
+    botPausado?: boolean
     mensaje?: {
         id: number
         contenido: string
@@ -21,6 +30,7 @@ export type EventoChatwootEnVivo = {
         ultimoMensajePropio: boolean
         noLeidos: number
         ultimaActividad: string
+        botPausado?: boolean
     }
 }
 

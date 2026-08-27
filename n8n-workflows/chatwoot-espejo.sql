@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS chatwoot_conversaciones_espejo (
     ultimo_mensaje      text NOT NULL DEFAULT '',
     ultimo_mensaje_propio boolean NOT NULL DEFAULT false,
     no_leidos           integer NOT NULL DEFAULT 0,
+    bot_pausado         boolean NOT NULL DEFAULT false,
     ultima_actividad    timestamptz NOT NULL DEFAULT now(),
     creado_en           timestamptz NOT NULL DEFAULT now(),
     actualizado_en      timestamptz NOT NULL DEFAULT now()

@@ -222,12 +222,10 @@ export function ChatsVivoClient({
                     const convId = Number(data.conversationId)
                     if (!convId) return
 
-                    // Si llegó un mensaje nuevo y tenemos esa conversación en memoria,
-                    // lo fusionamos sin duplicar
+                    // 1. Si llegó un mensaje nuevo, agregarlo o actualizar su status en el hilo
                     if (data.mensaje) {
                         setHilos((prev) => {
-                            const actual = prev[convId]
-                            if (!actual) return prev
+                            const actual = prev[convId] || []
                             const actualizados = fusionarMensajeEnHilo(actual, data.mensaje)
                             if (actualizados === actual) return prev
                             return {
@@ -235,26 +233,70 @@ export function ChatsVivoClient({
                                 [convId]: actualizados,
                             }
                         })
+
+                        // Si es la conversación activa, marcar leída
+                        if (convId === seleccionadaId) {
+                            marcarLeido(convId)
+                        }
                     }
 
-                    // Si vino actualización de botPausado, reflejarla en la lista
-                    if (typeof data.botPausado === "boolean") {
-                        setPanel((prev) => {
-                            if (!prev) return prev
-                            return {
-                                ...prev,
-                                conversaciones: prev.conversaciones.map((c) =>
-                                    c.id === convId ? { ...c, botPausado: data.botPausado } : c
-                                ),
+                    // 2. Actualizar lista de conversaciones inmediatamente (mover al tope si hay nuevo mensaje)
+                    setPanel((prev) => {
+                        if (!prev) return prev
+                        const idx = prev.conversaciones.findIndex((c) => c.id === convId)
+                        const texto = data.mensaje?.contenido || data.conversacion?.ultimoMensaje || ""
+                        const esPropio = Boolean(data.mensaje?.saliente)
+                        const esActiva = convId === seleccionadaId
+
+                        let lista: ConversacionVivo[]
+                        if (idx >= 0) {
+                            const item = prev.conversaciones[idx]
+                            const actualizada: ConversacionVivo = {
+                                ...item,
+                                ultimoMensaje: texto || item.ultimoMensaje,
+                                ultimoMensajePropio: esPropio,
+                                ultimaActividad: new Date().toISOString(),
+                                horaEtiqueta: "ahora",
+                                noLeidos: esActiva ? 0 : (esPropio ? item.noLeidos : item.noLeidos + 1),
+                                botPausado: typeof data.botPausado === "boolean" ? data.botPausado : item.botPausado,
                             }
-                        })
-                    }
+                            lista = [actualizada, ...prev.conversaciones.slice(0, idx), ...prev.conversaciones.slice(idx + 1)]
+                        } else if (data.conversacion) {
+                            const nueva: ConversacionVivo = {
+                                id: convId,
+                                nombre: data.conversacion.nombre,
+                                telefono: data.conversacion.telefono,
+                                iniciales: data.conversacion.nombre.slice(0, 2).toUpperCase(),
+                                colorAvatar: "bg-emerald-500",
+                                categoria: "sin_etiqueta",
+                                status: "open",
+                                ultimoMensaje: texto || "(nuevo chat)",
+                                ultimoMensajePropio: esPropio,
+                                horaEtiqueta: "ahora",
+                                ultimaActividad: new Date().toISOString(),
+                                noLeidos: esActiva ? 0 : 1,
+                                botPausado: Boolean(data.botPausado),
+                            }
+                            lista = [nueva, ...prev.conversaciones]
+                        } else {
+                            lista = prev.conversaciones
+                        }
 
-                    // Actualizar la lista de conversaciones desde PostgreSQL (< 20ms)
+                        return {
+                            ...prev,
+                            conversaciones: lista,
+                        }
+                    })
+
+                    // Sincronizar espejo en segundo plano
                     refrescar(periodoDias)
                 } catch {
                     // ignorar parse error
                 }
+            }
+
+            es.onerror = () => {
+                // EventSource intentará reconectar automáticamente
             }
         } catch (e) {
             console.error("Error conectando a stream SSE de chatwoot:", e)
@@ -264,9 +306,9 @@ export function ChatsVivoClient({
             if (es) es.close()
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [periodoDias])
+    }, [periodoDias, seleccionadaId])
 
-    // Sincronización automática silenciosa en segundo plano (cada 12s y al retomar el foco)
+    // Sincronización automática silenciosa en segundo plano (cada 3.5s y al retomar el foco)
     useEffect(() => {
         let cancelado = false
 
@@ -274,17 +316,29 @@ export function ChatsVivoClient({
             if (typeof document !== "undefined" && document.hidden) return
             try {
                 const nuevo = await sincronizarChatsVivoLigero(periodoDias)
-                if (!cancelado) {
+                if (!cancelado && nuevo) {
                     setPanel(nuevo)
                     setFallo(null)
                 }
                 if (seleccionadaId && !cancelado) {
                     const mensajesNuevos = await obtenerHiloChatVivo(seleccionadaId)
                     if (!cancelado && mensajesNuevos) {
-                        setHilos((prev) => ({
-                            ...prev,
-                            [seleccionadaId]: mensajesNuevos,
-                        }))
+                        setHilos((prev) => {
+                            const actual = prev[seleccionadaId]
+                            if (!actual) return { ...prev, [seleccionadaId]: mensajesNuevos }
+                            if (actual.length !== mensajesNuevos.length) {
+                                return { ...prev, [seleccionadaId]: mensajesNuevos }
+                            }
+                            let cambio = false
+                            for (let i = 0; i < actual.length; i++) {
+                                if (actual[i].id !== mensajesNuevos[i].id || actual[i].status !== mensajesNuevos[i].status) {
+                                    cambio = true
+                                    break
+                                }
+                            }
+                            if (!cambio) return prev
+                            return { ...prev, [seleccionadaId]: mensajesNuevos }
+                        })
                     }
                 }
             } catch {
@@ -292,7 +346,7 @@ export function ChatsVivoClient({
             }
         }
 
-        const interval = setInterval(sincronizarSilencioso, 12000)
+        const interval = setInterval(sincronizarSilencioso, 3500)
 
         const onFocus = () => {
             if (typeof document !== "undefined" && !document.hidden) {

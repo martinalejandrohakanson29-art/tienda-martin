@@ -151,10 +151,10 @@ export async function guardarConversacionesEnEspejo(items: any[]) {
 
     for (const c of items) {
         try {
-            const sender = c?.meta?.sender
+            const sender = c?.meta?.sender || c?.sender
             const nombre = (sender?.name || sender?.phone_number || `Conversación ${c.id}`).toString().slice(0, 200)
             const telefono = (sender?.phone_number || "").toString().slice(0, 50)
-            const ultimo = c?.last_non_activity_message || c?.messages?.[c.messages?.length - 1]
+            const ultimo = c?.last_non_activity_message || c?.messages?.[c.messages?.length - 1] || (c?.content !== undefined ? c : undefined)
             let ultimoMensaje = ((ultimo?.content || "").toString().trim()).slice(0, 1000)
             if (!ultimoMensaje) {
                 const att = ultimo?.attachments?.[0]

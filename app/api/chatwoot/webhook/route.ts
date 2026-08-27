@@ -23,14 +23,26 @@ export async function POST(req: Request) {
         let conversacion = body.conversation || (body.id && body.meta ? body : null)
         const conversationId = Number(conversacion?.id || body.conversation?.id || body.conversation_id || 0)
 
-        // Si el evento es message_created / message_updated, la conversación suele venir en body.conversation
-        if (!conversacion && body.conversation_id) {
+        // Si el evento es message_created / message_updated, asegurar que conversacion tenga el último mensaje
+        const m = body.messages?.[0] || body
+        if (conversacion && (body.content !== undefined || body.attachments || body.messages?.[0])) {
+            conversacion = {
+                ...conversacion,
+                meta: conversacion.meta || { sender: body.sender || m.sender },
+                last_non_activity_message: {
+                    content: m.content,
+                    message_type: m.message_type,
+                    attachments: m.attachments || body.attachments,
+                },
+                last_activity_at: Math.floor(Date.now() / 1000),
+            }
+        } else if (!conversacion && body.conversation_id) {
             conversacion = {
                 id: body.conversation_id,
                 inbox_id: body.inbox_id,
                 status: body.status || "open",
                 meta: body.meta || { sender: body.sender },
-                unread_count: body.unread_count || 0,
+                unread_count: body.unread_count || 1,
                 last_non_activity_message: body.content ? { content: body.content, message_type: body.message_type } : undefined,
                 last_activity_at: Math.floor(Date.now() / 1000),
             }

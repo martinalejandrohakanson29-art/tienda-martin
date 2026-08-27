@@ -70,6 +70,38 @@ export async function POST(request: Request) {
 
         const chatwoot = await enviarMensajeChatwoot({ accountId, conversationId, content: contenido })
 
+        // Actualizar espejo en PostgreSQL y emitir evento SSE para actualización instantánea
+        try {
+            const { registrarMensajeSalienteEnEspejo } = await import("@/lib/chatwoot-chats-vivo")
+            await registrarMensajeSalienteEnEspejo(conversationId, contenido).catch(() => {})
+
+            const { emitirEventoChatwoot } = await import("@/lib/chatwoot-events")
+            emitirEventoChatwoot({
+                tipo: "message_created",
+                conversationId,
+                mensaje: {
+                    id: Number(chatwoot?.id || Date.now()),
+                    contenido,
+                    privado: false,
+                    saliente: true,
+                    remitente: "Bot",
+                    creadoEn: new Date().toISOString(),
+                    status: "sent",
+                    adjuntos: fotoUrl
+                        ? [
+                              {
+                                  id: "foto-kit",
+                                  tipo: "image",
+                                  url: fotoUrl,
+                              },
+                          ]
+                        : undefined,
+                },
+            })
+        } catch (err) {
+            console.error("Error emitiendo evento de mensaje saliente en /api/chatwoot/enviar:", err)
+        }
+
         let fotoError: string | null = null
         if (fotoUrl) {
             try {

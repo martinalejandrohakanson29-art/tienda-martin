@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, ExternalLink, Loader2, RefreshCw, Search, Send } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, ExternalLink, Loader2, RefreshCw, Search, Send, Smile } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
@@ -35,6 +35,10 @@ const PERIODOS = [
     { valor: 1, texto: "24hs" },
     { valor: 3, texto: "3 días" },
     { valor: 7, texto: "7 días" },
+]
+
+const EMOJIS_FRECUENTES = [
+    "👍", "👋", "😊", "🙏", "🏍️", "🛵", "🛠️", "📦", "📍", "💰", "✅", "🚀", "📲", "⏳", "⭐", "🙌"
 ]
 
 const fondoChat: React.CSSProperties = {
@@ -109,7 +113,44 @@ export function ChatsVivoClient({
 
     const [textoMensaje, setTextoMensaje] = useState("")
     const [enviandoMensaje, setEnviandoMensaje] = useState(false)
+    const [mostrarEmojis, setMostrarEmojis] = useState(false)
     const mensajesEndRef = useRef<HTMLDivElement>(null)
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const emojiPickerRef = useRef<HTMLDivElement>(null)
+
+    // Cerrar el selector de emojis al hacer clic afuera
+    useEffect(() => {
+        const handleClickAfuera = (e: MouseEvent) => {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+                setMostrarEmojis(false)
+            }
+        }
+        if (mostrarEmojis) {
+            document.addEventListener("mousedown", handleClickAfuera)
+        }
+        return () => {
+            document.removeEventListener("mousedown", handleClickAfuera)
+        }
+    }, [mostrarEmojis])
+
+    const insertarEmoji = (emoji: string) => {
+        if (!textareaRef.current) {
+            setTextoMensaje((prev) => prev + emoji)
+            return
+        }
+        const textarea = textareaRef.current
+        const inicio = textarea.selectionStart ?? textoMensaje.length
+        const fin = textarea.selectionEnd ?? textoMensaje.length
+        const nuevoTexto = textoMensaje.slice(0, inicio) + emoji + textoMensaje.slice(fin)
+        setTextoMensaje(nuevoTexto)
+
+        // Reposicionar el cursor inmediatamente después del emoji
+        setTimeout(() => {
+            textarea.focus()
+            const nuevaPos = inicio + emoji.length
+            textarea.setSelectionRange(nuevaPos, nuevaPos)
+        }, 0)
+    }
 
     const conversaciones = panel?.conversaciones ?? []
 
@@ -149,6 +190,12 @@ export function ChatsVivoClient({
 
     useEffect(() => {
         scrollToBottom("auto")
+        if (seleccionadaId) {
+            const timer = setTimeout(() => {
+                textareaRef.current?.focus()
+            }, 60)
+            return () => clearTimeout(timer)
+        }
     }, [seleccionadaId])
 
     // Escuchar eventos en tiempo real vía Server-Sent Events (SSE)
@@ -682,31 +729,72 @@ export function ChatsVivoClient({
                                 <div ref={mensajesEndRef} />
                             </div>
 
-                            {/* Barra para escribir y responder manualmente */}
-                            <div className="px-3.5 py-2 bg-[#f0f2f5] border-t shrink-0">
+                            {/* Barra para escribir y responder manualmente (4 renglones) */}
+                            <div className="px-3.5 py-2.5 bg-[#f0f2f5] border-t shrink-0 relative">
+                                {/* Popover de Emojis frecuentes */}
+                                {mostrarEmojis && (
+                                    <div
+                                        ref={emojiPickerRef}
+                                        className="absolute bottom-full right-4 mb-2 bg-white rounded-2xl shadow-xl border border-gray-200 p-2.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150"
+                                        style={{ width: "284px" }}
+                                    >
+                                        <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b px-1">
+                                            <span className="text-[11px] font-semibold text-gray-700">Emojis frecuentes</span>
+                                            <span className="text-[10px] text-gray-400">Clic para insertar</span>
+                                        </div>
+                                        <div className="grid grid-cols-8 gap-1">
+                                            {EMOJIS_FRECUENTES.map((emoji) => (
+                                                <button
+                                                    key={emoji}
+                                                    type="button"
+                                                    onClick={() => insertarEmoji(emoji)}
+                                                    className="h-8 w-8 flex items-center justify-center text-lg rounded-lg hover:bg-gray-100 active:scale-95 transition-all select-none"
+                                                    title={emoji}
+                                                >
+                                                    {emoji}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 <form onSubmit={handleEnviarMensaje} className="flex items-end gap-2">
-                                    <div className="flex-1 bg-white rounded-lg px-3 py-1.5 border border-gray-200 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884] shadow-sm transition-all">
+                                    <div className="flex-1 bg-white rounded-xl px-3.5 py-2 border border-gray-200 focus-within:border-[#00a884] focus-within:ring-1 focus-within:ring-[#00a884] shadow-sm transition-all">
                                         <textarea
+                                            ref={textareaRef}
                                             value={textoMensaje}
                                             onChange={(e) => setTextoMensaje(e.target.value)}
                                             onKeyDown={handleKeyDown}
-                                            placeholder="Escribe un mensaje para responder al cliente... (Enter para enviar)"
-                                            rows={1}
-                                            className="w-full resize-none bg-transparent outline-none text-xs md:text-sm text-[#111b25] placeholder:text-[#8696a0] max-h-32 min-h-[22px] block leading-relaxed"
+                                            placeholder="Escribe un mensaje para responder al cliente... (Enter para enviar, Shift+Enter para nueva línea)"
+                                            rows={4}
+                                            className="w-full resize-none bg-transparent outline-none text-xs md:text-sm text-[#111b25] placeholder:text-[#8696a0] min-h-[76px] max-h-44 block leading-relaxed"
                                         />
                                     </div>
-                                    <Button
-                                        type="submit"
-                                        disabled={!textoMensaje.trim() || enviandoMensaje}
-                                        className="h-8 w-8 p-0 rounded-lg bg-[#00a884] hover:bg-[#008f6f] text-white shrink-0 disabled:opacity-40 transition-colors shadow-sm"
-                                        title="Enviar mensaje (Enter)"
-                                    >
-                                        {enviandoMensaje ? (
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                        ) : (
-                                            <Send className="h-3.5 w-3.5" />
-                                        )}
-                                    </Button>
+                                    <div className="flex flex-col gap-1.5 shrink-0 mb-0.5">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setMostrarEmojis((v) => !v)}
+                                            className={`h-9 w-9 p-0 rounded-xl border-gray-200 transition-colors shadow-sm ${
+                                                mostrarEmojis ? "bg-amber-50 border-amber-300 text-amber-600" : "bg-white text-gray-500 hover:text-amber-600 hover:bg-amber-50"
+                                            }`}
+                                            title="Emojis frecuentes"
+                                        >
+                                            <Smile className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            disabled={!textoMensaje.trim() || enviandoMensaje}
+                                            className="h-9 w-9 p-0 rounded-xl bg-[#00a884] hover:bg-[#008f6f] text-white disabled:opacity-40 transition-colors shadow-sm"
+                                            title="Enviar mensaje (Enter)"
+                                        >
+                                            {enviandoMensaje ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Send className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
                                 </form>
                             </div>
                         </>

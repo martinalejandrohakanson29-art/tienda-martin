@@ -339,13 +339,32 @@ export function ChatsVivoClient({
                         }
                     }
 
-                    // 2. Actualizar lista de conversaciones inmediatamente (mover al tope si hay nuevo mensaje)
+                    // 2. Actualizar lista de conversaciones. Solo un mensaje NUEVO
+                    // (message_created) reordena y sube la conversación al tope.
+                    // Eventos como conversation_read / bot_pausado_updated /
+                    // message_updated (recibos de lectura) actualizan campos en el
+                    // lugar, sin mover la fila ni tocar la hora de actividad.
+                    const esMensajeNuevo = data.tipo === "message_created" && Boolean(data.mensaje)
                     setPanel((prev) => {
                         if (!prev) return prev
                         const idx = prev.conversaciones.findIndex((c) => c.id === convId)
                         const texto = data.mensaje?.contenido || data.conversacion?.ultimoMensaje || ""
                         const esPropio = Boolean(data.mensaje?.saliente)
                         const esActiva = convId === seleccionadaId
+
+                        // Evento sin mensaje nuevo: actualización puntual en el lugar
+                        if (!esMensajeNuevo) {
+                            if (idx < 0) return prev
+                            const item = prev.conversaciones[idx]
+                            const noLeidos =
+                                data.tipo === "conversation_read" || esActiva ? 0 : item.noLeidos
+                            const botPausado =
+                                typeof data.botPausado === "boolean" ? data.botPausado : item.botPausado
+                            if (noLeidos === item.noLeidos && botPausado === item.botPausado) return prev
+                            const copia = [...prev.conversaciones]
+                            copia[idx] = { ...item, noLeidos, botPausado }
+                            return { ...prev, conversaciones: copia }
+                        }
 
                         let lista: ConversacionVivo[]
                         if (idx >= 0) {

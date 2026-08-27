@@ -40,7 +40,9 @@ export async function sincronizarChatsVivoLigero(periodoDias: number): Promise<P
 /** Fuerza una sincronización rápida desde Chatwoot y retorna el listado actualizado. */
 export async function forzarSincronizacionChatsVivo(periodoDias: number): Promise<PanelChatsVivo> {
     await requireAdmin()
-    await sincronizarEspejoChatwoot(2)
+    // Botón manual: barre varias páginas de Chatwoot para reconciliar no leídos /
+    // últimos mensajes de conversaciones que quedaron fuera del sync ligero (pág. 1).
+    await sincronizarEspejoChatwoot(5)
     return listarChatsVivo(periodoDias)
 }
 

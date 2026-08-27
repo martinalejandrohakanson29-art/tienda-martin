@@ -403,6 +403,7 @@ export async function estadoConversacionDesde(
     try {
         const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
             headers: { api_access_token: token },
+            cache: "no-store",
         })
         if (!res.ok) return { humanoRespondio: false, botRespondio: false }
 
@@ -464,8 +465,11 @@ export async function getMensajesConversacion(
     const { api, token } = chatwootConfig()
     if (!token) throw new Error("Falta CHATWOOT_API_TOKEN en el entorno de la app")
 
+    // no-store: sin esto Next 14 sirve el hilo desde el Data Cache y el panel en
+    // vivo nunca ve los mensajes nuevos al hacer polling.
     const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
         headers: { api_access_token: token },
+        cache: "no-store",
     })
     if (!res.ok) {
         const detalle = await res.text().catch(() => "")
@@ -599,6 +603,7 @@ export async function telefonoDeConversacion(
     try {
         const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}`, {
             headers: { api_access_token: token },
+            cache: "no-store",
         })
         if (!res.ok) return null
         const data = await res.json()

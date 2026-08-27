@@ -90,7 +90,12 @@ async function chatwootFetch(path: string) {
     const { api, token } = chatwootConfig()
     if (!token) throw new Error("Falta CHATWOOT_API_TOKEN en el entorno de la app")
 
-    const res = await fetch(`${api}${path}`, { headers: { api_access_token: token } })
+    // no-store obligatorio: en Next 14 los GET sin opciones se cachean en el Data
+    // Cache y el panel en vivo terminaría leyendo una lista de conversaciones vieja.
+    const res = await fetch(`${api}${path}`, {
+        headers: { api_access_token: token },
+        cache: "no-store",
+    })
     if (!res.ok) {
         const detalle = await res.text().catch(() => "")
         throw new Error(`Chatwoot respondió ${res.status} en ${path}: ${detalle.slice(0, 200)}`)

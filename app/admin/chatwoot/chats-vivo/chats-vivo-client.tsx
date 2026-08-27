@@ -144,9 +144,18 @@ function fusionarHilosMensajes(
 }
 
 /**
- * Fusiona listas de conversaciones preservando la actividad en tiempo real
- * más reciente para que ninguna conversación baje o desaparezca por lecturas
- * asíncronas de la base de datos.
+ * Fusiona listas de conversaciones. El servidor (tabla espejo en PostgreSQL, que
+ * el webhook de Chatwoot + la sincronización cada 3.5s mantienen al día) es la
+ * fuente de verdad: toda conversación que el servidor devuelve gana tal cual.
+ *
+ * Lo único que se conserva del estado local es una conversación que el servidor
+ * todavía NO conoce (chat nuevo que acaba de entrar por SSE y el espejo aún no
+ * sincronizó). Antes se preservaban los campos volátiles locales
+ * (no leídos, último mensaje, bot) cuando el timestamp local era más nuevo, pero
+ * SSE y los envíos optimistas sellan `ultimaActividad` con el reloj del cliente
+ * (más fino que el `last_activity_at` de Chatwoot, en segundos), así que una vez
+ * tocada, la fila quedaba congelada con datos viejos y ni el botón Sincronizar
+ * la podía corregir.
  */
 function fusionarListaConversaciones(
     actuales: ConversacionVivo[] = [],
@@ -162,23 +171,8 @@ function fusionarListaConversaciones(
     }
 
     for (const act of actuales) {
-        const delServidor = mapa.get(act.id)
-        if (!delServidor) {
+        if (!mapa.has(act.id)) {
             mapa.set(act.id, act)
-        } else {
-            const epochAct = new Date(act.ultimaActividad).getTime() || 0
-            const epochSrv = new Date(delServidor.ultimaActividad).getTime() || 0
-            if (epochAct >= epochSrv) {
-                mapa.set(act.id, {
-                    ...delServidor,
-                    ultimoMensaje: act.ultimoMensaje,
-                    ultimoMensajePropio: act.ultimoMensajePropio,
-                    ultimaActividad: act.ultimaActividad,
-                    horaEtiqueta: act.horaEtiqueta,
-                    noLeidos: act.noLeidos,
-                    botPausado: act.botPausado,
-                })
-            }
         }
     }
 

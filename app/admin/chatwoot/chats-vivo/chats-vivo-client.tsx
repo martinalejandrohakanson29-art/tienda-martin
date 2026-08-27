@@ -49,6 +49,37 @@ const horaMensaje = (iso: string) =>
         minute: "2-digit",
     })
 
+/**
+ * Agrega un mensaje recibido evitando duplicaciones con mensajes existentes o mensajes optimistas recientes.
+ */
+function fusionarMensajeEnHilo(
+    mensajes: MensajeConversacion[],
+    nuevo: MensajeConversacion
+): MensajeConversacion[] {
+    // 1. Si ya existe un mensaje con el mismo id exacto, ignorar
+    if (mensajes.some((m) => m.id === nuevo.id)) {
+        return mensajes
+    }
+
+    // 2. Si coincide en contenido, privacidad y dirección con un mensaje reciente (< 30s),
+    // es la confirmación oficial del mensaje optimista: reemplazamos el optimista por el definitivo.
+    const nuevoEpoch = new Date(nuevo.creadoEn).getTime() || Date.now()
+    const idxOptimista = mensajes.findIndex((m) => {
+        if (m.privado !== nuevo.privado || m.saliente !== nuevo.saliente) return false
+        if (m.contenido.trim().toLowerCase() !== nuevo.contenido.trim().toLowerCase()) return false
+        const mEpoch = new Date(m.creadoEn).getTime() || Date.now()
+        return Math.abs(nuevoEpoch - mEpoch) < 30000
+    })
+
+    if (idxOptimista >= 0) {
+        const copia = [...mensajes]
+        copia[idxOptimista] = nuevo
+        return copia
+    }
+
+    return [...mensajes, nuevo]
+}
+
 export function ChatsVivoClient({
     inicial,
     error,
@@ -132,15 +163,17 @@ export function ChatsVivoClient({
                     const convId = Number(data.conversationId)
                     if (!convId) return
 
-                    // Si llegó un mensaje nuevo y tenemos esa conversación en pantalla,
-                    // agregamos el globito al hilo de inmediato
+                    // Si llegó un mensaje nuevo y tenemos esa conversación en memoria,
+                    // lo fusionamos sin duplicar
                     if (data.mensaje) {
                         setHilos((prev) => {
-                            const actual = prev[convId] || []
-                            if (actual.some((m) => m.id === data.mensaje.id)) return prev
+                            const actual = prev[convId]
+                            if (!actual) return prev
+                            const actualizados = fusionarMensajeEnHilo(actual, data.mensaje)
+                            if (actualizados === actual) return prev
                             return {
                                 ...prev,
-                                [convId]: [...actual, data.mensaje],
+                                [convId]: actualizados,
                             }
                         })
                     }
@@ -332,6 +365,15 @@ export function ChatsVivoClient({
             const res = await enviarMensajeChatVivo(convId, contenido)
             if (!res.success) {
                 throw new Error("No se pudo enviar el mensaje")
+            }
+            if (res.mensaje) {
+                setHilos((prev) => {
+                    const actual = prev[convId] || []
+                    return {
+                        ...prev,
+                        [convId]: fusionarMensajeEnHilo(actual, res.mensaje),
+                    }
+                })
             }
         } catch (err) {
             console.error("Error enviando mensaje:", err)

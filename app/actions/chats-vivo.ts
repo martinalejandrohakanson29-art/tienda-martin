@@ -76,20 +76,6 @@ export async function cambiarEstadoBotChatVivo(
     const botPausado = !encendido
     await actualizarBotPausadoEnEspejo(conversationId, botPausado)
 
-    emitirEventoChatwoot({
-        tipo: "bot_pausado_updated",
-        conversationId,
-        botPausado,
-        mensaje: {
-            id: Date.now(),
-            contenido: content,
-            privado: true,
-            saliente: true,
-            remitente: "Nosotros",
-            creadoEn: new Date().toISOString(),
-        },
-    })
-
     revalidatePath("/admin/chatwoot/chats-vivo")
     return { success: true, botPausado }
 }
@@ -119,24 +105,6 @@ export async function enviarMensajeChatVivo(
         remitente: "Nosotros",
         creadoEn: new Date().toISOString(),
     }
-
-    emitirEventoChatwoot({
-        tipo: "message_created",
-        conversationId,
-        botPausado: true,
-        mensaje,
-        conversacion: {
-            id: conversationId,
-            nombre: "",
-            telefono: "",
-            status: "open",
-            ultimoMensaje: texto,
-            ultimoMensajePropio: true,
-            noLeidos: 0,
-            ultimaActividad: new Date().toISOString(),
-            botPausado: true,
-        },
-    })
 
     revalidatePath("/admin/chatwoot/chats-vivo")
     return { success: true, mensaje }

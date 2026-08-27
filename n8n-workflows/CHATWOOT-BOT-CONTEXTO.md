@@ -1870,3 +1870,11 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   "posible venta" quedó puesta (confirmado contra la API real de Chatwoot), y un tercer mensaje
   ("hola siguen ahi?") confirmó que el bot quedó en silencio (mismo camino de `¿Bot Pausado?` que ya
   usa `/bot off`). Pin y etiqueta de prueba limpiados al terminar.
+
+- **Aclaraciones de motor en ráfaga se trataban como consultas de repuesto suelto (2026-08-27).** Caso real:
+  conv 2829 (+5492645600215), cliente mandó "Tengo una okinoy 150" + "Varillera". `Extraer Pregunta Compatibilidad`
+  separó "Varillera" a `resto_mensaje` en vez de incluirlo en `modelo_moto`, y `Responder Articulo Suelto (Catálogo General)`
+  matcheó "Varillera" contra "Leva Varillera 7.8" ignorando los alias de la pieza y mandando precio de leva suelta.
+  Fix: se ajustó el prompt de `Extraer Pregunta Compatibilidad` para que especificaciones/adjetivos de motor (varillero/cadenero/etc.)
+  formen parte de `modelo_moto` y no de `resto_mensaje`, y se reforzó en `Responder Articulo Suelto` (Catálogo General, Grupo, y Detalle)
+  la prohibición explícita de matchear repuestos sueltos a partir de adjetivos o tipos de motor sin pedido explícito de la pieza.

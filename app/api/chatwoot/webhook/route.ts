@@ -51,12 +51,16 @@ export async function POST(req: Request) {
             const contenido = (m.content || "").toString()
             const txt = contenido.trim().toLowerCase()
 
+            const senderId = Number(m.sender?.id || m.sender_id || 0)
+            const senderName = (m.sender?.name || "").toString().trim().toLowerCase()
+            const esBot = senderId === 2 || senderName === "bot"
+
             mensajeEmitido = {
                 id: Number(m.id || Date.now()),
                 contenido,
                 privado: Boolean(m.private),
                 saliente,
-                remitente: m.sender?.name || (saliente ? "Nosotros" : "Cliente"),
+                remitente: m.sender?.name || (saliente ? (esBot ? "Bot" : "Nosotros") : "Cliente"),
                 creadoEn: new Date(Number.isFinite(creado) ? creado : Date.now()).toISOString(),
             }
 
@@ -64,8 +68,8 @@ export async function POST(req: Request) {
                 cambioBotPausado = true
             } else if (txt === "/bot on") {
                 cambioBotPausado = false
-            } else if (saliente && !m.private && m.sender?.type === "user") {
-                // Humano respondiendo en público -> el workflow de n8n pausa el bot
+            } else if (saliente && !m.private && m.sender?.type === "user" && !esBot) {
+                // Humano (agente real, no el bot) respondiendo en público -> el workflow de n8n pausa el bot
                 cambioBotPausado = true
             }
 

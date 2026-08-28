@@ -62,8 +62,17 @@ export async function POST(req: Request) {
           ? parseFloat(camp.frequency) 
           : (reach > 0 && impressions > 0 ? impressions / reach : null);
 
+        const cpmVal = camp.cpm !== null && camp.cpm !== undefined
+          ? parseFloat(camp.cpm)
+          : (impressions > 0 ? (spend / impressions) * 1000 : null);
+
         const status = camp.status || camp.effective_status || 'ACTIVE';
         const adSets = camp.adSets && Array.isArray(camp.adSets) ? camp.adSets : null;
+
+        const dateStart = camp.date_start || camp.dateStart ? new Date(camp.date_start || camp.dateStart) : undefined;
+        const dateStop = camp.date_stop || camp.dateStop ? new Date(camp.date_stop || camp.dateStop) : undefined;
+        const createdTime = camp.created_time || camp.createdTime ? new Date(camp.created_time || camp.createdTime) : undefined;
+        const startTime = camp.start_time || camp.startTime ? new Date(camp.start_time || camp.startTime) : undefined;
 
         // Guardamos o actualizamos en la DB
         await prisma.marketingCampaign.upsert({
@@ -75,13 +84,18 @@ export async function POST(req: Request) {
             impressions: impressions,
             clicks: clicks,
             cpc: cpcVal !== null && !isNaN(cpcVal) ? Number(cpcVal.toFixed(2)) : null,
+            cpm: cpmVal !== null && !isNaN(cpmVal) ? Number(cpmVal.toFixed(2)) : null,
             ctr: ctrVal !== null && !isNaN(ctrVal) ? Number(ctrVal.toFixed(2)) : null,
             frequency: frequencyVal !== null && !isNaN(frequencyVal) ? Number(frequencyVal.toFixed(2)) : null,
             messages: messages,
             carts: carts,
             rawActions: actions.length > 0 ? actions : null,
             adSets: adSets || undefined,
-            status: status
+            status: status,
+            createdTime: createdTime || undefined,
+            startTime: startTime || undefined,
+            dateStart: dateStart || undefined,
+            dateStop: dateStop || undefined
           },
           create: {
             id: idCampania.toString(),
@@ -91,13 +105,18 @@ export async function POST(req: Request) {
             impressions: impressions,
             clicks: clicks,
             cpc: cpcVal !== null && !isNaN(cpcVal) ? Number(cpcVal.toFixed(2)) : null,
+            cpm: cpmVal !== null && !isNaN(cpmVal) ? Number(cpmVal.toFixed(2)) : null,
             ctr: ctrVal !== null && !isNaN(ctrVal) ? Number(ctrVal.toFixed(2)) : null,
             frequency: frequencyVal !== null && !isNaN(frequencyVal) ? Number(frequencyVal.toFixed(2)) : null,
             messages: messages,
             carts: carts,
             rawActions: actions.length > 0 ? actions : null,
             adSets: adSets || undefined,
-            status: status
+            status: status,
+            createdTime: createdTime || undefined,
+            startTime: startTime || undefined,
+            dateStart: dateStart || undefined,
+            dateStop: dateStop || undefined
           }
         });
       }

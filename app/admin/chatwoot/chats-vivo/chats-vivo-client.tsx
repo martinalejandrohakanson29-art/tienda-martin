@@ -2,18 +2,23 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, Camera, ExternalLink, FileText, Film, Loader2, Lock, Mic, RefreshCw, Search, Send, Smile } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, Camera, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, RefreshCw, Search, Send, Smile, Zap, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
     enviarMensajeChatVivo,
     enviarNotaInternaChatVivo,
+    forzarEnvioKitChatVivo,
     forzarSincronizacionChatsVivo,
+    listarKitsEnvioRapido,
+    listarNotasRapidas,
     marcarConversacionComoLeida,
     obtenerChatsVivo,
     obtenerHiloChatVivo,
     sincronizarChatsVivoLigero,
+    type KitEnvioRapido,
     type MensajeConversacion,
+    type NotaRapida,
     type PanelChatsVivo,
 } from "@/app/actions/chats-vivo"
 import type { Categoria, ConversacionVivo } from "@/lib/chatwoot-chats-vivo"
@@ -182,6 +187,221 @@ function fusionarListaConversaciones(
     )
 }
 
+type ItemRapido = {
+    id: number
+    titulo: string
+    subtitulo?: string
+    tooltip?: string
+    badges?: React.ReactNode
+    meta?: React.ReactNode
+}
+
+/**
+ * Selector desplegable con buscador y filas reordenables por drag&drop
+ * (el orden se guarda en localStorage por `lsKey`). Lo usan tanto el botón
+ * "Enviar info de kit" como "Notas rápidas".
+ */
+function SelectorRapido({
+    etiqueta,
+    Icono,
+    items,
+    cargando,
+    lsKey,
+    ayuda,
+    placeholder,
+    vacioTexto,
+    abierto,
+    onToggle,
+    onCerrar,
+    onElegir,
+    enviandoId,
+}: {
+    etiqueta: string
+    Icono: LucideIcon
+    items: ItemRapido[]
+    cargando: boolean
+    lsKey: string
+    ayuda: React.ReactNode
+    placeholder: string
+    vacioTexto: string
+    abierto: boolean
+    onToggle: () => void
+    onCerrar: () => void
+    onElegir: (id: number) => void
+    enviandoId: number | null
+}) {
+    const [busqueda, setBusqueda] = useState("")
+    const [orden, setOrden] = useState<number[]>([])
+    const [dragOver, setDragOver] = useState<number | null>(null)
+    const dragFrom = useRef<number | null>(null)
+    const panelRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        try {
+            const guardado = localStorage.getItem(lsKey)
+            if (guardado) {
+                const ids = JSON.parse(guardado)
+                if (Array.isArray(ids) && ids.every((n) => typeof n === "number")) setOrden(ids)
+            }
+        } catch {
+            // sin orden guardado
+        }
+    }, [lsKey])
+
+    useEffect(() => {
+        if (!abierto) return
+        const handler = (e: MouseEvent) => {
+            if (panelRef.current && !panelRef.current.contains(e.target as Node)) onCerrar()
+        }
+        document.addEventListener("mousedown", handler)
+        return () => document.removeEventListener("mousedown", handler)
+    }, [abierto, onCerrar])
+
+    const ordenados = useMemo(() => {
+        if (orden.length === 0) return items
+        const pos = new Map(orden.map((id, i) => [id, i]))
+        return [...items].sort((a, b) => {
+            const pa = pos.has(a.id) ? (pos.get(a.id) as number) : Number.MAX_SAFE_INTEGER
+            const pb = pos.has(b.id) ? (pos.get(b.id) as number) : Number.MAX_SAFE_INTEGER
+            return pa - pb
+        })
+    }, [items, orden])
+
+    const filtrados = useMemo(() => {
+        const q = busqueda.trim().toLowerCase()
+        if (!q) return ordenados
+        return ordenados.filter(
+            (i) => i.titulo.toLowerCase().includes(q) || (i.subtitulo || "").toLowerCase().includes(q)
+        )
+    }, [ordenados, busqueda])
+
+    const mover = (from: number, to: number) => {
+        if (from === to || from < 0 || to < 0) return
+        const ids = ordenados.map((i) => i.id)
+        if (from >= ids.length || to >= ids.length) return
+        const [m] = ids.splice(from, 1)
+        ids.splice(to, 0, m)
+        setOrden(ids)
+        try {
+            localStorage.setItem(lsKey, JSON.stringify(ids))
+        } catch {
+            // sin persistencia
+        }
+    }
+
+    return (
+        <div ref={panelRef} className="relative">
+            <button
+                type="button"
+                onClick={onToggle}
+                className={`flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors ${
+                    abierto
+                        ? "bg-violet-50 border-violet-300 text-violet-700"
+                        : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
+                }`}
+            >
+                <Icono className="h-3 w-3" />
+                {etiqueta}
+            </button>
+
+            {abierto && (
+                <div className="absolute top-full left-0 mt-1 w-[460px] max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="p-2 border-b bg-gray-50">
+                        <div className="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1 border">
+                            <Search className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            <input
+                                autoFocus
+                                value={busqueda}
+                                onChange={(e) => setBusqueda(e.target.value)}
+                                placeholder={placeholder}
+                                className="bg-transparent outline-none text-xs w-full text-[#111b25] placeholder:text-[#8696a0]"
+                            />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1 px-0.5 leading-snug">{ayuda}</p>
+                    </div>
+                    <div className="max-h-[320px] overflow-y-auto py-1 pb-2">
+                        {cargando ? (
+                            <p className="text-xs text-gray-400 text-center py-4">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin inline mr-1" />
+                                Cargando…
+                            </p>
+                        ) : filtrados.length === 0 ? (
+                            <p className="text-xs text-gray-400 text-center py-4">
+                                {items.length === 0 ? vacioTexto : "Nada coincide"}
+                            </p>
+                        ) : (
+                            filtrados.map((item, idx) => {
+                                const arrastrable = !busqueda.trim() && enviandoId === null
+                                return (
+                                    <div
+                                        key={item.id}
+                                        draggable={arrastrable}
+                                        onDragStart={() => {
+                                            dragFrom.current = idx
+                                        }}
+                                        onDragOver={(e) => {
+                                            if (!arrastrable) return
+                                            e.preventDefault()
+                                            if (dragOver !== idx) setDragOver(idx)
+                                        }}
+                                        onDrop={(e) => {
+                                            e.preventDefault()
+                                            if (dragFrom.current !== null) mover(dragFrom.current, idx)
+                                            dragFrom.current = null
+                                            setDragOver(null)
+                                        }}
+                                        onDragEnd={() => {
+                                            dragFrom.current = null
+                                            setDragOver(null)
+                                        }}
+                                        className={`flex items-center select-none border-l-2 transition-colors ${
+                                            dragOver === idx ? "border-l-violet-500 bg-violet-50" : "border-l-transparent"
+                                        }`}
+                                    >
+                                        {arrastrable && (
+                                            <span
+                                                className="pl-1.5 pr-0.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing shrink-0"
+                                                title="Arrastrar para reordenar"
+                                            >
+                                                <GripVertical className="h-3.5 w-3.5" />
+                                            </span>
+                                        )}
+                                        <button
+                                            type="button"
+                                            disabled={enviandoId !== null}
+                                            onClick={() => onElegir(item.id)}
+                                            title={item.tooltip || item.titulo}
+                                            className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2.5 py-2 text-left rounded-md hover:bg-violet-50 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+                                        >
+                                            <span className="flex flex-col min-w-0">
+                                                <span className="flex items-center gap-1.5 min-w-0">
+                                                    <span className="text-xs font-medium text-gray-800 truncate">{item.titulo}</span>
+                                                    {item.badges}
+                                                </span>
+                                                {item.subtitulo && (
+                                                    <span className="text-[10px] text-gray-400 truncate">{item.subtitulo}</span>
+                                                )}
+                                            </span>
+                                            <span className="flex items-center gap-1.5 shrink-0">
+                                                {item.meta}
+                                                {enviandoId === item.id ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-600" />
+                                                ) : (
+                                                    <Send className="h-3 w-3 text-violet-500" />
+                                                )}
+                                            </span>
+                                        </button>
+                                    </div>
+                                )
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
 export function ChatsVivoClient({
     inicial,
     error,
@@ -208,6 +428,13 @@ export function ChatsVivoClient({
 
     const [togglingBot, setTogglingBot] = useState<number | null>(null)
 
+    // Selectores rápidos arriba del hilo: "Enviar info de kit" y "Notas rápidas"
+    const [kitsRapidos, setKitsRapidos] = useState<KitEnvioRapido[] | null>(null)
+    const [notasRapidas, setNotasRapidas] = useState<NotaRapida[] | null>(null)
+    const [selectorAbierto, setSelectorAbierto] = useState<"kits" | "notas" | null>(null)
+    const [enviandoKitId, setEnviandoKitId] = useState<number | null>(null)
+    const [enviandoNotaId, setEnviandoNotaId] = useState<number | null>(null)
+
     const [lightboxImg, setLightboxImg] = useState<{ url: string; nombre?: string | null } | null>(null)
 
     const [textoMensaje, setTextoMensaje] = useState("")
@@ -233,6 +460,23 @@ export function ChatsVivoClient({
             document.removeEventListener("mousedown", handleClickAfuera)
         }
     }, [mostrarEmojis])
+
+    // Precargar kits y notas del negocio al montar, así al abrir un selector las
+    // opciones aparecen de una sin tener que tipear nada.
+    useEffect(() => {
+        listarKitsEnvioRapido()
+            .then(setKitsRapidos)
+            .catch((e) => {
+                console.error("Error cargando kits para envío rápido:", e)
+                setKitsRapidos([])
+            })
+        listarNotasRapidas()
+            .then(setNotasRapidas)
+            .catch((e) => {
+                console.error("Error cargando notas rápidas:", e)
+                setNotasRapidas([])
+            })
+    }, [])
 
     const insertarEmoji = (emoji: string) => {
         if (!textareaRef.current) {
@@ -513,6 +757,7 @@ export function ChatsVivoClient({
     const seleccionarConversacion = (id: number) => {
         setSeleccionadaId(id)
         setModoNota(false)
+        setSelectorAbierto(null)
         marcarLeido(id)
     }
 
@@ -604,6 +849,139 @@ export function ChatsVivoClient({
             alert("Error al cambiar estado del bot: " + (err instanceof Error ? err.message : "Error desconocido"))
         } finally {
             setTogglingBot(null)
+        }
+    }
+
+    const itemsKits: ItemRapido[] = useMemo(
+        () =>
+            (kitsRapidos ?? []).map((k) => ({
+                id: k.id,
+                titulo: k.nombre,
+                tooltip: k.nombre,
+                badges: (
+                    <>
+                        {!k.activo && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">pausado</span>
+                        )}
+                        {k.tieneFoto && <Camera className="h-3 w-3 text-emerald-600 shrink-0" />}
+                        {!k.tieneMensaje && (
+                            <span className="text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 shrink-0">sin mensaje</span>
+                        )}
+                    </>
+                ),
+                meta: k.precio ? <span className="text-[10px] text-gray-500">{k.precio}</span> : undefined,
+            })),
+        [kitsRapidos]
+    )
+
+    const itemsNotas: ItemRapido[] = useMemo(
+        () =>
+            (notasRapidas ?? []).map((n) => ({
+                id: n.id,
+                titulo: n.etiqueta,
+                subtitulo: n.respuesta,
+                tooltip: n.respuesta,
+            })),
+        [notasRapidas]
+    )
+
+    const handleEnviarKit = async (kitId: number) => {
+        const kit = (kitsRapidos ?? []).find((k) => k.id === kitId)
+        if (!seleccionada || !kit || enviandoKitId !== null) return
+        if (!kit.tieneMensaje) {
+            alert(`El kit "${kit.nombre}" no tiene mensaje predefinido cargado. Cargalo en /admin/chatwoot/conocimiento.`)
+            return
+        }
+        const convId = seleccionada.id
+        setEnviandoKitId(kit.id)
+        try {
+            const res = await forzarEnvioKitChatVivo(convId, kit.id)
+            if (res.mensaje) {
+                setHilos((prev) => {
+                    const actual = prev[convId] || []
+                    return { ...prev, [convId]: fusionarMensajeEnHilo(actual, res.mensaje) }
+                })
+            }
+            setPanel((prev) => {
+                if (!prev) return prev
+                return {
+                    ...prev,
+                    conversaciones: prev.conversaciones.map((c) =>
+                        c.id === convId
+                            ? { ...c, ultimoMensaje: res.mensaje.contenido, ultimoMensajePropio: true, botPausado: false }
+                            : c
+                    ),
+                }
+            })
+            setSelectorAbierto(null)
+            if (res.avisoFoto) {
+                alert("El mensaje del kit se envió, pero la foto no salió: " + res.avisoFoto)
+            }
+            if (res.avisoPin) {
+                console.warn("Kit enviado, pero no se pudo pinear en Redis:", res.avisoPin)
+            }
+        } catch (err) {
+            console.error("Error forzando envío de kit:", err)
+            alert("No se pudo enviar el kit: " + (err instanceof Error ? err.message : "Error desconocido"))
+        } finally {
+            setEnviandoKitId(null)
+        }
+    }
+
+    const handleEnviarNota = async (notaId: number) => {
+        const nota = (notasRapidas ?? []).find((n) => n.id === notaId)
+        if (!seleccionada || !nota || enviandoNotaId !== null) return
+        const convId = seleccionada.id
+        const contenido = nota.respuesta.trim()
+        setEnviandoNotaId(nota.id)
+
+        // Optimista: la manda un humano del equipo -> pausa el bot en esta charla
+        const tempId = Date.now()
+        setHilos((prev) => {
+            const actual = prev[convId] || []
+            return {
+                ...prev,
+                [convId]: [
+                    ...actual,
+                    {
+                        id: tempId,
+                        contenido,
+                        privado: false,
+                        saliente: true,
+                        remitente: "Nosotros",
+                        creadoEn: new Date().toISOString(),
+                        status: "progress",
+                    },
+                ],
+            }
+        })
+        setPanel((prev) => {
+            if (!prev) return prev
+            return {
+                ...prev,
+                conversaciones: prev.conversaciones.map((c) =>
+                    c.id === convId
+                        ? { ...c, ultimoMensaje: contenido, ultimoMensajePropio: true, botPausado: true }
+                        : c
+                ),
+            }
+        })
+        setSelectorAbierto(null)
+
+        try {
+            const res = await enviarMensajeChatVivo(convId, contenido)
+            if (!res.success) throw new Error("No se pudo enviar la nota")
+            if (res.mensaje) {
+                setHilos((prev) => {
+                    const actual = prev[convId] || []
+                    return { ...prev, [convId]: fusionarMensajeEnHilo(actual, res.mensaje) }
+                })
+            }
+        } catch (err) {
+            console.error("Error enviando nota rápida:", err)
+            alert("No se pudo enviar la nota: " + (err instanceof Error ? err.message : "Error desconocido"))
+        } finally {
+            setEnviandoNotaId(null)
         }
     }
 
@@ -929,6 +1307,54 @@ export function ChatsVivoClient({
                                         Chatwoot <ExternalLink className="h-3 w-3" />
                                     </a>
                                 </div>
+                            </div>
+
+                            {/* Selectores rápidos: info de kit y notas del negocio */}
+                            <div className="flex items-center gap-2 px-4 py-1.5 bg-white border-b shrink-0">
+                                <SelectorRapido
+                                    etiqueta="Enviar info de kit"
+                                    Icono={Zap}
+                                    items={itemsKits}
+                                    cargando={kitsRapidos === null}
+                                    lsKey="chatsvivo:ordenKits"
+                                    placeholder="Buscar kit (ej: 120, dakar 200)…"
+                                    vacioTexto="No hay kits cargados"
+                                    ayuda={
+                                        <>
+                                            Manda el mensaje del kit y su foto como si el cliente hubiera entrado por
+                                            publicidad, y prende el bot en esta charla. Arrastrá
+                                            <GripVertical className="h-3 w-3 inline mx-0.5 -mt-0.5" />
+                                            para reordenar.
+                                        </>
+                                    }
+                                    abierto={selectorAbierto === "kits"}
+                                    onToggle={() => setSelectorAbierto((v) => (v === "kits" ? null : "kits"))}
+                                    onCerrar={() => setSelectorAbierto((v) => (v === "kits" ? null : v))}
+                                    onElegir={handleEnviarKit}
+                                    enviandoId={enviandoKitId}
+                                />
+                                <SelectorRapido
+                                    etiqueta="Notas rápidas"
+                                    Icono={NotebookPen}
+                                    items={itemsNotas}
+                                    cargando={notasRapidas === null}
+                                    lsKey="chatsvivo:ordenNotas"
+                                    placeholder="Buscar nota (pago, envío, horarios…)"
+                                    vacioTexto="No hay info del negocio cargada"
+                                    ayuda={
+                                        <>
+                                            Respuestas de &quot;Info del negocio&quot; (medios de pago, envíos, horarios,
+                                            ubicación…). Se mandan tal cual al cliente y pausan el bot. Arrastrá
+                                            <GripVertical className="h-3 w-3 inline mx-0.5 -mt-0.5" />
+                                            para reordenar.
+                                        </>
+                                    }
+                                    abierto={selectorAbierto === "notas"}
+                                    onToggle={() => setSelectorAbierto((v) => (v === "notas" ? null : "notas"))}
+                                    onCerrar={() => setSelectorAbierto((v) => (v === "notas" ? null : v))}
+                                    onElegir={handleEnviarNota}
+                                    enviandoId={enviandoNotaId}
+                                />
                             </div>
 
                             <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5" style={fondoChat}>

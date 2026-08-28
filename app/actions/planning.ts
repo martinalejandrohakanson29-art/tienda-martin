@@ -140,16 +140,16 @@ export async function fetchSheetData() {
             artStockMap.set(String(a.nombre).trim().toLowerCase(), a.stock || 0);
         }
 
-        // 4. Calcular Stock en Camino (Envíos recientes procesados en los últimos 21 días)
-        const hace21Dias = new Date();
-        hace21Dias.setDate(hace21Dias.getDate() - 21);
+        // 4. Calcular Stock en Camino (Envíos de los últimos 45 días en tránsito o recepción)
+        const hace45Dias = new Date();
+        hace45Dias.setDate(hace45Dias.getDate() - 45);
 
         let inTransitMap = new Map<string, number>();
         try {
             const recentShipmentItems = await prisma.shipmentItem.findMany({
                 where: {
                     shipment: {
-                        createdAt: { gte: hace21Dias }
+                        createdAt: { gte: hace45Dias }
                     }
                 }
             });

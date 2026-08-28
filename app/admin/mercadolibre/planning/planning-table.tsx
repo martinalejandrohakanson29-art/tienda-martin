@@ -62,7 +62,7 @@ export default function PlanningTable({
 
   // --- FILTROS Y PARÁMETROS INTELIGENTES ---
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeFilter, setActiveFilter] = useState<"all" | "quiebre" | "bajo" | "con_ventas" | "con_sugerido" | "kits">("all");
+  const [activeFilter, setActiveFilter] = useState<"all" | "quiebre" | "bajo" | "con_ventas" | "con_sugerido" | "en_camino" | "kits">("all");
   const [coverageDays, setCoverageDays] = useState<number>(30); // Días de cobertura deseados
   const [salesPeriodDays, setSalesPeriodDays] = useState<number>(30); // Días de histórico de ventas
   const [leadTimeDays, setLeadTimeDays] = useState<number>(5); // Días de reposición/envío
@@ -106,24 +106,26 @@ export default function PlanningTable({
     return `${item.mla}_${item.variationId || item.inventoryId || "main"}`;
   };
 
-  // --- CÁLCULOS DINÁMICOS POR FILA ---
+  // --- CÁLCULOS DINÁMICOS POR FILA CON STOCK EN CAMINO ---
   const enrichedItems = useMemo(() => {
     return items.map(item => {
       const runRate = salesPeriodDays > 0 ? (item.sales / salesPeriodDays) : 0;
       const targetStock = runRate * (coverageDays + leadTimeDays);
-      const suggested = Math.max(0, Math.ceil(targetStock - item.stockFull));
+      const totalFullEffective = item.stockFull + (item.inTransitStock || 0);
+      const suggested = Math.max(0, Math.ceil(targetStock - totalFullEffective));
       
       let daysOfStock = 0;
       if (runRate > 0) {
-        daysOfStock = Math.round(item.stockFull / runRate);
+        daysOfStock = Math.round(totalFullEffective / runRate);
       } else {
-        daysOfStock = item.stockFull > 0 ? 999 : 0;
+        daysOfStock = totalFullEffective > 0 ? 999 : 0;
       }
 
-      const isQuiebre = item.stockFull === 0 && item.sales > 0;
+      const isQuiebre = item.stockFull === 0 && (item.inTransitStock || 0) === 0 && item.sales > 0;
       const isStockBajo = !isQuiebre && item.sales > 0 && daysOfStock < 10;
       const isSaludable = daysOfStock >= 10 && daysOfStock <= 45;
       const isSobreStock = daysOfStock > 45 && daysOfStock !== 999;
+      const isEnCamino = (item.inTransitStock || 0) > 0;
 
       const itemKey = getItemKey(item);
       const manualQty = parseInt(inputValues[itemKey] || "0", 10) || 0;
@@ -132,12 +134,14 @@ export default function PlanningTable({
         ...item,
         itemKey,
         runRate,
+        totalFullEffective,
         suggested,
         daysOfStock,
         isQuiebre,
         isStockBajo,
         isSaludable,
         isSobreStock,
+        isEnCamino,
         manualQty,
         isKit: item.recipeText !== null && item.recipeText.length > 0
       };
@@ -165,6 +169,7 @@ export default function PlanningTable({
       if (activeFilter === "bajo") return item.isStockBajo;
       if (activeFilter === "con_ventas") return item.sales > 0;
       if (activeFilter === "con_sugerido") return item.suggested > 0;
+      if (activeFilter === "en_camino") return item.isEnCamino;
       if (activeFilter === "kits") return item.isKit;
 
       return true;
@@ -212,13 +217,14 @@ export default function PlanningTable({
     const totalVentas = items.reduce((acc, it) => acc + it.sales, 0);
     const totalQuiebres = enrichedItems.filter(it => it.isQuiebre).length;
     const totalStockBajo = enrichedItems.filter(it => it.isStockBajo).length;
+    const totalEnCamino = enrichedItems.reduce((acc, it) => acc + (it.inTransitStock || 0), 0);
     const totalSugerido = enrichedItems.reduce((acc, it) => acc + it.suggested, 0);
     const totalAEnviar = Object.values(inputValues).reduce((acc, val) => {
       const num = parseInt(val, 10);
       return acc + (isNaN(num) ? 0 : num);
     }, 0);
 
-    return { totalVariantes, totalVentas, totalQuiebres, totalStockBajo, totalSugerido, totalAEnviar };
+    return { totalVariantes, totalVentas, totalQuiebres, totalStockBajo, totalEnCamino, totalSugerido, totalAEnviar };
   }, [items, enrichedItems, inputValues]);
 
   // Manejo de ordenamiento
@@ -250,7 +256,7 @@ export default function PlanningTable({
   // Exportar a CSV
   const handleExportCSV = () => {
     const csvRows = [
-      ["MLA", "SKU / Inventory", "User Product", "Familia", "Titulo", "Variante", "Stock Full", "Ventas 30d", "Run Rate (d)", "Dias Cobertura", "Stock Taller", "Sugerido", "Cant A Enviar"].join(",")
+      ["MLA", "SKU / Inventory", "User Product", "Familia", "Titulo", "Variante", "Stock Full", "En Camino", "Ventas 30d", "Run Rate (d)", "Dias Cobertura", "Stock Taller", "Sugerido", "Cant A Enviar"].join(",")
     ];
 
     for (const it of enrichedItems) {
@@ -262,6 +268,7 @@ export default function PlanningTable({
         `"${it.title.replace(/"/g, '""')}"`,
         `"${(it.variationLabel || "").replace(/"/g, '""')}"`,
         it.stockFull,
+        it.inTransitStock,
         it.sales,
         it.runRate.toFixed(2),
         it.daysOfStock === 999 ? "Sin ventas" : it.daysOfStock,
@@ -457,7 +464,7 @@ export default function PlanningTable({
   return (
     <div className="space-y-4">
       {/* --- DASHBOARD DE KPIS SUPERIORES --- */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
         <Card className="p-3.5 bg-gradient-to-br from-blue-50 to-white border-blue-100 shadow-sm rounded-xl">
           <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
             <Layers className="h-3.5 w-3.5" /> Variantes
@@ -490,7 +497,15 @@ export default function PlanningTable({
           <p className="text-[10px] text-amber-500">&lt; 10 días de cobertura</p>
         </Card>
 
-        <Card className="p-3.5 bg-gradient-to-br from-indigo-50 to-white border-indigo-100 shadow-sm rounded-xl">
+        <Card className="p-3.5 bg-gradient-to-br from-cyan-50 to-white border-cyan-100 shadow-sm rounded-xl cursor-pointer hover:border-cyan-300 transition-colors" onClick={() => setActiveFilter("en_camino")}>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-700 flex items-center gap-1">
+            <Truck className="h-3.5 w-3.5" /> En Camino
+          </p>
+          <p className="text-2xl font-black text-cyan-900 mt-1">{kpis.totalEnCamino}</p>
+          <p className="text-[10px] text-cyan-600">en viajes recientes</p>
+        </Card>
+
+        <Card className="p-3.5 bg-gradient-to-br from-indigo-50 to-white border-indigo-100 shadow-sm rounded-xl cursor-pointer hover:border-indigo-300 transition-colors" onClick={() => setActiveFilter("con_sugerido")}>
           <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-1">
             <Sparkles className="h-3.5 w-3.5" /> Sugerido Total
           </p>
@@ -669,6 +684,14 @@ export default function PlanningTable({
           </Badge>
 
           <Badge 
+            variant={activeFilter === "en_camino" ? "default" : "outline"}
+            className={`cursor-pointer px-3 py-1 text-xs font-semibold ${activeFilter === "en_camino" ? "bg-cyan-600 text-white" : "text-cyan-800 border-cyan-300 hover:bg-cyan-50"}`}
+            onClick={() => setActiveFilter("en_camino")}
+          >
+            🚚 En Camino ({kpis.totalEnCamino} u.)
+          </Badge>
+
+          <Badge 
             variant={activeFilter === "con_sugerido" ? "default" : "outline"}
             className={`cursor-pointer px-3 py-1 text-xs font-semibold ${activeFilter === "con_sugerido" ? "bg-indigo-600 text-white" : "text-indigo-700 border-indigo-200 hover:bg-indigo-50"}`}
             onClick={() => setActiveFilter("con_sugerido")}
@@ -746,21 +769,29 @@ export default function PlanningTable({
                   <span>Familia</span>
                 </th>
 
-                <th className="px-3 py-3 w-[90px] text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort("stockFull")}>
+                <th className="px-3 py-3 w-[85px] text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort("stockFull")}>
                   <div className="flex items-center justify-center gap-1">
                     <span>Stock Full</span>
                     {sortConfig.key === "stockFull" && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                   </div>
                 </th>
 
-                <th className="px-3 py-3 w-[85px] text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort("sales")}>
+                <th className="px-3 py-3 w-[90px] text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort("inTransitStock")} title="Unidades enviadas recientemente en camino a Full">
+                  <div className="flex items-center justify-center gap-1 text-cyan-800">
+                    <Truck className="h-3 w-3 text-cyan-600" />
+                    <span>En Camino</span>
+                    {sortConfig.key === "inTransitStock" && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+                  </div>
+                </th>
+
+                <th className="px-3 py-3 w-[80px] text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort("sales")}>
                   <div className="flex items-center justify-center gap-1">
                     <span>Ventas</span>
                     {sortConfig.key === "sales" && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                   </div>
                 </th>
 
-                <th className="px-3 py-3 w-[95px] text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort("daysOfStock")}>
+                <th className="px-3 py-3 w-[90px] text-center cursor-pointer hover:bg-gray-200" onClick={() => handleSort("daysOfStock")}>
                   <div className="flex items-center justify-center gap-1">
                     <span>Cobertura</span>
                     {sortConfig.key === "daysOfStock" && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
@@ -794,7 +825,7 @@ export default function PlanningTable({
                   <React.Fragment key={`fam-${groupIdx}`}>
                     {isGroup && (
                       <tr className="bg-purple-100/70 border-y border-purple-200">
-                        <td colSpan={8} className="px-4 py-1.5 text-left">
+                        <td colSpan={9} className="px-4 py-1.5 text-left">
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-black uppercase text-purple-900 tracking-wider">FAMILIA:</span>
                             <Badge className="font-mono text-xs bg-purple-700 text-white font-bold px-2.5 py-0.5">
@@ -813,7 +844,7 @@ export default function PlanningTable({
                       return (
                         <tr 
                           key={item.itemKey} 
-                          className={`hover:bg-blue-50/40 transition-colors ${item.isQuiebre ? "bg-red-50/20" : item.isStockBajo ? "bg-amber-50/20" : ""}`}
+                          className={`hover:bg-blue-50/40 transition-colors ${item.isQuiebre ? "bg-red-50/20" : item.isStockBajo ? "bg-amber-50/20" : item.isEnCamino ? "bg-cyan-50/15" : ""}`}
                         >
                           {/* MLA & SKU */}
                           <td className="px-3 py-2 border-r font-mono text-[11px]">
@@ -875,6 +906,17 @@ export default function PlanningTable({
                               <span className="text-red-600 font-black bg-red-50 px-2 py-0.5 rounded border border-red-200">0</span>
                             ) : (
                               <span className="text-gray-800 text-sm">{item.stockFull}</span>
+                            )}
+                          </td>
+
+                          {/* EN CAMINO */}
+                          <td className="px-2 py-2 border-r text-center font-semibold">
+                            {item.inTransitStock > 0 ? (
+                              <Badge className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-[11px] px-1.5 py-0.5 gap-1 shadow-sm" title={`En camino: ${item.inTransitStock} u. (Total virtual: ${item.totalFullEffective} u.)`}>
+                                <Truck className="h-3 w-3" /> +{item.inTransitStock}
+                              </Badge>
+                            ) : (
+                              <span className="text-gray-300">-</span>
                             )}
                           </td>
 

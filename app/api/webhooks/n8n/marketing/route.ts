@@ -36,24 +36,48 @@ export async function POST(req: Request) {
           a.action_type === "add_to_cart"
         )?.value || 0;
 
+        const impressions = parseInt(camp.impressions || 0);
+        const clicks = parseInt(camp.inline_link_clicks || camp.clicks || 0);
+        const spend = parseFloat(camp.spend || 0);
+        const reach = parseInt(camp.reach || 0);
+        const cpcVal = camp.cpc 
+          ? parseFloat(camp.cpc) 
+          : (camp.cost_per_inline_link_click ? parseFloat(camp.cost_per_inline_link_click) : (clicks > 0 ? spend / clicks : null));
+        const ctrVal = camp.ctr 
+          ? parseFloat(camp.ctr) 
+          : (camp.inline_link_click_ctr ? parseFloat(camp.inline_link_click_ctr) : (impressions > 0 ? (clicks / impressions) * 100 : null));
+        const frequencyVal = camp.frequency ? parseFloat(camp.frequency) : (reach > 0 && impressions > 0 ? impressions / reach : null);
+
         // Guardamos o actualizamos en la DB
         await prisma.marketingCampaign.upsert({
           where: { id: idCampania.toString() },
           update: {
             name: camp.campaign_name || camp.name || "Sin nombre",
-            spend: parseFloat(camp.spend || 0),
-            reach: parseInt(camp.reach || 0),
+            spend: spend,
+            reach: reach,
+            impressions: impressions,
+            clicks: clicks,
+            cpc: cpcVal !== null && !isNaN(cpcVal) ? Number(cpcVal.toFixed(2)) : null,
+            ctr: ctrVal !== null && !isNaN(ctrVal) ? Number(ctrVal.toFixed(2)) : null,
+            frequency: frequencyVal !== null && !isNaN(frequencyVal) ? Number(frequencyVal.toFixed(2)) : null,
             messages: parseInt(messages),
             carts: parseInt(carts),
+            rawActions: actions.length > 0 ? actions : null,
             status: camp.status || 'Active'
           },
           create: {
             id: idCampania.toString(),
             name: camp.campaign_name || camp.name || "Sin nombre",
-            spend: parseFloat(camp.spend || 0),
-            reach: parseInt(camp.reach || 0),
+            spend: spend,
+            reach: reach,
+            impressions: impressions,
+            clicks: clicks,
+            cpc: cpcVal !== null && !isNaN(cpcVal) ? Number(cpcVal.toFixed(2)) : null,
+            ctr: ctrVal !== null && !isNaN(ctrVal) ? Number(ctrVal.toFixed(2)) : null,
+            frequency: frequencyVal !== null && !isNaN(frequencyVal) ? Number(frequencyVal.toFixed(2)) : null,
             messages: parseInt(messages),
             carts: parseInt(carts),
+            rawActions: actions.length > 0 ? actions : null,
             status: camp.status || 'Active'
           }
         });

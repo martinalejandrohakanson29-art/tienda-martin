@@ -72,6 +72,7 @@ export interface PlanningItemData {
     inventoryId: string;
     title: string;
     stockFull: number;
+    inTransitStock: number;
     parentItemId: string;
     isVariation: boolean;
     variationId: string | null;
@@ -87,7 +88,7 @@ export interface PlanningItemData {
 }
 
 /**
- * Obtiene los datos de la planilla de Google Sheets y los enriquece con la base de datos (Familia, UP, Stock Depósito Propio).
+ * Obtiene los datos de la planilla de Google Sheets y los enriquece con la base de datos (Familia, UP, Stock Depósito Propio y Stock en Camino).
  */
 export async function fetchSheetData() {
     try {
@@ -139,7 +140,38 @@ export async function fetchSheetData() {
             artStockMap.set(String(a.nombre).trim().toLowerCase(), a.stock || 0);
         }
 
-        // 4. Mapear y enriquecer cada ítem
+        // 4. Calcular Stock en Camino (Envíos recientes procesados en los últimos 21 días)
+        const hace21Dias = new Date();
+        hace21Dias.setDate(hace21Dias.getDate() - 21);
+
+        let inTransitMap = new Map<string, number>();
+        try {
+            const recentShipmentItems = await prisma.shipmentItem.findMany({
+                where: {
+                    shipment: {
+                        createdAt: { gte: hace21Dias }
+                    }
+                }
+            });
+
+            for (const sItem of recentShipmentItems) {
+                const cleanItemMla = sItem.itemId.replace("-", "").trim().toUpperCase();
+                const cleanVar = (sItem.variation || "").trim().toLowerCase();
+                
+                // Acumulador general por MLA
+                inTransitMap.set(cleanItemMla, (inTransitMap.get(cleanItemMla) || 0) + sItem.quantity);
+                
+                // Acumulador específico por variante
+                if (cleanVar) {
+                    const compound = `${cleanItemMla}_${cleanVar}`;
+                    inTransitMap.set(compound, (inTransitMap.get(compound) || 0) + sItem.quantity);
+                }
+            }
+        } catch (shipErr) {
+            console.error("Error consultando envíos recientes en tránsito:", shipErr);
+        }
+
+        // 5. Mapear y enriquecer cada ítem
         const items: PlanningItemData[] = rawBody.map(row => {
             const mla = (row[0] || "").trim();
             const cleanMla = mla.replace("-", "").toUpperCase();
@@ -158,6 +190,10 @@ export async function fetchSheetData() {
             const matchMeta = upfamMap.get(cleanMla) || upfamMap.get(mla);
             const finalUP = sheetUP || matchMeta?.up || null;
             const finalFam = matchMeta?.fam || null;
+
+            // Stock en camino
+            const varKey = (varLabel || varId || "").trim().toLowerCase();
+            const inTransitStock = (varKey ? inTransitMap.get(`${cleanMla}_${varKey}`) : null) ?? inTransitMap.get(cleanMla) ?? 0;
 
             // Calcular stock disponible en taller/depósito propio a partir de la receta
             const componentes = resolverAgregados(mla, varLabel || varId || undefined);
@@ -190,6 +226,7 @@ export async function fetchSheetData() {
                 inventoryId: invId,
                 title,
                 stockFull,
+                inTransitStock,
                 parentItemId: parentId,
                 isVariation: isVar,
                 variationId: varId,

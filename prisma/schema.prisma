@@ -476,14 +476,20 @@ model MLDescuentos {
 }
 
 model MarketingCampaign {
-  id        String   @id
-  name      String
-  spend     Decimal  @db.Decimal(20, 2)
-  reach     Int
-  messages  Int      @default(0)
-  carts     Int      @default(0)
-  status    String   @default("Active")
-  updatedAt DateTime @updatedAt
+  id          String   @id
+  name        String
+  spend       Decimal  @db.Decimal(20, 2)
+  reach       Int      @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  cpc         Decimal? @db.Decimal(10, 2)
+  ctr         Decimal? @db.Decimal(10, 2)
+  frequency   Decimal? @db.Decimal(10, 2)
+  messages    Int      @default(0)
+  carts       Int      @default(0)
+  rawActions  Json?
+  status      String   @default("Active")
+  updatedAt   DateTime @updatedAt
 
   @@map("marketing_campaigns")
 }

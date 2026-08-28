@@ -1199,8 +1199,21 @@ model MlAutoRespuesta {
   @@map("ml_auto_respuesta")
 }
 
+model StockEnCaminoFull {
+  id          String   @id @default(cuid())
+  inventoryId String   @unique
+  mla         String?
+  titulo      String?
+  cantidad    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("stock_en_camino_full")
+}
+
 enum Role {
   SUPER_ADMIN
   ADMIN
   USER
 }
+

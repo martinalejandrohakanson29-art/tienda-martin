@@ -140,35 +140,20 @@ export async function fetchSheetData() {
             artStockMap.set(String(a.nombre).trim().toLowerCase(), a.stock || 0);
         }
 
-        // 4. Calcular Stock en Camino (Envíos de los últimos 45 días en tránsito o recepción)
-        const hace45Dias = new Date();
-        hace45Dias.setDate(hace45Dias.getDate() - 45);
-
+        // 4. Obtener Stock en Camino desde la base de datos (control de stock en tránsito)
         let inTransitMap = new Map<string, number>();
         try {
-            const recentShipmentItems = await prisma.shipmentItem.findMany({
-                where: {
-                    shipment: {
-                        createdAt: { gte: hace45Dias }
-                    }
-                }
+            const stockEnCamino = await prisma.stockEnCaminoFull.findMany({
+                where: { cantidad: { gt: 0 } }
             });
 
-            for (const sItem of recentShipmentItems) {
-                const cleanItemMla = sItem.itemId.replace("-", "").trim().toUpperCase();
-                const cleanVar = (sItem.variation || "").trim().toLowerCase();
-                
-                // Acumulador general por MLA
-                inTransitMap.set(cleanItemMla, (inTransitMap.get(cleanItemMla) || 0) + sItem.quantity);
-                
-                // Acumulador específico por variante
-                if (cleanVar) {
-                    const compound = `${cleanItemMla}_${cleanVar}`;
-                    inTransitMap.set(compound, (inTransitMap.get(compound) || 0) + sItem.quantity);
+            for (const sItem of stockEnCamino) {
+                if (sItem.inventoryId) {
+                    inTransitMap.set(sItem.inventoryId.trim().toUpperCase(), sItem.cantidad);
                 }
             }
         } catch (shipErr) {
-            console.error("Error consultando envíos recientes en tránsito:", shipErr);
+            console.error("Error consultando stock en camino:", shipErr);
         }
 
         // 5. Mapear y enriquecer cada ítem
@@ -191,9 +176,11 @@ export async function fetchSheetData() {
             const finalUP = sheetUP || matchMeta?.up || null;
             const finalFam = matchMeta?.fam || null;
 
-            // Stock en camino
-            const varKey = (varLabel || varId || "").trim().toLowerCase();
-            const inTransitStock = (varKey ? inTransitMap.get(`${cleanMla}_${varKey}`) : null) ?? inTransitMap.get(cleanMla) ?? 0;
+            // Stock en camino (búsqueda precisa por Código ML / Inventory ID)
+            const inTransitStock = (invId ? inTransitMap.get(invId.toUpperCase()) : null)
+                ?? (finalUP ? inTransitMap.get(finalUP.toUpperCase()) : null)
+                ?? (!isVar ? inTransitMap.get(cleanMla) : null)
+                ?? 0;
 
             // Calcular stock disponible en taller/depósito propio a partir de la receta
             const componentes = resolverAgregados(mla, varLabel || varId || undefined);
@@ -331,4 +318,50 @@ export async function sendPlanningToN8N(data: any[], shipmentName: string) {
         return { success: false, message: error.message };
     }
 }
+
+/**
+ * Obtiene la lista actual de stock en camino con cantidades mayores a 0.
+ */
+export async function getStockEnCaminoList() {
+    try {
+        const items = await prisma.stockEnCaminoFull.findMany({
+            where: { cantidad: { gt: 0 } },
+            orderBy: { cantidad: 'desc' }
+        });
+        return { success: true, items };
+    } catch (error: any) {
+        return { success: false, message: error.message, items: [] };
+    }
+}
+
+/**
+ * Actualiza la cantidad de stock en camino de un ítem.
+ */
+export async function updateStockEnCaminoItem(inventoryId: string, cantidad: number) {
+    try {
+        await prisma.stockEnCaminoFull.upsert({
+            where: { inventoryId: inventoryId.trim().toUpperCase() },
+            update: { cantidad, updatedAt: new Date() },
+            create: { inventoryId: inventoryId.trim().toUpperCase(), cantidad }
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Resetea todo el stock en camino a 0.
+ */
+export async function resetAllStockEnCamino() {
+    try {
+        await prisma.stockEnCaminoFull.updateMany({
+            data: { cantidad: 0 }
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
 

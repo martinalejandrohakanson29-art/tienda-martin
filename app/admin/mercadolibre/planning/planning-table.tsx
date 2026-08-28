@@ -300,7 +300,7 @@ export default function PlanningTable({
       .filter(item => item.manualQty > 0)
       .map(item => ({
         sku: item.mla,
-        seller_sku: item.userProductId || item.inventoryId,
+        seller_sku: item.inventoryId || item.userProductId || item.mla,
         title: item.title,
         quantity_to_send: item.manualQty,
         variation_label: item.variationLabel || "",
@@ -356,7 +356,7 @@ export default function PlanningTable({
               <thead className="bg-gray-100 text-gray-700 text-xs font-bold uppercase sticky top-0 z-10 shadow-sm border-b">
                 <tr>
                   <th className="px-4 py-3">MLA</th>
-                  <th className="px-4 py-3">SKU / UP</th>
+                  <th className="px-4 py-3">Cód. FULL / SKU</th>
                   <th className="px-4 py-3">Título & Variante</th>
                   <th className="px-4 py-3 text-right">Cant. a Enviar</th>
                 </tr>
@@ -756,9 +756,9 @@ export default function PlanningTable({
           <table className="w-full text-xs text-left border-collapse">
             <thead className="sticky top-0 z-20 bg-gray-100 text-gray-700 font-bold uppercase tracking-wider shadow-sm border-b">
               <tr>
-                <th className="px-3 py-3 w-[120px] cursor-pointer hover:bg-gray-200" onClick={() => handleSort("mla")}>
+                <th className="px-3 py-3 w-[140px] cursor-pointer hover:bg-gray-200" onClick={() => handleSort("mla")}>
                   <div className="flex items-center justify-between">
-                    <span>MLA / SKU</span>
+                    <span>MLA / Cód. FULL</span>
                     {sortConfig.key === "mla" && (sortConfig.direction === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
                   </div>
                 </th>
@@ -846,13 +846,21 @@ export default function PlanningTable({
                           key={item.itemKey} 
                           className={`hover:bg-blue-50/40 transition-colors ${item.isQuiebre ? "bg-red-50/20" : item.isStockBajo ? "bg-amber-50/20" : item.isEnCamino ? "bg-cyan-50/15" : ""}`}
                         >
-                          {/* MLA & SKU */}
+                          {/* MLA & CÓDIGO FULL */}
                           <td className="px-3 py-2 border-r font-mono text-[11px]">
-                            <CopyableCell text={item.mla} />
-                            <div className="text-[10px] text-gray-400 pl-1 flex items-center gap-1">
-                              <span>SKU:</span>
-                              <CopyableCell text={item.userProductId || item.inventoryId} />
-                            </div>
+                            <CopyableCell text={item.mla} className="font-bold text-blue-700" />
+                            {item.inventoryId && (
+                              <div className="text-[10px] pl-1 flex items-center gap-1 mt-0.5" title="Código ML de FULL (Inventory ID)">
+                                <span className="font-black text-amber-800 bg-amber-100/90 px-1 py-0.5 rounded text-[9px]">FULL:</span>
+                                <CopyableCell text={item.inventoryId} className="font-black text-gray-900" />
+                              </div>
+                            )}
+                            {item.userProductId && item.userProductId !== item.inventoryId && (
+                              <div className="text-[9px] text-gray-400 pl-1 flex items-center gap-1 mt-0.5">
+                                <span>UP:</span>
+                                <CopyableCell text={item.userProductId} />
+                              </div>
+                            )}
                           </td>
 
                           {/* TÍTULO & FOTO & VARIANTE */}

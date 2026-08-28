@@ -108,7 +108,8 @@ export async function enviarMensajeChatVivo(
         content: texto,
     })
 
-    await registrarMensajeSalienteEnEspejo(conversationId, texto)
+    // Lo manda un humano del equipo desde el panel -> pausa el bot en esta charla.
+    await registrarMensajeSalienteEnEspejo(conversationId, texto, { pausarBot: true })
 
     const mensaje: MensajeConversacion = {
         id: Number(res?.id || Date.now()),

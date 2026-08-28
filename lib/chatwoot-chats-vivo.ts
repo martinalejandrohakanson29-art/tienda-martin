@@ -345,14 +345,30 @@ export async function actualizarBotPausadoEnEspejo(conversationId: number, botPa
     `
 }
 
-/** Actualiza el último mensaje y pausa del bot al enviar un mensaje saliente manual. */
-export async function registrarMensajeSalienteEnEspejo(conversationId: number, contenido: string) {
+/**
+ * Actualiza el último mensaje al enviar un mensaje saliente.
+ *
+ * `pausarBot` SOLO va en true cuando lo manda un humano del equipo desde el
+ * panel (ahí sí hay que pausar el bot en esa conversación). Las respuestas
+ * automáticas del bot pasan por acá también (vía /api/chatwoot/enviar) y NO
+ * deben pausarlo — si no, el switch de /admin/chatwoot/chats-vivo terminaba en
+ * "Bot OFF" para toda conversación que el bot haya contestado alguna vez, y
+ * nada lo volvía a poner en ON (calcularBotPausadoDesdeHistorial devuelve null
+ * para el mensaje propio del bot, así que la reconciliación del webhook no
+ * pisaba ese true espurio).
+ */
+export async function registrarMensajeSalienteEnEspejo(
+    conversationId: number,
+    contenido: string,
+    opciones: { pausarBot?: boolean } = {}
+) {
     await asegurarTablaEspejo()
+    const pausarBot = opciones.pausarBot === true
     await prisma.$executeRaw`
         UPDATE chatwoot_conversaciones_espejo
         SET ultimo_mensaje = ${contenido.slice(0, 1000)},
             ultimo_mensaje_propio = true,
-            bot_pausado = true,
+            bot_pausado = CASE WHEN ${pausarBot} THEN true ELSE bot_pausado END,
             ultima_actividad = NOW(),
             actualizado_en = NOW()
         WHERE id = ${BigInt(conversationId)}

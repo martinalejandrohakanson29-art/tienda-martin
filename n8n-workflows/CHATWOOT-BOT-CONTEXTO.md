@@ -420,9 +420,9 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   para crear/editar/borrar grupos y ver qué packs tiene enganchados cada uno. Kit 120 ya tiene sus 2 packs
   (recorrido corto/largo) enlazados al grupo "Kit 120 para 110". El paso de n8n que pregunta y
   resuelve la variante todavía se construye después, aparte.
-- **Bug conocido, sin arreglar:** `parsearListaCompat` (compartido con los kits viejos) solo separa
-  por comas — si se tipea una lista de compatibilidad con saltos de línea en vez de comas, todo
-  queda pegado en un solo `modelo_moto` con el salto de línea adentro.
+- **Bug de `parsearListaCompat` — arreglado 2026-08-28** (ver entrada del 28/8 sobre la Honda Wave más
+  abajo): antes solo separaba por comas y no toleraba paréntesis anidados en la aclaración; ahora
+  separa también por `\n`/`\r` y encuentra la aclaración por conteo de anidación.
 - **Categoría (2026-08-21):** `chat_articulos.categoria` (tipo de pieza: escape, leva, cilindro
   original/potenciado, etc. — lista fija en `lib/chat-catalogo-categorias.ts`, editable sin
   migración) + `chat_packs.categoria`/`chat_pack_grupos.categoria` (categoría de combo, texto libre,
@@ -1964,3 +1964,8 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   - Fix 2 (passthrough): mismo mensaje pero identificando el mismo Kit 170 → pasó sin tocar, rama de compatibilidad ("¿compatible con zanella zb 110?") escaló normal.
   - Regresión partidor (precio/envío/negocio) y `/bot on`: OK.
   Script del fix: `apply.mjs` (sesión de Claude Code del 28/8). **Pendiente:** `rutas-bot-chatwoot.html` sigue desactualizado (falta dibujar el gate de IA y el nodo `Respetar Kit Pineado`).
+
+- **El bot confirmó una Honda Wave como compatible con un combo que NO le entra (2026-08-28).** Caso real: conv 2882 (+5493834829374, Matias Rivarola), grupo Kit 120 para 110. Cliente dio "wave 2014"; el bot respondió "le va bien a tu moto" y siguió con corto/largo (exec 88987: `Buscar Compatibilidad del Grupo` devolvió `compatible: true`). Dos causas encadenadas:
+  1. **Dato roto al guardarlo.** `parsearListaCompat` (`lib/compatibilidad-texto.ts`) no toleraba una aclaración con paréntesis anidados ("…(alesar los cárteres)…") ni saltos de línea como separador → guardaba todo el pegote como `modelo_moto` con `detalle` vacío. `rm_modelo_ok` nunca matchea ese texto largo, así que las 4 reglas "wave/biz/crypton = NO compatible" del grupo eran inalcanzables. Afectaba 8 filas de `chat_combo_compatibilidad` (grupos 1 y 3) + 10 de `chat_articulo_compatibilidad`. **Fix:** parser reescrito con conteo de anidación (último paréntesis balanceado = aclaración) y `\n`/`\r` como separador además de la coma; limpieza de datos con `n8n-workflows/fix-compatibilidad-modelo-detalle-pegado_2026-08-28.mjs` (re-parsea y reescribe modelo+detalle; filas con 2 modelos pegados por salto de línea se abren en 2).
+  2. **Una pieza periférica tapaba el "no" de la central.** Con la regla del combo inalcanzable, la consulta cae al CTE `articulo`, que tomaba `ORDER BY creado_en DESC LIMIT 1` entre TODAS las piezas del combo — carburador/codo/filtro sí entran en una Wave, así que devolvía `compatible: true` ignorando que el cilindro dice "no". **Fix:** en `Buscar Compatibilidad del Grupo` y `Buscar Compatibilidad del Kit`, el CTE `articulo` ahora ordena `compatible ASC, creado_en DESC` → un "no compatible" de cualquier pieza bloquea el combo entero. El CTE `combo` (curado a mano) sigue con `creado_en DESC`. Backup: `workflow_backup_pre-fix-compat-pieza-periferica_2026-08-28.json`.
+  Verificado que con el dato limpio la consulta devuelve `compatible: false` para "wave 2014"/grupo 1. **Pendiente:** validación en vivo con conversación de prueba (bot fuera de horario al aplicar).

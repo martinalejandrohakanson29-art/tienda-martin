@@ -6,23 +6,21 @@ import {
   MessageSquare, 
   TrendingUp, 
   DollarSign, 
-  Settings, 
   Eye, 
   ShoppingCart, 
   ChevronRight, 
-  ChevronDown,
-  Zap,
-  RefreshCw,
-  Columns3,
-  Search,
-  MousePointerClick,
-  Percent,
-  Layers,
-  Check,
-  RotateCcw,
-  Target,
-  FolderTree,
-  ChevronsUpDown
+  ChevronDown, 
+  RefreshCw, 
+  Columns3, 
+  Search, 
+  MousePointerClick, 
+  Percent, 
+  Layers, 
+  Check, 
+  RotateCcw, 
+  Target, 
+  FolderTree, 
+  ChevronsUpDown 
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -439,9 +437,8 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* TABLA PRINCIPAL DE CAMPAÑAS Y DESGLOSE */}
-        <Card className="lg:col-span-2 bg-white shadow-sm overflow-hidden flex flex-col">
+      {/* TABLA PRINCIPAL DE CAMPAÑAS Y DESGLOSE */}
+      <Card className="w-full bg-white shadow-sm overflow-hidden flex flex-col">
           <CardHeader className="border-b bg-slate-50/50 pb-3 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -793,39 +790,6 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
             </Table>
           </div>
         </Card>
-
-        {/* AGENTE DE RESPUESTAS */}
-        <Card className="bg-white shadow-sm border-l-4 border-l-red-500 flex flex-col">
-          <CardHeader className="pb-3 border-b bg-slate-50/50">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-              Agente de IA
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 pt-4 flex-1">
-            {autoResponses.length > 0 ? (
-              autoResponses.map((res: any, i: number) => (
-                <div key={i} className="p-3 bg-slate-50 rounded-lg border border-slate-100 group hover:border-slate-200 transition-all cursor-pointer">
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">AD ID: {res.adId}</span>
-                    <Settings className="h-3 w-3 text-slate-400 group-hover:text-slate-600" />
-                  </div>
-                  <h3 className="font-semibold text-red-600 text-xs mb-1">{res.name}</h3>
-                  <p className="text-[11px] text-slate-500 italic line-clamp-2">"{res.response}"</p>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-6 text-slate-400 text-xs">
-                No hay respuestas automáticas configuradas.
-              </div>
-            )}
-            <Button className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-5 mt-auto">
-              Nueva Respuesta
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   )
 }

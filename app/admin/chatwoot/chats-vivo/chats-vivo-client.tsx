@@ -2,13 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, Camera, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, RefreshCw, Search, Send, Smile, Zap, type LucideIcon } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, Camera, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, Paperclip, Plus, RefreshCw, Search, Send, Smile, X, Zap, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
-    enviarMensajeChatVivo,
-    enviarNotaInternaChatVivo,
-    forzarEnvioKitChatVivo,
+    crearNotaRapida,
+    enviarMensajeComposerChatVivo,
     forzarSincronizacionChatsVivo,
     listarKitsEnvioRapido,
     listarNotasRapidas,
@@ -38,6 +37,19 @@ const CATEGORIA_INFO: Record<Categoria, { texto: string; clase: string }> = {
     sin_match: { texto: "Sin resolver", clase: "bg-orange-100 text-orange-800 border-orange-200" },
     sin_etiqueta: { texto: "Sin etiqueta", clase: "bg-slate-100 text-slate-600 border-slate-200" },
 }
+
+const PLANTILLA_DATOS_ENVIO = `DATOS PARA ENVIO
+
+NOMBRE COMPLETO:
+DNI:
+DOMICILIO:
+CIUDAD:
+PROVINCIA:
+TELEFONO:
+E-MAIL:
+CODIGO POSTAL:
+REFERENCIAS DE LA CASA:
+(ejemplo: casa de rejas negras/ o casa esquina`
 
 const PERIODOS = [
     { valor: 1, texto: "24hs" },
@@ -215,6 +227,8 @@ function SelectorRapido({
     onCerrar,
     onElegir,
     enviandoId,
+    onCrear,
+    plantillaNueva,
 }: {
     etiqueta: string
     Icono: LucideIcon
@@ -229,12 +243,57 @@ function SelectorRapido({
     onCerrar: () => void
     onElegir: (id: number) => void
     enviandoId: number | null
+    /** Si viene, muestra un botón para crear una entrada nueva en la base. */
+    onCrear?: (titulo: string, cuerpo: string) => Promise<void>
+    /** Prefill opcional del formulario de creación. */
+    plantillaNueva?: { titulo: string; cuerpo: string }
 }) {
     const [busqueda, setBusqueda] = useState("")
     const [orden, setOrden] = useState<number[]>([])
     const [dragOver, setDragOver] = useState<number | null>(null)
     const dragFrom = useRef<number | null>(null)
     const panelRef = useRef<HTMLDivElement>(null)
+
+    const [modoCrear, setModoCrear] = useState(false)
+    const [nuevoTitulo, setNuevoTitulo] = useState("")
+    const [nuevoCuerpo, setNuevoCuerpo] = useState("")
+    const [guardandoNueva, setGuardandoNueva] = useState(false)
+    const [errorCrear, setErrorCrear] = useState<string | null>(null)
+
+    const abrirCrear = () => {
+        setErrorCrear(null)
+        if (!nuevoTitulo && !nuevoCuerpo && plantillaNueva) {
+            setNuevoTitulo(plantillaNueva.titulo)
+            setNuevoCuerpo(plantillaNueva.cuerpo)
+        }
+        setModoCrear(true)
+    }
+
+    const guardarNueva = async () => {
+        if (!onCrear) return
+        const titulo = nuevoTitulo.trim()
+        const cuerpo = nuevoCuerpo.trim()
+        if (!titulo || !cuerpo) {
+            setErrorCrear("Poné un título y el texto de la nota")
+            return
+        }
+        setGuardandoNueva(true)
+        setErrorCrear(null)
+        try {
+            await onCrear(titulo, cuerpo)
+            setModoCrear(false)
+            setNuevoTitulo("")
+            setNuevoCuerpo("")
+        } catch (e) {
+            setErrorCrear(e instanceof Error ? e.message : "No se pudo guardar la nota")
+        } finally {
+            setGuardandoNueva(false)
+        }
+    }
+
+    useEffect(() => {
+        if (!abierto) setModoCrear(false)
+    }, [abierto])
 
     useEffect(() => {
         try {
@@ -306,16 +365,82 @@ function SelectorRapido({
 
             {abierto && (
                 <div className="absolute top-full left-0 mt-1 w-[460px] max-w-[calc(100vw-2rem)] bg-white rounded-xl shadow-xl border border-gray-200 z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-                    <div className="p-2 border-b bg-gray-50">
-                        <div className="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1 border">
-                            <Search className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                    {modoCrear ? (
+                        <div className="p-3">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-semibold text-gray-700">Nueva {etiqueta.toLowerCase()}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setModoCrear(false)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                    title="Cancelar"
+                                >
+                                    <X className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
                             <input
                                 autoFocus
-                                value={busqueda}
-                                onChange={(e) => setBusqueda(e.target.value)}
-                                placeholder={placeholder}
-                                className="bg-transparent outline-none text-xs w-full text-[#111b25] placeholder:text-[#8696a0]"
+                                value={nuevoTitulo}
+                                onChange={(e) => setNuevoTitulo(e.target.value)}
+                                placeholder="Título (ej: Datos para envío)"
+                                className="w-full mb-2 rounded-lg border px-2.5 py-1.5 text-xs outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-300"
                             />
+                            <textarea
+                                value={nuevoCuerpo}
+                                onChange={(e) => setNuevoCuerpo(e.target.value)}
+                                placeholder="Texto de la nota (se manda tal cual al cliente)"
+                                rows={9}
+                                className="w-full rounded-lg border px-2.5 py-1.5 text-xs outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-300 resize-y leading-relaxed"
+                            />
+                            {errorCrear && <p className="text-[11px] text-rose-600 mt-1">{errorCrear}</p>}
+                            <p className="text-[10px] text-gray-400 mt-1 leading-snug">
+                                Se guarda en la base de &quot;Info del negocio&quot;. Si ya existe una con el mismo
+                                título, se reemplaza.
+                            </p>
+                            <div className="flex justify-end gap-2 mt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setModoCrear(false)}
+                                    className="text-[11px] px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={guardarNueva}
+                                    disabled={guardandoNueva}
+                                    className="text-[11px] px-2.5 py-1 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 inline-flex items-center gap-1"
+                                >
+                                    {guardandoNueva && <Loader2 className="h-3 w-3 animate-spin" />}
+                                    Guardar
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                    <>
+                    <div className="p-2 border-b bg-gray-50">
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 bg-white rounded-lg px-2.5 py-1 border flex-1 min-w-0">
+                                <Search className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                <input
+                                    autoFocus
+                                    value={busqueda}
+                                    onChange={(e) => setBusqueda(e.target.value)}
+                                    placeholder={placeholder}
+                                    className="bg-transparent outline-none text-xs w-full text-[#111b25] placeholder:text-[#8696a0]"
+                                />
+                            </div>
+                            {onCrear && (
+                                <button
+                                    type="button"
+                                    onClick={abrirCrear}
+                                    className="shrink-0 text-[11px] font-medium px-2 py-1 rounded-md border border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 inline-flex items-center gap-1"
+                                    title="Agregar una nota nueva a la base"
+                                >
+                                    <Plus className="h-3 w-3" />
+                                    Nueva
+                                </button>
+                            )}
                         </div>
                         <p className="text-[10px] text-gray-400 mt-1 px-0.5 leading-snug">{ayuda}</p>
                     </div>
@@ -396,6 +521,8 @@ function SelectorRapido({
                             })
                         )}
                     </div>
+                    </>
+                    )}
                 </div>
             )}
         </div>
@@ -432,8 +559,6 @@ export function ChatsVivoClient({
     const [kitsRapidos, setKitsRapidos] = useState<KitEnvioRapido[] | null>(null)
     const [notasRapidas, setNotasRapidas] = useState<NotaRapida[] | null>(null)
     const [selectorAbierto, setSelectorAbierto] = useState<"kits" | "notas" | null>(null)
-    const [enviandoKitId, setEnviandoKitId] = useState<number | null>(null)
-    const [enviandoNotaId, setEnviandoNotaId] = useState<number | null>(null)
 
     const [lightboxImg, setLightboxImg] = useState<{ url: string; nombre?: string | null } | null>(null)
 
@@ -442,9 +567,61 @@ export function ChatsVivoClient({
     const [modoNota, setModoNota] = useState(false)
     const [enviandoMensaje, setEnviandoMensaje] = useState(false)
     const [mostrarEmojis, setMostrarEmojis] = useState(false)
+    // Imagen adjunta pendiente de enviar (arrastrada o foto de un kit precargado)
+    const [adjunto, setAdjunto] = useState<{ url: string; nombre: string; preview: string } | null>(null)
+    const [subiendoAdjunto, setSubiendoAdjunto] = useState(false)
+    const [errorAdjunto, setErrorAdjunto] = useState<string | null>(null)
+    const [dragAdjunto, setDragAdjunto] = useState(false)
+    // Kit precargado en el cuadro: al enviar, con el check activo, se pinea + prende el bot
+    const [kitCargado, setKitCargado] = useState<{ id: number; nombre: string } | null>(null)
+    const [pinearKit, setPinearKit] = useState(true)
     const mensajesEndRef = useRef<HTMLDivElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
     const emojiPickerRef = useRef<HTMLDivElement>(null)
+    const adjuntoFileRef = useRef<HTMLInputElement>(null)
+
+    const revocarPreview = (a: { preview: string } | null) => {
+        if (a && a.preview.startsWith("blob:")) URL.revokeObjectURL(a.preview)
+    }
+
+    const quitarAdjunto = () => {
+        setAdjunto((prev) => {
+            revocarPreview(prev)
+            return null
+        })
+        setErrorAdjunto(null)
+        if (adjuntoFileRef.current) adjuntoFileRef.current.value = ""
+    }
+
+    const subirAdjunto = async (archivo: File) => {
+        setErrorAdjunto(null)
+        if (!archivo.type.startsWith("image/")) {
+            setErrorAdjunto("El archivo tiene que ser una imagen")
+            return
+        }
+        if (archivo.size > 5 * 1024 * 1024) {
+            setErrorAdjunto("La imagen no puede superar los 5MB")
+            return
+        }
+        const preview = URL.createObjectURL(archivo)
+        setSubiendoAdjunto(true)
+        try {
+            const cuerpo = new FormData()
+            cuerpo.append("imagen", archivo)
+            const res = await fetch("/api/admin/kits/imagen", { method: "POST", body: cuerpo })
+            const data = await res.json()
+            if (!res.ok || !data.success) throw new Error(data.error || "No se pudo subir la imagen")
+            setAdjunto((prev) => {
+                revocarPreview(prev)
+                return { url: data.fotoUrl, nombre: archivo.name, preview }
+            })
+        } catch (err) {
+            URL.revokeObjectURL(preview)
+            setErrorAdjunto(err instanceof Error ? err.message : "Error al subir la imagen")
+        } finally {
+            setSubiendoAdjunto(false)
+        }
+    }
 
     // Cerrar el selector de emojis al hacer clic afuera
     useEffect(() => {
@@ -477,6 +654,14 @@ export function ChatsVivoClient({
                 setNotasRapidas([])
             })
     }, [])
+
+    // El cuadro de escritura crece con el texto (ej: al cargar un kit largo)
+    useEffect(() => {
+        const ta = textareaRef.current
+        if (!ta) return
+        ta.style.height = "auto"
+        ta.style.height = `${Math.min(ta.scrollHeight, 340)}px`
+    }, [textoMensaje, seleccionadaId, modoNota])
 
     const insertarEmoji = (emoji: string) => {
         if (!textareaRef.current) {
@@ -758,6 +943,14 @@ export function ChatsVivoClient({
         setSeleccionadaId(id)
         setModoNota(false)
         setSelectorAbierto(null)
+        setTextoMensaje("")
+        setKitCargado(null)
+        setPinearKit(true)
+        setAdjunto((prev) => {
+            revocarPreview(prev)
+            return null
+        })
+        setErrorAdjunto(null)
         marcarLeido(id)
     }
 
@@ -885,115 +1078,68 @@ export function ChatsVivoClient({
         [notasRapidas]
     )
 
-    const handleEnviarKit = async (kitId: number) => {
+    // Los selectores no envían: cargan el contenido en el cuadro de escritura
+    // para que el equipo lo revise/edite y recién ahí lo mande.
+    const cargarKitEnComposer = (kitId: number) => {
         const kit = (kitsRapidos ?? []).find((k) => k.id === kitId)
-        if (!seleccionada || !kit || enviandoKitId !== null) return
-        if (!kit.tieneMensaje) {
-            alert(`El kit "${kit.nombre}" no tiene mensaje predefinido cargado. Cargalo en /admin/chatwoot/conocimiento.`)
-            return
-        }
-        const convId = seleccionada.id
-        setEnviandoKitId(kit.id)
-        try {
-            const res = await forzarEnvioKitChatVivo(convId, kit.id)
-            if (res.mensaje) {
-                setHilos((prev) => {
-                    const actual = prev[convId] || []
-                    return { ...prev, [convId]: fusionarMensajeEnHilo(actual, res.mensaje) }
-                })
-            }
-            setPanel((prev) => {
-                if (!prev) return prev
-                return {
-                    ...prev,
-                    conversaciones: prev.conversaciones.map((c) =>
-                        c.id === convId
-                            ? { ...c, ultimoMensaje: res.mensaje.contenido, ultimoMensajePropio: true, botPausado: false }
-                            : c
-                    ),
-                }
-            })
-            setSelectorAbierto(null)
-            if (res.avisoFoto) {
-                alert("El mensaje del kit se envió, pero la foto no salió: " + res.avisoFoto)
-            }
-            if (res.avisoPin) {
-                console.warn("Kit enviado, pero no se pudo pinear en Redis:", res.avisoPin)
-            }
-        } catch (err) {
-            console.error("Error forzando envío de kit:", err)
-            alert("No se pudo enviar el kit: " + (err instanceof Error ? err.message : "Error desconocido"))
-        } finally {
-            setEnviandoKitId(null)
-        }
+        if (!kit) return
+        setModoNota(false)
+        setTextoMensaje(kit.mensaje ?? "")
+        setKitCargado({ id: kit.id, nombre: kit.nombre })
+        setPinearKit(true)
+        setAdjunto((prev) => {
+            revocarPreview(prev)
+            return kit.fotoUrl ? { url: kit.fotoUrl, nombre: `Foto: ${kit.nombre}`, preview: kit.fotoUrl } : null
+        })
+        setErrorAdjunto(null)
+        setSelectorAbierto(null)
+        setTimeout(() => textareaRef.current?.focus(), 50)
     }
 
-    const handleEnviarNota = async (notaId: number) => {
+    const cargarNotaEnComposer = (notaId: number) => {
         const nota = (notasRapidas ?? []).find((n) => n.id === notaId)
-        if (!seleccionada || !nota || enviandoNotaId !== null) return
-        const convId = seleccionada.id
-        const contenido = nota.respuesta.trim()
-        setEnviandoNotaId(nota.id)
-
-        // Optimista: la manda un humano del equipo -> pausa el bot en esta charla
-        const tempId = Date.now()
-        setHilos((prev) => {
-            const actual = prev[convId] || []
-            return {
-                ...prev,
-                [convId]: [
-                    ...actual,
-                    {
-                        id: tempId,
-                        contenido,
-                        privado: false,
-                        saliente: true,
-                        remitente: "Nosotros",
-                        creadoEn: new Date().toISOString(),
-                        status: "progress",
-                    },
-                ],
-            }
-        })
-        setPanel((prev) => {
-            if (!prev) return prev
-            return {
-                ...prev,
-                conversaciones: prev.conversaciones.map((c) =>
-                    c.id === convId
-                        ? { ...c, ultimoMensaje: contenido, ultimoMensajePropio: true, botPausado: true }
-                        : c
-                ),
-            }
-        })
+        if (!nota) return
+        setModoNota(false)
+        setTextoMensaje(nota.respuesta)
+        setKitCargado(null)
+        quitarAdjunto()
         setSelectorAbierto(null)
+        setTimeout(() => textareaRef.current?.focus(), 50)
+    }
 
-        try {
-            const res = await enviarMensajeChatVivo(convId, contenido)
-            if (!res.success) throw new Error("No se pudo enviar la nota")
-            if (res.mensaje) {
-                setHilos((prev) => {
-                    const actual = prev[convId] || []
-                    return { ...prev, [convId]: fusionarMensajeEnHilo(actual, res.mensaje) }
-                })
-            }
-        } catch (err) {
-            console.error("Error enviando nota rápida:", err)
-            alert("No se pudo enviar la nota: " + (err instanceof Error ? err.message : "Error desconocido"))
-        } finally {
-            setEnviandoNotaId(null)
-        }
+    const handleCrearNota = async (titulo: string, cuerpo: string) => {
+        const nueva = await crearNotaRapida(titulo, cuerpo)
+        setNotasRapidas((prev) => {
+            const otras = (prev ?? []).filter((n) => n.tema.toLowerCase() !== nueva.tema.toLowerCase())
+            return [nueva, ...otras]
+        })
     }
 
     const handleEnviarMensaje = async (e?: React.FormEvent) => {
         if (e) e.preventDefault()
-        if (!seleccionada) return
+        if (!seleccionada || enviandoMensaje || subiendoAdjunto) return
+
         const contenido = textoMensaje.trim()
-        if (!contenido || enviandoMensaje) return
+        const esNota = modoNota
+        const fotoUrl = !esNota ? adjunto?.url ?? null : null
+        // El kit se pinea solo si el check quedó activo y NO es una nota interna
+        const kitParaPin = !esNota && kitCargado && pinearKit ? kitCargado : null
+
+        if (esNota && !contenido) return
+        if (!esNota && !contenido && !fotoUrl) return
 
         const convId = seleccionada.id
-        const esNota = modoNota
+
+        // Limpiar el cuadro (guardamos lo necesario en variables locales)
         setTextoMensaje("")
+        setAdjunto((prev) => {
+            revocarPreview(prev)
+            return null
+        })
+        setKitCargado(null)
+        setPinearKit(true)
+        setErrorAdjunto(null)
+        if (adjuntoFileRef.current) adjuntoFileRef.current.value = ""
 
         const tempId = Date.now()
         const mensajeOptimista: MensajeConversacion = {
@@ -1004,19 +1150,16 @@ export function ChatsVivoClient({
             remitente: "Nosotros",
             creadoEn: new Date().toISOString(),
             status: "progress",
+            adjuntos: fotoUrl ? [{ id: `tmp-${tempId}`, tipo: "image", url: fotoUrl }] : undefined,
         }
 
-        // 1. Agregar de inmediato al hilo (optimista)
         setHilos((prev) => {
             const actual = prev[convId] || []
-            return {
-                ...prev,
-                [convId]: [...actual, mensajeOptimista],
-            }
+            return { ...prev, [convId]: [...actual, mensajeOptimista] }
         })
 
-        // 2. Un mensaje público al cliente pausa el bot y pasa a ser el "último
-        // mensaje". Una nota interna NO: es justamente para que el bot responda.
+        // Un mensaje al cliente pasa a ser el "último mensaje"; pausa el bot salvo
+        // que se haya mandado como saludo de kit (ahí lo prende).
         if (!esNota) {
             setPanel((prev) => {
                 if (!prev) return prev
@@ -1026,9 +1169,9 @@ export function ChatsVivoClient({
                         c.id === convId
                             ? {
                                   ...c,
-                                  ultimoMensaje: contenido,
+                                  ultimoMensaje: contenido || "📷 Foto",
                                   ultimoMensajePropio: true,
-                                  botPausado: true,
+                                  botPausado: kitParaPin ? false : true,
                               }
                             : c
                     ),
@@ -1038,20 +1181,25 @@ export function ChatsVivoClient({
 
         setEnviandoMensaje(true)
         try {
-            const res = esNota
-                ? await enviarNotaInternaChatVivo(convId, contenido)
-                : await enviarMensajeChatVivo(convId, contenido)
-            if (!res.success) {
-                throw new Error(esNota ? "No se pudo enviar la nota" : "No se pudo enviar el mensaje")
-            }
+            const res = await enviarMensajeComposerChatVivo({
+                conversationId: convId,
+                contenido,
+                esNota,
+                fotoUrl,
+                kit: kitParaPin,
+            })
+            if (!res.success) throw new Error(esNota ? "No se pudo enviar la nota" : "No se pudo enviar el mensaje")
             if (res.mensaje) {
                 setHilos((prev) => {
                     const actual = prev[convId] || []
-                    return {
-                        ...prev,
-                        [convId]: fusionarMensajeEnHilo(actual, res.mensaje),
-                    }
+                    return { ...prev, [convId]: fusionarMensajeEnHilo(actual, res.mensaje) }
                 })
+            }
+            if (res.avisoFoto) {
+                alert("El texto se envió, pero la imagen no salió: " + res.avisoFoto)
+            }
+            if (res.avisoPin) {
+                console.warn("Mensaje enviado, pero no se pudo pinear el kit en Redis:", res.avisoPin)
             }
         } catch (err) {
             console.error("Error enviando mensaje:", err)
@@ -1321,8 +1469,8 @@ export function ChatsVivoClient({
                                     vacioTexto="No hay kits cargados"
                                     ayuda={
                                         <>
-                                            Manda el mensaje del kit y su foto como si el cliente hubiera entrado por
-                                            publicidad, y prende el bot en esta charla. Arrastrá
+                                            Carga el mensaje y la foto del kit en el cuadro de abajo para revisarlos y
+                                            editarlos antes de mandar. Arrastrá
                                             <GripVertical className="h-3 w-3 inline mx-0.5 -mt-0.5" />
                                             para reordenar.
                                         </>
@@ -1330,8 +1478,8 @@ export function ChatsVivoClient({
                                     abierto={selectorAbierto === "kits"}
                                     onToggle={() => setSelectorAbierto((v) => (v === "kits" ? null : "kits"))}
                                     onCerrar={() => setSelectorAbierto((v) => (v === "kits" ? null : v))}
-                                    onElegir={handleEnviarKit}
-                                    enviandoId={enviandoKitId}
+                                    onElegir={cargarKitEnComposer}
+                                    enviandoId={null}
                                 />
                                 <SelectorRapido
                                     etiqueta="Notas rápidas"
@@ -1344,7 +1492,8 @@ export function ChatsVivoClient({
                                     ayuda={
                                         <>
                                             Respuestas de &quot;Info del negocio&quot; (medios de pago, envíos, horarios,
-                                            ubicación…). Se mandan tal cual al cliente y pausan el bot. Arrastrá
+                                            ubicación…). Se cargan en el cuadro de abajo para editarlas antes de mandar.
+                                            Arrastrá
                                             <GripVertical className="h-3 w-3 inline mx-0.5 -mt-0.5" />
                                             para reordenar.
                                         </>
@@ -1352,8 +1501,10 @@ export function ChatsVivoClient({
                                     abierto={selectorAbierto === "notas"}
                                     onToggle={() => setSelectorAbierto((v) => (v === "notas" ? null : "notas"))}
                                     onCerrar={() => setSelectorAbierto((v) => (v === "notas" ? null : v))}
-                                    onElegir={handleEnviarNota}
-                                    enviandoId={enviandoNotaId}
+                                    onElegir={cargarNotaEnComposer}
+                                    enviandoId={null}
+                                    onCrear={handleCrearNota}
+                                    plantillaNueva={{ titulo: "Datos para envío", cuerpo: PLANTILLA_DATOS_ENVIO }}
                                 />
                             </div>
 
@@ -1421,7 +1572,32 @@ export function ChatsVivoClient({
                             </div>
 
                             {/* Barra para escribir y responder manualmente (4 renglones) */}
-                            <div className="px-3.5 py-2.5 bg-[#f0f2f5] border-t shrink-0 relative">
+                            <div
+                                className={`px-3.5 py-2.5 bg-[#f0f2f5] border-t shrink-0 relative transition-colors ${
+                                    dragAdjunto ? "bg-violet-50 ring-2 ring-inset ring-violet-300" : ""
+                                }`}
+                                onDragOver={(e) => {
+                                    if (modoNota || !Array.from(e.dataTransfer.types).includes("Files")) return
+                                    e.preventDefault()
+                                    setDragAdjunto(true)
+                                }}
+                                onDragLeave={(e) => {
+                                    if (e.currentTarget.contains(e.relatedTarget as Node)) return
+                                    setDragAdjunto(false)
+                                }}
+                                onDrop={(e) => {
+                                    if (modoNota) return
+                                    e.preventDefault()
+                                    setDragAdjunto(false)
+                                    const f = e.dataTransfer.files?.[0]
+                                    if (f) subirAdjunto(f)
+                                }}
+                            >
+                                {dragAdjunto && (
+                                    <div className="absolute inset-2 rounded-xl border-2 border-dashed border-violet-400 bg-violet-50/80 flex items-center justify-center text-violet-700 text-xs font-medium z-40 pointer-events-none">
+                                        Soltá la imagen para adjuntarla
+                                    </div>
+                                )}
                                 {/* Popover de Emojis frecuentes */}
                                 {mostrarEmojis && (
                                     <div
@@ -1479,6 +1655,81 @@ export function ChatsVivoClient({
                                     </p>
                                 )}
 
+                                {/* Kit precargado: opción de pinearlo + prender el bot al enviar */}
+                                {!modoNota && kitCargado && (
+                                    <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mb-2 text-[11px] bg-violet-50 border border-violet-200 rounded-md px-2 py-1.5">
+                                        <span className="inline-flex items-center gap-1 font-medium text-violet-700">
+                                            <Zap className="h-3 w-3" />
+                                            Kit: {kitCargado.nombre}
+                                        </span>
+                                        <label className="inline-flex items-center gap-1.5 text-violet-800 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={pinearKit}
+                                                onChange={(e) => setPinearKit(e.target.checked)}
+                                                className="h-3 w-3 accent-violet-600"
+                                            />
+                                            Pinear el kit y prender el bot (como si viniera de publicidad)
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setKitCargado(null)}
+                                            className="ml-auto text-violet-500 hover:text-violet-700"
+                                            title="Quitar el kit (el texto queda para enviar como mensaje normal)"
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Imagen adjunta pendiente */}
+                                {!modoNota && (adjunto || subiendoAdjunto || errorAdjunto) && (
+                                    <div className="flex items-center gap-2 mb-2 bg-white border border-gray-200 rounded-md px-2 py-1.5 shadow-sm">
+                                        {subiendoAdjunto ? (
+                                            <span className="flex items-center gap-2 text-[11px] text-gray-500">
+                                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Subiendo imagen…
+                                            </span>
+                                        ) : adjunto ? (
+                                            <>
+                                                <img
+                                                    src={adjunto.preview}
+                                                    alt={adjunto.nombre}
+                                                    className="h-10 w-10 object-cover rounded border cursor-pointer"
+                                                    onClick={() => setLightboxImg({ url: adjunto.preview, nombre: adjunto.nombre })}
+                                                />
+                                                <span className="text-[11px] text-gray-600 truncate flex-1 min-w-0">{adjunto.nombre}</span>
+                                                <span className="text-[10px] text-emerald-600 shrink-0">se manda con el mensaje</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={quitarAdjunto}
+                                                    className="text-gray-400 hover:text-rose-600 shrink-0"
+                                                    title="Quitar la imagen"
+                                                >
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <span className="flex items-center gap-2 text-[11px] text-rose-600 flex-1">
+                                                {errorAdjunto}
+                                                <button type="button" onClick={() => setErrorAdjunto(null)} className="ml-auto text-gray-400 hover:text-gray-600">
+                                                    <X className="h-3.5 w-3.5" />
+                                                </button>
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+
+                                <input
+                                    ref={adjuntoFileRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                        const f = e.target.files?.[0]
+                                        if (f) subirAdjunto(f)
+                                    }}
+                                />
+
                                 <form onSubmit={handleEnviarMensaje} className="flex items-end gap-2">
                                     <div
                                         className={`flex-1 bg-white rounded-xl px-3.5 py-2 border shadow-sm transition-all ${
@@ -1497,11 +1748,23 @@ export function ChatsVivoClient({
                                                     ? "Escribí el dato técnico para el bot (ej: 'sí es compatible con la Rouser 200 NS')... (Enter para enviar)"
                                                     : "Escribe un mensaje para responder al cliente... (Enter para enviar, Shift+Enter para nueva línea)"
                                             }
-                                            rows={4}
-                                            className="w-full resize-none bg-transparent outline-none text-xs md:text-sm text-[#111b25] placeholder:text-[#8696a0] min-h-[76px] max-h-44 block leading-relaxed"
+                                            rows={3}
+                                            className="w-full resize-none bg-transparent outline-none text-xs md:text-sm text-[#111b25] placeholder:text-[#8696a0] min-h-[68px] max-h-[340px] block leading-relaxed overflow-y-auto"
                                         />
                                     </div>
                                     <div className="flex flex-col gap-1.5 shrink-0 mb-0.5">
+                                        {!modoNota && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => adjuntoFileRef.current?.click()}
+                                                disabled={subiendoAdjunto}
+                                                className="h-9 w-9 p-0 rounded-xl border-gray-200 bg-white text-gray-500 hover:text-violet-600 hover:bg-violet-50 transition-colors shadow-sm"
+                                                title="Adjuntar imagen (o arrastrala al cuadro)"
+                                            >
+                                                {subiendoAdjunto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                                            </Button>
+                                        )}
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -1515,7 +1778,11 @@ export function ChatsVivoClient({
                                         </Button>
                                         <Button
                                             type="submit"
-                                            disabled={!textoMensaje.trim() || enviandoMensaje}
+                                            disabled={
+                                                enviandoMensaje ||
+                                                subiendoAdjunto ||
+                                                (modoNota ? !textoMensaje.trim() : !textoMensaje.trim() && !adjunto)
+                                            }
                                             className={`h-9 w-9 p-0 rounded-xl text-white disabled:opacity-40 transition-colors shadow-sm ${
                                                 modoNota
                                                     ? "bg-amber-500 hover:bg-amber-600"

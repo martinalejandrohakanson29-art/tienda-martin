@@ -175,11 +175,16 @@ export type KitEnvioRapido = {
     tieneFoto: boolean
     activo: boolean
     tieneMensaje: boolean
+    /** Mensaje predefinido completo, para precargar en el cuadro de escritura. */
+    mensaje: string | null
+    /** URL de la foto del kit, para precargarla como adjunto pendiente. */
+    fotoUrl: string | null
 }
 
 /**
- * Lista de kits para el buscador de "nota rápida" del panel de chats en vivo.
- * Trae todos los kits cargados (activos y pausados), los activos primero.
+ * Lista de kits para el selector "Enviar info de kit" del panel de chats en vivo.
+ * Trae todos los kits cargados (activos y pausados), los activos primero, con el
+ * mensaje y la foto completos para poder precargarlos en el cuadro de escritura.
  */
 export async function listarKitsEnvioRapido(): Promise<KitEnvioRapido[]> {
     await requireAdmin()
@@ -191,14 +196,20 @@ export async function listarKitsEnvioRapido(): Promise<KitEnvioRapido[]> {
             FROM kits_publicidad
             ORDER BY activo DESC, nombre ASC
         `
-        return rows.map((r) => ({
-            id: Number(r.id),
-            nombre: r.nombre,
-            precio: r.precio,
-            tieneFoto: Boolean(r.foto_url && r.foto_url.trim()),
-            activo: Boolean(r.activo),
-            tieneMensaje: Boolean(r.mensaje_bienvenida && r.mensaje_bienvenida.trim()),
-        }))
+        return rows.map((r) => {
+            const mensaje = r.mensaje_bienvenida && r.mensaje_bienvenida.trim() ? r.mensaje_bienvenida : null
+            const fotoUrl = r.foto_url && r.foto_url.trim() ? r.foto_url.trim() : null
+            return {
+                id: Number(r.id),
+                nombre: r.nombre,
+                precio: r.precio,
+                tieneFoto: Boolean(fotoUrl),
+                activo: Boolean(r.activo),
+                tieneMensaje: Boolean(mensaje),
+                mensaje,
+                fotoUrl,
+            }
+        })
     } catch (error) {
         console.error("Error leyendo kits_publicidad para envío rápido:", error)
         throw new Error("No se pudo leer la lista de kits (¿corriste el CREATE TABLE kits_publicidad?)")
@@ -206,20 +217,28 @@ export async function listarKitsEnvioRapido(): Promise<KitEnvioRapido[]> {
 }
 
 /**
- * Fuerza el envío de la info de un kit a una conversación, como si el cliente
- * hubiera entrado por publicidad y el automatismo hubiera funcionado:
- *  1. prende el bot en esa charla,
- *  2. manda el mensaje predefinido del kit (con la identidad del Bot),
- *  3. manda la foto del kit si tiene,
- *  4. "pinea" el kit en Redis vía el workflow n8n para que el bot siga la
- *     conversación tratándolo como kit confiado (compatibilidad, variantes, etc.).
+ * Envía lo que el equipo escribió en el cuadro del panel de chats en vivo:
+ * texto y/o una imagen (adjunto pendiente), como mensaje al cliente o nota
+ * interna para el bot.
  *
- * Los pasos 3 y 4 no tumban el envío si fallan: se devuelven como avisos.
+ * - `esNota`: nota privada para el bot (no lleva imagen, no pausa el bot).
+ * - `kit` presente: se manda como "saludo de kit" — identidad del Bot, prende el
+ *   bot en la charla y lo "pinea" en Redis vía el workflow n8n (como si el
+ *   cliente hubiera entrado por publicidad). El equipo pudo haber editado el
+ *   texto/la foto antes de mandar.
+ * - sin `kit`: mensaje manual del equipo (identidad de agente humano, pausa el bot).
+ *
+ * `fotoUrl` es una URL http(s) pública (foto del kit, o la que devuelve
+ * /api/admin/kits/imagen al subir una imagen arrastrada). El fallo al mandar la
+ * imagen o al pinear no tumban el envío del texto: se devuelven como avisos.
  */
-export async function forzarEnvioKitChatVivo(
-    conversationId: number,
-    kitId: number
-): Promise<{
+export async function enviarMensajeComposerChatVivo(params: {
+    conversationId: number
+    contenido: string
+    esNota: boolean
+    fotoUrl?: string | null
+    kit?: { id: number; nombre: string } | null
+}): Promise<{
     success: boolean
     mensaje: MensajeConversacion
     avisoFoto: string | null
@@ -227,77 +246,91 @@ export async function forzarEnvioKitChatVivo(
 }> {
     await requireAdmin()
 
-    const kits = await prisma.$queryRaw<
-        { nombre: string; mensaje_bienvenida: string | null; foto_url: string | null }[]
-    >`
-        SELECT nombre, mensaje_bienvenida, foto_url
-        FROM kits_publicidad
-        WHERE id = ${kitId}
-        LIMIT 1
-    `
-    const kit = kits[0]
-    if (!kit) throw new Error("No se encontró el kit")
+    const { conversationId, esNota } = params
+    const texto = params.contenido.trim()
+    const fotoUrl = params.fotoUrl && params.fotoUrl.trim() ? params.fotoUrl.trim() : null
+    const kit = !esNota ? params.kit ?? null : null
 
-    const contenido = (kit.mensaje_bienvenida || "").trim()
-    if (!contenido) throw new Error(`El kit "${kit.nombre}" no tiene mensaje predefinido cargado`)
-    const fotoUrl = kit.foto_url && kit.foto_url.trim() ? kit.foto_url.trim() : null
+    // --- Nota interna ---
+    if (esNota) {
+        if (!texto) throw new Error("La nota no puede estar vacía")
+        await enviarNotaPrivadaChatwoot({ accountId: ACCOUNT_ID, conversationId, content: texto })
+        const mensaje: MensajeConversacion = {
+            id: Date.now(),
+            contenido: texto,
+            privado: true,
+            saliente: true,
+            remitente: "Nosotros",
+            creadoEn: new Date().toISOString(),
+        }
+        revalidatePath("/admin/chatwoot/chats-vivo")
+        return { success: true, mensaje, avisoFoto: null, avisoPin: null }
+    }
 
-    // 1. Prender el bot en esta charla (la idea es que el bot siga la conversación).
-    await enviarNotaPrivadaChatwoot({ accountId: ACCOUNT_ID, conversationId, content: "/bot on" })
-    await actualizarBotPausadoEnEspejo(conversationId, false)
+    // --- Mensaje al cliente ---
+    if (!texto && !fotoUrl) throw new Error("Escribí un mensaje o adjuntá una imagen")
 
-    // 2. Mandar el mensaje predefinido tal cual, con la identidad del Bot (igual
-    // que el saludo automático de kit). NO pausa el bot: es un saludo, no una
-    // respuesta de un humano del equipo.
-    const res = await enviarMensajeChatwoot({ accountId: ACCOUNT_ID, conversationId, content: contenido })
-    await registrarMensajeSalienteEnEspejo(conversationId, contenido)
+    let idTexto = Date.now()
 
-    // 3. Foto (si falla, el texto ya salió: se reporta como aviso).
+    if (kit) {
+        // Como saludo de kit: prende el bot, identidad del Bot, NO pausa.
+        await enviarNotaPrivadaChatwoot({ accountId: ACCOUNT_ID, conversationId, content: "/bot on" })
+        await actualizarBotPausadoEnEspejo(conversationId, false)
+        if (texto) {
+            const res = await enviarMensajeChatwoot({ accountId: ACCOUNT_ID, conversationId, content: texto })
+            idTexto = Number(res?.id || idTexto)
+        }
+        await registrarMensajeSalienteEnEspejo(conversationId, texto || "📷 Foto")
+    } else {
+        // Mensaje manual del equipo: identidad de agente humano, pausa el bot.
+        if (texto) {
+            const res = await enviarMensajeManualChatwoot({ accountId: ACCOUNT_ID, conversationId, content: texto })
+            idTexto = Number(res?.id || idTexto)
+        }
+        await registrarMensajeSalienteEnEspejo(conversationId, texto || "📷 Foto", { pausarBot: true })
+    }
+
     let avisoFoto: string | null = null
     if (fotoUrl) {
         try {
             await enviarImagenChatwoot({ accountId: ACCOUNT_ID, conversationId, fotoUrl })
         } catch (error) {
-            avisoFoto = error instanceof Error ? error.message : "No se pudo mandar la foto del kit"
-            console.error("No se pudo mandar la foto del kit (envío forzado):", error)
+            avisoFoto = error instanceof Error ? error.message : "No se pudo mandar la imagen"
+            console.error("No se pudo mandar la imagen (composer chats-vivo):", error)
         }
     }
 
-    // 4. Pinear el kit en Redis vía el workflow n8n.
     let avisoPin: string | null = null
-    try {
-        const telefono = await telefonoDeConversacion(ACCOUNT_ID, conversationId)
-        const claveTelefono = telefono || `conv-${conversationId}`
-        const webhookToken = process.env.CHATWOOT_WEBHOOK_TOKEN
-        const url = webhookToken
-            ? `${N8N_PINEAR_KIT_URL}?token=${encodeURIComponent(webhookToken)}`
-            : N8N_PINEAR_KIT_URL
-        const resPin = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                telefono: claveTelefono,
-                conversationId,
-                kit_id: kitId,
-                kit_nombre: kit.nombre,
-            }),
-        })
-        const dataPin = await resPin.json().catch(() => ({}))
-        if (!resPin.ok) throw new Error(dataPin?.error || `n8n respondió ${resPin.status}`)
-    } catch (error) {
-        avisoPin = error instanceof Error ? error.message : "No se pudo pinear el kit en Redis"
-        console.error("No se pudo pinear el kit en Redis (envío forzado):", error)
+    if (kit) {
+        try {
+            const telefono = await telefonoDeConversacion(ACCOUNT_ID, conversationId)
+            const claveTelefono = telefono || `conv-${conversationId}`
+            const webhookToken = process.env.CHATWOOT_WEBHOOK_TOKEN
+            const url = webhookToken
+                ? `${N8N_PINEAR_KIT_URL}?token=${encodeURIComponent(webhookToken)}`
+                : N8N_PINEAR_KIT_URL
+            const resPin = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ telefono: claveTelefono, conversationId, kit_id: kit.id, kit_nombre: kit.nombre }),
+            })
+            const dataPin = await resPin.json().catch(() => ({}))
+            if (!resPin.ok) throw new Error(dataPin?.error || `n8n respondió ${resPin.status}`)
+        } catch (error) {
+            avisoPin = error instanceof Error ? error.message : "No se pudo pinear el kit en Redis"
+            console.error("No se pudo pinear el kit en Redis (composer chats-vivo):", error)
+        }
     }
 
     const mensaje: MensajeConversacion = {
-        id: Number(res?.id || Date.now()),
-        contenido,
+        id: idTexto,
+        contenido: texto,
         privado: false,
         saliente: true,
-        remitente: "Bot",
+        remitente: kit ? "Bot" : "Nosotros",
         creadoEn: new Date().toISOString(),
         status: "sent",
-        adjuntos: fotoUrl ? [{ id: "foto-kit", tipo: "image", url: fotoUrl }] : undefined,
+        adjuntos: fotoUrl ? [{ id: `adjunto-${idTexto}`, tipo: "image", url: fotoUrl }] : undefined,
     }
     emitirEventoChatwoot({ tipo: "message_created", conversationId, mensaje })
 
@@ -342,6 +375,44 @@ export async function listarNotasRapidas(): Promise<NotaRapida[]> {
         console.error("Error leyendo info_negocio para notas rápidas:", error)
         throw new Error("No se pudo leer la info del negocio")
     }
+}
+
+/**
+ * Crea (o reemplaza, si ya existe una con el mismo título) una nota rápida
+ * directo en la tabla `info_negocio`, desde el selector del panel de chats en
+ * vivo. Mismo criterio "una por tema" que /admin/chatwoot/conocimiento y que el
+ * workflow del bot.
+ */
+export async function crearNotaRapida(titulo: string, respuesta: string): Promise<NotaRapida> {
+    await requireAdmin()
+    const temaOriginal = titulo.trim().replace(/\s+/g, " ")
+    const temaKey = temaOriginal.toLowerCase()
+    const texto = respuesta.trim()
+    if (!temaOriginal || !texto) throw new Error("El título y el texto son obligatorios")
+
+    const existente = await prisma.$queryRaw<{ id: number }[]>`
+        SELECT id FROM info_negocio WHERE LOWER(tema) = ${temaKey} LIMIT 1
+    `
+    let id: number
+    if (existente.length > 0) {
+        id = Number(existente[0].id)
+        await prisma.$executeRaw`
+            UPDATE info_negocio
+            SET tema = ${temaOriginal}, respuesta = ${texto}, fuente = 'chats-vivo', creado_en = now()
+            WHERE id = ${id}
+        `
+    } else {
+        const insertado = await prisma.$queryRaw<{ id: number }[]>`
+            INSERT INTO info_negocio (tema, respuesta, fuente)
+            VALUES (${temaOriginal}, ${texto}, 'chats-vivo')
+            RETURNING id
+        `
+        id = Number(insertado[0].id)
+    }
+
+    revalidatePath("/admin/chatwoot/conocimiento")
+    const etiqueta = TEMAS_NEGOCIO.find((t) => t.value === temaKey)?.label ?? temaOriginal
+    return { id, tema: temaOriginal, etiqueta, respuesta: texto }
 }
 
 /** Marca una conversación como leída en Chatwoot y en la base local (espejo). */

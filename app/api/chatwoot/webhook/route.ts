@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { guardarConversacionesEnEspejo } from "@/lib/chatwoot-chats-vivo"
 import { emitirEventoChatwoot, type EventoChatwootEnVivo } from "@/lib/chatwoot-events"
+import { calcularBotPausadoDesdeHistorial, chatwootConfig } from "@/lib/chatwoot-bot"
 
 export const dynamic = "force-dynamic"
 
@@ -89,7 +90,7 @@ export async function POST(req: Request) {
 
             const senderId = Number(m.sender?.id || m.sender_id || 0)
             const senderName = (m.sender?.name || "").toString().trim().toLowerCase()
-            const esBot = senderId === 2 || senderName === "bot"
+            const esBot = senderId === chatwootConfig().botUserId || senderName === "bot"
 
             mensajeEmitido = {
                 id: Number(m.id || Date.now()),
@@ -101,18 +102,17 @@ export async function POST(req: Request) {
                 adjuntos: adjuntos.length > 0 ? adjuntos : undefined,
             }
 
-            if (txt === "/bot off") {
-                cambioBotPausado = true
-            } else if (txt === "/bot on") {
-                cambioBotPausado = false
-            } else if (saliente && !m.private && m.sender?.type === "user" && !esBot) {
-                // Humano (agente real, no el bot) respondiendo en público -> el workflow de n8n pausa el bot
-                cambioBotPausado = true
-            }
-
-            if (conversationId > 0 && cambioBotPausado !== undefined) {
-                const { actualizarBotPausadoEnEspejo } = await import("@/lib/chatwoot-chats-vivo")
-                await actualizarBotPausadoEnEspejo(conversationId, cambioBotPausado).catch(() => {})
+            // Reconciliar bot_pausado contra el historial REAL de Chatwoot (no
+            // adivinar solo con este mensaje suelto) cada vez que llega algo, así
+            // el espejo no queda pegado en un estado viejo para conversaciones que
+            // nadie tiene abiertas en /admin/chatwoot/chats-vivo en este momento.
+            if (conversationId > 0) {
+                const pausado = await calcularBotPausadoDesdeHistorial(1, conversationId)
+                if (pausado !== null) {
+                    cambioBotPausado = pausado
+                    const { actualizarBotPausadoEnEspejo } = await import("@/lib/chatwoot-chats-vivo")
+                    await actualizarBotPausadoEnEspejo(conversationId, pausado).catch(() => {})
+                }
             }
         }
 

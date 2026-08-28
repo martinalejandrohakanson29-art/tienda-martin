@@ -429,6 +429,64 @@ export async function estadoConversacionDesde(
     }
 }
 
+/**
+ * Determina si el bot debería estar pausado para esta conversación mirando el
+ * historial real de Chatwoot, en vez de adivinar a partir de un solo mensaje
+ * suelto. Gana el evento más reciente entre una nota privada "/bot off" /
+ * "/bot on" (override explícito, ver cambiarEstadoBotChatVivo) y un mensaje
+ * saliente PÚBLICO de un agente humano real (no el usuario Bot) — mismo
+ * criterio que usa el workflow de n8n para pausar por Redis (
+ * `bot_pausado:{conversationId}`, ver Fase 1-4 en CHATWOOT-BOT-CONTEXTO.md).
+ *
+ * Se usa para reconciliar el espejo local (`chatwoot_conversaciones_espejo.
+ * bot_pausado`) cada vez que llega un mensaje real por el webhook, así el
+ * switch de /admin/chatwoot/chats-vivo no se queda pegado en un estado viejo
+ * para conversaciones que nadie tiene abiertas en ese momento.
+ *
+ * Devuelve null si no hay ningún evento relevante en el historial (nunca se
+ * pausó) o si Chatwoot no contesta — en ambos casos no hay que pisar el valor
+ * actual del espejo.
+ */
+export async function calcularBotPausadoDesdeHistorial(
+    accountId: number | bigint,
+    conversationId: number | bigint
+): Promise<boolean | null> {
+    const { api, token, botUserId } = chatwootConfig()
+    if (!token) return null
+
+    try {
+        const res = await fetch(`${api}/accounts/${accountId}/conversations/${conversationId}/messages`, {
+            headers: { api_access_token: token },
+            cache: "no-store",
+        })
+        if (!res.ok) return null
+
+        const data = await res.json()
+        const mensajes: any[] = Array.isArray(data?.payload) ? data.payload : []
+
+        let masReciente: { creado: number; pausado: boolean } | null = null
+        for (const m of mensajes) {
+            const esSaliente = m?.message_type === 1 || m?.message_type === "outgoing"
+            if (!esSaliente) continue
+            const creado = typeof m?.created_at === "number" ? m.created_at * 1000 : Date.parse(m?.created_at ?? "")
+            if (!Number.isFinite(creado)) continue
+
+            const txt = (m?.content || "").toString().trim().toLowerCase()
+            let pausado: boolean | null = null
+            if (m?.private && txt === "/bot off") pausado = true
+            else if (m?.private && txt === "/bot on") pausado = false
+            else if (!m?.private && m?.sender?.type === "user" && Number(m?.sender?.id) !== botUserId) pausado = true
+
+            if (pausado === null) continue
+            if (!masReciente || creado > masReciente.creado) masReciente = { creado, pausado }
+        }
+        return masReciente ? masReciente.pausado : null
+    } catch (error) {
+        console.error("No se pudo calcular bot_pausado desde el historial de Chatwoot:", error)
+        return null
+    }
+}
+
 export type AdjuntoConversacion = {
     id: number | string
     tipo: "image" | "audio" | "video" | "file" | string

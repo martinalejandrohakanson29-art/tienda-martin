@@ -10,6 +10,7 @@ import {
   Eye, 
   ShoppingCart, 
   ChevronRight, 
+  ChevronDown,
   Zap,
   RefreshCw,
   Columns3,
@@ -18,31 +19,19 @@ import {
   Percent,
   Layers,
   Check,
-  RotateCcw
+  RotateCcw,
+  Target,
+  FolderTree,
+  ChevronsUpDown
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { sincronizarMarketingWorkflow } from "@/app/actions/marketing"
+import { sincronizarMarketingWorkflow, MarketingCampaignData, MarketingAdSetData, MarketingAdData } from "@/app/actions/marketing"
 
-export interface MarketingCampaignData {
-  id: string
-  name: string
-  spend: number
-  reach: number
-  impressions?: number
-  clicks?: number
-  cpc?: number
-  ctr?: number
-  frequency?: number
-  messages: number
-  carts: number
-  costPerMsg: number
-  status?: string
-  updatedAt?: Date | string
-}
+export type { MarketingCampaignData, MarketingAdSetData, MarketingAdData }
 
 export interface MarketingClientProps {
   data?: {
@@ -55,13 +44,29 @@ export interface MarketingClientProps {
   }
 }
 
+interface GenericMetricRow {
+  id: string
+  name: string
+  status?: string
+  spend: number
+  reach: number
+  impressions?: number
+  clicks?: number
+  cpc?: number
+  ctr?: number
+  frequency?: number
+  messages: number
+  carts: number
+  costPerMsg: number
+}
+
 interface ColumnConfig {
   id: string
   label: string
   icon?: React.ReactNode
   defaultVisible: boolean
   align?: "left" | "center" | "right"
-  render: (camp: MarketingCampaignData) => React.ReactNode
+  render: (item: GenericMetricRow) => React.ReactNode
 }
 
 const AVAILABLE_COLUMNS: ColumnConfig[] = [
@@ -71,9 +76,9 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <DollarSign className="h-3.5 w-3.5 text-blue-600" />,
     defaultVisible: true,
     align: "right",
-    render: (camp) => (
+    render: (item) => (
       <span className="font-semibold font-mono text-slate-800">
-        ${camp.spend.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        ${item.spend.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </span>
     )
   },
@@ -83,9 +88,9 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <MessageSquare className="h-3.5 w-3.5 text-green-600" />,
     defaultVisible: true,
     align: "center",
-    render: (camp) => (
-      <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 border border-green-200">
-        {camp.messages.toLocaleString("es-AR")}
+    render: (item) => (
+      <span className="inline-flex items-center rounded-md bg-green-50 px-2 py-0.5 text-xs font-semibold text-green-700 border border-green-200">
+        {item.messages.toLocaleString("es-AR")}
       </span>
     )
   },
@@ -95,11 +100,11 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <TrendingUp className="h-3.5 w-3.5 text-orange-600" />,
     defaultVisible: true,
     align: "right",
-    render: (camp) => {
-      const isGood = camp.costPerMsg > 0 && camp.costPerMsg < 300;
+    render: (item) => {
+      const isGood = item.costPerMsg > 0 && item.costPerMsg < 300;
       return (
         <span className={`font-semibold font-mono text-sm ${isGood ? "text-emerald-600" : "text-slate-700"}`}>
-          {camp.costPerMsg > 0 ? `$${camp.costPerMsg.toFixed(2)}` : "-"}
+          {item.costPerMsg > 0 ? `$${item.costPerMsg.toFixed(2)}` : "-"}
         </span>
       )
     }
@@ -110,10 +115,10 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <ShoppingCart className="h-3.5 w-3.5 text-blue-600" />,
     defaultVisible: true,
     align: "center",
-    render: (camp) => (
+    render: (item) => (
       <div className="flex items-center justify-center gap-1 font-semibold text-blue-600 text-sm">
         <ShoppingCart className="h-3.5 w-3.5" />
-        {camp.carts}
+        {item.carts}
       </div>
     )
   },
@@ -123,9 +128,9 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <Eye className="h-3.5 w-3.5 text-purple-600" />,
     defaultVisible: true,
     align: "right",
-    render: (camp) => (
+    render: (item) => (
       <span className="text-slate-600 font-mono text-sm">
-        {camp.reach.toLocaleString("es-AR")}
+        {item.reach.toLocaleString("es-AR")}
       </span>
     )
   },
@@ -135,9 +140,9 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <Layers className="h-3.5 w-3.5 text-indigo-600" />,
     defaultVisible: false,
     align: "right",
-    render: (camp) => (
+    render: (item) => (
       <span className="text-slate-600 font-mono text-sm">
-        {(camp.impressions || 0).toLocaleString("es-AR")}
+        {(item.impressions || 0).toLocaleString("es-AR")}
       </span>
     )
   },
@@ -147,9 +152,9 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <MousePointerClick className="h-3.5 w-3.5 text-cyan-600" />,
     defaultVisible: true,
     align: "right",
-    render: (camp) => (
+    render: (item) => (
       <span className="text-slate-700 font-semibold font-mono text-sm">
-        {(camp.clicks || 0).toLocaleString("es-AR")}
+        {(item.clicks || 0).toLocaleString("es-AR")}
       </span>
     )
   },
@@ -159,9 +164,9 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <Percent className="h-3.5 w-3.5 text-amber-600" />,
     defaultVisible: false,
     align: "right",
-    render: (camp) => (
+    render: (item) => (
       <span className="text-slate-700 font-mono text-sm font-medium">
-        {camp.ctr !== undefined && camp.ctr !== null ? `${camp.ctr.toFixed(2)}%` : "-"}
+        {item.ctr !== undefined && item.ctr !== null ? `${item.ctr.toFixed(2)}%` : "-"}
       </span>
     )
   },
@@ -171,9 +176,9 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <DollarSign className="h-3.5 w-3.5 text-rose-600" />,
     defaultVisible: false,
     align: "right",
-    render: (camp) => (
+    render: (item) => (
       <span className="text-slate-700 font-mono text-sm">
-        {camp.cpc !== undefined && camp.cpc !== null && camp.cpc > 0 ? `$${camp.cpc.toFixed(2)}` : "-"}
+        {item.cpc !== undefined && item.cpc !== null && item.cpc > 0 ? `$${item.cpc.toFixed(2)}` : "-"}
       </span>
     )
   },
@@ -183,26 +188,61 @@ const AVAILABLE_COLUMNS: ColumnConfig[] = [
     icon: <RotateCcw className="h-3.5 w-3.5 text-teal-600" />,
     defaultVisible: false,
     align: "right",
-    render: (camp) => (
+    render: (item) => (
       <span className="text-slate-600 font-mono text-sm">
-        {camp.frequency !== undefined && camp.frequency !== null && camp.frequency > 0 ? camp.frequency.toFixed(2) : "-"}
+        {item.frequency !== undefined && item.frequency !== null && item.frequency > 0 ? item.frequency.toFixed(2) : "-"}
       </span>
     )
   }
 ];
 
-const STORAGE_KEY = "marketing_visible_columns_v1";
+const STORAGE_KEY = "marketing_visible_columns_v2";
+
+type StatusFilter = "ALL" | "ACTIVE" | "PAUSED";
+
+function isItemActive(status?: string): boolean {
+  if (!status) return true;
+  const s = status.toUpperCase();
+  return s === "ACTIVE" || s === "ACTIVO" || s === "1";
+}
+
+function StatusBadge({ status, type = "camp" }: { status?: string; type?: "camp" | "adset" | "ad" }) {
+  const active = isItemActive(status);
+  const labelActive = type === "camp" ? "Activa" : "Activo";
+  const labelPaused = type === "camp" ? "Pausada" : "Pausado";
+
+  if (active) {
+    return (
+      <Badge variant="outline" className="text-[10px] font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 border-emerald-200 gap-1.5 shrink-0 shadow-xs">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+        {labelActive}
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="outline" className="text-[10px] font-medium px-2 py-0.5 bg-slate-100 text-slate-600 border-slate-200 gap-1.5 shrink-0 shadow-xs">
+      <span className="w-1.5 h-1.5 rounded-full bg-slate-400 inline-block"></span>
+      {labelPaused}
+    </Badge>
+  );
+}
 
 export function MarketingClient({ data, initialData }: MarketingClientProps) {
   const initial = data || initialData || { campaigns: [], autoResponses: [] };
   const [campaigns, setCampaigns] = useState<MarketingCampaignData[]>(initial.campaigns || []);
   const [autoResponses, setAutoResponses] = useState<any[]>(initial.autoResponses || []);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // Inicializar columnas visibles desde localStorage o por defecto
+  // Estados de expansión por ID
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Record<string, boolean>>({});
+  const [expandedAdSets, setExpandedAdSets] = useState<Record<string, boolean>>({});
+
+  // Columnas visibles
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     return AVAILABLE_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
   });
@@ -225,7 +265,7 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
     setVisibleColumns(prev => {
       let next: string[];
       if (prev.includes(colId)) {
-        if (prev.length <= 1) return prev; // Mantener al menos una columna
+        if (prev.length <= 1) return prev;
         next = prev.filter(id => id !== colId);
       } else {
         next = [...prev, colId];
@@ -245,6 +285,29 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
     } catch (e) {}
   };
 
+  const toggleCampaign = (id: string) => {
+    setExpandedCampaigns(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleAdSet = (id: string) => {
+    setExpandedAdSets(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const toggleAll = (expand: boolean) => {
+    const newCamp: Record<string, boolean> = {};
+    const newAdSet: Record<string, boolean> = {};
+    if (expand) {
+      campaigns.forEach(c => {
+        newCamp[c.id] = true;
+        c.adSets?.forEach(as => {
+          newAdSet[as.id] = true;
+        });
+      });
+    }
+    setExpandedCampaigns(newCamp);
+    setExpandedAdSets(newAdSet);
+  };
+
   // Manejador de sincronización bajo demanda desde n8n
   const handleSync = async () => {
     setIsSyncing(true);
@@ -254,7 +317,7 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
       if (res.success && res.data) {
         setCampaigns(res.data.campaigns);
         setAutoResponses(res.data.autoResponses);
-        setSyncStatus({ type: "success", message: "¡Datos de Meta actualizados correctamente!" });
+        setSyncStatus({ type: "success", message: "¡Datos de Meta y desglose actualizados correctamente!" });
       } else {
         setSyncStatus({ type: "error", message: res.error || "Error al sincronizar con n8n" });
       }
@@ -266,23 +329,60 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
     }
   };
 
-  // Totales
-  const totalSpend = useMemo(() => campaigns.reduce((acc, curr) => acc + curr.spend, 0), [campaigns]);
-  const totalMessages = useMemo(() => campaigns.reduce((acc, curr) => acc + curr.messages, 0), [campaigns]);
-  const totalReach = useMemo(() => campaigns.reduce((acc, curr) => acc + curr.reach, 0), [campaigns]);
-  const totalClicks = useMemo(() => campaigns.reduce((acc, curr) => acc + (curr.clicks || 0), 0), [campaigns]);
-  const totalImpressions = useMemo(() => campaigns.reduce((acc, curr) => acc + (curr.impressions || 0), 0), [campaigns]);
+  // Conteos globales para filtros
+  const counts = useMemo(() => {
+    let total = campaigns.length;
+    let active = 0;
+    let paused = 0;
+    campaigns.forEach(c => {
+      if (isItemActive(c.status)) active++;
+      else paused++;
+    });
+    return { total, active, paused };
+  }, [campaigns]);
 
-  // Filtrado
+  // Filtrado de campañas (por estado y búsqueda)
   const filteredCampaigns = useMemo(() => {
-    if (!search.trim()) return campaigns;
-    const q = search.toLowerCase();
-    return campaigns.filter(c => c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
-  }, [campaigns, search]);
+    return campaigns.filter(camp => {
+      // Filtro de estado
+      if (statusFilter === "ACTIVE" && !isItemActive(camp.status)) return false;
+      if (statusFilter === "PAUSED" && isItemActive(camp.status)) return false;
+
+      // Filtro de búsqueda (nombre o ID de campaña, conjunto o anuncio)
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const matchCamp = camp.name.toLowerCase().includes(q) || camp.id.toLowerCase().includes(q);
+        if (matchCamp) return true;
+
+        const matchAdSet = camp.adSets?.some(as => 
+          as.name.toLowerCase().includes(q) || 
+          as.id.toLowerCase().includes(q) ||
+          as.ads?.some(ad => ad.name.toLowerCase().includes(q) || ad.id.toLowerCase().includes(q))
+        );
+        if (matchAdSet) return true;
+
+        return false;
+      }
+
+      return true;
+    });
+  }, [campaigns, statusFilter, search]);
+
+  // Totales de KPI basados en las campañas filtradas actualmente
+  const totalSpend = useMemo(() => filteredCampaigns.reduce((acc, curr) => acc + curr.spend, 0), [filteredCampaigns]);
+  const totalMessages = useMemo(() => filteredCampaigns.reduce((acc, curr) => acc + curr.messages, 0), [filteredCampaigns]);
+  const totalReach = useMemo(() => filteredCampaigns.reduce((acc, curr) => acc + curr.reach, 0), [filteredCampaigns]);
+  const totalClicks = useMemo(() => filteredCampaigns.reduce((acc, curr) => acc + (curr.clicks || 0), 0), [filteredCampaigns]);
+  const totalImpressions = useMemo(() => filteredCampaigns.reduce((acc, curr) => acc + (curr.impressions || 0), 0), [filteredCampaigns]);
 
   const activeCols = useMemo(() => {
     return AVAILABLE_COLUMNS.filter(col => visibleColumns.includes(col.id));
   }, [visibleColumns]);
+
+  const isAllExpanded = useMemo(() => {
+    if (filteredCampaigns.length === 0) return false;
+    return filteredCampaigns.every(c => expandedCampaigns[c.id]);
+  }, [filteredCampaigns, expandedCampaigns]);
 
   return (
     <div className="w-full space-y-6">
@@ -292,7 +392,7 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
           title="Inversión Total" 
           value={`$${totalSpend.toLocaleString('es-AR', { maximumFractionDigits: 0 })}`} 
           icon={<DollarSign className="h-4 w-4 text-blue-600" />}
-          subtitle="Últimos 30 días"
+          subtitle={statusFilter === "ALL" ? "Últimos 30 días" : statusFilter === "ACTIVE" ? "Campañas Activas" : "Campañas Pausadas"}
           borderColor="border-l-blue-500"
         />
         <StatCard 
@@ -340,23 +440,36 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* TABLA DE CAMPAÑAS */}
+        {/* TABLA PRINCIPAL DE CAMPAÑAS Y DESGLOSE */}
         <Card className="lg:col-span-2 bg-white shadow-sm overflow-hidden flex flex-col">
-          <CardHeader className="border-b bg-slate-50/50 pb-3">
+          <CardHeader className="border-b bg-slate-50/50 pb-3 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-red-600" />
-                Rendimiento por Campaña ({campaigns.length})
-              </CardTitle>
-
               <div className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-red-600" />
+                <CardTitle className="text-lg">
+                  Rendimiento y Desglose ({filteredCampaigns.length})
+                </CardTitle>
+              </div>
+
+              <div className="flex items-center flex-wrap gap-2">
+                {/* BOTÓN EXPANDIR / COLAPSAR TODOS */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggleAll(!isAllExpanded)}
+                  className="h-8 gap-1.5 text-xs font-medium bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-xs"
+                >
+                  <ChevronsUpDown className="h-3.5 w-3.5 text-slate-500" />
+                  {isAllExpanded ? "Colapsar todo" : "Desglosar todo"}
+                </Button>
+
                 {/* BOTÓN SELECTOR DE COLUMNAS */}
                 <div className="relative">
                   <Button 
                     variant="outline" 
                     size="sm" 
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="h-9 gap-1.5 text-xs font-semibold bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-sm"
+                    className="h-8 gap-1.5 text-xs font-semibold bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-xs"
                   >
                     <Columns3 className="h-3.5 w-3.5 text-slate-500" />
                     Columnas ({activeCols.length})
@@ -420,7 +533,7 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
                   onClick={handleSync}
                   disabled={isSyncing}
                   size="sm"
-                  className="h-9 gap-1.5 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-sm"
+                  className="h-8 gap-1.5 text-xs font-semibold bg-red-600 hover:bg-red-700 text-white shadow-xs"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
                   {isSyncing ? "Actualizando..." : "Actualizar datos"}
@@ -428,23 +541,64 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
               </div>
             </div>
 
-            {/* BUSCADOR */}
-            <div className="relative mt-2">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
-              <Input
-                placeholder="Buscar campaña por nombre o ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-white border-slate-200"
-              />
+            {/* BARRA DE FILTROS POR ESTADO Y BUSCADOR */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+              {/* FILTRO DE ESTADO (TODAS / ACTIVAS / PAUSADAS) */}
+              <div className="flex items-center bg-slate-100/90 p-0.5 rounded-lg border border-slate-200/80 shrink-0">
+                <button
+                  onClick={() => setStatusFilter("ALL")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                    statusFilter === "ALL" 
+                      ? "bg-white text-slate-900 shadow-xs" 
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Todas ({counts.total})
+                </button>
+                <button
+                  onClick={() => setStatusFilter("ACTIVE")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                    statusFilter === "ACTIVE" 
+                      ? "bg-white text-emerald-700 shadow-xs" 
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Activas ({counts.active})
+                </button>
+                <button
+                  onClick={() => setStatusFilter("PAUSED")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1.5 ${
+                    statusFilter === "PAUSED" 
+                      ? "bg-white text-slate-700 shadow-xs" 
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                  Pausadas ({counts.paused})
+                </button>
+              </div>
+
+              {/* BUSCADOR */}
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  placeholder="Buscar campaña, conjunto o anuncio..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 h-8 text-xs bg-white border-slate-200"
+                />
+              </div>
             </div>
           </CardHeader>
 
           <div className="overflow-x-auto flex-1">
             <Table>
               <TableHeader>
-                <TableRow className="bg-slate-50 hover:bg-slate-50">
-                  <TableHead className="w-[240px] text-xs font-bold text-slate-700">Campaña</TableHead>
+                <TableRow className="bg-slate-50 hover:bg-slate-50 border-b border-slate-200">
+                  <TableHead className="min-w-[280px] text-xs font-bold text-slate-700">
+                    Campaña / Conjunto / Anuncio
+                  </TableHead>
                   {activeCols.map(col => (
                     <TableHead 
                       key={col.id} 
@@ -464,37 +618,174 @@ export function MarketingClient({ data, initialData }: MarketingClientProps) {
               </TableHeader>
               <TableBody>
                 {filteredCampaigns.length > 0 ? (
-                  filteredCampaigns.map((camp) => (
-                    <TableRow key={camp.id} className="hover:bg-slate-50/70 transition-colors">
-                      <TableCell className="py-3">
-                        <div className="font-medium text-slate-900 text-sm">{camp.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1 mt-0.5">
-                          ID: {camp.id}
-                          {camp.status && (
-                            <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 border-slate-200 text-slate-500 font-normal">
-                              {camp.status}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      {activeCols.map(col => (
-                        <TableCell 
-                          key={col.id} 
-                          className={`py-3 ${
-                            col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                  filteredCampaigns.map((camp) => {
+                    const isCampExpanded = !!expandedCampaigns[camp.id];
+                    const adSets = camp.adSets || [];
+                    const totalAdsCount = adSets.reduce((acc, as) => acc + (as.ads?.length || 0), 0);
+
+                    return (
+                      <React.Fragment key={camp.id}>
+                        {/* FILA DE CAMPAÑA (NIVEL 1) */}
+                        <TableRow 
+                          className={`group hover:bg-slate-50/80 transition-colors border-b border-slate-200/80 ${
+                            isCampExpanded ? "bg-slate-50/50" : ""
                           }`}
                         >
-                          {col.render(camp)}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))
+                          <TableCell className="py-2.5">
+                            <div className="flex items-start gap-2">
+                              {/* BOTÓN TOGGLE EXPANDIR */}
+                              <button
+                                onClick={() => toggleCampaign(camp.id)}
+                                className="mt-0.5 p-1 rounded hover:bg-slate-200/70 text-slate-500 transition-colors shrink-0"
+                                title={isCampExpanded ? "Colapsar conjuntos de anuncios" : "Desglosar conjuntos de anuncios"}
+                              >
+                                {isCampExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-slate-700 font-bold" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-slate-700" />
+                                )}
+                              </button>
+
+                              <div className="space-y-1 flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-900 text-sm tracking-tight hover:underline cursor-pointer" onClick={() => toggleCampaign(camp.id)}>
+                                    {camp.name}
+                                  </span>
+                                  <StatusBadge status={camp.status} type="camp" />
+                                </div>
+
+                                <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2">
+                                  <span>ID: {camp.id}</span>
+                                  {adSets.length > 0 && (
+                                    <span className="inline-flex items-center gap-1 font-sans text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded text-[10px]">
+                                      <FolderTree className="h-3 w-3 text-slate-400" />
+                                      {adSets.length} {adSets.length === 1 ? "conjunto" : "conjuntos"} · {totalAdsCount} {totalAdsCount === 1 ? "anuncio" : "anuncios"}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+
+                          {activeCols.map(col => (
+                            <TableCell 
+                              key={col.id} 
+                              className={`py-2.5 ${
+                                col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                              }`}
+                            >
+                              {col.render(camp)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+
+                        {/* SUB-FILAS DE CONJUNTOS DE ANUNCIOS (NIVEL 2) */}
+                        {isCampExpanded && adSets.length > 0 && (
+                          adSets.map((adSet) => {
+                            const isAdSetExpanded = !!expandedAdSets[adSet.id];
+                            const ads = adSet.ads || [];
+
+                            return (
+                              <React.Fragment key={adSet.id}>
+                                <TableRow className="bg-slate-50/70 hover:bg-slate-100/70 transition-colors border-b border-slate-100">
+                                  <TableCell className="py-2 pl-8 sm:pl-10">
+                                    <div className="flex items-start gap-2">
+                                      {/* BOTÓN TOGGLE ANUNCIOS */}
+                                      <button
+                                        onClick={() => toggleAdSet(adSet.id)}
+                                        className="mt-0.5 p-1 rounded hover:bg-slate-200/80 text-slate-500 transition-colors shrink-0"
+                                        title={isAdSetExpanded ? "Colapsar anuncios" : "Desglosar anuncios"}
+                                      >
+                                        {isAdSetExpanded ? (
+                                          <ChevronDown className="h-3.5 w-3.5 text-blue-700" />
+                                        ) : (
+                                          <ChevronRight className="h-3.5 w-3.5 text-slate-400 hover:text-blue-700" />
+                                        )}
+                                      </button>
+
+                                      <div className="space-y-0.5 flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
+                                            Conjunto
+                                          </span>
+                                          <span className="font-semibold text-slate-800 text-xs hover:underline cursor-pointer" onClick={() => toggleAdSet(adSet.id)}>
+                                            {adSet.name}
+                                          </span>
+                                          <StatusBadge status={adSet.status} type="adset" />
+                                        </div>
+
+                                        <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2">
+                                          <span>ID: {adSet.id}</span>
+                                          <span>·</span>
+                                          <span className="text-slate-500 font-sans">{ads.length} {ads.length === 1 ? "anuncio" : "anuncios"}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </TableCell>
+
+                                  {activeCols.map(col => (
+                                    <TableCell 
+                                      key={col.id} 
+                                      className={`py-2 text-xs ${
+                                        col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                                      }`}
+                                    >
+                                      {col.render(adSet)}
+                                    </TableCell>
+                                  ))}
+                                </TableRow>
+
+                                {/* SUB-FILAS DE ANUNCIOS PARTICULARES (NIVEL 3) */}
+                                {isAdSetExpanded && ads.length > 0 && (
+                                  ads.map((ad) => (
+                                    <TableRow key={ad.id} className="bg-slate-100/50 hover:bg-slate-200/50 transition-colors border-b border-slate-100">
+                                      <TableCell className="py-1.5 pl-14 sm:pl-18">
+                                        <div className="flex items-start gap-2">
+                                          <Target className="h-3.5 w-3.5 text-red-500 mt-1 shrink-0" />
+                                          <div className="space-y-0.5 flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="text-[9px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
+                                                Anuncio
+                                              </span>
+                                              <span className="font-medium text-slate-800 text-xs">
+                                                {ad.name}
+                                              </span>
+                                              <StatusBadge status={ad.status} type="ad" />
+                                            </div>
+
+                                            <div className="text-[10px] text-slate-400 font-mono">
+                                              AD ID: {ad.id}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </TableCell>
+
+                                      {activeCols.map(col => (
+                                        <TableCell 
+                                          key={col.id} 
+                                          className={`py-1.5 text-xs ${
+                                            col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
+                                          }`}
+                                        >
+                                          {col.render(ad)}
+                                        </TableCell>
+                                      ))}
+                                    </TableRow>
+                                  ))
+                                )}
+                              </React.Fragment>
+                            );
+                          })
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={activeCols.length + 1} className="h-32 text-center text-slate-400 text-sm">
+                    <TableCell colSpan={activeCols.length + 1} className="h-36 text-center text-slate-400 text-sm">
                       {campaigns.length === 0 
                         ? "No hay datos sincronizados. Haz clic en 'Actualizar datos' para consultar Meta."
-                        : "No se encontraron campañas coincidentes."}
+                        : "No se encontraron campañas coincidentes con los filtros seleccionados."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -553,4 +844,5 @@ function StatCard({ title, value, icon, subtitle, borderColor }: any) {
     </Card>
   )
 }
+
 

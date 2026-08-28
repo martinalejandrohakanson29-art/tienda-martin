@@ -25,28 +25,45 @@ export async function POST(req: Request) {
           continue;
         }
 
-        // Extraemos mensajes y carritos buscando en el array de 'actions' de Meta
-        const actions = camp.actions || [];
+        // Extraemos mensajes y carritos buscando en el array de 'actions' de Meta o directo
+        const actions = camp.rawActions || camp.actions || [];
         
-        const messages = actions.find((a: any) => 
-          a.action_type === "onsite_conversion.messaging_conversation_started_7d"
-        )?.value || 0;
+        let messages = camp.messages !== undefined ? parseInt(camp.messages) : 0;
+        if (!messages && actions.length > 0) {
+          const msgFound = actions.find((a: any) => 
+            a.action_type === "onsite_conversion.messaging_conversation_started_7d" ||
+            a.action_type === "onsite_conversion.messaging_first_reply" ||
+            a.action_type === "onsite_conversion.total_messaging_connection"
+          )?.value || actions.find((a: any) => a.action_type?.includes("messaging"))?.value;
+          messages = parseInt(msgFound || 0);
+        }
         
-        const carts = actions.find((a: any) => 
-          a.action_type === "add_to_cart"
-        )?.value || 0;
+        let carts = camp.carts !== undefined ? parseInt(camp.carts) : 0;
+        if (!carts && actions.length > 0) {
+          const cartFound = actions.find((a: any) => 
+            a.action_type === "add_to_cart" ||
+            a.action_type === "offsite_conversion.fb_pixel_add_to_cart" ||
+            a.action_type === "omni_add_to_cart"
+          )?.value;
+          carts = parseInt(cartFound || 0);
+        }
 
         const impressions = parseInt(camp.impressions || 0);
         const clicks = parseInt(camp.inline_link_clicks || camp.clicks || 0);
         const spend = parseFloat(camp.spend || 0);
         const reach = parseInt(camp.reach || 0);
-        const cpcVal = camp.cpc 
+        const cpcVal = camp.cpc !== null && camp.cpc !== undefined
           ? parseFloat(camp.cpc) 
           : (camp.cost_per_inline_link_click ? parseFloat(camp.cost_per_inline_link_click) : (clicks > 0 ? spend / clicks : null));
-        const ctrVal = camp.ctr 
+        const ctrVal = camp.ctr !== null && camp.ctr !== undefined
           ? parseFloat(camp.ctr) 
           : (camp.inline_link_click_ctr ? parseFloat(camp.inline_link_click_ctr) : (impressions > 0 ? (clicks / impressions) * 100 : null));
-        const frequencyVal = camp.frequency ? parseFloat(camp.frequency) : (reach > 0 && impressions > 0 ? impressions / reach : null);
+        const frequencyVal = camp.frequency !== null && camp.frequency !== undefined 
+          ? parseFloat(camp.frequency) 
+          : (reach > 0 && impressions > 0 ? impressions / reach : null);
+
+        const status = camp.status || camp.effective_status || 'ACTIVE';
+        const adSets = camp.adSets && Array.isArray(camp.adSets) ? camp.adSets : null;
 
         // Guardamos o actualizamos en la DB
         await prisma.marketingCampaign.upsert({
@@ -60,10 +77,11 @@ export async function POST(req: Request) {
             cpc: cpcVal !== null && !isNaN(cpcVal) ? Number(cpcVal.toFixed(2)) : null,
             ctr: ctrVal !== null && !isNaN(ctrVal) ? Number(ctrVal.toFixed(2)) : null,
             frequency: frequencyVal !== null && !isNaN(frequencyVal) ? Number(frequencyVal.toFixed(2)) : null,
-            messages: parseInt(messages),
-            carts: parseInt(carts),
+            messages: messages,
+            carts: carts,
             rawActions: actions.length > 0 ? actions : null,
-            status: camp.status || 'Active'
+            adSets: adSets || undefined,
+            status: status
           },
           create: {
             id: idCampania.toString(),
@@ -75,10 +93,11 @@ export async function POST(req: Request) {
             cpc: cpcVal !== null && !isNaN(cpcVal) ? Number(cpcVal.toFixed(2)) : null,
             ctr: ctrVal !== null && !isNaN(ctrVal) ? Number(ctrVal.toFixed(2)) : null,
             frequency: frequencyVal !== null && !isNaN(frequencyVal) ? Number(frequencyVal.toFixed(2)) : null,
-            messages: parseInt(messages),
-            carts: parseInt(carts),
+            messages: messages,
+            carts: carts,
             rawActions: actions.length > 0 ? actions : null,
-            status: camp.status || 'Active'
+            adSets: adSets || undefined,
+            status: status
           }
         });
       }

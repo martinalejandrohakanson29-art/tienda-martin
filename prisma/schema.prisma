@@ -488,6 +488,7 @@ model MarketingCampaign {
   messages    Int      @default(0)
   carts       Int      @default(0)
   rawActions  Json?
+  adSets      Json?
   status      String   @default("Active")
   updatedAt   DateTime @updatedAt
 

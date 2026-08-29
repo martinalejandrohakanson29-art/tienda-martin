@@ -24,9 +24,18 @@ export async function POST(req: Request) {
         let conversacion = body.conversation || (body.id && body.meta ? body : null)
         const conversationId = Number(conversacion?.id || body.conversation?.id || body.conversation_id || 0)
 
-        // Si el evento es message_created / message_updated, asegurar que conversacion tenga el último mensaje
+        // Solo un mensaje realmente nuevo (o una conversación nueva) cuenta como
+        // "actividad" que reordena la lista y reescribe el último mensaje del
+        // espejo. Chatwoot también dispara message_updated / conversation_updated
+        // por cosas que NO son un mensaje nuevo (checks de lectura, cambio de
+        // etiqueta/asignado, transcripción de audio); si esos también movieran la
+        // fecha, una conversación vieja aparecía arriba de todo con un mensaje
+        // viejo y "hace un rato" (falso "le respondimos fuera de horario").
+        const esActividadNueva = eventoNombre === "message_created" || eventoNombre === "conversation_created"
+
+        // Si el evento es message_created, asegurar que conversacion tenga el último mensaje
         const m = body.messages?.[0] || body
-        if (conversacion && (body.content !== undefined || body.attachments || body.messages?.[0])) {
+        if (esActividadNueva && conversacion && (body.content !== undefined || body.attachments || body.messages?.[0])) {
             conversacion = {
                 ...conversacion,
                 meta: conversacion.meta || { sender: body.sender || m.sender },
@@ -37,7 +46,7 @@ export async function POST(req: Request) {
                 },
                 last_activity_at: Math.floor(Date.now() / 1000),
             }
-        } else if (!conversacion && body.conversation_id) {
+        } else if (esActividadNueva && !conversacion && body.conversation_id) {
             conversacion = {
                 id: body.conversation_id,
                 inbox_id: body.inbox_id,
@@ -49,7 +58,7 @@ export async function POST(req: Request) {
             }
         }
 
-        if (conversacion && conversacion.id) {
+        if (esActividadNueva && conversacion && conversacion.id) {
             await guardarConversacionesEnEspejo([conversacion])
         }
 

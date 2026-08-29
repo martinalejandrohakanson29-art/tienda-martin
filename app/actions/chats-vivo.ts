@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import {
     actualizarBotPausadoEnEspejo,
     listarChatsVivo,
+    marcarPendientesResueltasEnEspejo,
     registrarMensajeSalienteEnEspejo,
     resetearNoLeidosEnEspejo,
     sincronizarEspejoChatwoot,
@@ -413,6 +414,20 @@ export async function crearNotaRapida(titulo: string, respuesta: string): Promis
     revalidatePath("/admin/chatwoot/conocimiento")
     const etiqueta = TEMAS_NEGOCIO.find((t) => t.value === temaKey)?.label ?? temaOriginal
     return { id, tema: temaOriginal, etiqueta, respuesta: texto }
+}
+
+/**
+ * Marca a mano como resueltas todas las preguntas pendientes de una
+ * conversación (las 4 tablas), sin mandar nada a Chatwoot. Lo usa el check
+ * "Marcar como resuelto" del panel de chats en vivo, para conversaciones que
+ * ya se atendieron directo con el cliente (y por eso el workflow de n8n nunca
+ * las cerró solo).
+ */
+export async function marcarConversacionResueltaChatVivo(conversationId: number): Promise<{ success: boolean }> {
+    await requireAdmin()
+    await marcarPendientesResueltasEnEspejo(conversationId)
+    revalidatePath("/admin/chatwoot/chats-vivo")
+    return { success: true }
 }
 
 /** Marca una conversación como leída en Chatwoot y en la base local (espejo). */

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, Camera, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, Paperclip, Plus, RefreshCw, Search, Send, Smile, X, Zap, type LucideIcon } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, Camera, Check, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, Paperclip, Plus, RefreshCw, Search, Send, Smile, X, Zap, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
@@ -12,6 +12,7 @@ import {
     listarKitsEnvioRapido,
     listarNotasRapidas,
     marcarConversacionComoLeida,
+    marcarConversacionResueltaChatVivo,
     obtenerChatsVivo,
     obtenerHiloChatVivo,
     sincronizarChatsVivoLigero,
@@ -554,6 +555,7 @@ export function ChatsVivoClient({
     const [falloHilo, setFalloHilo] = useState<string | null>(null)
 
     const [togglingBot, setTogglingBot] = useState<number | null>(null)
+    const [resolviendo, setResolviendo] = useState<number | null>(null)
 
     // Selectores rápidos arriba del hilo: "Enviar info de kit" y "Notas rápidas"
     const [kitsRapidos, setKitsRapidos] = useState<KitEnvioRapido[] | null>(null)
@@ -1045,6 +1047,41 @@ export function ChatsVivoClient({
         }
     }
 
+    const handleMarcarResuelta = async (conversationId: number) => {
+        const anterior = conversaciones.find((c) => c.id === conversationId)?.categoria
+        // Optimista: pasa a "sin etiqueta" (nada pendiente) de una
+        setPanel((prev) => {
+            if (!prev) return prev
+            return {
+                ...prev,
+                conversaciones: prev.conversaciones.map((c) =>
+                    c.id === conversationId ? { ...c, categoria: "sin_etiqueta" } : c
+                ),
+            }
+        })
+        setResolviendo(conversationId)
+        try {
+            const res = await marcarConversacionResueltaChatVivo(conversationId)
+            if (!res.success) throw new Error("No se pudo marcar como resuelto")
+        } catch (err) {
+            console.error("Error marcando conversación como resuelta:", err)
+            if (anterior) {
+                setPanel((prev) => {
+                    if (!prev) return prev
+                    return {
+                        ...prev,
+                        conversaciones: prev.conversaciones.map((c) =>
+                            c.id === conversationId ? { ...c, categoria: anterior } : c
+                        ),
+                    }
+                })
+            }
+            alert("Error al marcar como resuelto: " + (err instanceof Error ? err.message : "Error desconocido"))
+        } finally {
+            setResolviendo(null)
+        }
+    }
+
     const itemsKits: ItemRapido[] = useMemo(
         () =>
             (kitsRapidos ?? []).map((k) => ({
@@ -1363,6 +1400,32 @@ export function ChatsVivoClient({
                                             <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded-full border ${cat.clase}`}>
                                                 {cat.texto}
                                             </span>
+                                            {c.categoria !== "sin_etiqueta" && (
+                                                <span
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleMarcarResuelta(c.id)
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" || e.key === " ") {
+                                                            e.preventDefault()
+                                                            e.stopPropagation()
+                                                            handleMarcarResuelta(c.id)
+                                                        }
+                                                    }}
+                                                    title="Marcar como resuelto"
+                                                    className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors cursor-pointer"
+                                                >
+                                                    {resolviendo === c.id ? (
+                                                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                                                    ) : (
+                                                        <Check className="h-2.5 w-2.5" />
+                                                    )}
+                                                    Resuelto
+                                                </span>
+                                            )}
                                             {c.botPausado ? (
                                                 <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-medium">
                                                     <BotOff className="h-2.5 w-2.5" />
@@ -1401,6 +1464,22 @@ export function ChatsVivoClient({
                                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
                                         {CATEGORIA_INFO[seleccionada.categoria].texto}
                                     </span>
+                                    {seleccionada.categoria !== "sin_etiqueta" && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleMarcarResuelta(seleccionada.id)}
+                                            disabled={resolviendo === seleccionada.id}
+                                            title="Marcar como resuelto"
+                                            className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-colors disabled:opacity-50 shrink-0"
+                                        >
+                                            {resolviendo === seleccionada.id ? (
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                            ) : (
+                                                <Check className="h-3 w-3" />
+                                            )}
+                                            Resuelto
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div className="flex items-center gap-2.5 shrink-0">

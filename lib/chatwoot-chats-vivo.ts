@@ -375,6 +375,40 @@ export async function registrarMensajeSalienteEnEspejo(
     `
 }
 
+/**
+ * Marca a mano como resueltas todas las preguntas pendientes (en las 4 tablas)
+ * de una conversación. Mismo valor de estado (`respondida`) que usa el workflow
+ * de n8n cuando el equipo contesta por nota privada — así una fila resuelta a
+ * mano acá no se distingue de una resuelta por el camino normal.
+ *
+ * Se usa para el check "Marcar como resuelto" del panel: cubre el caso de
+ * contestarle al cliente directo (mensaje manual, no nota) — eso NO pasa por el
+ * workflow de n8n, así que la pendiente quedaba huérfana en estado 'pendiente'
+ * para siempre y el chat seguía viéndose "Sin resolver" aunque ya se haya
+ * atendido.
+ */
+export async function marcarPendientesResueltasEnEspejo(conversationId: number): Promise<void> {
+    const id = BigInt(conversationId)
+    await Promise.all([
+        prisma.$executeRaw`
+            UPDATE preguntas_tecnicas_pendientes SET estado = 'respondida'
+            WHERE conversation_id = ${id} AND estado = 'pendiente'
+        `,
+        prisma.$executeRaw`
+            UPDATE preguntas_negocio_pendientes SET estado = 'respondida'
+            WHERE conversation_id = ${id} AND estado = 'pendiente'
+        `,
+        prisma.$executeRaw`
+            UPDATE preguntas_precio_pendientes SET estado = 'respondida'
+            WHERE conversation_id = ${id} AND estado = 'pendiente'
+        `,
+        prisma.$executeRaw`
+            UPDATE preguntas_sin_match_pendientes SET estado = 'respondida'
+            WHERE conversation_id = ${id} AND estado = 'pendiente'
+        `,
+    ])
+}
+
 /** Pone en 0 el contador de mensajes no leídos para una conversación en la tabla espejo. */
 export async function resetearNoLeidosEnEspejo(conversationId: number) {
     await asegurarTablaEspejo()

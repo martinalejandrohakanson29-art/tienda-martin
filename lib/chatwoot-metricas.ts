@@ -38,6 +38,7 @@ export type MetricasChatwoot = {
         conversacionesConRespuesta: number
         conversacionesConContinuacion: number
         porcentaje: number
+        porcentajeSobreTotal: number
     }
 }
 
@@ -92,7 +93,7 @@ async function listarMensajesConversacion(conversationId: number): Promise<Mensa
         if (items.length === 0) break
         mensajes.unshift(...items)
         if (items.length < 20) break
-        before = items[0].id
+        before = items[items.length - 1].id
     }
     return mensajes
 }
@@ -390,6 +391,10 @@ export async function obtenerMetricasDesdeBD(periodoDias: number): Promise<Metri
             porcentaje:
                 conversacionesConRespuesta > 0
                     ? Math.round((conversacionesConContinuacion / conversacionesConRespuesta) * 1000) / 10
+                    : 0,
+            porcentajeSobreTotal:
+                totalConversaciones > 0
+                    ? Math.round((conversacionesConContinuacion / totalConversaciones) * 1000) / 10
                     : 0,
         },
     }

@@ -7,7 +7,8 @@ import {
 } from "recharts"
 import { Badge } from "@/components/ui/badge"
 import {
-    ArrowLeft, MessageCircle, Clock, Reply, AlertTriangle, Loader2, RefreshCw, Moon,
+    ArrowLeft, MessageCircle, Clock, AlertTriangle, Loader2, RefreshCw, Moon,
+    Users, Bot, Sparkles, ArrowRight, CheckCircle2, MessageSquare,
 } from "lucide-react"
 import { obtenerMetricasChatwoot } from "@/app/actions/chatwoot-metricas"
 import type { MetricasChatwoot } from "@/lib/chatwoot-metricas"
@@ -86,6 +87,16 @@ export function MetricasChatwootClient({
 
     const horaMax = datos ? Math.max(...datos.porHora.map((h) => h.cantidad), 0) : 0
 
+    // Cálculos del embudo
+    const totalConv = datos?.totalConversaciones || 0
+    const respondidas = datos?.continuidad.conversacionesConRespuesta || 0
+    const continuaron = datos?.continuidad.conversacionesConContinuacion || 0
+    const sinRespuesta = Math.max(totalConv - respondidas, 0)
+    const tasaAtencion = totalConv > 0 ? Math.round((respondidas / totalConv) * 1000) / 10 : 0
+    const tasaContinuidad = datos?.continuidad.porcentaje || 0
+    const tasaGlobal = datos?.continuidad.porcentajeSobreTotal ?? (totalConv > 0 ? Math.round((continuaron / totalConv) * 1000) / 10 : 0)
+    const promedioMensajes = totalConv > 0 && datos ? (datos.totalMensajesEntrantes / totalConv).toFixed(1) : "0"
+
     return (
         <div className="space-y-6">
             <div>
@@ -99,13 +110,12 @@ export function MetricasChatwootClient({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">Métricas de Clientes en Chatwoot</h1>
-                        <p className="text-gray-500">
-                            Histórico consolidado en base de datos: volumen de mensajes entrantes, horario real de llegada,
-                            tráfico fuera de hora y continuidad de conversación tras la primera respuesta.
+                        <p className="text-gray-500 text-sm mt-1">
+                            Embudo de WhatsApp: cuántas personas llegan por publicidad/mensajes, cuántas reciben respuesta y cuántas continúan dialogando.
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden shadow-sm">
                             {PERIODOS.map((p) => (
                                 <button
                                     key={p}
@@ -122,7 +132,7 @@ export function MetricasChatwootClient({
                         <button
                             onClick={() => cargar(periodo, true)}
                             disabled={pendiente}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 shadow-sm disabled:opacity-60"
                         >
                             {pendiente ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                             Actualizar
@@ -142,25 +152,119 @@ export function MetricasChatwootClient({
                 <>
                     <div className="flex items-center justify-between">
                         <p className="text-xs text-slate-400">
-                            Últimos {datos.periodoDias} días · {datos.totalConversaciones} conversaciones · actualizado{" "}
+                            Últimos {datos.periodoDias} días · {datos.totalConversaciones.toLocaleString("es-AR")} conversaciones analizadas · actualizado{" "}
                             {hace(datos.actualizadoEn)} (guardado en PostgreSQL)
                         </p>
                         {error && <Badge variant="destructive" className="text-[10px]">{error}</Badge>}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* SECCIÓN EMBUDO DE CONVERSIÓN DE WHATSAPP */}
+                    <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 rounded-3xl p-6 text-white shadow-lg">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-6 border-b border-slate-700/60 pb-4">
+                            <div>
+                                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                                    <MessageSquare className="h-5 w-5 text-indigo-400" />
+                                    Embudo de WhatsApp (Llegada → Bienvenida → Re-enganche)
+                                </h2>
+                                <p className="text-xs text-slate-300 mt-0.5">
+                                    Seguimiento claro del recorrido de cada persona que escribe a la tienda
+                                </p>
+                            </div>
+                            <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-full border border-indigo-500/30">
+                                {datos.periodoDias} días
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative">
+                            {/* PASO 1: LLEGARON */}
+                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10 flex flex-col justify-between relative overflow-hidden">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-2 rounded-xl bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                                            <Users className="h-5 w-5" />
+                                        </div>
+                                        <span className="text-[11px] font-bold tracking-wider text-blue-200 uppercase">
+                                            1. Llegaron por WhatsApp
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-slate-400 font-mono">100%</span>
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-black text-white tracking-tight">
+                                        {totalConv.toLocaleString("es-AR")}
+                                    </p>
+                                    <p className="text-xs text-slate-300 mt-1">
+                                        conversaciones iniciadas por publicidad o consulta directa ({datos.totalMensajesEntrantes.toLocaleString("es-AR")} msgs recibidos).
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* PASO 2: BIENVENIDA */}
+                            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/10 flex flex-col justify-between relative overflow-hidden">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-2 rounded-xl bg-violet-500/20 text-violet-300 border border-violet-400/30">
+                                            <Bot className="h-5 w-5" />
+                                        </div>
+                                        <span className="text-[11px] font-bold tracking-wider text-violet-200 uppercase">
+                                            2. Recibieron Bienvenida
+                                        </span>
+                                    </div>
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-500/30 text-violet-200 border border-violet-400/30 font-mono">
+                                        {tasaAtencion}%
+                                    </span>
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-black text-white tracking-tight">
+                                        {respondidas.toLocaleString("es-AR")}
+                                    </p>
+                                    <p className="text-xs text-slate-300 mt-1">
+                                        conversaciones respondidas con mensaje de bienvenida ({sinRespuesta} quedaron sin respuesta).
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* PASO 3: RE-ENGANCHE / CONTINUARON */}
+                            <div className="bg-emerald-950/40 backdrop-blur-md rounded-2xl p-5 border border-emerald-500/30 flex flex-col justify-between relative overflow-hidden">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                                            <Sparkles className="h-5 w-5" />
+                                        </div>
+                                        <span className="text-[11px] font-bold tracking-wider text-emerald-200 uppercase">
+                                            3. Siguieron la charla
+                                        </span>
+                                    </div>
+                                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 font-mono">
+                                        {tasaContinuidad}%
+                                    </span>
+                                </div>
+                                <div>
+                                    <p className="text-3xl font-black text-emerald-300 tracking-tight">
+                                        {continuaron.toLocaleString("es-AR")} <span className="text-base font-normal text-emerald-200/80">personas</span>
+                                    </p>
+                                    <p className="text-xs text-emerald-100/90 mt-1">
+                                        volvieron a escribir tras la bienvenida ({tasaContinuidad}% de los respondidos · {tasaGlobal}% del total de llegadas).
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* TARJETAS COMPLEMENTARIAS */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <KpiCard
                             icon={MessageCircle}
-                            label="Mensajes entrantes"
+                            label="Volumen de Mensajes"
                             value={datos.totalMensajesEntrantes.toLocaleString("es-AR")}
-                            sub={`en ${datos.totalConversaciones} conversaciones`}
-                            color="bg-violet-100 text-violet-600"
+                            sub={`Promedio de ~${promedioMensajes} mensajes por conversación`}
+                            color="bg-indigo-100 text-indigo-600"
                         />
                         <KpiCard
                             icon={Clock}
                             label="Hora pico de llegada"
                             value={datos.horaPico ? `${datos.horaPico.hora}:00 hs` : "—"}
-                            sub={datos.horaPico ? `${datos.horaPico.cantidad} mensajes ingresados` : "sin datos suficientes"}
+                            sub={datos.horaPico ? `${datos.horaPico.cantidad} mensajes ingresaron en esa hora` : "sin datos suficientes"}
                             color="bg-sky-100 text-sky-600"
                         />
                         <KpiCard
@@ -170,15 +274,9 @@ export function MetricasChatwootClient({
                             sub={`${datos.totalEncolados} respuestas generadas en cola con bot apagado`}
                             color="bg-rose-100 text-rose-600"
                         />
-                        <KpiCard
-                            icon={Reply}
-                            label="Siguió escribiendo"
-                            value={`${datos.continuidad.porcentaje}%`}
-                            sub={`${datos.continuidad.conversacionesConContinuacion} de ${datos.continuidad.conversacionesConRespuesta} clientes continuaron tras la respuesta`}
-                            color="bg-amber-100 text-amber-600"
-                        />
                     </div>
 
+                    {/* GRÁFICOS */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         <ChartCard
                             title="Distribución horaria real de mensajes"

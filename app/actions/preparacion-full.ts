@@ -1,9 +1,11 @@
+// app/actions/preparacion-full.ts
 "use server"
 
 import { prisma } from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { s3Client } from "@/lib/s3"
-import { PutObjectCommand } from "@aws-sdk/client-s3"
+import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/authOptions"
 import { triggerNotification, linkAuditFull } from "@/lib/notify"
@@ -84,10 +86,51 @@ export async function guardarAuditoriaFull(formData: FormData) {
             });
         }
 
-        return { success: true, path: fileName };
+        // Generar URL firmada para retorno instantáneo a la interfaz de usuario
+        let signedPhotoUrl: string | null = null;
+        try {
+          const getCommand = new GetObjectCommand({
+            Bucket: BUCKET_NAME,
+            Key: fileName
+          });
+          signedPhotoUrl = await getSignedUrl(s3Client, getCommand, { expiresIn: 3600 });
+        } catch (err) {
+          console.error("Error firmando URL generada:", err);
+        }
+
+        return { success: true, path: fileName, photoUrl: signedPhotoUrl };
 
     } catch (error: any) {
         console.error("[ERROR PREPARACION FULL]", error);
+        return { success: false, error: error.message };
+    }
+}
+
+export async function eliminarAuditoriaFull(shipmentId: string, itemId: string) {
+    try {
+        const record = await prisma.auditoriaPreparacionFull.findUnique({
+            where: { shipmentId_itemId: { shipmentId, itemId } }
+        });
+
+        if (record?.photoUrl) {
+            try {
+                await s3Client.send(new DeleteObjectCommand({
+                    Bucket: BUCKET_NAME,
+                    Key: record.photoUrl
+                }));
+            } catch (err) {
+                console.warn("Error borrando archivo de S3:", err);
+            }
+        }
+
+        await prisma.auditoriaPreparacionFull.deleteMany({
+            where: { shipmentId, itemId }
+        });
+
+        revalidatePath('/admin/mercadolibre/full/preparacion');
+        return { success: true };
+    } catch (error: any) {
+        console.error("[ERROR ELIMINAR AUDITORIA FULL]", error);
         return { success: false, error: error.message };
     }
 }

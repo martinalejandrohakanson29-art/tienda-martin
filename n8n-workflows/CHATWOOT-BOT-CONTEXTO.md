@@ -194,6 +194,15 @@ Orden real del procesamiento de un mensaje entrante:
 - **Categoría "stock"** (2026-08-18): como todo lo publicitado con plantilla de Meta Ads está en
   stock por definición, cualquier pregunta de disponibilidad se contesta "Sí, tenemos stock."
   directo, sin escalar nunca.
+- **Consulta mayorista de número nuevo → nota silenciosa, sin respuesta (2026-08-28).** Antes: solo
+  los teléfonos ya cargados en `NumerosMayoristas` se ignoraban (nodo `Chequear Es Mayorista` al
+  frente); un mayorista nuevo ("me pasás lista por mayor") caía en `sin_match` y escalaba como
+  "algo que no ubicamos" (caso real +5493888456092, conv 2953). Fix: nodo `¿Consulta Mayoreo? (sin
+  IA)` justo después de `Unir Mensajes` (ve toda la ráfaga) — si el texto contiene `mayorista` /
+  `mayoreo` / `por mayor` / `x mayor` / `revende` / `reventa` / `distribuidor` → `Preparar Nota
+  Mayorista` → `Enviar Nota Mayorista` (privada, misma mecánica que las escaladas) → `Fin -
+  Mayorista Detectado`. El cliente **no recibe nada** (ni la bienvenida del kit si venía pegada en
+  la misma ráfaga). Los números ya conocidos siguen igual (ignorados sin nota). 4 nodos, 423→427.
 - **Bienvenida con foto en vez de confirmación de texto** (2026-08-18) — **diseño vigente hoy**:
   cuando `Identificar Necesidad` confirma un kit por lenguaje natural, en vez de un texto corto
   de confirmación manda la misma bienvenida con foto que ya usan las plantillas exactas (un solo

@@ -1254,28 +1254,46 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
                                                 </tr>
                                               </thead>
                                               <tbody className="divide-y divide-slate-100">
-                                                {adItems.map(it => (
-                                                  <tr key={it.id} className="hover:bg-slate-50">
-                                                    <td className="px-2 py-1.5 font-medium text-slate-800">
-                                                      <div className="flex items-center gap-1">
-                                                        <span>{it.articulo.nombre}</span>
-                                                        {it.articulo.esPack && (
-                                                          <Badge variant="outline" className="bg-purple-50 text-purple-700 text-[8px] px-1 py-0">Pack</Badge>
-                                                        )}
-                                                      </div>
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center">
-                                                      <span className={it.articulo.stock > 0 ? "text-emerald-700" : "text-red-600 font-semibold"}>
-                                                        {it.articulo.stock}
-                                                      </span>
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-right font-mono">${it.articulo.precio.toLocaleString("es-AR")}</td>
-                                                    <td className="px-2 py-1.5 text-right font-mono text-slate-500">${it.articulo.costo.toLocaleString("es-AR")}</td>
-                                                    <td className="px-2 py-1.5 text-center font-bold font-mono text-purple-900 bg-purple-50/50">{it.unidadesVendidas} un.</td>
-                                                    <td className="px-2 py-1.5 text-right font-bold font-mono text-emerald-700 bg-emerald-50/50">${it.facturacion.toLocaleString("es-AR")}</td>
-                                                    <td className="px-2 py-1.5 text-right font-bold font-mono text-blue-700 bg-blue-50/50">${it.gananciaBruta.toLocaleString("es-AR")}</td>
-                                                  </tr>
-                                                ))}
+                                                {adItems.map(it => {
+                                                  const isShared = (it.anunciosCompartidosCount || 1) > 1;
+                                                  return (
+                                                    <tr key={it.id} className="hover:bg-slate-50">
+                                                      <td className="px-2 py-1.5 font-medium text-slate-800">
+                                                        <div className="space-y-0.5">
+                                                          <div className="flex items-center gap-1">
+                                                            <span>{it.articulo.nombre}</span>
+                                                            {it.articulo.esPack && (
+                                                              <Badge variant="outline" className="bg-purple-50 text-purple-700 text-[8px] px-1 py-0">Pack</Badge>
+                                                            )}
+                                                          </div>
+                                                          {isShared && (
+                                                            <div className="text-[9px] text-amber-700 font-normal flex items-center gap-1">
+                                                              <span>Compartido en {it.anunciosCompartidosCount} anuncios ({Math.round((it.pesoAtribucion || 0) * 100)}% atrib.)</span>
+                                                            </div>
+                                                          )}
+                                                        </div>
+                                                      </td>
+                                                      <td className="px-2 py-1.5 text-center">
+                                                        <span className={it.articulo.stock > 0 ? "text-emerald-700" : "text-red-600 font-semibold"}>
+                                                          {it.articulo.stock}
+                                                        </span>
+                                                      </td>
+                                                      <td className="px-2 py-1.5 text-right font-mono">${it.articulo.precio.toLocaleString("es-AR")}</td>
+                                                      <td className="px-2 py-1.5 text-right font-mono text-slate-500">${it.articulo.costo.toLocaleString("es-AR")}</td>
+                                                      <td className="px-2 py-1.5 text-center font-bold font-mono text-purple-900 bg-purple-50/50">
+                                                        <div>{it.unidadesVendidas} un.</div>
+                                                        {isShared && <div className="text-[9px] text-slate-400 font-normal">de {it.totalVentasArticulo} tot.</div>}
+                                                      </td>
+                                                      <td className="px-2 py-1.5 text-right font-bold font-mono text-emerald-700 bg-emerald-50/50">
+                                                        <div>${it.facturacion.toLocaleString("es-AR")}</div>
+                                                        {isShared && <div className="text-[9px] text-slate-400 font-normal">de ${it.totalFacturacionArticulo?.toLocaleString("es-AR")}</div>}
+                                                      </td>
+                                                      <td className="px-2 py-1.5 text-right font-bold font-mono text-blue-700 bg-blue-50/50">
+                                                        ${it.gananciaBruta.toLocaleString("es-AR")}
+                                                      </td>
+                                                    </tr>
+                                                  );
+                                                })}
                                               </tbody>
                                             </table>
                                           </div>

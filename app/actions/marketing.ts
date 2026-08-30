@@ -70,6 +70,10 @@ export interface MarketingCampaignItemData {
   facturacion: number
   costoTotal: number
   gananciaBruta: number
+  totalVentasArticulo?: number
+  totalFacturacionArticulo?: number
+  anunciosCompartidosCount?: number
+  pesoAtribucion?: number
 }
 
 export interface CampaignHealthData {
@@ -478,35 +482,6 @@ export async function getMarketingPerformance(options?: {
 
       const costPerMsg = messages > 0 ? spend / messages : 0;
 
-      // Helper para mapear un item de la base de datos con sus ventas y costos
-      const mapItemWithSales = (ci: any): MarketingCampaignItemData => {
-        const art = ci.articulo;
-        const artCostoUnit = art.esPack ? (costoPackMap.get(art.id) || Number(art.costo || 0)) : Number(art.costo || 0);
-        const saleData = salesByProductKey[art.id] || salesByProductKey[art.nombre.toLowerCase().trim()] || { cantidad: 0, facturacion: 0, nombre: art.nombre };
-        const unidadesVendidas = saleData.cantidad;
-        const facturacion = saleData.facturacion;
-        const costoTotal = unidadesVendidas * artCostoUnit;
-        const gananciaBruta = facturacion - costoTotal;
-
-        return {
-          id: ci.id,
-          campaignId: ci.campaignId,
-          articuloId: ci.articuloId,
-          articulo: {
-            id: art.id,
-            nombre: art.nombre,
-            precio: Number(art.precio),
-            costo: artCostoUnit,
-            stock: art.stock,
-            esPack: art.esPack || false
-          },
-          unidadesVendidas,
-          facturacion,
-          costoTotal,
-          gananciaBruta
-        };
-      };
-
       // Helper para calcular métricas de salud
       const computeHealth = (items: MarketingCampaignItemData[], spend: number, messages: number): CampaignHealthData => {
         const unidadesVendidas = items.reduce((acc, it) => acc + it.unidadesVendidas, 0);
@@ -549,10 +524,10 @@ export async function getMarketingPerformance(options?: {
         };
       };
 
-      // Todos los items asociados a esta campaña (a nivel campaña o a nivel ad)
+      // Todos los items asociados a esta campaña en la DB
       const allDbItems = (camp.items || []);
 
-      // Parsear adSets si existen
+      // Parsear adSets y sus anuncios
       let rawAdSets: any[] = [];
       if (camp.adSets) {
         if (Array.isArray(camp.adSets)) {
@@ -561,6 +536,84 @@ export async function getMarketingPerformance(options?: {
           try { rawAdSets = JSON.parse(camp.adSets); } catch (e) {}
         }
       }
+
+      // Mapa de todos los anuncios de la campaña para saber el gasto de cada uno
+      const allAdsList: { id: string; spend: number }[] = [];
+      rawAdSets.forEach((as: any) => {
+        const rawAds = Array.isArray(as.ads) ? as.ads : [];
+        rawAds.forEach((ad: any) => {
+          const adSpend = typeof ad.spend === "number" ? ad.spend : parseFloat(ad.spend || 0);
+          allAdsList.push({ id: String(ad.id), spend: adSpend });
+        });
+      });
+
+      // Mapear qué anuncios promocionan cada artículo para prorratear las ventas equitativa o proporcionalmente al gasto
+      const adsByArticuloMap = new Map<string, { id: string; spend: number }[]>();
+      allDbItems.forEach(it => {
+        if (it.adId) {
+          const adInfo = allAdsList.find(a => a.id === it.adId) || { id: it.adId, spend: 0 };
+          const list = adsByArticuloMap.get(it.articuloId) || [];
+          if (!list.some(a => a.id === it.adId)) {
+            list.push(adInfo);
+          }
+          adsByArticuloMap.set(it.articuloId, list);
+        }
+      });
+
+      // Helper para mapear un item de la DB a un anuncio o a la campaña
+      const mapItemForTarget = (ci: any, targetSpend?: number, isCampaignLevel = false): MarketingCampaignItemData => {
+        const art = ci.articulo;
+        const artCostoUnit = art.esPack ? (costoPackMap.get(art.id) || Number(art.costo || 0)) : Number(art.costo || 0);
+        const saleData = salesByProductKey[art.id] || salesByProductKey[art.nombre.toLowerCase().trim()] || { cantidad: 0, facturacion: 0, nombre: art.nombre };
+        
+        const totalVentasArticulo = saleData.cantidad;
+        const totalFacturacionArticulo = saleData.facturacion;
+
+        // Si es a nivel campaña, se toma el 100% de la venta (sin dividir)
+        // Si es a nivel anuncio, se calcula la proporción entre los anuncios que comparten este artículo
+        let pesoAtribucion = 1;
+        const sharingAds = adsByArticuloMap.get(ci.articuloId) || [];
+        const anunciosCompartidosCount = sharingAds.length;
+
+        if (!isCampaignLevel && anunciosCompartidosCount > 1 && ci.adId) {
+          const totalSpendSharing = sharingAds.reduce((acc, a) => acc + a.spend, 0);
+          const currentAdSpend = targetSpend !== undefined ? targetSpend : (sharingAds.find(a => a.id === ci.adId)?.spend || 0);
+          
+          if (totalSpendSharing > 0) {
+            pesoAtribucion = currentAdSpend / totalSpendSharing;
+          } else {
+            pesoAtribucion = 1 / anunciosCompartidosCount;
+          }
+        }
+
+        const unidadesVendidas = Number((totalVentasArticulo * pesoAtribucion).toFixed(2));
+        const facturacion = Number((totalFacturacionArticulo * pesoAtribucion).toFixed(2));
+        const costoTotal = Number((unidadesVendidas * artCostoUnit).toFixed(2));
+        const gananciaBruta = Number((facturacion - costoTotal).toFixed(2));
+
+        return {
+          id: ci.id,
+          campaignId: ci.campaignId,
+          adId: ci.adId || undefined,
+          articuloId: ci.articuloId,
+          articulo: {
+            id: art.id,
+            nombre: art.nombre,
+            precio: Number(art.precio),
+            costo: artCostoUnit,
+            stock: art.stock,
+            esPack: art.esPack || false
+          },
+          unidadesVendidas,
+          facturacion,
+          costoTotal,
+          gananciaBruta,
+          totalVentasArticulo,
+          totalFacturacionArticulo,
+          anunciosCompartidosCount,
+          pesoAtribucion
+        };
+      };
 
       const adSets: MarketingAdSetData[] = rawAdSets.map((as: any) => {
         const asSpend = typeof as.spend === "number" ? as.spend : parseFloat(as.spend || 0);
@@ -589,9 +642,9 @@ export async function getMarketingPerformance(options?: {
           const adFrequency = ad.frequency !== null && ad.frequency !== undefined ? Number(ad.frequency) : (adReach > 0 && adImpressions > 0 ? adImpressions / adReach : 0);
           const adCostPerMsg = adMessages > 0 ? adSpend / adMessages : 0;
 
-          // Artículos vinculados a este anuncio específico
+          // Artículos asignados a este anuncio específico
           const adDbItems = allDbItems.filter(it => it.adId === String(ad.id));
-          const adItems = adDbItems.map(mapItemWithSales);
+          const adItems = adDbItems.map(it => mapItemForTarget(it, adSpend, false));
           const adHealth = computeHealth(adItems, adSpend, adMessages);
 
           return {
@@ -618,16 +671,8 @@ export async function getMarketingPerformance(options?: {
           };
         });
 
-        // Items agregados del conjunto
-        const adSetItemsMap = new Map<string, MarketingCampaignItemData>();
-        for (const ad of ads) {
-          for (const item of (ad.items || [])) {
-            if (!adSetItemsMap.has(item.articuloId)) {
-              adSetItemsMap.set(item.articuloId, item);
-            }
-          }
-        }
-        const adSetItems = Array.from(adSetItemsMap.values());
+        // Items del AdSet: sumamos los items de sus anuncios hijos
+        const adSetItems = ads.flatMap(a => a.items || []);
         const adSetHealth = computeHealth(adSetItems, asSpend, asMessages);
 
         return {
@@ -655,14 +700,14 @@ export async function getMarketingPerformance(options?: {
         };
       });
 
-      // Para la campaña: combinamos los items asignados a nivel campaña + los items asignados a sus anuncios
-      const campaignItemsMap = new Map<string, MarketingCampaignItemData>();
-      for (const ci of allDbItems) {
-        if (!campaignItemsMap.has(ci.articuloId)) {
-          campaignItemsMap.set(ci.articuloId, mapItemWithSales(ci));
+      // Para la campaña: tomamos cada artículo asignado una sola vez al 100% de la venta real
+      const uniqueArticulosCampMap = new Map<string, any>();
+      allDbItems.forEach(ci => {
+        if (!uniqueArticulosCampMap.has(ci.articuloId)) {
+          uniqueArticulosCampMap.set(ci.articuloId, ci);
         }
-      }
-      const campaignItems = Array.from(campaignItemsMap.values());
+      });
+      const campaignItems = Array.from(uniqueArticulosCampMap.values()).map(ci => mapItemForTarget(ci, spend, true));
       const health = computeHealth(campaignItems, spend, messages);
 
       totalVentasGlobal += health.unidadesVendidas;

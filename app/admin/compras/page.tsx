@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma"
 
 export default async function ComprasPage() {
   const [articulos, session, config] = await Promise.all([
-    obtenerTodosLosArticulos(),
+    obtenerTodosLosArticulos(30),
     getServerSession(authOptions),
     prisma.config.findFirst({ select: { dolarCotizacion: true, factorFob: true } })
   ])

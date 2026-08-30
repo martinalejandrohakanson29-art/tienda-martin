@@ -10,6 +10,7 @@ import Link from "next/link";
 import { SessionProvider } from "next-auth/react";
 import { NotificationListener } from "@/components/notification-listener"
 import { PushNotificationSetup } from "@/components/push-notification-setup";
+import { Toaster } from "sonner";
 
 export default function AdminLayout({
   children,
@@ -45,6 +46,7 @@ export default function AdminLayout({
 
   return (
     <SessionProvider>
+    <Toaster richColors position="top-right" />
     <NotificationListener />
     <PushNotificationSetup />
     <div className="flex flex-col md:flex-row min-h-screen bg-white">

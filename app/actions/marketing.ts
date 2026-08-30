@@ -130,6 +130,7 @@ export interface MarketingPerformanceResult {
   globalHealth: {
     totalSpend: number
     totalVentas: number
+    totalUnidades?: number
     totalFacturacion: number
     totalCosto: number
     totalMargenBruto: number
@@ -137,6 +138,7 @@ export interface MarketingPerformanceResult {
     globalRoas: number
     globalPoas: number
     globalCpa: number
+    costoPorLead?: number
     globalConversionRate: number
     totalMessages: number
   }
@@ -446,11 +448,42 @@ export async function getMarketingPerformance(options?: {
       costoPackMap.set(p.id, costTotal);
     }
 
+    // 4.5. Calculamos la facturación total y costo real del período para los canales seleccionados (Instagram, Mostrador, etc.)
+    let totalFacturacionCanales = 0;
+    let totalCostoCanales = 0;
+    let totalUnidadesCanales = 0;
+    const totalTicketsCanales = ventas.length;
+
+    for (const venta of ventas) {
+      const montoVenta = Number(venta.totalFinal || venta.total || 0);
+      let subtotalVenta = 0;
+      for (const it of venta.items) {
+        if (it.esNota) continue;
+        const cant = it.cantidad || 1;
+        subtotalVenta += Number(it.subtotal || (Number(it.precio_unit) * cant) || 0);
+        totalUnidadesCanales += cant;
+
+        // Determinar costo unitario
+        let unitCost = 0;
+        if (it.productoId?.startsWith("PACK-")) {
+          const matchPack = packsDef.find(p => p.nombre.toLowerCase().trim() === it.nombre.toLowerCase().trim());
+          if (matchPack) {
+            unitCost = costoPackMap.get(matchPack.id) || 0;
+          }
+        } else if (it.productoId && articuloById.has(it.productoId)) {
+          const art = articuloById.get(it.productoId);
+          unitCost = art?.esPack ? (costoPackMap.get(art.id) || Number(art.costo || 0)) : Number(art?.costo || 0);
+        } else {
+          const art = articuloByNombre.get(it.nombre.toLowerCase().trim());
+          unitCost = art ? (art.esPack ? (costoPackMap.get(art.id) || Number(art.costo || 0)) : Number(art.costo || 0)) : 0;
+        }
+        totalCostoCanales += unitCost * cant;
+      }
+      totalFacturacionCanales += montoVenta > 0 ? montoVenta : subtotalVenta;
+    }
+
     // 5. Adaptamos campañas y calculamos métricas de salud
     let totalSpendGlobal = 0;
-    let totalVentasGlobal = 0;
-    let totalFacturacionGlobal = 0;
-    let totalCostoGlobal = 0;
     let totalMessagesGlobal = 0;
 
     const campaigns: MarketingCampaignData[] = campaignsDB.map(camp => {
@@ -639,7 +672,7 @@ export async function getMarketingPerformance(options?: {
           const adCpc = ad.cpc !== null && ad.cpc !== undefined ? Number(ad.cpc) : (adClicks > 0 ? adSpend / adClicks : 0);
           const adCpm = ad.cpm !== null && ad.cpm !== undefined ? Number(ad.cpm) : (adImpressions > 0 ? (adSpend / adImpressions) * 1000 : 0);
           const adCtr = ad.ctr !== null && ad.ctr !== undefined ? Number(ad.ctr) : (adImpressions > 0 ? (adClicks / adImpressions) * 100 : 0);
-          const adFrequency = ad.frequency !== null && ad.frequency !== undefined ? Number(ad.frequency) : (adReach > 0 && adImpressions > 0 ? adImpressions / adReach : 0);
+          const adFrequency = ad.frequency !== null && ad.frequency !== undefined ? Number(ad.frequency) : (adReach > 0 && adImpressions > 0 ? adImpressions / reach : 0);
           const adCostPerMsg = adMessages > 0 ? adSpend / adMessages : 0;
 
           // Artículos asignados a este anuncio específico
@@ -710,10 +743,6 @@ export async function getMarketingPerformance(options?: {
       const campaignItems = Array.from(uniqueArticulosCampMap.values()).map(ci => mapItemForTarget(ci, spend, true));
       const health = computeHealth(campaignItems, spend, messages);
 
-      totalVentasGlobal += health.unidadesVendidas;
-      totalFacturacionGlobal += health.facturacionReal;
-      totalCostoGlobal += health.costoMercaderia;
-
       return {
         id: camp.id,
         name: camp.name,
@@ -740,12 +769,13 @@ export async function getMarketingPerformance(options?: {
       };
     });
 
-    const totalMargenBrutoGlobal = totalFacturacionGlobal - totalCostoGlobal;
+    const totalMargenBrutoGlobal = totalFacturacionCanales - totalCostoCanales;
     const totalMargenNetoGlobal = totalMargenBrutoGlobal - totalSpendGlobal;
-    const globalRoas = totalSpendGlobal > 0 ? totalFacturacionGlobal / totalSpendGlobal : (totalFacturacionGlobal > 0 ? 999 : 0);
+    const globalRoas = totalSpendGlobal > 0 ? totalFacturacionCanales / totalSpendGlobal : (totalFacturacionCanales > 0 ? 999 : 0);
     const globalPoas = totalSpendGlobal > 0 ? totalMargenBrutoGlobal / totalSpendGlobal : (totalMargenBrutoGlobal > 0 ? 999 : 0);
-    const globalCpa = totalVentasGlobal > 0 ? totalSpendGlobal / totalVentasGlobal : 0;
-    const globalConversionRate = totalMessagesGlobal > 0 ? (totalVentasGlobal / totalMessagesGlobal) * 100 : 0;
+    const globalCpa = totalTicketsCanales > 0 ? totalSpendGlobal / totalTicketsCanales : 0;
+    const costoPorLead = totalMessagesGlobal > 0 ? totalSpendGlobal / totalMessagesGlobal : 0;
+    const globalConversionRate = totalMessagesGlobal > 0 ? (totalTicketsCanales / totalMessagesGlobal) * 100 : 0;
 
     return {
       campaigns,
@@ -753,14 +783,16 @@ export async function getMarketingPerformance(options?: {
       puntosVenta: puntosVentaFormatted,
       globalHealth: {
         totalSpend: totalSpendGlobal,
-        totalVentas: totalVentasGlobal,
-        totalFacturacion: totalFacturacionGlobal,
-        totalCosto: totalCostoGlobal,
+        totalVentas: totalTicketsCanales,
+        totalUnidades: totalUnidadesCanales,
+        totalFacturacion: totalFacturacionCanales,
+        totalCosto: totalCostoCanales,
         totalMargenBruto: totalMargenBrutoGlobal,
         totalMargenNeto: totalMargenNetoGlobal,
         globalRoas,
         globalPoas,
         globalCpa,
+        costoPorLead,
         globalConversionRate,
         totalMessages: totalMessagesGlobal
       }
@@ -774,6 +806,7 @@ export async function getMarketingPerformance(options?: {
       globalHealth: {
         totalSpend: 0,
         totalVentas: 0,
+        totalUnidades: 0,
         totalFacturacion: 0,
         totalCosto: 0,
         totalMargenBruto: 0,
@@ -781,6 +814,7 @@ export async function getMarketingPerformance(options?: {
         globalRoas: 0,
         globalPoas: 0,
         globalCpa: 0,
+        costoPorLead: 0,
         globalConversionRate: 0,
         totalMessages: 0
       }
@@ -1016,5 +1050,3 @@ export async function sincronizarMarketingWorkflow(datePreset: string = "last_30
   // Realizamos consulta directa a Meta para máxima velocidad y flexibilidad de fecha
   return await consultarMarketingMetaDirecto(datePreset);
 }
-
-

@@ -27,10 +27,73 @@ async function upsertCostosML(tx: TxClient, prodId: string, item: any, costoEnAr
   })
 }
 
-export async function obtenerTodosLosArticulos() {
+export async function buscarArticulosParaCompra(query: string, limit: number = 30) {
+  await requireAdmin();
+  try {
+    const trimmed = query.trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    
+    const whereCondition: any = words.length > 0 ? {
+      AND: words.map(word => ({
+        OR: [
+          { nombre: { contains: word, mode: 'insensitive' } },
+          { id: { contains: word, mode: 'insensitive' } },
+        ]
+      }))
+    } : {};
+
+    const articulos = await prisma.articuloMostrador.findMany({
+      where: whereCondition,
+      take: limit,
+      orderBy: { nombre: 'asc' },
+      include: {
+        auditorias: {
+          orderBy: { createdAt: 'desc' },
+          take: 1
+        },
+        packItems: {
+          include: {
+            componente: true
+          }
+        }
+      }
+    });
+
+    return {
+      success: true,
+      data: articulos.map(art => ({
+        id: art.id,
+        nombre: art.nombre,
+        precio: Number(art.precio),
+        costo: art.costo ? Number(art.costo) : 0,
+        margenGanancia: art.margenGanancia ? Number(art.margenGanancia) : 0,
+        esPack: art.esPack || false,
+        ultimaModificacion: art.auditorias?.[0]?.createdAt?.toISOString() || null,
+        stock: (art.esPack && art.packItems)
+          ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
+          : art.stock,
+        packItems: art.packItems?.map(packItem => ({
+          ...packItem,
+          componente: {
+            ...packItem.componente,
+            precio: Number(packItem.componente.precio),
+            costo: packItem.componente.costo ? Number(packItem.componente.costo) : 0,
+            margenGanancia: packItem.componente.margenGanancia ? Number(packItem.componente.margenGanancia) : 0,
+          }
+        })) || []
+      }))
+    };
+  } catch (error) {
+    console.error("Error al buscar artículos para compra:", error);
+    return { success: false, error: "Error al buscar artículos", data: [] };
+  }
+}
+
+export async function obtenerTodosLosArticulos(limit?: number) {
   await requireAdmin();
   try {
     const articulos = await prisma.articuloMostrador.findMany({
+      take: limit,
       orderBy: { nombre: 'asc' },
       include: {
         // Cualquier tipo de modificación cuenta como "última modificación" (edición individual,
@@ -71,6 +134,110 @@ export async function obtenerTodosLosArticulos() {
   } catch (error) {
     console.error("Error al obtener artículos:", error);
     return [];
+  }
+}
+
+export async function obtenerComprasPaginadas(params: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  fechaDesde?: string;
+  fechaHasta?: string;
+  metodoPago?: string;
+  proveedorId?: string;
+}) {
+  await requireAdmin();
+  try {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(params.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      tipoCompra: { not: "PEDIDO" },
+    };
+
+    if (params.fechaDesde && params.fechaHasta) {
+      where.fechaCarga = {
+        gte: new Date(`${params.fechaDesde}T00:00:00-03:00`),
+        lte: new Date(`${params.fechaHasta}T23:59:59.999-03:00`),
+      };
+    }
+
+    if (params.metodoPago && params.metodoPago !== "TODOS") {
+      where.metodo_pago = params.metodoPago;
+    }
+
+    if (params.proveedorId) {
+      where.proveedorId = params.proveedorId;
+    }
+
+    if (params.search && params.search.trim()) {
+      const q = params.search.trim();
+      const numQ = parseInt(q.replace("#", ""));
+      where.OR = [
+        { proveedor: { contains: q, mode: 'insensitive' } },
+        { comprobante: { contains: q, mode: 'insensitive' } },
+        { proveedorRel: { razonSocial: { contains: q, mode: 'insensitive' } } },
+        { proveedorRel: { nombreFantasia: { contains: q, mode: 'insensitive' } } },
+        ...(!isNaN(numQ) ? [{ numeroCompra: numQ }] : [])
+      ];
+    }
+
+    const [compras, totalCount, sumAggregate] = await Promise.all([
+      prisma.compra.findMany({
+        where,
+        include: {
+          items: true,
+          proveedorRel: true,
+        },
+        orderBy: {
+          fechaCarga: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.compra.count({ where }),
+      prisma.compra.aggregate({
+        where,
+        _sum: {
+          totalFinal: true
+        }
+      })
+    ]);
+
+    return {
+      success: true,
+      data: compras.map(c => ({
+        ...c,
+        total: Number(c.total),
+        interes: Number(c.interes),
+        descuento: Number(c.descuento),
+        totalFinal: Number(c.totalFinal),
+        createdAt: c.createdAt.toISOString(),
+        fechaCarga: c.fechaCarga.toISOString(),
+        fechaIngreso: c.fechaIngreso ? c.fechaIngreso.toISOString() : null,
+        items: c.items.map(i => ({
+          ...i,
+          costo_unit: Number(i.costo_unit),
+          subtotal: Number(i.subtotal)
+        }))
+      })),
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit),
+        totalMonto: Number(sumAggregate._sum?.totalFinal || 0)
+      }
+    };
+  } catch (error) {
+    console.error("Error al obtener compras paginadas:", error);
+    return {
+      success: false,
+      error: "Error al cargar compras",
+      data: [],
+      pagination: { page: 1, limit: 20, totalCount: 0, totalPages: 0, totalMonto: 0 }
+    };
   }
 }
 

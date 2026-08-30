@@ -436,9 +436,25 @@ export function ListadoVentasTab({
                           </TableCell>
 
                           <TableCell className="py-2.5 text-xs">
-                            <span className="font-medium text-slate-700">
-                              {v.puntoVenta?.nombre || "Mostrador"}
-                            </span>
+                            {v.puntoVenta ? (
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className="h-2 w-2 rounded-full shrink-0 shadow-xs"
+                                  style={{ backgroundColor: v.puntoVenta.color || "#64748b" }}
+                                />
+                                <span
+                                  className="font-bold tracking-tight"
+                                  style={{ color: v.puntoVenta.color || "#334155" }}
+                                >
+                                  {v.puntoVenta.nombre}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full shrink-0 bg-slate-400" />
+                                <span className="font-semibold text-slate-600">Mostrador</span>
+                              </div>
+                            )}
                           </TableCell>
 
                           <TableCell className="py-2.5 text-right font-black text-slate-900 text-sm">

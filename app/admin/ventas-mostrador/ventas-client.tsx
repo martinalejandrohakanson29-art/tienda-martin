@@ -366,10 +366,27 @@ export default function VentasMostradorClient({
     const isEditMode = !!pedidoEnEdicionId;
     const isPedido = isEditMode ? true : overrideComoPedido === true;
 
-    if (fiscalizar) {
+    const esGoCuotas =
+      (metodoPago === "Tarjeta de Crédito" && procesadorTarjeta === "Go Cuotas") ||
+      (isPagoMixto &&
+        ((metodoPago === "Tarjeta de Crédito" && procesadorTarjeta === "Go Cuotas") ||
+          (metodoPago2 === "Tarjeta de Crédito" && procesadorTarjeta === "Go Cuotas")));
+
+    const esMercadoPago =
+      metodoPago === "MercadoPago" ||
+      (isPagoMixto && (metodoPago === "MercadoPago" || metodoPago2 === "MercadoPago"));
+
+    const esFacturacionObligatoria = !isPedido && (esGoCuotas || esMercadoPago);
+    const debeFiscalizar = fiscalizar || esFacturacionObligatoria;
+
+    if (debeFiscalizar) {
       const docOk = (docNro && docNro !== "0") || cuitBusqueda.length > 6;
       if (!docOk) {
-        alert("Para 'Registrar y fiscalizar' necesitás cargar el CUIT/DNI en el buscador de Padrón AFIP.");
+        alert(
+          `Para cobrar con ${
+            esGoCuotas ? "Go Cuotas" : esMercadoPago ? "MercadoPago" : "facturación AFIP"
+          } es obligatorio ingresar el CUIT o DNI del cliente en el Padrón AFIP.`
+        );
         return;
       }
     }
@@ -452,7 +469,7 @@ export default function VentasMostradorClient({
         : await crearVentaMostrador({
             ...payloadComun,
             vendedor: vendedorNombre,
-            solicitarFactura: solicitarFactura || fiscalizar,
+            solicitarFactura: solicitarFactura || debeFiscalizar,
           });
 
       if (resultado.success) {
@@ -474,7 +491,7 @@ export default function VentasMostradorClient({
             })
           );
 
-          if (fiscalizar && (resultado as any).id) {
+          if (debeFiscalizar && (resultado as any).id) {
             await generarFacturaARCA((resultado as any).id);
           }
           mostrarMensajeExito("¡Venta registrada con éxito!");

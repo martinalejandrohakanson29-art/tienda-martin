@@ -234,17 +234,31 @@ export function FinalizarVentaModal({
     ((metodoPago === "Cruzada" && metodoPago2 === "A Cuenta Corriente") ||
       (metodoPago === "A Cuenta Corriente" && metodoPago2 === "Cruzada"));
 
-  const requiereFiscalizacionOpcional =
-    metodoPago === "Tarjeta de Crédito" ||
-    metodoPago === "Tarjeta de Débito" ||
-    metodoPago === "MercadoPago" ||
+  const esGoCuotas =
+    (metodoPago === "Tarjeta de Crédito" && procesadorTarjeta === "Go Cuotas") ||
     (isPagoMixto &&
-      (metodoPago === "Tarjeta de Crédito" ||
-        metodoPago === "Tarjeta de Débito" ||
-        metodoPago === "MercadoPago" ||
-        metodoPago2 === "Tarjeta de Crédito" ||
-        metodoPago2 === "Tarjeta de Débito" ||
-        metodoPago2 === "MercadoPago"));
+      ((metodoPago === "Tarjeta de Crédito" && procesadorTarjeta === "Go Cuotas") ||
+        (metodoPago2 === "Tarjeta de Crédito" && procesadorTarjeta === "Go Cuotas")));
+
+  const esFacturacionObligatoria = esGoCuotas || requiereMercadoPago;
+  const motivoFacturacionObligatoria = esGoCuotas ? "Go Cuotas" : "MercadoPago";
+
+  // Forzar solicitud de factura si el método lo exige
+  useEffect(() => {
+    if (esFacturacionObligatoria) {
+      setSolicitarFactura(true);
+    }
+  }, [esFacturacionObligatoria, setSolicitarFactura]);
+
+  const requiereFiscalizacionOpcional =
+    !esFacturacionObligatoria &&
+    (metodoPago === "Tarjeta de Crédito" ||
+      metodoPago === "Tarjeta de Débito" ||
+      (isPagoMixto &&
+        (metodoPago === "Tarjeta de Crédito" ||
+          metodoPago === "Tarjeta de Débito" ||
+          metodoPago2 === "Tarjeta de Crédito" ||
+          metodoPago2 === "Tarjeta de Débito")));
 
   // Buscar en padrón AFIP
   const handleBuscarPadron = async () => {
@@ -1250,20 +1264,43 @@ export function FinalizarVentaModal({
                         Registrar Venta
                       </span>
                     </div>
-                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <label
+                      className={`flex items-center gap-1.5 ${
+                        esFacturacionObligatoria ? "cursor-default" : "cursor-pointer"
+                      } select-none`}
+                    >
                       <input
                         type="checkbox"
-                        checked={solicitarFactura}
-                        onChange={(e) => setSolicitarFactura(e.target.checked)}
-                        className="h-3.5 w-3.5 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-600"
+                        checked={solicitarFactura || esFacturacionObligatoria}
+                        disabled={esFacturacionObligatoria}
+                        onChange={(e) => !esFacturacionObligatoria && setSolicitarFactura(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-600 disabled:opacity-80"
                       />
-                      <span className="text-[11px] font-bold text-emerald-800">
-                        Factura AFIP
+                      <span className="text-[11px] font-bold text-emerald-800 flex items-center gap-1.5 flex-wrap">
+                        Factura AFIP (ARCA)
+                        {esFacturacionObligatoria && (
+                          <span className="text-[9px] font-black uppercase text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded shadow-xs">
+                            Obligatorio ({motivoFacturacionObligatoria})
+                          </span>
+                        )}
                       </span>
                     </label>
                   </div>
 
-                  {requiereFiscalizacionOpcional ? (
+                  {esFacturacionObligatoria ? (
+                    <Button
+                      onClick={() => onFinalizarVenta(false, true)}
+                      disabled={isSubmitting}
+                      className="bg-teal-800 hover:bg-teal-900 text-white h-10 rounded-xl font-bold text-xs w-full shadow-md flex items-center justify-center gap-2"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4 mr-1.5" />
+                      )}
+                      REGISTRAR VENTA CON FACTURA ARCA ({motivoFacturacionObligatoria})
+                    </Button>
+                  ) : requiereFiscalizacionOpcional ? (
                     <div className="grid grid-cols-2 gap-2">
                       <Button
                         onClick={() => onFinalizarVenta(false, false)}
@@ -1290,7 +1327,7 @@ export function FinalizarVentaModal({
                     </div>
                   ) : (
                     <Button
-                      onClick={() => onFinalizarVenta(false)}
+                      onClick={() => onFinalizarVenta(false, solicitarFactura)}
                       disabled={isSubmitting}
                       className="bg-emerald-600 hover:bg-emerald-700 text-white h-10 rounded-xl font-bold text-xs w-full shadow-md shadow-emerald-600/20"
                     >

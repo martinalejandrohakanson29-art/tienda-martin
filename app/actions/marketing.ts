@@ -25,6 +25,8 @@ export interface MarketingAdData {
   costPerMsg: number
   createdTime?: string
   updatedTime?: string
+  items?: MarketingCampaignItemData[]
+  health?: CampaignHealthData
 }
 
 export interface MarketingAdSetData {
@@ -47,6 +49,40 @@ export interface MarketingAdSetData {
   startTime?: string
   updatedTime?: string
   ads: MarketingAdData[]
+  items?: MarketingCampaignItemData[]
+  health?: CampaignHealthData
+}
+
+export interface MarketingCampaignItemData {
+  id: string
+  campaignId: string
+  adId?: string
+  articuloId: string
+  articulo: {
+    id: string
+    nombre: string
+    precio: number
+    costo: number
+    stock: number
+    esPack: boolean
+  }
+  unidadesVendidas: number
+  facturacion: number
+  costoTotal: number
+  gananciaBruta: number
+}
+
+export interface CampaignHealthData {
+  unidadesVendidas: number
+  facturacionReal: number
+  costoMercaderia: number
+  margenBruto: number
+  margenNeto: number
+  roasFacturacion: number
+  poasMargen: number
+  cpaReal: number
+  conversionRate: number
+  estadoSalud: "SALUDABLE" | "NEUTRO" | "CRITICO" | "SIN_VENTAS" | "SIN_ASIGNAR"
 }
 
 export interface MarketingCampaignData {
@@ -71,7 +107,35 @@ export interface MarketingCampaignData {
   dateStop?: string
   datePreset?: string
   adSets?: MarketingAdSetData[]
+  items?: MarketingCampaignItemData[]
+  health?: CampaignHealthData
   updatedAt?: Date | string
+}
+
+export interface PuntoVentaFilterItem {
+  id: string
+  nombre: string
+  color?: string | null
+  active?: boolean
+}
+
+export interface MarketingPerformanceResult {
+  campaigns: MarketingCampaignData[]
+  autoResponses: any[]
+  puntosVenta: PuntoVentaFilterItem[]
+  globalHealth: {
+    totalSpend: number
+    totalVentas: number
+    totalFacturacion: number
+    totalCosto: number
+    totalMargenBruto: number
+    totalMargenNeto: number
+    globalRoas: number
+    globalPoas: number
+    globalCpa: number
+    globalConversionRate: number
+    totalMessages: number
+  }
 }
 
 function parseActions(actions: any[] = []) {
@@ -93,17 +157,298 @@ function parseActions(actions: any[] = []) {
   return { messages, carts };
 }
 
-export async function getMarketingPerformance() {
+function getPresetDateRange(preset: string = "last_30d") {
+  const now = new Date();
+  const fin = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  let inicio = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+  switch (preset) {
+    case "today":
+      break;
+    case "yesterday":
+      inicio.setDate(inicio.getDate() - 1);
+      fin.setDate(fin.getDate() - 1);
+      break;
+    case "last_7d":
+      inicio.setDate(inicio.getDate() - 7);
+      break;
+    case "last_14d":
+      inicio.setDate(inicio.getDate() - 14);
+      break;
+    case "this_month":
+      inicio = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      break;
+    case "last_month":
+      inicio = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
+      fin.setTime(new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime());
+      break;
+    case "maximum":
+      inicio = new Date(2020, 0, 1);
+      break;
+    case "last_30d":
+    default:
+      inicio.setDate(inicio.getDate() - 30);
+      break;
+  }
+
+  return { inicio, fin };
+}
+
+export async function obtenerArticulosParaAsignacion() {
   try {
-    // Traemos los datos reales de la DB
-    const [campaignsDB, autoResponses] = await Promise.all([
+    const articulos = await prisma.articuloMostrador.findMany({
+      where: { oculto: false },
+      orderBy: { nombre: 'asc' },
+      select: {
+        id: true,
+        nombre: true,
+        precio: true,
+        costo: true,
+        stock: true,
+        esPack: true
+      }
+    });
+
+    return {
+      success: true,
+      data: articulos.map(a => ({
+        id: a.id,
+        nombre: a.nombre,
+        precio: Number(a.precio),
+        costo: Number(a.costo || 0),
+        stock: a.stock,
+        esPack: a.esPack || false
+      }))
+    };
+  } catch (error: any) {
+    console.error("Error al obtener artículos para asignación:", error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+export async function vincularArticulosACampana(
+  campaignId: string, 
+  articuloIds: string[], 
+  adId?: string | null
+) {
+  try {
+    if (!campaignId) throw new Error("ID de campaña no especificado");
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Borramos vinculaciones previas del adId o de la campaña
+      if (adId) {
+        await tx.marketingCampaignItem.deleteMany({
+          where: { campaignId, adId }
+        });
+      } else {
+        await tx.marketingCampaignItem.deleteMany({
+          where: { campaignId, adId: null }
+        });
+      }
+
+      // 2. Insertamos las nuevas vinculaciones
+      if (articuloIds && articuloIds.length > 0) {
+        const uniqueIds = Array.from(new Set(articuloIds));
+        await tx.marketingCampaignItem.createMany({
+          data: uniqueIds.map(articuloId => ({
+            campaignId,
+            adId: adId || null,
+            articuloId
+          }))
+        });
+      }
+    });
+
+    revalidatePath("/admin/instagram");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al vincular artículos a campaña/anuncio:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function getMarketingPerformance(options?: {
+  datePreset?: string
+  fechaDesde?: string
+  fechaHasta?: string
+  puntoVentaIds?: string[]
+}): Promise<MarketingPerformanceResult> {
+  try {
+    const datePreset = options?.datePreset || "last_30d";
+
+    // 1. Puntos de venta
+    const allPuntosVenta = await prisma.puntoVenta.findMany({
+      orderBy: { nombre: 'asc' }
+    });
+
+    // Puntos de venta activos: si no se pasan, por defecto "Instagram" y "Mostrador"
+    let activePvIds = options?.puntoVentaIds;
+    if (!activePvIds || activePvIds.length === 0) {
+      const defaultPvs = allPuntosVenta.filter(pv => {
+        const nom = pv.nombre.toLowerCase();
+        return nom.includes("instagram") || nom.includes("mostrador");
+      });
+      activePvIds = defaultPvs.length > 0 ? defaultPvs.map(p => p.id) : allPuntosVenta.map(p => p.id);
+    }
+
+    const puntosVentaFormatted: PuntoVentaFilterItem[] = allPuntosVenta.map(pv => ({
+      id: pv.id,
+      nombre: pv.nombre,
+      color: pv.color,
+      active: activePvIds!.includes(pv.id)
+    }));
+
+    // 2. Rango de fechas para el cruce de ventas
+    let { inicio, fin } = getPresetDateRange(datePreset);
+    if (options?.fechaDesde && options?.fechaHasta) {
+      inicio = new Date(`${options.fechaDesde}T00:00:00-03:00`);
+      fin = new Date(`${options.fechaHasta}T23:59:59.999-03:00`);
+    }
+
+    // 3. Traemos datos de DB en paralelo
+    const [campaignsDB, autoResponses, ventas, packsDef, todosArticulos] = await Promise.all([
       prisma.marketingCampaign.findMany({
+        include: {
+          items: {
+            include: {
+              articulo: {
+                select: {
+                  id: true,
+                  nombre: true,
+                  precio: true,
+                  costo: true,
+                  stock: true,
+                  esPack: true
+                }
+              }
+            }
+          }
+        },
         orderBy: { updatedAt: 'desc' }
       }),
-      prisma.marketingAutoResponse.findMany()
+      prisma.marketingAutoResponse.findMany(),
+      prisma.venta.findMany({
+        where: {
+          tipoVenta: { not: "PEDIDO" },
+          estadoPedido: { not: "CANCELADO" },
+          createdAt: { gte: inicio, lte: fin },
+          ...(activePvIds.length > 0 ? { puntoVentaId: { in: activePvIds } } : {})
+        },
+        include: { items: true }
+      }),
+      prisma.articuloMostrador.findMany({
+        where: { esPack: true },
+        include: { packItems: true }
+      }),
+      prisma.articuloMostrador.findMany({
+        select: { id: true, nombre: true, precio: true, costo: true, esPack: true }
+      })
     ]);
 
-    // Adaptamos los datos para que el componente los entienda
+    // 4. Mapeo de artículos y reconstrucción de packs
+    type ArticuloItemType = { id: string; nombre: string; precio: any; costo: any; esPack: boolean | null };
+    const articuloById = new Map<string, ArticuloItemType>(todosArticulos.map(a => [a.id, a]));
+    const articuloByNombre = new Map<string, ArticuloItemType>(todosArticulos.map(a => [a.nombre.toLowerCase().trim(), a]));
+
+    const packs = packsDef
+      .filter(p => p.packItems.length > 0)
+      .map(p => ({
+        id: p.id,
+        nombre: p.nombre,
+        componentes: p.packItems.map(pi => ({ componenteId: pi.componenteId, cantidad: pi.cantidad })),
+        totalComponentes: p.packItems.reduce((s, pi) => s + pi.cantidad, 0),
+      }))
+      .sort((a, b) => b.totalComponentes - a.totalComponentes);
+
+    // Contenedor de ventas por ID de artículo/pack
+    const salesByProductKey: Record<string, { cantidad: number; facturacion: number; nombre: string }> = {};
+
+    const acumularVenta = (key: string, nombre: string, cantidad: number, monto: number) => {
+      if (!salesByProductKey[key]) {
+        salesByProductKey[key] = { cantidad: 0, facturacion: 0, nombre };
+      }
+      salesByProductKey[key].cantidad += cantidad;
+      salesByProductKey[key].facturacion += monto;
+    };
+
+    for (const venta of ventas) {
+      const disp: Record<string, { qty: number; monto: number; nombre: string }> = {};
+
+      for (const item of venta.items) {
+        if (item.esNota) continue;
+
+        // Pack vendido directamente
+        if (item.productoId?.startsWith("PACK-")) {
+          // Buscamos si coincide con algún pack por nombre
+          const matchPack = packsDef.find(p => p.nombre.toLowerCase().trim() === item.nombre.toLowerCase().trim());
+          const packKey = matchPack ? matchPack.id : item.nombre.toLowerCase().trim();
+          acumularVenta(packKey, item.nombre, item.cantidad, Number(item.subtotal));
+          continue;
+        }
+
+        const pid = item.productoId;
+        if (!pid) {
+          // Sin ID, acumulamos por nombre
+          const matchArt = articuloByNombre.get(item.nombre.toLowerCase().trim());
+          const artKey = matchArt ? matchArt.id : item.nombre.toLowerCase().trim();
+          acumularVenta(artKey, item.nombre, item.cantidad, Number(item.subtotal));
+          continue;
+        }
+
+        if (!disp[pid]) disp[pid] = { qty: 0, monto: 0, nombre: item.nombre };
+        disp[pid].qty += item.cantidad;
+        disp[pid].monto += Number(item.subtotal);
+      }
+
+      // Reconstruir packs vendidos por componentes
+      for (const pack of packs) {
+        let copias = Infinity;
+        for (const comp of pack.componentes) {
+          const d = disp[comp.componenteId];
+          const posibles = d ? Math.floor(d.qty / comp.cantidad) : 0;
+          if (posibles < copias) copias = posibles;
+          if (copias === 0) break;
+        }
+        if (!isFinite(copias) || copias <= 0) continue;
+
+        let montoPack = 0;
+        for (const comp of pack.componentes) {
+          const d = disp[comp.componenteId];
+          const consumir = comp.cantidad * copias;
+          const precioUnit = d.qty > 0 ? d.monto / d.qty : 0;
+          const montoConsumido = precioUnit * consumir;
+          d.qty -= consumir;
+          d.monto -= montoConsumido;
+          montoPack += montoConsumido;
+        }
+        acumularVenta(pack.id, pack.nombre, copias, montoPack);
+      }
+
+      // Componentes restantes
+      for (const [pid, d] of Object.entries(disp)) {
+        if (d.qty > 0) acumularVenta(pid, d.nombre, d.qty, d.monto);
+      }
+    }
+
+    // Costos unitarios de packs (suma de componentes)
+    const costoPackMap = new Map<string, number>();
+    for (const p of packsDef) {
+      let costTotal = 0;
+      for (const pi of p.packItems) {
+        const comp = articuloById.get(pi.componenteId);
+        const compCosto = comp ? Number(comp.costo || 0) : 0;
+        costTotal += compCosto * pi.cantidad;
+      }
+      costoPackMap.set(p.id, costTotal);
+    }
+
+    // 5. Adaptamos campañas y calculamos métricas de salud
+    let totalSpendGlobal = 0;
+    let totalVentasGlobal = 0;
+    let totalFacturacionGlobal = 0;
+    let totalCostoGlobal = 0;
+    let totalMessagesGlobal = 0;
+
     const campaigns: MarketingCampaignData[] = campaignsDB.map(camp => {
       const spend = Number(camp.spend);
       const reach = camp.reach || 0;
@@ -111,6 +456,9 @@ export async function getMarketingPerformance() {
       const clicks = camp.clicks || 0;
       const messages = camp.messages || 0;
       const carts = camp.carts || 0;
+
+      totalSpendGlobal += spend;
+      totalMessagesGlobal += messages;
 
       const cpc = camp.cpc !== null && camp.cpc !== undefined 
         ? Number(camp.cpc) 
@@ -129,6 +477,80 @@ export async function getMarketingPerformance() {
         : (reach > 0 && impressions > 0 ? impressions / reach : 0);
 
       const costPerMsg = messages > 0 ? spend / messages : 0;
+
+      // Helper para mapear un item de la base de datos con sus ventas y costos
+      const mapItemWithSales = (ci: any): MarketingCampaignItemData => {
+        const art = ci.articulo;
+        const artCostoUnit = art.esPack ? (costoPackMap.get(art.id) || Number(art.costo || 0)) : Number(art.costo || 0);
+        const saleData = salesByProductKey[art.id] || salesByProductKey[art.nombre.toLowerCase().trim()] || { cantidad: 0, facturacion: 0, nombre: art.nombre };
+        const unidadesVendidas = saleData.cantidad;
+        const facturacion = saleData.facturacion;
+        const costoTotal = unidadesVendidas * artCostoUnit;
+        const gananciaBruta = facturacion - costoTotal;
+
+        return {
+          id: ci.id,
+          campaignId: ci.campaignId,
+          articuloId: ci.articuloId,
+          articulo: {
+            id: art.id,
+            nombre: art.nombre,
+            precio: Number(art.precio),
+            costo: artCostoUnit,
+            stock: art.stock,
+            esPack: art.esPack || false
+          },
+          unidadesVendidas,
+          facturacion,
+          costoTotal,
+          gananciaBruta
+        };
+      };
+
+      // Helper para calcular métricas de salud
+      const computeHealth = (items: MarketingCampaignItemData[], spend: number, messages: number): CampaignHealthData => {
+        const unidadesVendidas = items.reduce((acc, it) => acc + it.unidadesVendidas, 0);
+        const facturacionReal = items.reduce((acc, it) => acc + it.facturacion, 0);
+        const costoMercaderia = items.reduce((acc, it) => acc + it.costoTotal, 0);
+        const margenBruto = facturacionReal - costoMercaderia;
+        const margenNeto = margenBruto - spend;
+
+        const roasFacturacion = spend > 0 ? facturacionReal / spend : (facturacionReal > 0 ? 999 : 0);
+        const poasMargen = spend > 0 ? margenBruto / spend : (margenBruto > 0 ? 999 : 0);
+        const cpaReal = unidadesVendidas > 0 ? spend / unidadesVendidas : 0;
+        const conversionRate = messages > 0 ? (unidadesVendidas / messages) * 100 : 0;
+
+        let estadoSalud: CampaignHealthData["estadoSalud"] = "SIN_ASIGNAR";
+        if (items.length === 0) {
+          estadoSalud = "SIN_ASIGNAR";
+        } else if (spend === 0 && unidadesVendidas === 0) {
+          estadoSalud = "NEUTRO";
+        } else if (spend > 0 && unidadesVendidas === 0) {
+          estadoSalud = "SIN_VENTAS";
+        } else if (poasMargen >= 1.5) {
+          estadoSalud = "SALUDABLE";
+        } else if (poasMargen >= 1.0) {
+          estadoSalud = "NEUTRO";
+        } else {
+          estadoSalud = "CRITICO";
+        }
+
+        return {
+          unidadesVendidas,
+          facturacionReal,
+          costoMercaderia,
+          margenBruto,
+          margenNeto,
+          roasFacturacion,
+          poasMargen,
+          cpaReal,
+          conversionRate,
+          estadoSalud
+        };
+      };
+
+      // Todos los items asociados a esta campaña (a nivel campaña o a nivel ad)
+      const allDbItems = (camp.items || []);
 
       // Parsear adSets si existen
       let rawAdSets: any[] = [];
@@ -167,6 +589,11 @@ export async function getMarketingPerformance() {
           const adFrequency = ad.frequency !== null && ad.frequency !== undefined ? Number(ad.frequency) : (adReach > 0 && adImpressions > 0 ? adImpressions / adReach : 0);
           const adCostPerMsg = adMessages > 0 ? adSpend / adMessages : 0;
 
+          // Artículos vinculados a este anuncio específico
+          const adDbItems = allDbItems.filter(it => it.adId === String(ad.id));
+          const adItems = adDbItems.map(mapItemWithSales);
+          const adHealth = computeHealth(adItems, adSpend, adMessages);
+
           return {
             id: String(ad.id),
             adSetId: ad.adSetId ? String(ad.adSetId) : as.id,
@@ -185,9 +612,23 @@ export async function getMarketingPerformance() {
             carts: adCarts,
             costPerMsg: adCostPerMsg,
             createdTime: ad.createdTime || ad.created_time,
-            updatedTime: ad.updatedTime || ad.updated_time
+            updatedTime: ad.updatedTime || ad.updated_time,
+            items: adItems,
+            health: adHealth
           };
         });
+
+        // Items agregados del conjunto
+        const adSetItemsMap = new Map<string, MarketingCampaignItemData>();
+        for (const ad of ads) {
+          for (const item of (ad.items || [])) {
+            if (!adSetItemsMap.has(item.articuloId)) {
+              adSetItemsMap.set(item.articuloId, item);
+            }
+          }
+        }
+        const adSetItems = Array.from(adSetItemsMap.values());
+        const adSetHealth = computeHealth(adSetItems, asSpend, asMessages);
 
         return {
           id: String(as.id),
@@ -208,9 +649,25 @@ export async function getMarketingPerformance() {
           createdTime: as.createdTime || as.created_time,
           startTime: as.startTime || as.start_time,
           updatedTime: as.updatedTime || as.updated_time,
-          ads
+          ads,
+          items: adSetItems,
+          health: adSetHealth
         };
       });
+
+      // Para la campaña: combinamos los items asignados a nivel campaña + los items asignados a sus anuncios
+      const campaignItemsMap = new Map<string, MarketingCampaignItemData>();
+      for (const ci of allDbItems) {
+        if (!campaignItemsMap.has(ci.articuloId)) {
+          campaignItemsMap.set(ci.articuloId, mapItemWithSales(ci));
+        }
+      }
+      const campaignItems = Array.from(campaignItemsMap.values());
+      const health = computeHealth(campaignItems, spend, messages);
+
+      totalVentasGlobal += health.unidadesVendidas;
+      totalFacturacionGlobal += health.facturacionReal;
+      totalCostoGlobal += health.costoMercaderia;
 
       return {
         id: camp.id,
@@ -232,14 +689,57 @@ export async function getMarketingPerformance() {
         dateStart: camp.dateStart ? camp.dateStart.toISOString().split('T')[0] : undefined,
         dateStop: camp.dateStop ? camp.dateStop.toISOString().split('T')[0] : undefined,
         adSets,
+        items: campaignItems,
+        health,
         updatedAt: camp.updatedAt
       };
     });
 
-    return { campaigns, autoResponses };
+    const totalMargenBrutoGlobal = totalFacturacionGlobal - totalCostoGlobal;
+    const totalMargenNetoGlobal = totalMargenBrutoGlobal - totalSpendGlobal;
+    const globalRoas = totalSpendGlobal > 0 ? totalFacturacionGlobal / totalSpendGlobal : (totalFacturacionGlobal > 0 ? 999 : 0);
+    const globalPoas = totalSpendGlobal > 0 ? totalMargenBrutoGlobal / totalSpendGlobal : (totalMargenBrutoGlobal > 0 ? 999 : 0);
+    const globalCpa = totalVentasGlobal > 0 ? totalSpendGlobal / totalVentasGlobal : 0;
+    const globalConversionRate = totalMessagesGlobal > 0 ? (totalVentasGlobal / totalMessagesGlobal) * 100 : 0;
+
+    return {
+      campaigns,
+      autoResponses,
+      puntosVenta: puntosVentaFormatted,
+      globalHealth: {
+        totalSpend: totalSpendGlobal,
+        totalVentas: totalVentasGlobal,
+        totalFacturacion: totalFacturacionGlobal,
+        totalCosto: totalCostoGlobal,
+        totalMargenBruto: totalMargenBrutoGlobal,
+        totalMargenNeto: totalMargenNetoGlobal,
+        globalRoas,
+        globalPoas,
+        globalCpa,
+        globalConversionRate,
+        totalMessages: totalMessagesGlobal
+      }
+    };
   } catch (error) {
-    console.error("Error al obtener marketing:", error);
-    return { campaigns: [], autoResponses: [] };
+    console.error("Error al obtener marketing con salud:", error);
+    return {
+      campaigns: [],
+      autoResponses: [],
+      puntosVenta: [],
+      globalHealth: {
+        totalSpend: 0,
+        totalVentas: 0,
+        totalFacturacion: 0,
+        totalCosto: 0,
+        totalMargenBruto: 0,
+        totalMargenNeto: 0,
+        globalRoas: 0,
+        globalPoas: 0,
+        globalCpa: 0,
+        globalConversionRate: 0,
+        totalMessages: 0
+      }
+    };
   }
 }
 
@@ -453,7 +953,7 @@ export async function consultarMarketingMetaDirecto(datePreset: string = "last_3
     revalidatePath("/admin/instagram");
     revalidatePath("/admin/marketing");
 
-    const updatedData = await getMarketingPerformance();
+    const updatedData = await getMarketingPerformance({ datePreset });
     return { 
       success: true, 
       data: updatedData,

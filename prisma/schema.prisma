@@ -496,8 +496,25 @@ model MarketingCampaign {
   dateStart   DateTime?
   dateStop    DateTime?
   updatedAt   DateTime  @updatedAt
+  items       MarketingCampaignItem[]
 
   @@map("marketing_campaigns")
+}
+
+model MarketingCampaignItem {
+  id           String             @id @default(cuid())
+  campaignId   String
+  adId         String?
+  articuloId   String
+  createdAt    DateTime           @default(now())
+
+  campaign     MarketingCampaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  articulo     ArticuloMostrador  @relation(fields: [articuloId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([adId])
+  @@index([articuloId])
+  @@map("marketing_campaign_items")
 }
 
 model MarketingAutoResponse {
@@ -735,6 +752,7 @@ model ArticuloMostrador {
   faltantes    ArticuloFaltante[]
   controlStockEntradas ControlStockEntrada[]
   mayoristas   ArticuloMayorista[]
+  campaignItems MarketingCampaignItem[]
 
   @@index([nombre])
   @@index([proveedorId])

@@ -742,6 +742,7 @@ model ArticuloMostrador {
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
   esPack       Boolean?            @default(false)
+  esServicio   Boolean             @default(false)
   oculto       Boolean             @default(false)
   codigoProveedor String?
   proveedorId  String?

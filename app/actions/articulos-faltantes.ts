@@ -106,7 +106,7 @@ export async function obtenerArticulosParaFaltantes() {
   await requireAdmin()
   try {
     const articulos = await prisma.articuloMostrador.findMany({
-      where: { esPack: false },
+      where: { esPack: false, esServicio: false },
       select: { id: true, nombre: true, stock: true },
       orderBy: { nombre: "asc" },
     })

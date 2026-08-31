@@ -30,6 +30,7 @@ interface Articulo {
   esCostoDolar?: boolean;
   margenGanancia?: number;
   margenFijo?: boolean;
+  esServicio?: boolean;
   oculto?: boolean;
   codigoProveedor?: string | null;
   proveedorId?: string | null;
@@ -447,12 +448,13 @@ export default function ArticulosClient({
       editData.id,
       editData.nombre,
       editData.precio,
-      editData.stock,
+      editData.esServicio ? 0 : editData.stock,
       editData.costo,
       editData.margenGanancia,
       editData.codigoProveedor || undefined,
       editData.proveedorId || null,
-      editData.margenFijo
+      editData.margenFijo,
+      editData.esServicio
     );
 
     if (res.success) {
@@ -462,6 +464,7 @@ export default function ArticulosClient({
       const costoCambio = original && (original.costo ?? 0) !== (editData.costo ?? 0);
       setArticulos(prev => prev.map(a => a.id === editData.id ? {
         ...editData,
+        stock: editData.esServicio ? 0 : editData.stock,
         proveedorNombre,
         ...(costoCambio ? { esCostoDolar: false, costoUsd: null } : {})
       } : a));
@@ -1071,6 +1074,11 @@ export default function ArticulosClient({
                             className="flex items-center gap-2 text-left rounded-lg px-1.5 py-0.5 -mx-1.5 hover:bg-indigo-50 hover:ring-1 hover:ring-indigo-200 transition-all"
                           >
                             {art.nombre}
+                            {art.esServicio && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">
+                                Servicio
+                              </span>
+                            )}
                             {art.oculto && (
                               <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-500 border border-slate-300">
                                 <EyeOff className="h-2.5 w-2.5" /> Oculto
@@ -1247,9 +1255,15 @@ export default function ArticulosClient({
                           })()}
                       </TableCell>
                       <TableCell className="text-center py-3">
-                        <span className={`text-xs font-black px-3 py-1 rounded-lg border ${art.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : art.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                          {art.stock}
-                        </span>
+                        {art.esServicio ? (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-lg text-slate-400 bg-slate-100">
+                            —
+                          </span>
+                        ) : (
+                          <span className={`text-xs font-black px-3 py-1 rounded-lg border ${art.stock <= 0 ? 'bg-red-50 text-red-600 border-red-200' : art.stock <= 5 ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                            {art.stock}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right py-3">
                         <div className="flex items-center justify-end gap-1">
@@ -1415,15 +1429,38 @@ export default function ArticulosClient({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 uppercase">Stock Físico</Label>
+                  <Label className="text-xs font-bold text-slate-600 uppercase">
+                    Stock Físico {editData.esServicio && <span className="text-[10px] text-slate-400 font-normal">(N/A)</span>}
+                  </Label>
                   <Input 
                     type="number" 
-                    value={editData.stock} 
+                    disabled={editData.esServicio}
+                    value={editData.esServicio ? 0 : editData.stock} 
                     onChange={(e) => setEditData({...editData, stock: Number(e.target.value)})} 
-                    className="font-black text-lg bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                    className={`font-black text-lg h-10 rounded-md ${
+                      editData.esServicio
+                        ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                        : "bg-slate-50 border-slate-200 focus-visible:ring-indigo-500"
+                    }`}
                   />
                 </div>
               </div>
+
+              <label className="flex items-start gap-2.5 bg-blue-50/60 p-3 rounded-xl border border-blue-100 cursor-pointer">
+                <Checkbox
+                  checked={!!editData.esServicio}
+                  onCheckedChange={(checked) => setEditData({ ...editData, esServicio: checked === true, stock: checked ? 0 : editData.stock })}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="flex items-center gap-1.5 text-sm font-bold text-blue-900">
+                    Es Servicio / Costo Adicional
+                  </span>
+                  <span className="block text-xs text-blue-700/80 mt-0.5">
+                    Para artículos como <strong>Envío</strong> o <strong>Flete</strong>. No descuenta stock físico, no genera alertas de falta de stock en pedidos y se excluye de los rankings de productos más vendidos.
+                  </span>
+                </span>
+              </label>
 
               <label className="flex items-start gap-2.5 bg-indigo-50/60 p-3 rounded-xl border border-indigo-100 cursor-pointer">
                 <Checkbox

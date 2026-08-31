@@ -222,6 +222,7 @@ export async function obtenerTodosLosArticulos(soloOcultos: boolean = false) {
       margenGanancia: art.margenGanancia ? Number(art.margenGanancia) : 0,
       margenFijo: art.margenFijo || false,
       esPack: art.esPack || false,
+      esServicio: art.esServicio || false,
       oculto: art.oculto || false,
       codigoProveedor: art.codigoProveedor || null,
       proveedorId: art.proveedorId || null,
@@ -329,7 +330,7 @@ export async function obtenerRendimientoPorPuntoVenta(
       where.puntoVentaId = { in: puntoVentaIds };
     }
 
-    const [ventas, packsDef] = await Promise.all([
+    const [ventas, packsDef, serviciosDef] = await Promise.all([
       prisma.venta.findMany({
         where,
         include: { items: true },
@@ -338,7 +339,14 @@ export async function obtenerRendimientoPorPuntoVenta(
         where: { esPack: true },
         include: { packItems: true },
       }),
+      prisma.articuloMostrador.findMany({
+        where: { esServicio: true },
+        select: { id: true, nombre: true },
+      }),
     ]);
+
+    const serviciosIds = new Set(serviciosDef.map(s => s.id));
+    const serviciosNombres = new Set(serviciosDef.map(s => s.nombre.toLowerCase().trim()));
 
     // Composición de cada pack (componenteId -> cantidad). Al vender un pack en "modo
     // expandido" (default del POS) la venta guarda los componentes individuales y se pierde
@@ -377,6 +385,9 @@ export async function obtenerRendimientoPorPuntoVenta(
 
       for (const item of venta.items) {
         if (item.esNota) continue;
+        if (item.productoId && serviciosIds.has(item.productoId)) continue;
+        if (serviciosNombres.has(item.nombre.toLowerCase().trim())) continue;
+
         // Pack vendido en "modo pack": el item ya es el pack (ID "PACK-{timestamp}")
         if (item.productoId?.startsWith("PACK-")) {
           acumular(byPack, item.nombre, item.cantidad, Number(item.subtotal));
@@ -2350,14 +2361,23 @@ export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: strin
     const inicio = new Date(`${fechaDesde}T00:00:00-03:00`);
     const fin = new Date(`${fechaHasta}T23:59:59.999-03:00`);
 
-    const ventas = await prisma.venta.findMany({
-      where: {
-        tipoVenta: { not: "PEDIDO" },
-        createdAt: { gte: inicio, lte: fin },
-      },
-      include: { items: true, puntoVenta: true },
-      orderBy: { createdAt: "asc" },
-    });
+    const [ventas, serviciosDef] = await Promise.all([
+      prisma.venta.findMany({
+        where: {
+          tipoVenta: { not: "PEDIDO" },
+          createdAt: { gte: inicio, lte: fin },
+        },
+        include: { items: true, puntoVenta: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.articuloMostrador.findMany({
+        where: { esServicio: true },
+        select: { id: true, nombre: true },
+      }),
+    ]);
+
+    const serviciosIds = new Set(serviciosDef.map(s => s.id));
+    const serviciosNombres = new Set(serviciosDef.map(s => s.nombre.toLowerCase().trim()));
 
     // Para ventas de MercadoLibre: v.total = neto, v.totalFinal = bruto
     // Para el resto: v.totalFinal = el único valor (neto)
@@ -2468,6 +2488,10 @@ export async function obtenerResumenVentas(fechaDesde: string, fechaHasta: strin
 
       // Productos
       for (const item of v.items) {
+        if (item.esNota) continue;
+        if (item.productoId && serviciosIds.has(item.productoId)) continue;
+        if (serviciosNombres.has(item.nombre.toLowerCase().trim())) continue;
+
         if (!byProducto[item.nombre]) byProducto[item.nombre] = { nombre: item.nombre, cantidad: 0, monto: 0 };
         byProducto[item.nombre].cantidad += item.cantidad;
         byProducto[item.nombre].monto += Number(item.subtotal);

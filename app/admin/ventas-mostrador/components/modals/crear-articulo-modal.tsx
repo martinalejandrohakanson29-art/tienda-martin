@@ -35,6 +35,7 @@ export function CrearArticuloModal({
     stock: 0,
     costo: 0,
     margenGanancia: 0,
+    esServicio: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -49,6 +50,7 @@ export function CrearArticuloModal({
         stock: 1,
         costo: 0,
         margenGanancia: 50,
+        esServicio: false,
       });
     }
   }, [open]);
@@ -83,9 +85,10 @@ export function CrearArticuloModal({
         id: artData.id,
         nombre: artData.nombre.trim(),
         precio: precioRedondeado,
-        stock: artData.stock,
+        stock: artData.esServicio ? 0 : artData.stock,
         costo: artData.costo,
         margenGanancia: artData.margenGanancia,
+        esServicio: artData.esServicio,
       });
 
       if (res.success) {
@@ -93,6 +96,7 @@ export function CrearArticuloModal({
           ...artData,
           nombre: artData.nombre.trim(),
           precio: precioRedondeado,
+          stock: artData.esServicio ? 0 : artData.stock,
         };
         onArticuloCreado(nuevo);
         onOpenChange(false);
@@ -130,16 +134,42 @@ export function CrearArticuloModal({
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs font-bold text-slate-600 uppercase">Stock Inicial</Label>
+              <Label className="text-xs font-bold text-slate-600 uppercase">
+                Stock Inicial {artData.esServicio && <span className="text-[10px] text-slate-400 font-normal">(N/A)</span>}
+              </Label>
               <Input
                 type="number"
-                value={artData.stock}
+                disabled={artData.esServicio}
+                value={artData.esServicio ? 0 : artData.stock}
                 onChange={(e) =>
                   setArtData({ ...artData, stock: Math.max(0, Number(e.target.value)) })
                 }
-                className="font-bold bg-slate-50 border-slate-200 h-9 rounded-xl text-xs"
+                className={`font-bold h-9 rounded-xl text-xs ${
+                  artData.esServicio
+                    ? "bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed"
+                    : "bg-slate-50 border-slate-200"
+                }`}
               />
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 p-2 bg-slate-50 rounded-xl border border-slate-200">
+            <input
+              type="checkbox"
+              id="esServicioCheck"
+              checked={artData.esServicio || false}
+              onChange={(e) =>
+                setArtData({
+                  ...artData,
+                  esServicio: e.target.checked,
+                  stock: e.target.checked ? 0 : (artData.stock || 1),
+                })
+              }
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 h-4 w-4"
+            />
+            <label htmlFor="esServicioCheck" className="text-[11px] text-slate-700 font-medium cursor-pointer">
+              Es <strong>Servicio / Costo Adicional</strong> (ej. Envío, Flete — no controla stock ni distorsiona rankings)
+            </label>
           </div>
 
           <div className="space-y-1">

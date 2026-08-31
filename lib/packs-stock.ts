@@ -85,6 +85,11 @@ async function expandirYAjustarStockTx(
         throw new Error(`Artículo ${nombre} no encontrado en el sistema. Revisá el mapeo de artículos en la receta.`)
     }
 
+    if (articulo.esServicio) {
+        // Artículos de servicio (ej: Envío) no controlan stock físico ni se decrementan
+        return
+    }
+
     if (articulo.esPack && articulo.packItems.length > 0) {
         for (const packItem of articulo.packItems) {
             await expandirYAjustarStockTx(

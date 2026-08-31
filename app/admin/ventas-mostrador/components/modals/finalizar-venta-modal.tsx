@@ -204,7 +204,7 @@ export function FinalizarVentaModal({
   const base1 = isPagoMixto ? Number(montoPago1 || 0) : totalConDescuento;
   const base2 = isPagoMixto ? Math.max(0, totalConDescuento - base1) : 0;
   const isCredito1 = metodoPago === "Tarjeta de Crédito";
-  const isCredito2 = metodoPago2 === "Tarjeta de Crédito";
+  const isCredito2 = isPagoMixto && metodoPago2 === "Tarjeta de Crédito";
   const final1 = isCredito1 ? redondearA50(base1 * (1 + interesTarjeta / 100)) : base1;
   const final2 = isCredito2 ? redondearA50(base2 * (1 + interesTarjeta / 100)) : base2;
   const totalFinalCalculado = isPagoMixto

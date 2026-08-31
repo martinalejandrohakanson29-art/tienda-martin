@@ -429,7 +429,7 @@ export default function VentasMostradorClient({
     try {
       setIsSubmitting(true);
       const isCredito1 = metodoPago === "Tarjeta de Crédito";
-      const isCredito2 = metodoPago2 === "Tarjeta de Crédito";
+      const isCredito2 = isPagoMixto && metodoPago2 === "Tarjeta de Crédito";
       const base1 = isPagoMixto ? Number(montoPago1 || 0) : cart.totalConDescuento;
       const base2 = isPagoMixto ? Math.max(0, cart.totalConDescuento - base1) : 0;
       const final1 = isCredito1 ? redondearA50(base1 * (1 + cart.interesTarjeta / 100)) : base1;

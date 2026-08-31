@@ -1087,6 +1087,7 @@ export function ChatsVivoClient({
             (kitsRapidos ?? []).map((k) => ({
                 id: k.id,
                 titulo: k.nombre,
+                subtitulo: k.subtitulo ?? undefined,
                 tooltip: k.nombre,
                 badges: (
                     <>

@@ -180,40 +180,70 @@ export type KitEnvioRapido = {
     mensaje: string | null
     /** URL de la foto del kit, para precargarla como adjunto pendiente. */
     fotoUrl: string | null
+    subtitulo?: string | null
 }
 
 /**
  * Lista de kits para el selector "Enviar info de kit" del panel de chats en vivo.
- * Trae todos los kits cargados (activos y pausados), los activos primero, con el
- * mensaje y la foto completos para poder precargarlos en el cuadro de escritura.
+ * Trae todos los packs y kits cargados en el catálogo (/admin/chatwoot/catalogo,
+ * tabla chat_packs), activos y pausados, los activos primero, con el mensaje
+ * y la foto completos para poder precargarlos en el cuadro de escritura.
  */
 export async function listarKitsEnvioRapido(): Promise<KitEnvioRapido[]> {
     await requireAdmin()
     try {
         const rows = await prisma.$queryRaw<
-            { id: number; nombre: string; precio: string | null; foto_url: string | null; mensaje_bienvenida: string | null; activo: boolean }[]
+            {
+                id: number
+                nombre: string
+                precio: number | string | null
+                foto_url: string | null
+                mensaje_bienvenida: string | null
+                activo: boolean
+                grupo_nombre: string | null
+                criterio_variante: string | null
+            }[]
         >`
-            SELECT id, nombre, precio, foto_url, mensaje_bienvenida, activo
-            FROM kits_publicidad
-            ORDER BY activo DESC, nombre ASC
+            SELECT cp.id, cp.nombre, cp.precio, cp.foto_url, cp.mensaje_bienvenida, cp.activo,
+                   cp.criterio_variante, g.nombre AS grupo_nombre
+            FROM chat_packs cp
+            LEFT JOIN chat_pack_grupos g ON g.id = cp.grupo_id
+            ORDER BY cp.activo DESC, cp.nombre ASC
         `
+        const formatoPrecio = new Intl.NumberFormat("es-AR", {
+            style: "currency",
+            currency: "ARS",
+            maximumFractionDigits: 0,
+        })
+
         return rows.map((r) => {
             const mensaje = r.mensaje_bienvenida && r.mensaje_bienvenida.trim() ? r.mensaje_bienvenida : null
             const fotoUrl = r.foto_url && r.foto_url.trim() ? r.foto_url.trim() : null
+            const numPrecio = r.precio != null ? Number(r.precio) : null
+            const precioTexto = numPrecio && !isNaN(numPrecio) && numPrecio > 0 ? formatoPrecio.format(numPrecio) : null
+
+            let subtitulo: string | null = null
+            if (r.grupo_nombre && r.criterio_variante) {
+                subtitulo = `${r.grupo_nombre} (${r.criterio_variante})`
+            } else if (r.grupo_nombre) {
+                subtitulo = r.grupo_nombre
+            }
+
             return {
                 id: Number(r.id),
                 nombre: r.nombre,
-                precio: r.precio,
+                precio: precioTexto,
                 tieneFoto: Boolean(fotoUrl),
                 activo: Boolean(r.activo),
                 tieneMensaje: Boolean(mensaje),
                 mensaje,
                 fotoUrl,
+                subtitulo,
             }
         })
     } catch (error) {
-        console.error("Error leyendo kits_publicidad para envío rápido:", error)
-        throw new Error("No se pudo leer la lista de kits (¿corriste el CREATE TABLE kits_publicidad?)")
+        console.error("Error leyendo chat_packs para envío rápido:", error)
+        throw new Error("No se pudo leer la lista de kits del catálogo")
     }
 }
 

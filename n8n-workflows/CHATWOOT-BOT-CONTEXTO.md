@@ -226,6 +226,67 @@ Orden real del procesamiento de un mensaje entrante:
   todavía no toca esto — falta diseñar el paso de matching**. Detalle completo, decisiones de
   diseño (frase de alcance vs. palabra pelada, alias ambiguo entre 2 artículos) y estado de datos
   en [[project-chatwoot-arbol-articulos-idea]] — no repetido acá para no duplicar.
+- **Unificar el "resto de la ráfaga" de los grupos en la máquina de sub-preguntas — PUT 1
+  (2026-08-31).** Plan completo en `PLAN-unificar-resto-grupos.md`. Patrón que Martín marcó como
+  recurrente: cliente entra por plantilla de un **grupo** + pega una pregunta simple ("Precio?",
+  "es para recorrido corto?") → el resto se asumía siempre como la moto (`Extraer Modelo Grupo`)
+  → no encontraba moto → escalaba al equipo, para un dato que ya está en la bienvenida (convs
+  reales 3044, 3021, 2981; execs 91126/91089). Causa: los grupos mientras esperan la moto no
+  tienen ningún paso que se pregunte "¿esto es una moto, o precio/negocio/cierre?" — esa lógica
+  solo la tenía el kit simple (partidor Fase 6). **PUT 1 = solo el estado `esperando_moto`**: la
+  rama `¿Otro Kit en Resto? (Grupo)` (false) ya no va directo a `Extraer Modelo Grupo`, entra a
+  la máquina (`Traer Ultimo Mensaje Nuestro` → ... → `Parsear Sub-preguntas`). Cambios: categoría
+  nueva `moto` en `Dividir y Etiquetar` (solo cuando `esperando_moto_grupo`; `precio`/`stock`
+  también válidos ahí aunque `kit_id` sea null); `Preparar Contexto Sub-preguntas` expone
+  `es_grupo`/`estado_grupo`/`esperando_moto_grupo`/`bienvenida_fresca`/`grupo_bienvenida_texto`/
+  `grupo_repregunta_texto`; `Parsear Sub-preguntas` rama grupo (precio/stock/envío → bienvenida
+  fresca: silencio / vieja: `reenvio_bienvenida`; `otro` → fresca: silencio, vieja: intenta el
+  extractor de modelo; negocio → máquina + repregunta la moto; pedazo `moto` → `ruteo_moto=true`);
+  `Consolidar`/`Marcar Resuelto` resuelven las 2 categorías nuevas (se mandan TAL CUAL, sin
+  reescritura IA); nodo nuevo `¿Rutear al Extractor de Modelo? (Grupo)` (If) entre
+  `Parsear Sub-preguntas` y `Separar Pedazos`. Script: `apply-put1-resto-grupo-maquina.mjs`
+  (431→432 nodos). Validado en vivo (conv 2411): "Precio?" pegado → silencio (bienvenida ya salió);
+  "cual es el precio" al otro día → reenvía la bienvenida; "es para recorrido corto?" pegado →
+  silencio; "para una zanella zb 110" → extractor → compatibilidad OK; "están en Córdoba?" →
+  contesta + repregunta la moto. Ver [[project-chatwoot-grupo-vs-kit-simple-drift]].
+- **PUT 2 (2026-08-31, versión ACOTADA).** La versión amplia (recablear las 3 cascadas restantes
+  a la máquina) se descartó: son demasiado poco uniformes (3 prompts distintos, 3 parsers, 3
+  re-preguntas, contadores propios) y el riesgo no compensaba. En su lugar, un fix quirúrgico:
+  **una pregunta de precio del combo en un grupo esperando corto/largo ya no escala (ni se
+  ignora) — contesta con la línea de precio del grupo.** Cambios: los 3 nodos
+  `Extraer Tema Negocio (Grupo)/(Variante)/(Esperando Variante)` reconocen una categoría/flag
+  nueva `precio`; los 3 `Parsear Tema Negocio (*)` exponen `es_precio` + `precio_texto` (armado
+  desde `chat_pack_grupos.variantes[].precio` + `criterio_variante`; si el grupo no tiene 2
+  variantes con precio, `es_precio` vuelve a false → camino normal); nodo nuevo `¿Es Precio? (X)`
+  (If) entre `Parsear Tema Negocio (X)` y `¿Es Negocio? (X)`; nodos compartidos
+  `Enviar Precio Grupo` (HTTP) + `Fin - Precio Grupo Enviado`. Script
+  `apply-put2-precio-grupo-no-escala.mjs` (432→437 nodos). Rollback: versión n8n
+  `62670389-2ef1-4e3b-bc2e-719bc296225d`. Validado en vivo (conv 2411): burst "plantilla Tapa CDI
+  + moto + cuanto sale" → tras confirmar compat y preguntar corto/largo, manda "El Tapa cdi sale:
+  Recorrido corto $175.000 / Recorrido largo $189.000..." (antes **escalaba**); "y cuanto sale?"
+  con el grupo ya esperando corto/largo → misma respuesta (antes lo **ignoraba** y re-preguntaba).
+  **Nota:** las ramas `(Grupo)` y `(Variante)` del fix son mayormente red de seguridad — PUT 1 ya
+  intercepta casi todo "precio?" en esos caminos; la que arregla un bug real es
+  `(Esperando Variante)`.
+- **PUT 2b (2026-08-31) — cierre de pendientes.** (a) **Tope de reintentos** en el camino nuevo
+  de PUT 1: si el cliente pregunta cosas en un grupo `esperando_moto` y nunca da la moto, el bot
+  le contestaba (precio / bienvenida / negocio) + re-preguntaba la moto **sin límite**. Ahora
+  contador en Redis (`resto_grupo_intentos:{tel}`, TTL 24h): tras 3 "nudges" (reenvío bienvenida /
+  repregunta moto), la 4ta vez **escala al equipo** (categoría `escalar_grupo` en
+  `Parsear Sub-preguntas` → la máquina la deja sin resolver → nota privada). Nodos nuevos:
+  `Leer Reintentos Resto (Grupo)` (Redis GET, en el front-chain), `¿Nudge Resto Grupo? (contar)`
+  (If) + `Sumar Reintento Resto (Grupo)` (Redis INCR, side-effect). (b) **Dedup de precio (PUT 2):**
+  si las 2 variantes de un grupo tienen el mismo precio (Escape pwr + Leva, ambos $125.000), la
+  línea muestra "sale $X" una vez en vez de repetir el número. Script
+  `apply-put2b-tope-reintentos-y-dedup-precio.mjs` (437→440). Rollback: versión n8n
+  `cb6d0475-333e-4f4e-bf21-e67ffa4bd9fe`. Validado en vivo (conv 2411): regresión PUT 1 (Precio?
+  pegado → silencio) sigue OK; contador 0→1→2 con cada "cual es el precio"; al leer 3 →
+  `escalar_grupo` → nota "El cliente preguntó algo que todavía no supimos ubicar".
+- **PUT 3 (borrar las ~35 caseras) — DESCARTADO (2026-08-31).** Tras PUT 1/2/2b ninguna casera
+  quedó huérfana: siguen siendo el mecanismo de los estados 2/3/4 y PUT 2 les metió adentro el
+  camino de precio. "Borrarlas" = primero re-rutear esos 3 estados a la máquina (la versión amplia
+  ya descartada). Las caseras se quedan. Ya no escalan info conocida ni loopean sin fin. Detalle
+  en `PLAN-unificar-resto-grupos.md`.
 
 ## Filosofía de diseño (para cuando pidan algo nuevo)
 
@@ -819,6 +880,34 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   (dientes de la corona), en vez de asumir mal como antes. **Sin cubrir a propósito:** el bot no
   interpreta una respuesta tipo "tiene 28 dientes" como "corto" -- Martín pidió la pista para que
   el cliente mismo lo resuelva y conteste con una palabra clara, no que el bot haga la cuenta.
+- **Fix real: el cliente entra por un kit y en la misma ráfaga pregunta por OTRO kit distinto —
+  ese pedazo se perdía (2026-08-31).** Caso real: conv 2934 (+5492617087050). Ráfaga: plantilla
+  exacta del grupo Tapa cdi + "Q precio está el kit 200 para el carrilero s s2" + "Varrilero". El
+  grupo Tapa cdi quedó pineado esperando moto y el resto se mandó a `Extraer Modelo Grupo`, que lo
+  colapsó a `modelo_moto: "s2"` y tiró "kit 200 / carrilero / varrilero" a la basura — después
+  fabricó una nota de compatibilidad falsa ("¿Tapa cdi compatible con s2?"). La consulta del Kit
+  200 nunca apareció en ningún lado (ni la nota lo mencionaba). Causa: una vez que la ráfaga
+  matchea plantilla (o hay pin), el "resto" solo se interpreta relativo al kit actual (moto / pieza
+  suelta / negocio) — no hay ningún paso que se pregunte "¿el resto es OTRO kit?". Fix (sin IA,
+  solo detección + escalado, **no** auto-responde el segundo kit): 4 nodos nuevos entre `¿Pineado
+  Esperando Moto?` (rama true) y `Extraer Modelo Grupo` — `Detectar Otro Kit en Resto (Grupo)`
+  (Code: normaliza el resto y busca "kit NNN" / "combo NNN" / "NNNcc" o un token distintivo de 5+
+  letras único de un solo kit, contra `Buscar Kits Activos`, excluyendo los números/palabras que
+  el propio grupo pineado ya menciona) → `¿Otro Kit en Resto? (Grupo)` (If): si detecta →
+  `Registrar Pendiente Otro Kit (Grupo)` (insert en `preguntas_sin_match_pendientes` con el resto
+  textual) → `Preparar Nota Otro Kit (Grupo)` → `Enviar Nota Escalado` (compartido); si no →
+  `Extraer Modelo Grupo` como siempre. El grupo sigue pineado esperando la moto y la bienvenida ya
+  se mandó antes. 427→431 nodos. Script: `apply-fix-otro-kit-en-resto-grupo.mjs`, backup
+  `workflow_backup_pre-fix-otro-kit-en-resto-grupo_2026-08-31.json`. Validado en la conversación de
+  prueba (2411): (1) réplica exacta del caso → `otro_kit_detectado: true` ("kit dakar 200
+  economico"), escaló textual «Q precio está el kit 200 para el carrilero s s2 / Varrilero», y
+  `Extraer Modelo Grupo` **no** corrió (cero nota de compat falsa); (2) regresión con "es para una
+  zanella zb 110" de resto → `false`, sigue por `Extraer Modelo Grupo` sin cambios. **Sin cubrir a
+  propósito:** solo la rama grupo esperando moto (donde apareció el caso); las ramas de kit simple
+  / esperando variante / Identificación tienen el mismo agujero teórico pero sin caso real todavía.
+  Detección deliberadamente conservadora (solo "kit/combo NNN" explícito o token muy distintivo) —
+  un falso negativo cae al comportamiento de antes, no empeora nada. `rutas-bot-chatwoot.html`
+  sigue desactualizado (ya lo estaba). Ver [[project-chatwoot-grupo-vs-kit-simple-drift]].
 
 ## Qué falta / pendiente (al 2026-08-21)
 

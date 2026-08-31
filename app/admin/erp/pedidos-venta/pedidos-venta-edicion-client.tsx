@@ -202,6 +202,15 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
     return map;
   }, [articulos]);
 
+  // Set de IDs de artículos que son servicios (no controlan stock)
+  const serviciosSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const art of articulos) {
+      if (art.esServicio) set.add(art.id);
+    }
+    return set;
+  }, [articulos]);
+
   // Copiar datos de envío al portapapeles
   const handleCopyInfo = (id: string, info: string) => {
     navigator.clipboard.writeText(info);
@@ -299,6 +308,7 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
       // Verificar si tiene falta de stock
       const tieneFalta = (v.items || []).some((item) => {
         if (!item.productoId || item.esNota) return false;
+        if (serviciosSet.has(item.productoId)) return false;
         const disp = stockMap.get(item.productoId);
         return disp !== undefined && disp < item.cantidad;
       });
@@ -316,7 +326,7 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
       despachadosCount,
       conFaltaStockCount,
     };
-  }, [ventas, stockMap]);
+  }, [ventas, stockMap, serviciosSet]);
 
   // Actualizar Estado
   const handleActualizarEstado = async (ventaId: string, nuevoEstado: string) => {
@@ -927,6 +937,7 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
                   // Alerta de stock insuficiente
                   const articulosFaltantes = (venta.items || []).filter((item) => {
                     if (!item.productoId || item.esNota) return false;
+                    if (serviciosSet.has(item.productoId)) return false;
                     const disp = stockMap.get(item.productoId);
                     return disp !== undefined && disp < item.cantidad;
                   });
@@ -1234,10 +1245,12 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
                               </span>
                               <div className="divide-y divide-slate-100">
                                 {(venta.items || []).map((item, idx) => {
-                                  const stockDisp = item.productoId
+                                  const esServicio = item.productoId ? serviciosSet.has(item.productoId) : false;
+                                  const stockDisp = item.productoId && !esServicio
                                     ? stockMap.get(item.productoId)
                                     : undefined;
                                   const stockInsuficiente =
+                                    !esServicio &&
                                     stockDisp !== undefined &&
                                     stockDisp < item.cantidad &&
                                     !item.esNota;
@@ -1255,6 +1268,14 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
                                           <span className="text-[10px] font-mono text-slate-400">
                                             ID: {item.productoId}
                                           </span>
+                                        )}
+                                        {esServicio && (
+                                          <Badge
+                                            variant="outline"
+                                            className="h-4 px-1 text-[9px] bg-slate-50 text-slate-600 border-slate-200"
+                                          >
+                                            Servicio
+                                          </Badge>
                                         )}
                                         {stockInsuficiente && (
                                           <Badge

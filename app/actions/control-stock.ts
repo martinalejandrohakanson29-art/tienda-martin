@@ -66,7 +66,7 @@ export async function iniciarSesionControlStock(proveedorId: string) {
 export async function obtenerArticulosPorProveedor(proveedorId: string) {
   try {
     const articulos = await prisma.articuloMostrador.findMany({
-      where: { proveedorId, oculto: false, esPack: false },
+      where: { proveedorId, oculto: false, esPack: false, esServicio: false },
       orderBy: { nombre: "asc" },
       select: {
         id: true,
@@ -222,6 +222,8 @@ export async function obtenerDetalleSesionConteo(sesionId: string) {
       where: {
         proveedorId: sesion.proveedorId,
         oculto: false,
+        esPack: false,
+        esServicio: false,
         stock: { gt: 0 },
         id: { notIn: Array.from(articulosMap.keys()) },
       },
@@ -372,6 +374,7 @@ export async function aplicarConteoStock(sesionId: string, opciones?: { llevarAC
             proveedorId: sesion.proveedorId,
             oculto: false,
             esPack: false,
+            esServicio: false,
             stock: { gt: 0 },
             id: { notIn: Array.from(totales.keys()) },
           },

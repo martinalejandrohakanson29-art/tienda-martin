@@ -36,6 +36,7 @@ export async function obtenerArticulosParaListas() {
         margenGanancia: Number(art.margenGanancia || 0),
         margenFijo: art.margenFijo,
         esPack: art.esPack || false,
+        esServicio: art.esServicio || false,
         oculto: art.oculto,
         codigoProveedor: art.codigoProveedor,
         proveedorId: art.proveedorId,
@@ -58,7 +59,7 @@ export async function obtenerArticulosParaListas() {
 }
 
 // Función para editar un artículo desde la tabla de listas
-export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number, codigoProveedor?: string, proveedorId?: string | null, margenFijo?: boolean) {
+export async function actualizarArticuloDesdeLista(id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number, codigoProveedor?: string, proveedorId?: string | null, margenFijo?: boolean, esServicio?: boolean) {
   try {
     const session = await getServerSession(authOptions);
     const usuario = (session?.user as any)?.name || "Desconocido";
@@ -74,11 +75,12 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
         data: {
           nombre,
           precio,
-          stock,
+          stock: esServicio ? 0 : stock,
           costo,
           margenGanancia,
           codigoProveedor: codigoProveedor?.trim() || null,
           proveedorId: proveedorId || null,
+          ...(esServicio !== undefined ? { esServicio } : {}),
           ...(margenFijo !== undefined ? { margenFijo } : {}),
           // Tocar el costo a mano desvincula al artículo del seguimiento automático del dólar.
           ...(costoCambio ? { esCostoDolar: false, costoUsd: null } : {})
@@ -92,8 +94,11 @@ export async function actualizarArticuloDesdeLista(id: string, nombre: string, p
       if (Number(anterior.precio) !== precio) {
         cambios.push(`Precio: $${Number(anterior.precio).toLocaleString('es-AR')} → $${precio.toLocaleString('es-AR')}`);
       }
-      if (anterior.stock !== stock) {
+      if (anterior.stock !== stock && !esServicio) {
         cambios.push(`Stock: ${anterior.stock} → ${stock}`);
+      }
+      if (esServicio !== undefined && anterior.esServicio !== esServicio) {
+        cambios.push(`Tipo servicio: ${esServicio ? "marcado como servicio (sin stock)" : "desmarcado como servicio"}`);
       }
       if (costoCambio) {
         cambios.push(`Costo: $${Number(anterior.costo || 0).toLocaleString('es-AR')} → $${costo!.toLocaleString('es-AR')}${anterior.esCostoDolar ? " (se desvincula del dólar)" : ""}`);
@@ -501,19 +506,20 @@ export async function obtenerHistorialArticulo(articuloId: string) {
   }
 }
 
-export async function crearArticuloMostrador(data: { id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number, codigoProveedor?: string | null, proveedorId?: string | null }) {
+export async function crearArticuloMostrador(data: { id: string, nombre: string, precio: number, stock: number, costo?: number, margenGanancia?: number, codigoProveedor?: string | null, proveedorId?: string | null, esServicio?: boolean }) {
   try {
     const articulo = await prisma.articuloMostrador.create({
       data: {
         id: data.id,
         nombre: data.nombre,
         precio: data.precio,
-        stock: data.stock,
+        stock: data.esServicio ? 0 : data.stock,
         costo: data.costo || 0,
         margenGanancia: data.margenGanancia || 0,
         codigoProveedor: data.codigoProveedor?.trim() || null,
         proveedorId: data.proveedorId || null,
-        esPack: false
+        esPack: false,
+        esServicio: data.esServicio || false,
       }
     });
 

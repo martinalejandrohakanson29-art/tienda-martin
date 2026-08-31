@@ -82,6 +82,7 @@ export function usePosCart(articulos: Articulo[]) {
             stock: prod.stock,
             ultimaModificacion: prod.ultimaModificacion,
             esPack: prod.esPack,
+            esServicio: prod.esServicio,
             costo: prod.costo,
             packComponentes: componentesPack,
           },

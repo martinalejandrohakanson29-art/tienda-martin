@@ -5,6 +5,7 @@ export interface Articulo {
   stock: number;
   ultimaModificacion?: string | null;
   esPack?: boolean;
+  esServicio?: boolean;
   oculto?: boolean;
   costo?: number;
   margenGanancia?: number;
@@ -32,6 +33,7 @@ export interface ItemVenta {
   stock: number;
   ultimaModificacion?: string | null;
   esPack?: boolean;
+  esServicio?: boolean;
   esNota?: boolean;
   costo?: number;
   packComponentes?: {

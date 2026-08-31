@@ -250,6 +250,59 @@ export function FinalizarVentaModal({
     }
   }, [esFacturacionObligatoria, setSolicitarFactura]);
 
+  // Asegurar que para Pago Cruzada por defecto exista Proveedor 1 y su monto se autoajuste al total si hay 1 solo proveedor
+  useEffect(() => {
+    if (open && requiereCruzada && !isPagoMixto) {
+      if (proveedoresCruzada.length === 0) {
+        setProveedoresCruzada([
+          { id: crypto.randomUUID(), razonSocial: paraCruzada || "", monto: totalFinalCalculado },
+        ]);
+      } else if (
+        proveedoresCruzada.length === 1 &&
+        proveedoresCruzada[0].monto !== totalFinalCalculado
+      ) {
+        setProveedoresCruzada((prev) =>
+          prev.length === 1 && prev[0].monto !== totalFinalCalculado
+            ? [{ ...prev[0], monto: totalFinalCalculado }]
+            : prev
+        );
+      }
+    }
+  }, [
+    open,
+    requiereCruzada,
+    isPagoMixto,
+    proveedoresCruzada,
+    totalFinalCalculado,
+    paraCruzada,
+    setProveedoresCruzada,
+  ]);
+
+  // Auto-completar DNI de tarjeta o ML si ya se ingresó CUIT/DNI en el cliente
+  useEffect(() => {
+    if (open && (requiereTarjeta || requiereMercadoLibre)) {
+      const raw = (docNro || cuitBusqueda).replace(/\D/g, "");
+      if (raw.length >= 7) {
+        const dniExtraid = raw.length === 11 ? raw.slice(2, 10) : raw;
+        if (requiereTarjeta && !dni) setDni(dniExtraid);
+        if (requiereMercadoLibre && !mlDni) setMlDni(dniExtraid);
+      }
+    }
+  }, [open, requiereTarjeta, requiereMercadoLibre, dni, mlDni, docNro, cuitBusqueda, setDni, setMlDni]);
+
+  // Auto-completar Cuenta Corriente con el cliente seleccionado si está disponible
+  useEffect(() => {
+    if (open && requiereCuentaCorriente) {
+      if (cliente && cliente !== "Consumidor Final") {
+        if (!isPagoMixto && !paraCruzada) {
+          setParaCruzada(cliente);
+        } else if (isPagoMixto && !paraCuentaCorriente) {
+          setParaCuentaCorriente(cliente);
+        }
+      }
+    }
+  }, [open, requiereCuentaCorriente, isPagoMixto, cliente, paraCruzada, paraCuentaCorriente, setParaCruzada, setParaCuentaCorriente]);
+
   const requiereFiscalizacionOpcional =
     !esFacturacionObligatoria &&
     (metodoPago === "Tarjeta de Crédito" ||
@@ -277,6 +330,13 @@ export function FinalizarVentaModal({
         setCondicionIva(res.condicionIva ?? 5);
         setTipoFacturaSugerida(res.tipoFactura ?? (res.condicionIva === 1 ? 1 : 6));
         setSujetoId(null);
+        const dniExtraid = raw.length === 11 ? raw.slice(2, 10) : raw;
+        if (!dni) setDni(dniExtraid);
+        if (!mlDni) setMlDni(dniExtraid);
+        if (requiereCuentaCorriente && res.nombre) {
+          if (!isPagoMixto && !paraCruzada) setParaCruzada(res.nombre);
+          else if (isPagoMixto && !paraCuentaCorriente) setParaCuentaCorriente(res.nombre);
+        }
       } else {
         alert("No se encontró el CUIT/DNI en el padrón AFIP: " + (res.error || ""));
       }
@@ -309,8 +369,22 @@ export function FinalizarVentaModal({
     setTipoFacturaSugerida(s.condicionIva === 1 ? 1 : 6);
     setSujetoId(s.id);
     setCuitBusqueda(s.cuit);
+    if (s.telefono && !telefono) {
+      setTelefono(s.telefono);
+    }
+    if (s.email && !email) {
+      setEmail(s.email);
+    }
+    if (s.cuit && !dni) {
+      const clean = s.cuit.replace(/\D/g, "");
+      setDni(clean.length === 11 ? clean.slice(2, 10) : clean);
+    }
     if (s.observaciones) {
       setInfo(s.observaciones);
+    }
+    if (requiereCuentaCorriente) {
+      if (!isPagoMixto) setParaCruzada(s.razonSocial);
+      else setParaCuentaCorriente(s.razonSocial);
     }
     setShowSujetoList(false);
   };
@@ -323,7 +397,13 @@ export function FinalizarVentaModal({
   };
 
   const eliminarProveedorCruzada = (idx: number) => {
-    setProveedoresCruzada((prev) => prev.filter((_, i) => i !== idx));
+    setProveedoresCruzada((prev) => {
+      const nuevaLista = prev.filter((_, i) => i !== idx);
+      if (nuevaLista.length === 1) {
+        return [{ ...nuevaLista[0], monto: totalFinalCalculado }];
+      }
+      return nuevaLista;
+    });
   };
 
   const actualizarProveedorCruzada = (idx: number, campo: string, valor: any) => {
@@ -697,22 +777,23 @@ export function FinalizarVentaModal({
                       </option>
                     ))}
                   </select>
-                  {metodoPago === "Tarjeta de Crédito" && (
-                    <div className="space-y-1.5 pt-1">
-                      <Label className="text-xs font-bold text-slate-600 uppercase">
-                        Procesador / Entidad
-                      </Label>
-                      <select
-                        value={procesadorTarjeta}
-                        onChange={(e) => setProcesadorTarjeta(e.target.value)}
-                        className="w-full h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs focus:outline-none"
-                      >
-                        <option value="Posnet Intercap">🏦 Posnet Intercap</option>
-                        <option value="Go Cuotas">📅 Go Cuotas</option>
-                        <option value="Posnet Mercadopago">🔵 Posnet Mercadopago</option>
-                      </select>
-                    </div>
-                  )}
+                </div>
+              )}
+
+              {(isCredito1 || isCredito2) && (
+                <div className="space-y-1.5 pt-1 bg-blue-50/50 p-2.5 rounded-xl border border-blue-100">
+                  <Label className="text-xs font-bold text-blue-700 uppercase">
+                    Procesador / Entidad (Tarjeta de Crédito)
+                  </Label>
+                  <select
+                    value={procesadorTarjeta}
+                    onChange={(e) => setProcesadorTarjeta(e.target.value)}
+                    className="w-full h-9 rounded-xl border border-blue-200 bg-white px-3 text-xs focus:outline-none font-semibold text-slate-800"
+                  >
+                    <option value="Posnet Intercap">🏦 Posnet Intercap</option>
+                    <option value="Go Cuotas">📅 Go Cuotas</option>
+                    <option value="Posnet Mercadopago">🔵 Posnet Mercadopago</option>
+                  </select>
                 </div>
               )}
 
@@ -894,10 +975,16 @@ export function FinalizarVentaModal({
                           <Input
                             type="number"
                             value={item.monto}
+                            disabled={proveedoresCruzada.length === 1}
                             onChange={(e) =>
                               actualizarProveedorCruzada(idx, "monto", Number(e.target.value))
                             }
-                            className="h-8 bg-white border-teal-200 text-xs font-bold text-teal-900 rounded-lg"
+                            className="h-8 bg-white disabled:bg-teal-100/50 disabled:text-teal-950 disabled:cursor-not-allowed border-teal-200 text-xs font-bold text-teal-900 rounded-lg"
+                            title={
+                              proveedoresCruzada.length === 1
+                                ? "El monto se ajusta automáticamente al total de la venta"
+                                : undefined
+                            }
                           />
                         </div>
 
@@ -1126,6 +1213,16 @@ export function FinalizarVentaModal({
                       : "bg-emerald-50/60 border-emerald-100"
                   }`}
                 >
+                  {isPagoMixto && (
+                    <div className="flex items-center justify-between pb-1 border-b border-slate-200/50">
+                      <span className={`text-[11px] font-bold uppercase ${requiereCruzada ? "text-teal-800" : "text-emerald-800"}`}>
+                        {requiereCruzada ? "Pago Cruzada" : "A Cuenta Corriente"}
+                      </span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${requiereCruzada ? "bg-teal-100 text-teal-800" : "bg-emerald-100 text-emerald-800"}`}>
+                        $ {(metodoPago === (requiereCruzada ? "Cruzada" : "A Cuenta Corriente") ? final1 : final2).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  )}
                   {requiereCruzada && (
                     <div className="space-y-1">
                       <Label className="text-xs font-bold text-teal-700">De *</Label>

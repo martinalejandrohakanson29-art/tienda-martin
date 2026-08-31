@@ -332,7 +332,42 @@ export default function VentasMostradorClient({
       setCupon(pedido.cupon || "");
       setTransaccionId(pedido.transaccionId || "");
       setDeCruzada(pedido.de || "");
-      setParaCruzada(pedido.para || "");
+      if (pedido.para) {
+        try {
+          const parsed = JSON.parse(pedido.para);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProveedoresCruzada(
+              parsed.map((p: any) => ({
+                id: p.id || crypto.randomUUID(),
+                razonSocial: p.razonSocial || p.nombre || "",
+                monto: Number(p.monto) || 0,
+              }))
+            );
+            setParaCruzada(parsed[0]?.razonSocial || "");
+          } else {
+            setParaCruzada(pedido.para);
+            setProveedoresCruzada([
+              {
+                id: crypto.randomUUID(),
+                razonSocial: pedido.para,
+                monto: Number(pedido.totalFinal || pedido.total || 0),
+              },
+            ]);
+          }
+        } catch {
+          setParaCruzada(pedido.para);
+          setProveedoresCruzada([
+            {
+              id: crypto.randomUUID(),
+              razonSocial: pedido.para,
+              monto: Number(pedido.totalFinal || pedido.total || 0),
+            },
+          ]);
+        }
+      } else {
+        setParaCruzada("");
+        setProveedoresCruzada([]);
+      }
       setEmail(pedido.email || "");
       setEventoOffline(pedido.eventoOffline || false);
       setPuntoVentaId(pedido.puntoVentaId || "");
@@ -421,9 +456,21 @@ export default function VentasMostradorClient({
         infoFinal = `${detDescuento} ${infoFinal}`;
       }
 
+      const esMixtoCruzadaCC =
+        isPagoMixto &&
+        ((metodoPago === "Cruzada" && metodoPago2 === "A Cuenta Corriente") ||
+          (metodoPago === "A Cuenta Corriente" && metodoPago2 === "Cruzada"));
+
       let paraFinal = paraCruzada;
       if (metodoPago === "Cruzada" && !isPagoMixto) {
         paraFinal = JSON.stringify(proveedoresCruzada);
+      } else if (esMixtoCruzadaCC) {
+        const montoCruzada = metodoPago === "Cruzada" ? final1 : final2;
+        const montoCC = metodoPago === "A Cuenta Corriente" ? final1 : final2;
+        paraFinal = JSON.stringify([
+          { razonSocial: paraCruzada, monto: montoCruzada },
+          { razonSocial: paraCuentaCorriente, monto: montoCC },
+        ]);
       }
 
       const payloadComun = {
@@ -992,6 +1039,24 @@ export default function VentasMostradorClient({
           onProveedorCreado={(nuevo) => {
             setProveedores((prev) => [nuevo, ...prev]);
             setParaCruzada(nuevo.razonSocial);
+            setProveedoresCruzada((prev) => {
+              if (prev.length === 0) {
+                return [
+                  {
+                    id: nuevo.id || crypto.randomUUID(),
+                    razonSocial: nuevo.razonSocial,
+                    monto: cart.totalConDescuento,
+                  },
+                ];
+              }
+              const copia = [...prev];
+              copia[copia.length - 1] = {
+                ...copia[copia.length - 1],
+                razonSocial: nuevo.razonSocial,
+                id: nuevo.id || copia[copia.length - 1].id,
+              };
+              return copia;
+            });
             mostrarMensajeExito("Proveedor creado con éxito");
           }}
         />

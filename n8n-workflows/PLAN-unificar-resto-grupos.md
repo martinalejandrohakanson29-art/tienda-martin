@@ -10,6 +10,43 @@
 
 ---
 
+## 0. Qué cambia en las conversaciones (en criollo)
+
+Lo que **ya no debería pasar** a partir de PUT 1 + 2 + 2b:
+
+1. **Entrar por publicidad de un combo + preguntar el precio pegado → y que lo escale un
+   humano.** Antes (conv 3044): mandaba la bienvenida (con el precio adentro) *y además* tiraba
+   una nota al equipo "el cliente preguntó algo que no supimos ubicar: Precio?". Ahora: manda la
+   bienvenida y listo, el "Precio?" se ignora en silencio porque ya está respondido.
+
+2. **Volver al otro día a preguntar el precio → y que lo dejen en visto.** Antes (conv 2981):
+   entró un día, al día siguiente escribió "Cual es el precio" y nadie contestó hasta que un
+   humano entró dos días después. Ahora: le reenvía la bienvenida completa con los dos precios.
+
+3. **Preguntar el precio mientras el bot espera que elija corto o largo → y que escale.** Antes
+   (`(Esperando Variante)`): confirmada la compatibilidad, si el cliente decía "cuánto sale?" en
+   vez de "corto/largo", escalaba al equipo. Ahora: contesta "El combo sale: corto $X / largo $Y.
+   Decime cuál necesitás y lo cerramos" y sigue esperando la variante.
+
+4. **Preguntar cosas de negocio (ubicación, horarios) mientras espera la moto → y quedar en la
+   nada.** Antes: a veces escalaba, a veces re-preguntaba la moto ignorando la consulta. Ahora:
+   contesta el dato **y** re-pregunta la moto.
+
+5. **El bot re-preguntando la moto sin parar.** Antes: si el cliente daba vueltas sin decir nunca
+   la moto, el bot contestaba + re-preguntaba una y otra vez, sin límite. Ahora: tras 3 vueltas
+   pasa la conversación a un humano.
+
+Lo que **sigue igual** (no se tocó): el chequeo de compatibilidad moto↔combo, la resolución de
+corto/largo cuando el cliente sí la contesta, los kits simples (no-grupo), y los combos poco
+publicitados que caen a "no automatizado" y escalan a propósito.
+
+Casos raros que **pueden seguir pasando** (aceptados): cliente que manda moto + otra pregunta en
+el mismo mensaje → se procesa la moto y se descarta el resto (la bienvenida ya cubre
+precio/envío); pregunta muy puntual de una pieza suelta antes de dar la moto → puede escalar
+(correcto, no se puede ayudar sin la moto).
+
+---
+
 ## 1. El problema (recordatorio corto)
 
 Cuando un cliente entra por un anuncio de un **grupo** (Kit 120, Tapa CDI, Escape+Leva) y

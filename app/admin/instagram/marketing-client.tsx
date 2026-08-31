@@ -52,6 +52,7 @@ import {
   MarketingPerformanceResult
 } from "@/app/actions/marketing";
 import { ModalAsignarArticulos, AsignarTargetInfo, ArticuloOpcion } from "./modal-asignar-articulos";
+import { MetricHelpModal, ColumnHelpButton } from "./metric-definitions";
 
 export type { MarketingCampaignData, MarketingAdSetData, MarketingAdData, MarketingCampaignItemData, CampaignHealthData };
 
@@ -495,6 +496,9 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
 
   // Modal de asignación: soporta asignar a Campaña o a Anuncio (ad)
   const [targetParaAsignar, setTargetParaAsignar] = useState<AsignarTargetInfo | null>(null);
+
+  // Modal explicativo de ayuda para métricas/columnas
+  const [helpMetricId, setHelpMetricId] = useState<string | null>(null);
 
   // Expansión en la pantalla de la campaña: por adset y por anuncio
   const [expandedAdSets, setExpandedAdSets] = useState<Record<string, boolean>>({});
@@ -958,19 +962,35 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
                 <TableHeader className="bg-slate-50">
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="w-8 px-2 text-center"></TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs min-w-[240px]">Conjunto / Anuncio</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-center min-w-[280px]">Artículos Promocionados</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-center">Salud</TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs min-w-[240px] group/col">
+                      <div className="flex items-center gap-1.5">
+                        <span>Conjunto / Anuncio</span>
+                        <ColumnHelpButton metricId="adset_ad" onClick={() => setHelpMetricId("adset_ad")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-center min-w-[280px] group/col">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Artículos Promocionados</span>
+                        <ColumnHelpButton metricId="articulosPromocionados" onClick={() => setHelpMetricId("articulosPromocionados")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-center group/col">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Salud</span>
+                        <ColumnHelpButton metricId="salud" onClick={() => setHelpMetricId("salud")} />
+                      </div>
+                    </TableHead>
                     {activeCols.map(col => (
                       <TableHead 
                         key={col.id} 
-                        className={`font-bold text-slate-900 text-xs whitespace-nowrap ${
+                        className={`font-bold text-slate-900 text-xs whitespace-nowrap group/col ${
                           col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"
                         }`}
                       >
-                        <div className={`flex items-center gap-1 ${col.align === "right" ? "justify-end" : col.align === "center" ? "justify-center" : "justify-start"}`}>
+                        <div className={`flex items-center gap-1.5 ${col.align === "right" ? "justify-end" : col.align === "center" ? "justify-center" : "justify-start"}`}>
                           {col.icon}
                           <span>{col.label}</span>
+                          <ColumnHelpButton metricId={col.id} onClick={() => setHelpMetricId(col.id)} />
                         </div>
                       </TableHead>
                     ))}
@@ -1201,15 +1221,60 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
                                           <table className="w-full text-xs">
                                             <thead className="bg-slate-50 text-slate-600">
                                               <tr>
-                                                <th className="text-left px-2 py-1.5 font-semibold">Producto / Pack</th>
-                                                <th className="text-center px-2 py-1.5 font-semibold">Stock</th>
-                                                <th className="text-right px-2 py-1.5 font-semibold">Precio</th>
-                                                <th className="text-right px-2 py-1.5 font-semibold">Costo U.</th>
-                                                <th className="text-center px-2 py-1.5 font-bold text-purple-800 bg-purple-50">Ventas</th>
-                                                <th className="text-right px-2 py-1.5 font-bold text-emerald-800 bg-emerald-50">Facturación (Bruto)</th>
-                                                <th className="text-right px-2 py-1.5 font-bold text-blue-800 bg-blue-50">Ganancia Bruta</th>
-                                                <th className="text-right px-2 py-1.5 font-bold text-amber-800 bg-amber-50">% Gasto s/ Venta</th>
-                                                <th className="text-right px-2 py-1.5 font-bold text-indigo-800 bg-indigo-50">% Gasto s/ Ganancia</th>
+                                                <th className="text-left px-2 py-1.5 font-semibold group/col">
+                                                  <div className="flex items-center gap-1">
+                                                    <span>Producto / Pack</span>
+                                                    <ColumnHelpButton metricId="articuloPack" onClick={() => setHelpMetricId("articuloPack")} />
+                                                  </div>
+                                                </th>
+                                                <th className="text-center px-2 py-1.5 font-semibold group/col">
+                                                  <div className="flex items-center justify-center gap-1">
+                                                    <span>Stock</span>
+                                                    <ColumnHelpButton metricId="stock" onClick={() => setHelpMetricId("stock")} />
+                                                  </div>
+                                                </th>
+                                                <th className="text-right px-2 py-1.5 font-semibold group/col">
+                                                  <div className="flex items-center justify-end gap-1">
+                                                    <span>Precio</span>
+                                                    <ColumnHelpButton metricId="precioRegular" onClick={() => setHelpMetricId("precioRegular")} />
+                                                  </div>
+                                                </th>
+                                                <th className="text-right px-2 py-1.5 font-semibold group/col">
+                                                  <div className="flex items-center justify-end gap-1">
+                                                    <span>Costo U.</span>
+                                                    <ColumnHelpButton metricId="costoUnitario" onClick={() => setHelpMetricId("costoUnitario")} />
+                                                  </div>
+                                                </th>
+                                                <th className="text-center px-2 py-1.5 font-bold text-purple-800 bg-purple-50 group/col">
+                                                  <div className="flex items-center justify-center gap-1">
+                                                    <span>Ventas</span>
+                                                    <ColumnHelpButton metricId="unidadesVendidas" onClick={() => setHelpMetricId("unidadesVendidas")} />
+                                                  </div>
+                                                </th>
+                                                <th className="text-right px-2 py-1.5 font-bold text-emerald-800 bg-emerald-50 group/col">
+                                                  <div className="flex items-center justify-end gap-1">
+                                                    <span>Facturación (Bruto)</span>
+                                                    <ColumnHelpButton metricId="facturacionBruto" onClick={() => setHelpMetricId("facturacionBruto")} />
+                                                  </div>
+                                                </th>
+                                                <th className="text-right px-2 py-1.5 font-bold text-blue-800 bg-blue-50 group/col">
+                                                  <div className="flex items-center justify-end gap-1">
+                                                    <span>Ganancia Bruta</span>
+                                                    <ColumnHelpButton metricId="gananciaBrutaItem" onClick={() => setHelpMetricId("gananciaBrutaItem")} />
+                                                  </div>
+                                                </th>
+                                                <th className="text-right px-2 py-1.5 font-bold text-amber-800 bg-amber-50 group/col">
+                                                  <div className="flex items-center justify-end gap-1">
+                                                    <span>% Gasto s/ Venta</span>
+                                                    <ColumnHelpButton metricId="pctGastoVentaItem" onClick={() => setHelpMetricId("pctGastoVentaItem")} />
+                                                  </div>
+                                                </th>
+                                                <th className="text-right px-2 py-1.5 font-bold text-indigo-800 bg-indigo-50 group/col">
+                                                  <div className="flex items-center justify-end gap-1">
+                                                    <span>% Gasto s/ Ganancia</span>
+                                                    <ColumnHelpButton metricId="pctGastoMargenItem" onClick={() => setHelpMetricId("pctGastoMargenItem")} />
+                                                  </div>
+                                                </th>
                                               </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
@@ -1346,15 +1411,60 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 text-slate-600 border-b border-slate-100">
                       <tr>
-                        <th className="text-left px-4 py-2.5 font-bold">Artículo / Pack</th>
-                        <th className="text-center px-3 py-2.5 font-bold">Stock</th>
-                        <th className="text-right px-3 py-2.5 font-bold">Precio Regular</th>
-                        <th className="text-right px-3 py-2.5 font-bold">Costo Unitario</th>
-                        <th className="text-center px-3 py-2.5 font-bold text-purple-900 bg-purple-50/50">Unidades Vendidas</th>
-                        <th className="text-right px-3 py-2.5 font-bold text-emerald-900 bg-emerald-50/50">Facturación (Bruto)</th>
-                        <th className="text-right px-3 py-2.5 font-bold text-blue-900 bg-blue-50/50">Ganancia Bruta</th>
-                        <th className="text-right px-3 py-2.5 font-bold text-amber-900 bg-amber-50/50">% Gasto s/ Venta</th>
-                        <th className="text-right px-3 py-2.5 font-bold text-indigo-900 bg-indigo-50/50">% Gasto s/ Ganancia</th>
+                        <th className="text-left px-4 py-2.5 font-bold group/col">
+                          <div className="flex items-center gap-1">
+                            <span>Artículo / Pack</span>
+                            <ColumnHelpButton metricId="articuloPack" onClick={() => setHelpMetricId("articuloPack")} />
+                          </div>
+                        </th>
+                        <th className="text-center px-3 py-2.5 font-bold group/col">
+                          <div className="flex items-center justify-center gap-1">
+                            <span>Stock</span>
+                            <ColumnHelpButton metricId="stock" onClick={() => setHelpMetricId("stock")} />
+                          </div>
+                        </th>
+                        <th className="text-right px-3 py-2.5 font-bold group/col">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Precio Regular</span>
+                            <ColumnHelpButton metricId="precioRegular" onClick={() => setHelpMetricId("precioRegular")} />
+                          </div>
+                        </th>
+                        <th className="text-right px-3 py-2.5 font-bold group/col">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Costo Unitario</span>
+                            <ColumnHelpButton metricId="costoUnitario" onClick={() => setHelpMetricId("costoUnitario")} />
+                          </div>
+                        </th>
+                        <th className="text-center px-3 py-2.5 font-bold text-purple-900 bg-purple-50/50 group/col">
+                          <div className="flex items-center justify-center gap-1">
+                            <span>Unidades Vendidas</span>
+                            <ColumnHelpButton metricId="unidadesVendidas" onClick={() => setHelpMetricId("unidadesVendidas")} />
+                          </div>
+                        </th>
+                        <th className="text-right px-3 py-2.5 font-bold text-emerald-900 bg-emerald-50/50 group/col">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Facturación (Bruto)</span>
+                            <ColumnHelpButton metricId="facturacionBruto" onClick={() => setHelpMetricId("facturacionBruto")} />
+                          </div>
+                        </th>
+                        <th className="text-right px-3 py-2.5 font-bold text-blue-900 bg-blue-50/50 group/col">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>Ganancia Bruta</span>
+                            <ColumnHelpButton metricId="gananciaBrutaItem" onClick={() => setHelpMetricId("gananciaBrutaItem")} />
+                          </div>
+                        </th>
+                        <th className="text-right px-3 py-2.5 font-bold text-amber-900 bg-amber-50/50 group/col">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>% Gasto s/ Venta</span>
+                            <ColumnHelpButton metricId="pctGastoVentaItem" onClick={() => setHelpMetricId("pctGastoVentaItem")} />
+                          </div>
+                        </th>
+                        <th className="text-right px-3 py-2.5 font-bold text-indigo-900 bg-indigo-50/50 group/col">
+                          <div className="flex items-center justify-end gap-1">
+                            <span>% Gasto s/ Ganancia</span>
+                            <ColumnHelpButton metricId="pctGastoMargenItem" onClick={() => setHelpMetricId("pctGastoMargenItem")} />
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1695,14 +1805,54 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
               <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="font-bold text-slate-900 text-xs min-w-[280px]">Campaña</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-right">Inversión</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-center">Leads (Mensajes)</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-right">Costo / Lead</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-center">Estructura</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-center">Artículos</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-center">Rendimiento</TableHead>
-                    <TableHead className="font-bold text-slate-900 text-xs text-right pr-6">Acción</TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs min-w-[280px] group/col">
+                      <div className="flex items-center gap-1.5">
+                        <span>Campaña</span>
+                        <ColumnHelpButton metricId="campana" onClick={() => setHelpMetricId("campana")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-right group/col">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>Inversión</span>
+                        <ColumnHelpButton metricId="inversion" onClick={() => setHelpMetricId("inversion")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-center group/col">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Leads (Mensajes)</span>
+                        <ColumnHelpButton metricId="leads" onClick={() => setHelpMetricId("leads")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-right group/col">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>Costo / Lead</span>
+                        <ColumnHelpButton metricId="costoLead" onClick={() => setHelpMetricId("costoLead")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-center group/col">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Estructura</span>
+                        <ColumnHelpButton metricId="estructura" onClick={() => setHelpMetricId("estructura")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-center group/col">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Artículos</span>
+                        <ColumnHelpButton metricId="articulos" onClick={() => setHelpMetricId("articulos")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-center group/col">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Rendimiento</span>
+                        <ColumnHelpButton metricId="rendimiento" onClick={() => setHelpMetricId("rendimiento")} />
+                      </div>
+                    </TableHead>
+                    <TableHead className="font-bold text-slate-900 text-xs text-right pr-6 group/col">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span>Acción</span>
+                        <ColumnHelpButton metricId="accion" onClick={() => setHelpMetricId("accion")} />
+                      </div>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
 
@@ -1852,6 +2002,13 @@ export function MarketingClient({ data, initialData, articulosDisponibles = [] }
         target={targetParaAsignar}
         articulosDisponibles={catalogArticulos}
         onGuardado={handleGuardadoAsignacion}
+      />
+
+      {/* MODAL EXPLICATIVO DE MÉTRICAS */}
+      <MetricHelpModal
+        metricId={helpMetricId}
+        isOpen={!!helpMetricId}
+        onClose={() => setHelpMetricId(null)}
       />
     </div>
   );

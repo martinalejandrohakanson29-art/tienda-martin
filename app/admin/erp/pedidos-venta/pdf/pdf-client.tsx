@@ -1,253 +1,40 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import {
-  Printer,
-  ArrowLeft,
-} from "lucide-react";
-import { formatPrice } from "@/lib/utils";
-
-type ItemVenta = {
-  productoId?: string | null;
-  nombre: string;
-  cantidad: number;
-  precio_unit: number;
-  subtotal: number;
-  esNota?: boolean;
-};
-
-type Pedido = {
-  id: string;
-  cliente: string;
-  vendedor: string;
-  total: number;
-  interes: number;
-  totalFinal: number;
-  metodo_pago: string;
-  createdAt: string;
-  tipoVenta: string;
-  estadoPedido?: string | null;
-  dni?: string | null;
-  telefono?: string | null;
-  email?: string | null;
-  info?: string | null;
-  cupon?: string | null;
-  transaccionId?: string | null;
-  de?: string | null;
-  para?: string | null;
-  eventoOffline?: boolean;
-  puntoVentaId?: string | null;
-  numeroVenta?: number;
-  items: ItemVenta[];
-};
+import { Printer, ArrowLeft } from "lucide-react";
+import { PedidoVentaA4 } from "@/app/admin/ventas-mostrador/components/print/pedido-venta-a4";
 
 interface PedidoPDFClientProps {
-  pedido: Pedido;
+  pedido: any;
 }
 
 export default function PedidoPDFClient({ pedido }: PedidoPDFClientProps) {
-  // Auto-lanzar ventana de impresión al abrir (para Guardar como PDF)
-  useEffect(() => {
-    // 800ms ayuda a asegurar que los estilos de Tailwind carguen antes de imprimir
-    const timer = setTimeout(() => {
-      window.print();
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleBack = () => {
-    window.history.back();
-  };
 
   return (
-    <div className="min-h-screen bg-slate-50 print:bg-white print:m-0 print:p-0">
-      <div className="max-w-7xl mx-auto px-4 py-8 print:max-w-none print:w-full print:px-0 print:py-4">
-        {/* Header - Solo visible en pantalla web, oculto en PDF */}
-        <div className="mb-8 flex items-center justify-between print:hidden">
-          <div>
-            <Link
-              href="/admin/erp/pedidos-venta"
-              className="flex items-center gap-1 mb-2 text-slate-500 hover:text-blue-600 transition-colors text-sm font-medium"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Volver
-            </Link>
-            <h1 className="text-3xl font-bold text-slate-900">
-              Detalles del Pedido
-            </h1>
-            <p className="text-slate-600 mt-2">
-              Información completa del pedido de venta
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handlePrint}
-            className="border-blue-600 text-blue-700 hover:bg-blue-50"
-            title="Imprimir Pedido"
-          >
-            <Printer className="h-4 w-4 mr-1" />
-            Imprimir
-          </Button>
-        </div>
+    <div className="min-h-screen bg-slate-100 flex flex-col items-center py-6 print:p-0 print:bg-white">
+      {/* Barra superior de control (oculta en impresión) */}
+      <div className="w-[210mm] max-w-full flex items-center justify-between mb-4 px-2 print:hidden">
+        <Link
+          href="/admin/ventas-mostrador"
+          className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Volver a Ventas Mostrador
+        </Link>
+        <Button
+          onClick={() => window.print()}
+          className="bg-blue-600 hover:bg-blue-700 text-white h-9 px-4 rounded-xl text-xs font-bold gap-1.5 shadow-sm"
+        >
+          <Printer className="h-4 w-4" />
+          Imprimir / Guardar PDF
+        </Button>
+      </div>
 
-        {/* Encabezado especial y purificado para el PDF */}
-        <div className="hidden print:block mb-8 border-b-2 border-slate-300 pb-4">
-          <h1 className="text-2xl font-bold text-black uppercase">Pedido de Venta</h1>
-          <p className="text-sm text-gray-500 mt-1"><strong>ID:</strong> {pedido.numeroVenta || pedido.id}</p>
-          <p className="text-sm text-gray-500"><strong>Fecha:</strong> {new Date(pedido.createdAt).toLocaleDateString("es-AR")} {new Date(pedido.createdAt).toLocaleTimeString("es-AR").slice(0, 5)}</p>
-        </div>
-
-        {/* Main Content */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden print:border-none print:shadow-none print:rounded-none">
-          <Table className="print:text-sm">
-            <TableHeader className="bg-slate-50 border-b-2 border-slate-200 print:bg-transparent print:border-b-2 print:border-black">
-              <TableRow>
-                <TableHead className="w-16 print:text-black">ID</TableHead>
-                <TableHead className="print:text-black">Cliente</TableHead>
-                <TableHead className="print:text-black">Vendedor</TableHead>
-                <TableHead className="print:text-black">Artículos</TableHead>
-                <TableHead className="text-right print:text-black">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow className="print:border-b print:border-slate-300">
-                <TableCell className="font-mono text-sm text-slate-500 py-4 print:text-black print:p-2">
-                  {pedido.numeroVenta || pedido.id.slice(0, 8)}
-                </TableCell>
-                <TableCell className="font-medium text-slate-900 py-4 print:text-black print:p-2">
-                  {pedido.cliente || "Sin cliente"}
-                </TableCell>
-                <TableCell className="text-slate-700 py-4 print:text-black print:p-2">
-                  {pedido.vendedor}
-                </TableCell>
-                <TableCell className="py-4 print:p-2">
-                  <div className="space-y-2">
-                    {pedido.items?.length > 0 ? (
-                      pedido.items.map((item, idx) => (
-                        item.esNota ? (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-2 text-sm border-b border-slate-100 last:border-0 pb-2 last:pb-0 print:border-slate-200 text-amber-800 print:text-black"
-                          >
-                            <span className="italic">* {item.nombre}</span>
-                            <span className="text-[9px] font-black bg-amber-100 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded uppercase print:border-slate-400 print:text-black print:bg-transparent">
-                              Nota
-                            </span>
-                          </div>
-                        ) : (
-                        <div
-                          key={idx}
-                          className="flex justify-between items-center text-sm border-b border-slate-100 last:border-0 pb-2 last:pb-0 print:border-slate-200"
-                        >
-                          <div>
-                            <span className="font-semibold text-slate-700 uppercase print:text-black">
-                              {item.nombre}
-                            </span>
-                            <span className="text-[10px] text-slate-400 ml-2 font-mono uppercase print:text-gray-500">
-                              ID: {item.productoId || "-"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <span className="bg-slate-200 print:border print:border-slate-300 print:bg-transparent px-2 py-0.5 rounded text-[10px] font-bold text-slate-600 print:text-black">
-                              x{item.cantidad}
-                            </span>
-                            <span className="font-bold text-slate-700 print:text-black">
-                              {formatPrice(item.subtotal)}
-                            </span>
-                          </div>
-                        </div>
-                        )
-                      ))
-                    ) : (
-                      <p className="text-xs text-slate-400 italic print:text-black">
-                        Sin artículos
-                      </p>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="text-right font-bold text-slate-900 py-4 print:text-black print:p-2">
-                  {formatPrice(pedido.totalFinal)}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-
-          {/* Grilla extra para ordenar datos complementarios al imprimir */}
-          <div className="print:grid print:grid-cols-2 print:gap-4 print:mt-6">
-            {/* Additional Info Section */}
-            {pedido.info && (
-              <div className="border-t border-slate-200 p-6 bg-slate-50 print:bg-transparent print:p-2 print:border-none print:mb-4">
-                <h3 className="text-sm font-bold text-slate-700 mb-4 print:mb-1 print:text-black print:uppercase">
-                  Observaciones / Datos de Envío:
-                </h3>
-                <p className="text-sm text-slate-600 whitespace-pre-wrap print:text-black">
-                  {pedido.info}
-                </p>
-              </div>
-            )}
-
-            {/* Contact Info */}
-            {(pedido.dni || pedido.telefono || pedido.email) && (
-              <div className="border-t border-slate-200 p-6 bg-slate-50 print:bg-transparent print:p-2 print:border-none print:mb-4">
-                <h3 className="text-sm font-bold text-slate-700 mb-4 print:mb-1 print:text-black print:uppercase">
-                  Contacto:
-                </h3>
-                {pedido.dni && (
-                  <p className="text-sm text-slate-600 print:text-black">
-                    <strong>DNI:</strong> {pedido.dni}
-                  </p>
-                )}
-                {pedido.telefono && (
-                  <p className="text-sm text-slate-600 print:text-black">
-                    <strong>Teléfono:</strong> {pedido.telefono}
-                  </p>
-                )}
-                {pedido.email && (
-                  <p className="text-sm text-slate-600 print:text-black">
-                    <strong>Email:</strong> {pedido.email}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Transaction Info */}
-            {pedido.transaccionId && (
-              <div className="border-t border-slate-200 p-6 bg-slate-50 print:bg-transparent print:p-2 print:border-none">
-                <h3 className="text-sm font-bold text-slate-700 mb-4 print:mb-1 print:text-black print:uppercase">
-                  Transacción:
-                </h3>
-                <p className="text-sm text-slate-600 print:text-black">
-                  <strong>ID Transacción:</strong> {pedido.transaccionId}
-                </p>
-              </div>
-            )}
-
-            {/* Coupon Info */}
-            {pedido.cupon && (
-              <div className="border-t border-slate-200 p-6 bg-slate-50 print:bg-transparent print:p-2 print:border-none">
-                <h3 className="text-sm font-bold text-slate-700 mb-4 print:mb-1 print:text-black print:uppercase">Cupón:</h3>
-                <p className="text-sm text-slate-600 print:text-black">
-                  <strong>Cupón:</strong> {pedido.cupon}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Contenedor A4 */}
+      <div className="bg-white shadow-xl print:shadow-none">
+        <PedidoVentaA4 venta={pedido} />
       </div>
     </div>
   );

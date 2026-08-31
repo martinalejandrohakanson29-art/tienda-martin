@@ -210,22 +210,45 @@ export async function obtenerTodosLosArticulos(soloOcultos: boolean = false) {
     });
 
     return articulos.map(art => ({
-      ...art,
-      precio: Number(art.precio),
-      costo: art.costo ? Number(art.costo) : 0,
-      margenGanancia: art.margenGanancia ? Number(art.margenGanancia) : 0,
-      esPack: art.esPack || false,
-      ultimaModificacion: art.auditorias?.[0]?.createdAt?.toISOString() || null,
+      id: art.id,
+      nombre: art.nombre,
       stock: (art.esPack && art.packItems)
         ? (art.packItems.length > 0 ? Math.min(...art.packItems.map(item => Math.floor(item.componente.stock / item.cantidad))) : 0)
         : art.stock,
+      precio: Number(art.precio),
+      costo: art.costo ? Number(art.costo) : 0,
+      costoUsd: art.costoUsd ? Number(art.costoUsd) : null,
+      esCostoDolar: art.esCostoDolar || false,
+      margenGanancia: art.margenGanancia ? Number(art.margenGanancia) : 0,
+      margenFijo: art.margenFijo || false,
+      esPack: art.esPack || false,
+      oculto: art.oculto || false,
+      codigoProveedor: art.codigoProveedor || null,
+      proveedorId: art.proveedorId || null,
+      createdAt: art.createdAt.toISOString(),
+      updatedAt: art.updatedAt.toISOString(),
+      ultimaModificacion: art.auditorias?.[0]?.createdAt?.toISOString() || null,
       packItems: art.packItems?.map(packItem => ({
-        ...packItem,
+        id: packItem.id,
+        packId: packItem.packId,
+        componenteId: packItem.componenteId,
+        cantidad: packItem.cantidad,
         componente: {
-          ...packItem.componente,
+          id: packItem.componente.id,
+          nombre: packItem.componente.nombre,
+          stock: packItem.componente.stock,
           precio: Number(packItem.componente.precio),
           costo: packItem.componente.costo ? Number(packItem.componente.costo) : 0,
+          costoUsd: packItem.componente.costoUsd ? Number(packItem.componente.costoUsd) : null,
+          esCostoDolar: packItem.componente.esCostoDolar || false,
           margenGanancia: packItem.componente.margenGanancia ? Number(packItem.componente.margenGanancia) : 0,
+          margenFijo: packItem.componente.margenFijo || false,
+          esPack: packItem.componente.esPack || false,
+          oculto: packItem.componente.oculto || false,
+          codigoProveedor: packItem.componente.codigoProveedor || null,
+          proveedorId: packItem.componente.proveedorId || null,
+          createdAt: packItem.componente.createdAt.toISOString(),
+          updatedAt: packItem.componente.updatedAt.toISOString(),
         }
       })) || []
     }));

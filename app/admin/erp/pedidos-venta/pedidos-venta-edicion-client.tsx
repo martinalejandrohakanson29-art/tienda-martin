@@ -66,7 +66,7 @@ import {
   exportarPedidosVentaParaExcel,
 } from "@/app/actions/ventas-mostrador";
 import { obtenerPuntosVenta } from "@/app/actions/puntos-venta";
-import { PedidoVentaA4 } from "@/app/admin/ventas-mostrador/components/print/pedido-venta-a4";
+import { generarPedidoVentaPdf } from "@/app/admin/ventas-mostrador/components/print/generar-pedido-pdf";
 
 type ItemVenta = {
   productoId?: string | null;
@@ -146,9 +146,6 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
   const [isEliminarDialogOpen, setIsEliminarDialogOpen] = useState(false);
   const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-
-  // Visor e Impresión de Presupuesto A4
-  const [ventaParaImprimir, setVentaParaImprimir] = useState<Venta | null>(null);
 
   // Exportación Excel
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
@@ -526,6 +523,56 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
       console.error("Error en subida por lote:", err);
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  // Abrir PDF puro en nueva pestaña para visualizar / descargar en Chrome
+  const handleAbrirPdfEnNuevaPestana = async (venta: Venta) => {
+    if (!venta) return;
+
+    // Abrir pestaña previa para evitar bloqueos de popups en el navegador
+    const newWindow = window.open("about:blank", "_blank");
+
+    try {
+      const doc = generarPedidoVentaPdf(venta);
+      const pdfBlob = doc.output("blob");
+
+      const nroPedido = (venta.numeroVenta || venta.id.slice(0, 8))
+        .toString()
+        .padStart(8, "0");
+      const clienteSanitizado = (venta.cliente || "Consumidor_Final")
+        .replace(/[^a-zA-Z0-9_\-]/g, "_")
+        .slice(0, 30);
+      const fileName = `Pedido_${nroPedido}_${clienteSanitizado}.pdf`;
+
+      const formData = new FormData();
+      formData.append("pdf", pdfBlob, fileName);
+
+      const res = await fetch("/api/ventas-mostrador/resumen-pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const { id } = await res.json();
+        const targetUrl = `/api/ventas-mostrador/resumen-pdf/${id}/${encodeURIComponent(fileName)}`;
+        if (newWindow) {
+          newWindow.location.href = targetUrl;
+        } else {
+          window.open(targetUrl, "_blank");
+        }
+      } else {
+        const blobUrl = URL.createObjectURL(pdfBlob);
+        if (newWindow) {
+          newWindow.location.href = blobUrl;
+        } else {
+          window.open(blobUrl, "_blank");
+        }
+      }
+    } catch (err) {
+      if (newWindow) newWindow.close();
+      console.error("Error al generar PDF del pedido:", err);
+      alert("Error al generar el PDF del pedido");
     }
   };
 
@@ -1060,13 +1107,13 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
                               <Edit className="h-4 w-4" />
                             </Button>
 
-                            {/* Imprimir Presupuesto A4 */}
+                            {/* Ver / Imprimir Presupuesto A4 */}
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => setVentaParaImprimir(venta)}
+                              onClick={() => handleAbrirPdfEnNuevaPestana(venta)}
                               className="h-8 w-8 text-blue-600 hover:bg-blue-50 rounded-lg"
-                              title="Ver / Imprimir Presupuesto A4"
+                              title="Abrir / Descargar PDF"
                             >
                               <Printer className="h-4 w-4" />
                             </Button>
@@ -1392,35 +1439,7 @@ export default function PedidosVentaEdicionClient({ onEditarPedido }: Props = {}
         </DialogContent>
       </Dialog>
 
-      {/* Modal Impresión / Vista Presupuesto A4 */}
-      <Dialog
-        open={!!ventaParaImprimir}
-        onOpenChange={(open) => !open && setVentaParaImprimir(null)}
-      >
-        <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto p-4 rounded-2xl">
-          <DialogHeader className="flex flex-row items-center justify-between pb-2 border-b">
-            <DialogTitle className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <Printer className="h-4 w-4 text-blue-600" />
-              Vista Previa de Pedido A4
-            </DialogTitle>
-            <Button
-              onClick={() => window.print()}
-              className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-3 rounded-lg text-xs font-bold gap-1.5 mr-6"
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Imprimir / Guardar PDF
-            </Button>
-          </DialogHeader>
 
-          {ventaParaImprimir && (
-            <div className="flex justify-center p-4 bg-slate-100 rounded-xl overflow-x-auto">
-              <div className="bg-white shadow-lg">
-                <PedidoVentaA4 venta={ventaParaImprimir} />
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
 
       {/* Modal Subir PDF por Lote */}
       <Dialog open={isBatchDialogOpen} onOpenChange={setIsBatchDialogOpen}>

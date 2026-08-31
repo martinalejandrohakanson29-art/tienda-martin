@@ -8,7 +8,14 @@ export async function obtenerPuntosVenta() {
     const puntos = await prisma.puntoVenta.findMany({
       orderBy: { nombre: 'asc' }
     });
-    return { success: true, data: puntos };
+    return {
+      success: true,
+      data: puntos.map(p => ({
+        ...p,
+        createdAt: p.createdAt ? p.createdAt.toISOString() : undefined,
+        updatedAt: p.updatedAt ? p.updatedAt.toISOString() : undefined,
+      }))
+    };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

@@ -306,6 +306,60 @@ Orden real del procesamiento de un mensaje entrante:
   `apply-fix-compra-diferida-es-cierre.mjs` (440 nodos, sin cambio). Rollback: versión n8n
   `210b06ef-56c8-4fe2-a408-10a018d77039`. Validado en vivo (conv 2411): plantilla → moto →
   "recorrido largo" → "junto plata y compro" → respondió el cierre, sin nota de escalado.
+- **Grupo esperando la moto: una pregunta de envío ya no se descarta, se contesta (2026-08-31).**
+  Caso real conv 3078 (+5493758433040, Gabriel): plantilla del grupo "Combo 110 a 120 + Codo y
+  carbu" + "Envian a misiones" pegado. PUT 1 mandaba el resto a la máquina, `Dividir y Etiquetar`
+  lo clasificaba bien `envio`, pero `Parsear Sub-preguntas` (rama grupo `esperando_moto`,
+  bienvenida fresca) lo **descartaba** junto a precio/stock, asumiendo que "Envío gratis a todo
+  el pais" de la bienvenida ya lo cubre. La gente casi siempre pregunta puntual ("mandan a
+  Misiones?", "llegan a mi pueblo?") y esa línea fija no lo contesta. Fix (1): `envio` sale del
+  bloque precio/stock y pasa a tener **el mismo trato que `negocio`** — se responde siempre
+  (kit_id null → cae al fallback `Buscar Info Negocio (Envio General)`); si la bienvenida no es
+  fresca, además re-pregunta la moto y cuenta para el tope de 3 reintentos (PUT 2b). precio/stock
+  siguen igual (silencio si la bienvenida es fresca). Solo toca `Parsear Sub-preguntas`, 4
+  reemplazos de texto, sin nodos ni rewiring. Script
+  `apply-envio-no-descarta-grupo-esperando-moto.mjs` (440 nodos, sin cambio). Fix (2), destapado
+  en la validación: `Buscar Info Negocio (Envio General)` servía la fila `info_negocio` tema
+  "Datos para envío" (id 13, el formulario NOMBRE/DNI/DOMICILIO post-venta) en vez de "envios"
+  (id 10, la política real) — `rm_score` matcheaba las dos y el `ORDER BY creado_en DESC` prefería
+  la más nueva. Ahora ordena por mejor match (`rm_score(tema,'envios') + rm_score('envios',tema)
+  DESC` antes que fecha). Es el único nodo que consulta con 'envios' hardcodeado, así que también
+  arregla la máquina de sub-preguntas genérica (un "hacen envíos?" sin kit daba el mismo form).
+  Script `apply-envio-general-elige-fila-envios.mjs`. Rollback: versión n8n
+  `a27e2609-04c1-4df8-9ac3-7d7c074264e6` (pre fix 1: `4deb07fd-7ff4-45db-838c-0d80b93684a1`).
+  Validado en vivo (conv 2411): plantilla grupo + "mandan a misiones?" → bienvenida + "Hacemos
+  envíos a todo el país por Andreani a domicilio y por Vía Cargo a sucursal…" (antes: silencio,
+  después del fix 1 sin el 2: el form de datos); regresión "cuanto sale?" pegado → sigue en
+  silencio. **Gotcha nuevo:** el GET de la API de n8n (`/workflows/{id}`) pasa por un proxy que
+  cachea por URL y llega a servir una versión de **días** atrás (devolvía 371 nodos / 08-25 en vez
+  de 440). Hay que mandar un cache-buster único en la query (`?_cb=<timestamp>-<random>`) y
+  chequear `nodes.length` antes de confiar en la respuesta (los scripts `apply-*` de esta fecha
+  ya lo hacen).
+- **Repregunta de "candidatos" sin moto: mensaje genérico + tope de reintentos (2026-08-31).**
+  Caso real conv 3082 (+5493517913933, "leito"): imagen + "queria ese kit y mas una leva" (sin
+  nombrar moto) → `Identificar Necesidad` = `candidatos` y el bot contestaba **enumerando los 2-3
+  nombres internos de kit** ("¿Te referís al kit 170 varillero + leva, al combo escape pwr + leva
+  6.40 o al kit 120 para 110?") — cuanto más larga la lista, más engorroso, y esos nombres no son
+  los que el cliente vio en la publicidad. Fix (1): `Parsear Identificar Necesidad` para `candidatos`
+  ya no arma la lista — `mensaje` es un **texto fijo** (sin IA, sin "¿" de apertura): *"Tengo varios
+  kits parecidos. Decime para qué moto es y qué kit estás buscando, así te confirmo cuál es y te paso
+  el precio."* (systemMessage del agente ajustado para que devuelva `mensaje: ""`). Pide las 2 cosas
+  que el bot necesita igual. Fix (2): el camino "el cliente NO dijo la moto"
+  (`¿Hay Modelo Mencionado (Candidatos)?` = false) gana un **tope**: contador Redis
+  `repregunta_candidatos_intentos:{tel}` (TTL 24h) — tras 2 repreguntas sin aclarar, escala UNA vez
+  al equipo (nota privada + fila en `preguntas_sin_match_pendientes`), flag `candidatos_escalado:{tel}`
+  para no repetir la nota (mismo patrón que el tope de la rama variante). El camino "SÍ dijo la moto"
+  (reduce por compatibilidad) queda **intacto**. Script
+  `apply-repregunta-candidatos-generica-y-tope.mjs` (+10 nodos, 440→450). Rollback: versión n8n
+  `5bf2e300-d468-4d43-bb2d-10a10d553da7`. Validado en vivo (conv nueva 3095, forzando `candidatos`
+  con "el kit 170 varillero o el combo escape pwr, no se cual llevar"): 1ª y 2ª vaga → mensaje
+  genérico nuevo; 3ª → nota privada "El cliente pidió algo que puede ser uno de varios kits
+  parecidos…", cero mensaje al cliente. **Gotcha:** forzar `candidatos` con mensajes sintéticos es
+  poco fiable (el LLM tira `ninguno` o `kit_confiado` seguido) — hizo falta nombrar 2 kits explícitos.
+  Ver [[project-chatwoot-grupo-vs-kit-simple-drift]].
+- **Pendiente:** contestarle a mano a Gabriel (conv 3078) — quedó esperando la variante corto/largo
+  ("averiguo con el mecánico"), lead caliente sin seguimiento. `rutas-bot-chatwoot.html` sigue
+  desactualizado.
 
 ## Filosofía de diseño (para cuando pidan algo nuevo)
 
@@ -443,6 +497,11 @@ con un comentario de cuándo correrlos — no hay `prisma migrate` para esto.
   reflejar la primera ejecución disparada justo después de un `PUT` de workflow. Reenviar el
   mismo mensaje de prueba con un id nuevo suele destrabar la validación; no asumir que un fix no
   anda solo porque `/executions` todavía no muestra nada.
+- **El GET de `/workflows/{id}` pasa por un proxy que cachea por URL** — llega a devolver una
+  versión de días atrás (visto el 2026-08-31: 371 nodos / 08-25 en vez de 440), y un `PUT` sobre
+  esa base pisaría días de trabajo. Mandar SIEMPRE un cache-buster único en la query
+  (`?_cb=<timestamp>-<random>`) y verificar `nodes.length` / `updatedAt` / `versionId` antes de
+  editar. Los `apply-*.mjs` desde esa fecha reintentan el GET hasta obtener la versión buena.
 - **Un `PUT` de workflow con el body UTF-8 crudo corrompe la "í" (U+00ED) en los textos** —
   n8n guarda solo el 2º byte (`0xAD`) y se ve "Todav?a" / "ah?" en los mensajes entregados (pero
   bien en un `GET`). Encontrado el 2026-08-28 editando `Preparar Nota Escalado (Grupo)`. Mandar el

@@ -287,6 +287,25 @@ Orden real del procesamiento de un mensaje entrante:
   camino de precio. "Borrarlas" = primero re-rutear esos 3 estados a la máquina (la versión amplia
   ya descartada). Las caseras se quedan. Ya no escalan info conocida ni loopean sin fin. Detalle
   en `PLAN-unificar-resto-grupos.md`.
+- **Compra diferida = "cierre", ya no escala (2026-08-31).** Caso real conv 3033
+  (+5493854560850): tras confirmar compatibilidad y precio del combo Tapa CDI + Cilindro 120, el
+  cliente dijo **"junto plata y compro"** y el bot lo escaló con la nota engañosa *"preguntó algo
+  que todavía no supimos ubicar"* (no preguntó nada — avisó que va a comprar más adelante). Causa:
+  el prompt de `Dividir y Etiquetar Sub-preguntas` mandaba "cualquier cosa sobre
+  pagar/reservar/retirar" a `otro` → sin dato → escala. Fix (2 ediciones de texto, sin nodos):
+  (1) systemMessage de `Dividir y Etiquetar` — se parte esa regla: intención de pago/reserva/retiro
+  **inmediata o que pide acción/dato ahora** ("te hago la transferencia", "pasame el cbu", "quiero
+  reservarlo", "paso a buscarlo mañana") sigue en `otro` (escala); **aviso de compra a futuro sin
+  pedir nada** ("junto plata y compro", "cuando cobre lo compro", "la semana que viene lo llevo")
+  pasa a `cierre`. (2) `Consolidar Dato Resuelto` — el texto fijo de `cierre` pasa de "Dale,
+  cualquier cosa nos escribís." a "dale bro! cualquier cosa nos escribis y coordinamos.." (aplica
+  a TODOS los cierres; el paso de redacción con IA lo entrega pulido, "Dale bro, cualquier cosa
+  nos escribís y coordinamos."). El anti-bucle `cierre_reciente:{tel}` (TTL 24h) ya existente evita
+  que un "dale ok" posterior dispare otra respuesta. `Detectar Interes de Compra` (frases tipo "lo
+  quiero" → rama "posible venta") NO se tocó, a propósito. Script
+  `apply-fix-compra-diferida-es-cierre.mjs` (440 nodos, sin cambio). Rollback: versión n8n
+  `210b06ef-56c8-4fe2-a408-10a018d77039`. Validado en vivo (conv 2411): plantilla → moto →
+  "recorrido largo" → "junto plata y compro" → respondió el cierre, sin nota de escalado.
 
 ## Filosofía de diseño (para cuando pidan algo nuevo)
 

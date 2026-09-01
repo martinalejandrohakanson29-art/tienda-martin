@@ -61,6 +61,8 @@ type ArticuloSimple = {
   id: string
   nombre: string
   stock: number
+  codigoProveedor?: string | null
+  proveedorId?: string | null
 }
 
 type ProveedorSimple = {
@@ -83,7 +85,7 @@ interface ListaPedidosClientProps {
 }
 
 const quitarAcentos = (texto: string) =>
-  texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+  texto ? texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : ""
 
 const formatFecha = (iso: string) =>
   new Date(iso).toLocaleDateString("es-AR", {
@@ -126,15 +128,29 @@ export function ListaPedidosClient({
   const [procesando, setProcesando] = useState(false)
 
   const articulosFiltrados = useMemo(() => {
-    if (!busqueda.trim()) return articulos.slice(0, 10)
-    const q = quitarAcentos(busqueda)
-    return articulos.filter((a) => quitarAcentos(a.nombre).includes(q)).slice(0, 10)
+    const term = quitarAcentos(busqueda).trim()
+    if (!term) return articulos.slice(0, 10)
+    const words = term.split(/\s+/).filter(Boolean)
+    return articulos
+      .filter((a) => {
+        const nombre = quitarAcentos(a.nombre)
+        const id = quitarAcentos(a.id)
+        const codProv = a.codigoProveedor ? quitarAcentos(a.codigoProveedor) : ""
+        return words.every((w) => nombre.includes(w) || id.includes(w) || codProv.includes(w))
+      })
+      .slice(0, 30)
   }, [busqueda, articulos])
 
   const proveedoresFiltrados = useMemo(() => {
-    if (!busquedaProv.trim()) return proveedores.slice(0, 8)
-    const q = quitarAcentos(busquedaProv)
-    return proveedores.filter((p) => quitarAcentos(p.nombre).includes(q)).slice(0, 8)
+    const term = quitarAcentos(busquedaProv).trim()
+    if (!term) return proveedores.slice(0, 8)
+    const words = term.split(/\s+/).filter(Boolean)
+    return proveedores
+      .filter((p) => {
+        const nombre = quitarAcentos(p.nombre)
+        return words.every((w) => nombre.includes(w))
+      })
+      .slice(0, 15)
   }, [busquedaProv, proveedores])
 
   const abrirModal = async () => {
@@ -466,11 +482,19 @@ export function ListaPedidosClient({
                     <p className="text-sm font-medium text-slate-900 dark:text-white">
                       {articuloSeleccionado.nombre}
                     </p>
-                    <p className="text-xs text-slate-500">Stock actual: {articuloSeleccionado.stock}</p>
+                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                      {articuloSeleccionado.codigoProveedor && (
+                        <span className="font-mono bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 px-1.5 py-0.5 rounded font-medium">
+                          Cód: {articuloSeleccionado.codigoProveedor}
+                        </span>
+                      )}
+                      <span>Stock actual: {articuloSeleccionado.stock}</span>
+                    </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => { setArticuloSeleccionado(null); setBusqueda("") }}
-                    className="text-xs text-slate-400 hover:text-slate-600 underline"
+                    className="text-xs text-slate-400 hover:text-slate-600 underline ml-2 shrink-0"
                   >
                     Cambiar
                   </button>
@@ -486,27 +510,42 @@ export function ListaPedidosClient({
                     <>
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
-                        placeholder="Buscar artículo..."
+                        placeholder="Buscar por nombre, código o ID..."
                         value={busqueda}
                         onChange={(e) => setBusqueda(e.target.value)}
                         className="pl-9"
                         autoFocus
                       />
                       {busqueda.trim() && (
-                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           {articulosFiltrados.length === 0 ? (
                             <p className="px-4 py-3 text-sm text-slate-400">Sin resultados</p>
                           ) : (
                             articulosFiltrados.map((a) => (
                               <button
                                 key={a.id}
-                                onClick={() => { setArticuloSeleccionado(a); setBusqueda("") }}
+                                type="button"
+                                onClick={() => {
+                                  setArticuloSeleccionado(a)
+                                  if (a.proveedorId && !proveedorSeleccionado) {
+                                    const prov = proveedores.find((p) => p.id === a.proveedorId)
+                                    if (prov) setProveedorSeleccionado(prov)
+                                  }
+                                  setBusqueda("")
+                                }}
                                 className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0"
                               >
                                 <p className="text-sm font-medium text-slate-900 dark:text-white">
                                   {a.nombre}
                                 </p>
-                                <p className="text-xs text-slate-400">Stock: {a.stock}</p>
+                                <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
+                                  {a.codigoProveedor && (
+                                    <span className="font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded">
+                                      Cód: {a.codigoProveedor}
+                                    </span>
+                                  )}
+                                  <span>Stock: {a.stock}</span>
+                                </div>
                               </button>
                             ))
                           )}
@@ -561,8 +600,9 @@ export function ListaPedidosClient({
                     {proveedorSeleccionado.nombre}
                   </p>
                   <button
+                    type="button"
                     onClick={() => { setProveedorSeleccionado(null); setBusquedaProv("") }}
-                    className="text-xs text-slate-400 hover:text-slate-600 underline"
+                    className="text-xs text-slate-400 hover:text-slate-600 underline ml-2 shrink-0"
                   >
                     Quitar
                   </button>
@@ -578,13 +618,14 @@ export function ListaPedidosClient({
                     disabled={cargandoArticulos}
                   />
                   {busquedaProv.trim() && (
-                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {proveedoresFiltrados.length === 0 ? (
                         <p className="px-4 py-3 text-sm text-slate-400">Sin resultados</p>
                       ) : (
                         proveedoresFiltrados.map((p) => (
                           <button
                             key={p.id}
+                            type="button"
                             onClick={() => { setProveedorSeleccionado(p); setBusquedaProv("") }}
                             className="w-full text-left px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0 text-sm text-slate-900 dark:text-white"
                           >

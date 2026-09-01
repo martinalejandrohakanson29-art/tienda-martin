@@ -107,7 +107,13 @@ export async function obtenerArticulosParaFaltantes() {
   try {
     const articulos = await prisma.articuloMostrador.findMany({
       where: { esPack: false, esServicio: false },
-      select: { id: true, nombre: true, stock: true },
+      select: {
+        id: true,
+        nombre: true,
+        stock: true,
+        codigoProveedor: true,
+        proveedorId: true,
+      },
       orderBy: { nombre: "asc" },
     })
     return articulos

@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth-guard"
 import { prisma } from "@/lib/prisma"
 import {
     actualizarBotPausadoEnEspejo,
+    actualizarDestacadoEnEspejo,
     listarChatsVivo,
     marcarPendientesResueltasEnEspejo,
     registrarMensajeSalienteEnEspejo,
@@ -77,7 +78,9 @@ export async function obtenerHiloChatVivo(conversationId: number): Promise<Mensa
     }
 
     if (ultimoComandoBot !== null) {
-        await actualizarBotPausadoEnEspejo(conversationId, ultimoComandoBot)
+        actualizarBotPausadoEnEspejo(conversationId, ultimoComandoBot).catch((err) => {
+            console.error("Error actualizando bot pausado en espejo:", err)
+        })
     }
 
     return mensajes
@@ -102,6 +105,16 @@ export async function cambiarEstadoBotChatVivo(
 
     revalidatePath("/admin/chatwoot/chats-vivo")
     return { success: true, botPausado }
+}
+
+/** Marca o desmarca una conversación como destacada (estrella/favorito). */
+export async function toggleDestacadoChatVivo(
+    conversationId: number,
+    destacado: boolean
+): Promise<{ success: boolean; destacado: boolean }> {
+    await requireAdmin()
+    await actualizarDestacadoEnEspejo(conversationId, destacado)
+    return { success: true, destacado }
 }
 
 /** Envía un mensaje de texto manual al cliente por WhatsApp a través de Chatwoot. */

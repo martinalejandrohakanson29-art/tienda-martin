@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import Link from "next/link"
-import { ArrowLeft, Bot, BotOff, Camera, Check, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, Paperclip, Plus, RefreshCw, Search, Send, Smile, X, Zap, type LucideIcon } from "lucide-react"
+import { ArrowLeft, Bot, BotOff, Camera, Check, ExternalLink, FileText, Film, GripVertical, Loader2, Lock, Mic, NotebookPen, Paperclip, Plus, RefreshCw, Search, Send, Smile, Star, X, Zap, type LucideIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     cambiarEstadoBotChatVivo,
@@ -16,6 +16,7 @@ import {
     obtenerChatsVivo,
     obtenerHiloChatVivo,
     sincronizarChatsVivoLigero,
+    toggleDestacadoChatVivo,
     type KitEnvioRapido,
     type MensajeConversacion,
     type NotaRapida,
@@ -74,6 +75,49 @@ const horaMensaje = (iso: string) =>
         hour: "2-digit",
         minute: "2-digit",
     })
+
+/**
+ * Limpia el texto del último mensaje para la vista previa de la lista lateral.
+ * Si el mensaje es una nota interna automática del bot ("El cliente escribió mientras esta conversación está en pausa manual...: \"Hola\""),
+ * extrae el texto real escrito por el cliente y marca que no es propio para que no diga "Vos: ".
+ */
+export function limpiarPreviewUltimoMensaje(
+    texto: string,
+    esPropio: boolean
+): { texto: string; esPropio: boolean } {
+    if (!texto) return { texto: "(sin texto)", esPropio }
+    const t = texto.trim()
+
+    // 1. Extraer lo que escribió el cliente de la nota del bot en pausa manual o fuera de horario
+    const matchNotaBot = t.match(/El cliente escribió[^:]*:\s*["“]([\s\S]*?)["”]/i)
+    if (matchNotaBot && matchNotaBot[1]) {
+        return {
+            texto: matchNotaBot[1].trim() || "(mensaje)",
+            esPropio: false, // Fue el cliente quien escribió esto
+        }
+    }
+
+    // 2. Si contiene la frase pero sin comillas estándar
+    if (t.toLowerCase().includes("el cliente escribió") && t.includes('"')) {
+        const comillas = t.match(/["“]([\s\S]+?)["”]/)
+        if (comillas && comillas[1]) {
+            return {
+                texto: comillas[1].trim(),
+                esPropio: false,
+            }
+        }
+    }
+
+    // 3. Comandos de bot
+    if (t.toLowerCase() === "/bot on" || t.toLowerCase() === "/bot off") {
+        return {
+            texto: t.toLowerCase() === "/bot on" ? "Bot reactivado" : "Bot pausado",
+            esPropio: false,
+        }
+    }
+
+    return { texto: t, esPropio }
+}
 
 /**
  * Agrega un mensaje recibido evitando duplicaciones con mensajes existentes o mensajes optimistas recientes,
@@ -546,15 +590,17 @@ export function ChatsVivoClient({
     const [periodoDias, setPeriodoDias] = useState(periodoInicialDias)
     const [cargandoLista, arrancarCargaLista] = useTransition()
 
-    const [filtro, setFiltro] = useState<Categoria | "todas">("todas")
+    const [filtro, setFiltro] = useState<Categoria | "destacadas" | "todas">("todas")
     const [busqueda, setBusqueda] = useState("")
     const [seleccionadaId, setSeleccionadaId] = useState<number | null>(null)
 
     const [hilos, setHilos] = useState<Record<number, MensajeConversacion[]>>({})
+    const [hilosCargados, setHilosCargados] = useState<Set<number>>(() => new Set())
     const [cargandoHilo, arrancarCargaHilo] = useTransition()
     const [falloHilo, setFalloHilo] = useState<string | null>(null)
 
     const [togglingBot, setTogglingBot] = useState<number | null>(null)
+    const [togglingDestacado, setTogglingDestacado] = useState<number | null>(null)
     const [resolviendo, setResolviendo] = useState<number | null>(null)
 
     // Selectores rápidos arriba del hilo: "Enviar info de kit" y "Notas rápidas"
@@ -707,7 +753,11 @@ export function ChatsVivoClient({
     const sincronizar = (dias: number) => {
         arrancarCargaLista(async () => {
             try {
-                const nuevo = await forzarSincronizacionChatsVivo(dias)
+                const promesas: [Promise<PanelChatsVivo>, Promise<MensajeConversacion[] | null>] = [
+                    forzarSincronizacionChatsVivo(dias),
+                    seleccionadaId ? obtenerHiloChatVivo(seleccionadaId).catch(() => null) : Promise.resolve(null),
+                ]
+                const [nuevo, mensajesNuevos] = await Promise.all(promesas)
                 setPanel((prev) => {
                     if (!prev) return nuevo
                     return {
@@ -715,6 +765,18 @@ export function ChatsVivoClient({
                         conversaciones: fusionarListaConversaciones(prev.conversaciones, nuevo.conversaciones),
                     }
                 })
+                if (seleccionadaId && mensajesNuevos) {
+                    setHilos((prev) => ({
+                        ...prev,
+                        [seleccionadaId]: fusionarHilosMensajes(prev[seleccionadaId] || [], mensajesNuevos),
+                    }))
+                    setHilosCargados((prev) => {
+                        if (prev.has(seleccionadaId)) return prev
+                        const next = new Set(prev)
+                        next.add(seleccionadaId)
+                        return next
+                    })
+                }
                 setFallo(null)
             } catch (e) {
                 setFallo(e instanceof Error ? e.message : "No se pudieron sincronizar las conversaciones de Chatwoot")
@@ -782,8 +844,9 @@ export function ChatsVivoClient({
                     setPanel((prev) => {
                         if (!prev) return prev
                         const idx = prev.conversaciones.findIndex((c) => c.id === convId)
-                        const texto = data.mensaje?.contenido || data.conversacion?.ultimoMensaje || ""
-                        const esPropio = Boolean(data.mensaje?.saliente)
+                        const textoRaw = data.mensaje?.contenido || data.conversacion?.ultimoMensaje || ""
+                        const esPropioRaw = Boolean(data.mensaje?.saliente)
+                        const { texto, esPropio } = limpiarPreviewUltimoMensaje(textoRaw, esPropioRaw)
                         const esActiva = convId === seleccionadaId
 
                         // Evento sin mensaje nuevo: actualización puntual en el lugar
@@ -828,6 +891,7 @@ export function ChatsVivoClient({
                                 ultimaActividad: new Date().toISOString(),
                                 noLeidos: esActiva ? 0 : 1,
                                 botPausado: Boolean(data.botPausado),
+                                destacado: Boolean(data.conversacion?.destacado),
                             }
                             lista = [nueva, ...prev.conversaciones]
                         } else {
@@ -864,7 +928,11 @@ export function ChatsVivoClient({
         const sincronizarSilencioso = async () => {
             if (typeof document !== "undefined" && document.hidden) return
             try {
-                const nuevo = await sincronizarChatsVivoLigero(periodoDias)
+                const promesas: [Promise<PanelChatsVivo | null>, Promise<MensajeConversacion[] | null>] = [
+                    sincronizarChatsVivoLigero(periodoDias).catch(() => null),
+                    seleccionadaId ? obtenerHiloChatVivo(seleccionadaId).catch(() => null) : Promise.resolve(null),
+                ]
+                const [nuevo, mensajesNuevos] = await Promise.all(promesas)
                 if (!cancelado && nuevo) {
                     setPanel((prev) => {
                         if (!prev) return nuevo
@@ -875,18 +943,21 @@ export function ChatsVivoClient({
                     })
                     setFallo(null)
                 }
-                if (seleccionadaId && !cancelado) {
-                    const mensajesNuevos = await obtenerHiloChatVivo(seleccionadaId)
-                    if (!cancelado && mensajesNuevos) {
-                        setHilos((prev) => {
-                            const actual = prev[seleccionadaId] || []
-                            const fusionados = fusionarHilosMensajes(actual, mensajesNuevos)
-                            return {
-                                ...prev,
-                                [seleccionadaId]: fusionados,
-                            }
-                        })
-                    }
+                if (seleccionadaId && !cancelado && mensajesNuevos) {
+                    setHilos((prev) => {
+                        const actual = prev[seleccionadaId] || []
+                        const fusionados = fusionarHilosMensajes(actual, mensajesNuevos)
+                        return {
+                            ...prev,
+                            [seleccionadaId]: fusionados,
+                        }
+                    })
+                    setHilosCargados((prev) => {
+                        if (prev.has(seleccionadaId)) return prev
+                        const next = new Set(prev)
+                        next.add(seleccionadaId)
+                        return next
+                    })
                 }
             } catch {
                 // Silencioso en segundo plano
@@ -915,12 +986,21 @@ export function ChatsVivoClient({
     const conversacionesFiltradas = useMemo(() => {
         const q = busqueda.trim().toLowerCase()
         return conversaciones.filter((c) => {
-            const pasaCategoria = filtro === "todas" || c.categoria === filtro
+            const pasaCategoria =
+                filtro === "todas"
+                    ? true
+                    : filtro === "destacadas"
+                    ? c.destacado
+                    : c.categoria === filtro
             const pasaBusqueda =
                 q.length === 0 || c.nombre.toLowerCase().includes(q) || c.telefono.toLowerCase().includes(q)
             return pasaCategoria && pasaBusqueda
         })
     }, [conversaciones, filtro, busqueda])
+
+    const totalDestacadas = useMemo(() => {
+        return conversaciones.filter((c) => c.destacado).length
+    }, [conversaciones])
 
     const marcarLeido = (id: number) => {
         // 1. Limpiar optimísticamente en el listado local
@@ -978,27 +1058,85 @@ export function ChatsVivoClient({
     }, [seleccionadaId, conversaciones])
 
     useEffect(() => {
-        if (!seleccionada || hilos[seleccionada.id]) return
+        const idActual = seleccionada?.id
+        if (!idActual) return
+        if (hilosCargados.has(idActual)) return
+
+        let cancelado = false
         setFalloHilo(null)
         arrancarCargaHilo(async () => {
             try {
-                const mensajes = await obtenerHiloChatVivo(seleccionada.id)
-                setHilos((prev) => ({ ...prev, [seleccionada.id]: mensajes }))
+                const mensajes = await obtenerHiloChatVivo(idActual)
+                if (cancelado) return
+                setHilos((prev) => {
+                    const actual = prev[idActual] || []
+                    const fusionados = fusionarHilosMensajes(actual, mensajes)
+                    return { ...prev, [idActual]: fusionados }
+                })
+                setHilosCargados((prev) => {
+                    if (prev.has(idActual)) return prev
+                    const next = new Set(prev)
+                    next.add(idActual)
+                    return next
+                })
             } catch (e) {
-                setFalloHilo(e instanceof Error ? e.message : "No se pudo leer el hilo de la conversación")
+                if (!cancelado) {
+                    setFalloHilo(e instanceof Error ? e.message : "No se pudo leer el hilo de la conversación")
+                }
             }
         })
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [seleccionada?.id])
 
-    const chips: { valor: Categoria | "todas"; texto: string }[] = [
+        return () => {
+            cancelado = true
+        }
+    }, [seleccionada?.id, hilosCargados])
+
+    const chips: { valor: Categoria | "destacadas" | "todas"; texto: string; icono?: React.ReactNode }[] = [
         { valor: "todas", texto: "Todas" },
+        { valor: "destacadas", texto: "Destacadas", icono: <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-900 stroke-[1.8] shrink-0" /> },
         { valor: "tecnica", texto: "Técnica" },
         { valor: "negocio", texto: "Negocio" },
         { valor: "precio", texto: "Precio" },
         { valor: "sin_match", texto: "Sin resolver" },
         { valor: "sin_etiqueta", texto: "Sin etiqueta" },
     ]
+
+    const handleToggleDestacado = async (conversationId: number, currentDestacado: boolean) => {
+        const nuevoDestacado = !currentDestacado
+
+        // Actualización optimista del listado local
+        setPanel((prev) => {
+            if (!prev) return prev
+            return {
+                ...prev,
+                conversaciones: prev.conversaciones.map((c) =>
+                    c.id === conversationId ? { ...c, destacado: nuevoDestacado } : c
+                ),
+            }
+        })
+
+        setTogglingDestacado(conversationId)
+        try {
+            const res = await toggleDestacadoChatVivo(conversationId, nuevoDestacado)
+            if (!res.success) {
+                throw new Error("No se pudo actualizar el destacado")
+            }
+        } catch (err) {
+            console.error("Error cambiando estado destacado:", err)
+            // Revertir estado optimista en caso de error
+            setPanel((prev) => {
+                if (!prev) return prev
+                return {
+                    ...prev,
+                    conversaciones: prev.conversaciones.map((c) =>
+                        c.id === conversationId ? { ...c, destacado: currentDestacado } : c
+                    ),
+                }
+            })
+        } finally {
+            setTogglingDestacado(null)
+        }
+    }
 
     const hiloActual = seleccionada ? hilos[seleccionada.id] : undefined
 
@@ -1299,7 +1437,7 @@ export function ChatsVivoClient({
 
             <div className="flex flex-1 min-h-0">
                 {/* Columna izquierda: lista de conversaciones */}
-                <div className="w-[360px] lg:w-[390px] shrink-0 border-r bg-white flex flex-col min-h-0">
+                <div className="w-[420px] lg:w-[480px] xl:w-[520px] shrink-0 border-r bg-white flex flex-col min-h-0">
                     <div className="px-3.5 py-2 bg-[#f0f2f5] shrink-0 flex items-center justify-between">
                         <span className="font-semibold text-[#111b25] text-sm">Conversaciones</span>
                         <span className="text-xs text-gray-500">{conversacionesFiltradas.length}</span>
@@ -1318,19 +1456,39 @@ export function ChatsVivoClient({
                     </div>
 
                     <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto shrink-0 scrollbar-none">
-                        {chips.map((chip) => (
-                            <button
-                                key={chip.valor}
-                                onClick={() => setFiltro(chip.valor)}
-                                className={`text-[11px] px-2.5 py-0.5 rounded-full border whitespace-nowrap transition-colors ${
-                                    filtro === chip.valor
-                                        ? "bg-[#00a884] text-white border-[#00a884]"
-                                        : "bg-white text-[#54656f] border-gray-200 hover:bg-gray-50"
-                                }`}
-                            >
-                                {chip.texto}
-                            </button>
-                        ))}
+                        {chips.map((chip) => {
+                            const esDestacadas = chip.valor === "destacadas"
+                            const estaActivo = filtro === chip.valor
+                            return (
+                                <button
+                                    key={chip.valor}
+                                    onClick={() => setFiltro(chip.valor)}
+                                    className={`text-[11px] px-2.5 py-0.5 rounded-full border whitespace-nowrap transition-colors inline-flex items-center gap-1 ${
+                                        estaActivo
+                                            ? esDestacadas
+                                                ? "bg-amber-500 text-white border-amber-500 font-medium"
+                                                : "bg-[#00a884] text-white border-[#00a884]"
+                                            : esDestacadas && totalDestacadas > 0
+                                            ? "bg-amber-50/80 text-amber-800 border-amber-200 hover:bg-amber-100/80"
+                                            : "bg-white text-[#54656f] border-gray-200 hover:bg-gray-50"
+                                    }`}
+                                >
+                                    {chip.icono}
+                                    <span>{chip.texto}</span>
+                                    {esDestacadas && totalDestacadas > 0 && (
+                                        <span
+                                            className={`text-[10px] px-1 rounded-full ${
+                                                estaActivo
+                                                    ? "bg-white text-amber-700 font-bold"
+                                                    : "bg-amber-200/90 text-amber-900 font-semibold"
+                                            }`}
+                                        >
+                                            {totalDestacadas}
+                                        </span>
+                                    )}
+                                </button>
+                            )
+                        })}
                     </div>
 
                     <div className="flex-1 overflow-y-auto">
@@ -1339,7 +1497,11 @@ export function ChatsVivoClient({
                         )}
                         {!fallo && conversacionesFiltradas.length === 0 && (
                             <p className="text-xs text-gray-400 text-center mt-6">
-                                {cargandoLista ? "Cargando conversaciones…" : "Ninguna conversación con este filtro"}
+                                {cargandoLista
+                                    ? "Cargando conversaciones…"
+                                    : filtro === "destacadas"
+                                    ? "No tenés conversaciones destacadas con estrella"
+                                    : "Ninguna conversación con este filtro"}
                             </p>
                         )}
                         {conversacionesFiltradas.map((c) => {
@@ -1349,7 +1511,7 @@ export function ChatsVivoClient({
                                 <button
                                     key={c.id}
                                     onClick={() => seleccionarConversacion(c.id)}
-                                    className={`w-full flex items-start gap-3 px-3.5 py-2.5 border-b border-gray-100 text-left transition-colors ${
+                                    className={`group w-full flex items-start gap-3 px-3.5 py-2.5 border-b border-gray-100 text-left transition-colors relative ${
                                         activa ? "bg-[#f0f2f5]" : "bg-white hover:bg-[#f5f6f6]"
                                     }`}
                                 >
@@ -1361,36 +1523,71 @@ export function ChatsVivoClient({
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between gap-1">
-                                            <span className="font-medium text-[#111b25] text-sm truncate">{c.nombre}</span>
+                                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                                <span className="font-medium text-[#111b25] text-sm truncate">{c.nombre}</span>
+                                                <span
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleToggleDestacado(c.id, c.destacado)
+                                                    }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === "Enter" || e.key === " ") {
+                                                            e.preventDefault()
+                                                            e.stopPropagation()
+                                                            handleToggleDestacado(c.id, c.destacado)
+                                                        }
+                                                    }}
+                                                    title={c.destacado ? "Quitar de destacados" : "Destacar chat"}
+                                                    className="p-1 -my-1 rounded-md transition-all cursor-pointer shrink-0 hover:scale-125 flex items-center justify-center group/star"
+                                                >
+                                                    <Star
+                                                        className={`h-4 w-4 transition-colors ${
+                                                            c.destacado
+                                                                ? "fill-amber-400 text-black stroke-[1.8]"
+                                                                : "fill-transparent text-gray-700 stroke-[1.8] group-hover/star:text-amber-500 group-hover/star:fill-amber-100"
+                                                        }`}
+                                                    />
+                                                </span>
+                                            </div>
                                             <span className="text-[11px] text-[#667781] shrink-0">{c.horaEtiqueta}</span>
                                         </div>
                                         <div className="flex items-center justify-between gap-1 mt-0.5">
-                                            <span className="text-xs text-[#667781] truncate flex items-center gap-1">
-                                                {c.ultimoMensajePropio ? "Vos: " : ""}
-                                                {c.ultimoMensaje.startsWith("📷") ? (
-                                                    <>
-                                                        <Camera className="h-3 w-3 inline text-emerald-600 shrink-0" />
-                                                        <span>Foto</span>
-                                                    </>
-                                                ) : c.ultimoMensaje.startsWith("🎤") || c.ultimoMensaje.startsWith("🎵") ? (
-                                                    <>
-                                                        <Mic className="h-3 w-3 inline text-emerald-600 shrink-0" />
-                                                        <span>Audio</span>
-                                                    </>
-                                                ) : c.ultimoMensaje.startsWith("🎥") ? (
-                                                    <>
-                                                        <Film className="h-3 w-3 inline text-emerald-600 shrink-0" />
-                                                        <span>Video</span>
-                                                    </>
-                                                ) : c.ultimoMensaje.startsWith("📎") ? (
-                                                    <>
-                                                        <FileText className="h-3 w-3 inline text-emerald-600 shrink-0" />
-                                                        <span>Archivo</span>
-                                                    </>
-                                                ) : (
-                                                    c.ultimoMensaje
-                                                )}
-                                            </span>
+                                            {(() => {
+                                                const { texto: previewTexto, esPropio: previewEsPropio } = limpiarPreviewUltimoMensaje(
+                                                    c.ultimoMensaje,
+                                                    c.ultimoMensajePropio
+                                                )
+                                                return (
+                                                    <span className="text-xs text-[#667781] truncate flex items-center gap-1">
+                                                        {previewEsPropio ? "Vos: " : ""}
+                                                        {previewTexto.startsWith("📷") ? (
+                                                            <>
+                                                                <Camera className="h-3 w-3 inline text-emerald-600 shrink-0" />
+                                                                <span>Foto</span>
+                                                            </>
+                                                        ) : previewTexto.startsWith("🎤") || previewTexto.startsWith("🎵") ? (
+                                                            <>
+                                                                <Mic className="h-3 w-3 inline text-emerald-600 shrink-0" />
+                                                                <span>Audio</span>
+                                                            </>
+                                                        ) : previewTexto.startsWith("🎥") ? (
+                                                            <>
+                                                                <Film className="h-3 w-3 inline text-emerald-600 shrink-0" />
+                                                                <span>Video</span>
+                                                            </>
+                                                        ) : previewTexto.startsWith("📎") ? (
+                                                            <>
+                                                                <FileText className="h-3 w-3 inline text-emerald-600 shrink-0" />
+                                                                <span>Archivo</span>
+                                                            </>
+                                                        ) : (
+                                                            previewTexto
+                                                        )}
+                                                    </span>
+                                                )
+                                            })()}
                                             {c.noLeidos > 0 && (
                                                 <span className="bg-[#25d366] text-white text-[10px] font-semibold rounded-full h-4 min-w-4 px-1 flex items-center justify-center shrink-0">
                                                     {c.noLeidos}
@@ -1459,7 +1656,23 @@ export function ChatsVivoClient({
                                         {seleccionada.iniciales}
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="font-medium text-[#111b25] text-sm truncate">{seleccionada.nombre}</p>
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="font-medium text-[#111b25] text-sm truncate">{seleccionada.nombre}</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleToggleDestacado(seleccionada.id, seleccionada.destacado)}
+                                                title={seleccionada.destacado ? "Quitar de destacados" : "Destacar chat"}
+                                                className="p-1 -my-1 rounded-md transition-all cursor-pointer shrink-0 hover:scale-115 hover:bg-black/5 flex items-center justify-center group/headerstar"
+                                            >
+                                                <Star
+                                                    className={`h-4.5 w-4.5 transition-colors ${
+                                                        seleccionada.destacado
+                                                            ? "fill-amber-400 text-black stroke-[1.8]"
+                                                            : "fill-transparent text-gray-700 stroke-[1.8] group-hover/headerstar:text-amber-500 group-hover/headerstar:fill-amber-100"
+                                                    }`}
+                                                />
+                                            </button>
+                                        </div>
                                         <p className="text-[11px] text-[#667781] truncate">{seleccionada.telefono}</p>
                                     </div>
                                     <span className={`text-[10px] px-1.5 py-0.5 rounded-full border shrink-0 ${CATEGORIA_INFO[seleccionada.categoria].clase}`}>
@@ -1589,18 +1802,18 @@ export function ChatsVivoClient({
                             </div>
 
                             <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5" style={fondoChat}>
-                                {cargandoHilo && !hiloActual && (
+                                {(!hilosCargados.has(seleccionada.id) || (cargandoHilo && !hiloActual)) && (
                                     <div className="flex items-center justify-center h-full text-[#667781] text-xs gap-2">
                                         <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando conversación…
                                     </div>
                                 )}
-                                {falloHilo && !hiloActual && (
+                                {falloHilo && !hilosCargados.has(seleccionada.id) && (
                                     <p className="text-xs text-red-500 text-center mt-6">{falloHilo}</p>
                                 )}
-                                {hiloActual?.length === 0 && (
+                                {hilosCargados.has(seleccionada.id) && hiloActual?.length === 0 && (
                                     <p className="text-xs text-[#667781] text-center mt-6">Sin mensajes en esta conversación</p>
                                 )}
-                                {hiloActual
+                                {hilosCargados.has(seleccionada.id) && hiloActual
                                     ?.filter((m) => {
                                         const txt = m.contenido.trim().toLowerCase()
                                         return !(m.privado && (txt === "/bot on" || txt === "/bot off"))

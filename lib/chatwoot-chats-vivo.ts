@@ -28,6 +28,7 @@ export type ConversacionVivo = {
     ultimaActividad: string // ISO
     noLeidos: number
     botPausado: boolean
+    destacado: boolean
 }
 
 export type PanelChatsVivo = {
@@ -131,6 +132,10 @@ export async function asegurarTablaEspejo() {
             ADD COLUMN IF NOT EXISTS bot_pausado boolean NOT NULL DEFAULT false
         `)
         await prisma.$executeRawUnsafe(`
+            ALTER TABLE chatwoot_conversaciones_espejo
+            ADD COLUMN IF NOT EXISTS destacado boolean NOT NULL DEFAULT false
+        `)
+        await prisma.$executeRawUnsafe(`
             CREATE INDEX IF NOT EXISTS idx_chatwoot_espejo_actividad
                 ON chatwoot_conversaciones_espejo (ultima_actividad DESC)
         `)
@@ -141,6 +146,10 @@ export async function asegurarTablaEspejo() {
         await prisma.$executeRawUnsafe(`
             CREATE INDEX IF NOT EXISTS idx_chatwoot_espejo_status
                 ON chatwoot_conversaciones_espejo (status)
+        `)
+        await prisma.$executeRawUnsafe(`
+            CREATE INDEX IF NOT EXISTS idx_chatwoot_espejo_destacado
+                ON chatwoot_conversaciones_espejo (destacado)
         `)
         tablaAsegurada = true
     } catch (e) {
@@ -165,6 +174,41 @@ export async function guardarConversacionesEnEspejo(items: any[]) {
             const status = (c?.status || "open").toString().slice(0, 50)
             const ultimo = c?.last_non_activity_message || c?.messages?.[c.messages?.length - 1] || (c?.content !== undefined ? c : undefined)
             let ultimoMensaje = ((ultimo?.content || "").toString().trim()).slice(0, 1000)
+            let ultimoMensajePropio = ultimo?.message_type === 1 || ultimo?.message_type === "outgoing"
+
+            // Si es la nota automática del bot cuando el chat está pausado o fuera de horario,
+            // extraemos directamente lo que escribió el cliente:
+            const matchNotaBot = ultimoMensaje.match(/El cliente escribió[^:]*:\s*["“]([\s\S]*?)["”]/i)
+            if (matchNotaBot && matchNotaBot[1]) {
+                ultimoMensaje = matchNotaBot[1].trim()
+                ultimoMensajePropio = false
+            } else if (ultimoMensaje.toLowerCase().includes("el cliente escribió") && ultimoMensaje.includes('"')) {
+                const matchComillas = ultimoMensaje.match(/["“]([\s\S]+?)["”]/)
+                if (matchComillas && matchComillas[1]) {
+                    ultimoMensaje = matchComillas[1].trim()
+                    ultimoMensajePropio = false
+                }
+            } else if (ultimoMensaje.toLowerCase() === "/bot on" || ultimoMensaje.toLowerCase() === "/bot off") {
+                // Si el último mensaje es un comando /bot on o off, buscar el último mensaje real en c.messages
+                if (Array.isArray(c?.messages)) {
+                    for (let i = c.messages.length - 1; i >= 0; i--) {
+                        const mPrev = c.messages[i]
+                        const txt = (mPrev?.content || "").toString().trim()
+                        if (txt && txt.toLowerCase() !== "/bot on" && txt.toLowerCase() !== "/bot off") {
+                            const matchPrev = txt.match(/El cliente escribió[^:]*:\s*["“]([\s\S]*?)["”]/i)
+                            if (matchPrev && matchPrev[1]) {
+                                ultimoMensaje = matchPrev[1].trim()
+                                ultimoMensajePropio = false
+                            } else {
+                                ultimoMensaje = txt.slice(0, 1000)
+                                ultimoMensajePropio = mPrev.message_type === 1 || mPrev.message_type === "outgoing"
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+
             if (!ultimoMensaje) {
                 const att = ultimo?.attachments?.[0]
                 if (att) {
@@ -177,7 +221,6 @@ export async function guardarConversacionesEnEspejo(items: any[]) {
                     ultimoMensaje = "(sin texto)"
                 }
             }
-            const ultimoMensajePropio = ultimo?.message_type === 1 || ultimo?.message_type === "outgoing"
             const noLeidos = Number(c?.unread_count || 0)
             const epochActividad = Number(c?.last_activity_at ?? c?.timestamp ?? 0)
             const fechaActividad = epochActividad > 0 ? new Date(epochActividad * 1000) : new Date()
@@ -301,9 +344,10 @@ export async function listarChatsVivo(periodoDias: number): Promise<PanelChatsVi
         ultimo_mensaje_propio: boolean
         no_leidos: number
         bot_pausado: boolean
+        destacado: boolean
         ultima_actividad: Date
     }[]>`
-        SELECT id, nombre, telefono, status, ultimo_mensaje, ultimo_mensaje_propio, no_leidos, bot_pausado, ultima_actividad
+        SELECT id, nombre, telefono, status, ultimo_mensaje, ultimo_mensaje_propio, no_leidos, bot_pausado, destacado, ultima_actividad
         FROM chatwoot_conversaciones_espejo
         WHERE ultima_actividad >= ${cutoffDate}
         ORDER BY ultima_actividad DESC
@@ -329,6 +373,7 @@ export async function listarChatsVivo(periodoDias: number): Promise<PanelChatsVi
             ultimaActividad: f.ultima_actividad.toISOString(),
             noLeidos: f.no_leidos,
             botPausado: Boolean(f.bot_pausado),
+            destacado: Boolean(f.destacado),
         }
     })
 
@@ -341,6 +386,16 @@ export async function actualizarBotPausadoEnEspejo(conversationId: number, botPa
     await prisma.$executeRaw`
         UPDATE chatwoot_conversaciones_espejo
         SET bot_pausado = ${botPausado}, actualizado_en = NOW()
+        WHERE id = ${BigInt(conversationId)}
+    `
+}
+
+/** Marca o desmarca una conversación como destacada (estrella/favorito) en la tabla espejo. */
+export async function actualizarDestacadoEnEspejo(conversationId: number, destacado: boolean) {
+    await asegurarTablaEspejo()
+    await prisma.$executeRaw`
+        UPDATE chatwoot_conversaciones_espejo
+        SET destacado = ${destacado}, actualizado_en = NOW()
         WHERE id = ${BigInt(conversationId)}
     `
 }

@@ -590,7 +590,8 @@ export function ChatsVivoClient({
     const [periodoDias, setPeriodoDias] = useState(periodoInicialDias)
     const [cargandoLista, arrancarCargaLista] = useTransition()
 
-    const [filtro, setFiltro] = useState<Categoria | "destacadas" | "todas">("todas")
+    type FiltroChats = "todas" | "destacadas" | "pendientes" | Categoria
+    const [filtro, setFiltro] = useState<FiltroChats>("todas")
     const [busqueda, setBusqueda] = useState("")
     const [seleccionadaId, setSeleccionadaId] = useState<number | null>(null)
 
@@ -991,6 +992,8 @@ export function ChatsVivoClient({
                     ? true
                     : filtro === "destacadas"
                     ? c.destacado
+                    : filtro === "pendientes"
+                    ? c.categoria !== "sin_etiqueta"
                     : c.categoria === filtro
             const pasaBusqueda =
                 q.length === 0 || c.nombre.toLowerCase().includes(q) || c.telefono.toLowerCase().includes(q)
@@ -1000,6 +1003,26 @@ export function ChatsVivoClient({
 
     const totalDestacadas = useMemo(() => {
         return conversaciones.filter((c) => c.destacado).length
+    }, [conversaciones])
+
+    const totalPendientes = useMemo(() => {
+        return conversaciones.filter((c) => c.categoria !== "sin_etiqueta").length
+    }, [conversaciones])
+
+    const conteoPorCategoria = useMemo(() => {
+        const conteo: Record<Categoria, number> = {
+            tecnica: 0,
+            negocio: 0,
+            precio: 0,
+            sin_match: 0,
+            sin_etiqueta: 0,
+        }
+        for (const c of conversaciones) {
+            if (c.categoria in conteo) {
+                conteo[c.categoria]++
+            }
+        }
+        return conteo
     }, [conversaciones])
 
     const marcarLeido = (id: number) => {
@@ -1037,10 +1060,15 @@ export function ChatsVivoClient({
     }
 
     useEffect(() => {
-        if (seleccionadaId === null && conversacionesFiltradas.length > 0) {
-            const primerId = conversacionesFiltradas[0].id
-            setSeleccionadaId(primerId)
-            marcarLeido(primerId)
+        if (conversacionesFiltradas.length > 0) {
+            const estaPresente = conversacionesFiltradas.some((c) => c.id === seleccionadaId)
+            if (!estaPresente) {
+                const primerId = conversacionesFiltradas[0].id
+                setSeleccionadaId(primerId)
+                marcarLeido(primerId)
+            }
+        } else if (conversacionesFiltradas.length === 0 && seleccionadaId !== null) {
+            setSeleccionadaId(null)
         }
     }, [conversacionesFiltradas, seleccionadaId])
 
@@ -1091,14 +1119,48 @@ export function ChatsVivoClient({
         }
     }, [seleccionada?.id, hilosCargados])
 
-    const chips: { valor: Categoria | "destacadas" | "todas"; texto: string; icono?: React.ReactNode }[] = [
+    const esModoPendientes =
+        filtro === "pendientes" ||
+        filtro === "tecnica" ||
+        filtro === "negocio" ||
+        filtro === "precio" ||
+        filtro === "sin_match"
+
+    const mainChips: {
+        valor: "todas" | "destacadas" | "pendientes" | "sin_etiqueta"
+        texto: string
+        icono?: React.ReactNode
+        badge?: number
+        badgeClass?: string
+    }[] = [
         { valor: "todas", texto: "Todas" },
-        { valor: "destacadas", texto: "Destacadas", icono: <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-900 stroke-[1.8] shrink-0" /> },
-        { valor: "tecnica", texto: "Técnica" },
-        { valor: "negocio", texto: "Negocio" },
-        { valor: "precio", texto: "Precio" },
-        { valor: "sin_match", texto: "Sin resolver" },
+        {
+            valor: "destacadas",
+            texto: "Destacadas",
+            icono: <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-900 stroke-[1.8] shrink-0" />,
+            badge: totalDestacadas > 0 ? totalDestacadas : undefined,
+            badgeClass: "bg-amber-100 text-amber-800",
+        },
+        {
+            valor: "pendientes",
+            texto: "Pendientes",
+            badge: totalPendientes > 0 ? totalPendientes : undefined,
+            badgeClass: "bg-orange-100 text-orange-800 font-semibold",
+        },
         { valor: "sin_etiqueta", texto: "Sin etiqueta" },
+    ]
+
+    const subChipsPendientes: {
+        valor: "pendientes" | "tecnica" | "negocio" | "precio" | "sin_match"
+        texto: string
+        badge: number
+        claseBadge?: string
+    }[] = [
+        { valor: "pendientes", texto: "Todas", badge: totalPendientes },
+        { valor: "tecnica", texto: "Técnica", badge: conteoPorCategoria.tecnica, claseBadge: "bg-blue-100 text-blue-800" },
+        { valor: "negocio", texto: "Negocio", badge: conteoPorCategoria.negocio, claseBadge: "bg-purple-100 text-purple-800" },
+        { valor: "precio", texto: "Precio", badge: conteoPorCategoria.precio, claseBadge: "bg-amber-100 text-amber-800" },
+        { valor: "sin_match", texto: "Sin resolver", badge: conteoPorCategoria.sin_match, claseBadge: "bg-orange-100 text-orange-800" },
     ]
 
     const handleToggleDestacado = async (conversationId: number, currentDestacado: boolean) => {
@@ -1456,9 +1518,10 @@ export function ChatsVivoClient({
                     </div>
 
                     <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto shrink-0 scrollbar-none">
-                        {chips.map((chip) => {
+                        {mainChips.map((chip) => {
                             const esDestacadas = chip.valor === "destacadas"
-                            const estaActivo = filtro === chip.valor
+                            const esPendientes = chip.valor === "pendientes"
+                            const estaActivo = esPendientes ? esModoPendientes : filtro === chip.valor
                             return (
                                 <button
                                     key={chip.valor}
@@ -1467,29 +1530,65 @@ export function ChatsVivoClient({
                                         estaActivo
                                             ? esDestacadas
                                                 ? "bg-amber-500 text-white border-amber-500 font-medium"
+                                                : esPendientes
+                                                ? "bg-orange-600 text-white border-orange-600 font-medium"
                                                 : "bg-[#00a884] text-white border-[#00a884]"
                                             : esDestacadas && totalDestacadas > 0
                                             ? "bg-amber-50/80 text-amber-800 border-amber-200 hover:bg-amber-100/80"
+                                            : esPendientes && totalPendientes > 0
+                                            ? "bg-orange-50 text-orange-800 border-orange-200 hover:bg-orange-100/80"
                                             : "bg-white text-[#54656f] border-gray-200 hover:bg-gray-50"
                                     }`}
                                 >
                                     {chip.icono}
                                     <span>{chip.texto}</span>
-                                    {esDestacadas && totalDestacadas > 0 && (
+                                    {chip.badge !== undefined && (
                                         <span
                                             className={`text-[10px] px-1 rounded-full ${
                                                 estaActivo
-                                                    ? "bg-white text-amber-700 font-bold"
-                                                    : "bg-amber-200/90 text-amber-900 font-semibold"
+                                                    ? "bg-white text-gray-800 font-bold"
+                                                    : chip.badgeClass || "bg-gray-100 text-gray-600"
                                             }`}
                                         >
-                                            {totalDestacadas}
+                                            {chip.badge}
                                         </span>
                                     )}
                                 </button>
                             )
                         })}
                     </div>
+
+                    {esModoPendientes && (
+                        <div className="flex gap-1 px-3 py-1.5 overflow-x-auto shrink-0 scrollbar-none bg-orange-50/50 border-y border-orange-100">
+                            {subChipsPendientes.map((sub) => {
+                                const estaActivo = filtro === sub.valor
+                                return (
+                                    <button
+                                        key={sub.valor}
+                                        onClick={() => setFiltro(sub.valor)}
+                                        className={`text-[10px] px-2 py-0.5 rounded-md border whitespace-nowrap transition-colors inline-flex items-center gap-1 ${
+                                            estaActivo
+                                                ? "bg-orange-600 text-white border-orange-600 font-medium shadow-xs"
+                                                : "bg-white text-gray-600 border-gray-200 hover:bg-orange-50/80"
+                                        }`}
+                                    >
+                                        <span>{sub.texto}</span>
+                                        {sub.badge > 0 && (
+                                            <span
+                                                className={`text-[9px] px-1 rounded-full ${
+                                                    estaActivo
+                                                        ? "bg-white/20 text-white font-bold"
+                                                        : sub.claseBadge || "bg-gray-100 text-gray-600"
+                                                }`}
+                                            >
+                                                {sub.badge}
+                                            </span>
+                                        )}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    )}
 
                     <div className="flex-1 overflow-y-auto">
                         {fallo && conversaciones.length === 0 && (
@@ -1501,6 +1600,8 @@ export function ChatsVivoClient({
                                     ? "Cargando conversaciones…"
                                     : filtro === "destacadas"
                                     ? "No tenés conversaciones destacadas con estrella"
+                                    : esModoPendientes
+                                    ? "No hay consultas pendientes con este filtro 🎉"
                                     : "Ninguna conversación con este filtro"}
                             </p>
                         )}

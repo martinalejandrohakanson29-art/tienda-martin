@@ -357,9 +357,132 @@ Orden real del procesamiento de un mensaje entrante:
   parecidos…", cero mensaje al cliente. **Gotcha:** forzar `candidatos` con mensajes sintéticos es
   poco fiable (el LLM tira `ninguno` o `kit_confiado` seguido) — hizo falta nombrar 2 kits explícitos.
   Ver [[project-chatwoot-grupo-vs-kit-simple-drift]].
-- **Pendiente:** contestarle a mano a Gabriel (conv 3078) — quedó esperando la variante corto/largo
-  ("averiguo con el mecánico"), lead caliente sin seguimiento. `rutas-bot-chatwoot.html` sigue
-  desactualizado.
+- **Kit/grupo esperando corto/largo: una consulta pegada en la ráfaga ya no se descarta
+  (2026-09-01).** Mismo bug que el de conv 3078 (grupo esperando la moto), pero en la rama gemela
+  del **kit simple esperando la variante**. Caso real conv 3153 (+5492625419260, "Joacoo"): Kit 120
+  pineado esperando corto/largo, el cliente mandó "no sé, tendría que averiguarme" + "soy de Gral
+  Alvear Mza, cuántos días tarda?" pegado. `Resolver Variante` devolvió `espera_respuesta:true` →
+  `¿Cliente Va a Responder Luego? (Variante)` [true] iba **directo al silencio**
+  (`Fin - Cliente Avisó Que Responde (Variante)`), descartando la pregunta de envío. Sin respuesta,
+  sin nota. Ejecución n8n #92969. Fix: esa rama true ahora pasa primero por un mini-clasificador
+  (5 nodos nuevos, 450→455: `Extraer/Parsear Consulta Pegada (Espera Variante)` + 3 If
+  `¿Consulta Pegada: Precio?/Negocio?/Otro?`) que reusa el prompt/parser de
+  `Extraer/Parsear Tema Negocio (Esperando Variante)` (el modelo `DeepSeek Chat Model - Tema
+  Negocio (Esperando Variante)` alimenta los dos agentes) y termina en los nodos que ya existían:
+  `Enviar Precio Grupo` / `Buscar Info Negocio (Esperando Variante)` / `Registrar Pendiente Negocio
+  (Esperando Variante)`. Si el clasificador da "nada" → cae al mismo silencio de hoy. El pin sigue
+  esperando la variante, no se toca; el camino "eligió corto/largo" queda intacto. Script
+  `apply-fix-consulta-pegada-espera-variante.mjs`. Rollback: versión n8n
+  `b267b9b9-29a5-4279-ad67-72f5b29d4975`.
+  - **Fix 2, destapado en la validación:** `Buscar Info Negocio (Esperando Variante)` servía el
+    **formulario** "Datos para envío" (id 13, NOMBRE/DNI/DOMICILIO...) en vez de la política real de
+    envíos (id 10) — mismo bug de `ORDER BY creado_en DESC` que ya se arregló en
+    `Buscar Info Negocio (Envio General)` el 31/08, pero en este nodo gemelo. Ahora ordena por mejor
+    match (`rm_score(tema,tema_sql) + rm_score(tema_sql,tema) DESC` antes que fecha); como usa
+    `{{ $json.tema_sql }}` dinámico, sirve para cualquier tema. Script
+    `apply-info-negocio-espera-variante-mejor-match.mjs`. Rollback:
+    `278468a6-4c42-4508-a545-42385dc10164`.
+  - **Validado en vivo** (conv de prueba 2411, vía webhook sintético — cola de n8n lenta, varios
+    min por ejecución): plantilla Kit 120 → moto compatible → bot pregunta corto/largo → ráfaga
+    "ni idea, tendría que fijarme con el mecánico" + "soy de Córdoba capital, cuánto tarda el
+    envío?" → exec 93074: `Resolver Variante` = `espera_respuesta:true` → `Extraer Consulta Pegada`
+    = `negocio/envios` → `Buscar Info Negocio (Esperando Variante)` devuelve la política real
+    ("Hacemos envíos a todo el país por Andreani…") → mandada al cliente. Antes: silencio total.
+    Regresión OK: exec 93039 (cliente real, "estoy trabajando, te digo apenas me desocupe" sin
+    consulta pegada) pasó por los nodos nuevos y cayó en el silencio de siempre.
+- **Grupo esperando la moto: variante adelantada + pieza pegada que no se descarta
+  (2026-09-01).** Caso real conv 3166 (+5492224553988, "Esteban"). Plantilla del grupo "Combo
+  110 a 120 + Codo y carbu" → ráfaga: "ando buscando recorrido corto" / "cómo sería la entrega"
+  / "consulta leva de calle 6.5 tienen". El bot contestó solo el envío y volvió a preguntar la
+  moto; se perdió (a) la elección de variante — cuando diera la moto y confirmara compat, le
+  iba a **re-preguntar corto/largo**; (b) "leva de calle 6.5" cayó en `otro`, se fusionó con
+  otro pedazo y se descartó sin escalar. Ejecución n8n #93119. Cuatro cambios (script
+  `apply-variante-anticipada-grupo-espera-moto.mjs`, 455→459 nodos; rollback versión n8n
+  `d96734b7-bdf2-454f-8679-975cbf851e98`):
+  1. Categoría nueva `variante` en `Dividir y Etiquetar Sub-preguntas` (solo si
+     `esperando_moto_grupo`, igual que `moto`). Cuando el cliente adelanta corto/largo,
+     `Parsear Sub-preguntas` lo resuelve a un `pack_id` sin IA (match por `criterio_variante`,
+     con fallback a `corto`/`largo`) y lo guarda en Redis (`variante_anticipada:{tel}`, TTL 96h,
+     `{grupo_id, pack_id}`) vía el nodo nuevo `Guardar Variante Anticipada (Grupo)` (dead-end
+     colgado del If nuevo `¿Capturó Variante Anticipada? (Grupo)`).
+  2. Consumo: en la rama "compat OK" del grupo, `¿Es Compatible (Grupo)?` [true] pasa primero
+     por `Leer Variante Anticipada (Grupo)` (Redis get) antes de `Resolver Variante Anticipada`;
+     `Parsear Variante Anticipada` usa esa clave como fallback cuando la IA no encontró variante
+     en el mensaje actual → `¿Variante Anticipada Resuelta?` = true → `Borrar Variante Anticipada
+     (Grupo)` → `Marcar Pack Final Pineado` → manda directo la bienvenida del pack, sin
+     re-preguntar. El parser valida `grupo_id` + pertenencia del `pack_id` (clave stale de otro
+     grupo se ignora).
+  3. `Parsear Sub-preguntas` (rama grupo esperando moto): los pedazos `otro` que quedan cuando
+     además se está contestando algo (envío/negocio/reenvío) **ya no se descartan** → se suman a
+     la salida y escalan al equipo. El camino "`otro`-solo" (chance al extractor de modelo)
+     queda igual; el `otro`-solo con bienvenida fresca sigue en silencio.
+  4. `grupo_repregunta_texto` (armado en `Preparar Contexto Sub-preguntas`, no en base) saca el
+     nombre interno del kit: "…si el Kit 120 para 110 te sirve" → "…si te sirve".
+  Se agregaron al workflow "Utilidad - Limpiar Pin de Prueba" las claves `resto_grupo_intentos`,
+  `cierre_reciente`, `variante_anticipada`, `repregunta_candidatos_intentos`,
+  `candidatos_escalado` (antes solo borraba `kit_pineado`/`incompatible_reciente`/etc.; un
+  `resto_grupo_intentos` viejo en 3 arrastró la primera pasada de validación al tope de
+  reintentos).
+  **Validado en vivo** (conv 2411): plantilla grupo → "ando buscando recorrido corto" +
+  "entrega" + "leva 6.5" pegados → contesta envío, escala "leva 6.5", re-pregunta la moto sin
+  nombre interno, guarda `variante_anticipada` pack 3 (exec 93184); "ando buscando recorrido
+  corto" solo → captura + re-pregunta la moto (exec 93224); "zanella zb 110" (compatible) →
+  "Genial, entonces le va perfecto el Kit 120 recorrido corto — $99.000…" + foto, **sin**
+  preguntar corto/largo (exec ~93232). Ver [[project-chatwoot-grupo-vs-kit-simple-drift]].
+- **Reuso difuso de "conocimiento libre (sin_match)" DESACTIVADO (2026-09-01).** Caso disparador:
+  conv 3109 (+5493815420503, "Benja"). Entró por un anuncio cuya plantilla dice "combo 110 a **140**
+  + Codo y carbu" (el kit real es "110 a 120") → no matcheó exacto → cayó en el partidor como
+  `otro`. `Buscar en Conocimiento Libre (Sin Match)` comparó el texto por parecido difuso
+  (`rm_score(clave||pregunta, texto) >= 0.75`, una sola dirección) contra las respuestas viejas del
+  equipo y matcheó (score 0.857) la fila 190: otro cliente había pedido un "cubre amortiguador"
+  para su "Motomel Blitz 2013". El bot le mandó a Benja esa respuesta — moto y pieza que nunca
+  nombró. Ejecución n8n #92533. Auditoría de las 169 filas `sin_match`: ~51 precios sueltos, ~30
+  compat sí/no atadas a una moto puntual, ~8 preguntas de una palabra ("?", "110", "Te queda"),
+  resto atado al hilo; solo ~14 datos generales reutilizables, y esos ya están en `info_negocio`.
+  La premisa misma (matchear mensaje libre contra respuestas viejas y mandarlo casi tal cual) es
+  "adivinar" — contra el principio del aliviador. Decisión (Martín): **apagar el reuso + archivar
+  la tabla**, en vez de limpiarla + endurecer el match. Cambios (script
+  `apply-desactivar-reuso-conocimiento-libre-sinmatch.mjs`, 0 nodos nuevos, 0 rewiring, solo 2
+  SQL): (1) `Buscar en Conocimiento Libre (Sin Match)` → query fija `SELECT NULL::text AS respuesta`
+  (una fila, para no romper la referencia `$('...').item` de `Consolidar Dato Resuelto`); todo lo
+  que no se resuelve por otro lado escala. (2) `Guardar en Conocimiento Libre (Sin Match)` sigue
+  insertando (para no cortar el flujo hacia `Marcar Pendiente Sin Match Respondida`) pero en
+  categoría `sin_match_archivado`, que nadie lee. (3) `archivar-conocimiento-libre-sinmatch.mjs`
+  volcó las 169 filas a `conocimiento-libre-sinmatch-archivado_2026-09-01.json` y las pasó a
+  `sin_match_archivado`. El circuito de la Fase 7 (nota del equipo → respuesta al cliente con voz
+  del bot → marcar respondida) **no se tocó**: solo se cortó el reuso proactivo. Rollback n8n:
+  versión `642cff23-84d1-4787-8838-26c9ef14628f`. Las categorías `precio`/`negocio`/`tecnica` de
+  `conocimiento_libre` (las lee otro nodo del partidor) quedan intactas.
+- **Regla de compat NEGATIVA atada a una cilindrada ya no bloquea al modelo "pelado" (2026-09-01).**
+  Caso real conv 3131 (+5492975288540). Entró por el anuncio del Combo Escape PWR + Leva 6.40
+  (grupo 2), dijo "Tengo un motomel blitz" (sin cilindrada) y el bot le dijo *"no es compatible…
+  Motor distinto a la Blitz 110 china"*. Causa: en `chat_articulo_compatibilidad` hay, por cada
+  pieza del combo, DOS reglas que matchean — `motomel blitz 110 = SÍ` (20/08) y `motomel blitz
+  125 = NO` (22/08, cargada a mano por `fix-rm-modelo-ok-conflicto-cilindrada.sql` para un caso
+  real de Blitz 125). Como "blitz" pelado no entra en conflicto con ningún número,
+  `rm_numeros_conflictivos` no lo bloquea → `rm_modelo_ok` da true para las dos, y el CTE
+  `articulo` ordena `compatible ASC` → gana el "NO". Decisión (Martín): **"inclinarse por el
+  SÍ"** — una regla negativa con cilindrada explícita SOLO aplica si el cliente nombró esa
+  cilindrada. Fix (script `apply-compat-negativa-requiere-cilindrada.mjs`, 0 nodos nuevos):
+  (1) función nueva `rm_numero_guardado_no_mencionado(guardado, consulta)` —
+  `fix-compat-negativa-requiere-cilindrada.sql` (true ⟺ el lado guardado tiene ≥1 número y
+  ninguno aparece en la consulta); (2) en los **4** nodos `Buscar Compatibilidad *` (Kit, Grupo,
+  Candidatos, Kit Confiado), el CTE `articulo` gana `AND NOT (compatible = false AND
+  rm_numero_guardado_no_mencionado(modelo_moto, '<consulta>'))`. Reglas negativas SIN número
+  (wave, biz, crypton sin cilindrada) no se tocan; cliente que SÍ dice "125" tampoco. Regresión
+  (248 filas reales × 164 consultas × 3 grupos): único flip a `compatible=true` es "motomel
+  blitz" (el bug); otros 3 flips van a `null` → escala al equipo (seguro); 0 filas negativas
+  rotas contra sí mismas. Validado contra la query real deployada (grupo 2 / "motomel blitz" →
+  `compatible: true`). Rollback n8n: versión `b6524bc3-33f0-496a-b266-14817e9cd4dc`. **Pendiente:**
+  contestarle a mano a este cliente (conv 3131) — quedó con el "no" equivocado; probable que su
+  Blitz 110 sí sea compatible. Ver [[fix-bot-compat-wave-parser-y-pieza-periferica]] y
+  [[project-chatwoot-grupo-vs-kit-simple-drift]].
+- **Pendiente:** revisar el anuncio "combo 110 a 140 + Codo y carbu" (¿typo de marketing por "120",
+  o campaña nueva sin cargar?) — si queda así, todo el que entre por ahí falla el match exacto;
+  cargar esa plantilla/referral en el Kit 120 lo manda al camino feliz. Contestarle a mano a Benja
+  (conv 3109) — quedó con la respuesta equivocada como último mensaje. Ídem Esteban (conv 3166,
+  +5492224553988, "leva de calle 6.5", equipo ya le pasó el precio 01/09, `/bot off`), Joaco
+  (conv 3153, +5492625419260) y Gabriel (conv 3078). `rutas-bot-chatwoot.html` sigue desactualizado.
 
 ## Filosofía de diseño (para cuando pidan algo nuevo)
 

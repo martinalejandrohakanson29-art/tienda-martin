@@ -73,6 +73,41 @@ export default function CuentaCorrienteClient({
   const [isSaldosMenuOpen, setIsSaldosMenuOpen] = useState(false);
   const saldosMenuRef = useRef<HTMLDivElement>(null);
 
+  // Proveedores prioritarios (persistido en localStorage)
+  const [prioritarios, setPrioritarios] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("cc_proveedores_prioritarios");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setPrioritarios(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Error al cargar proveedores prioritarios de localStorage", e);
+    }
+  }, []);
+
+  const togglePrioritario = (id: string) => {
+    setPrioritarios((prev) => {
+      const next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      try {
+        localStorage.setItem("cc_proveedores_prioritarios", JSON.stringify(next));
+      } catch (e) {
+        console.error("Error al guardar proveedores prioritarios en localStorage", e);
+      }
+      return next;
+    });
+  };
+
+  const prioritariosProveedores = useMemo(() => {
+    return proveedoresIniciales
+      .filter((p) => prioritarios.includes(p.id))
+      .sort((a, b) => (a.razonSocial || "").localeCompare(b.razonSocial || "", "es", { sensitivity: "base" }));
+  }, [proveedoresIniciales, prioritarios]);
+
   useEffect(() => {
     if (!isSaldosMenuOpen) return;
     const handler = (e: MouseEvent) => {
@@ -453,96 +488,203 @@ export default function CuentaCorrienteClient({
             {processedProveedores.length} proveedores encontrados
           </div>
         </div>
+
+        {/* Bloque de Proveedores Prioritarios */}
+        {prioritariosProveedores.length > 0 && (
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-500/15 dark:via-amber-500/5 border border-amber-300/70 dark:border-amber-700/50 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span
+                  className="material-symbols-outlined text-amber-500 text-xl"
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  star
+                </span>
+                <h2 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                  Proveedores Prioritarios
+                </h2>
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300">
+                  {prioritariosProveedores.length}
+                </span>
+              </div>
+              <span className="text-[11px] font-medium text-slate-400">
+                Mostrando nombre y saldo
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {prioritariosProveedores.map((p) => (
+                <div
+                  key={p.id}
+                  className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-400/80 dark:hover:border-amber-500/60 transition-all shadow-xs hover:shadow-md flex items-center justify-between gap-3 group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      href={`/admin/erp/movimientos?proveedor=${p.id}`}
+                      className="block font-bold text-sm text-slate-900 dark:text-white truncate hover:text-[#2b8cee] transition-colors"
+                      title={p.razonSocial}
+                    >
+                      {p.razonSocial}
+                    </Link>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Saldo:
+                      </span>
+                      <span
+                        className={`text-xs font-black ${
+                          p.total < 0
+                            ? "text-red-500"
+                            : p.total > 0
+                            ? "text-emerald-500"
+                            : "text-slate-700 dark:text-slate-300"
+                        }`}
+                      >
+                        {formatCurrency(p.total)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Link
+                      href={`/admin/erp/movimientos?proveedor=${p.id}`}
+                      className="p-1 rounded-lg text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                      title="Ver movimientos"
+                    >
+                      <span className="material-symbols-outlined text-sm">chevron_right</span>
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => togglePrioritario(p.id)}
+                      className="p-1 rounded-lg text-amber-500 hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
+                      title="Quitar de prioritarios"
+                    >
+                      <span
+                        className="material-symbols-outlined text-lg"
+                        style={{ fontVariationSettings: "'FILL' 1" }}
+                      >
+                        star
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Content Area: Grid or List */}
       {processedProveedores.length > 0 ? (
         viewMode === "card" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {processedProveedores.map((proveedor) => (
-              <div
-                key={proveedor.id}
-                className="group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-[#2b8cee]/50 transition-all duration-300 hover:shadow-xl flex flex-col relative"
-              >
-                {/* Action Buttons Overlay */}
-                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleEditClick(proveedor)}
-                    className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-[#2b8cee] hover:border-[#2b8cee] transition-all"
-                  >
-                    <span className="material-symbols-outlined text-sm">edit</span>
-                  </button>
-                  <button
-                    onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
-                    className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-red-500 hover:border-red-500 transition-all"
-                  >
-                    <span className="material-symbols-outlined text-sm">delete</span>
-                  </button>
-                </div>
-
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-[#2b8cee]/10 flex items-center justify-center text-[#2b8cee] group-hover:bg-[#2b8cee] group-hover:text-white transition-colors duration-300">
-                    <span className="material-symbols-outlined text-2xl">
-                      business
-                    </span>
+            {processedProveedores.map((proveedor) => {
+              const isPrioritario = prioritarios.includes(proveedor.id);
+              return (
+                <div
+                  key={proveedor.id}
+                  className="group bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-[#2b8cee]/50 transition-all duration-300 hover:shadow-xl flex flex-col relative"
+                >
+                  {/* Action Buttons Overlay */}
+                  <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <button
+                      onClick={() => handleEditClick(proveedor)}
+                      className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-[#2b8cee] hover:border-[#2b8cee] transition-all"
+                      title="Editar"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
+                      className="p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur shadow-sm border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:text-red-500 hover:border-red-500 transition-all"
+                      title="Eliminar"
+                    >
+                      <span className="material-symbols-outlined text-sm">delete</span>
+                    </button>
                   </div>
-                  <div className="text-right pr-10">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      CUIT
-                    </span>
-                    <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
-                      {proveedor.cuit || "---"}
+
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-12 h-12 rounded-xl bg-[#2b8cee]/10 flex items-center justify-center text-[#2b8cee] group-hover:bg-[#2b8cee] group-hover:text-white transition-colors duration-300">
+                        <span className="material-symbols-outlined text-2xl">
+                          business
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => togglePrioritario(proveedor.id)}
+                        className={`p-2 rounded-xl transition-all flex items-center justify-center ${
+                          isPrioritario
+                            ? "text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 shadow-xs"
+                            : "text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        }`}
+                        title={isPrioritario ? "Quitar de prioritarios" : "Marcar como prioritario"}
+                      >
+                        <span
+                          className="material-symbols-outlined text-xl"
+                          style={{ fontVariationSettings: isPrioritario ? "'FILL' 1" : "'FILL' 0" }}
+                        >
+                          star
+                        </span>
+                      </button>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        CUIT
+                      </span>
+                      <p className="text-xs font-mono text-slate-600 dark:text-slate-400">
+                        {proveedor.cuit || "---"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate">
+                    {proveedor.razonSocial}
+                  </h3>
+                  {proveedor.nombreFantasia && (
+                    <p className="text-sm text-[#2b8cee] font-medium mb-4">
+                      {proveedor.nombreFantasia}
                     </p>
+                  )}
+
+                  <div className="flex-grow" />
+
+                  <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span className="material-symbols-outlined text-sm">mail</span>
+                      <span className="truncate">{proveedor.email || "Sin email"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <span className="material-symbols-outlined text-sm">call</span>
+                      <span>{proveedor.telefono || proveedor.celular || "Sin contacto"}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-indigo-600 font-medium">
+                      <span className="material-symbols-outlined text-sm">payments</span>
+                      <span className="truncate">{proveedor.aliasCbu || "Sin alias/cbu"}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-between">
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Saldo Total
+                      </span>
+                      <span className={`text-xl font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
+                        {formatCurrency(proveedor.total)}
+                      </span>
+                      {proveedor.esMayorista && (
+                        <BadgeMayorista ultimaCompra={proveedor.ultimaCompra} />
+                      )}
+                    </div>
+                    <Link
+                      href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
+                      className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#2b8cee] hover:text-white transition-all"
+                    >
+                      <span className="material-symbols-outlined">chevron_right</span>
+                    </Link>
                   </div>
                 </div>
-
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1 truncate">
-                  {proveedor.razonSocial}
-                </h3>
-                {proveedor.nombreFantasia && (
-                  <p className="text-sm text-[#2b8cee] font-medium mb-4">
-                    {proveedor.nombreFantasia}
-                  </p>
-                )}
-
-                <div className="flex-grow" />
-
-                <div className="space-y-2 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span className="material-symbols-outlined text-sm">mail</span>
-                    <span className="truncate">{proveedor.email || "Sin email"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span className="material-symbols-outlined text-sm">call</span>
-                    <span>{proveedor.telefono || proveedor.celular || "Sin contacto"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-indigo-600 font-medium">
-                    <span className="material-symbols-outlined text-sm">payments</span>
-                    <span className="truncate">{proveedor.aliasCbu || "Sin alias/cbu"}</span>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex items-center justify-between">
-                  <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Saldo Total
-                    </span>
-                    <span className={`text-xl font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
-                      {formatCurrency(proveedor.total)}
-                    </span>
-                    {proveedor.esMayorista && (
-                      <BadgeMayorista ultimaCompra={proveedor.ultimaCompra} />
-                    )}
-                  </div>
-                  <Link
-                    href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
-                    className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-[#2b8cee] hover:text-white transition-all"
-                  >
-                    <span className="material-symbols-outlined">chevron_right</span>
-                  </Link>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
@@ -557,56 +699,78 @@ export default function CuentaCorrienteClient({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {processedProveedores.map((proveedor) => (
-                    <tr
-                      key={proveedor.id}
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-slate-900 dark:text-white">{proveedor.razonSocial}</span>
-                          {proveedor.nombreFantasia && (
-                            <span className="text-xs text-[#2b8cee]">{proveedor.nombreFantasia}</span>
-                          )}
-                          <span className="text-[10px] text-slate-400 font-mono mt-0.5">{proveedor.cuit || "---"}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        {proveedor.esMayorista
-                          ? <BadgeMayorista ultimaCompra={proveedor.ultimaCompra} />
-                          : <span className="text-xs text-slate-300">—</span>
-                        }
-                      </td>
-                      <td className={`px-6 py-4 text-right text-base font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
-                        {formatCurrency(proveedor.total)}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEditClick(proveedor)}
-                            className="p-2 text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
-                            title="Editar"
-                          >
-                            <span className="material-symbols-outlined text-sm">edit</span>
-                          </button>
-                          <Link
-                            href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
-                            className="p-2 text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
-                            title="Ver movimientos"
-                          >
-                            <span className="material-symbols-outlined text-sm">visibility</span>
-                          </Link>
-                          <button
-                            onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
-                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
-                            title="Eliminar"
-                          >
-                            <span className="material-symbols-outlined text-sm">delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {processedProveedores.map((proveedor) => {
+                    const isPrioritario = prioritarios.includes(proveedor.id);
+                    return (
+                      <tr
+                        key={proveedor.id}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => togglePrioritario(proveedor.id)}
+                              className={`p-1.5 rounded-lg transition-all ${
+                                isPrioritario
+                                  ? "text-amber-500 hover:text-amber-600 bg-amber-50 dark:bg-amber-950/40"
+                                  : "text-slate-300 dark:text-slate-600 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                              }`}
+                              title={isPrioritario ? "Quitar de prioritarios" : "Marcar como prioritario"}
+                            >
+                              <span
+                                className="material-symbols-outlined text-lg"
+                                style={{ fontVariationSettings: isPrioritario ? "'FILL' 1" : "'FILL' 0" }}
+                              >
+                                star
+                              </span>
+                            </button>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-900 dark:text-white">{proveedor.razonSocial}</span>
+                              {proveedor.nombreFantasia && (
+                                <span className="text-xs text-[#2b8cee]">{proveedor.nombreFantasia}</span>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-mono mt-0.5">{proveedor.cuit || "---"}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {proveedor.esMayorista
+                            ? <BadgeMayorista ultimaCompra={proveedor.ultimaCompra} />
+                            : <span className="text-xs text-slate-300">—</span>
+                          }
+                        </td>
+                        <td className={`px-6 py-4 text-right text-base font-black ${proveedor.total < 0 ? 'text-red-500' : proveedor.total > 0 ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}`}>
+                          {formatCurrency(proveedor.total)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEditClick(proveedor)}
+                              className="p-2 text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                              title="Editar"
+                            >
+                              <span className="material-symbols-outlined text-sm">edit</span>
+                            </button>
+                            <Link
+                              href={`/admin/erp/movimientos?proveedor=${proveedor.id}`}
+                              className="p-2 text-slate-400 hover:text-[#2b8cee] hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                              title="Ver movimientos"
+                            >
+                              <span className="material-symbols-outlined text-sm">visibility</span>
+                            </Link>
+                            <button
+                              onClick={() => handleDeleteClick(proveedor.id, proveedor.razonSocial)}
+                              className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                              title="Eliminar"
+                            >
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
